@@ -1,0 +1,10 @@
+# Placeholder template only. Not production-ready.
+#
+# Future per-node Authelia config must use node-specific:
+# - auth host
+# - session secret
+# - storage encryption key
+# - cookie/session scope
+# - user database path
+#
+# Do not commit real secrets or password hashes.

@@ -1,0 +1,17 @@
+# Example registry only. Domains are placeholders.
+nodes:
+  - id: node1
+    domain: node1.example.com
+    auth_host: auth-node1.example.com
+    compose_project: hermes_node1
+    stack_root: /opt/hermes-corporate-v1/node1
+  - id: node2
+    domain: node2.example.com
+    auth_host: auth-node2.example.com
+    compose_project: hermes_node2
+    stack_root: /opt/hermes-corporate-v1/node2
+  - id: node3
+    domain: node3.example.com
+    auth_host: auth-node3.example.com
+    compose_project: hermes_node3
+    stack_root: /opt/hermes-corporate-v1/node3

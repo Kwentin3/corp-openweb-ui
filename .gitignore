@@ -1,0 +1,45 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Logs and runtime data
+logs/
+*.log
+data/
+runtime/
+tmp/
+temp/
+
+# Build/cache artifacts
+node_modules/
+dist/
+build/
+.cache/
+.pytest_cache/
+__pycache__/
+*.zip
+*.tar
+*.tar.gz
+
+# Docker local overrides
+docker-compose.override.yml
+compose.override.yml

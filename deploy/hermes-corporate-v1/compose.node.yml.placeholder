@@ -1,0 +1,12 @@
+# Placeholder only. This is not a production Docker Compose file.
+#
+# Future compose contract should define one isolated Hermes solo stack per node:
+# - unique COMPOSE_PROJECT_NAME
+# - unique STACK_ROOT
+# - per-node internal Docker network
+# - per-node Hermes runtime/context
+# - per-node Authelia
+# - per-node data/config/log/secret mounts
+# - Traefik labels with node-specific router/service/middleware names
+#
+# Do not add real secrets or server-local values here.

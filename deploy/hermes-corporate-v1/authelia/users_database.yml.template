@@ -1,0 +1,4 @@
+# Placeholder template only.
+#
+# Do not commit real users or password hashes.
+# Future deployment must generate server-local users_database.yml outside git.
