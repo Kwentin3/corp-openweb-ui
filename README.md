@@ -54,6 +54,7 @@ bash scripts/smoke-test.sh --strict-tls
 - Compose plan: [docs/infra/DOCKER_COMPOSE_PLAN.md](docs/infra/DOCKER_COMPOSE_PLAN.md)
 - Env variables: [docs/infra/ENVIRONMENT_VARIABLES.md](docs/infra/ENVIRONMENT_VARIABLES.md)
 - Provider plan: [docs/infra/PROVIDER_CONNECTIONS_PLAN.md](docs/infra/PROVIDER_CONNECTIONS_PLAN.md)
+- Web search provider research: [docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md](docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md)
 - Deployment runbook: [docs/ops/DEPLOYMENT_RUNBOOK.md](docs/ops/DEPLOYMENT_RUNBOOK.md)
 - Docker bootstrap: [docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md](docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md)
 - Host hardening runbook: [docs/ops/HOST_HARDENING_RUNBOOK.md](docs/ops/HOST_HARDENING_RUNBOOK.md)
