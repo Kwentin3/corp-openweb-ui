@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -eu
+umask 077
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-/opt/backups/openwebui-prd0}"

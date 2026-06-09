@@ -43,6 +43,33 @@ docker compose --env-file .env -f compose/openwebui.compose.yml logs --tail=200 
 - наличие доступа сервера к внешнему API;
 - выбранную модель в Admin UI.
 
+## WebSocket или CORS errors
+
+Проверить `CORS_ALLOW_ORIGIN`:
+
+```bash
+grep CORS_ALLOW_ORIGIN .env
+docker compose --env-file .env -f compose/openwebui.compose.yml logs --tail=200 openwebui
+```
+
+Для PRD-0 ожидаемо:
+
+```text
+CORS_ALLOW_ORIGIN=https://gpt.alpha-soft.ru
+```
+
+Если пользователи заходят через другой hostname, его нужно добавить явно через `;`, либо запретить такой способ доступа.
+
+## Пользователей разлогинило после пересоздания контейнера
+
+Проверить, что `WEBUI_SECRET_KEY` задан в `.env` и не менялся:
+
+```bash
+grep WEBUI_SECRET_KEY .env
+```
+
+Если ключ менялся, старые сессии станут недействительными. Менять `WEBUI_SECRET_KEY` только как осознанную rotation-операцию.
+
 ## История не сохраняется
 
 Проверить, что volume `openwebui_data` подключен:

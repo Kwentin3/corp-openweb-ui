@@ -35,15 +35,20 @@ cp /opt/backups/openwebui-prd0/env-<timestamp>.backup .env
 chmod 600 .env
 ```
 
-3. Восстановить volume по инструкции [../../scripts/restore.md](../../scripts/restore.md).
+3. Восстановить `openwebui_data` по инструкции [../../scripts/restore.md](../../scripts/restore.md).
 
-4. Запустить сервисы:
+4. Для `traefik_letsencrypt` выбрать один путь:
+
+- штатно не восстанавливать volume и дать Traefik перевыпустить сертификат через Let's Encrypt, если DNS и порт `80/tcp` доступны;
+- восстановить volume по [../../scripts/restore.md](../../scripts/restore.md), если нужно сохранить ACME account/certificate state.
+
+5. Запустить сервисы:
 
 ```bash
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
 
-5. Проверить вход администратора, историю чатов и новый запрос к модели.
+6. Проверить strict TLS, вход администратора, историю чатов и новый запрос к модели.
 
 ## Важно
 

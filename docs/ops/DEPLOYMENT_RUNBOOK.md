@@ -11,14 +11,14 @@ dig +short gpt.alpha-soft.ru
 ## 2. Зайти на сервер
 
 ```bash
-ssh root@<server>
+ssh <deploy-user>@<server>
 ```
 
 Точный endpoint хранить локально, не в Git.
 
 ## 3. Установить Docker
 
-Если Docker отсутствует, установить Docker Engine и Docker Compose plugin по актуальной инструкции провайдера/дистрибутива.
+Если Docker отсутствует, выполнить [BOOTSTRAP_DOCKER_UBUNTU.md](BOOTSTRAP_DOCKER_UBUNTU.md). Для текущего target preflight показал Ubuntu 24.04 LTS и отсутствие Docker/Compose.
 
 Проверить:
 
@@ -45,6 +45,14 @@ vi .env
 
 Заполнить реальные значения. Не коммитить `.env`.
 
+Сгенерировать стабильный `WEBUI_SECRET_KEY`:
+
+```bash
+openssl rand -hex 32
+```
+
+До запуска должны быть приняты решения из [DEPLOYMENT_DECISIONS.md](DEPLOYMENT_DECISIONS.md): API-провайдер, model id, email Let's Encrypt, image tag, backup retention и первый администратор.
+
 ## 6. Выполнить preflight
 
 ```bash
@@ -62,12 +70,14 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 
 ```bash
 curl -I http://gpt.alpha-soft.ru
-curl -I https://gpt.alpha-soft.ru
+bash scripts/smoke-test.sh --strict-tls
 ```
 
 ## 9. Создать администратора и пользователей
 
-Если заданы `WEBUI_ADMIN_EMAIL` и `WEBUI_ADMIN_PASSWORD`, admin должен быть создан на первом запуске. После входа администратора создать или активировать 3-4 пользователей через Admin UI.
+Если база свежая и заданы `WEBUI_ADMIN_EMAIL` и `WEBUI_ADMIN_PASSWORD`, OpenWebUI создает admin на первом запуске и отключает signup. Если admin bootstrap не сработал или база уже содержит пользователей, создать первого администратора через UI/recovery-процедуру OpenWebUI и зафиксировать это в deployment notes.
+
+После входа администратора создать или активировать 3-4 пользователей через Admin UI. Оставить signup отключенным или `DEFAULT_USER_ROLE=pending`.
 
 ## 10. Проверить LLM
 
@@ -77,6 +87,7 @@ curl -I https://gpt.alpha-soft.ru
 
 ```bash
 docker compose --env-file .env -f compose/openwebui.compose.yml restart openwebui
+bash scripts/smoke-test.sh --strict-tls
 ```
 
 После restart войти снова и проверить, что история чата сохранилась.

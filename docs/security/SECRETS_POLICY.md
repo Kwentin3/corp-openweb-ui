@@ -4,6 +4,7 @@
 
 - API-ключи LLM-провайдеров.
 - Пароли.
+- `WEBUI_SECRET_KEY`.
 - Приватные SSH-ключи.
 - OAuth secrets.
 - Personal access tokens.
@@ -23,9 +24,10 @@
 ```bash
 cp .env.example .env
 chmod 600 .env
+openssl rand -hex 32
 ```
 
-Заполнять `.env` только на сервере или в защищенном password manager.
+Заполнять `.env` только на сервере или в защищенном password manager. `WEBUI_SECRET_KEY` должен быть стабильным; менять его только как осознанную rotation-операцию, потому что это инвалидирует сессии и может повлиять на расшифровку чувствительных данных.
 
 ## Rotation
 

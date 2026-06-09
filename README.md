@@ -31,10 +31,11 @@ chmod 600 .env
 vi .env
 bash scripts/preflight.sh
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
-bash scripts/smoke-test.sh
+bash scripts/smoke-test.sh --strict-tls
 ```
 
 Реальный `.env` не коммитить.
+Перед запуском закрыть операторские решения в [docs/ops/DEPLOYMENT_DECISIONS.md](docs/ops/DEPLOYMENT_DECISIONS.md).
 
 ## Навигация
 
@@ -47,6 +48,8 @@ bash scripts/smoke-test.sh
 - Compose plan: [docs/infra/DOCKER_COMPOSE_PLAN.md](docs/infra/DOCKER_COMPOSE_PLAN.md)
 - Env variables: [docs/infra/ENVIRONMENT_VARIABLES.md](docs/infra/ENVIRONMENT_VARIABLES.md)
 - Deployment runbook: [docs/ops/DEPLOYMENT_RUNBOOK.md](docs/ops/DEPLOYMENT_RUNBOOK.md)
+- Docker bootstrap: [docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md](docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md)
+- Deployment decisions: [docs/ops/DEPLOYMENT_DECISIONS.md](docs/ops/DEPLOYMENT_DECISIONS.md)
 - Backup/restore: [docs/ops/BACKUP_RESTORE_RUNBOOK.md](docs/ops/BACKUP_RESTORE_RUNBOOK.md)
 - Smoke tests: [docs/ops/SMOKE_TESTS.md](docs/ops/SMOKE_TESTS.md)
 - Acceptance tests: [docs/ops/ACCEPTANCE_TESTS.md](docs/ops/ACCEPTANCE_TESTS.md)

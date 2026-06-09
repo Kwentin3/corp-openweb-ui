@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: ${TRAEFIK_IMAGE:-traefik:v3.3}
+    image: ${TRAEFIK_IMAGE:-traefik:v3.6}
     container_name: openwebui-traefik
     restart: unless-stopped
     command:
@@ -25,7 +25,7 @@ services:
       - web
 
   openwebui:
-    image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.9.6}
     container_name: openwebui
     restart: unless-stopped
     env_file:
@@ -36,6 +36,8 @@ services:
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       DEFAULT_MODELS: ${DEFAULT_MODELS:-}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
       ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
       DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-pending}

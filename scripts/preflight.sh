@@ -28,11 +28,18 @@ set +a
 [ -n "${LETSENCRYPT_EMAIL:-}" ] || fail "LETSENCRYPT_EMAIL is empty"
 [ -n "${OPENAI_API_BASE_URL:-}" ] || fail "OPENAI_API_BASE_URL is empty"
 [ -n "${OPENAI_API_KEY:-}" ] || fail "OPENAI_API_KEY is empty"
+[ -n "${WEBUI_SECRET_KEY:-}" ] || fail "WEBUI_SECRET_KEY is empty"
+[ -n "${CORS_ALLOW_ORIGIN:-}" ] || fail "CORS_ALLOW_ORIGIN is empty"
 
-case "${LETSENCRYPT_EMAIL}:${OPENAI_API_KEY}:${WEBUI_ADMIN_PASSWORD:-}:${DEFAULT_MODELS:-}" in
+case "${LETSENCRYPT_EMAIL}:${OPENAI_API_KEY}:${WEBUI_ADMIN_EMAIL:-}:${WEBUI_ADMIN_PASSWORD:-}:${WEBUI_SECRET_KEY}:${CORS_ALLOW_ORIGIN}:${DEFAULT_MODELS:-}" in
   *example.com*|*replace-with*)
     fail ".env still contains placeholder values"
     ;;
+esac
+
+case "$CORS_ALLOW_ORIGIN" in
+  "https://${OPENWEBUI_HOST}"*) info "CORS_ALLOW_ORIGIN includes primary HTTPS origin" ;;
+  *) warn "CORS_ALLOW_ORIGIN does not start with https://${OPENWEBUI_HOST}" ;;
 esac
 
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"

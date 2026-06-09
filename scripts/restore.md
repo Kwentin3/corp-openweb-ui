@@ -42,3 +42,30 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
 
 Then run smoke and manually verify admin login, chat history and a new LLM response.
+
+## Restore `traefik_letsencrypt`
+
+Usually you can skip restoring `traefik_letsencrypt`: Traefik can request a fresh Let's Encrypt certificate if DNS is correct and port `80/tcp` is reachable from the internet.
+
+Restore this volume only if you need to preserve ACME account/certificate state or avoid re-issuance.
+
+```bash
+docker compose --env-file .env -f compose/openwebui.compose.yml down
+docker volume rm traefik_letsencrypt
+docker volume create traefik_letsencrypt
+
+BACKUP=/opt/backups/openwebui-prd0/traefik_letsencrypt-YYYYMMDDTHHMMSSZ.tgz
+docker run --rm \
+  -v traefik_letsencrypt:/data \
+  -v "$(dirname "$BACKUP"):/backup:ro" \
+  alpine:3.20 \
+  sh -c "cd /data && tar xzf /backup/$(basename "$BACKUP")"
+
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d
+```
+
+After either path, run:
+
+```bash
+bash scripts/smoke-test.sh --strict-tls
+```

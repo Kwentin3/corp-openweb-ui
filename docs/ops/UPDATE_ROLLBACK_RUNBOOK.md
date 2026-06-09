@@ -14,6 +14,14 @@ bash scripts/backup.sh
 docker compose --env-file .env -f compose/openwebui.compose.yml images
 ```
 
+Для PRD-0 image должен быть pinned в `.env`, например:
+
+```text
+OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.9.6
+```
+
+Не использовать `:main` для пилота без явного решения: официальный OpenWebUI guidance предупреждает, что `:main` является floating/development-like tag и может принести breaking changes.
+
 3. Проверить текущий smoke:
 
 ```bash
@@ -25,6 +33,7 @@ bash scripts/smoke-test.sh
 ```bash
 docker compose --env-file .env -f compose/openwebui.compose.yml pull
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
+bash scripts/smoke-test.sh --strict-tls
 ```
 
 После update выполнить smoke и короткий пользовательский тест.

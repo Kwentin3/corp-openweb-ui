@@ -43,8 +43,10 @@ OpenWebUI не публикует внешний порт.
 
 ```bash
 curl -I http://gpt.alpha-soft.ru
-curl -I https://gpt.alpha-soft.ru
+curl -fsSI https://gpt.alpha-soft.ru
 docker compose -f compose/openwebui.compose.yml logs --tail=100 traefik
 ```
 
-Ожидаемо: HTTP редиректит на HTTPS, HTTPS открывает OpenWebUI.
+Ожидаемо: HTTP редиректит на HTTPS, HTTPS открывает OpenWebUI с валидным Let's Encrypt сертификатом.
+
+Traefik Docker provider читает routing labels только у контейнеров с `traefik.enable=true`, потому что `exposedByDefault=false`. OpenWebUI route должен указывать на внутренний порт `8080`.
