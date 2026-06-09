@@ -1,0 +1,64 @@
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3}
+    container_name: openwebui-traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - web
+
+  openwebui:
+    image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    container_name: openwebui
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      WEBUI_URL: https://${OPENWEBUI_HOST}
+      ENABLE_OPENAI_API: "true"
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEFAULT_MODELS: ${DEFAULT_MODELS:-}
+      WEBUI_AUTH: ${WEBUI_AUTH:-true}
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-pending}
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL:-}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
+    volumes:
+      - openwebui_data:/app/backend/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_HOST}`)
+      - traefik.http.routers.openwebui.entrypoints=websecure
+      - traefik.http.routers.openwebui.tls=true
+      - traefik.http.routers.openwebui.tls.certresolver=letsencrypt
+      - traefik.http.services.openwebui.loadbalancer.server.port=8080
+    networks:
+      - web
+
+networks:
+  web:
+    name: openwebui_web
+
+volumes:
+  openwebui_data:
+    name: openwebui_data
+  traefik_letsencrypt:
+    name: traefik_letsencrypt

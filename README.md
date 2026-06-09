@@ -1,40 +1,68 @@
-# corp-hermes
+﻿# corp-openweb-ui
 
-`corp-hermes` - проектный репозиторий для Hermes Corporate v1: документации, PRD/ТЗ, требований и scaffold-материалов для демонстрационного стенда.
+Инженерный пакет для PRD-0: минимальный self-hosted запуск OpenWebUI как корпоративной точки входа в LLM-чат для 3-4 пользователей.
 
-Hermes Corporate v1 - это демонстрационный стенд из трех изолированных Hermes solo stack на новом VPS и новом домене. Цель стенда - дать пользователям попробовать Hermes в независимых средах, проверить изоляцию нод, собрать обратную связь и подготовить требования к будущей корпоративной версии Hermes.
+Цель репозитория - blueprint, runbooks и skeleton для безопасного развертывания на домене `gpt.alpha-soft.ru`. Это не AI-платформа и не Hermes.
 
-Этот репозиторий не содержит live deployment и production-код. Старый VPS с существующим solo Hermes stack не является площадкой для стенда и используется только как инженерный reference context.
+## Scope PRD-0
 
-## Область v1
+Входит:
 
-В v1 каждая нода имеет свой Web GUI, Hermes runtime/context, Docker Compose project, `STACK_ROOT`, данные, конфиги, логи, secrets, Docker-сеть, Authelia, auth/session context и имена Traefik router/service/middleware.
+- OpenWebUI;
+- Docker / Docker Compose;
+- Traefik и HTTPS;
+- один LLM API-провайдер;
+- одна модель по умолчанию;
+- один администратор;
+- 3-4 пользователя;
+- persistent volume;
+- минимальный backup;
+- smoke и acceptance checks.
 
-Общим допускается только ingress-слой Traefik.
+Не входит: Hermes, LiteLLM, model gateway, SSO/OIDC, web-поиск, RAG, document skills, corporate dashboard, white-label и интеграции с внутренними системами.
 
-Corporate controller, централизованный RBAC, централизованный аудит, биллинг, квоты, учет токенов, self-service provisioning, LDAP/AD integration, общая корпоративная Authelia и multi-tenant Hermes runtime относятся к future scope.
+## Быстрый старт на сервере
+
+```bash
+git clone https://github.com/Kwentin3/corp-openweb-ui.git /opt/openwebui-prd0
+cd /opt/openwebui-prd0
+cp .env.example .env
+chmod 600 .env
+vi .env
+bash scripts/preflight.sh
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d
+bash scripts/smoke-test.sh
+```
+
+Реальный `.env` не коммитить.
 
 ## Навигация
 
-Клиентские документы:
+- PRD: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md)
+- Blueprint: [docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md](docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md)
+- Architecture: [docs/blueprint/ARCHITECTURE_OVERVIEW.md](docs/blueprint/ARCHITECTURE_OVERVIEW.md)
+- Scope/non-goals: [docs/blueprint/SCOPE_AND_NON_GOALS.md](docs/blueprint/SCOPE_AND_NON_GOALS.md)
+- Infra target: [docs/infra/INFRA_TARGET.md](docs/infra/INFRA_TARGET.md)
+- Traefik plan: [docs/infra/DOMAIN_AND_TRAEFIK_PLAN.md](docs/infra/DOMAIN_AND_TRAEFIK_PLAN.md)
+- Compose plan: [docs/infra/DOCKER_COMPOSE_PLAN.md](docs/infra/DOCKER_COMPOSE_PLAN.md)
+- Env variables: [docs/infra/ENVIRONMENT_VARIABLES.md](docs/infra/ENVIRONMENT_VARIABLES.md)
+- Deployment runbook: [docs/ops/DEPLOYMENT_RUNBOOK.md](docs/ops/DEPLOYMENT_RUNBOOK.md)
+- Backup/restore: [docs/ops/BACKUP_RESTORE_RUNBOOK.md](docs/ops/BACKUP_RESTORE_RUNBOOK.md)
+- Smoke tests: [docs/ops/SMOKE_TESTS.md](docs/ops/SMOKE_TESTS.md)
+- Acceptance tests: [docs/ops/ACCEPTANCE_TESTS.md](docs/ops/ACCEPTANCE_TESTS.md)
+- Security minimum: [docs/security/SECURITY_MINIMUM.md](docs/security/SECURITY_MINIMUM.md)
+- Pilot checklist: [docs/pilot/PILOT_CHECKLIST.md](docs/pilot/PILOT_CHECKLIST.md)
+- Engineering report: [docs/reports/2026-06-09/OPENWEBUI_PRD_0_ENGINEERING_PACKAGE.report.md](docs/reports/2026-06-09/OPENWEBUI_PRD_0_ENGINEERING_PACKAGE.report.md)
 
-- ТЗ для заказчика: [docs/customer/HERMES_CORPORATE_V1_CUSTOMER_TZ.md](docs/customer/HERMES_CORPORATE_V1_CUSTOMER_TZ.md)
-- Почему Hermes: [docs/customer/HERMES_CORPORATE_V1_WHY_HERMES.md](docs/customer/HERMES_CORPORATE_V1_WHY_HERMES.md)
+## Skeleton
 
-Внутренняя проектная документация:
-
-- PRD/ТЗ draft: [docs/prd/HERMES_CORPORATE_V1_PRD.md](docs/prd/HERMES_CORPORATE_V1_PRD.md)
-- Архитектура: [docs/architecture/HERMES_CORPORATE_V1_ARCHITECTURE.md](docs/architecture/HERMES_CORPORATE_V1_ARCHITECTURE.md)
-- Требования к VPS: [docs/requirements/VPS_REQUIREMENTS.md](docs/requirements/VPS_REQUIREMENTS.md)
-- Требования к DNS: [docs/requirements/DNS_REQUIREMENTS.md](docs/requirements/DNS_REQUIREMENTS.md)
-- Требования к безопасности: [docs/requirements/SECURITY_REQUIREMENTS.md](docs/requirements/SECURITY_REQUIREMENTS.md)
-- Критерии приемки: [docs/requirements/ACCEPTANCE_CRITERIA.md](docs/requirements/ACCEPTANCE_CRITERIA.md)
-- Future scope corporate controller: [docs/future/FUTURE_CORPORATE_CONTROLLER.md](docs/future/FUTURE_CORPORATE_CONTROLLER.md)
-- Deploy placeholder: [deploy/hermes-corporate-v1/README.md](deploy/hermes-corporate-v1/README.md)
-- Repo preflight report: [reports/REPO_PREFLIGHT.report.md](reports/REPO_PREFLIGHT.report.md)
+- Compose: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
+- Env example: [.env.example](.env.example)
+- Preflight: [scripts/preflight.sh](scripts/preflight.sh)
+- Backup: [scripts/backup.sh](scripts/backup.sh)
+- Restore notes: [scripts/restore.md](scripts/restore.md)
+- Smoke test: [scripts/smoke-test.sh](scripts/smoke-test.sh)
 
 ## Безопасность
 
-Не коммитить реальные IP-адреса, пароли, токены, OAuth secrets, private keys, password hashes или server-local env-файлы.
-
-Домены `example.com` в документах используются только как placeholders до утверждения реального домена.
+Не коммитить реальные API-ключи, пароли, токены, private keys, `.env` и backup-архивы. Точный SSH endpoint хранится только локально в ignored-файле `local/INFRA_TARGET.local.md`.
