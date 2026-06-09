@@ -45,6 +45,15 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 
 Важно: OpenAI и Gemini уже выбраны как provider set. Admin UI не является blocker по выбору provider; это штатное место для ввода second provider connection и Gemini API key без multi-value env.
 
+Если OpenAI API блокирует регион исходящего IP, можно задать outbound proxy для OpenWebUI без fork/frontend changes:
+
+```env
+OPENWEBUI_OUTBOUND_PROXY=socks5h://user:password@proxy-host:1080
+OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
+```
+
+`socks5h://` предпочтителен для SOCKS5, потому что DNS provider API тоже идет через proxy. Реальные proxy credentials хранить только в server-local `.env`/password manager.
+
 ## 2. Secondary provider через Admin UI
 
 1. Войти администратором.

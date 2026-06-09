@@ -25,6 +25,8 @@
 - `DEFAULT_MODELS` - primary model id, если оператор решил зафиксировать его через env.
 - `ENABLE_SIGNUP` - для PRD-0 должно быть `false` после создания admin.
 - `DEFAULT_USER_ROLE` - рекомендуется `pending`.
+- `OPENWEBUI_OUTBOUND_PROXY` - optional outbound proxy URI для provider egress, например `socks5h://user:password@host:port`.
+- `OPENWEBUI_NO_PROXY` - hosts/IPs, которые не должны ходить через outbound proxy.
 - `BACKUP_DIR` - server-local directory для backup artifacts; default `/opt/backups/openwebui-prd0`.
 - `BACKUP_RETENTION_DAYS` - сколько дней хранить backup-файлы, созданные `scripts/backup.sh`; pilot choices: `1`, `7`, `30`, default `7`.
 
@@ -78,6 +80,28 @@ WEBUI_BANNERS="[{\"id\":\"prd0-policy-warning-v1\",\"type\":\"warning\",\"title\
 - `timestamp`: required integer, frontend не использует его для расписания показа.
 
 Если после первого запуска OpenWebUI persistent config перекрывает env, исправлять `WEBUI_NAME` или banners через Admin UI. Не делать fork и не патчить OpenWebUI.
+
+## Outbound proxy
+
+OpenWebUI supports proxy configuration through standard environment variables `http_proxy`, `https_proxy` and `no_proxy`.
+
+В PRD-0 repo-level variable `OPENWEBUI_OUTBOUND_PROXY` прокидывается в контейнер OpenWebUI как:
+
+- `http_proxy`;
+- `https_proxy`;
+- `HTTP_PROXY`;
+- `HTTPS_PROXY`.
+
+`OPENWEBUI_NO_PROXY` прокидывается как `no_proxy` и `NO_PROXY`.
+
+Для SOCKS5 использовать `socks5h://`, чтобы DNS для provider APIs резолвился через proxy:
+
+```env
+OPENWEBUI_OUTBOUND_PROXY=socks5h://user:password@proxy-host:1080
+OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
+```
+
+Реальные proxy credentials не коммитить. Если proxy credentials были переданы через чат или ticket, считать их раскрытыми и заменить после стабилизации пилота.
 
 ## Provider endpoints
 

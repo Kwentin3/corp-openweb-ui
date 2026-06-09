@@ -84,6 +84,17 @@ if [ -n "${BACKUP_RETENTION_DAYS:-}" ]; then
   info "backup retention is ${BACKUP_RETENTION_DAYS} days"
 fi
 
+if [ -n "${OPENWEBUI_OUTBOUND_PROXY:-}" ]; then
+  case "$OPENWEBUI_OUTBOUND_PROXY" in
+    socks5h://*|socks5://*|http://*|https://*)
+      info "outbound proxy is configured"
+      ;;
+    *)
+      fail "OPENWEBUI_OUTBOUND_PROXY must start with socks5h://, socks5://, http:// or https://"
+      ;;
+  esac
+fi
+
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose plugin is not available"
 command -v curl >/dev/null 2>&1 || warn "curl is not installed; smoke-test.sh needs it"
