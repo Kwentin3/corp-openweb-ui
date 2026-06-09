@@ -86,11 +86,11 @@ fi
 
 if [ -n "${OPENWEBUI_OUTBOUND_PROXY:-}" ]; then
   case "$OPENWEBUI_OUTBOUND_PROXY" in
-    socks5h://*|socks5://*|http://*|https://*)
+    http://*|https://*)
       info "outbound proxy is configured"
       ;;
     *)
-      fail "OPENWEBUI_OUTBOUND_PROXY must start with socks5h://, socks5://, http:// or https://"
+      fail "OPENWEBUI_OUTBOUND_PROXY must start with http:// or https://; use an HTTP-to-SOCKS bridge for SOCKS5 upstream"
       ;;
   esac
 fi

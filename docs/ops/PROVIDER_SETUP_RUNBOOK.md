@@ -48,11 +48,12 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 Если OpenAI API блокирует регион исходящего IP, можно задать outbound proxy для OpenWebUI без fork/frontend changes:
 
 ```env
-OPENWEBUI_OUTBOUND_PROXY=socks5h://user:password@proxy-host:1080
+OPENWEBUI_OUTBOUND_PROXY=http://172.18.0.1:8118
+OPENWEBUI_SOCKS5_UPSTREAM=socks5h://user:password@proxy-host:1080
 OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
 ```
 
-`socks5h://` предпочтителен для SOCKS5, потому что DNS provider API тоже идет через proxy. Реальные proxy credentials хранить только в server-local `.env`/password manager.
+OpenWebUI OpenAI route uses an HTTP client path that expects an HTTP proxy. Для SOCKS5 нужен local HTTP-to-SOCKS bridge, например Privoxy. `socks5h://` остается upstream-схемой bridge, чтобы DNS provider API тоже шел через proxy. Реальные proxy credentials хранить только в server-local `.env`/password manager.
 
 ## 2. Secondary provider через Admin UI
 

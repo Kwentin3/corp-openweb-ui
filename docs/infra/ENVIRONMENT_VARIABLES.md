@@ -25,7 +25,8 @@
 - `DEFAULT_MODELS` - primary model id, если оператор решил зафиксировать его через env.
 - `ENABLE_SIGNUP` - для PRD-0 должно быть `false` после создания admin.
 - `DEFAULT_USER_ROLE` - рекомендуется `pending`.
-- `OPENWEBUI_OUTBOUND_PROXY` - optional outbound proxy URI для provider egress, например `socks5h://user:password@host:port`.
+- `OPENWEBUI_OUTBOUND_PROXY` - optional HTTP proxy URI для provider egress, например `http://172.18.0.1:8118`.
+- `OPENWEBUI_SOCKS5_UPSTREAM` - optional SOCKS5 upstream URI для local HTTP-to-SOCKS bridge; не прокидывается напрямую в OpenWebUI.
 - `OPENWEBUI_NO_PROXY` - hosts/IPs, которые не должны ходить через outbound proxy.
 - `BACKUP_DIR` - server-local directory для backup artifacts; default `/opt/backups/openwebui-prd0`.
 - `BACKUP_RETENTION_DAYS` - сколько дней хранить backup-файлы, созданные `scripts/backup.sh`; pilot choices: `1`, `7`, `30`, default `7`.
@@ -94,10 +95,13 @@ OpenWebUI supports proxy configuration through standard environment variables `h
 
 `OPENWEBUI_NO_PROXY` прокидывается как `no_proxy` и `NO_PROXY`.
 
-Для SOCKS5 использовать `socks5h://`, чтобы DNS для provider APIs резолвился через proxy:
+OpenWebUI OpenAI route uses `aiohttp` with `trust_env=True`; this path expects an HTTP proxy in `http_proxy`/`https_proxy`. Direct `socks5h://` in `OPENWEBUI_OUTBOUND_PROXY` is not supported for this path.
+
+Для SOCKS5 использовать local HTTP-to-SOCKS bridge, for example host-local Privoxy on the Docker bridge gateway:
 
 ```env
-OPENWEBUI_OUTBOUND_PROXY=socks5h://user:password@proxy-host:1080
+OPENWEBUI_OUTBOUND_PROXY=http://172.18.0.1:8118
+OPENWEBUI_SOCKS5_UPSTREAM=socks5h://user:password@proxy-host:1080
 OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
 ```
 
