@@ -39,7 +39,7 @@ Secondary provider добавляется вручную через OpenWebUI Ad
 
 Это не означает, что Gemini не выбран. Выбраны оба provider; Admin UI - это только место, где вводится second provider connection и его API key.
 
-Причина: OpenWebUI поддерживает несколько OpenAI-compatible connections через Admin UI. В env reference также есть multi-value переменные `OPENAI_API_BASE_URLS` и `OPENAI_API_KEYS`, но для PRD-0 они не используются в skeleton, потому что:
+Причина: OpenWebUI поддерживает несколько OpenAI-compatible connections через Admin UI. В env reference также есть multi-value переменные `OPENAI_API_BASE_URLS` и `OPENAI_API_KEYS`, но для PRD-0 они не используются в deployment path, потому что:
 
 - порядок URL/key становится частью скрытого контракта;
 - ошибки в одном значении сложнее диагностировать;

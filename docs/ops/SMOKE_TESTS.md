@@ -33,6 +33,7 @@ bash scripts/network-hardening-check.sh --strict
 - В логах Traefik нет ошибок ACME.
 - В логах OpenWebUI нет циклического падения.
 - Primary provider из `.env` не вызывает ошибок при запросе.
+- Если задан `OPENWEBUI_OUTBOUND_PROXY`, контейнер OpenWebUI может подключиться к HTTP proxy, provider `/models` отвечает, а proxy port не является public listener.
 
 ## Логи
 
@@ -40,3 +41,27 @@ bash scripts/network-hardening-check.sh --strict
 docker compose --env-file .env -f compose/openwebui.compose.yml logs --tail=100 traefik
 docker compose --env-file .env -f compose/openwebui.compose.yml logs --tail=100 openwebui
 ```
+
+## Provider proxy smoke
+
+Не выводить API keys и proxy credentials. Проверять только наличие env, схему и HTTP status:
+
+```bash
+docker exec -i openwebui python - <<'PY'
+import asyncio, json, os
+import aiohttp
+
+async def main():
+    proxy = os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY") or ""
+    print("proxy_present=" + str(bool(proxy)).lower())
+    print("proxy_scheme=" + (proxy.split(":", 1)[0] if ":" in proxy else ""))
+    headers = {"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]}
+    async with aiohttp.ClientSession(trust_env=True) as session:
+        async with session.get("https://api.openai.com/v1/models", headers=headers) as resp:
+            print("openai_models_http=" + str(resp.status))
+
+asyncio.run(main())
+PY
+```
+
+Ожидаемо для текущего deployment через bridge: `proxy_present=true`, `proxy_scheme=http`, `openai_models_http=200`.

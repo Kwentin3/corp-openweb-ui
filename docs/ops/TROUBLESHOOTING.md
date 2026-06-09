@@ -74,6 +74,37 @@ docker compose --env-file .env -f compose/openwebui.compose.yml logs --tail=200 
 
 Для Gemini не использовать trailing slash в этом PRD-0 runbook.
 
+Если OpenAI/Gemini API блокирует прямой egress сервера по региону:
+
+- не задавать `socks5h://` напрямую в `OPENWEBUI_OUTBOUND_PROXY`;
+- поднять host-local HTTP-to-SOCKS bridge;
+- в `.env` задать `OPENWEBUI_OUTBOUND_PROXY=http://<docker-gateway>:8118`;
+- хранить SOCKS5 upstream отдельно в `OPENWEBUI_SOCKS5_UPSTREAM`;
+- проверить, что bridge port доступен из контейнера, но не открыт публично.
+
+Проверить bridge без вывода секретов:
+
+```bash
+grep -E '^(OPENWEBUI_OUTBOUND_PROXY|OPENWEBUI_NO_PROXY)=' .env
+systemctl status privoxy --no-pager
+ss -tulpen | grep ':8118'
+docker exec -i openwebui python - <<'PY'
+import asyncio, os
+import aiohttp
+
+async def main():
+    proxy = os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY") or ""
+    print("proxy_present=" + str(bool(proxy)).lower())
+    print("proxy_scheme=" + (proxy.split(":", 1)[0] if ":" in proxy else ""))
+    headers = {"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"]}
+    async with aiohttp.ClientSession(trust_env=True) as session:
+        async with session.get("https://api.openai.com/v1/models", headers=headers) as resp:
+            print("openai_models_http=" + str(resp.status))
+
+asyncio.run(main())
+PY
+```
+
 ## Имя инстанса или баннер не отображаются
 
 Проверить `.env`:

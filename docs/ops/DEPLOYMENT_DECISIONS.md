@@ -2,7 +2,20 @@
 
 ## Назначение
 
-Перед bootstrap/deploy PRD-0 нужно явно закрыть операторские решения. До этого пакет готов как инженерный skeleton, но фактический запуск не должен начинаться.
+Документ фиксирует закрытые решения PRD-0, текущий deployment status и оставшиеся operator actions. Реальные secrets, SSH endpoints, public IP и пользовательские данные не коммитятся.
+
+## Current deployment status
+
+Актуально на 2026-06-09:
+
+- target `gpt.alpha-soft.ru` поднят;
+- Traefik и OpenWebUI запущены;
+- OpenWebUI healthy;
+- strict TLS smoke проходит;
+- UFW/fail2ban hardening проходит в strict mode;
+- OpenAI primary через `gpt-5.4-mini` отвечает через OpenWebUI API;
+- direct provider egress с сервера блокировался provider region policy, поэтому включен HTTP-to-SOCKS bridge;
+- backup script отработал.
 
 ## Closed decisions
 
@@ -20,22 +33,24 @@
 | No white-label/fork | Decided | No fork, logo change, custom frontend, plugins or tools/functions | PRD, blueprint |
 | Host hardening | Decided | UFW + fail2ban | hardening runbook, acceptance |
 | Public ports | Decided | `22/tcp`, `80/tcp`, `443/tcp` | firewall runbook |
-| OpenWebUI image tag | Proposed | `ghcr.io/open-webui/open-webui:v0.9.6`; не `:main` для пилота. | `.env`: `OPENWEBUI_IMAGE` |
-| Traefik image tag | Proposed | `traefik:v3.6`. | `.env`: `TRAEFIK_IMAGE` |
+| OpenWebUI image tag | Decided | `ghcr.io/open-webui/open-webui:v0.9.6`; не `:main` для пилота. | `.env`: `OPENWEBUI_IMAGE` |
+| Traefik image tag | Decided | `traefik:v3.6`. | `.env`: `TRAEFIK_IMAGE` |
+| Provider outbound proxy | Decided | OpenWebUI получает HTTP proxy env; SOCKS5 используется только за host-local HTTP-to-SOCKS bridge | `.env`, provider runbook |
 | Public repo personal data | Decided | Не хранить реальные имена, SSH endpoint, public IP, секреты. | docs and `.gitignore` |
 | Let's Encrypt email | Decided | `kwentin3@mail.ru` | `.env`: `LETSENCRYPT_EMAIL` |
 | Backup retention | Decided | `BACKUP_RETENTION_DAYS=7`; allowed pilot choices are `1`, `7`, `30` days | `.env.example`, backup runbook |
 | Post-bootstrap password rotation | Decided | Не blocker PRD-0; можно сделать после стабилизации пилота. | security minimum, acceptance |
 
-## Operator decisions required
+## Operator actions and secret ownership
 
-| Decision | Required value | Where applied | Notes |
+| Item | Status | Where applied | Notes |
 | --- | --- | --- | --- |
-| OpenAI API key | Real server/operator secret | `.env`: `OPENAI_API_KEY` | Must not be committed. |
-| Gemini API key | Real server/operator secret | OpenWebUI Admin UI secondary connection | Must not be committed. |
-| First administrator email | Work email | `.env`: `WEBUI_ADMIN_EMAIL` | Bootstrap works only on fresh DB. |
-| First administrator password | Strong temporary password | `.env`: `WEBUI_ADMIN_PASSWORD` | Keep only server-local/password manager. |
-| Operator current public IP | IP or CIDR for fail2ban ignore list, if needed | `/etc/fail2ban/jail.d/sshd.local` | Keep local-only; do not commit. |
+| OpenAI API key | Configured server-local secret | `.env`: `OPENAI_API_KEY` | Must not be committed; rotate if it was exposed outside password manager. |
+| SOCKS5 upstream credentials | Configured server-local secret | `.env`: `OPENWEBUI_SOCKS5_UPSTREAM`, Privoxy config | Must not be committed; rotate if they were exposed outside password manager. |
+| Gemini API key | Pending operator action | OpenWebUI Admin UI secondary connection | Must not be committed. |
+| First administrator email/password | Configured server-local secret | `.env`: `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD` | Password rotation after bootstrap is recommended after stabilization. |
+| Pilot users | Pending operator action | OpenWebUI Admin UI | Create or activate 3-4 users before full pilot acceptance. |
+| Operator current public IP | Optional local-only decision | `/etc/fail2ban/jail.d/sshd.local` | Keep local-only; do not commit. |
 
 ## Provider endpoints
 
@@ -46,4 +61,8 @@
 
 ## Stop condition
 
-Если API keys, первый admin email/password или local-only operator IP decision не закрыты, выполнять только документационные работы, preflight и read-only checks. Не запускать production-like deploy.
+Не считать PRD-0 полностью принятым для пилота, пока не закрыты:
+
+- 3-4 pilot users;
+- Gemini secondary provider или явное решение оставить его pending из-за API key/quota/billing/region;
+- post-chat/password-manager rotation для секретов, которые передавались вне защищенного канала.

@@ -10,6 +10,7 @@ PRD-0 готов к пилоту, если:
 - UFW включен;
 - публичный perimeter ограничен ожидаемыми портами `22/tcp`, `80/tcp`, `443/tcp`;
 - Docker не публикует наружу ничего, кроме Traefik `80/443`; OpenWebUI не имеет прямого public port;
+- если используется provider proxy bridge, bridge port не открыт публично и доступен только с Docker subnet на Docker gateway;
 - fail2ban установлен и active;
 - `sshd` jail active;
 - `bash scripts/network-hardening-check.sh --strict` проходит после deploy;
@@ -22,6 +23,7 @@ PRD-0 готов к пилоту, если:
 - warning banner содержит запрет на отправку паролей, токенов, API-ключей, приватных SSH-ключей и закрытых персональных данных;
 - OpenAI primary provider с model id `gpt-5.4-mini` подключен или готов к подключению по [PROVIDER_SETUP_RUNBOOK.md](PROVIDER_SETUP_RUNBOOK.md);
 - Gemini secondary provider с model id `gemini-3.5-flash` подключен через Admin UI или готов к подключению по [PROVIDER_SETUP_RUNBOOK.md](PROVIDER_SETUP_RUNBOOK.md);
+- если прямой egress к provider API блокируется, OpenWebUI provider path проверен через HTTP proxy bridge, а не direct SOCKS env;
 - пользователь может задать вопрос модели;
 - ответ хотя бы от одного provider приходит;
 - второй provider проверен или явно отмечен как pending из-за отсутствия API key/quota/billing, а не из-за незакрытого выбора provider/model;

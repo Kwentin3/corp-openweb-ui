@@ -34,6 +34,8 @@ Docker может управлять iptables и публиковать порт
 - Traefik `80/tcp`;
 - Traefik `443/tcp`.
 
+Если включен host-local HTTP-to-SOCKS bridge для provider egress, его port должен быть доступен только внутри host/Docker boundary. Для текущего deployment это узкое правило UFW от Docker subnet к Docker gateway port `8118/tcp`, без public allow для `Anywhere`.
+
 После `docker compose up -d` обязательна проверка реальных listeners через `ss` и:
 
 ```bash
@@ -49,6 +51,7 @@ bash scripts/network-hardening-check.sh --strict
 - `22/tcp` разрешен до включения firewall.
 - `80/tcp` разрешен для Traefik и Let's Encrypt HTTP challenge.
 - `443/tcp` разрешен для HTTPS.
+- Internal provider proxy bridge, если используется, разрешен только от Docker subnet к Docker gateway.
 
 Порядок важен: не включать firewall до проверки, что SSH разрешен.
 

@@ -19,7 +19,9 @@ Ubuntu Server LTS. Current target expectation: Ubuntu 24.04 LTS.
 
 ## Notes
 
-OpenWebUI is self-hosted, but models are not local in PRD-0. The server must have outbound HTTPS access to OpenAI and Gemini APIs.
+OpenWebUI is self-hosted, but models are not local in PRD-0. The server must have outbound HTTPS access to OpenAI and Gemini APIs, either directly or through an operator-approved HTTP proxy bridge.
+
+If provider APIs block the server region, PRD-0 may use a host-local HTTP-to-SOCKS bridge. The bridge must not publish a public port.
 
 50 GB disk is acceptable as a lower bound for a short pilot if backups are kept under control. 60 GB remains the cleaner baseline.
 

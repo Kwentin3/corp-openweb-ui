@@ -10,7 +10,7 @@
 - Подключение выполняется средствами OpenWebUI.
 - Primary provider задается через server-local `.env`: OpenAI.
 - Secondary provider добавляется вручную через OpenWebUI Admin UI: Gemini.
-- `OPENAI_API_BASE_URLS` и `OPENAI_API_KEYS` не используются в skeleton PRD-0.
+- `OPENAI_API_BASE_URLS` и `OPENAI_API_KEYS` не используются в PRD-0 deployment path.
 
 Такой вариант проще проверить и меньше зависит от порядка multi-value env. Это важно, потому что OpenWebUI часть настроек хранит как persistent config во внутренней базе.
 
@@ -29,7 +29,7 @@
 
 ## Primary/secondary варианты
 
-Вариант по умолчанию для skeleton:
+Вариант по умолчанию для текущего deployment:
 
 - Primary through `.env`: OpenAI.
 - Secondary through Admin UI: Gemini.
@@ -39,7 +39,7 @@
 - Primary through `.env`: Gemini.
 - Secondary through Admin UI: OpenAI.
 
-Выбор фиксируется в [../ops/DEPLOYMENT_DECISIONS.md](../ops/DEPLOYMENT_DECISIONS.md) до deploy.
+Выбор фиксируется в [../ops/DEPLOYMENT_DECISIONS.md](../ops/DEPLOYMENT_DECISIONS.md).
 
 ## `.env` mapping
 
@@ -60,6 +60,19 @@ DEFAULT_MODELS=gemini-3.5-flash
 ```
 
 `DEFAULT_MODELS` можно оставить пустым, если оператор хочет сначала проверить список моделей в UI. Не подставлять искусственный placeholder для model id.
+
+## Provider egress
+
+Если прямой egress сервера к provider API блокируется по region policy, PRD-0 использует штатный proxy env OpenWebUI:
+
+```env
+OPENWEBUI_OUTBOUND_PROXY=http://172.18.0.1:8118
+OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
+```
+
+`OPENWEBUI_OUTBOUND_PROXY` должен указывать на HTTP proxy. Direct `socks5h://` в env OpenWebUI не используется для provider path. SOCKS5 upstream хранится отдельно в server-local `.env` и подключается host-local HTTP-to-SOCKS bridge.
+
+Bridge port не должен быть public. UFW allow нужен только от Docker subnet к Docker gateway.
 
 ## Admin UI secondary provider
 

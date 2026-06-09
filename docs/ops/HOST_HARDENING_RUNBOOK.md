@@ -17,7 +17,9 @@ Runbook задает минимальный host hardening для Ubuntu Server 
 
 Docker может управлять iptables и публиковать порты в обход ожидаемой UFW-модели. Поэтому UFW не считается единственной границей защиты.
 
-В PRD-0 запрещено публиковать наружу что-либо, кроме SSH `22` и Traefik `80/443`. OpenWebUI должен быть доступен только через Traefik, без прямого public port. После `docker compose up -d` обязательно проверить реальные listeners через `ss` и `bash scripts/network-hardening-check.sh --strict`.
+В PRD-0 запрещено публиковать наружу что-либо, кроме SSH `22` и Traefik `80/443`. OpenWebUI должен быть доступен только через Traefik, без прямого public port. Если используется host-local HTTP-to-SOCKS bridge для provider egress, его port должен быть разрешен только от Docker subnet к Docker gateway, не для `Anywhere`.
+
+После `docker compose up -d` обязательно проверить реальные listeners через `ss` и `bash scripts/network-hardening-check.sh --strict`.
 
 ## 1. Проверить текущую сеть
 
@@ -60,6 +62,20 @@ sudo ufw status verbose
 ```
 
 Открыть новую SSH-сессию в отдельном терминале и убедиться, что доступ не потерян.
+
+Если после deploy включается provider proxy bridge, сначала определить Docker subnet/gateway:
+
+```bash
+docker network inspect openwebui_web --format '{{json .IPAM.Config}}'
+```
+
+Затем добавить только узкое правило. Пример для subnet `172.18.0.0/16`, gateway `172.18.0.1`, bridge port `8118/tcp`:
+
+```bash
+sudo ufw allow in on <docker-bridge-interface> proto tcp from 172.18.0.0/16 to 172.18.0.1 port 8118 comment 'OpenWebUI outbound proxy bridge'
+```
+
+Не использовать `sudo ufw allow 8118/tcp`.
 
 ## 4. Настроить fail2ban для SSH
 

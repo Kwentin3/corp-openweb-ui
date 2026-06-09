@@ -8,6 +8,7 @@ internet user
   -> public 80/443
   -> Traefik
   -> OpenWebUI
+  -> host-local HTTP proxy bridge
   -> OpenAI API
   -> Gemini OpenAI-compatible API
 ```
@@ -33,7 +34,8 @@ Host OS владеет:
 
 - UFW firewall;
 - fail2ban для SSH;
-- public listeners `22/tcp`, `80/tcp`, `443/tcp`.
+- public listeners `22/tcp`, `80/tcp`, `443/tcp`;
+- host-local HTTP-to-SOCKS bridge for provider egress, when provider API blocks direct server region.
 
 ## Data boundary
 
@@ -53,10 +55,14 @@ OpenWebUI не публикует порт напрямую наружу. Нар
 
 - Traefik видит OpenWebUI по Docker network.
 - OpenWebUI ходит наружу к OpenAI и Gemini API.
+- Если прямой provider egress заблокирован, OpenWebUI ходит к provider API через HTTP proxy bridge on Docker gateway.
+- Bridge port не является public listener; UFW разрешает его только от Docker subnet к Docker gateway.
 
 ## Deployment boundary
 
-Репозиторий содержит skeleton и runbook. Фактическое развертывание требует ручного заполнения `.env`, установки Docker/Compose, host hardening и закрытия operator decisions.
+Репозиторий содержит compose, scripts и runbooks для текущего PRD-0 deployment. Фактические секреты и operator-only endpoints остаются вне Git в server-local `.env`/password manager.
+
+Текущий target на 2026-06-09 поднят: Traefik/OpenWebUI работают, strict TLS и network hardening проходят, OpenAI primary отвечает через proxy bridge. Gemini secondary и pilot users остаются operator actions.
 
 ## Deferred work
 
