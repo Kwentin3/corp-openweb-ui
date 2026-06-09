@@ -78,8 +78,11 @@ sudo systemctl start docker
 
 Вернуться к [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md).
 
-Не запускать OpenWebUI до заполнения `.env` и прохождения:
+Перед запуском OpenWebUI должны быть выполнены:
 
 ```bash
 bash scripts/preflight.sh
+bash scripts/network-hardening-check.sh
 ```
+
+Если репозиторий еще не склонирован, сначала выполнить host hardening по [HOST_HARDENING_RUNBOOK.md](HOST_HARDENING_RUNBOOK.md), затем после clone повторить read-only check из `scripts/network-hardening-check.sh`.

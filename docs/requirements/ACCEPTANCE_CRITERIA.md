@@ -1,17 +1,28 @@
-# Acceptance Criteria
+﻿# Acceptance Criteria
 
-Hermes Corporate v1 is accepted when all criteria below are satisfied in the target demo environment.
+OpenWebUI PRD-0 is accepted when all criteria below are satisfied in the target pilot environment.
 
-- `node1`, `node2` and `node3` are reachable over HTTPS.
-- Each node is protected by authorization.
-- Each node uses its own Authelia instance.
-- A session for one node does not grant access to another node.
-- Data does not mix across nodes.
-- Logs do not mix across nodes.
-- Secrets do not mix across nodes.
-- Restarting one node does not break other nodes.
-- Stopping one node does not break other nodes.
-- After VPS reboot, services return to an operational state.
-- Only 80/443 are open on the public perimeter.
-- Web GUI has no direct public access outside Traefik.
-- The repository contains no real secrets.
+- `https://gpt.alpha-soft.ru` is reachable over HTTPS.
+- HTTP redirects to HTTPS.
+- Strict TLS check passes without `curl -k`.
+- OpenWebUI is exposed only through Traefik.
+- UFW is active.
+- Public perimeter is limited to `22/tcp`, `80/tcp`, `443/tcp`.
+- Fail2ban is active.
+- `sshd` jail is enabled.
+- Admin can log in.
+- Signup is disabled or restricted to pending users.
+- 3-4 pilot users exist.
+- A normal user can log in.
+- UI shows `Alpha Soft AI Chat` or another operator-approved soft instance name.
+- A warning banner is visible to the user.
+- The warning banner forbids sending passwords, tokens, API keys, private SSH keys and closed personal data.
+- OpenAI provider is connected or ready by runbook.
+- Gemini provider is connected or ready by runbook.
+- At least one provider returns an answer in chat.
+- The second provider is checked or explicitly marked pending operator decision.
+- Chat history persists after logout/login.
+- Chat history persists after OpenWebUI container restart.
+- Real `.env` is not committed.
+- API keys, passwords, SSH endpoint and public IP are not committed.
+- Backup is created and restore path is documented.

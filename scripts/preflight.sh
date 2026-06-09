@@ -30,6 +30,11 @@ set +a
 [ -n "${OPENAI_API_KEY:-}" ] || fail "OPENAI_API_KEY is empty"
 [ -n "${WEBUI_SECRET_KEY:-}" ] || fail "WEBUI_SECRET_KEY is empty"
 [ -n "${CORS_ALLOW_ORIGIN:-}" ] || fail "CORS_ALLOW_ORIGIN is empty"
+[ -n "${WEBUI_NAME:-}" ] || fail "WEBUI_NAME is empty"
+[ -n "${WEBUI_BANNERS:-}" ] || fail "WEBUI_BANNERS is empty"
+
+OPENAI_ENDPOINT="https://api.openai.com/v1"
+GEMINI_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/openai"
 
 case "${LETSENCRYPT_EMAIL}:${OPENAI_API_KEY}:${WEBUI_ADMIN_EMAIL:-}:${WEBUI_ADMIN_PASSWORD:-}:${WEBUI_SECRET_KEY}:${CORS_ALLOW_ORIGIN}:${DEFAULT_MODELS:-}" in
   *example.com*|*replace-with*)
@@ -40,6 +45,29 @@ esac
 case "$CORS_ALLOW_ORIGIN" in
   "https://${OPENWEBUI_HOST}"*) info "CORS_ALLOW_ORIGIN includes primary HTTPS origin" ;;
   *) warn "CORS_ALLOW_ORIGIN does not start with https://${OPENWEBUI_HOST}" ;;
+esac
+
+case "$WEBUI_BANNERS" in
+  *'"type":"warning"'*|*'"type": "warning"'*) info "WEBUI_BANNERS contains a warning banner" ;;
+  *) warn "WEBUI_BANNERS does not clearly contain a warning banner" ;;
+esac
+
+case "$OPENAI_API_BASE_URL" in
+  "$OPENAI_ENDPOINT")
+    info "primary provider endpoint matches OpenAI"
+    ;;
+  "$GEMINI_ENDPOINT")
+    info "primary provider endpoint matches Gemini OpenAI compatibility"
+    ;;
+  "$GEMINI_ENDPOINT/")
+    warn "Gemini endpoint has trailing slash; PRD-0 runbook uses https://generativelanguage.googleapis.com/v1beta/openai"
+    ;;
+  https://*)
+    warn "primary provider endpoint is not one of the two PRD-0 endpoints"
+    ;;
+  *)
+    fail "OPENAI_API_BASE_URL must be an https URL"
+    ;;
 esac
 
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"

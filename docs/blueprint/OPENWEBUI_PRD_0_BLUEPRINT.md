@@ -2,22 +2,25 @@
 
 ## Назначение
 
-Blueprint описывает минимальный запуск OpenWebUI для фазы смотрин PRD-0: один домен, один OpenWebUI, один LLM API-провайдер, один администратор и 3-4 пользователя.
+Blueprint описывает минимальный запуск OpenWebUI для фазы смотрин PRD-0: один домен, один OpenWebUI, два LLM API-провайдера через штатные OpenWebUI connections, один администратор и 3-4 пользователя.
 
 Цель blueprint - дать безопасную инженерную основу для развертывания, не расширяя scope до AI-платформы.
 
 ## Домены и ответственность
 
 - Ingress: Traefik принимает HTTP/HTTPS и выпускает TLS-сертификат.
-- UI/runtime: OpenWebUI обслуживает пользователей, авторизацию, историю чатов и подключение к LLM API.
-- Persistence: Docker volume `openwebui_data` хранит данные OpenWebUI.
-- Secrets: server-local `.env` хранит API-ключи, `WEBUI_SECRET_KEY`, admin-пароль и email для Let's Encrypt.
+- UI/runtime: OpenWebUI обслуживает пользователей, авторизацию, историю чатов и подключения к LLM API.
+- Provider config: primary provider хранится в server-local `.env`; secondary provider добавляется через OpenWebUI Admin UI.
+- Low-cost customization: `WEBUI_NAME` и `WEBUI_BANNERS` задают мягкое имя инстанса и предупреждающий баннер без fork/frontend changes.
+- Persistence: Docker volume `openwebui_data` хранит данные OpenWebUI и persistent config.
+- Host hardening: UFW ограничивает public perimeter, fail2ban защищает SSH.
+- Secrets: server-local `.env` хранит primary API-key, `WEBUI_SECRET_KEY`, admin-пароль и email для Let's Encrypt; secondary API-key вводится в Admin UI.
 - Backup: скрипт сохраняет volume и локальный `.env` в server-local backup directory.
 - Pilot operations: администратор создает 3-4 пользователей и собирает обратную связь.
 
-## Границы
+## Non-goals
 
-В PRD-0 нет Hermes, LiteLLM, SSO, web-поиска, RAG, memory layer, document tools, корпоративного dashboard и white-label.
+В PRD-0 нет LiteLLM, отдельного model gateway, SSO, web-поиска, RAG, memory layer, document tools, plugins/tools/functions, fork OpenWebUI, изменения логотипа, изменения frontend-кода, корпоративного dashboard, WAF/SIEM/DLP и white-label.
 
 ## Контейнеры
 
@@ -35,10 +38,22 @@ browser
   -> https://gpt.alpha-soft.ru
   -> Traefik :443
   -> openwebui:8080
-  -> external OpenAI-compatible LLM API
+  -> OpenAI API
+  -> Gemini OpenAI-compatible API
 ```
 
 HTTP `:80` нужен только для редиректа на HTTPS и ACME HTTP challenge.
+
+## Boundary contracts
+
+- Public network: только `22/tcp`, `80/tcp`, `443/tcp`.
+- Compose env: `OPENAI_API_BASE_URL`, `OPENAI_API_KEY`, `DEFAULT_MODELS` относятся только к primary provider.
+- Compose env: `WEBUI_NAME` и `WEBUI_BANNERS` относятся только к дешевой штатной кастомизации.
+- OpenAI base URL: `https://api.openai.com/v1`.
+- Gemini base URL for OpenWebUI connection: `https://generativelanguage.googleapis.com/v1beta/openai`.
+- Model ids: точные значения выбирает оператор до пилота; `.env.example` не фиксирует невыбранный model id.
+- Provider routing, budgets and per-user limits: не реализуются в PRD-0.
+- White-label, logo replacement, frontend customization and plugins: не реализуются в PRD-0.
 
 ## Volumes
 
@@ -50,18 +65,26 @@ HTTP `:80` нужен только для редиректа на HTTPS и ACME 
 - Коммитится только `.env.example`.
 - Реальный `.env` создается на сервере вручную и не попадает в Git.
 - `WEBUI_SECRET_KEY` генерируется один раз через `openssl rand -hex 32` и остается стабильным.
+- `WEBUI_NAME=Alpha Soft AI Chat` задает мягкое имя инстанса; OpenWebUI branding не скрывается.
+- `WEBUI_BANNERS` задает warning banner с запретом отправлять секреты и закрытые персональные данные.
 - `CORS_ALLOW_ORIGIN` ограничивается `https://gpt.alpha-soft.ru`, чтобы не оставлять CORS default `*`.
 - Compose-файл хранится в `compose/openwebui.compose.yml`.
-- Скрипты preflight, backup и smoke хранятся в `scripts/`.
+- Скрипты preflight, network hardening, backup и smoke хранятся в `scripts/`.
+- OpenWebUI может сохранять часть настроек во внутренней persistent config; поэтому изменения provider config после первого запуска проверяются через Admin UI.
 
 ## Проверка готовности
 
 Готовность подтверждается не фактом запуска контейнеров, а acceptance checks:
 
 - домен открывается по HTTPS;
+- UFW активен и public perimeter ограничен;
+- fail2ban активен, `sshd` jail включен;
 - администратор входит;
 - созданы 3-4 пользователя;
-- пользователь получает ответ модели;
+- имя инстанса отображается как `Alpha Soft AI Chat` или подтвержденное оператором значение;
+- warning banner виден пользователю и содержит запрет на секреты/закрытые персональные данные;
+- OpenAI и Gemini подключены или один подключен, а второй явно отмечен pending operator decision;
+- пользователь получает ответ хотя бы от одного provider;
 - история чата сохраняется после restart;
 - strict TLS smoke проходит без отключения проверки сертификата;
 - `.env` не попал в Git;
@@ -72,10 +95,14 @@ HTTP `:80` нужен только для редиректа на HTTPS и ACME 
 - На сервере preflight показал отсутствие Docker и Traefik: перед deploy нужен bootstrap.
 - GitHub-репозиторий публичный: он не должен содержать SSH endpoint, публичный IP, API-ключи, реальные пароли и персональные данные участников.
 - OpenWebUI часть настроек сохраняет в persistent config, поэтому изменения env после первого запуска могут не примениться без действий через Admin UI.
+- Multi-provider env через `OPENAI_API_BASE_URLS`/`OPENAI_API_KEYS` возможен по документации OpenWebUI, но в PRD-0 не выбран как skeleton path из-за риска ошибки порядка URL/key и persistent config.
 - `WEBUI_ADMIN_EMAIL` и `WEBUI_ADMIN_PASSWORD` создают администратора только на свежей базе, когда пользователей еще нет.
 
 ## Ссылки
 
 - PRD: [../prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md)
+- Provider plan: [../infra/PROVIDER_CONNECTIONS_PLAN.md](../infra/PROVIDER_CONNECTIONS_PLAN.md)
+- Provider setup runbook: [../ops/PROVIDER_SETUP_RUNBOOK.md](../ops/PROVIDER_SETUP_RUNBOOK.md)
+- Host hardening runbook: [../ops/HOST_HARDENING_RUNBOOK.md](../ops/HOST_HARDENING_RUNBOOK.md)
 - Architecture overview: [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md)
 - Non-goals: [SCOPE_AND_NON_GOALS.md](SCOPE_AND_NON_GOALS.md)

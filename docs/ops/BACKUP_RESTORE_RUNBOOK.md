@@ -20,6 +20,8 @@ Backup directory по умолчанию:
 /opt/backups/openwebui-prd0
 ```
 
+Provider keys могут находиться в `.env` и/или в OpenWebUI persistent data, если secondary provider добавлен через Admin UI. Поэтому backup считается секретным.
+
 ## Restore
 
 1. Остановить сервисы:
@@ -35,7 +37,7 @@ cp /opt/backups/openwebui-prd0/env-<timestamp>.backup .env
 chmod 600 .env
 ```
 
-3. Восстановить `openwebui_data` по инструкции [../../scripts/restore.md](../../scripts/restore.md).
+3. Восстановить `openwebui_data` по инструкции [../../scripts/restore.md](../../scripts/restore.md). Это восстанавливает пользователей, историю и настройки OpenWebUI, включая provider connections, сохраненные через Admin UI.
 
 4. Для `traefik_letsencrypt` выбрать один путь:
 
@@ -48,8 +50,13 @@ chmod 600 .env
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
 
-6. Проверить strict TLS, вход администратора, историю чатов и новый запрос к модели.
+6. Проверить strict TLS, hardening, вход администратора, provider connections, историю чатов и новый запрос к модели:
+
+```bash
+bash scripts/network-hardening-check.sh
+bash scripts/smoke-test.sh --strict-tls
+```
 
 ## Важно
 
-Backup содержит секреты, если копируется `.env`. Не переносить такие архивы в Git, публичные чаты или незащищенные хранилища.
+Backup содержит секреты, если копируется `.env`, и может содержать provider secrets в `openwebui_data`. Не переносить такие архивы в Git, публичные чаты или незащищенные хранилища.

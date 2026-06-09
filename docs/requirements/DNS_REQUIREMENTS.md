@@ -1,23 +1,34 @@
-# DNS Requirements
+﻿# DNS Requirements
 
 ## DNS Model
 
-Wildcard DNS is not required for Hermes Corporate v1.
+Wildcard DNS is not required for OpenWebUI PRD-0.
 
-The stand requires six explicit A records. All records must point to the public IPv4 address of the new VPS.
+The stand requires one explicit A record:
 
-## Node Domains
+```text
+gpt.alpha-soft.ru -> target public IPv4
+```
 
-- `node1.example.com -> VPS_PUBLIC_IP`
-- `node2.example.com -> VPS_PUBLIC_IP`
-- `node3.example.com -> VPS_PUBLIC_IP`
+The exact public IPv4 is deployment-specific and must not be committed to Git.
 
-## Auth Domains
+## Checks
 
-- `auth-node1.example.com -> VPS_PUBLIC_IP`
-- `auth-node2.example.com -> VPS_PUBLIC_IP`
-- `auth-node3.example.com -> VPS_PUBLIC_IP`
+Before deploy:
 
-## Placeholder Domain
+```bash
+dig +short gpt.alpha-soft.ru
+```
 
-`example.com` is only a placeholder. Replace it after the real domain is approved.
+After deploy:
+
+```bash
+curl -I http://gpt.alpha-soft.ru
+curl -fsSI https://gpt.alpha-soft.ru
+```
+
+Expected:
+
+- DNS resolves to the target public IPv4;
+- HTTP redirects to HTTPS;
+- HTTPS serves OpenWebUI through Traefik with a valid certificate.

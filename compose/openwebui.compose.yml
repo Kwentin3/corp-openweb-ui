@@ -28,10 +28,10 @@ services:
     image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.9.6}
     container_name: openwebui
     restart: unless-stopped
-    env_file:
-      - ../.env
     environment:
       WEBUI_URL: https://${OPENWEBUI_HOST}
+      WEBUI_NAME: ${WEBUI_NAME:-Alpha Soft AI Chat}
+      WEBUI_BANNERS: ${WEBUI_BANNERS:-[]}
       ENABLE_OPENAI_API: "true"
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
       OPENAI_API_KEY: ${OPENAI_API_KEY}

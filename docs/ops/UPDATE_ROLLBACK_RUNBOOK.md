@@ -22,11 +22,14 @@ OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.9.6
 
 Не использовать `:main` для пилота без явного решения: официальный OpenWebUI guidance предупреждает, что `:main` является floating/development-like tag и может принести breaking changes.
 
-3. Проверить текущий smoke:
+3. Проверить текущий smoke и hardening:
 
 ```bash
-bash scripts/smoke-test.sh
+bash scripts/network-hardening-check.sh
+bash scripts/smoke-test.sh --strict-tls
 ```
+
+4. Зафиксировать primary/secondary provider и model ids без секретов.
 
 ## Update
 
@@ -36,7 +39,7 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 bash scripts/smoke-test.sh --strict-tls
 ```
 
-После update выполнить smoke и короткий пользовательский тест.
+После update выполнить smoke, provider check и короткий пользовательский тест.
 
 ## Rollback
 
@@ -54,6 +57,15 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
 
 Если данные повреждены, восстановить backup по [BACKUP_RESTORE_RUNBOOK.md](BACKUP_RESTORE_RUNBOOK.md).
+
+После rollback проверить:
+
+```bash
+bash scripts/network-hardening-check.sh
+bash scripts/smoke-test.sh --strict-tls
+```
+
+И вручную проверить LLM-ответ хотя бы от одного provider.
 
 ## Rule
 

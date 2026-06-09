@@ -9,11 +9,17 @@
 - Traefik;
 - HTTPS;
 - домен `gpt.alpha-soft.ru`;
-- один API-провайдер LLM;
-- одна модель по умолчанию;
+- OpenAI и Gemini как API-провайдеры;
+- один primary provider через `.env`;
+- второй provider через Admin UI;
+- мягкое имя инстанса через `WEBUI_NAME`;
+- warning banner через `WEBUI_BANNERS`;
+- закрытая регистрация и базовые настройки доступа;
 - один администратор;
 - 3-4 пользователя;
 - persistent volume для данных OpenWebUI;
+- UFW firewall;
+- fail2ban для SSH;
 - минимальный backup;
 - runbook;
 - smoke и acceptance checks.
@@ -22,22 +28,26 @@
 
 В PRD-0 явно не входят:
 
-- Hermes;
 - LiteLLM;
 - model gateway;
-- несколько LLM-провайдеров;
-- несколько моделей как пользовательская функция;
+- provider routing, fallback, budgets и per-user limits;
+- несколько моделей как пользовательская продуктовая функция;
 - web-поиск;
 - SSO/OIDC;
 - корпоративный admin dashboard;
 - роли РО и подчиненных;
 - Word/PDF/Excel skills;
+- plugins, tools/functions;
+- fork OpenWebUI;
+- изменение логотипа;
+- изменение frontend-кода или кастомный frontend;
 - транскрибация;
 - сложный RAG;
 - memory/context layer;
 - интеграции с 1С/CRM;
 - кастомный интерфейс;
-- white-label или смена брендинга OpenWebUI.
+- white-label или смена брендинга OpenWebUI;
+- WAF, SIEM, DLP и корпоративный security audit.
 
 ## Принцип удержания scope
 

@@ -28,7 +28,7 @@
 
 - `.env.example` и compose не задавали `WEBUI_SECRET_KEY`.
 - `CORS_ALLOW_ORIGIN` отсутствовал и оставлял риск default `*`/WebSocket origin проблем.
-- `DEFAULT_MODELS=replace-with-model-id` конфликтовал с preflight, хотя переменная optional.
+- `DEFAULT_MODELS` содержал искусственный placeholder model id и конфликтовал с preflight, хотя переменная optional.
 - Не было Docker bootstrap-документа для Ubuntu 24.04.
 - `smoke-test.sh` проверял HTTPS только с `curl -k`.
 - `backup.sh` сохранял `traefik_letsencrypt`, но restore-документация не описывала этот volume.

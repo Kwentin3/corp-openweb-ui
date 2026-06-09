@@ -7,13 +7,13 @@
 - PRD: `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md`.
 - Текущее дерево проекта.
 - Git remote, branch, worktree и status.
-- Existing docs по старому Hermes scope оставлены без удаления.
+- Existing docs по прежнему scope на тот момент были оставлены без удаления; REFINE-3 удаляет устаревший контур.
 
 ## Git
 
 - Ветка: `main`.
 - Worktree: один canonical tree.
-- До изменения remote `origin` указывал на старый `corp-hermes`.
+- До изменения remote `origin` указывал на прежний репозиторий.
 - Старый remote сохранен как `old-origin`.
 - Новый `origin`: `https://github.com/Kwentin3/corp-openweb-ui.git`.
 - Целевой GitHub repository доступен, `HEAD` на момент проверки не вернул коммитов.
