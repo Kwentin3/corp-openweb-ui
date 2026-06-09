@@ -55,6 +55,8 @@ OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,g
 
 OpenWebUI OpenAI route uses an HTTP client path that expects an HTTP proxy. Для SOCKS5 нужен local HTTP-to-SOCKS bridge, например Privoxy. `socks5h://` остается upstream-схемой bridge, чтобы DNS provider API тоже шел через proxy. Реальные proxy credentials хранить только в server-local `.env`/password manager.
 
+Bridge должен слушать только loopback и Docker gateway address. Если UFW настроен как `deny incoming`, добавить узкое правило только от Docker subnet к bridge port, например `172.18.0.0/16 -> 172.18.0.1:8118/tcp`. Не открывать proxy port публично.
+
 ## 2. Secondary provider через Admin UI
 
 1. Войти администратором.

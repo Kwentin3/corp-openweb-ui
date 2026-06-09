@@ -105,6 +105,8 @@ OPENWEBUI_SOCKS5_UPSTREAM=socks5h://user:password@proxy-host:1080
 OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,gpt.alpha-soft.ru
 ```
 
+Bridge listener не должен быть public. При UFW `deny incoming` нужен точечный allow только от Docker subnet к Docker gateway port bridge, например `172.18.0.0/16 -> 172.18.0.1:8118/tcp`. Не открывать `8118/tcp` для `Anywhere`.
+
 Реальные proxy credentials не коммитить. Если proxy credentials были переданы через чат или ticket, считать их раскрытыми и заменить после стабилизации пилота.
 
 ## Provider endpoints
