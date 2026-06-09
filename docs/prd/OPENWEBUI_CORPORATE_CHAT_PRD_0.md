@@ -40,16 +40,16 @@ PRD-0 не описывает полноценную AI-платформу и н
 - публикация OpenWebUI на домене `gpt.alpha-soft.ru`;
 - настройка Traefik и HTTPS;
 - подключение OpenAI и Gemini средствами OpenWebUI;
-- один primary provider через server-local `.env`;
-- второй provider через OpenWebUI Admin UI;
-- выбор точных model id оператором до пилота;
+- OpenAI primary provider через server-local `.env`;
+- Gemini secondary provider через OpenWebUI Admin UI;
+- точные model id: OpenAI `gpt-5.4-mini`, Gemini `gemini-3.5-flash`;
 - создание 3-4 пользовательских аккаунтов;
 - отключение или ограничение самостоятельной публичной регистрации;
 - проверка отправки запроса к модели и получения ответа;
 - проверка сохранения истории чатов;
 - дешевая штатная кастомизация через env/Admin UI: мягкое имя инстанса, предупреждающий баннер, закрытая регистрация и базовые настройки доступа;
 - базовый host hardening: UFW firewall и fail2ban для SSH;
-- минимальное резервное копирование конфигурации и persistent volume OpenWebUI;
+- минимальное резервное копирование конфигурации и persistent volume OpenWebUI с `BACKUP_RETENTION_DAYS=7` по умолчанию;
 - короткий runbook для эксплуатации;
 - короткая пользовательская инструкция.
 
@@ -114,13 +114,20 @@ Primary provider задается через `.env` переменными `OPEN
 
 Secondary provider добавляется вручную через OpenWebUI Admin UI в разделе Connections. Такой путь выбран консервативно: OpenWebUI поддерживает env-переменные для OpenAI-compatible API, но часть настроек является persistent config, а multi-provider env увеличивает риск ошибки порядка URL/key и сложнее проверяется в PRD-0.
 
+Текущий deployment decision:
+
+- OpenAI primary: `OPENAI_API_BASE_URL=https://api.openai.com/v1`, `DEFAULT_MODELS=gpt-5.4-mini`;
+- Gemini secondary через Admin UI: `https://generativelanguage.googleapis.com/v1beta/openai`, Model IDs `gemini-3.5-flash`.
+
+Если оператор намеренно тестирует именно Gemini 3 Flash Preview, точный model id - `gemini-3-flash-preview`. Строка `gemini-3-flash` без `preview` не используется как exact model code.
+
 Перед пилотом оператор должен проверить:
 
 - наличие OpenAI API key;
 - наличие Gemini API key;
 - billing/quota/region для каждого провайдера;
-- точный OpenAI model id;
-- точный Gemini model id;
+- доступ OpenAI API key к `gpt-5.4-mini`;
+- доступ Gemini API key к `gemini-3.5-flash`;
 - что хотя бы один provider дает ответ в чате.
 
 Выбор нескольких моделей пользователем не является обязательным для PRD-0.
@@ -205,11 +212,11 @@ PRD-0 считается готовым, если:
 - в интерфейсе отображается имя `Alpha Soft AI Chat` или подтвержденное оператором имя;
 - пользователь видит предупреждающий баннер;
 - баннер запрещает отправлять пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные;
-- OpenAI provider подключен или готов к подключению по runbook;
-- Gemini provider подключен или готов к подключению по runbook;
+- OpenAI primary provider с `gpt-5.4-mini` подключен или готов к подключению по runbook;
+- Gemini secondary provider с `gemini-3.5-flash` подключен через Admin UI или готов к подключению по runbook;
 - пользователь может задать вопрос модели;
 - ответ хотя бы от одного provider приходит и отображается в чате;
-- второй provider проверен или явно отмечен как pending operator decision;
+- второй provider проверен или явно отмечен pending только из-за API key/quota/billing/region;
 - история чата сохраняется после выхода пользователя;
 - история чата сохраняется после перезапуска контейнера;
 - API-ключи не передаются пользователям;
@@ -270,12 +277,8 @@ PRD-0 считается готовым, если:
 - Какой VPS используется: существующий или новый?
 - Кто будет администратором системы после запуска?
 - Подтверждает ли оператор имя инстанса `Alpha Soft AI Chat`?
-- Какой provider будет primary через `.env`, а какой secondary через Admin UI?
-- Какой точный OpenAI model id выбирается для первой проверки?
-- Какой точный Gemini model id выбирается для первой проверки?
 - Есть ли готовые OpenAI и Gemini API keys?
 - Проверены ли billing/quota/region для обоих провайдеров?
-- Какой минимальный срок хранения бэкапов нужен для PRD-0?
 - Кто собирает обратную связь от пользователей через 1-2 недели?
 
 ## 20. Короткий вывод

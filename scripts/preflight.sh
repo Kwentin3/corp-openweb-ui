@@ -70,6 +70,20 @@ case "$OPENAI_API_BASE_URL" in
     ;;
 esac
 
+if [ -n "${BACKUP_RETENTION_DAYS:-}" ]; then
+  case "$BACKUP_RETENTION_DAYS" in
+    *[!0-9]*)
+      fail "BACKUP_RETENTION_DAYS must be a number of days"
+      ;;
+  esac
+
+  if [ "$BACKUP_RETENTION_DAYS" -lt 1 ]; then
+    fail "BACKUP_RETENTION_DAYS must be 1 or greater"
+  fi
+
+  info "backup retention is ${BACKUP_RETENTION_DAYS} days"
+fi
+
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose plugin is not available"
 command -v curl >/dev/null 2>&1 || warn "curl is not installed; smoke-test.sh needs it"

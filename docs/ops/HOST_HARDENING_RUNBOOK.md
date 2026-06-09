@@ -13,6 +13,12 @@ Runbook задает минимальный host hardening для Ubuntu Server 
 - Известен текущий SSH port. Если он не `22/tcp`, заменить `22/tcp` на фактический порт в командах и документации deployment note.
 - Нет отдельной корпоративной firewall policy, конфликтующей с UFW.
 
+## Docker/UFW caveat
+
+Docker может управлять iptables и публиковать порты в обход ожидаемой UFW-модели. Поэтому UFW не считается единственной границей защиты.
+
+В PRD-0 запрещено публиковать наружу что-либо, кроме SSH `22` и Traefik `80/443`. OpenWebUI должен быть доступен только через Traefik, без прямого public port. После `docker compose up -d` обязательно проверить реальные listeners через `ss` и `bash scripts/network-hardening-check.sh --strict`.
+
 ## 1. Проверить текущую сеть
 
 ```bash
@@ -92,7 +98,11 @@ sudo fail2ban-client status sshd
 bash scripts/network-hardening-check.sh
 ```
 
-До запуска Traefik предупреждение об отсутствии listeners `80/443` допустимо. После `docker compose up -d` эти порты должны слушаться.
+До запуска Traefik предупреждение об отсутствии listeners `80/443` допустимо. После `docker compose up -d` эти порты должны слушаться, а строгая проверка должна проходить:
+
+```bash
+bash scripts/network-hardening-check.sh --strict
+```
 
 ## 6. Логи и recovery
 
@@ -126,7 +136,7 @@ sudo ufw status numbered
 
 - `sudo ufw status verbose` без персональных IP;
 - `sudo fail2ban-client status sshd`;
-- результат `bash scripts/network-hardening-check.sh`;
+- результат `bash scripts/network-hardening-check.sh --strict` после deploy;
 - подтверждение, что новая SSH-сессия открывается после включения UFW.
 
 Не фиксировать в публичном Git точный SSH endpoint, public IP, личные IP операторов и реальные имена.

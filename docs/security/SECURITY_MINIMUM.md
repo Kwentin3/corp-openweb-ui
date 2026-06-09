@@ -5,6 +5,7 @@
 - HTTPS only.
 - OpenWebUI не публикуется напрямую наружу.
 - Публичный perimeter ограничен `22/tcp`, `80/tcp`, `443/tcp`.
+- Docker не публикует наружу ничего, кроме Traefik `80/443`; OpenWebUI не имеет прямого public port.
 - UFW включен с default deny incoming и default allow outgoing.
 - Fail2ban установлен, active, `sshd` jail enabled.
 - Warning banner включен и виден пользователям.
@@ -51,9 +52,13 @@ Warning banner является частью минимальной пользо
 - проверить, что пользователь видит warning banner;
 - отключить signup после создания пользователей;
 - проверить strict TLS без `curl -k`;
-- проверить `bash scripts/network-hardening-check.sh`;
+- проверить `bash scripts/network-hardening-check.sh --strict` после deploy;
 - проверить backup;
 - собрать обратную связь после 1-2 недель.
+
+## Docker/UFW caveat
+
+Docker может управлять iptables и публиковать порты в обход ожидаемой UFW-модели. Поэтому UFW не считается единственной границей защиты. В PRD-0 запрещено публиковать наружу что-либо, кроме Traefik `80/443` и SSH `22`. После `docker compose up -d` обязательна проверка реальных listeners через `ss` и `bash scripts/network-hardening-check.sh --strict`.
 
 После стабилизации пилота администратор может сменить первичный пароль через UI и убрать bootstrap password из активного server-local `.env`, но это не blocker PRD-0.
 

@@ -2,6 +2,24 @@
 set -u
 
 WARNINGS=0
+STRICT=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --strict)
+      STRICT=1
+      ;;
+    -h|--help)
+      printf 'Usage: %s [--strict]\n' "$0"
+      exit 0
+      ;;
+    *)
+      printf 'Unknown argument: %s\n' "$arg" >&2
+      printf 'Usage: %s [--strict]\n' "$0" >&2
+      exit 2
+      ;;
+  esac
+done
 
 ok() {
   printf 'OK: %s\n' "$1"
@@ -162,6 +180,10 @@ if [ "$WARNINGS" -eq 0 ]; then
   ok "network hardening check complete"
 else
   printf 'WARNINGS=%s\n' "$WARNINGS" >&2
+fi
+
+if [ "$STRICT" -eq 1 ] && [ "$WARNINGS" -gt 0 ]; then
+  exit 1
 fi
 
 exit 0

@@ -10,10 +10,10 @@
 - [ ] Администратор входит.
 - [ ] Имя инстанса отображается как `Alpha Soft AI Chat` или подтвержденное оператором имя.
 - [ ] Warning banner виден пользователю и запрещает отправку секретов/закрытых персональных данных.
-- [ ] OpenAI provider подключен или готов по runbook.
-- [ ] Gemini provider подключен или готов по runbook.
+- [ ] OpenAI primary provider с `gpt-5.4-mini` подключен или готов по runbook.
+- [ ] Gemini secondary provider с `gemini-3.5-flash` подключен через Admin UI или готов по runbook.
 - [ ] Хотя бы один provider отвечает.
-- [ ] Второй provider проверен или явно отмечен pending operator decision.
+- [ ] Второй provider проверен или pending только по API key/quota/billing, не по выбору provider/model.
 - [ ] Созданы 3-4 пользователя.
 - [ ] Signup отключен или ограничен.
 - [ ] Backup создан.

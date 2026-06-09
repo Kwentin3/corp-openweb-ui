@@ -17,10 +17,10 @@ OpenWebUI PRD-0 is accepted when all criteria below are satisfied in the target 
 - UI shows `Alpha Soft AI Chat` or another operator-approved soft instance name.
 - A warning banner is visible to the user.
 - The warning banner forbids sending passwords, tokens, API keys, private SSH keys and closed personal data.
-- OpenAI provider is connected or ready by runbook.
-- Gemini provider is connected or ready by runbook.
+- OpenAI primary provider with `gpt-5.4-mini` is connected or ready by runbook.
+- Gemini secondary provider with `gemini-3.5-flash` is connected through Admin UI or ready by runbook.
 - At least one provider returns an answer in chat.
-- The second provider is checked or explicitly marked pending operator decision.
+- The second provider is checked or explicitly marked pending only because of API key, quota, billing or regional access.
 - Chat history persists after logout/login.
 - Chat history persists after OpenWebUI container restart.
 - Real `.env` is not committed.

@@ -22,6 +22,22 @@ Backup directory по умолчанию:
 
 Provider keys могут находиться в `.env` и/или в OpenWebUI persistent data, если secondary provider добавлен через Admin UI. Поэтому backup считается секретным.
 
+## Retention
+
+`scripts/backup.sh` читает retention из environment или server-local `.env`:
+
+```env
+BACKUP_RETENTION_DAYS=7
+```
+
+Для PRD-0 используются простые значения:
+
+- `1` - test retention на 1 день;
+- `7` - default для короткого пилота;
+- `30` - около месяца.
+
+Скрипт удаляет только свои known artifacts в `BACKUP_DIR`: `openwebui_data-*.tgz`, `traefik_letsencrypt-*.tgz`, `env-*.backup`.
+
 ## Restore
 
 1. Остановить сервисы:

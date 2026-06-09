@@ -40,6 +40,8 @@ docker compose version
 
 Не включать firewall до проверки SSH allow. После включения UFW открыть вторую SSH-сессию и убедиться, что доступ работает.
 
+Docker может управлять iptables и публиковать порты в обход ожидаемой UFW-модели. UFW не считается единственной границей защиты: в PRD-0 наружу разрешены только SSH `22` и Traefik `80/443`; OpenWebUI не должен иметь прямой public port.
+
 ## 5. Склонировать репозиторий
 
 ```bash
@@ -66,18 +68,23 @@ openssl rand -hex 32
 
 Primary provider задается в `.env`. Secondary provider добавляется позже через Admin UI по [PROVIDER_SETUP_RUNBOOK.md](PROVIDER_SETUP_RUNBOOK.md).
 
+Для текущего PRD-0 `.env.example` уже отражает закрытые operator decisions:
+
+- Let's Encrypt email: `kwentin3@mail.ru`;
+- primary provider: OpenAI;
+- primary model id: `gpt-5.4-mini`;
+- Gemini secondary model id для Admin UI: `gemini-3.5-flash`;
+- backup retention default: `BACKUP_RETENTION_DAYS=7`.
+
 ## 7. Закрыть deployment decisions
 
 До запуска должны быть приняты решения из [DEPLOYMENT_DECISIONS.md](DEPLOYMENT_DECISIONS.md):
 
-- primary provider через `.env`;
-- secondary provider через Admin UI;
-- OpenAI API key и exact model id;
-- Gemini API key и exact model id;
+- OpenAI API key для primary provider;
+- Gemini API key для secondary provider через Admin UI;
 - подтверждение имени инстанса `Alpha Soft AI Chat` или другого мягкого имени;
-- email Let's Encrypt;
 - первый admin email/password;
-- backup retention.
+- operator current public IP, если нужно добавить fail2ban ignore list.
 
 ## 8. Выполнить preflight
 
@@ -100,10 +107,10 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```bash
 curl -I http://gpt.alpha-soft.ru
 bash scripts/smoke-test.sh --strict-tls
-bash scripts/network-hardening-check.sh
+bash scripts/network-hardening-check.sh --strict
 ```
 
-Ожидаемо: HTTP редиректит на HTTPS, HTTPS проходит без `curl -k`, `80/443` слушаются Traefik.
+Ожидаемо: HTTP редиректит на HTTPS, HTTPS проходит без `curl -k`, `80/443` слушаются Traefik, unexpected public listeners отсутствуют.
 
 ## 11. Создать администратора и пользователей
 
@@ -141,7 +148,7 @@ Post-bootstrap password rotation не blocker PRD-0. После стабилиз
 Ожидаемо:
 
 - ответ приходит хотя бы от одного provider;
-- второй provider проверен или явно отмечен pending operator decision;
+- второй provider проверен или pending только по API key/quota/billing/region;
 - ответ сохраняется в истории.
 
 ## 15. Проверить persistence
@@ -158,6 +165,8 @@ bash scripts/smoke-test.sh --strict-tls
 ```bash
 bash scripts/backup.sh
 ```
+
+Retention управляется `BACKUP_RETENTION_DAYS` в `.env`: `1`, `7` или `30`; default в `.env.example` - `7`.
 
 Проверить restore path по [BACKUP_RESTORE_RUNBOOK.md](BACKUP_RESTORE_RUNBOOK.md).
 

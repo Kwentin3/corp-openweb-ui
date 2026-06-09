@@ -8,7 +8,7 @@
 ## Required variables
 
 - `OPENWEBUI_HOST` - домен без схемы, для PRD-0 `gpt.alpha-soft.ru`.
-- `LETSENCRYPT_EMAIL` - email для Let's Encrypt.
+- `LETSENCRYPT_EMAIL` - email для Let's Encrypt; для текущего PRD-0 operator value: `kwentin3@mail.ru`.
 - `WEBUI_NAME` - мягкое имя инстанса, для PRD-0 `Alpha Soft AI Chat`.
 - `WEBUI_BANNERS` - JSON array предупреждающих баннеров OpenWebUI.
 - `OPENAI_API_BASE_URL` - URL primary OpenAI-compatible API.
@@ -25,12 +25,16 @@
 - `DEFAULT_MODELS` - primary model id, если оператор решил зафиксировать его через env.
 - `ENABLE_SIGNUP` - для PRD-0 должно быть `false` после создания admin.
 - `DEFAULT_USER_ROLE` - рекомендуется `pending`.
+- `BACKUP_DIR` - server-local directory для backup artifacts; default `/opt/backups/openwebui-prd0`.
+- `BACKUP_RETENTION_DAYS` - сколько дней хранить backup-файлы, созданные `scripts/backup.sh`; pilot choices: `1`, `7`, `30`, default `7`.
 
 ## Provider env contract
 
-PRD-0 использует `.env` только для primary provider.
+PRD-0 использует `.env` только для primary provider. Для текущего deployment decision primary provider - OpenAI, secondary provider - Gemini.
 
 Secondary provider добавляется вручную через OpenWebUI Admin UI по [../ops/PROVIDER_SETUP_RUNBOOK.md](../ops/PROVIDER_SETUP_RUNBOOK.md).
+
+Это не означает, что Gemini не выбран. Выбраны оба provider; Admin UI - это только место, где вводится second provider connection и его API key.
 
 Причина: OpenWebUI поддерживает несколько OpenAI-compatible connections через Admin UI. В env reference также есть multi-value переменные `OPENAI_API_BASE_URLS` и `OPENAI_API_KEYS`, но для PRD-0 они не используются в skeleton, потому что:
 
@@ -79,16 +83,18 @@ WEBUI_BANNERS="[{\"id\":\"prd0-policy-warning-v1\",\"type\":\"warning\",\"title\
 
 | Provider | Base URL for OpenWebUI | API key | Model id |
 | --- | --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1` | OpenAI API key с доступом к выбранной модели | Operator-selected exact model id |
-| Gemini OpenAI compatibility | `https://generativelanguage.googleapis.com/v1beta/openai` | Gemini API key с включенным billing/quota/region | Operator-selected exact Gemini model id |
+| OpenAI | `https://api.openai.com/v1` | OpenAI API key с доступом к выбранной модели | `gpt-5.4-mini` |
+| Gemini OpenAI compatibility | `https://generativelanguage.googleapis.com/v1beta/openai` | Gemini API key с включенным billing/quota/region | `gemini-3.5-flash` |
 
 Для Gemini в этом репозитории используется endpoint без trailing slash. Google SDK examples показывают тот же path со slash в конце, но OpenWebUI connection URL должен быть единым нормализованным значением, чтобы UI мог добавлять `/models` и chat paths без неоднозначности.
+
+Если оператор намеренно тестирует именно Gemini 3 Flash Preview, точный model id - `gemini-3-flash-preview`. Строка `gemini-3-flash` без `preview` не используется как exact model code.
 
 ## OpenWebUI notes
 
 Часть переменных OpenWebUI относится к persistent config: после первого запуска значения могут сохраниться во внутренней базе и не всегда меняться простой правкой `.env`. Если настройка не меняется после restart, проверить Admin UI.
 
-`DEFAULT_MODELS` является optional и по документации имеет пустое значение по умолчанию. Заполнять его только после выбора точного model id.
+`DEFAULT_MODELS` является optional и по документации имеет пустое значение по умолчанию. В текущем `.env.example` он заполнен как `gpt-5.4-mini`, потому что OpenAI выбран primary provider.
 
 `WEBUI_SECRET_KEY` рекомендуется явно задавать даже для single-instance deployment, чтобы пересоздание контейнера не сбрасывало сессии и не ломало расшифровку чувствительных данных.
 
@@ -97,6 +103,20 @@ WEBUI_BANNERS="[{\"id\":\"prd0-policy-warning-v1\",\"type\":\"warning\",\"title\
 `WEBUI_ADMIN_EMAIL` и `WEBUI_ADMIN_PASSWORD` поддерживаются OpenWebUI для headless/container bootstrap. Условие: база свежая, пользователей еще нет, обе переменные заданы.
 
 `WEBUI_BANNERS` относится к ConfigVar/persistent configuration. Если баннер не появился после restart, проверить Admin UI -> Settings -> General -> Banners.
+
+## Backup retention
+
+`scripts/backup.sh` читает `BACKUP_DIR` и `BACKUP_RETENTION_DAYS` из environment или server-local `.env`.
+
+Для PRD-0 не добавляется отдельный backup scheduler. Оператор запускает backup вручную или через внешний cron/systemd timer.
+
+Retention в PRD-0 - одно число дней:
+
+- `1` - очень короткий test retention;
+- `7` - default для короткого пилота;
+- `30` - около месяца.
+
+Скрипт удаляет только свои known artifacts в `BACKUP_DIR`: `openwebui_data-*.tgz`, `traefik_letsencrypt-*.tgz`, `env-*.backup`.
 
 ## Security
 
@@ -107,5 +127,7 @@ WEBUI_BANNERS="[{\"id\":\"prd0-policy-warning-v1\",\"type\":\"warning\",\"title\
 - OpenWebUI env reference: https://docs.openwebui.com/reference/env-configuration/
 - OpenWebUI customizable banners: https://docs.openwebui.com/features/administration/banners/
 - OpenWebUI OpenAI-compatible connections: https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai-compatible/
+- OpenAI model catalog: https://developers.openai.com/api/docs/models/gpt
 - OpenAI API reference: https://platform.openai.com/docs/api-reference/chat/create
+- Gemini 3.5 Flash model page: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash
 - Gemini OpenAI compatibility: https://ai.google.dev/gemini-api/docs/openai
