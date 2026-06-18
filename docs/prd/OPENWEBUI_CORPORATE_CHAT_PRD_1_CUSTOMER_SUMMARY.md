@@ -1,8 +1,8 @@
 ﻿# OpenWebUI Corporate Chat Stage 2 Customer Summary
 
 Статус: customer-facing summary
-Источник: [OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md](OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md)
-Changelog: [OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md](OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md)
+Источник: [OPENWEBUI_CORPORATE_CHAT_PRD_1.md](OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
+Changelog: [OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md)
 Назначение: согласование Stage 2, объема работ и предварительной оценки трудозатрат
 
 ## 1. Что такое Stage 2

@@ -26,13 +26,15 @@
 
 ## Stage 2 / PRD-1
 
-PRD-0 принят и закрыт. Следующий этап описан как enriched draft: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md).
+PRD-0 принят и закрыт. Актуальный PRD-1 / source of truth для согласования Stage 2: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md).
 
 Короткое summary для заказчика и переговоров: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md).
 
-Версия для согласования с заказчиком: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md). Краткий список изменений: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md).
+Исторический черновик сохранен отдельно: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md). Краткий список изменений: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md).
 
 PRD-1 фиксирует развитие OpenWebUI в управляемую корпоративную AI-среду: рабочие сценарии, общие prompts/templates, документы, транскрибация аудио/видео, web-search, модельный каталог, basic analytics и policy допустимых данных. Practical Stage 2 теперь включает адаптацию существующего ffmpeg workflow через server-side STT proxy, OCR/layout-aware PDF pilot, проверку доступа руководителей к рабочим чатам и technical check запрета удаления чатов. LiteLLM/gateway, full AD lifecycle/SCIM, production OCR pipeline и data masking/tokenization остаются отдельными optional/future slices.
+
+Инженерный домен подготовки к реализации Stage 2: [docs/stage2/README.md](docs/stage2/README.md). Быстрые входы: [roadmap](docs/stage2/ROADMAP.md), [context index](docs/stage2/CONTEXT_INDEX.md), [domain map](docs/stage2/DOMAIN_MAP.md).
 
 ## Быстрый старт на сервере
 
@@ -56,10 +58,14 @@ bash scripts/smoke-test.sh --strict-tls
 ## Навигация
 
 - PRD-0: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md)
-- PRD-1 / Stage 2 draft: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
+- PRD-1 / Stage 2 source of truth: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - PRD-1 Stage 2 customer summary: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
-- PRD-1 refined for customer review: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md)
-- PRD-1 refined changelog: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED_CHANGELOG.md)
+- PRD-1 initial historical draft: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md)
+- PRD-1 changelog: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md)
+- Stage 2 engineering domain: [docs/stage2/README.md](docs/stage2/README.md)
+- Stage 2 roadmap: [docs/stage2/ROADMAP.md](docs/stage2/ROADMAP.md)
+- Stage 2 context index: [docs/stage2/CONTEXT_INDEX.md](docs/stage2/CONTEXT_INDEX.md)
+- Stage 2 domain map: [docs/stage2/DOMAIN_MAP.md](docs/stage2/DOMAIN_MAP.md)
 - Blueprint: [docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md](docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md)
 - Architecture: [docs/blueprint/ARCHITECTURE_OVERVIEW.md](docs/blueprint/ARCHITECTURE_OVERVIEW.md)
 - Scope/non-goals: [docs/blueprint/SCOPE_AND_NON_GOALS.md](docs/blueprint/SCOPE_AND_NON_GOALS.md)
