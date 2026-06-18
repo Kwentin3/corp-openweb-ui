@@ -87,6 +87,8 @@ accounting.
   actualization](docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md)
 - [ADR-0004 STT proxy boundary review
   report](docs/reports/2026-06-18/OPENWEBUI_ADR0004_STT_PROXY_BOUNDARY_REVIEW.report.md)
+- [ADR-0004 ffmpeg workflow artifact inspection
+  report](docs/reports/2026-06-18/OPENWEBUI_FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
@@ -144,6 +146,8 @@ bash scripts/smoke-test.sh --strict-tls
   [OPENWEBUI Stage 2 research actualization report][stage2-research-actualization-report]
 - ADR-0004 STT proxy boundary review report:
   [OPENWEBUI ADR-0004 STT proxy boundary review report][adr0004-stt-proxy-boundary-review-report]
+- ADR-0004 ffmpeg workflow artifact inspection report:
+  [OPENWEBUI ADR-0004 ffmpeg workflow artifact inspection report][adr0004-ffmpeg-workflow-inspection-report]
 - Stage 2 agent review:
   [OPENWEBUI PRD-1 Stage 2 agent review][stage2-agent-review-report]
 - Stage 2 backend-first / VL OCR refine report:
@@ -153,6 +157,7 @@ bash scripts/smoke-test.sh --strict-tls
 
 [stage2-research-actualization-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md
 [adr0004-stt-proxy-boundary-review-report]: docs/reports/2026-06-18/OPENWEBUI_ADR0004_STT_PROXY_BOUNDARY_REVIEW.report.md
+[adr0004-ffmpeg-workflow-inspection-report]: docs/reports/2026-06-18/OPENWEBUI_FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.report.md
 [stage2-agent-review-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md
 [stage2-backend-vl-ocr-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md
 [stage2-source-of-truth-sync-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md

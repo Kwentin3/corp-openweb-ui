@@ -20,10 +20,14 @@ Browser-side ffmpeg preprocessing больше не считается research 
 
 ffmpeg workflow is a media-preprocessing asset, not a security boundary.
 
-Actual ffmpeg workflow artifact is not present in this repository. The Stage 2
-contract can define the expected boundary, but implementation remains blocked
-until the real artifact output format, MIME/content type, browser/mobile support,
-worker model, progress/cancel behavior and limits are inspected.
+Actual browser ffmpeg preprocessing artifact is not present in this repository.
+External `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context was
+inspected, but it does not contain the browser ffmpeg implementation, command,
+`@ffmpeg/*` dependency or browser/mobile proof. The Stage 2 contract can define
+the expected boundary, but implementation remains blocked until the real
+preprocessing output format, MIME/content type, browser/mobile support, worker
+model, progress/cancel behavior and limits are inspected or replaced by an
+approved preprocessing contract.
 
 Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final
 frontend UI.
@@ -34,6 +38,10 @@ frontend UI.
 blob идет в server-side STT proxy. Proxy проверяет auth/rights/limits, добавляет STT key, вызывает
 Lemonfox/selected provider. UI показывает transcript и templates: протокол, задачи, решения, резюме,
 follow-up.
+
+Current candidate prepared-audio contract is `audio/webm;codecs=opus` /
+`audio/webm`, with `audio/mpeg`, `audio/wav` or `audio/mp4` as possible
+fallbacks. This is a review contract, not runtime proof.
 
 ## 4.1. Backend-first boundary
 
@@ -79,6 +87,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 8. Dependencies
 
 - Existing ffmpeg project details.
+- FFMPEG workflow artifact inspection and ffmpeg.wasm dependency decision.
 - Lemonfox research.
 - OpenWebUI capability research.
 - Manager visibility/retention policy.
@@ -97,13 +106,17 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 10. Open questions
 
 - What file size/duration limits are acceptable?
+- What exact ffmpeg command/output codec/container should be standardized?
 - Is server fallback required in Practical Stage 2?
+- Is single-thread ffmpeg.wasm enough, or is multi-thread
+  `SharedArrayBuffer` / COOP / COEP support required?
 - Where are transcripts stored?
 - Is diarization required in first slice?
 
 ## 11. Research links
 
 - [TRANSCRIPTION_STT_RESEARCH](../research/TRANSCRIPTION_STT_RESEARCH.md)
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](../research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md)
 
@@ -114,11 +127,13 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - User can apply result templates.
 - Unsupported/large files produce clear errors or documented limits.
 - STT proxy API contract is documented before final UI work.
+- Browser ffmpeg/preprocessing output contract is proven or replacement
+  preprocessing contract is approved.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
 
 ## 13. Implementation readiness
 
 Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
-human review, but implementation readiness is still blocked by missing ffmpeg
-artifact inspection. Browser/UI work follows after backend contract, artifact
-contract and runtime proof.
+human review, but implementation readiness is still blocked by missing browser
+ffmpeg preprocessing proof. Browser/UI work follows after backend contract,
+preprocessing contract and runtime proof.

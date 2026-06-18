@@ -142,17 +142,22 @@ Finding:
 Next action:
 
 - Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
-- Operator/customer input for the missing actual ffmpeg workflow artifact.
+- Operator/customer input for the missing browser ffmpeg preprocessing artifact,
+  or approval of a replacement preprocessing contract.
 
 ### ffmpeg browser workflow
 
 Finding:
 
-- Browser ffmpeg viable as sidecar/module; actual workflow artifact not in repo.
+- Browser ffmpeg viable as sidecar/module. External STT/upload context was
+  inspected, but actual browser ffmpeg preprocessing artifact/command/runtime
+  proof is still missing.
 
 Next action:
 
-- Inspect existing workflow and run browser smoke.
+- Use [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
+  as the current contract/gap record, then inspect the real browser workflow or
+  approve a replacement preprocessing contract and run browser smoke.
 
 ### Web-search
 
@@ -266,7 +271,8 @@ dependencies.
 ## 12. Следующий шаг
 
 Review [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
-and provide the actual ffmpeg workflow artifact for contract inspection.
+and provide the actual browser ffmpeg workflow artifact for contract inspection,
+or approve the replacement preprocessing contract route.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

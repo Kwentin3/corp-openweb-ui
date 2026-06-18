@@ -6,10 +6,13 @@ How should the existing browser ffmpeg workflow be embedded into the OpenWebUI c
 
 ## 2. Research status
 
-Status: researched from ffmpeg.wasm official docs on 2026-06-18.
+Status: researched from ffmpeg.wasm official docs on 2026-06-18 and updated
+after local/external artifact inspection on 2026-06-18.
 
 Result type: integration boundary. Existing customer/executor ffmpeg project was not present in this
-repo and was not inspected.
+repo. External `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context
+was inspected, but it does not contain the browser ffmpeg preprocessing
+implementation, command, `@ffmpeg/*` dependency or browser/mobile proof.
 
 ## 3. Findings
 
@@ -27,6 +30,12 @@ repo and was not inspected.
   isolation. Single-thread mode is simpler but may be slower.
 - The official docs include abort/progress patterns, but UX still needs project-specific
   timeout/cancel handling.
+- Current npm package state checked for planning: `@ffmpeg/ffmpeg` wrapper is
+  MIT, while `@ffmpeg/core` and `@ffmpeg/core-mt` are GPL-2.0-or-later
+  WebAssembly core packages with large unpacked sizes. Production use needs
+  explicit version pinning, asset hosting and licensing review.
+- The inspected external artifact confirms STT/upload patterns and audio MIME
+  handling, but not the actual local ffmpeg output contract.
 
 ## 4. Integration recommendation
 
@@ -65,14 +74,26 @@ Backend-first clarification:
 - no raw media upload before user starts STT proxy call;
 - prepared audio format accepted by Lemonfox proxy.
 - browser workflow output contract matches the backend proxy input contract.
+- ffmpeg.wasm package/core version and asset hosting path are decided.
+- `SharedArrayBuffer` / COOP / COEP requirements are proven only if
+  multi-thread mode is selected.
 
 ## 7. Sources
 
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - https://ffmpegwasm.netlify.app/docs/overview/
 - https://ffmpegwasm.netlify.app/docs/getting-started/usage/
+- https://ffmpegwasm.netlify.app/docs/api/ffmpeg/classes/ffmpeg/
 - https://ffmpegwasm.netlify.app/docs/migration/
+- https://ffmpegwasm.netlify.app/docs/faq/
+- https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer
+- https://www.npmjs.com/package/@ffmpeg/ffmpeg
+- https://www.npmjs.com/package/@ffmpeg/core
+- https://www.npmjs.com/package/@ffmpeg/core-mt
 
 ## 8. Status
 
-Research complete for integration planning. Blocked on actual ffmpeg workflow artifact and browser
-smoke.
+Research complete for integration planning. External STT/upload context was
+inspected, but browser ffmpeg preprocessing remains unproven. Blocked on the
+actual browser ffmpeg workflow artifact, a replacement preprocessing contract
+or browser smoke proof.

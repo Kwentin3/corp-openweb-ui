@@ -85,6 +85,7 @@ Read first:
 Additional context:
 
 - [TRANSCRIPTION_STT_RESEARCH](research/TRANSCRIPTION_STT_RESEARCH.md)
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG_BROWSER_WORKFLOW_RESEARCH](research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [LEMONFOX_STT_RESEARCH](research/LEMONFOX_STT_RESEARCH.md)
 
@@ -96,8 +97,9 @@ Comment:
 
 - API keys never go to the browser.
 - STT proxy ADR must define backend boundary before final UI.
-- Actual ffmpeg workflow artifact is not present in this repo; operator must
-  provide repo/path/demo before implementation readiness.
+- External STT/upload context was inspected, but actual browser ffmpeg
+  preprocessing remains unproven; operator must provide repo/path/demo or
+  approve a replacement preprocessing contract before implementation readiness.
 
 ## Брокерские отчеты / 3-НДФЛ
 

@@ -25,7 +25,9 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 ### Gate 2. STT Proxy Boundary approved
 
 - ADR-0004 approved.
-- Existing ffmpeg workflow contract inspected.
+- Existing browser ffmpeg workflow contract inspected or replacement
+  preprocessing contract approved.
+- ffmpeg.wasm dependency strategy accepted, revised or rejected.
 - STT proxy input/output agreed.
 - No API keys in browser.
 
@@ -104,7 +106,7 @@ Related docs:
 
 Status:
 
-- blocked by missing ffmpeg artifact and human ADR review.
+- blocked by missing browser ffmpeg preprocessing proof and human ADR review.
 
 Owner:
 
@@ -113,13 +115,18 @@ Owner:
 Blocking items:
 
 - ADR-0004 human review;
-- actual ffmpeg workflow artifact not present in this repo;
-- ffmpeg output contract;
+- actual browser ffmpeg preprocessing artifact not present in this repo;
+- external STT/upload artifact inspected, but it does not provide the ffmpeg
+  command, output contract, `@ffmpeg/*` dependency or browser/mobile proof;
+- ffmpeg output contract or replacement preprocessing contract;
+- ffmpeg.wasm package/core version, asset hosting and licensing/security
+  decision;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Related docs:
 
 - ADR-0004;
+- FFMPEG workflow artifact inspection;
 - STT blueprint.
 
 ### Gate 3. Provider Model Catalog approved

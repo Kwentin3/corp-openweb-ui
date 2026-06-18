@@ -57,6 +57,7 @@ internal APIs или thin integration shims.
 
 - user interaction;
 - upload/progress/cancel UX;
+- local media preprocessing only when covered by an approved contract;
 - calls internal Stage 2 APIs;
 - never stores provider API keys;
 - never decides data policy;
@@ -161,11 +162,18 @@ browser-to-provider calls.
 
 Current blocker:
 
-- the actual existing ffmpeg workflow artifact is not present in this repo;
-- implementation readiness is blocked until that artifact contract is inspected
-  or a replacement preprocessing contract is approved.
+- the actual browser ffmpeg preprocessing artifact is not present in this repo;
+- external `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context was
+  inspected, but it does not contain browser ffmpeg preprocessing, command,
+  `@ffmpeg/*` dependency or browser/mobile proof;
+- implementation readiness is blocked until the real browser preprocessing
+  artifact is inspected, runtime proof is captured or a replacement
+  preprocessing contract is approved.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
+The current dependency strategy prefers pinned/self-hosted ffmpeg.wasm assets
+for proof, single-thread first, and requires COOP/COEP / `SharedArrayBuffer`
+review only if multi-thread mode is selected.
 
 ## 8. Related docs
 
@@ -174,5 +182,6 @@ The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 - [Implementation Gates](IMPLEMENTATION_GATES.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [Transcription STT Blueprint](blueprints/TRANSCRIPTION_STT.blueprint.md)
+- [FFMPEG Workflow Artifact Inspection](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG Browser Workflow Research](research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [Transcription STT Research](research/TRANSCRIPTION_STT_RESEARCH.md)

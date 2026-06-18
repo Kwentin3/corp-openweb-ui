@@ -11,9 +11,16 @@ asset, then send prepared audio to a server-side STT boundary.
 The current repository contains Stage 2 planning docs and research, but not the
 actual ffmpeg workflow artifact. Local inspection found only documentation
 references to ffmpeg/STT/transcription, not implementation code, examples, demo
-assets or package files for that workflow. This ADR therefore treats the
-ffmpeg workflow as a known external/customer/executor asset whose contract still
-must be inspected before implementation.
+assets or package files for that workflow.
+
+An external local candidate was inspected at
+`D:\Users\Roman\Desktop\Проекты\AutoProtokol`. It contains useful STT/upload
+context: provider test flow, Lemonfox/Google provider identifiers, audio MIME
+resolution, S3/direct-upload planning and a Google-file STT adapter. It does not
+contain a browser ffmpeg preprocessing implementation, ffmpeg command,
+`@ffmpeg/*` dependency or desktop/mobile ffmpeg proof. This ADR therefore treats
+the artifact status as `external artifact inspected with ffmpeg preprocessing
+gaps`.
 
 Lemonfox is the priority STT provider candidate. Existing research also keeps
 native OpenWebUI STT as a useful baseline to test, because OpenWebUI has native
@@ -183,8 +190,8 @@ Constraints:
 - deep fork is not the first choice;
 - final UI/browser integration starts only after backend contract and runtime
   proof;
-- implementation is blocked until the actual ffmpeg workflow artifact contract
-  is inspected or a replacement preprocessing contract is approved.
+- implementation readiness remains blocked until browser ffmpeg preprocessing
+  is proven or a replacement preprocessing contract is approved.
 
 ## 6. Contract Boundary
 
@@ -196,6 +203,9 @@ Owns:
 - local file type detection before upload;
 - local ffmpeg preprocessing after user action;
 - audio extraction/conversion into the agreed prepared-audio format;
+- prepared-audio output candidate: `audio/webm;codecs=opus` / `audio/webm`,
+  with `audio/mpeg`, `audio/wav` and `audio/mp4` as fallback candidates after
+  provider smoke;
 - local preprocessing progress/cancel UI;
 - upload of the prepared audio blob to the Stage 2 backend;
 - display of job status and normalized transcript result.
@@ -208,6 +218,7 @@ Does not own:
 - final usage accounting;
 - retention decision;
 - direct call to Lemonfox or another STT provider;
+- source video upload unless an explicit fallback path is approved;
 - internal transcript schema.
 
 ### Stage 2 Backend / STT Proxy
@@ -220,6 +231,7 @@ Owns:
 - file validation;
 - max size and duration limits;
 - prepared-audio MIME/content-type validation;
+- validation that does not trust browser-side file metadata blindly;
 - temporary file/blob handling;
 - provider adapter call;
 - API key handling;
@@ -259,17 +271,41 @@ Does not own:
 
 Status:
 
-- `blocked by artifact inspection`.
+- `external artifact inspected with ffmpeg preprocessing gaps`.
 
-Local inspection performed for this ADR found no implementation artifact in this
-repo. There are documentation references to an existing ffmpeg workflow, but no
-code, README, examples, package metadata, demo files or notes from which an
-actual contract can be extracted.
+Local inspection performed for this ADR found no ffmpeg implementation artifact
+in this repo. There are documentation references to an existing ffmpeg workflow,
+but no code, README, examples, package metadata, demo files or notes from which
+an actual browser preprocessing contract can be extracted.
+
+External inspection source:
+
+- `D:\Users\Roman\Desktop\Проекты\AutoProtokol`
+
+Found there:
+
+- STT provider config with `lemonfox` and `googleai`;
+- STT test flow using `public/test-audio.mp3`;
+- audio MIME allowlist and extension mapping;
+- fallback MIME of `audio/webm`;
+- S3/direct-upload planning for large media;
+- upload progress and abort/multipart cleanup concepts;
+- provider adapter pattern and transcript normalization hints.
+
+Not found there:
+
+- browser ffmpeg preprocessing implementation;
+- `@ffmpeg/ffmpeg`, `@ffmpeg/core` or `@ffmpeg/core-mt` dependency;
+- ffmpeg command;
+- prepared audio output sample;
+- desktop/mobile browser proof for ffmpeg preprocessing;
+- COOP/COEP or SharedArrayBuffer proof.
 
 Contract fields that must be inspected from the real artifact:
 
-- supported input formats;
-- output format;
+- supported browser input formats;
+- exact ffmpeg command;
+- output container/codec;
 - output MIME/content type;
 - whether output is mp3, wav, m4a, webm or another format;
 - browser support;
@@ -292,7 +328,42 @@ Operator/customer input needed:
 - output contract and sample prepared audio;
 - known size/duration limits.
 
-## 8. Draft Internal Contracts
+Inspection document:
+
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](../research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
+
+## 8. ffmpeg.wasm Dependency Strategy
+
+If implementation chooses ffmpeg.wasm, treat it as an implementation dependency,
+not as the provider boundary.
+
+Current checked package facts on 2026-06-18:
+
+- `@ffmpeg/ffmpeg`: npm version `0.12.15`, MIT license, wrapper package.
+- `@ffmpeg/core`: npm version `0.12.10`, GPL-2.0-or-later, single-thread core.
+- `@ffmpeg/core-mt`: npm version `0.12.10`, GPL-2.0-or-later, multi-thread core.
+
+Strategy:
+
+- pin exact package versions during implementation planning;
+- prefer single-thread `@ffmpeg/core` for first proof;
+- use multi-thread `@ffmpeg/core-mt` only after SharedArrayBuffer /
+  cross-origin isolation proof;
+- prefer self-hosted, version-pinned core assets for corporate deployment;
+- avoid public CDN dependency for production unless explicitly accepted;
+- do not commit heavy wasm/core binaries without a separate ADR;
+- do not vendor the full FFmpeg source tree;
+- define cache headers, asset path, rollback and license notices if core assets
+  are self-hosted.
+
+Security/header implication:
+
+- multi-thread ffmpeg.wasm requires `SharedArrayBuffer`;
+- `SharedArrayBuffer` requires secure context and cross-origin isolation;
+- COOP/COEP header changes may affect OpenWebUI, Traefik, embedded resources and
+  third-party scripts, so they require a later infra/browser review.
+
+## 9. Draft Internal Contracts
 
 These are review-level contract candidates, not final JSON schemas.
 
@@ -394,7 +465,7 @@ Supporting contracts from the broader Stage 2 boundary map:
 - `ProviderModelCatalogV1`;
 - `ManagerVisibilityPolicyV1`.
 
-## 9. Draft Endpoint Boundary
+## 10. Draft Endpoint Boundary
 
 Draft endpoint names:
 
@@ -417,7 +488,7 @@ Constraints:
 - routes should prefer sidecar/internal backend API or a thin integration shim
   over deep OpenWebUI core patching.
 
-## 10. Runtime Proof Needed
+## 11. Runtime Proof Needed
 
 Before implementation:
 
@@ -427,6 +498,10 @@ Before implementation:
 - verify Lemonfox smoke with approved test key and audio;
 - verify existing ffmpeg workflow output contract;
 - verify desktop and mobile prepared-audio output;
+- verify selected ffmpeg.wasm package/core version and asset hosting path;
+- verify single-thread vs multi-thread choice;
+- verify SharedArrayBuffer / cross-origin isolation only if multi-thread is
+  selected;
 - verify practical max file size and duration limits;
 - verify unsupported/large-file error behavior;
 - verify transcript result can be stored or returned without leaking raw
@@ -435,7 +510,7 @@ Before implementation:
 - verify no STT API key appears in browser bundle, browser storage or network
   logs.
 
-## 11. Customer / Operator Input Needed
+## 12. Customer / Operator Input Needed
 
 - Existing ffmpeg workflow repo/path/artifact.
 - Minimal demo or runnable instructions.
@@ -454,8 +529,10 @@ Before implementation:
 - Whether timestamps are mandatory or optional.
 - Maximum acceptable processing time.
 - Whether EU processing is required.
+- Whether source video upload fallback is allowed when browser preprocessing
+  fails.
 
-## 12. Open Questions
+## 13. Open Questions
 
 - How will OpenWebUI session/auth be propagated to the Stage 2 backend?
 - Where are prepared audio blobs temporarily stored?
@@ -469,8 +546,12 @@ Before implementation:
 - Is callback/async provider flow required in Practical Stage 2 or deferred?
 - Is native OpenWebUI STT sufficient for a baseline smoke only, or can it reduce
   proxy scope after proof?
+- Is browser ffmpeg output standardized as `audio/webm`, `audio/mpeg`,
+  `audio/wav` or `audio/mp4`?
+- Are self-hosted ffmpeg core assets acceptable from licensing and ops
+  perspectives?
 
-## 13. Consequences
+## 14. Consequences
 
 - Frontend/UI work follows backend contract review.
 - ffmpeg remains a media-preprocessing asset, not a security boundary.
@@ -479,10 +560,12 @@ Before implementation:
 - Lemonfox-specific features must be tested before promising them.
 - OpenWebUI upgrade risk is lower if the Stage 2 API remains isolated behind a
   sidecar/internal backend route or thin shim.
-- ADR approval cannot close implementation readiness while the actual ffmpeg
-  artifact is missing.
+- ADR approval cannot close implementation readiness while browser ffmpeg
+  preprocessing proof is missing.
+- Heavy wasm/core assets and FFmpeg source are excluded from this repo until a
+  separate ADR approves vendoring or self-hosting.
 
-## 14. Acceptance Signals for ADR Approval
+## 15. Acceptance Signals for ADR Approval
 
 ADR can be approved only when:
 
@@ -495,14 +578,17 @@ ADR can be approved only when:
 - runtime proof checklist is defined;
 - ffmpeg artifact inspection status is explicit;
 - unresolved open questions are closed or explicitly deferred;
+- ffmpeg.wasm dependency strategy is accepted, revised or rejected;
 - no implementation has started.
 
 Current review state:
 
 - boundary and draft contracts are ready for human review;
-- implementation readiness is blocked by the missing ffmpeg artifact.
+- external STT/upload context was inspected;
+- implementation readiness is blocked by missing browser ffmpeg preprocessing
+  proof.
 
-## 15. Non-Goals
+## 16. Non-Goals
 
 - No backend implementation.
 - No frontend implementation.
@@ -513,13 +599,16 @@ Current review state:
 - No compose/env/scripts change.
 - No OpenWebUI fork.
 - No ADR acceptance without human review.
-- No claim that the ffmpeg artifact has been inspected.
+- No claim that browser ffmpeg preprocessing has been proven.
+- No heavy wasm/core binaries or full FFmpeg source vendoring without a separate
+  ADR.
 
-## 16. Links
+## 17. Links
 
 - [CONTRACT_BOUNDARIES](../CONTRACT_BOUNDARIES.md)
 - [IMPLEMENTATION_GATES](../IMPLEMENTATION_GATES.md)
 - [TRANSCRIPTION_STT](../blueprints/TRANSCRIPTION_STT.blueprint.md)
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](../research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [TRANSCRIPTION_STT_RESEARCH](../research/TRANSCRIPTION_STT_RESEARCH.md)
 - [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md)
