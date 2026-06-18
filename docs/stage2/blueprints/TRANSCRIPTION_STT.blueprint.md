@@ -16,9 +16,29 @@
 
 Browser-side ffmpeg preprocessing больше не считается research с нуля. Это technical asset, который нужно встроить в OpenWebUI-contour. Основной риск - integration, not ffmpeg itself.
 
+ffmpeg workflow is a media-preprocessing asset, not a security boundary.
+
+Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final frontend UI.
+
 ## 4. Target user workflow
 
 Пользователь загружает audio/video. GUI готовит audio через browser ffmpeg workflow. Prepared audio blob идет в server-side STT proxy. Proxy проверяет auth/rights/limits, добавляет STT key, вызывает Lemonfox/selected provider. UI показывает transcript и templates: протокол, задачи, решения, резюме, follow-up.
+
+## 4.1. Backend-first boundary
+
+First implementation slice should define and test the STT proxy API before building final UI.
+
+Boundary contract:
+
+1. STT proxy contract: input audio blob, metadata, output transcript, timestamps/speaker labels where available.
+2. Auth/permissions: caller must be authenticated and allowed to use transcription.
+3. API key handling: STT provider keys live only server-side.
+4. Provider request: Lemonfox or selected STT provider is called only by proxy/server.
+5. Transcript normalization: provider response becomes a stable internal transcript shape.
+6. Error model: unsupported format, too-large file, provider timeout, quota and validation errors are explicit.
+7. Optional persistence/audit: source file, audio blob and transcript retention are controlled by policy.
+8. File size/duration policy: max duration, max upload and mobile/browser limits are documented.
+9. UI/browser integration follows after proxy boundary and runtime smoke.
 
 ## 5. Native OpenWebUI first path
 
@@ -38,6 +58,8 @@ Browser-side ffmpeg preprocessing больше не считается research 
 ## 7. Data and security notes
 
 STT API keys stay server-side. Browser calls only internal proxy. Transcripts may contain sensitive meeting data; retention and visibility must be explicit.
+
+Frontend must not decide provider keys, data policy, retention or access rules.
 
 ## 8. Dependencies
 
@@ -76,7 +98,9 @@ STT API keys stay server-side. Browser calls only internal proxy. Transcripts ma
 - Browser bundle/network does not expose STT API key.
 - User can apply result templates.
 - Unsupported/large files produce clear errors or documented limits.
+- STT proxy API contract is documented before final UI work.
+- Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
 
 ## 13. Implementation readiness
 
-Needs research and ADR for STT proxy design before implementation.
+Needs ADR for STT proxy boundary before implementation. Browser/UI work follows after backend contract and runtime proof.

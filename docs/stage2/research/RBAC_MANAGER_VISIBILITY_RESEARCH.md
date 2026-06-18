@@ -27,6 +27,8 @@ Recommended interpretation for PRD-1:
 - Users must know which chats/scenarios are work-visible.
 - Do not silently turn every employee chat into manager-readable data.
 
+Manager Visibility is a policy/security-controlled capability. It is not just a permission toggle, and it must not be implemented as "manager sees everything".
+
 ## 5. Decision options
 
 1. Native sharing-only model.
@@ -54,6 +56,15 @@ Before implementation, run a test matrix in deployed or staging OpenWebUI:
 - share chat to `Team-A`;
 - verify what manager can and cannot see;
 - verify whether group membership alone exposes existing chats.
+
+Required runtime proof actors:
+
+- Admin;
+- Manager/РО;
+- employee inside group;
+- employee outside group.
+
+Proof must record whether working chats, personal/draft chats and shared chats are visible for each actor.
 
 ## 7. Sources
 

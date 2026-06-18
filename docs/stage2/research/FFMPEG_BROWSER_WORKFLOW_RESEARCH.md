@@ -34,6 +34,12 @@ Preferred shape for Stage 2 planning:
 
 A deeper OpenWebUI integration can be considered only after the sidecar/proxy path proves user value and acceptance.
 
+Backend-first clarification:
+
+- ffmpeg workflow is media preprocessing only;
+- it must not own provider keys, data policy, access control or retention;
+- STT proxy contract and runtime smoke must be defined before final UI integration.
+
 ## 5. Open questions
 
 - Where is the existing ffmpeg workflow artifact and what exact formats does it output?
@@ -49,6 +55,7 @@ A deeper OpenWebUI integration can be considered only after the sidecar/proxy pa
 - large file cancel/timeout behavior;
 - no raw media upload before user starts STT proxy call;
 - prepared audio format accepted by Lemonfox proxy.
+- browser workflow output contract matches the backend proxy input contract.
 
 ## 7. Sources
 

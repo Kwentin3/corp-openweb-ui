@@ -30,6 +30,7 @@ Practical Stage 2 should split document handling into three levels:
 
 2. OCR/layout pilot.
    - Test scanned PDFs and broker reports with one extraction engine path.
+   - Include VL OCR / vision-language OCR candidates for scans, images, complex PDFs and table-heavy documents.
    - Record limitations honestly.
    - No production queue, no automated tax filing promise.
 
@@ -56,7 +57,9 @@ Collect a test package before implementation:
 - broker report sample;
 - expected structured result example.
 
-Then run extraction preview tests and decide whether Tika, Docling, Mistral OCR or custom parser is the first pilot engine.
+Then run extraction preview tests and decide whether Tika, Docling, Mistral OCR, VL OCR candidate or custom parser is the first pilot engine.
+
+See also: [VL_OCR_PROVIDER_RESEARCH](VL_OCR_PROVIDER_RESEARCH.md).
 
 ## 7. Sources
 

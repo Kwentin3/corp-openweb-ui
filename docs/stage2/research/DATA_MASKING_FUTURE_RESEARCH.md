@@ -37,6 +37,14 @@ That scope is larger than the current practical Stage 2 and should not be smuggl
 - For broker/tax examples, use anonymized test documents where possible.
 - Do not promise automatic anonymization in customer-facing wording.
 - Keep masking/tokenization as future security ADR after practical workflows are accepted.
+- Do not start provider setup until data policy by provider class is approved.
+- Apply the policy to broker reports, documents, meeting transcripts, web-search queries and model catalog access.
+
+Provider setup implication:
+
+- foreign providers, Russian providers, local/self-hosted paths and future masked/tokenized path must be separated in policy;
+- public/low-risk, internal working data, personal data, financial/accounting/tax data, broker reports, meeting transcripts and secrets/API keys/passwords must be separated in policy;
+- final allow/prohibit matrix requires customer approval.
 
 ## 6. Future architecture options
 

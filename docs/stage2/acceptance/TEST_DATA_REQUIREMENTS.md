@@ -32,6 +32,19 @@
 - Сложный XLSX, если есть: формулы, несколько листов, merged cells, сводные таблицы.
 - Ожидаемые результаты для каждого файла.
 
+## VL OCR pilot
+
+- Скан брокерского отчета.
+- Фото документа.
+- PDF с печатями/подписями.
+- PDF с таблицей.
+- Плохой скан.
+- Образец ожидаемого распознавания.
+- Указать, можно ли использовать эти файлы с зарубежными provider.
+- Указать, можно ли использовать эти файлы с российскими/cloud provider.
+- Указать, требуется ли обезличивание перед OCR provider.
+- Указать, какие файлы должны остаться только в local/self-hosted path.
+
 ## Web-search
 
 - 5-10 типовых русскоязычных запросов.
@@ -55,6 +68,8 @@
 - Какие providers production-required, pilot, research-only.
 - Пример expected monthly usage для LLM, web-search, STT.
 - Ограничения по зарубежным/российским providers.
+- Allowed/prohibited examples by provider class: foreign, Russian, local/self-hosted, future masked/tokenized.
+- Confirmation that provider setup may start only after data policy approval.
 
 ## Security policy examples
 

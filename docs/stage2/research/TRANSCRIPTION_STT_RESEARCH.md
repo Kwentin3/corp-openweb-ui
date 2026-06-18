@@ -36,6 +36,13 @@ The proxy should:
 
 Native OpenWebUI STT can still be tested as a low-cost baseline, but it should not replace the proxy unless it proves all PRD-1 acceptance needs.
 
+Backend-first clarification:
+
+- ffmpeg workflow is a media-preprocessing asset, not a security boundary;
+- STT provider keys must live only server-side;
+- first implementation slice should define and test STT proxy API before building final UI;
+- frontend must not decide provider keys, data policy, retention or access rules.
+
 ## 5. Open questions
 
 - Exact deployed OpenWebUI version capabilities and UI flow.
@@ -51,6 +58,7 @@ Native OpenWebUI STT can still be tested as a low-cost baseline, but it should n
 - Lemonfox transcript returned for Russian speech.
 - Large/unsupported files fail with understandable user message.
 - Usage metadata visible enough for admin cost review.
+- STT proxy contract, auth/permissions, provider error model and transcript normalization are documented before UI integration.
 
 ## 7. Sources
 

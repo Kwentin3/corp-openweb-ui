@@ -29,6 +29,16 @@ Native no-delete should be tested first:
 
 If this works in deployed version, Stage 2 can satisfy the no-delete check without fork.
 
+Key distinction:
+
+No Delete is not Retention. Retention is not Audit. Audit is not immutable archive.
+
+- No Delete: normal users cannot delete chats through UI/API.
+- Retention: chats, files and transcripts are kept for a defined period.
+- Backup: operational restore capability, not a user-facing audit trail.
+- Audit log: records actions/access.
+- Immutable archive: separate legal/audit-grade system and not Practical Stage 2 unless separately approved.
+
 ## 5. Fallback options
 
 1. Native permission setting.
@@ -58,7 +68,9 @@ Run a non-admin test user proof after staging/admin approval:
 - attempt UI delete;
 - attempt API delete if API path is available to the user;
 - add/remove group permissions;
-- record exact OpenWebUI setting names.
+- confirm admin override behavior;
+- record exact OpenWebUI setting names;
+- document retention policy questions: chats, files, transcripts, backup horizon and whether legal/audit archive is required.
 
 ## 8. Sources
 
