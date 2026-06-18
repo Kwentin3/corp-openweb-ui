@@ -1,11 +1,15 @@
 ﻿# OpenWebUI Corporate Chat PRD-1
 
-Статус: актуальный PRD-1 / source of truth для согласования Stage 2 с заказчиком
+Статус: customer-approved Stage 2 PRD / source of truth
 Дата: 2026-06-16
-Актуализация по уточнениям заказчика: 2026-06-18
+Дата актуализации: 2026-06-18
 Проект: корпоративный портал AI-чата на базе OpenWebUI
 Предыдущий этап: PRD-0 принят заказчиком и закрыт
-Текущий этап: Stage 2 / PRD-1 discovery + implementation draft
+Текущий этап: Stage 2 implementation planning, ADR and runtime proof before implementation
+Customer summary: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md](OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
+Engineering domain: [docs/stage2/README.md](../stage2/README.md)
+Research actualization: [docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md](../reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md)
+Source-of-truth sync report: [docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md](../reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md)
 
 ## 1. Executive summary
 
@@ -310,6 +314,14 @@ Acceptance:
 6. Proxy добавляет STT API key и отправляет файл в Lemonfox или другой выбранный STT provider.
 7. Результат возвращается в UI.
 8. Пользователь применяет шаблон результата: протокол, задачи, решения, резюме, follow-up.
+
+Boundary map:
+
+| Boundary | Ответственность |
+| --- | --- |
+| Browser | file type detection; local media preprocessing; audio extraction/conversion; progress/cancel UX |
+| Server-side STT proxy | auth; permissions; API key handling; provider request; transcript normalization; error handling; optional persistence/audit |
+| STT provider | transcription; timestamps and speaker labels if available |
 
 Обязательные ограничения:
 
@@ -898,7 +910,7 @@ PRD-1 успешен, если:
 
 ## 16. Drift notes
 
-Перед согласованием важно проговорить:
+Перед реализацией важно проговорить:
 
 - DeepSeek "уже подключен" не подтвержден текущим repo evidence; нужен operator evidence.
 - "Бесшовная работа с любыми Word/PDF/Excel" может быть неверно понята как гарантия production document workflow. Формулировка заменена на "типовые сценарии работы с документами с описанными ограничениями".
@@ -956,7 +968,7 @@ Local sources:
 - `docs/security/*`
 - `docs/reports/2026-06-09/*`
 
-External sources retained from enriched PRD:
+External sources retained from initial draft and later research passes:
 
 - https://docs.openwebui.com/features/authentication-access/
 - https://docs.openwebui.com/features/authentication-access/rbac/

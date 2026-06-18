@@ -3,6 +3,9 @@
 Статус: customer-facing summary
 Источник: [OPENWEBUI_CORPORATE_CHAT_PRD_1.md](OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 Changelog: [OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md)
+PRD status: customer-approved Stage 2 PRD / source of truth
+Engineering domain: [docs/stage2/README.md](../stage2/README.md)
+Research actualization: [docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md](../reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md)
 Назначение: согласование Stage 2, объема работ и предварительной оценки трудозатрат
 
 ## 1. Что такое Stage 2
