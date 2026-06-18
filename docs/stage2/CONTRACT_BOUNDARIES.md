@@ -155,9 +155,17 @@ First implementation-facing contract must be STT proxy boundary:
 - `UsageEventV1`;
 - `PolicyDecisionV1`.
 
-The next ADR should review `ADR-0004 STT Proxy Boundary` and inspect the actual
-existing ffmpeg workflow artifact. The ffmpeg workflow is a media preprocessing
-asset, not a security boundary.
+`ADR-0004 STT Proxy Boundary` is now the proposed review document for this
+boundary. It recommends a server-side STT proxy/job service and rejects direct
+browser-to-provider calls.
+
+Current blocker:
+
+- the actual existing ffmpeg workflow artifact is not present in this repo;
+- implementation readiness is blocked until that artifact contract is inspected
+  or a replacement preprocessing contract is approved.
+
+The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 
 ## 8. Related docs
 

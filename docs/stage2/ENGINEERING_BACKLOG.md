@@ -48,10 +48,10 @@ Source: TRANSCRIPTION_STT blueprint, TRANSCRIPTION_STT_RESEARCH, LEMONFOX_STT_RE
 FFMPEG_BROWSER_WORKFLOW_RESEARCH
 Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing
 need server-side control.
-Output: ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider response
-normalization and optional audit.
-Depends on: existing ffmpeg workflow artifact, customer media limits
-Status: ready for ADR before final UI work
+Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
+response normalization, optional audit and draft job contracts.
+Depends on: human ADR review, existing ffmpeg workflow artifact, customer media limits
+Status: ADR-0004 prepared for review; implementation blocked by missing ffmpeg artifact
 
 ### Provider model catalog
 
@@ -168,8 +168,8 @@ Domain: Transcription / STT
 Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
-Depends on: ADR-0004, ffmpeg artifact inspection, sample media
-Status: ready after ADR and customer media limits
+Depends on: approved ADR-0004, ffmpeg artifact inspection, sample media
+Status: blocked until ADR review and actual ffmpeg artifact contract are available
 
 ### Document extraction/OCR smoke after test data
 

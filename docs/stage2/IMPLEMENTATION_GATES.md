@@ -104,7 +104,7 @@ Related docs:
 
 Status:
 
-- blocked by ADR.
+- blocked by missing ffmpeg artifact and human ADR review.
 
 Owner:
 
@@ -112,8 +112,9 @@ Owner:
 
 Blocking items:
 
-- ADR-0004;
-- ffmpeg artifact;
+- ADR-0004 human review;
+- actual ffmpeg workflow artifact not present in this repo;
+- ffmpeg output contract;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Related docs:

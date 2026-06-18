@@ -96,6 +96,8 @@ Comment:
 
 - API keys never go to the browser.
 - STT proxy ADR must define backend boundary before final UI.
+- Actual ffmpeg workflow artifact is not present in this repo; operator must
+  provide repo/path/demo before implementation readiness.
 
 ## Брокерские отчеты / 3-НДФЛ
 

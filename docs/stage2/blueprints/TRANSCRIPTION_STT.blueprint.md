@@ -20,6 +20,11 @@ Browser-side ffmpeg preprocessing больше не считается research 
 
 ffmpeg workflow is a media-preprocessing asset, not a security boundary.
 
+Actual ffmpeg workflow artifact is not present in this repository. The Stage 2
+contract can define the expected boundary, but implementation remains blocked
+until the real artifact output format, MIME/content type, browser/mobile support,
+worker model, progress/cancel behavior and limits are inspected.
+
 Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final
 frontend UI.
 
@@ -113,5 +118,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 
 ## 13. Implementation readiness
 
-Needs ADR for STT proxy boundary before implementation. Browser/UI work follows after backend
+Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
+human review, but implementation readiness is still blocked by missing ffmpeg
+artifact inspection. Browser/UI work follows after backend contract, artifact
 contract and runtime proof.

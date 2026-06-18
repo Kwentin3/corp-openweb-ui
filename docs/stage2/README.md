@@ -141,7 +141,8 @@ Finding:
 
 Next action:
 
-- ADR for STT proxy boundary.
+- Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
+- Operator/customer input for the missing actual ffmpeg workflow artifact.
 
 ### ffmpeg browser workflow
 
@@ -264,8 +265,8 @@ dependencies.
 
 ## 12. Следующий шаг
 
-Закрыть [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
-и inspection contract for existing ffmpeg workflow.
+Review [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
+and provide the actual ffmpeg workflow artifact for contract inspection.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 
