@@ -4,54 +4,58 @@
 
 How should the existing browser ffmpeg workflow be embedded into the OpenWebUI contour?
 
-## 2. Why it matters for PRD-1
+## 2. Research status
 
-PRD-1 treats the workflow as a technical asset, not an unknown experiment.
+Status: researched from ffmpeg.wasm official docs on 2026-06-18.
 
-## 3. Current assumptions
+Result type: integration boundary. Existing customer/executor ffmpeg project was not present in this repo and was not inspected.
 
-- Existing project is stable on desktop and mobile.
-- Research question is integration shape, not whether ffmpeg can work.
-- API keys must not be sent to browser.
+## 3. Findings
 
-## 4. What to verify
+- `ffmpeg.wasm` is a WebAssembly/JavaScript port of FFmpeg that runs media processing in the browser.
+- It runs transcoding work in a web worker by default because multimedia processing is resource-intensive.
+- Input files must be written into the ffmpeg core virtual filesystem, commands executed, and output files read back from that filesystem.
+- Current 0.12+ API uses `new FFmpeg()`, `ffmpeg.load()`, `writeFile()`, `exec()`, `readFile()` and `terminate()`.
+- The official usage example loads a core around 31 MB from CDN. Production integration should decide whether core assets are self-hosted, cached and version-pinned.
+- Multi-thread mode requires `SharedArrayBuffer` and browser security requirements/cross-origin isolation. Single-thread mode is simpler but may be slower.
+- The official docs include abort/progress patterns, but UX still needs project-specific timeout/cancel handling.
 
-- Module boundary.
-- Browser memory limits.
-- Supported browsers.
-- Mobile behavior.
-- Progress/cancel events.
-- Audio blob format.
-- Server-side fallback.
+## 4. Integration recommendation
 
-## 5. Sources to check
+Do not fork OpenWebUI just to host ffmpeg first.
 
-- Existing transcription project.
-- OpenWebUI extension/customization options.
-- Browser support and runtime constraints.
+Preferred shape for Stage 2 planning:
 
-## 6. Test plan / proof plan
+- separate transcription UI/module or sidecar page behind the same corporate auth boundary;
+- browser ffmpeg converts/extracts audio locally;
+- server-side STT proxy receives only prepared audio;
+- proxy applies size/duration/format limits and provider key;
+- transcript is returned to user and can be pasted/sent into OpenWebUI scenario templates.
 
-Run controlled proof with audio extraction from video, long file, mobile device, cancellation and retry.
+A deeper OpenWebUI integration can be considered only after the sidecar/proxy path proves user value and acceptance.
 
-## 7. Risks
+## 5. Open questions
 
-- UI lockups.
-- Large files.
-- Browser compatibility.
-- OpenWebUI upgrade friction.
+- Where is the existing ffmpeg workflow artifact and what exact formats does it output?
+- Does it already work in target mobile browsers under corporate domain headers?
+- Is multi-thread performance required, or is single-thread enough for pilot?
+- Should ffmpeg core be vendored/self-hosted to avoid CDN dependency?
+- What max local file size is acceptable for low-memory mobile devices?
 
-## 8. Decision options
+## 6. Acceptance proof needed
 
-- External module.
-- Isolated transcription module.
-- Minimal fork-slice.
-- Server-side fallback.
+- desktop Chrome/Edge smoke;
+- one mobile browser smoke;
+- large file cancel/timeout behavior;
+- no raw media upload before user starts STT proxy call;
+- prepared audio format accepted by Lemonfox proxy.
 
-## 9. Recommended next step
+## 7. Sources
 
-Document existing workflow API and required integration points.
+- https://ffmpegwasm.netlify.app/docs/overview/
+- https://ffmpegwasm.netlify.app/docs/getting-started/usage/
+- https://ffmpegwasm.netlify.app/docs/migration/
 
-## 10. Status
+## 8. Status
 
-Planned, existing asset not inspected in this repo.
+Research complete for integration planning. Blocked on actual ffmpeg workflow artifact and browser smoke.

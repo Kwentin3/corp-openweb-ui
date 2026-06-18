@@ -2,56 +2,74 @@
 
 ## 1. Question
 
-What document handling can be delivered in Practical Stage 2 without promising production document pipeline?
+How should Stage 2 handle PDF/DOCX/XLSX documents, scanned PDFs and broker-report extraction without promising a production OCR/layout pipeline?
 
-## 2. Why it matters for PRD-1
+## 2. Research status
 
-Broker reports and office docs are core scenarios, but PDF/DOCX/XLSX are not plain text.
+Status: researched from official OpenWebUI docs on 2026-06-18.
 
-## 3. Current assumptions
+Result type: pilot scope input. No customer documents were processed.
 
-- Basic text extraction may be enough for some docs.
-- OCR/layout-aware PDF pilot is required.
-- Complex Excel parser is future/separate unless precision is required.
+## 3. Findings
 
-## 4. What to verify
+- OpenWebUI has RAG/document extraction features and a Workspace Knowledge surface.
+- Current docs describe multiple extraction engines, including Apache Tika, Docling, Azure, Mistral OCR and custom loaders.
+- Apache Tika can be configured as an OpenWebUI context extraction engine through Admin Panel > Settings > Documents and a Tika URL.
+- Docling is documented as a structured extraction path for PDFs, Word documents, spreadsheets, HTML and images into JSON/Markdown-style structured data.
+- Mistral OCR is documented for scanned PDFs, images and handwritten documents into JSON/plain text.
+- Troubleshooting docs recommend previewing extracted content; if key sections are blank/missing, extraction settings or engine choice must change.
+- RAG quality depends on extraction quality, chunking and retrieval settings. It is not guaranteed tax/report understanding by itself.
 
-- OpenWebUI file handling.
-- Text PDF extraction quality.
-- Scanned PDF OCR options.
-- PDF table extraction.
-- DOCX structure extraction.
-- XLSX parser/tool/code path options.
+## 4. PRD-1 interpretation
 
-## 5. Sources to check
+Practical Stage 2 should split document handling into three levels:
 
-- PRD-1.
-- Customer test documents.
-- OpenWebUI document/file features.
-- Candidate OCR/parser libraries/tools only during research.
+1. Basic native document handling.
+   - Upload/read simple text PDFs, DOCX and possibly XLSX where extraction works.
+   - Use OpenWebUI Knowledge/RAG and prompt templates.
 
-## 6. Test plan / proof plan
+2. OCR/layout pilot.
+   - Test scanned PDFs and broker reports with one extraction engine path.
+   - Record limitations honestly.
+   - No production queue, no automated tax filing promise.
 
-Use simple PDF, scanned PDF, PDF with tables, DOCX, XLSX, complex XLSX. Compare output to expected result.
+3. Future production pipeline.
+   - Dedicated parser/OCR queue, validation UI, audit trail and human review.
+   - Separate future slice after customer samples prove need.
 
-## 7. Risks
+## 5. Broker report implications
 
-- Skipped rows/tables.
-- OCR errors.
-- Lost formulas.
-- User assumes legal/tax correctness.
+- Broker reports and 3-НДФЛ drafts are sensitive and error-prone.
+- Output must be positioned as draft analysis for human review, not tax/legal guarantee.
+- Quality cannot be accepted without real anonymized broker reports and an example of the "good result" currently produced in Claude API/Claude models.
+- XLSX formulas/tables may need direct spreadsheet parsing rather than generic RAG extraction.
 
-## 8. Decision options
+## 6. Recommended next step
 
-- Native file handling only for simple docs.
-- OCR pilot for scanned PDFs.
-- Parser/tool path for XLSX precision.
-- Production pipeline deferred.
+Collect a test package before implementation:
 
-## 9. Recommended next step
+- native text PDF;
+- scanned PDF;
+- PDF with tables;
+- DOCX;
+- XLSX with formulas/tables;
+- broker report sample;
+- expected structured result example.
 
-Collect customer test documents before implementation planning.
+Then run extraction preview tests and decide whether Tika, Docling, Mistral OCR or custom parser is the first pilot engine.
 
-## 10. Status
+## 7. Sources
 
-Blocked by customer test data.
+- https://docs.openwebui.com/features/chat-conversations/rag/
+- https://docs.openwebui.com/features/chat-conversations/rag/document-extraction/
+- https://docs.openwebui.com/features/chat-conversations/rag/document-extraction/apachetika/
+- https://docs.openwebui.com/features/chat-conversations/rag/document-extraction/docling/
+- https://docs.openwebui.com/features/chat-conversations/rag/document-extraction/mistral-ocr/
+- https://docs.openwebui.com/features/workspace/knowledge/
+- https://docs.openwebui.com/troubleshooting/rag/
+- https://docs.openwebui.com/troubleshooting/performance/
+- https://docs.openwebui.com/reference/env-configuration/
+
+## 8. Status
+
+Research complete for planning. Implementation remains blocked by customer test documents.

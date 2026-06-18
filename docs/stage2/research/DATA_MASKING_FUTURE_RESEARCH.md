@@ -2,55 +2,58 @@
 
 ## 1. Question
 
-What would a real data masking/tokenization subsystem require after Practical Stage 2?
+Should Stage 2 implement data masking/tokenization now, or keep it as a future security slice?
 
-## 2. Why it matters for PRD-1
+## 2. Research status
 
-Customer suggested data replacement with tags, but PRD-1 explicitly keeps full masking as future security slice.
+Status: researched from OpenWebUI, LiteLLM and Microsoft Presidio docs on 2026-06-18.
 
-## 3. Current assumptions
+Result type: future-slice boundary. No masking code was implemented.
 
-- Not included in Practical Stage 2 implementation.
-- Simple find/replace creates false security.
-- Real solution needs local processing and trust boundary.
+## 3. Findings
 
-## 4. What to verify
+- OpenWebUI filter functions can be used for PII scrubbing, input/output logging, cost tracking, rate limiting and policy enforcement patterns.
+- Microsoft Presidio provides detection and anonymization/de-anonymization modules for PII. Operators include masking, redaction and encryption-style transformations.
+- LiteLLM documents a Presidio-based PII/PHI masking guardrail with modes such as pre-call, post-call/logging and actions such as mask/block.
+- These tools are useful building blocks, but they do not remove the need for a data policy, locale-specific recognizers, mapping storage, reversibility decisions and leak tests.
 
-- Entity types: names, accounts, INN, passports, addresses, amounts, contracts, companies.
-- Local NER/local LLM options.
-- Mapping store design.
-- Reverse substitution.
-- Leak tests.
-- Audit/logging.
+## 4. Why not Practical Stage 2 implementation
 
-## 5. Sources to check
+Data masking looks simple only if it is treated as string replacement. A usable corporate design must answer:
 
-- Security policy.
-- Customer data examples.
-- Future NER/local inference options.
+- which entities are detected for Russian financial/legal documents;
+- whether masked values must be reversible for final user output;
+- where mapping tables are stored and encrypted;
+- how false positives/false negatives are reviewed;
+- whether masking happens before provider call, after provider call, in logs, or all of these;
+- how prompt injection and file attachments are handled;
+- how to prove that secrets/PII do not leak to foreign providers.
 
-## 6. Test plan / proof plan
+That scope is larger than the current practical Stage 2 and should not be smuggled into provider setup.
 
-Design future proof with sensitive sample corpus, expected entities, anonymized output, reverse substitution and leak checks.
+## 5. Recommended Stage 2 policy
 
-## 7. Risks
+- Document allowed/prohibited data by provider class: foreign providers, Russian providers, local/self-hosted paths.
+- For broker/tax examples, use anonymized test documents where possible.
+- Do not promise automatic anonymization in customer-facing wording.
+- Keep masking/tokenization as future security ADR after practical workflows are accepted.
 
-- Missed sensitive data.
-- Incorrect reverse mapping.
-- Mapping store compromise.
-- Users assume all data is safe.
+## 6. Future architecture options
 
-## 8. Decision options
+| Option | Use case | Notes |
+| ------ | -------- | ----- |
+| OpenWebUI filter function | Lightweight prompt/file text guard | Must be tested against OpenWebUI update surface. |
+| LiteLLM Presidio guardrail | Gateway-based masking and provider routing | Requires gateway architecture and policy ownership. |
+| Dedicated masking service | Strongest separation and mapping control | Highest complexity; suitable only if sensitive workflows scale. |
 
-- Manual anonymization only.
-- Local NER helper.
-- Local LLM/NER subsystem.
-- Full tokenization service with mapping store.
+## 7. Sources
 
-## 9. Recommended next step
+- https://docs.openwebui.com/features/extensibility/plugin/functions/filter/
+- https://microsoft.github.io/presidio/
+- https://microsoft.github.io/presidio/anonymizer/
+- https://github.com/microsoft/presidio
+- https://docs.litellm.ai/docs/proxy/guardrails/pii_masking_v2
 
-Keep out of Practical Stage 2; document future architecture only after customer approval.
+## 8. Status
 
-## 10. Status
-
-Deferred / future slice.
+Research complete. Keep as future slice, not Practical Stage 2 implementation.

@@ -4,6 +4,8 @@
 
 ## Phase 0. Documentation domain setup
 
+Status: complete.
+
 - Создать `docs/stage2/README.md`.
 - Создать [CONTEXT_INDEX.md](CONTEXT_INDEX.md).
 - Создать [ROADMAP.md](ROADMAP.md).
@@ -20,22 +22,37 @@ Exit signal:
 
 ## Phase 1. Capability research
 
-- OpenWebUI deployed version / native features.
+Status: documentation research complete on 2026-06-18; runtime proof still required where marked.
+
+Completed research topics:
+
+- OpenWebUI deployed-version evidence and native feature docs.
 - Workspaces, prompts, knowledge, groups, RBAC.
 - STT, Lemonfox, supported formats and limits.
-- Existing ffmpeg browser workflow integration into OpenWebUI contour.
-- Web-search providers.
+- Existing ffmpeg browser workflow integration boundary.
+- Web-search providers: Brave and Yandex Search API.
 - Documents/OCR/Excel handling.
+- Provider catalog: OpenAI mini, Claude API, DeepSeek, YandexGPT, GigaChat.
 - Manager visibility and chat access model.
 - Chat deletion/retention controls.
 - Usage analytics and cost visibility.
+- Future data masking/tokenization boundary.
 
 Exit signal:
 
 - По каждому research topic есть проверенные источники, proof plan result или documented blocker.
 - Нельзя переходить к implementation на основании предположений.
 
+Remaining blockers:
+
+- Deployed/staging Admin UI capability proof for pinned OpenWebUI version.
+- Customer test files for broker/OCR/XLSX.
+- Customer provider/data policy approval.
+- Existing ffmpeg workflow artifact inspection.
+
 ## Phase 2. Architecture decisions
+
+Status: next.
 
 - Transcription module strategy.
 - STT proxy design.
@@ -54,6 +71,8 @@ Exit signal:
 
 ## Phase 3. Implementation planning
 
+Status: after ADRs and runtime/customer blockers.
+
 - Разбить работы на slices.
 - Определить dependencies.
 - Подготовить acceptance matrix.
@@ -67,6 +86,6 @@ Exit signal:
 
 ## Phase 4. Implementation
 
-Implementation starts only after roadmap/blueprints/research are reviewed and approved.
+Implementation starts only after roadmap/blueprints/research/ADRs are reviewed and approved.
 
 На этом этапе код, конфигурация, provider setup, runtime changes и OpenWebUI customization не выполняются.

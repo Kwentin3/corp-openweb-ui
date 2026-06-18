@@ -4,55 +4,70 @@
 
 Какие native capabilities deployed OpenWebUI реально дает для Stage 2: workspaces, prompts, knowledge, groups/RBAC, STT, web-search, files, analytics, retention and admin surfaces?
 
-## 2. Why it matters for PRD-1
+## 2. Research status
 
-PRD-1 is native-first. Implementation must not start from fork/gateway/custom module without evidence.
+Status: researched from repo evidence and official docs on 2026-06-18.
 
-## 3. Current assumptions
+Result type: docs-backed findings + runtime blocker. Current deployed/admin UI behavior was not tested in this pass.
 
-- PRD-0 deployment was pinned for stability.
-- PRD-1 capability map may be newer than deployed runtime.
-- Some features may require update or controlled migration.
+## 3. Local repo evidence
 
-## 4. What to verify
+- Compose default image is pinned to `ghcr.io/open-webui/open-webui:v0.9.6` in `compose/openwebui.compose.yml`.
+- PRD-0 docs deliberately excluded Stage 2 features: SSO/RBAC, web-search, RAG, gateway, hard budgets and custom frontend.
+- No real `.env`, API keys or Admin UI state were read.
 
-- Deployed version.
-- Groups/RBAC behavior.
-- Workspace Models/Prompts/Knowledge.
-- File upload limits and retention.
-- Native STT configuration.
-- Native web-search configuration.
-- Analytics views and export.
-- Admin visibility and chat deletion controls.
+## 4. Official docs findings
 
-## 5. Sources to check
+- OpenWebUI RBAC has three layers: Roles, Permissions and Groups. Permissions are additive, and groups can grant feature access and shared access to resources.
+- Permissions are feature/action flags, including examples such as chat deletion and web-search access. This makes no-delete and web-search enablement plausible as native checks, but deployed runtime must confirm the exact UI/permission keys in v0.9.6.
+- Groups can be separated into permission-only groups and sharing groups. This is useful for Stage 2: do not mix technical capability groups with business/team sharing groups.
+- OpenWebUI documents SSO/OIDC/LDAP/SCIM, but PRD-1 practical scope does not require full identity lifecycle.
+- STT supports local Whisper, browser Web API and remote/cloud providers. Backend STT supports OpenAI-compatible mode, Deepgram, Azure and Mistral. Native STT is suitable for voice input and simple transcription checks, but not enough by itself for the PRD-1 Lemonfox + browser-ffmpeg workflow without a proxy/adapter decision.
+- Web-search is a native feature with provider-specific engines, including Brave and Yandex Web Search env variables.
+- Analytics is admin-only and covers message volume, tokens, models, user activity and group filtering according to current docs. It is a good first candidate for basic cost visibility, not a proven hard budget mechanism.
+- RAG/file features exist, but OCR/layout-aware PDF and broker-report extraction quality still require test documents.
+- Filter functions can be used for PII scrubbing, logging, cost tracking and rate limiting patterns. This is an extension surface, not a free replacement for a designed security/billing subsystem.
 
-- Deployed OpenWebUI Admin UI.
-- Official OpenWebUI docs for the deployed version.
-- PRD-0 runbooks and reports.
-- Release notes if update is required.
+## 5. Gaps / blockers
 
-## 6. Test plan / proof plan
+- Deployed v0.9.6 may not match current OpenWebUI docs. Need read-only Admin UI check or controlled staging update research before implementation.
+- Native manager visibility into subordinate work chats is not proven by RBAC docs. Groups/sharing are not the same as supervisory access to private conversations.
+- Native no-delete policy is plausible because chat deletion is permissioned, but must be tested with non-admin users.
+- Provider secrets, real model IDs and real OpenWebUI admin settings were intentionally not inspected.
 
-Use read-only/admin-safe checks first. Create test users only during approved implementation planning, not now.
+## 6. Decision impact
 
-## 7. Risks
+- Start Stage 2 native-first for groups, permissions, shared prompts/knowledge, web-search and analytics.
+- Keep STT proxy/server-side adapter as a real architecture decision because API keys, file limits, diarization and ffmpeg preprocessing must be controlled outside the browser.
+- Treat manager visibility and no-delete as runtime proof items before promising them to the customer as finished native features.
+- Do not fork OpenWebUI until a specific requirement fails native configuration and cannot be solved by extension/proxy boundaries.
 
-- Docs/runtime version mismatch.
-- Native permission gaps.
-- Update needed before Stage 2.
+## 7. Recommended next step
 
-## 8. Decision options
+Run a read-only deployed Admin UI capability audit with a test user matrix:
 
-- Native configuration sufficient.
-- Native with policy/workarounds.
-- Controlled update required.
-- Minimal custom module/fork-slice required.
+- admin role;
+- normal user;
+- group with web-search allowed;
+- group with chat delete disabled;
+- sharing group for work scenario.
 
-## 9. Recommended next step
+Record exact screenshots/settings names in a follow-up report before implementation planning.
 
-Schedule capability audit before implementation planning.
+## 8. Sources
 
-## 10. Status
+- https://docs.openwebui.com/features/authentication-access/rbac/
+- https://docs.openwebui.com/features/authentication-access/rbac/permissions/
+- https://docs.openwebui.com/features/authentication-access/rbac/groups/
+- https://docs.openwebui.com/features/authentication-access/
+- https://docs.openwebui.com/features/chat-conversations/chat-features/chatshare/
+- https://docs.openwebui.com/features/chat-conversations/audio/speech-to-text/stt-config/
+- https://docs.openwebui.com/reference/env-configuration/
+- https://docs.openwebui.com/features/administration/analytics/
+- https://docs.openwebui.com/features/chat-conversations/web-search/providers/brave/
+- https://docs.openwebui.com/features/chat-conversations/rag/
+- https://docs.openwebui.com/features/extensibility/plugin/functions/filter/
 
-Planned, not verified.
+## 9. Status
+
+Research complete for documentation-level planning. Runtime proof still required.

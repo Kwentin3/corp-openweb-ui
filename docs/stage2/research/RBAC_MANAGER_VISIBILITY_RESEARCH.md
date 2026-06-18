@@ -4,53 +4,64 @@
 
 Can OpenWebUI support manager visibility into work chats by group/workspace without exposing all personal chats?
 
-## 2. Why it matters for PRD-1
+## 2. Research status
 
-Customer wants manager access early, but privacy/security boundary is mandatory.
+Status: researched from official OpenWebUI docs on 2026-06-18.
 
-## 3. Current assumptions
+Result type: native RBAC/sharing capabilities confirmed; manager-supervision requirement remains unproven in deployed runtime.
 
-- Native RBAC/admin surfaces may be insufficient.
-- Visibility must be scoped to work chats.
+## 3. Findings
 
-## 4. What to verify
+- OpenWebUI RBAC has Roles, Permissions and Groups. Permissions are additive: groups add capabilities, they do not create deny rules.
+- Groups can grant feature access and shared access to resources. Current docs explicitly recommend separating permission groups from sharing groups.
+- Chat sharing supports access control for users/groups. Public sharing can be disabled for non-admins; group sharing exists.
+- These capabilities support shared workspaces/resources and controlled collaboration.
+- The docs do not prove a native "manager sees all subordinate work chats" model. Sharing a chat/resource with a group is different from automatic supervisory read access to all chats created by team members.
 
-- Groups/RBAC.
-- Admin chat visibility.
-- Workspace-scoped access.
-- Audit/logging options.
-- Employee notice options.
-- Export/reporting alternatives.
+## 4. Privacy boundary
 
-## 5. Sources to check
+Recommended interpretation for PRD-1:
 
-- OpenWebUI deployed runtime.
-- Official RBAC/admin docs.
-- PRD-1 policy requirements.
+- Work artifacts that belong to a declared work scenario can be shared/exported/reviewed by policy.
+- Personal/private chats remain outside manager visibility unless the customer explicitly approves a broader policy.
+- Users must know which chats/scenarios are work-visible.
+- Do not silently turn every employee chat into manager-readable data.
 
-## 6. Test plan / proof plan
+## 5. Decision options
 
-Use test group, manager user, employee user, work chat, personal chat. Verify who can see what.
+1. Native sharing-only model.
+   - Use groups and access control for shared work chats/resources.
+   - Lowest implementation risk.
+   - Does not satisfy automatic manager oversight.
 
-## 7. Risks
+2. Work-scenario account/resource model.
+   - Users run broker/STT/search workflows in named shared scenarios.
+   - Manager sees outputs because resources are shared by design.
+   - Requires process discipline and acceptance tests.
 
-- Manager sees too much.
-- Manager sees nothing natively.
-- No audit trail.
-- Work/personal chat boundary unclear.
+3. Custom visibility/export/audit slice.
+   - Build or configure explicit review/export mechanism.
+   - Higher privacy and upgrade risk.
+   - Only justified if customer requires supervisory access beyond native sharing.
 
-## 8. Decision options
+## 6. Recommended next step
 
-- Native configuration.
-- Policy and training only.
-- Audit/backup/export workflow.
-- Minimal customization.
-- Deferred custom implementation.
+Before implementation, run a test matrix in deployed or staging OpenWebUI:
 
-## 9. Recommended next step
+- create `Team-A` sharing group;
+- create `Manager-A` user;
+- create normal user chat;
+- share chat to `Team-A`;
+- verify what manager can and cannot see;
+- verify whether group membership alone exposes existing chats.
 
-Run native capability check before promising manager visibility.
+## 7. Sources
 
-## 10. Status
+- https://docs.openwebui.com/features/authentication-access/rbac/
+- https://docs.openwebui.com/features/authentication-access/rbac/permissions/
+- https://docs.openwebui.com/features/authentication-access/rbac/groups/
+- https://docs.openwebui.com/features/chat-conversations/chat-features/chatshare/
 
-Planned, not verified.
+## 8. Status
+
+Research complete. Implementation decision blocked by customer policy and runtime proof.
