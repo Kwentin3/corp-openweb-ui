@@ -5,6 +5,18 @@ Date: 2026-06-18
 Scope: ADR-0004 STT proxy boundary, ffmpeg workflow artifact inspection and
 ffmpeg.wasm dependency strategy.
 
+Update note:
+
+- This report records the first inspection pass.
+- Later operator/source-inspection input updated the artifact status from
+  "browser preprocessing artifact not found" to "external ffmpeg workflow
+  artifact inspected; transferable MP3 / `audio/mpeg` contract found; operator
+  manual proof exists for reported mobile/large-file scenarios".
+- Current status is tracked in
+  [OPENWEBUI_ADR0004_FFMPEG_OPERATOR_PROOF_UPDATE.report.md](OPENWEBUI_ADR0004_FFMPEG_OPERATOR_PROOF_UPDATE.report.md)
+  and
+  [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md](../../stage2/research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md).
+
 ## 1. Executive Summary
 
 ADR-0004 was refined with a stricter and more precise ffmpeg artifact status.

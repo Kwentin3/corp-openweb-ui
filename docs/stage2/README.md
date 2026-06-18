@@ -142,22 +142,24 @@ Finding:
 Next action:
 
 - Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
-- Operator/customer input for the missing browser ffmpeg preprocessing artifact,
-  or approval of a replacement preprocessing contract.
+- Capture reproducible ffmpeg proof matrix and close production dependency
+  decisions before implementation acceptance.
 
 ### ffmpeg browser workflow
 
 Finding:
 
-- Browser ffmpeg viable as sidecar/module. External STT/upload context was
-  inspected, but actual browser ffmpeg preprocessing artifact/command/runtime
-  proof is still missing.
+- Browser ffmpeg viable as sidecar/module. External workflow contract is
+  inspected and transferable: MP3 / `audio/mpeg` output through browser-side
+  ffmpeg, then presigned/internal upload and backend STT orchestration.
+- Operator manual proof reports mobile large-video and large-WAV success, but
+  this is not a reproducible proof matrix yet.
 
 Next action:
 
 - Use [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
-  as the current contract/gap record, then inspect the real browser workflow or
-  approve a replacement preprocessing contract and run browser smoke.
+  as the current contract record, then capture proof matrix and decide output
+  format, asset hosting, licensing/ops and file limits.
 
 ### Web-search
 
@@ -271,8 +273,7 @@ dependencies.
 ## 12. Следующий шаг
 
 Review [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
-and provide the actual browser ffmpeg workflow artifact for contract inspection,
-or approve the replacement preprocessing contract route.
+and close the ffmpeg proof matrix / production dependency decisions.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

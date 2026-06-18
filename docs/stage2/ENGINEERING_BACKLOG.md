@@ -50,10 +50,10 @@ Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and f
 need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
 response normalization, optional audit and draft job contracts.
-Depends on: human ADR review, browser ffmpeg workflow proof or replacement preprocessing contract,
-customer media limits
-Status: ADR-0004 prepared for review; external STT/upload context inspected; implementation blocked
-by missing browser ffmpeg preprocessing proof
+Depends on: human ADR review, reproducible proof matrix, production dependency decisions, customer
+media limits
+Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
+MP3/audio-mpeg contract found; operator manual proof captured as manual evidence
 
 ### Provider model catalog
 
@@ -170,10 +170,30 @@ Domain: Transcription / STT
 Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
-Depends on: approved ADR-0004, browser ffmpeg proof or replacement preprocessing contract, sample
-media
-Status: blocked until ADR review, ffmpeg/preprocessing output contract and runtime proof are
-available
+Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
+Status: ready to plan after ADR review; must include prepared-audio output proof, Lemonfox
+compatibility proof and no API key in browser proof
+
+### FFMPEG mobile / large-file proof matrix
+
+Domain: Transcription / STT
+Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
+Why: Operator manual proof is useful, but implementation acceptance needs reproducible evidence.
+Output: proof matrix with device, browser, file type, file size, duration, output format, result and
+evidence for mobile large video, mobile large WAV, desktop baseline audio and desktop baseline video.
+Depends on: source workflow access and approved test media.
+Status: ready for runtime proof after ADR review
+
+### FFMPEG production dependency decisions
+
+Domain: Transcription / STT / frontend dependency
+Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
+Why: Source workflow uses `unpkg.com`, `@ffmpeg/ffmpeg` v0.12.6 and MP3 / `libmp3lame`; corporate
+production needs explicit dependency, hosting, licensing and limit decisions.
+Output: decision note or ADR update for prepared-audio format, self-host/internal cache path,
+licensing/ops review and max file size/duration policy.
+Depends on: ADR-0004 review, STT provider compatibility smoke, ops/licensing review.
+Status: blocked by production decision
 
 ### Document extraction/OCR smoke after test data
 

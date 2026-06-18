@@ -41,6 +41,7 @@ Blueprint:
 Research:
 
 - [TRANSCRIPTION_STT_RESEARCH](../research/TRANSCRIPTION_STT_RESEARCH.md)
+- [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](../research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md)
 
@@ -49,17 +50,23 @@ Acceptance signal:
 - STT proxy contract approved.
 - Audio/video upload produces transcript through server-side proxy.
 - STT API key is not present in browser.
+- Browser ffmpeg proof matrix captures device, browser, file type, file size,
+  duration, output format, result and evidence.
+- Production prepared-audio format, asset hosting, licensing/ops and file-limit
+  decisions are documented.
 
 Test data needed:
 
 - Audio.
 - Video.
 - Large file.
-- ffmpeg artifact.
+- Large WAV.
+- ffmpeg source workflow / proof matrix evidence.
 
 Status:
 
-- Research complete; ADR needed.
+- Transferable ffmpeg contract inspected; ADR review and runtime proof matrix
+  needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

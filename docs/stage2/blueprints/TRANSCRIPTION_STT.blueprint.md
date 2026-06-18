@@ -20,14 +20,15 @@ Browser-side ffmpeg preprocessing больше не считается research 
 
 ffmpeg workflow is a media-preprocessing asset, not a security boundary.
 
-Actual browser ffmpeg preprocessing artifact is not present in this repository.
-External `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context was
-inspected, but it does not contain the browser ffmpeg implementation, command,
-`@ffmpeg/*` dependency or browser/mobile proof. The Stage 2 contract can define
-the expected boundary, but implementation remains blocked until the real
-preprocessing output format, MIME/content type, browser/mobile support, worker
-model, progress/cancel behavior and limits are inspected or replaced by an
-approved preprocessing contract.
+External browser-side ffmpeg workflow contract is now inspected. The source
+workflow uses `@ffmpeg/ffmpeg` v0.12.6, accepts audio/video input, runs
+`ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, returns an MP3 /
+`audio/mpeg` browser `Blob`, uploads prepared audio through a presigned/internal
+storage path and leaves backend STT orchestration to the server side.
+
+Operator manual proof reports successful mobile testing with large videos and
+large WAV files. Treat this as useful manual evidence, not as a reproducible
+proof matrix or universal mobile/file support promise.
 
 Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final
 frontend UI.
@@ -39,9 +40,10 @@ blob идет в server-side STT proxy. Proxy проверяет auth/rights/lim
 Lemonfox/selected provider. UI показывает transcript и templates: протокол, задачи, решения, резюме,
 follow-up.
 
-Current candidate prepared-audio contract is `audio/webm;codecs=opus` /
-`audio/webm`, with `audio/mpeg`, `audio/wav` or `audio/mp4` as possible
-fallbacks. This is a review contract, not runtime proof.
+Current transferable prepared-audio contract from the source workflow is MP3 /
+`audio/mpeg`. Stage 2 may reuse this pattern, but production still needs an
+explicit output-format decision after STT provider compatibility and
+licensing/ops review.
 
 ## 4.1. Backend-first boundary
 
@@ -76,6 +78,8 @@ Boundary contract:
 - Server-side STT proxy.
 - Server-side fallback for large files if browser limits hit.
 - Storage/retention handling for source file, audio blob, transcript.
+- Thin UI can reuse the browser preprocessing pattern and call internal Stage 2
+  APIs, but must not own provider keys, data policy or retention.
 
 ## 7. Data and security notes
 
@@ -88,6 +92,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 
 - Existing ffmpeg project details.
 - FFMPEG workflow artifact inspection and ffmpeg.wasm dependency decision.
+- Reproducible mobile/large-file proof matrix.
 - Lemonfox research.
 - OpenWebUI capability research.
 - Manager visibility/retention policy.
@@ -106,7 +111,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 10. Open questions
 
 - What file size/duration limits are acceptable?
-- What exact ffmpeg command/output codec/container should be standardized?
+- Should production standardize on source-proven MP3 / `audio/mpeg`, or choose
+  another prepared-audio format after review?
 - Is server fallback required in Practical Stage 2?
 - Is single-thread ffmpeg.wasm enough, or is multi-thread
   `SharedArrayBuffer` / COOP / COEP support required?
@@ -127,13 +133,15 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - User can apply result templates.
 - Unsupported/large files produce clear errors or documented limits.
 - STT proxy API contract is documented before final UI work.
-- Browser ffmpeg/preprocessing output contract is proven or replacement
-  preprocessing contract is approved.
+- Browser ffmpeg/preprocessing output contract is inspected and reproducible
+  proof matrix is captured before implementation acceptance.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
 
 ## 13. Implementation readiness
 
 Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
-human review, but implementation readiness is still blocked by missing browser
-ffmpeg preprocessing proof. Browser/UI work follows after backend contract,
+human review. The missing-artifact blocker is removed, but implementation
+readiness still requires reproducible proof matrix, production prepared-audio
+format decision, ffmpeg asset hosting decision, licensing/ops review and
+file-limit policy. Browser/UI work follows after backend contract,
 preprocessing contract and runtime proof.

@@ -7,12 +7,11 @@ How should the existing browser ffmpeg workflow be embedded into the OpenWebUI c
 ## 2. Research status
 
 Status: researched from ffmpeg.wasm official docs on 2026-06-18 and updated
-after local/external artifact inspection on 2026-06-18.
+after external artifact/operator proof input on 2026-06-18.
 
-Result type: integration boundary. Existing customer/executor ffmpeg project was not present in this
-repo. External `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context
-was inspected, but it does not contain the browser ffmpeg preprocessing
-implementation, command, `@ffmpeg/*` dependency or browser/mobile proof.
+Result type: integration boundary. The browser ffmpeg source code is not copied
+into this repo, but the external workflow contract is now inspected and
+transferable for ADR review.
 
 ## 3. Findings
 
@@ -34,8 +33,14 @@ implementation, command, `@ffmpeg/*` dependency or browser/mobile proof.
   MIT, while `@ffmpeg/core` and `@ffmpeg/core-mt` are GPL-2.0-or-later
   WebAssembly core packages with large unpacked sizes. Production use needs
   explicit version pinning, asset hosting and licensing review.
-- The inspected external artifact confirms STT/upload patterns and audio MIME
-  handling, but not the actual local ffmpeg output contract.
+- External workflow inspection confirms the transferable browser-side
+  preprocessing contract: `@ffmpeg/ffmpeg` v0.12.6, audio/video input, command
+  `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, output MP3 /
+  `audio/mpeg` as a browser `Blob`, then presigned/internal upload to backend
+  STT orchestration.
+- Operator manual proof reports success on a mobile device with large videos and
+  large WAV files. This should be treated as useful manual evidence, not as a
+  reproducible proof matrix.
 
 ## 4. Integration recommendation
 
@@ -72,9 +77,13 @@ Backend-first clarification:
 - one mobile browser smoke;
 - large file cancel/timeout behavior;
 - no raw media upload before user starts STT proxy call;
-- prepared audio format accepted by Lemonfox proxy.
+- prepared audio format accepted by Lemonfox or selected STT proxy.
 - browser workflow output contract matches the backend proxy input contract.
 - ffmpeg.wasm package/core version and asset hosting path are decided.
+- source CDN use through `unpkg.com` is replaced, accepted or rejected for
+  production.
+- operator mobile/large-file proof is converted into a reproducible matrix with
+  device/browser/file metadata.
 - `SharedArrayBuffer` / COOP / COEP requirements are proven only if
   multi-thread mode is selected.
 
@@ -93,7 +102,7 @@ Backend-first clarification:
 
 ## 8. Status
 
-Research complete for integration planning. External STT/upload context was
-inspected, but browser ffmpeg preprocessing remains unproven. Blocked on the
-actual browser ffmpeg workflow artifact, a replacement preprocessing contract
-or browser smoke proof.
+Research complete for integration planning. External browser ffmpeg workflow
+contract is inspected and transferable. ADR-0004 can use MP3 / `audio/mpeg` as
+the source contract for review, while implementation acceptance still requires a
+reproducible proof matrix and production dependency decisions.

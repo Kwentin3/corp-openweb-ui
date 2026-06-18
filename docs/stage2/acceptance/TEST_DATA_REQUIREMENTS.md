@@ -18,7 +18,12 @@
 - Короткий audio file.
 - Короткий video file.
 - Большой audio/video file.
+- Большой WAV file для проверки browser ffmpeg preprocessing.
 - Файл с плохим звуком, если такие встречаются.
+- Для ffmpeg proof matrix по каждому файлу: device, browser, file type, file
+  size, duration, output format, result, evidence link/screenshot/log.
+- Отдельно зафиксировать operator manual proof cases: mobile large video и
+  mobile large WAV, даже если точные размеры пока `TBD`.
 - Ожидаемые шаблоны результата: протокол, задачи, решения, резюме, follow-up.
 - Требования к языку, speaker labels и сроку хранения результата.
 

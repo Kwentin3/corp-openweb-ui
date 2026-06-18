@@ -8,19 +8,26 @@ Transcription is a priority Stage 2 scenario. PRD-1 states that audio/video
 transcription should reuse an existing browser ffmpeg workflow as a technical
 asset, then send prepared audio to a server-side STT boundary.
 
-The current repository contains Stage 2 planning docs and research, but not the
-actual ffmpeg workflow artifact. Local inspection found only documentation
-references to ffmpeg/STT/transcription, not implementation code, examples, demo
-assets or package files for that workflow.
+The current repository contains Stage 2 planning docs and research, not the
+source code of the external ffmpeg workflow. Earlier local inspection found
+useful STT/upload context in `D:\Users\Roman\Desktop\Проекты\AutoProtokol`, but
+did not find the browser ffmpeg preprocessing implementation there.
 
-An external local candidate was inspected at
-`D:\Users\Roman\Desktop\Проекты\AutoProtokol`. It contains useful STT/upload
-context: provider test flow, Lemonfox/Google provider identifiers, audio MIME
-resolution, S3/direct-upload planning and a Google-file STT adapter. It does not
-contain a browser ffmpeg preprocessing implementation, ffmpeg command,
-`@ffmpeg/*` dependency or desktop/mobile ffmpeg proof. This ADR therefore treats
-the artifact status as `external artifact inspected with ffmpeg preprocessing
-gaps`.
+A later external inspection report and operator input confirmed the browser-side
+ffmpeg workflow contract. The transferable source workflow uses
+`@ffmpeg/ffmpeg` v0.12.6, accepts audio/video input, transforms media to MP3
+with `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, returns a
+browser `Blob` with MIME `audio/mpeg`, uploads prepared audio through a
+presigned/internal-storage path, then lets backend STT orchestration call the
+provider. API keys do not go to the browser and the browser does not call STT
+providers directly.
+
+Operator manual proof also confirms that the workflow was manually tested on a
+mobile device with large videos and large WAV files and worked correctly in
+those reported cases. This is useful operator evidence, not a repository-owned
+automated proof matrix. Stage 2 implementation acceptance still needs a
+reproducible proof matrix with device/browser/file metadata and production
+dependency decisions.
 
 Lemonfox is the priority STT provider candidate. Existing research also keeps
 native OpenWebUI STT as a useful baseline to test, because OpenWebUI has native
@@ -190,8 +197,9 @@ Constraints:
 - deep fork is not the first choice;
 - final UI/browser integration starts only after backend contract and runtime
   proof;
-- implementation readiness remains blocked until browser ffmpeg preprocessing
-  is proven or a replacement preprocessing contract is approved.
+- the previous `missing ffmpeg artifact` blocker is removed;
+- implementation readiness still requires ADR approval, a reproducible
+  mobile/large-file proof matrix and production dependency decisions.
 
 ## 6. Contract Boundary
 
@@ -203,11 +211,11 @@ Owns:
 - local file type detection before upload;
 - local ffmpeg preprocessing after user action;
 - audio extraction/conversion into the agreed prepared-audio format;
-- prepared-audio output candidate: `audio/webm;codecs=opus` / `audio/webm`,
-  with `audio/mpeg`, `audio/wav` and `audio/mp4` as fallback candidates after
-  provider smoke;
+- transferable source output: MP3 / `audio/mpeg` browser `Blob`;
+- source workflow command:
+  `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`;
 - local preprocessing progress/cancel UI;
-- upload of the prepared audio blob to the Stage 2 backend;
+- upload of the prepared audio blob to internal storage / Stage 2 backend;
 - display of job status and normalized transcript result.
 
 Does not own:
@@ -271,62 +279,60 @@ Does not own:
 
 Status:
 
-- `external artifact inspected with ffmpeg preprocessing gaps`.
+- `external ffmpeg workflow artifact inspected`;
+- `transferable browser-side preprocessing contract found`;
+- `operator manual proof confirms reported mobile and large-file scenarios`;
+- `implementation readiness still requires reproducible proof matrix and
+  production dependency decisions`.
 
-Local inspection performed for this ADR found no ffmpeg implementation artifact
-in this repo. There are documentation references to an existing ffmpeg workflow,
-but no code, README, examples, package metadata, demo files or notes from which
-an actual browser preprocessing contract can be extracted.
+Source workflow contract found:
 
-External inspection source:
+- browser input accepts `audio/*` and `video/*`;
+- source project UI limit: 1 GB;
+- source-confirmed formats: MP3, WAV, M4A, WebM, MP4 video and MOV video;
+- package: `@ffmpeg/ffmpeg` v0.12.6;
+- source asset hosting: CDN through `unpkg.com`;
+- transformation command:
+  `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`;
+- output container: MP3;
+- output codec: `libmp3lame`;
+- output MIME: `audio/mpeg`;
+- browser output shape: `Blob`;
+- handoff pattern: browser prepared-audio blob -> presigned/internal-storage
+  upload -> backend STT orchestration by object key;
+- security shape: no STT provider API keys in browser, no direct browser call to
+  STT provider.
 
-- `D:\Users\Roman\Desktop\Проекты\AutoProtokol`
+Operator manual proof:
 
-Found there:
+- operator reported manual testing on a mobile device;
+- large videos were tested;
+- large WAV files were tested;
+- reported result: workflow completed correctly;
+- this is useful operator evidence;
+- this is not the same as a reproducible repository-owned proof matrix.
 
-- STT provider config with `lemonfox` and `googleai`;
-- STT test flow using `public/test-audio.mp3`;
-- audio MIME allowlist and extension mapping;
-- fallback MIME of `audio/webm`;
-- S3/direct-upload planning for large media;
-- upload progress and abort/multipart cleanup concepts;
-- provider adapter pattern and transcript normalization hints.
+Required proof matrix before implementation acceptance:
 
-Not found there:
+| Test case | Device | Browser | File type | File size | Duration | Output format | Result | Evidence |
+| --------- | ------ | ------- | --------- | --------: | -------: | ------------- | ------ | -------- |
+| Mobile large video | operator reported | operator reported | video | TBD | TBD | MP3 / `audio/mpeg` | operator reported pass | TBD |
+| Mobile large WAV | operator reported | operator reported | WAV | TBD | TBD | MP3 / `audio/mpeg` | operator reported pass | TBD |
+| Desktop baseline audio | TBD | TBD | MP3/WAV/M4A/WebM | TBD | TBD | MP3 / `audio/mpeg` | TBD | TBD |
+| Desktop baseline video | TBD | TBD | MP4/MOV | TBD | TBD | MP3 / `audio/mpeg` | TBD | TBD |
 
-- browser ffmpeg preprocessing implementation;
-- `@ffmpeg/ffmpeg`, `@ffmpeg/core` or `@ffmpeg/core-mt` dependency;
-- ffmpeg command;
-- prepared audio output sample;
-- desktop/mobile browser proof for ffmpeg preprocessing;
-- COOP/COEP or SharedArrayBuffer proof.
+Production caveats:
 
-Contract fields that must be inspected from the real artifact:
-
-- supported browser input formats;
-- exact ffmpeg command;
-- output container/codec;
-- output MIME/content type;
-- whether output is mp3, wav, m4a, webm or another format;
-- browser support;
-- mobile support;
-- max observed file size and duration;
-- ffmpeg core version and asset hosting model;
-- worker model;
-- progress event shape;
-- cancellation behavior;
-- error behavior;
-- timeout behavior;
-- licensing and core asset hosting notes.
-
-Operator/customer input needed:
-
-- repo/path/source of the existing ffmpeg workflow;
-- minimal runnable demo;
-- supported format matrix;
-- desktop/mobile proof;
-- output contract and sample prepared audio;
-- known size/duration limits.
+- MP3 / `audio/mpeg` is proven in the source workflow, but not automatically the
+  final production format;
+- select production prepared-audio format after STT provider compatibility and
+  licensing/ops review;
+- alternatives remain possible: `audio/webm;codecs=opus`,
+  `audio/ogg;codecs=opus` or `audio/wav` if size is acceptable;
+- public CDN dependency through `unpkg.com` must not be accepted silently for
+  corporate production;
+- define max accepted file size, max duration, fallback behavior and typed
+  errors for unsupported/too-large files.
 
 Inspection document:
 
@@ -337,7 +343,13 @@ Inspection document:
 If implementation chooses ffmpeg.wasm, treat it as an implementation dependency,
 not as the provider boundary.
 
-Current checked package facts on 2026-06-18:
+Source workflow facts:
+
+- source workflow uses `@ffmpeg/ffmpeg` v0.12.6;
+- source workflow loads ffmpeg assets from `unpkg.com`;
+- source workflow produces MP3 / `audio/mpeg`.
+
+Previously checked package facts on 2026-06-18 for production planning:
 
 - `@ffmpeg/ffmpeg`: npm version `0.12.15`, MIT license, wrapper package.
 - `@ffmpeg/core`: npm version `0.12.10`, GPL-2.0-or-later, single-thread core.
@@ -354,7 +366,9 @@ Strategy:
 - do not commit heavy wasm/core binaries without a separate ADR;
 - do not vendor the full FFmpeg source tree;
 - define cache headers, asset path, rollback and license notices if core assets
-  are self-hosted.
+  are self-hosted;
+- select final output format after provider compatibility and licensing/ops
+  review.
 
 Security/header implication:
 
@@ -496,8 +510,17 @@ Before implementation:
 - verify auth/session propagation option to Stage 2 backend;
 - verify user/group permission check source;
 - verify Lemonfox smoke with approved test key and audio;
-- verify existing ffmpeg workflow output contract;
-- verify desktop and mobile prepared-audio output;
+- capture reproducible proof matrix for the inspected ffmpeg workflow with
+  device, browser, file type, file size, duration, output format, result and
+  evidence;
+- verify MP3 / `audio/mpeg` prepared-audio output against the Stage 2 proxy
+  contract;
+- verify large-video and large-WAV behavior with recorded metadata;
+- verify no STT API key appears in browser bundle, browser storage or browser
+  network logs;
+- verify source workflow CDN dependency is replaced, accepted or rejected for
+  production;
+- verify production prepared-audio format decision;
 - verify selected ffmpeg.wasm package/core version and asset hosting path;
 - verify single-thread vs multi-thread choice;
 - verify SharedArrayBuffer / cross-origin isolation only if multi-thread is
@@ -507,16 +530,17 @@ Before implementation:
 - verify transcript result can be stored or returned without leaking raw
   provider details;
 - verify `UsageEventV1` can be emitted;
-- verify no STT API key appears in browser bundle, browser storage or network
-  logs.
+- verify typed errors for unsupported/too-large files.
 
 ## 12. Customer / Operator Input Needed
 
-- Existing ffmpeg workflow repo/path/artifact.
-- Minimal demo or runnable instructions.
+- Existing ffmpeg workflow repo/path/artifact for implementation handoff.
+- Minimal demo or runnable instructions for reproducible proof.
 - Short audio sample.
 - Short video sample.
 - Large audio/video sample.
+- Device/browser/file metadata for the operator-tested mobile and large-file
+  cases.
 - Expected result templates:
   - summary;
   - protocol;
@@ -536,7 +560,7 @@ Before implementation:
 
 - How will OpenWebUI session/auth be propagated to the Stage 2 backend?
 - Where are prepared audio blobs temporarily stored?
-- What are max file size and duration limits?
+- What max file size and duration limits are acceptable for production?
 - What is cancellation behavior for local ffmpeg work and server/provider work?
 - Which transcript fields are mandatory for first acceptance?
 - How are speaker labels and timestamps normalized?
@@ -546,10 +570,13 @@ Before implementation:
 - Is callback/async provider flow required in Practical Stage 2 or deferred?
 - Is native OpenWebUI STT sufficient for a baseline smoke only, or can it reduce
   proxy scope after proof?
-- Is browser ffmpeg output standardized as `audio/webm`, `audio/mpeg`,
-  `audio/wav` or `audio/mp4`?
+- Should production standardize on source-proven MP3 / `audio/mpeg`, or choose
+  `audio/webm;codecs=opus`, `audio/ogg;codecs=opus` or `audio/wav` after
+  licensing/ops/provider review?
 - Are self-hosted ffmpeg core assets acceptable from licensing and ops
   perspectives?
+- Is the source project's 1 GB UI limit acceptable, lower than required, or too
+  high for corporate browser/mobile acceptance?
 
 ## 14. Consequences
 
@@ -560,10 +587,12 @@ Before implementation:
 - Lemonfox-specific features must be tested before promising them.
 - OpenWebUI upgrade risk is lower if the Stage 2 API remains isolated behind a
   sidecar/internal backend route or thin shim.
-- ADR approval cannot close implementation readiness while browser ffmpeg
-  preprocessing proof is missing.
+- ADR approval cannot close implementation readiness until the operator manual
+  proof is converted into a reproducible proof matrix and production dependency
+  decisions are made.
 - Heavy wasm/core assets and FFmpeg source are excluded from this repo until a
   separate ADR approves vendoring or self-hosting.
+- Source video upload fallback remains disallowed unless explicitly approved.
 
 ## 15. Acceptance Signals for ADR Approval
 
@@ -579,14 +608,19 @@ ADR can be approved only when:
 - ffmpeg artifact inspection status is explicit;
 - unresolved open questions are closed or explicitly deferred;
 - ffmpeg.wasm dependency strategy is accepted, revised or rejected;
+- operator manual proof is captured as manual evidence, not as automated proof;
+- production output format, asset hosting, licensing and file-limit decisions
+  are accepted, revised or explicitly deferred;
 - no implementation has started.
 
 Current review state:
 
 - boundary and draft contracts are ready for human review;
-- external STT/upload context was inspected;
-- implementation readiness is blocked by missing browser ffmpeg preprocessing
-  proof.
+- external ffmpeg workflow artifact is inspected;
+- transferable MP3 / `audio/mpeg` preprocessing contract is found;
+- operator manual proof exists for reported mobile and large-file scenarios;
+- implementation readiness still requires reproducible proof matrix and
+  production dependency decisions.
 
 ## 16. Non-Goals
 
@@ -599,7 +633,8 @@ Current review state:
 - No compose/env/scripts change.
 - No OpenWebUI fork.
 - No ADR acceptance without human review.
-- No claim that browser ffmpeg preprocessing has been proven.
+- No claim that operator manual proof is automated repository proof.
+- No claim of universal mobile support or all-file support.
 - No heavy wasm/core binaries or full FFmpeg source vendoring without a separate
   ADR.
 

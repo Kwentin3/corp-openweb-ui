@@ -97,9 +97,10 @@ Comment:
 
 - API keys never go to the browser.
 - STT proxy ADR must define backend boundary before final UI.
-- External STT/upload context was inspected, but actual browser ffmpeg
-  preprocessing remains unproven; operator must provide repo/path/demo or
-  approve a replacement preprocessing contract before implementation readiness.
+- External ffmpeg workflow contract is inspected and transferable as MP3 /
+  `audio/mpeg`; operator manual proof exists for reported mobile/large-file
+  cases, but implementation acceptance still needs reproducible proof matrix and
+  production dependency decisions.
 
 ## Брокерские отчеты / 3-НДФЛ
 

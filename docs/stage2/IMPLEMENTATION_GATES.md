@@ -25,8 +25,10 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 ### Gate 2. STT Proxy Boundary approved
 
 - ADR-0004 approved.
-- Existing browser ffmpeg workflow contract inspected or replacement
-  preprocessing contract approved.
+- Existing browser ffmpeg workflow contract inspected.
+- Operator manual proof captured as manual evidence for mobile/large-file
+  scenarios.
+- Reproducible proof matrix captured before implementation acceptance.
 - ffmpeg.wasm dependency strategy accepted, revised or rejected.
 - STT proxy input/output agreed.
 - No API keys in browser.
@@ -106,7 +108,8 @@ Related docs:
 
 Status:
 
-- blocked by missing browser ffmpeg preprocessing proof and human ADR review.
+- reviewable; not completed until human ADR review, reproducible proof matrix
+  and production dependency decisions are complete.
 
 Owner:
 
@@ -115,12 +118,11 @@ Owner:
 Blocking items:
 
 - ADR-0004 human review;
-- actual browser ffmpeg preprocessing artifact not present in this repo;
-- external STT/upload artifact inspected, but it does not provide the ffmpeg
-  command, output contract, `@ffmpeg/*` dependency or browser/mobile proof;
-- ffmpeg output contract or replacement preprocessing contract;
-- ffmpeg.wasm package/core version, asset hosting and licensing/security
-  decision;
+- reproducible mobile/large-file proof matrix with device/browser/file metadata;
+- production prepared-audio output format decision;
+- ffmpeg asset hosting decision: self-host/internal cache vs accepted CDN risk;
+- licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
+- production file size and duration limits;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Related docs:

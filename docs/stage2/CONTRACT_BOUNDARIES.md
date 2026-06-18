@@ -162,18 +162,17 @@ browser-to-provider calls.
 
 Current blocker:
 
-- the actual browser ffmpeg preprocessing artifact is not present in this repo;
-- external `D:\Users\Roman\Desktop\Проекты\AutoProtokol` STT/upload context was
-  inspected, but it does not contain browser ffmpeg preprocessing, command,
-  `@ffmpeg/*` dependency or browser/mobile proof;
-- implementation readiness is blocked until the real browser preprocessing
-  artifact is inspected, runtime proof is captured or a replacement
-  preprocessing contract is approved.
+- the external browser ffmpeg preprocessing contract is inspected;
+- transferable source output is MP3 / `audio/mpeg`;
+- operator manual proof exists for reported mobile and large-file scenarios;
+- implementation readiness still requires ADR review, a reproducible proof
+  matrix and production dependency decisions.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy prefers pinned/self-hosted ffmpeg.wasm assets
-for proof, single-thread first, and requires COOP/COEP / `SharedArrayBuffer`
-review only if multi-thread mode is selected.
+for proof, single-thread first, no silent production dependency on `unpkg.com`,
+and COOP/COEP / `SharedArrayBuffer` review only if multi-thread mode is
+selected.
 
 ## 8. Related docs
 
