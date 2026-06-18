@@ -14,13 +14,17 @@
 
 ## 3. Current known context
 
-PRD-1 explicitly warns that office files are not plain text. Accurate Excel handling requires parser/tool/code path, not pure LLM.
+PRD-1 explicitly warns that office files are not plain text. Accurate Excel handling requires
+parser/tool/code path, not pure LLM.
 
-OCR/layout-aware PDF pilot now explicitly includes VL OCR / vision-language OCR candidate evaluation. VL OCR may be useful for scans, images, complex PDFs and tables, but must be benchmarked. It is not a production OCR guarantee.
+OCR/layout-aware PDF pilot now explicitly includes VL OCR / vision-language OCR candidate
+evaluation. VL OCR may be useful for scans, images, complex PDFs and tables, but must be
+benchmarked. It is not a production OCR guarantee.
 
 ## 4. Target user workflow
 
-User uploads document inside a scenario. System classifies file type, extracts safe representation, runs prompt/template, returns analysis with limitations and uncertain areas.
+User uploads document inside a scenario. System classifies file type, extracts safe representation,
+runs prompt/template, returns analysis with limitations and uncertain areas.
 
 ## 5. Native OpenWebUI first path
 
@@ -41,7 +45,8 @@ User uploads document inside a scenario. System classifies file type, extracts s
 
 Goal:
 
-- evaluate whether vision-language OCR or document AI candidates improve extraction quality for scans, images, complex PDF, stamps/signatures and table-heavy broker reports.
+- evaluate whether vision-language OCR or document AI candidates improve extraction quality for
+  scans, images, complex PDF, stamps/signatures and table-heavy broker reports.
 
 Non-goal:
 
@@ -81,13 +86,16 @@ Output comparison:
 
 Decision before implementation:
 
-- classify each document type as native extraction works, needs OCR, needs VL OCR or not reliable in Stage 2.
+- classify each document type as native extraction works, needs OCR, needs VL OCR or not reliable in
+  Stage 2.
 
 ## 7. Data and security notes
 
-Documents may contain personal/financial/accounting data. Data policy decides provider use. Do not rely on future masking as current control.
+Documents may contain personal/financial/accounting data. Data policy decides provider use. Do not
+rely on future masking as current control.
 
-External OCR/VL OCR provider tests require data policy approval and customer-confirmed test documents.
+External OCR/VL OCR provider tests require data policy approval and customer-confirmed test
+documents.
 
 ## 8. Dependencies
 

@@ -1,6 +1,7 @@
 ﻿# Stage 2 Test Data Requirements
 
-Тестовые данные нужны до implementation planning. Без них acceptance будет проверять впечатления, а не требования PRD-1.
+Тестовые данные нужны до implementation planning. Без них acceptance будет проверять впечатления, а
+не требования PRD-1.
 
 ## Broker reports / 3-НДФЛ
 
@@ -55,7 +56,8 @@
 
 ## Groups / roles / manager visibility
 
-- Список групп: админы, РО, менеджеры ОС / ОП / КО / БО, специалисты / бухгалтеры ОВ / ИТС / АУП / БО / ТО.
+- Список групп: админы, РО, менеджеры ОС / ОП / КО / БО, специалисты / бухгалтеры ОВ / ИТС / АУП /
+  БО / ТО.
 - Кто владелец каждого workspace.
 - Какие рабочие чаты может видеть руководитель.
 - Какие чаты считаются личными/черновыми.
@@ -68,7 +70,8 @@
 - Какие providers production-required, pilot, research-only.
 - Пример expected monthly usage для LLM, web-search, STT.
 - Ограничения по зарубежным/российским providers.
-- Allowed/prohibited examples by provider class: foreign, Russian, local/self-hosted, future masked/tokenized.
+- Allowed/prohibited examples by provider class: foreign, Russian, local/self-hosted, future
+  masked/tokenized.
 - Confirmation that provider setup may start only after data policy approval.
 
 ## Security policy examples

@@ -2,32 +2,41 @@
 
 ## 1. Question
 
-Can OpenWebUI support manager visibility into work chats by group/workspace without exposing all personal chats?
+Can OpenWebUI support manager visibility into work chats by group/workspace without exposing all
+personal chats?
 
 ## 2. Research status
 
 Status: researched from official OpenWebUI docs on 2026-06-18.
 
-Result type: native RBAC/sharing capabilities confirmed; manager-supervision requirement remains unproven in deployed runtime.
+Result type: native RBAC/sharing capabilities confirmed; manager-supervision requirement remains
+unproven in deployed runtime.
 
 ## 3. Findings
 
-- OpenWebUI RBAC has Roles, Permissions and Groups. Permissions are additive: groups add capabilities, they do not create deny rules.
-- Groups can grant feature access and shared access to resources. Current docs explicitly recommend separating permission groups from sharing groups.
-- Chat sharing supports access control for users/groups. Public sharing can be disabled for non-admins; group sharing exists.
+- OpenWebUI RBAC has Roles, Permissions and Groups. Permissions are additive: groups add
+  capabilities, they do not create deny rules.
+- Groups can grant feature access and shared access to resources. Current docs explicitly recommend
+  separating permission groups from sharing groups.
+- Chat sharing supports access control for users/groups. Public sharing can be disabled for
+  non-admins; group sharing exists.
 - These capabilities support shared workspaces/resources and controlled collaboration.
-- The docs do not prove a native "manager sees all subordinate work chats" model. Sharing a chat/resource with a group is different from automatic supervisory read access to all chats created by team members.
+- The docs do not prove a native "manager sees all subordinate work chats" model. Sharing a
+  chat/resource with a group is different from automatic supervisory read access to all chats
+  created by team members.
 
 ## 4. Privacy boundary
 
 Recommended interpretation for PRD-1:
 
 - Work artifacts that belong to a declared work scenario can be shared/exported/reviewed by policy.
-- Personal/private chats remain outside manager visibility unless the customer explicitly approves a broader policy.
+- Personal/private chats remain outside manager visibility unless the customer explicitly approves a
+  broader policy.
 - Users must know which chats/scenarios are work-visible.
 - Do not silently turn every employee chat into manager-readable data.
 
-Manager Visibility is a policy/security-controlled capability. It is not just a permission toggle, and it must not be implemented as "manager sees everything".
+Manager Visibility is a policy/security-controlled capability. It is not just a permission toggle,
+and it must not be implemented as "manager sees everything".
 
 ## 5. Decision options
 
@@ -64,7 +73,8 @@ Required runtime proof actors:
 - employee inside group;
 - employee outside group.
 
-Proof must record whether working chats, personal/draft chats and shared chats are visible for each actor.
+Proof must record whether working chats, personal/draft chats and shared chats are visible for each
+actor.
 
 ## 7. Sources
 

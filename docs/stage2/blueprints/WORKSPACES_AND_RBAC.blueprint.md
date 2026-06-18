@@ -2,7 +2,8 @@
 
 ## 1. Purpose
 
-Собрать Stage 2 вокруг рабочих пространств, групп, prompts/templates, shared knowledge and access rules.
+Собрать Stage 2 вокруг рабочих пространств, групп, prompts/templates, shared knowledge and access
+rules.
 
 ## 2. PRD-1 requirements covered
 
@@ -14,11 +15,13 @@
 
 ## 3. Current known context
 
-PRD-0 не включал corporate RBAC. PRD-1 требует managed workspaces, но OpenWebUI может не иметь единой product-сущности "business workspace"; сценарий нужно собирать из native mechanisms.
+PRD-0 не включал corporate RBAC. PRD-1 требует managed workspaces, но OpenWebUI может не иметь
+единой product-сущности "business workspace"; сценарий нужно собирать из native mechanisms.
 
 ## 4. Target user workflow
 
-Пользователь входит в портал, видит разрешенные рабочие сценарии, выбирает сценарий, использует approved prompt/template and knowledge, создает индивидуальный рабочий чат внутри общего сценария.
+Пользователь входит в портал, видит разрешенные рабочие сценарии, выбирает сценарий, использует
+approved prompt/template and knowledge, создает индивидуальный рабочий чат внутри общего сценария.
 
 ## 5. Native OpenWebUI first path
 
@@ -31,11 +34,15 @@ PRD-0 не включал corporate RBAC. PRD-1 требует managed workspace
 
 ## 6. Integration / custom implementation path
 
-Custom work допустим только если native модель не позволяет собрать согласованные workspace/access boundaries. Возможные варианты: policy-only, export/audit procedure, minimal admin helper, minimal UI/backend customization.
+Custom work допустим только если native модель не позволяет собрать согласованные workspace/access
+boundaries. Возможные варианты: policy-only, export/audit procedure, minimal admin helper, minimal
+UI/backend customization.
 
 ## 7. Data and security notes
 
-Workspace не является файловым хранилищем. Общие документы допустимы как instructions/templates/methodics/examples/approved prompts. Sensitive data rules inherit from SECURITY_DATA_POLICY.
+Workspace не является файловым хранилищем. Общие документы допустимы как
+instructions/templates/methodics/examples/approved prompts. Sensitive data rules inherit from
+SECURITY_DATA_POLICY.
 
 ## 8. Dependencies
 

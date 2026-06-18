@@ -2,7 +2,8 @@
 
 ## 1. Question
 
-How should Stage 2 handle PDF/DOCX/XLSX documents, scanned PDFs and broker-report extraction without promising a production OCR/layout pipeline?
+How should Stage 2 handle PDF/DOCX/XLSX documents, scanned PDFs and broker-report extraction without
+promising a production OCR/layout pipeline?
 
 ## 2. Research status
 
@@ -13,12 +14,17 @@ Result type: pilot scope input. No customer documents were processed.
 ## 3. Findings
 
 - OpenWebUI has RAG/document extraction features and a Workspace Knowledge surface.
-- Current docs describe multiple extraction engines, including Apache Tika, Docling, Azure, Mistral OCR and custom loaders.
-- Apache Tika can be configured as an OpenWebUI context extraction engine through Admin Panel > Settings > Documents and a Tika URL.
-- Docling is documented as a structured extraction path for PDFs, Word documents, spreadsheets, HTML and images into JSON/Markdown-style structured data.
+- Current docs describe multiple extraction engines, including Apache Tika, Docling, Azure, Mistral
+  OCR and custom loaders.
+- Apache Tika can be configured as an OpenWebUI context extraction engine through Admin Panel >
+  Settings > Documents and a Tika URL.
+- Docling is documented as a structured extraction path for PDFs, Word documents, spreadsheets, HTML
+  and images into JSON/Markdown-style structured data.
 - Mistral OCR is documented for scanned PDFs, images and handwritten documents into JSON/plain text.
-- Troubleshooting docs recommend previewing extracted content; if key sections are blank/missing, extraction settings or engine choice must change.
-- RAG quality depends on extraction quality, chunking and retrieval settings. It is not guaranteed tax/report understanding by itself.
+- Troubleshooting docs recommend previewing extracted content; if key sections are blank/missing,
+  extraction settings or engine choice must change.
+- RAG quality depends on extraction quality, chunking and retrieval settings. It is not guaranteed
+  tax/report understanding by itself.
 
 ## 4. PRD-1 interpretation
 
@@ -30,7 +36,8 @@ Practical Stage 2 should split document handling into three levels:
 
 2. OCR/layout pilot.
    - Test scanned PDFs and broker reports with one extraction engine path.
-   - Include VL OCR / vision-language OCR candidates for scans, images, complex PDFs and table-heavy documents.
+   - Include VL OCR / vision-language OCR candidates for scans, images, complex PDFs and table-heavy
+     documents.
    - Record limitations honestly.
    - No production queue, no automated tax filing promise.
 
@@ -42,7 +49,8 @@ Practical Stage 2 should split document handling into three levels:
 
 - Broker reports and 3-НДФЛ drafts are sensitive and error-prone.
 - Output must be positioned as draft analysis for human review, not tax/legal guarantee.
-- Quality cannot be accepted without real anonymized broker reports and an example of the "good result" currently produced in Claude API/Claude models.
+- Quality cannot be accepted without real anonymized broker reports and an example of the "good
+  result" currently produced in Claude API/Claude models.
 - XLSX formulas/tables may need direct spreadsheet parsing rather than generic RAG extraction.
 
 ## 6. Recommended next step
@@ -57,7 +65,8 @@ Collect a test package before implementation:
 - broker report sample;
 - expected structured result example.
 
-Then run extraction preview tests and decide whether Tika, Docling, Mistral OCR, VL OCR candidate or custom parser is the first pilot engine.
+Then run extraction preview tests and decide whether Tika, Docling, Mistral OCR, VL OCR candidate or
+custom parser is the first pilot engine.
 
 See also: [VL_OCR_PROVIDER_RESEARCH](VL_OCR_PROVIDER_RESEARCH.md).
 

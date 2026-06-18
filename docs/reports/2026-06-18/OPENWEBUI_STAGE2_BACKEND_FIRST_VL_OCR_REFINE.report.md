@@ -2,20 +2,25 @@
 
 ## 1. Summary
 
-Stage 2 engineering domain refined for backend-first ADR/proof planning. Implementation should still wait until ADRs, runtime proofs and customer test data are reviewed.
+Stage 2 engineering domain refined for backend-first ADR/proof planning. Implementation should still
+wait until ADRs, runtime proofs and customer test data are reviewed.
 
-The refine locks the approved review conclusions into `docs/stage2`: backend/server-side boundaries first, Data Policy before provider setup, Manager Visibility as a controlled security capability, No Delete separated from Retention/Audit, and VL OCR added as a pilot candidate for complex documents.
+The refine locks the approved review conclusions into `docs/stage2`: backend/server-side boundaries
+first, Data Policy before provider setup, Manager Visibility as a controlled security capability, No
+Delete separated from Retention/Audit, and VL OCR added as a pilot candidate for complex documents.
 
 ## 2. Why Refine Was Needed
 
-The previous PRD-1 and Stage 2 documents were already usable for planning, but several items could still drift during implementation:
+The previous PRD-1 and Stage 2 documents were already usable for planning, but several items could
+still drift during implementation:
 
 - STT could be started from UI/browser work before the server-side proxy boundary is clear.
 - Provider setup could start before allowed/prohibited data classes are approved.
 - Manager visibility could be misread as "руководитель видит всё".
 - No-delete could be misread as retention, audit or immutable archive.
 - OCR pilot could be overpromised as production-grade OCR/layout pipeline.
-- VL OCR had value for scans/images/complex PDF, but was not represented as a separate research/pilot candidate.
+- VL OCR had value for scans/images/complex PDF, but was not represented as a separate
+  research/pilot candidate.
 
 ## 3. Files Reviewed
 
@@ -79,17 +84,20 @@ Decisions and acceptance:
 Reports:
 
 - `docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md`
-- `docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md` remains part of the docs set because the current task uses it as review input.
+- `docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md` remains part of the docs
+  set because the current task uses it as review input.
 
 ## 5. Backend-first Changes
 
 Added the delivery principle:
 
-Stage 2 implementation must start from backend/server-side boundaries, policies and proofs. Frontend/UI work follows after backend contracts are clear.
+Stage 2 implementation must start from backend/server-side boundaries, policies and proofs.
+Frontend/UI work follows after backend contracts are clear.
 
 Also added the explicit guard:
 
-Frontend must not become the place where security, provider keys, data policy, retention rules or access rules are decided.
+Frontend must not become the place where security, provider keys, data policy, retention rules or
+access rules are decided.
 
 Applied this to:
 
@@ -101,11 +109,13 @@ Applied this to:
 - Usage analytics;
 - Web-search.
 
-The practical order is now ADR/policy decision, backend contract/runtime proof, minimal backend/API slice, UI/browser integration, then polish/instructions.
+The practical order is now ADR/policy decision, backend contract/runtime proof, minimal backend/API
+slice, UI/browser integration, then polish/instructions.
 
 ## 6. Data Policy Changes
 
-`SECURITY_DATA_POLICY` and backlog now state that provider setup must not start before data policy by provider class is approved.
+`SECURITY_DATA_POLICY` and backlog now state that provider setup must not start before data policy
+by provider class is approved.
 
 Created ADR-0001 as a Proposed decision draft. It separates:
 
@@ -128,7 +138,8 @@ Full masking/tokenization remains future. The refine did not move masking into P
 
 ## 7. Manager Visibility Changes
 
-Manager Visibility is now documented as a policy/security-controlled capability, not a simple permission toggle.
+Manager Visibility is now documented as a policy/security-controlled capability, not a simple
+permission toggle.
 
 Created ADR-0002 as a Proposed decision draft. It defines:
 
@@ -139,7 +150,8 @@ Created ADR-0002 as a Proposed decision draft. It defines:
 - separate admin visibility;
 - runtime proof actors: Admin, Manager/РО, employee inside group, employee outside group.
 
-Fallbacks remain conservative: explicit shared workspace model, export/audit, reporting, policy-only, minimal customization or deferred custom supervisory view.
+Fallbacks remain conservative: explicit shared workspace model, export/audit, reporting,
+policy-only, minimal customization or deferred custom supervisory view.
 
 ## 8. No Delete vs Retention Changes
 
@@ -155,7 +167,8 @@ The docs now distinguish:
 - audit log;
 - immutable archive.
 
-Runtime proof now requires UI/API delete behavior for non-admin, additive-permission check and admin override documentation. Retention decisions are separate from no-delete.
+Runtime proof now requires UI/API delete behavior for non-admin, additive-permission check and admin
+override documentation. Retention decisions are separate from no-delete.
 
 ## 9. VL OCR Research Additions
 
@@ -170,7 +183,8 @@ The research frames VL OCR as a candidate class for:
 - broker reports;
 - tables and table-like layouts.
 
-The pilot is intentionally bounded. It does not promise production OCR/layout pipeline or "OCR works for everything" acceptance.
+The pilot is intentionally bounded. It does not promise production OCR/layout pipeline or "OCR works
+for everything" acceptance.
 
 ## 10. Updated ADR Sequence
 
@@ -185,7 +199,9 @@ Roadmap now lists the ADR sequence:
 7. ADR-0007 Web-search Provider.
 8. Billing approach: native analytics vs gateway.
 
-Recommended next sequence now starts with Data Policy, then STT Proxy, then Provider Model Catalog and Web-search Provider. This is intentional: provider setup and document/transcript workflows depend on data policy, while transcription is a priority scenario with a real backend boundary.
+Recommended next sequence now starts with Data Policy, then STT Proxy, then Provider Model Catalog
+and Web-search Provider. This is intentional: provider setup and document/transcript workflows
+depend on data policy, while transcription is a priority scenario with a real backend boundary.
 
 ## 11. Updated Runtime Proof Needs
 
@@ -229,4 +245,5 @@ No code, provider setup, compose/env/scripts or production changes were made.
 
 ## 14. Final Status
 
-Stage 2 engineering domain is refined for backend-first ADR/proof planning. Implementation should still wait until ADRs, runtime proofs and customer test data are reviewed.
+Stage 2 engineering domain is refined for backend-first ADR/proof planning. Implementation should
+still wait until ADRs, runtime proofs and customer test data are reviewed.

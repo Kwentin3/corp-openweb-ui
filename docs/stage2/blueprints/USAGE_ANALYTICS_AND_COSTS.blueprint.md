@@ -13,11 +13,13 @@
 
 ## 3. Current known context
 
-PRD-0 did not include cost accounting. PRD-1 requires native analytics first and no hard billing promise without gateway decision.
+PRD-0 did not include cost accounting. PRD-1 requires native analytics first and no hard billing
+promise without gateway decision.
 
 ## 4. Target user workflow
 
-Admin sees usage by user/group/model where native OpenWebUI supports it, references price catalog, and can explain costs to customer.
+Admin sees usage by user/group/model where native OpenWebUI supports it, references price catalog,
+and can explain costs to customer.
 
 ## 5. Native OpenWebUI first path
 
@@ -28,12 +30,14 @@ Admin sees usage by user/group/model where native OpenWebUI supports it, referen
 
 ## 6. Integration / custom implementation path
 
-- LiteLLM/gateway only if hard budgets, virtual keys, rate limits or guaranteed blocking are required.
+- LiteLLM/gateway only if hard budgets, virtual keys, rate limits or guaranteed blocking are
+  required.
 - Custom reporting only after native gaps are measured.
 
 ## 7. Data and security notes
 
-Usage logs must not leak prompts or sensitive data unnecessarily. Cost visibility should avoid storing full content unless explicitly approved.
+Usage logs must not leak prompts or sensitive data unnecessarily. Cost visibility should avoid
+storing full content unless explicitly approved.
 
 ## 8. Dependencies
 

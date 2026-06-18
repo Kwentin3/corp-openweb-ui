@@ -1,22 +1,26 @@
 ﻿# ADR-0001 Data Policy by Provider Class
 
 Status: Proposed
-Date: 2026-06-18
-Domain: Security / data policy / providers
 
 ## 1. Context
 
-PRD-1 includes foreign providers, Russian providers, web-search, STT, broker reports, documents and meeting transcripts. These workflows may process personal, financial, accounting, tax and internal working data.
+PRD-1 includes foreign providers, Russian providers, web-search, STT,
+broker reports, documents and meeting transcripts. These workflows may process
+personal, financial, accounting, tax and internal working data.
 
-Full data masking/tokenization is not part of Practical Stage 2. It remains a future security slice because reliable masking requires entity detection, mapping storage, reverse substitution, leak tests and audit controls.
+Full data masking/tokenization is not part of Practical Stage 2. It remains a
+future security slice because reliable masking requires entity detection,
+mapping storage, reverse substitution, leak tests and audit controls.
 
 ## 2. Problem
 
 Provider setup must not start before data policy by provider class is approved.
 
-Without a policy, each scenario will decide sensitive-data rules ad hoc. That creates inconsistent rules for OpenAI/Claude/DeepSeek/Yandex/GigaChat/STT/search/OCR providers and increases leakage risk.
+Without a policy, each scenario will decide sensitive-data rules ad hoc. That
+creates inconsistent rules for OpenAI, Claude, DeepSeek, Yandex, GigaChat, STT,
+search and OCR providers.
 
-## 3. Decision Needed
+## 3. Decision needed
 
 Approve a Stage 2 data policy that defines:
 
@@ -28,51 +32,83 @@ Approve a Stage 2 data policy that defines:
 
 This ADR is a draft. It does not approve final policy without customer approval.
 
-## 4. Provider Classes
+## 4. Options
 
-- Foreign providers.
-- Russian providers.
-- Local/self-hosted paths.
-- Future masked/tokenized path.
+Option 1. Allow providers case by case.
 
-## 5. Data Classes
+- Lowest planning effort.
+- High drift risk.
+- Not recommended.
 
-- Public/low-risk.
-- Internal working data.
-- Personal data.
-- Financial/accounting/tax data.
-- Broker reports.
-- Meeting transcripts.
-- Secrets/API keys/passwords.
+Option 2. Approve policy by provider class.
 
-## 6. Allowed / Prohibited Matrix Draft
+- Separates foreign providers, Russian providers, local/self-hosted paths and
+  future masked/tokenized path.
+- Gives one rule set for model catalog, STT, web-search and OCR.
+- Recommended for Stage 2.
 
-| Data class | Foreign providers | Russian providers | Local/self-hosted paths | Future masked/tokenized path |
-| ---------- | ----------------- | ----------------- | ----------------------- | ---------------------------- |
-| Public/low-risk | Allowed after provider approval | Allowed after provider approval | Allowed | Allowed after masking design |
-| Internal working data | Customer approval required | Customer approval required | Preferred | Possible later |
-| Personal data | Prohibited by default | Customer/legal approval required | Preferred | Future only |
-| Financial/accounting/tax data | Prohibited by default | Customer/legal approval required | Preferred | Future only |
-| Broker reports | Prohibited by default unless anonymized and approved | Customer/legal approval required | Preferred | Future only |
-| Meeting transcripts | Prohibited by default for sensitive meetings | Customer approval required | Preferred | Future only |
-| Secrets/API keys/passwords | Prohibited | Prohibited | Prohibited in prompts/files | Prohibited |
+Option 3. Block all sensitive workflows until full masking exists.
 
-## 7. Warnings Required in Working Scenarios
+- Strongest privacy posture.
+- Blocks Practical Stage 2 value.
+- Keep only if customer requires it.
 
-- Broker reports / 3-НДФЛ: result is draft analysis and requires human review.
-- Documents/OCR: extracted content may be incomplete; scans/tables need pilot classification.
-- Transcription: transcripts may contain personal or commercial data; retention and visibility must be known.
-- Web-search: do not put sensitive personal/financial/accounting data into search queries.
-- General chat: do not send secrets, passwords, API keys or production credentials.
+Provider classes to decide:
 
-## 8. Non-goals
+- foreign providers;
+- Russian providers;
+- local/self-hosted paths;
+- future masked/tokenized path.
 
-- No automatic masking in Practical Stage 2.
-- No guarantee of anonymization.
-- No local LLM masking subsystem yet.
-- No provider setup approval by this draft alone.
+Data classes to decide:
 
-## 9. Open Questions for Customer
+- public/low-risk;
+- internal working data;
+- personal data;
+- financial/accounting/tax data;
+- broker reports;
+- meeting transcripts;
+- secrets/API keys/passwords.
+
+Draft matrix:
+
+| Data class | Foreign | Russian | Local/self-hosted | Future masked |
+| ---------- | ------- | ------- | ----------------- | ------------- |
+| Public/low-risk | Allowed after approval | Allowed after approval | Allowed | Possible |
+| Internal working data | Approval required | Approval required | Preferred | Possible later |
+| Personal data | Prohibited by default | Legal approval required | Preferred | Future only |
+| Financial/accounting/tax data | Prohibited by default | Legal approval required | Preferred | Future only |
+| Broker reports | Prohibited by default | Legal approval required | Preferred | Future only |
+| Meeting transcripts | Prohibited by default | Approval required | Preferred | Future only |
+| Secrets/API keys/passwords | Prohibited | Prohibited | Prohibited in prompts | Prohibited |
+
+## 5. Recommended option
+
+Approve Option 2 as the interim Stage 2 policy path before provider setup.
+
+Scenario warnings should cover:
+
+- broker reports / 3-НДФЛ;
+- documents/OCR;
+- transcription;
+- web-search;
+- general chat and secrets.
+
+## 6. Consequences
+
+- Provider setup waits for approved policy.
+- Provider model catalog must include allowed data classes.
+- Workspace instructions and prompts must include warnings.
+- Web-search, STT and OCR candidates depend on policy approval.
+- Full masking/tokenization remains deferred.
+
+## 7. Runtime proof needed
+
+- Verify workspace warnings can be shown where users work.
+- Verify model/provider access can be constrained by group/scenario.
+- Verify no API keys or secrets are documented or exposed in repo.
+
+## 8. Customer input needed
 
 - Which data classes are allowed for foreign providers?
 - Which data classes are allowed for Russian providers?
@@ -82,14 +118,15 @@ This ADR is a draft. It does not approve final policy without customer approval.
 - Who approves final warning text?
 - What is the retention policy for uploaded files and transcripts?
 
-## 10. Runtime / Implementation Impact
+## 9. Acceptance signals
 
-- Provider setup waits for approved policy.
-- Provider model catalog must include allowed data classes.
-- Workspace instructions and prompts must include warnings.
-- Web-search, STT and OCR candidates depend on policy approval.
-- Full masking/tokenization remains deferred.
+- Customer/security approves the interim policy.
+- Provider catalog references data classes.
+- Sensitive scenarios include warnings.
+- Practical Stage 2 still excludes full automatic masking/tokenization.
 
-## 11. Status
+## 10. Links
 
-Proposed. Needs customer/security approval before provider setup.
+- [SECURITY_DATA_POLICY](../blueprints/SECURITY_DATA_POLICY.blueprint.md)
+- [DATA_MASKING_FUTURE_RESEARCH](../research/DATA_MASKING_FUTURE_RESEARCH.md)
+- [PROVIDERS_MODEL_CATALOG](../blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md)

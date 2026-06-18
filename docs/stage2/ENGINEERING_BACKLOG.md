@@ -1,12 +1,15 @@
 ﻿# Stage 2 Engineering Backlog
 
-Это planning backlog, не issue tracker. Research выполнен 2026-06-18; следующие элементы являются decision/planning work, не implementation.
+Это planning backlog, не issue tracker. Research выполнен 2026-06-18; следующие элементы являются
+decision/planning work, не implementation.
 
 ## Delivery rule
 
-Stage 2 implementation must start from backend/server-side boundaries, policies and proofs. Frontend/UI work follows after backend contracts are clear.
+Stage 2 implementation must start from backend/server-side boundaries, policies and proofs.
+Frontend/UI work follows after backend contracts are clear.
 
-Frontend must not become the place where security, provider keys, data policy, retention rules or access rules are decided.
+Frontend must not become the place where security, provider keys, data policy, retention rules or
+access rules are decided.
 
 Provider setup must not start before data policy by provider class is approved.
 
@@ -17,16 +20,20 @@ Provider setup must not start before data policy by provider class is approved.
 Domain: Security / data policy / providers
 Source: SECURITY_DATA_POLICY blueprint, DATA_MASKING_FUTURE_RESEARCH, PRD-1
 Why: Provider setup and document/transcript workflows depend on allowed/prohibited data classes.
-Output: ADR-0001 with provider classes, data classes, draft allowed/prohibited matrix and customer questions.
+Output: ADR-0001 with provider classes, data classes, draft allowed/prohibited matrix and customer
+questions.
 Depends on: customer/security approval
 Status: ready for ADR; required before provider setup
 
 ### STT proxy boundary
 
 Domain: Transcription / STT
-Source: TRANSCRIPTION_STT blueprint, TRANSCRIPTION_STT_RESEARCH, LEMONFOX_STT_RESEARCH, FFMPEG_BROWSER_WORKFLOW_RESEARCH
-Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing need server-side control.
-Output: ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider response normalization and optional audit.
+Source: TRANSCRIPTION_STT blueprint, TRANSCRIPTION_STT_RESEARCH, LEMONFOX_STT_RESEARCH,
+FFMPEG_BROWSER_WORKFLOW_RESEARCH
+Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing
+need server-side control.
+Output: ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider response
+normalization and optional audit.
 Depends on: existing ffmpeg workflow artifact, customer media limits
 Status: ready for ADR before final UI work
 
@@ -34,8 +41,10 @@ Status: ready for ADR before final UI work
 
 Domain: Providers / models
 Source: PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH
-Why: Users need curated models; vague `GPT-mini` and Claude Code confusion must be removed before setup.
-Output: catalog with exact model IDs, use cases, costs, data policy, production/research/rejected labels.
+Why: Users need curated models; vague `GPT-mini` and Claude Code confusion must be removed before
+setup.
+Output: catalog with exact model IDs, use cases, costs, data policy, production/research/rejected
+labels.
 Depends on: ADR-0001 data policy, customer provider accounts
 Status: ready for ADR after data policy draft
 
@@ -44,7 +53,8 @@ Status: ready for ADR after data policy draft
 Domain: Web-search
 Source: WEB_SEARCH_PROVIDERS_RESEARCH, existing infra web-search research
 Why: Web-search нужен всем, но provider choice affects cost/privacy and Russian-provider stance.
-Output: provider ADR: Brave first pilot vs Yandex Search API vs self-hosted/external, with limits and prohibited-query examples.
+Output: provider ADR: Brave first pilot vs Yandex Search API vs self-hosted/external, with limits
+and prohibited-query examples.
 Depends on: data policy, customer privacy/cost approval, smoke queries
 Status: ready for ADR after data policy draft
 
@@ -70,17 +80,19 @@ Status: ready for ADR; runtime proof required
 
 Domain: Documents / OCR / Excel
 Source: DOCUMENTS_OCR_EXCEL_RESEARCH, VL_OCR_PROVIDER_RESEARCH
-Why: OCR pilot is in Practical Stage 2; production pipeline is not. VL OCR may help with scans/images/complex PDFs but must be benchmarked.
-Output: ADR or decision note for pilot candidate list, test set, evaluation criteria and document-type classification.
+Why: OCR pilot is in Practical Stage 2; production pipeline is not. VL OCR may help with
+scans/images/complex PDFs but must be benchmarked.
+Output: ADR or decision note for pilot candidate list, test set, evaluation criteria and
+document-type classification.
 Depends on: customer samples and data policy
 Status: waiting for customer test data; ready for ADR skeleton
 
-### Billing approach
+### Native analytics vs hard billing
 
 Domain: Usage analytics / costs
 Source: USAGE_ANALYTICS_BILLING_RESEARCH
 Why: Basic analytics may be enough; gateway must not be assumed.
-Output: native analytics vs gateway decision.
+Output: ADR-0008 native analytics vs hard billing decision.
 Depends on: deployed analytics proof, provider catalog
 Status: ready for decision after runtime proof
 
@@ -90,7 +102,8 @@ Status: ready for decision after runtime proof
 
 Domain: Documents / OCR / Excel
 Source: VL_OCR_PROVIDER_RESEARCH
-Why: Need to compare native extraction, Tika/Docling, Mistral OCR/document AI, cloud OCR and local/VLM options before promising OCR quality.
+Why: Need to compare native extraction, Tika/Docling, Mistral OCR/document AI, cloud OCR and
+local/VLM options before promising OCR quality.
 Output: short candidate shortlist and pilot plan for 2-3 candidates.
 Depends on: customer data policy and sample documents
 Status: research artifact created; pilot candidate choice pending
@@ -106,6 +119,15 @@ Output: capability proof report with exact Admin UI settings and user/group test
 Depends on: admin or staging access
 Status: ready for runtime proof
 
+### RBAC/groups proof
+
+Domain: Workspaces / RBAC
+Source: OPENWEBUI_CAPABILITY_RESEARCH, WORKSPACES_AND_RBAC blueprint
+Why: Groups/RBAC are core to Stage 2 workspaces, manager visibility and model access.
+Output: test users/groups proof with exact settings and visible resources.
+Depends on: staging/admin access, group matrix
+Status: ready for runtime proof
+
 ### Native analytics proof
 
 Domain: Usage analytics / costs
@@ -114,6 +136,33 @@ Why: Need evidence that deployed analytics is sufficient for basic reporting.
 Output: screenshots/notes for two users/groups/models and cost estimation workflow.
 Depends on: test users and sample usage
 Status: ready for runtime proof
+
+### Web-search smoke
+
+Domain: Web-search
+Source: WEB_SEARCH_PROVIDERS_RESEARCH, ADR-0007
+Why: Web-search for all users requires provider, result count, concurrency and cost proof.
+Output: smoke results for approved Russian/English queries and documented gaps.
+Depends on: ADR-0007, provider account/key path, allowed query examples
+Status: ready after ADR and provider approval
+
+### STT proxy smoke plan
+
+Domain: Transcription / STT
+Source: TRANSCRIPTION_STT blueprint, ADR-0004
+Why: STT proxy must be proven before final UI work.
+Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
+Depends on: ADR-0004, ffmpeg artifact inspection, sample media
+Status: ready after ADR and customer media limits
+
+### Document extraction/OCR smoke after test data
+
+Domain: Documents / OCR / VL OCR / Excel
+Source: DOCUMENTS_OCR_EXCEL_RESEARCH, ADR-0005
+Why: OCR/VL OCR quality must be proven on customer documents.
+Output: extraction preview and per-document-class classification.
+Depends on: ADR-0005, data policy approval, customer documents
+Status: blocked by customer test data
 
 ### Manager visibility runtime proof
 
@@ -169,7 +218,8 @@ Status: blocked by customer input
 Domain: Documents / OCR / VL OCR
 Source: DOCUMENTS_OCR_EXCEL blueprint, VL_OCR_PROVIDER_RESEARCH
 Why: OCR/VL OCR quality must be classified by document type.
-Output: scanned broker report, photo document, PDF with tables, PDF with stamps/signatures, poor scan and expected output sample.
+Output: scanned broker report, photo document, PDF with tables, PDF with stamps/signatures, poor
+scan and expected output sample.
 Depends on: customer
 Status: blocked by customer input
 
@@ -204,9 +254,38 @@ Status: blocked by customer input
 
 Domain: Providers / web-search / STT
 Source: provider research docs
-Why: Runtime smoke cannot run without approved keys/accounts, but keys must not be committed or printed.
+Why: Runtime smoke cannot run without approved keys/accounts, but keys must not be committed or
+printed.
 Output: operator confirmation of available accounts and safe smoke procedure.
 Depends on: customer/operator
+Status: blocked by customer input
+
+### Audio/video files
+
+Domain: Transcription / STT
+Source: TRANSCRIPTION_STT blueprint, TEST_DATA_REQUIREMENTS
+Why: STT proxy and ffmpeg workflow cannot be accepted without representative media.
+Output: approved audio/video samples, large file sample and expected transcript shape.
+Depends on: customer
+Status: blocked by customer input
+
+### Scanned PDF, PDF with tables and XLSX
+
+Domain: Documents / OCR / Excel
+Source: DOCUMENTS_OCR_EXCEL blueprint, TEST_DATA_REQUIREMENTS
+Why: Document/OCR acceptance must use real document classes.
+Output: scanned PDF, PDF with tables, XLSX and expected outputs.
+Depends on: customer
+Status: blocked by customer input
+
+### Data policy examples
+
+Domain: Security / data policy
+Source: ADR-0001, SECURITY_DATA_POLICY blueprint
+Why: Provider/data policy cannot be approved without concrete allowed/prohibited examples.
+Output: examples for foreign providers, Russian providers, local/self-hosted path and future masked
+path.
+Depends on: customer/security
 Status: blocked by customer input
 
 ## Deferred / future slices
@@ -238,6 +317,24 @@ Output: future architecture decision after pilot.
 Depends on: OCR/VL OCR pilot evidence
 Status: deferred
 
+### Complex Excel parser
+
+Domain: Documents / Excel
+Source: DOCUMENTS_OCR_EXCEL_RESEARCH
+Why: Accurate formulas, multiple sheets, pivots and external links require parser/tool decisions.
+Output: future parser/tool architecture.
+Depends on: customer XLSX complexity evidence
+Status: deferred
+
+### Production DOCX/XLSX generation
+
+Domain: Documents / export
+Source: PRD-1
+Why: Controlled generation requires templates, validation and versioned output.
+Output: future template/export architecture.
+Depends on: separate approval
+Status: deferred
+
 ### Immutable audit archive
 
 Domain: Retention / audit
@@ -263,4 +360,13 @@ Source: PRD-1
 Why: Practical Stage 2 keeps AD/SSO as optional discovery, not full lifecycle rollout.
 Output: separate identity slice.
 Depends on: customer infrastructure discovery
+Status: deferred
+
+### Deep OpenWebUI fork
+
+Domain: Platform customization
+Source: PRD-1 non-goals
+Why: Practical Stage 2 favors native OpenWebUI and isolated integration slices first.
+Output: future fork rationale and maintenance plan if unavoidable.
+Depends on: proof that native/configuration/integration path is insufficient
 Status: deferred

@@ -1,38 +1,70 @@
 ﻿# ADR-0003 Chat Deletion, Retention and Audit
 
 Status: Proposed
-Date: 2026-06-18
-Domain: No-delete / retention / audit
 
 ## 1. Context
 
-PRD-1 includes a technical check for preventing ordinary users from deleting their chats while admins may delete/administer. OpenWebUI documentation suggests chat deletion can be permissioned, but deployed runtime proof is required.
+PRD-1 includes a technical check for preventing ordinary users from deleting
+their chats while admins may delete/administer. OpenWebUI documentation suggests
+chat deletion can be permissioned, but deployed runtime proof is required.
 
-The customer request for no-delete must not be confused with retention, audit logging or immutable archive.
+The customer request for no-delete must not be confused with retention, audit
+logging or immutable archive.
 
 ## 2. Problem
 
-"Users should not delete their chats" is an access-control requirement. It does not define how long chats are stored, whether uploaded files/transcripts are retained, whether backups are enough, or whether legal-grade audit/archive is required.
+"Users should not delete their chats" is an access-control requirement. It does
+not define how long chats are stored, whether uploaded files/transcripts are
+retained, whether backups are enough, or whether legal-grade audit/archive is
+required.
 
-## 3. Difference Between Controls
+## 3. Decision needed
 
-- Disabling user delete: normal users cannot delete chats through UI/API.
-- Retention: chats, files and transcripts are stored for defined periods.
-- Backup: operational restore capability, not user-facing retention.
-- Audit log: record of actions/access.
-- Immutable archive: legal/audit-grade record that ordinary admins cannot rewrite.
+Approve separate decisions for:
 
-Key rule:
+- disabling user delete;
+- retention periods;
+- backup expectations;
+- audit logging;
+- whether immutable archive is required later.
 
-No Delete is not Retention. Retention is not Audit. Audit is not immutable archive.
+## 4. Options
 
-## 4. What Customer Asked
+Option 1. Native no-delete permission.
 
-- Users should not delete their chats.
-- Admins may delete/administer.
-- Practical Stage 2 should check native capability first.
+- Preferred if deployed runtime proof passes.
+- Lowest upgrade risk.
 
-## 5. Native Proof Needed
+Option 2. Policy + backup/export fallback.
+
+- Documents the limitation.
+- Does not truly block deletion in UI/API if native proof fails.
+
+Option 3. Minimal patch or server-side guard.
+
+- Stronger enforcement.
+- Higher OpenWebUI upgrade risk.
+- Should be separate implementation decision.
+
+## 5. Recommended option
+
+Test Option 1 first. Keep Option 2 as fallback if native no-delete does not pass.
+Do not promise Option 3 without explicit implementation approval.
+
+Key distinction:
+
+No Delete is not Retention. Retention is not Audit. Audit is not immutable
+archive.
+
+## 6. Consequences
+
+- UI-only proof is insufficient.
+- API delete behavior must be checked where possible.
+- Admin override must be documented.
+- Retention policy must be written separately from no-delete.
+- Immutable audit archive remains future unless separately approved.
+
+## 7. Runtime proof needed
 
 - UI delete permission for non-admin.
 - API delete behavior for non-admin, if API path is available.
@@ -40,7 +72,7 @@ No Delete is not Retention. Retention is not Audit. Audit is not immutable archi
 - Admin override behavior is documented.
 - Shared work-chat behavior is checked.
 
-## 6. Retention Policy Questions
+## 8. Customer input needed
 
 - How long are chats stored?
 - How long are uploaded files stored?
@@ -50,22 +82,7 @@ No Delete is not Retention. Retention is not Audit. Audit is not immutable archi
 - Who can delete as admin and under what procedure?
 - Are exports required for manager/customer review?
 
-## 7. Fallbacks
-
-- Policy.
-- Backup/restore.
-- Periodic export.
-- DB-level retention.
-- Minimal patch.
-- Future audit subsystem.
-
-## 8. Non-goals
-
-- No immutable audit archive in Practical Stage 2 unless separately approved.
-- No guarantee that backup equals audit.
-- No UI-only proof accepted without API/delete-path consideration.
-
-## 9. Acceptance Signals
+## 9. Acceptance signals
 
 - Non-admin UI delete proof completed.
 - Non-admin API delete behavior checked or documented as unavailable.
@@ -73,6 +90,8 @@ No Delete is not Retention. Retention is not Audit. Audit is not immutable archi
 - Retention decision documented separately.
 - Audit/immutable archive accepted as future/deferred unless separately approved.
 
-## 10. Status
+## 10. Links
 
-Proposed. Needs runtime proof and customer retention/audit decision.
+- [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md)
+- [CHAT_DELETION_RETENTION_RESEARCH](../research/CHAT_DELETION_RETENTION_RESEARCH.md)
+- [ACCEPTANCE_MATRIX](../acceptance/ACCEPTANCE_MATRIX.md)

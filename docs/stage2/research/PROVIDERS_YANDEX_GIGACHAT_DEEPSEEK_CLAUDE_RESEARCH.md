@@ -2,7 +2,8 @@
 
 ## 1. Question
 
-Which provider/model catalog should Stage 2 expose, and how should Claude API, OpenAI GPT-mini, DeepSeek, YandexGPT and GigaChat be classified?
+Which provider/model catalog should Stage 2 expose, and how should Claude API, OpenAI GPT-mini,
+DeepSeek, YandexGPT and GigaChat be classified?
 
 ## 2. Research status
 
@@ -15,35 +16,47 @@ Result type: model catalog input. No API keys or live calls were used.
 ### OpenAI GPT-mini
 
 - `GPT-mini` must not remain a vague model name in implementation docs.
-- Current OpenAI docs list `gpt-5.4-mini` as a current mini model for lower-latency/lower-cost work, with text+image input and text output.
-- OpenAI docs also list `gpt-5-mini`. If the customer says "GPT-mini", implementation must choose an exact model ID and price tier.
-- Existing repo docs already mention `gpt-5.4-mini`; keep it as the default candidate unless account availability or budget says otherwise.
+- Current OpenAI docs list `gpt-5.4-mini` as a current mini model for lower-latency/lower-cost work,
+  with text+image input and text output.
+- OpenAI docs also list `gpt-5-mini`. If the customer says "GPT-mini", implementation must choose an
+  exact model ID and price tier.
+- Existing repo docs already mention `gpt-5.4-mini`; keep it as the default candidate unless account
+  availability or budget says otherwise.
 
 ### Claude API
 
 - Claude API models are available through Anthropic API surfaces and supported platforms.
 - Anthropic documents an OpenAI SDK compatibility layer for testing/evaluation.
-- Claude Code is not the same thing as Claude API chat model access. It is a developer/agent tool and should not be listed as a normal chat provider for employees.
+- Claude Code is not the same thing as Claude API chat model access. It is a developer/agent tool
+  and should not be listed as a normal chat provider for employees.
 
 ### DeepSeek
 
 - DeepSeek API is compatible with OpenAI and Anthropic API formats.
 - Current docs list `deepseek-v4-flash` and `deepseek-v4-pro`.
-- `deepseek-chat` and `deepseek-reasoner` are marked for deprecation on 2026-07-24 and should not be introduced as fresh Stage 2 model IDs.
-- DeepSeek V4 pricing is very low in official docs, but procurement, jurisdiction and privacy policy still need customer approval.
+- `deepseek-chat` and `deepseek-reasoner` are marked for deprecation on 2026-07-24 and should not be
+  introduced as fresh Stage 2 model IDs.
+- DeepSeek V4 pricing is very low in official docs, but procurement, jurisdiction and privacy policy
+  still need customer approval.
 
 ### YandexGPT / Yandex Cloud AI Studio
 
-- AI Studio exposes YandexGPT models and other models through Text Generation APIs and OpenAI-compatible APIs.
-- Current YandexGPT model URIs include `gpt://<folder_ID>/yandexgpt-5.1`, `gpt://<folder_ID>/yandexgpt-5-pro`, and `gpt://<folder_ID>/yandexgpt-5-lite`.
+- AI Studio exposes YandexGPT models and other models through Text Generation APIs and
+  OpenAI-compatible APIs.
+- Current YandexGPT model URIs include `gpt://<folder_ID>/yandexgpt-5.1`,
+  `gpt://<folder_ID>/yandexgpt-5-pro`, and `gpt://<folder_ID>/yandexgpt-5-lite`.
 - Yandex docs recommend explicit URIs rather than relying on legacy aliases.
-- Yandex notes common-instance model requests may be logged anonymized/masked and recommends disabling data logging for sensitive information.
+- Yandex notes common-instance model requests may be logged anonymized/masked and recommends
+  disabling data logging for sensitive information.
 
 ### GigaChat
 
-- GigaChat API has current generation models `GigaChat-2`, `GigaChat-2-Pro`, `GigaChat-2-Max` plus embeddings.
-- GigaChat API authentication uses OAuth token flow and scopes for personal, B2B and corporate access.
-- Official docs state first-generation `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` route to second-generation analogs; implementation should use explicit current IDs where possible.
+- GigaChat API has current generation models `GigaChat-2`, `GigaChat-2-Pro`, `GigaChat-2-Max` plus
+  embeddings.
+- GigaChat API authentication uses OAuth token flow and scopes for personal, B2B and corporate
+  access.
+- Official docs state first-generation `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` route to
+  second-generation analogs; implementation should use explicit current IDs where possible.
 - Pricing docs for model pages list 65/500/650 RUB per 1M tokens for Lite/Pro/Max classes.
 
 ## 4. Recommended catalog classification

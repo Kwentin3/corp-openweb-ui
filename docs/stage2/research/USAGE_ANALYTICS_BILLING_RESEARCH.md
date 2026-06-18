@@ -2,7 +2,8 @@
 
 ## 1. Question
 
-Is native OpenWebUI analytics enough for Stage 2 cost visibility, or is a gateway/hard billing slice needed?
+Is native OpenWebUI analytics enough for Stage 2 cost visibility, or is a gateway/hard billing slice
+needed?
 
 ## 2. Research status
 
@@ -13,12 +14,18 @@ Result type: decision input. No deployed analytics UI was inspected.
 ## 3. Findings
 
 - OpenWebUI documents an Admin Panel Analytics feature.
-- Analytics is admin-only and covers message volume, token usage, model performance, user activity, time periods and group filtering.
+- Analytics is admin-only and covers message volume, token usage, model performance, user activity,
+  time periods and group filtering.
 - OpenWebUI analytics data is derived from message history stored in the instance database.
-- This is a good fit for PRD-1 "basic analytics / cost visibility" if the deployed version exposes it.
-- Native analytics is not the same as hard budget enforcement, provider-side spend limits or guaranteed quota blocking.
-- OpenWebUI filter functions can be used for patterns such as cost tracking and rate limiting, but that is custom extension work and needs design/testing.
-- LiteLLM Proxy explicitly supports virtual keys, spend tracking, budgets and rate limits per key/team/user. It is the right class of tool for hard budgets, but adding it changes architecture and was outside PRD-0.
+- This is a good fit for PRD-1 "basic analytics / cost visibility" if the deployed version exposes
+  it.
+- Native analytics is not the same as hard budget enforcement, provider-side spend limits or
+  guaranteed quota blocking.
+- OpenWebUI filter functions can be used for patterns such as cost tracking and rate limiting, but
+  that is custom extension work and needs design/testing.
+- LiteLLM Proxy explicitly supports virtual keys, spend tracking, budgets and rate limits per
+  key/team/user. It is the right class of tool for hard budgets, but adding it changes architecture
+  and was outside PRD-0.
 
 ## 4. Recommendation
 
@@ -27,7 +34,8 @@ For Practical Stage 2:
 - start with native OpenWebUI analytics after runtime verification;
 - maintain a simple provider price catalog in docs/admin handoff;
 - avoid promising hard billing or automatic spend blocking;
-- create a separate ADR only if the customer requires enforceable limits, per-team budgets, virtual keys or provider routing.
+- create a separate ADR only if the customer requires enforceable limits, per-team budgets, virtual
+  keys or provider routing.
 
 ## 5. Decision options
 

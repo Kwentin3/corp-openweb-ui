@@ -2,7 +2,8 @@
 
 ## 1. Purpose
 
-Спланировать доступ руководителей к рабочим чатам, retention and no-delete policy without exposing all personal chats.
+Спланировать доступ руководителей к рабочим чатам, retention and no-delete policy without exposing
+all personal chats.
 
 ## 2. PRD-1 requirements covered
 
@@ -14,7 +15,8 @@
 
 ## 3. Current known context
 
-PRD-0 did not include manager visibility. PRD-1 requires privacy/security decision. Руководитель не должен видеть вообще все личные/черновые чаты automatically.
+PRD-0 did not include manager visibility. PRD-1 requires privacy/security decision. Руководитель не
+должен видеть вообще все личные/черновые чаты automatically.
 
 Manager Visibility is a policy/security-controlled capability. It is not just a permission toggle.
 
@@ -22,7 +24,9 @@ No Delete is not Retention. Retention is not Audit. Audit is not immutable archi
 
 ## 4. Target user workflow
 
-Employee creates work chat in approved workspace. Manager of that group can see approved work chats under policy. Employee knows the rule. Admin can audit/export or enforce retention according to selected approach.
+Employee creates work chat in approved workspace. Manager of that group can see approved work chats
+under policy. Employee knows the rule. Admin can audit/export or enforce retention according to
+selected approach.
 
 ## 4.1. Manager visibility boundary
 
@@ -32,7 +36,8 @@ Controlled manager visibility means:
 - no hidden access to unrelated personal/draft chats;
 - employee awareness / policy notice is required;
 - admin visibility is defined separately;
-- fallback options include explicit shared workspace model, export/audit, reporting, policy-only, minimal customization or deferred custom supervisory view.
+- fallback options include explicit shared workspace model, export/audit, reporting, policy-only,
+  minimal customization or deferred custom supervisory view.
 
 Runtime proof must create test users/groups and verify:
 
@@ -49,7 +54,8 @@ These are separate controls:
 - retention: how long chats, uploaded files and transcripts are kept;
 - backup: operational restore point, not user-level retention;
 - audit log: record of actions/access;
-- immutable archive: separate legal/audit-grade subsystem, not Practical Stage 2 unless separately approved.
+- immutable archive: separate legal/audit-grade subsystem, not Practical Stage 2 unless separately
+  approved.
 
 ## 5. Native OpenWebUI first path
 
@@ -67,7 +73,8 @@ These are separate controls:
 
 ## 7. Data and security notes
 
-Manager visibility is sensitive. It must define visible chats, actors, purpose, employee notice, audit logging and retention.
+Manager visibility is sensitive. It must define visible chats, actors, purpose, employee notice,
+audit logging and retention.
 
 Frontend/UI must not become the place where visibility and retention rules are decided.
 
@@ -109,4 +116,5 @@ Frontend/UI must not become the place where visibility and retention rules are d
 
 ## 13. Implementation readiness
 
-Needs ADR-0002, ADR-0003, capability proof and customer privacy/security decision before implementation.
+Needs ADR-0002, ADR-0003, capability proof and customer privacy/security decision before
+implementation.

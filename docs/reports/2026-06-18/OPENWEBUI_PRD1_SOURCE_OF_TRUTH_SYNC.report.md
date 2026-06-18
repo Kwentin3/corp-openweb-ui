@@ -2,11 +2,17 @@
 
 ## 1. Summary
 
-PRD-1, customer summary and Stage 2 engineering domain were synchronized for implementation planning. The work was documentation-only: no code, provider setup, compose/env/scripts, runtime or production changes were made.
+PRD-1, customer summary and Stage 2 engineering domain were synchronized for implementation
+planning. The work was documentation-only: no code, provider setup, compose/env/scripts, runtime or
+production changes were made.
 
 ## 2. Why sync was needed
 
-`docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md` is the approved Stage 2 source of truth, but parts of the document still looked like an older draft. The Stage 2 domain and customer summary already reflected the newer agreed scope: transcription through existing ffmpeg workflow plus server-side STT proxy, OCR/layout-aware PDF pilot, manager visibility policy, chat deletion check, basic analytics, and data masking as future scope.
+`docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md` is the approved Stage 2 source of truth, but parts of
+the document still looked like an older draft. The Stage 2 domain and customer summary already
+reflected the newer agreed scope: transcription through existing ffmpeg workflow plus server-side
+STT proxy, OCR/layout-aware PDF pilot, manager visibility policy, chat deletion check, basic
+analytics, and data masking as future scope.
 
 ## 3. Files reviewed
 
@@ -34,7 +40,9 @@ Missing during review:
 
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_REFINED.md`
 
-The repository now uses `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md` as the final approved PRD-1 and keeps earlier context in `OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md` and `OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md`.
+The repository now uses `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md` as the final approved PRD-1 and
+keeps earlier context in `OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md` and
+`OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md`.
 
 ## 4. Files changed
 
@@ -50,7 +58,8 @@ No `docs/stage2/*` file required content changes in this pass.
 ### PRD status/source-of-truth
 
 - PRD-1 status was updated to `customer-approved Stage 2 PRD / source of truth`.
-- PRD-1 now links to customer summary, Stage 2 engineering domain, research actualization report and this sync report.
+- PRD-1 now links to customer summary, Stage 2 engineering domain, research actualization report and
+  this sync report.
 - README now links to this sync report.
 
 ### STT/ffmpeg/proxy
@@ -58,21 +67,25 @@ No `docs/stage2/*` file required content changes in this pass.
 - PRD-1 keeps transcription audio/video as a Practical Stage 2 deliverable.
 - Existing ffmpeg workflow remains a technical asset to adapt, not a research idea from scratch.
 - A boundary map was added:
-  - browser owns file type detection, local media preprocessing, audio extraction/conversion and progress/cancel UX;
-  - server-side STT proxy owns auth, permissions, API key handling, provider call, transcript normalization, errors and optional persistence/audit;
+  - browser owns file type detection, local media preprocessing, audio extraction/conversion and
+    progress/cancel UX;
+  - server-side STT proxy owns auth, permissions, API key handling, provider call, transcript
+    normalization, errors and optional persistence/audit;
   - STT provider owns transcription, timestamps and speaker labels when available.
 - API keys are explicitly kept out of the browser.
 
 ### Data masking
 
 - Data masking/tokenization remains future security/data-protection scope.
-- Practical Stage 2 remains limited to data policy, warnings, provider-class rules, manual anonymization guidance and future architecture note.
+- Practical Stage 2 remains limited to data policy, warnings, provider-class rules, manual
+  anonymization guidance and future architecture note.
 - The false-security risk of superficial tag replacement is preserved.
 
 ### Claude API wording
 
 - PRD-1 and summary use `Claude API / Claude models` for the chat provider scope.
-- `Claude Code` remains documented only as a separate developer/agentic coding tool, not an OpenWebUI employee chat provider.
+- `Claude Code` remains documented only as a separate developer/agentic coding tool, not an
+  OpenWebUI employee chat provider.
 
 ### OCR pilot
 
@@ -90,19 +103,23 @@ No `docs/stage2/*` file required content changes in this pass.
 
 - Chat deletion restriction remains a technical check.
 - The target is to verify whether user chat deletion can be restricted to admins or assigned roles.
-- If native support is insufficient, fallback options remain policy, backup/retention, audit/export, minimal patch or future implementation.
+- If native support is insufficient, fallback options remain policy, backup/retention, audit/export,
+  minimal patch or future implementation.
 
 ### Web-search
 
-- Web-search remains intended for all users, but only with rules, result count, concurrency, cost visibility, provider policy and unsafe-use instructions.
+- Web-search remains intended for all users, but only with rules, result count, concurrency, cost
+  visibility, provider policy and unsafe-use instructions.
 - Brave `brave_llm_context` remains the likely first pilot if approved.
 - Yandex Search API remains the Russian search-provider candidate.
 - Yandex Search is kept separate from YandexGPT/GigaChat LLM provider decisions.
 
 ### Providers
 
-- Production/required candidates remain OpenAI GPT-mini exact ID to confirm, Claude API / Claude models, and DeepSeek as mandatory alternative.
-- YandexGPT and GigaChat remain research candidates; one Russian provider should be selected after research and policy/procurement decision.
+- Production/required candidates remain OpenAI GPT-mini exact ID to confirm, Claude API / Claude
+  models, and DeepSeek as mandatory alternative.
+- YandexGPT and GigaChat remain research candidates; one Russian provider should be selected after
+  research and policy/procurement decision.
 - Exact model IDs must be confirmed before setup.
 
 ### AD/SSO
@@ -113,11 +130,13 @@ No `docs/stage2/*` file required content changes in this pass.
 ### Billing/analytics
 
 - Basic analytics / cost visibility remains in Practical Stage 2.
-- Hard billing, LiteLLM/gateway, virtual keys and guaranteed blocking remain optional/future until separate ADR/decision.
+- Hard billing, LiteLLM/gateway, virtual keys and guaranteed blocking remain optional/future until
+  separate ADR/decision.
 
 ### Markdown cleanup
 
-- PRD-1 header and source sections were updated so the document no longer reads as an old enriched draft.
+- PRD-1 header and source sections were updated so the document no longer reads as an old enriched
+  draft.
 - New boundary table was added with a standard GitHub-compatible header separator.
 - PRD-1 and customer summary table structure was checked for header/separator formatting.
 
@@ -151,8 +170,10 @@ No `docs/stage2/*` file required content changes in this pass.
 - No compose/env/scripts were changed.
 - No `.env` or secrets were read or printed.
 - Data masking/tokenization was not moved into Practical Stage 2 implementation.
-- Hard billing/gateway, full AD lifecycle/SCIM and production OCR/layout pipeline remain outside Practical Stage 2 unless separately approved.
+- Hard billing/gateway, full AD lifecycle/SCIM and production OCR/layout pipeline remain outside
+  Practical Stage 2 unless separately approved.
 
 ## 9. Final status
 
-PRD-1, customer summary and Stage 2 engineering domain are now synchronized for implementation planning.
+PRD-1, customer summary and Stage 2 engineering domain are now synchronized for implementation
+planning.

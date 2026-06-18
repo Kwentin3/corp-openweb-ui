@@ -2,7 +2,8 @@
 
 ## 1. Purpose
 
-Спланировать рабочий сценарий анализа брокерских отчетов и подготовки черновых материалов для 3-НДФЛ.
+Спланировать рабочий сценарий анализа брокерских отчетов и подготовки черновых материалов для
+3-НДФЛ.
 
 ## 2. PRD-1 requirements covered
 
@@ -14,11 +15,14 @@
 
 ## 3. Current known context
 
-PRD-1 требует test documents and example of good result. Broker scenario depends on documents/OCR, providers, prompts, data policy.
+PRD-1 требует test documents and example of good result. Broker scenario depends on documents/OCR,
+providers, prompts, data policy.
 
 ## 4. Target user workflow
 
-Пользователь выбирает workspace "Брокерские отчеты / 3-НДФЛ", загружает report, применяет approved prompt/template, получает structured draft, видит warnings and uncertain places, передает результат человеку на проверку.
+Пользователь выбирает workspace "Брокерские отчеты / 3-НДФЛ", загружает report, применяет approved
+prompt/template, получает structured draft, видит warnings and uncertain places, передает результат
+человеку на проверку.
 
 ## 5. Native OpenWebUI first path
 
@@ -37,7 +41,8 @@ PRD-1 требует test documents and example of good result. Broker scenario 
 
 ## 7. Data and security notes
 
-Broker reports can contain personal, tax and financial data. Foreign provider use requires strict policy. Manual anonymization may be required until future masking subsystem exists.
+Broker reports can contain personal, tax and financial data. Foreign provider use requires strict
+policy. Manual anonymization may be required until future masking subsystem exists.
 
 ## 8. Dependencies
 

@@ -14,23 +14,28 @@
 
 ## 3. Current known context
 
-PRD-0 has runbooks for deployment, smoke, backup/restore, security and provider setup. Stage 2 planning must reuse them but not execute production changes.
+PRD-0 has runbooks for deployment, smoke, backup/restore, security and provider setup. Stage 2
+planning must reuse them but not execute production changes.
 
 ## 4. Target user workflow
 
-Reviewer opens acceptance matrix, confirms test data availability, checks domain blueprints/research, then approves implementation planning.
+Reviewer opens acceptance matrix, confirms test data availability, checks domain
+blueprints/research, then approves implementation planning.
 
 ## 5. Native OpenWebUI first path
 
-Operational proof should prefer native/admin checks before adding tooling. Stage 2 implementation must keep update/rollback path clear.
+Operational proof should prefer native/admin checks before adding tooling. Stage 2 implementation
+must keep update/rollback path clear.
 
 ## 6. Integration / custom implementation path
 
-Any custom module must define smoke, rollback/defer condition, log handling, secret boundary and acceptance evidence.
+Any custom module must define smoke, rollback/defer condition, log handling, secret boundary and
+acceptance evidence.
 
 ## 7. Data and security notes
 
-Do not read/print `.env`. Do not store API keys in docs. Use server-local secrets/password manager/Admin UI.
+Do not read/print `.env`. Do not store API keys in docs. Use server-local secrets/password
+manager/Admin UI.
 
 ## 8. Dependencies
 

@@ -1,18 +1,492 @@
 ﻿# Stage 2 Domain Map
 
-Delivery principle: Stage 2 implementation starts from backend/server-side boundaries, policies and proofs. Frontend/UI follows after backend contracts are clear.
+Delivery principle: Stage 2 implementation starts from backend/server-side
+boundaries, policies and proofs. Frontend/UI follows after backend contracts
+are clear.
 
-Frontend must not become the place where security, provider keys, data policy, retention rules or access rules are decided.
+Frontend must not become the place where security, provider keys, data policy,
+retention rules or access rules are decided.
 
-| Domain | Цель | Почему нужен | Owner type | Входные документы | Выходные документы | Ключевые риски | Зависимости | Open questions | Status |
-| ------ | ---- | ------------ | ---------- | ----------------- | ------------------ | --------------- | ----------- | -------------- | ------ |
-| Workspaces / RBAC / shared prompts | Собрать управляемые рабочие сценарии, группы, prompts/templates и shared knowledge. | Без этого Stage 2 останется набором разрозненных чатов. | Engineering, admin, AI-methodologist | PRD-1, ACCESS_POLICY, OpenWebUI docs research | Workspace/RBAC blueprint, capability research, implementation slices | Docs/runtime mismatch, additive permissions, путаница между workspace и file storage. | OpenWebUI capabilities, customer groups. | Какие группы/роли финальные? Кто owner templates? | research complete; runtime proof needed |
-| Transcription / STT / ffmpeg browser workflow | Дать priority transcription scenario для audio/video через backend STT proxy boundary. | Это главный customer priority и technical asset исполнителя. | Engineering, admin | PRD-1, transcription research | STT blueprint, ffmpeg research, Lemonfox research, STT proxy decision | API keys in browser, file size, progress/cancel, storage, OpenWebUI integration. | Browser workflow, STT provider, server-side proxy, data policy. | Где actual ffmpeg artifact? Какие лимиты файлов? | research complete; ADR needed before UI |
-| Broker reports / 3-НДФЛ | Оформить сценарий анализа брокерских отчетов. | Приоритетный бизнес-сценарий заказчика. | AI-methodologist, customer, engineering | PRD-1, test data, Claude example | Broker blueprint, prompts, acceptance cases | Налоговые обещания, качество extraction, sensitive data. | Documents/OCR, providers, data policy. | Какие реальные отчеты есть? Что считается good result? | blocked by customer test data |
-| Web-search | Дать всем управляемый web-search через policy, limits and backend/provider boundary. | Нужен всем пользователям, но требует лимитов и cost visibility. | Engineering, admin | PRD-1, web-search provider research | Web-search blueprint, provider selection ADR | Privacy, cost spikes, weak sources, provider limits. | Provider choice, data policy, analytics. | Brave vs Yandex Search? Какие smoke queries? | research complete; provider ADR needed |
-| Documents / OCR / VL OCR / Excel | Разделить простые documents, OCR/VL OCR pilot и future production pipeline. | Брокерские отчеты и рабочие документы не всегда plain text; сканы и сложные PDF могут требовать vision-language OCR. | Engineering, AI-methodologist | PRD-1, test data, VL OCR research | Documents/OCR blueprint, research, test data requirements, OCR/VL OCR pilot decision | Сканированные PDF, таблицы, Excel formulas, hallucinated OCR, ложные обещания. | Broker scenario, OCR tools, parser/tool path, data policy. | Какая доля сканов? Какие XLSX реально встречаются? Можно ли отправлять samples external providers? | research complete; samples needed |
-| Provider catalog / models | Описать models, costs, allowed use cases after data policy. | Пользователям нужен curated catalog, админам - контроль. | Engineering, admin | PRD-1, provider plans, ADR-0001 | Provider catalog blueprint, provider research | Claude Code confusion, API compatibility, quotas, costs, data policy. | Customer keys, model access, approved data policy. | Какие providers production vs research? | research complete; data policy first; catalog ADR needed |
-| Usage analytics / cost visibility | Получить basic visibility по usage/cost. | Stage 2 должен быть управляемым по расходам. | Engineering, admin | PRD-1, OpenWebUI analytics research | Analytics blueprint, billing decision | Hard billing may require gateway; native analytics may be version-dependent. | Provider catalog, web-search/STT usage. | Достаточно native analytics? Нужен gateway? | research complete; runtime proof needed |
-| Security / data policy / future masking | Зафиксировать allowed data by provider class before provider setup and future masking boundary. | Финансовые/персональные данные нельзя отправлять без правил. | Security/admin/customer | PRD-1, security docs | Security blueprint, data masking research, ADR-0001 | False security from simple replacement, provider exposure, lack of leak tests. | Provider catalog, workspaces, broker/docs/transcription scenarios. | Какие данные разрешены для foreign/RU/local providers? | research complete; policy decision needed before provider setup |
-| Manager visibility / no-delete / retention / audit policy | Проверить рабочий доступ руководителей, запрет удаления, retention and audit separately. | Customer wants this early, but privacy boundary is critical. | Engineering, admin, customer | PRD-1, RBAC research, retention research | Manager visibility blueprint, ADR-0002, ADR-0003, runtime proof matrix | Руководитель видит слишком много, native limitation, audit gaps, смешение no-delete и retention. | OpenWebUI RBAC, retention/storage, policy. | Какие чаты считаются рабочими? Видит ли сотрудник правило? Сколько храним chats/files/transcripts? | research complete; runtime/customer proof needed |
-| Operations / acceptance / testing | Сформировать acceptance, smoke, update/rollback and handoff. | Stage 2 должен приниматься проверками, не впечатлением. | Engineering, admin | PRD-1, PRD-0 ops docs | Ops blueprint, acceptance matrix, test data requirements | Runtime changes without rollback, missing test data. | All domains. | Кто проводит acceptance? Есть ли test users/files? | planned after ADRs |
+## Workspaces / RBAC / shared prompts
+
+Goal:
+
+- Собрать управляемые рабочие сценарии, группы, prompts/templates and shared knowledge.
+
+Why needed:
+
+- Без этого Stage 2 останется набором разрозненных чатов.
+
+Owner type:
+
+- Engineering.
+- Admin.
+- AI-methodologist.
+
+Inputs:
+
+- PRD-1.
+- ACCESS_POLICY.
+- OpenWebUI docs research.
+
+Outputs:
+
+- Workspace/RBAC blueprint.
+- Capability research.
+- Implementation slices.
+
+Risks:
+
+- Docs/runtime mismatch.
+- Additive permissions.
+- Путаница между workspace and file storage.
+
+Dependencies:
+
+- OpenWebUI capabilities.
+- Customer groups.
+
+Open questions:
+
+- Какие группы/роли финальные?
+- Кто owner templates?
+
+Status:
+
+- Research complete; runtime proof needed.
+
+## Transcription / STT / ffmpeg browser workflow
+
+Goal:
+
+- Дать priority transcription scenario для audio/video через backend STT proxy boundary.
+
+Why needed:
+
+- Это главный customer priority и technical asset исполнителя.
+
+Owner type:
+
+- Engineering.
+- Admin.
+
+Inputs:
+
+- PRD-1.
+- Transcription research.
+
+Outputs:
+
+- STT blueprint.
+- ffmpeg research.
+- Lemonfox research.
+- STT proxy decision.
+
+Risks:
+
+- API keys in browser.
+- File size.
+- Progress/cancel.
+- Storage.
+- OpenWebUI integration.
+
+Dependencies:
+
+- Browser workflow.
+- STT provider.
+- Server-side proxy.
+- Data policy.
+
+Open questions:
+
+- Где actual ffmpeg artifact?
+- Какие лимиты файлов?
+
+Status:
+
+- Research complete; ADR needed before UI.
+
+## Broker reports / 3-НДФЛ
+
+Goal:
+
+- Оформить сценарий анализа брокерских отчетов.
+
+Why needed:
+
+- Приоритетный бизнес-сценарий заказчика.
+
+Owner type:
+
+- AI-methodologist.
+- Customer.
+- Engineering.
+
+Inputs:
+
+- PRD-1.
+- Test data.
+- Claude example.
+
+Outputs:
+
+- Broker blueprint.
+- Prompts.
+- Acceptance cases.
+
+Risks:
+
+- Налоговые обещания.
+- Extraction quality.
+- Sensitive data.
+
+Dependencies:
+
+- Documents/OCR.
+- Providers.
+- Data policy.
+
+Open questions:
+
+- Какие реальные отчеты есть?
+- Что считается good result?
+
+Status:
+
+- Blocked by customer test data.
+
+## Web-search
+
+Goal:
+
+- Дать всем управляемый web-search через policy, limits and backend/provider boundary.
+
+Why needed:
+
+- Нужен всем пользователям, но требует лимитов и cost visibility.
+
+Owner type:
+
+- Engineering.
+- Admin.
+
+Inputs:
+
+- PRD-1.
+- Web-search provider research.
+
+Outputs:
+
+- Web-search blueprint.
+- Provider selection ADR.
+
+Risks:
+
+- Privacy.
+- Cost spikes.
+- Weak sources.
+- Provider limits.
+
+Dependencies:
+
+- Provider choice.
+- Data policy.
+- Analytics.
+
+Open questions:
+
+- Brave vs Yandex Search?
+- Какие smoke queries?
+
+Status:
+
+- Research complete; provider ADR needed.
+
+## Documents / OCR / VL OCR / Excel
+
+Goal:
+
+- Разделить простые documents, OCR/VL OCR pilot and future production pipeline.
+
+Why needed:
+
+- Брокерские отчеты и рабочие документы не всегда plain text.
+- Сканы и сложные PDF могут требовать vision-language OCR.
+
+Owner type:
+
+- Engineering.
+- AI-methodologist.
+
+Inputs:
+
+- PRD-1.
+- Test data.
+- VL OCR research.
+
+Outputs:
+
+- Documents/OCR blueprint.
+- Research.
+- Test data requirements.
+- OCR/VL OCR pilot decision.
+
+Risks:
+
+- Сканированные PDF.
+- Tables.
+- Excel formulas.
+- Hallucinated OCR.
+- Ложные обещания.
+
+Dependencies:
+
+- Broker scenario.
+- OCR tools.
+- Parser/tool path.
+- Data policy.
+
+Open questions:
+
+- Какая доля сканов?
+- Какие XLSX реально встречаются?
+- Можно ли отправлять samples external providers?
+
+Status:
+
+- Research complete; samples needed.
+
+## Provider catalog / models
+
+Goal:
+
+- Описать models, costs and allowed use cases after data policy.
+
+Why needed:
+
+- Пользователям нужен curated catalog, админам - контроль.
+
+Owner type:
+
+- Engineering.
+- Admin.
+
+Inputs:
+
+- PRD-1.
+- Provider plans.
+- ADR-0001.
+
+Outputs:
+
+- Provider catalog blueprint.
+- Provider research.
+
+Risks:
+
+- Claude Code confusion.
+- API compatibility.
+- Quotas.
+- Costs.
+- Data policy.
+
+Dependencies:
+
+- Customer keys.
+- Model access.
+- Approved data policy.
+
+Open questions:
+
+- Какие providers production vs research?
+
+Status:
+
+- Research complete; data policy first; catalog ADR needed.
+
+## Usage analytics / cost visibility
+
+Goal:
+
+- Получить basic visibility по usage/cost.
+
+Why needed:
+
+- Stage 2 должен быть управляемым по расходам.
+
+Owner type:
+
+- Engineering.
+- Admin.
+
+Inputs:
+
+- PRD-1.
+- OpenWebUI analytics research.
+
+Outputs:
+
+- Analytics blueprint.
+- Billing decision.
+
+Risks:
+
+- Hard billing may require gateway.
+- Native analytics may be version-dependent.
+
+Dependencies:
+
+- Provider catalog.
+- Web-search/STT usage.
+
+Open questions:
+
+- Достаточно native analytics?
+- Нужен gateway?
+
+Status:
+
+- Research complete; runtime proof needed.
+
+## Security / data policy / future masking
+
+Goal:
+
+- Зафиксировать allowed data by provider class before provider setup and future masking boundary.
+
+Why needed:
+
+- Финансовые/персональные данные нельзя отправлять без правил.
+
+Owner type:
+
+- Security.
+- Admin.
+- Customer.
+
+Inputs:
+
+- PRD-1.
+- Security docs.
+
+Outputs:
+
+- Security blueprint.
+- Data masking research.
+- ADR-0001.
+
+Risks:
+
+- False security from simple replacement.
+- Provider exposure.
+- Lack of leak tests.
+
+Dependencies:
+
+- Provider catalog.
+- Workspaces.
+- Broker/docs/transcription scenarios.
+
+Open questions:
+
+- Какие данные разрешены для foreign/RU/local providers?
+
+Status:
+
+- Research complete; policy decision needed before provider setup.
+
+## Manager visibility / no-delete / retention / audit policy
+
+Goal:
+
+- Проверить рабочий доступ руководителей, запрет удаления, retention and audit separately.
+
+Why needed:
+
+- Customer wants this early, but privacy boundary is critical.
+
+Owner type:
+
+- Engineering.
+- Admin.
+- Customer.
+
+Inputs:
+
+- PRD-1.
+- RBAC research.
+- Retention research.
+
+Outputs:
+
+- Manager visibility blueprint.
+- ADR-0002.
+- ADR-0003.
+- Runtime proof matrix.
+
+Risks:
+
+- Руководитель видит слишком много.
+- Native limitation.
+- Audit gaps.
+- Смешение no-delete и retention.
+
+Dependencies:
+
+- OpenWebUI RBAC.
+- Retention/storage.
+- Policy.
+
+Open questions:
+
+- Какие чаты считаются рабочими?
+- Видит ли сотрудник правило?
+- Сколько храним chats/files/transcripts?
+
+Status:
+
+- Research complete; runtime/customer proof needed.
+
+## Operations / acceptance / testing
+
+Goal:
+
+- Сформировать acceptance, smoke, update/rollback and handoff.
+
+Why needed:
+
+- Stage 2 должен приниматься проверками, не впечатлением.
+
+Owner type:
+
+- Engineering.
+- Admin.
+
+Inputs:
+
+- PRD-1.
+- PRD-0 ops docs.
+
+Outputs:
+
+- Ops blueprint.
+- Acceptance matrix.
+- Test data requirements.
+
+Risks:
+
+- Runtime changes without rollback.
+- Missing test data.
+
+Dependencies:
+
+- All domains.
+
+Open questions:
+
+- Кто проводит acceptance?
+- Есть ли test users/files?
+
+Status:
+
+- Planned after ADRs.

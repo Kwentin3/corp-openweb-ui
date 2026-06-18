@@ -4,9 +4,11 @@
 
 ## Delivery principle
 
-Stage 2 implementation must start from backend/server-side boundaries, policies and proofs. Frontend/UI work follows after backend contracts are clear.
+Stage 2 implementation must start from backend/server-side boundaries, policies and proofs.
+Frontend/UI work follows after backend contracts are clear.
 
-Frontend must not become the place where security, provider keys, data policy, retention rules or access rules are decided.
+Frontend must not become the place where security, provider keys, data policy, retention rules or
+access rules are decided.
 
 Recommended slice order for risky domains:
 
@@ -24,6 +26,7 @@ Status: complete.
 - Создать [CONTEXT_INDEX.md](CONTEXT_INDEX.md).
 - Создать [ROADMAP.md](ROADMAP.md).
 - Создать [DOMAIN_MAP.md](DOMAIN_MAP.md).
+- Создать [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
 - Создать доменные blueprints.
 - Создать research docs.
 - Создать acceptance matrix и test data requirements.
@@ -70,7 +73,10 @@ Remaining blockers:
 
 Status: next.
 
-ADR items:
+### ADR registry order
+
+Это порядок нумерации документов. Он не обязан совпадать с порядком
+рассмотрения перед реализацией.
 
 1. ADR-0001 Data Policy by Provider Class.
 2. ADR-0002 Manager Visibility Policy.
@@ -79,24 +85,46 @@ ADR items:
 5. ADR-0005 OCR / VL OCR Pilot Scope.
 6. ADR-0006 Provider Model Catalog.
 7. ADR-0007 Web-search Provider.
-8. Billing approach: native analytics vs gateway.
+8. ADR-0008 Native Analytics vs Hard Billing.
 
-Recommended next sequence:
+### Recommended execution / review order
 
-1. Data Policy ADR.
-2. STT Proxy Boundary ADR.
-3. Provider Model Catalog ADR.
-4. Web-search Provider ADR.
-5. Manager Visibility ADR.
-6. Chat Deletion/Retention ADR.
-7. OCR/VL OCR Pilot Scope ADR.
-8. Runtime proof matrix.
-9. Customer test data package.
-10. Implementation backlog by slices.
+Это порядок рассмотрения перед реализацией. Он отражает зависимости.
 
-Data Policy goes first because provider setup and document/transcript workflows depend on allowed data classes by provider class.
+1. Data Policy by Provider Class.
+2. STT Proxy Boundary.
+3. Provider Model Catalog.
+4. Web-search Provider.
+5. Manager Visibility Policy.
+6. Chat Deletion / Retention / Audit.
+7. OCR / VL OCR Pilot Scope.
+8. Native Analytics vs Hard Billing.
+9. Runtime proof matrix.
+10. Customer test data package.
+11. Implementation backlog by slices.
 
-STT Proxy goes early because transcription is a priority scenario and requires a backend boundary before UI/browser integration.
+Data Policy goes first because provider setup and document/transcript workflows
+depend on allowed data classes by provider class.
+
+STT Proxy goes early because transcription is a priority scenario and requires a
+backend boundary before UI/browser integration.
+
+### Related gate document
+
+Review [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) before moving from ADR
+work into implementation planning.
+
+Gate sequence:
+
+1. Data Policy approved.
+2. STT Proxy Boundary approved.
+3. Provider Model Catalog approved.
+4. Web-search Provider approved.
+5. Manager Visibility and Retention policy approved.
+6. OCR / VL OCR pilot scope approved.
+7. Runtime proof complete.
+8. Customer test data package received.
+9. Implementation slices approved.
 
 Exit signal:
 
@@ -124,7 +152,8 @@ Exit signal:
 
 Implementation starts only after roadmap/blueprints/research/ADRs are reviewed and approved.
 
-На этом этапе код, конфигурация, provider setup, runtime changes и OpenWebUI customization не выполняются.
+На этом этапе код, конфигурация, provider setup, runtime changes и OpenWebUI customization не
+выполняются.
 
 Implementation order after approval:
 

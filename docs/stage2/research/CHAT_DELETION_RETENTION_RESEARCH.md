@@ -2,7 +2,8 @@
 
 ## 1. Question
 
-Can Stage 2 prevent normal users from deleting work chats, or at least preserve work evidence safely?
+Can Stage 2 prevent normal users from deleting work chats, or at least preserve work evidence
+safely?
 
 ## 2. Research status
 
@@ -12,10 +13,14 @@ Result type: native permission route appears likely; deployed runtime proof is r
 
 ## 3. Findings
 
-- OpenWebUI RBAC docs describe granular permissions and explicitly use "Can Delete Chats" as an example permission.
-- Permission logic is additive. If a user receives delete permission through any role/default/group path, the effective permission may still allow deletion.
-- Public chat sharing and group access are separately permissioned. Sharing controls do not automatically equal retention/audit controls.
-- PRD-0 has backup/retention for deployment data, but backup retention is not the same as user-level no-delete policy.
+- OpenWebUI RBAC docs describe granular permissions and explicitly use "Can Delete Chats" as an
+  example permission.
+- Permission logic is additive. If a user receives delete permission through any role/default/group
+  path, the effective permission may still allow deletion.
+- Public chat sharing and group access are separately permissioned. Sharing controls do not
+  automatically equal retention/audit controls.
+- PRD-0 has backup/retention for deployment data, but backup retention is not the same as user-level
+  no-delete policy.
 
 ## 4. Practical interpretation
 
@@ -37,7 +42,8 @@ No Delete is not Retention. Retention is not Audit. Audit is not immutable archi
 - Retention: chats, files and transcripts are kept for a defined period.
 - Backup: operational restore capability, not a user-facing audit trail.
 - Audit log: records actions/access.
-- Immutable archive: separate legal/audit-grade system and not Practical Stage 2 unless separately approved.
+- Immutable archive: separate legal/audit-grade system and not Practical Stage 2 unless separately
+  approved.
 
 ## 5. Fallback options
 
@@ -70,7 +76,8 @@ Run a non-admin test user proof after staging/admin approval:
 - add/remove group permissions;
 - confirm admin override behavior;
 - record exact OpenWebUI setting names;
-- document retention policy questions: chats, files, transcripts, backup horizon and whether legal/audit archive is required.
+- document retention policy questions: chats, files, transcripts, backup horizon and whether
+  legal/audit archive is required.
 
 ## 8. Sources
 

@@ -14,13 +14,15 @@
 
 ## 3. Current known context
 
-PRD-0 warning banner exists but does not replace corporate data policy. PRD-1 says superficial masking creates false sense of security.
+PRD-0 warning banner exists but does not replace corporate data policy. PRD-1 says superficial
+masking creates false sense of security.
 
 Provider setup must not start before data policy by provider class is approved.
 
 ## 4. Target user workflow
 
-User sees scenario-specific data rules before sending documents, transcripts or search queries. Admin can explain which providers are allowed for which data class.
+User sees scenario-specific data rules before sending documents, transcripts or search queries.
+Admin can explain which providers are allowed for which data class.
 
 ## 4.1. Provider and data classes
 
@@ -41,7 +43,8 @@ Policy draft must classify data:
 - meeting transcripts;
 - secrets/API keys/passwords.
 
-Final allow/prohibit rules require customer approval. Until approved, provider setup remains blocked.
+Final allow/prohibit rules require customer approval. Until approved, provider setup remains
+blocked.
 
 ## 5. Native OpenWebUI first path
 
@@ -59,7 +62,8 @@ Final allow/prohibit rules require customer approval. Until approved, provider s
 
 ## 7. Data and security notes
 
-Do not treat find/replace as data protection. API keys stay server-side. Sensitive documents/transcripts need retention and visibility policy.
+Do not treat find/replace as data protection. API keys stay server-side. Sensitive
+documents/transcripts need retention and visibility policy.
 
 ## 8. Dependencies
 

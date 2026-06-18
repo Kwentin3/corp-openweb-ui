@@ -1,17 +1,381 @@
 ﻿# Stage 2 Acceptance Matrix
 
-| PRD-1 requirement | Domain | Blueprint | Research | Acceptance signal | Test data needed | Status |
-| ----------------- | ------ | --------- | -------- | ----------------- | ---------------- | ------ |
-| Minimum working scenarios with groups, prompts and owner | Workspaces / RBAC | [WORKSPACES_AND_RBAC](../blueprints/WORKSPACES_AND_RBAC.blueprint.md) | [OPENWEBUI_CAPABILITY_RESEARCH](../research/OPENWEBUI_CAPABILITY_RESEARCH.md) | User sees only allowed scenario; admin can update prompts through agreed process. | groups/roles list, scenario owners | research complete; runtime proof needed |
-| Audio/video transcription | Transcription / STT | [TRANSCRIPTION_STT](../blueprints/TRANSCRIPTION_STT.blueprint.md) | [TRANSCRIPTION_STT_RESEARCH](../research/TRANSCRIPTION_STT_RESEARCH.md), [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md), [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md) | STT proxy contract approved; audio/video upload produces transcript through server-side proxy; STT API key not in browser. | audio, video, large file, ffmpeg artifact | research complete; ADR needed |
-| Broker reports / 3-НДФЛ draft analysis | Broker reports | [BROKER_REPORTS_3NDFL](../blueprints/BROKER_REPORTS_3NDFL.blueprint.md) | [DOCUMENTS_OCR_EXCEL_RESEARCH](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md) | User gets structured draft with manual-review warnings. | broker reports, Claude good-result example | blocked by customer input |
-| Web-search for all with rules and limits | Web-search | [WEB_SEARCH](../blueprints/WEB_SEARCH.blueprint.md) | [WEB_SEARCH_PROVIDERS_RESEARCH](../research/WEB_SEARCH_PROVIDERS_RESEARCH.md) | Russian/English smoke queries work within result count/concurrency settings and documented policy. | web-search task examples, provider key | research complete; provider ADR needed |
-| PDF/DOCX/XLSX basic handling and OCR pilot | Documents / OCR / Excel | [DOCUMENTS_OCR_EXCEL](../blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md) | [DOCUMENTS_OCR_EXCEL_RESEARCH](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md), [VL_OCR_PROVIDER_RESEARCH](../research/VL_OCR_PROVIDER_RESEARCH.md) | Simple docs work; scan/complex PDF gets OCR/VL OCR pilot result or documented limitation; results classified by document type. | PDF, scanned PDF, PDF tables, DOCX, XLSX, poor scan/photo, expected output | research complete; samples needed |
-| VL OCR pilot candidate selection | Documents / OCR / VL OCR | [DOCUMENTS_OCR_EXCEL](../blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md) | [VL_OCR_PROVIDER_RESEARCH](../research/VL_OCR_PROVIDER_RESEARCH.md) | VL OCR candidate list selected and pilot test set collected before implementation. | scanned broker report, photo document, PDF stamps/signatures, tables, allowed-provider decision | planned; blocked by customer samples |
-| Provider model catalog | Providers | [PROVIDERS_MODEL_CATALOG](../blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md) | [PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH](../research/PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH.md) | Catalog lists production/research/rejected/deferred providers with exact model IDs, use cases and limits. | provider access, model IDs, data policy | research complete; catalog ADR needed |
-| Basic analytics / cost visibility | Usage analytics | [USAGE_ANALYTICS_AND_COSTS](../blueprints/USAGE_ANALYTICS_AND_COSTS.blueprint.md) | [USAGE_ANALYTICS_BILLING_RESEARCH](../research/USAGE_ANALYTICS_BILLING_RESEARCH.md) | Admin sees usage or documented gap; hard billing decision separated. | test users, sample usage | research complete; runtime proof needed |
-| Data policy and no false masking promise | Security / data policy | [SECURITY_DATA_POLICY](../blueprints/SECURITY_DATA_POLICY.blueprint.md) | [DATA_MASKING_FUTURE_RESEARCH](../research/DATA_MASKING_FUTURE_RESEARCH.md), [ADR-0001](../decisions/ADR-0001-data-policy-by-provider-class.md) | Data Policy ADR approved; policy distinguishes foreign/RU/local providers and states masking is future slice. | allowed/prohibited data examples | research complete; policy decision needed before provider setup |
-| Manager work-chat visibility | Manager visibility | [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md) | [RBAC_MANAGER_VISIBILITY_RESEARCH](../research/RBAC_MANAGER_VISIBILITY_RESEARCH.md), [ADR-0002](../decisions/ADR-0002-manager-visibility-policy.md) | Manager Visibility matrix approved; manager sees only approved work chats or limitation/options documented. | groups, privacy policy examples, test users | research complete; runtime/customer proof needed |
-| Chat deletion restriction check | No-delete policy | [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md) | [CHAT_DELETION_RETENTION_RESEARCH](../research/CHAT_DELETION_RETENTION_RESEARCH.md), [ADR-0003](../decisions/ADR-0003-chat-deletion-retention-audit.md) | No Delete UI/API proof completed for non-admin; admin override documented. | test users/chats | research complete; runtime proof needed |
-| Retention policy decision | Retention / audit | [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md) | [CHAT_DELETION_RETENTION_RESEARCH](../research/CHAT_DELETION_RETENTION_RESEARCH.md), [ADR-0003](../decisions/ADR-0003-chat-deletion-retention-audit.md) | Retention policy decision documented separately from no-delete and audit/archive. | retention requirements for chats/files/transcripts/backups | policy decision needed |
-| Ops and acceptance handoff | Operations / acceptance | [OPS_AND_ACCEPTANCE](../blueprints/OPS_AND_ACCEPTANCE.blueprint.md) | [OPENWEBUI_CAPABILITY_RESEARCH](../research/OPENWEBUI_CAPABILITY_RESEARCH.md) | Final acceptance checklist passes without secrets in docs/git. | all domain test data | planned after ADRs |
+## Minimum working scenarios with groups, prompts and owner
+
+Domain:
+
+- Workspaces / RBAC.
+
+Blueprint:
+
+- [WORKSPACES_AND_RBAC](../blueprints/WORKSPACES_AND_RBAC.blueprint.md)
+
+Research:
+
+- [OPENWEBUI_CAPABILITY_RESEARCH](../research/OPENWEBUI_CAPABILITY_RESEARCH.md)
+
+Acceptance signal:
+
+- User sees only allowed scenario.
+- Admin can update prompts through agreed process.
+
+Test data needed:
+
+- Groups/roles list.
+- Scenario owners.
+
+Status:
+
+- Research complete; runtime proof needed.
+
+## Audio/video transcription
+
+Domain:
+
+- Transcription / STT.
+
+Blueprint:
+
+- [TRANSCRIPTION_STT](../blueprints/TRANSCRIPTION_STT.blueprint.md)
+
+Research:
+
+- [TRANSCRIPTION_STT_RESEARCH](../research/TRANSCRIPTION_STT_RESEARCH.md)
+- [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
+- [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md)
+
+Acceptance signal:
+
+- STT proxy contract approved.
+- Audio/video upload produces transcript through server-side proxy.
+- STT API key is not present in browser.
+
+Test data needed:
+
+- Audio.
+- Video.
+- Large file.
+- ffmpeg artifact.
+
+Status:
+
+- Research complete; ADR needed.
+
+## Broker reports / 3-НДФЛ draft analysis
+
+Domain:
+
+- Broker reports.
+
+Blueprint:
+
+- [BROKER_REPORTS_3NDFL](../blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
+
+Research:
+
+- [DOCUMENTS_OCR_EXCEL_RESEARCH](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
+
+Acceptance signal:
+
+- User gets structured draft with manual-review warnings.
+
+Test data needed:
+
+- Broker reports.
+- Claude good-result example.
+
+Status:
+
+- Blocked by customer input.
+
+## Web-search for all with rules and limits
+
+Domain:
+
+- Web-search.
+
+Blueprint:
+
+- [WEB_SEARCH](../blueprints/WEB_SEARCH.blueprint.md)
+
+Research:
+
+- [WEB_SEARCH_PROVIDERS_RESEARCH](../research/WEB_SEARCH_PROVIDERS_RESEARCH.md)
+
+Acceptance signal:
+
+- Russian/English smoke queries work.
+- Result count, concurrency and policy are documented.
+
+Test data needed:
+
+- Web-search task examples.
+- Provider key.
+
+Status:
+
+- Research complete; provider ADR needed.
+
+## PDF/DOCX/XLSX basic handling and OCR pilot
+
+Domain:
+
+- Documents / OCR / Excel.
+
+Blueprint:
+
+- [DOCUMENTS_OCR_EXCEL](../blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
+
+Research:
+
+- [DOCUMENTS_OCR_EXCEL_RESEARCH](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
+- [VL_OCR_PROVIDER_RESEARCH](../research/VL_OCR_PROVIDER_RESEARCH.md)
+
+Acceptance signal:
+
+- Simple docs work.
+- Scan/complex PDF gets OCR/VL OCR pilot result or documented limitation.
+- Results are classified by document type.
+
+Test data needed:
+
+- PDF.
+- Scanned PDF.
+- PDF tables.
+- DOCX.
+- XLSX.
+- Poor scan/photo.
+- Expected output.
+
+Status:
+
+- Research complete; samples needed.
+
+## VL OCR pilot candidate selection
+
+Domain:
+
+- Documents / OCR / VL OCR.
+
+Blueprint:
+
+- [DOCUMENTS_OCR_EXCEL](../blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
+
+Research:
+
+- [VL_OCR_PROVIDER_RESEARCH](../research/VL_OCR_PROVIDER_RESEARCH.md)
+
+Acceptance signal:
+
+- VL OCR candidate list selected.
+- Pilot test set collected before implementation.
+
+Test data needed:
+
+- Scanned broker report.
+- Photo document.
+- PDF with stamps/signatures.
+- Tables.
+- Allowed-provider decision.
+
+Status:
+
+- Planned; blocked by customer samples.
+
+## Provider model catalog
+
+Domain:
+
+- Providers.
+
+Blueprint:
+
+- [PROVIDERS_MODEL_CATALOG](../blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md)
+
+Research:
+
+- [PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH](../research/PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH.md)
+
+Acceptance signal:
+
+- Catalog lists production/research/rejected/deferred providers.
+- Exact model IDs, use cases and limits are documented.
+
+Test data needed:
+
+- Provider access.
+- Model IDs.
+- Data policy.
+
+Status:
+
+- Research complete; catalog ADR needed.
+
+## Basic analytics / cost visibility
+
+Domain:
+
+- Usage analytics.
+
+Blueprint:
+
+- [USAGE_ANALYTICS_AND_COSTS](../blueprints/USAGE_ANALYTICS_AND_COSTS.blueprint.md)
+
+Research:
+
+- [USAGE_ANALYTICS_BILLING_RESEARCH](../research/USAGE_ANALYTICS_BILLING_RESEARCH.md)
+
+Acceptance signal:
+
+- Admin sees usage or documented gap.
+- Hard billing decision is separated.
+
+Test data needed:
+
+- Test users.
+- Sample usage.
+
+Status:
+
+- Research complete; runtime proof needed.
+
+## Data policy and no false masking promise
+
+Domain:
+
+- Security / data policy.
+
+Blueprint:
+
+- [SECURITY_DATA_POLICY](../blueprints/SECURITY_DATA_POLICY.blueprint.md)
+
+Research:
+
+- [DATA_MASKING_FUTURE_RESEARCH](../research/DATA_MASKING_FUTURE_RESEARCH.md)
+- [ADR-0001](../decisions/ADR-0001-data-policy-by-provider-class.md)
+
+Acceptance signal:
+
+- Data Policy ADR approved.
+- Policy distinguishes foreign/RU/local providers.
+- Masking remains a future slice.
+
+Test data needed:
+
+- Allowed/prohibited data examples.
+
+Status:
+
+- Research complete; policy decision needed before provider setup.
+
+## Manager work-chat visibility
+
+Domain:
+
+- Manager visibility.
+
+Blueprint:
+
+- [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md)
+
+Research:
+
+- [RBAC_MANAGER_VISIBILITY_RESEARCH](../research/RBAC_MANAGER_VISIBILITY_RESEARCH.md)
+- [ADR-0002](../decisions/ADR-0002-manager-visibility-policy.md)
+
+Acceptance signal:
+
+- Manager Visibility matrix approved.
+- Manager sees only approved work chats or limitation/options are documented.
+
+Test data needed:
+
+- Groups.
+- Privacy policy examples.
+- Test users.
+
+Status:
+
+- Research complete; runtime/customer proof needed.
+
+## Chat deletion restriction check
+
+Domain:
+
+- No-delete policy.
+
+Blueprint:
+
+- [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md)
+
+Research:
+
+- [CHAT_DELETION_RETENTION_RESEARCH](../research/CHAT_DELETION_RETENTION_RESEARCH.md)
+- [ADR-0003](../decisions/ADR-0003-chat-deletion-retention-audit.md)
+
+Acceptance signal:
+
+- No Delete UI/API proof completed for non-admin.
+- Admin override is documented.
+
+Test data needed:
+
+- Test users.
+- Test chats.
+
+Status:
+
+- Research complete; runtime proof needed.
+
+## Retention policy decision
+
+Domain:
+
+- Retention / audit.
+
+Blueprint:
+
+- [MANAGER_VISIBILITY_AND_RETENTION](../blueprints/MANAGER_VISIBILITY_AND_RETENTION.blueprint.md)
+
+Research:
+
+- [CHAT_DELETION_RETENTION_RESEARCH](../research/CHAT_DELETION_RETENTION_RESEARCH.md)
+- [ADR-0003](../decisions/ADR-0003-chat-deletion-retention-audit.md)
+
+Acceptance signal:
+
+- Retention policy decision documented separately from no-delete and audit/archive.
+
+Test data needed:
+
+- Retention requirements for chats, files, transcripts and backups.
+
+Status:
+
+- Policy decision needed.
+
+## Ops and acceptance handoff
+
+Domain:
+
+- Operations / acceptance.
+
+Blueprint:
+
+- [OPS_AND_ACCEPTANCE](../blueprints/OPS_AND_ACCEPTANCE.blueprint.md)
+
+Research:
+
+- [OPENWEBUI_CAPABILITY_RESEARCH](../research/OPENWEBUI_CAPABILITY_RESEARCH.md)
+
+Acceptance signal:
+
+- Final acceptance checklist passes without secrets in docs/git.
+
+Test data needed:
+
+- All domain test data.
+
+Status:
+
+- Planned after ADRs.

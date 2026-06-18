@@ -2,7 +2,8 @@
 
 ## 1. Purpose
 
-Спланировать web-search для всех пользователей с rules, limits, cost visibility and safe usage policy.
+Спланировать web-search для всех пользователей с rules, limits, cost visibility and safe usage
+policy.
 
 ## 2. PRD-1 requirements covered
 
@@ -13,11 +14,13 @@
 
 ## 3. Current known context
 
-PRD-0 did not include web-search. Existing `docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md` is Stage 2 research context, not PRD-0 implementation evidence.
+PRD-0 did not include web-search. Existing `docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md` is Stage 2
+research context, not PRD-0 implementation evidence.
 
 ## 4. Target user workflow
 
-Пользователь запускает web-search in allowed scenario, получает grounded answer/source links, видит ограничения and knows when not to use web-search.
+Пользователь запускает web-search in allowed scenario, получает grounded answer/source links, видит
+ограничения and knows when not to use web-search.
 
 ## 5. Native OpenWebUI first path
 
@@ -34,7 +37,8 @@ PRD-0 did not include web-search. Existing `docs/infra/WEB_SEARCH_PROVIDER_RESEA
 
 ## 7. Data and security notes
 
-Do not send sensitive personal/financial/accounting data into external search. Policy must name prohibited examples.
+Do not send sensitive personal/financial/accounting data into external search. Policy must name
+prohibited examples.
 
 ## 8. Dependencies
 

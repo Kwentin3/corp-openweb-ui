@@ -12,11 +12,13 @@
 
 ## 3. Current known context
 
-PRD-0 used OpenAI primary and Gemini secondary context. PRD-1 expands provider research but requires safe data policy and cost visibility.
+PRD-0 used OpenAI primary and Gemini secondary context. PRD-1 expands provider research but requires
+safe data policy and cost visibility.
 
 ## 4. Target user workflow
 
-User selects a workspace, not a raw provider list. Workspace uses approved model(s) with clear role: primary, fallback, cheap, strong, Russian provider, restricted.
+User selects a workspace, not a raw provider list. Workspace uses approved model(s) with clear role:
+primary, fallback, cheap, strong, Russian provider, restricted.
 
 ## 5. Native OpenWebUI first path
 
@@ -33,7 +35,8 @@ User selects a workspace, not a raw provider list. Workspace uses approved model
 
 ## 7. Data and security notes
 
-Provider choice depends on data sensitivity. Foreign models are restricted for personal/financial/accounting data. Russian providers may be wider but still governed.
+Provider choice depends on data sensitivity. Foreign models are restricted for
+personal/financial/accounting data. Russian providers may be wider but still governed.
 
 ## 8. Dependencies
 
