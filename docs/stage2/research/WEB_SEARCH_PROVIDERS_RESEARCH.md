@@ -55,12 +55,50 @@ Preferred Stage 2 decision path:
 
 ## 6. Decision options
 
-| Option | Fit | Risk |
-| ------ | --- | ---- |
-| Brave `brave_llm_context` | Best first pilot: simple native support, AI-oriented context | Foreign provider, paid per request |
-| Yandex Search API | Russian provider candidate, official OpenWebUI env exists | XML/HTML/raw result handling, quotas, higher gen-response cost |
-| SearXNG/self-hosted | More control over provider surface | Ops burden, result quality and anti-bot maintenance |
-| External custom search API | Maximum policy/control | More implementation and ownership |
+### Brave `brave_llm_context`
+
+Fit:
+
+- Best first pilot: simple native support, AI-oriented context.
+
+Risk:
+
+- Foreign provider.
+- Paid per request.
+
+### Yandex Search API
+
+Fit:
+
+- Russian provider candidate.
+- Official OpenWebUI env exists.
+
+Risk:
+
+- XML/HTML/raw result handling.
+- Quotas.
+- Higher generative-response cost.
+
+### SearXNG / self-hosted
+
+Fit:
+
+- More control over provider surface.
+
+Risk:
+
+- Ops burden.
+- Result quality and anti-bot maintenance.
+
+### External custom search API
+
+Fit:
+
+- Maximum policy/control.
+
+Risk:
+
+- More implementation and ownership.
 
 ## 7. Sources
 

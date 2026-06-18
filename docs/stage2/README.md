@@ -21,17 +21,21 @@ AI-среду: рабочие сценарии, группы, prompts/templates,
 
 - PRD-0: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md)
 - Post-acceptance audit:
-  [docs/reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md](../reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md)
+  [PRD-0 post-acceptance audit][prd0-post-acceptance-audit].
+
+[prd0-post-acceptance-audit]: ../reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md
 
 ## 4. Как пользоваться этим доменом
 
 1. Начать с [CONTEXT_INDEX.md](CONTEXT_INDEX.md), если задача точечная.
 2. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
-3. Открыть профильный blueprint в [blueprints/](blueprints/).
-4. Открыть связанные research-документы в [research/](research/).
-5. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
-6. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
-7. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
+3. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
+   provider calls, storage, policy, usage or UI/backend split.
+4. Открыть профильный blueprint в [blueprints/](blueprints/).
+5. Открыть связанные research-документы в [research/](research/).
+6. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
+7. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
+8. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
    proof.
 
 ## 5. Backend-first delivery principle
@@ -41,6 +45,13 @@ Frontend/UI work follows after backend contracts are clear.
 
 Frontend must not become the place where security, provider keys, data policy, retention rules or
 access rules are decided.
+
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; custom Stage 2 logic should live in
+bounded domain services, internal APIs, or thin integration shims.
+
+The frontend must not own security, provider keys, data policy, retention,
+manager visibility or usage accounting.
 
 Практический порядок для спорных доменов:
 
@@ -60,6 +71,7 @@ provider setup, usage analytics and web-search.
 | [ROADMAP.md](ROADMAP.md) | Дорожная карта подготовки к реализации. |
 | [CONTEXT_INDEX.md](CONTEXT_INDEX.md) | Быстрый индекс: что читать по домену/задаче. |
 | [DOMAIN_MAP.md](DOMAIN_MAP.md) | Карта инженерных доменов Stage 2. |
+| [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |
@@ -98,6 +110,8 @@ provider setup, usage analytics and web-search.
 - OCR pilot должен отдельно проверить VL OCR / vision-language OCR candidates на сканах,
   изображениях, сложных PDF и таблицах.
 - Data masking/tokenization - future security slice, не implementation текущего Practical Stage 2.
+- Custom capabilities изолируются за backend/domain contracts; OpenWebUI core не патчится глубоко без
+  отдельного rationale.
 
 ## 9. Research snapshot от 2026-06-18
 
@@ -105,19 +119,106 @@ Research выполнен по первичным источникам и лок
 не настройка провайдеров.
 
 Подробный отчет:
-[../reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md](../reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md).
+[Research actualization report][research-actualization-report].
 
-| Тема | Вывод | Следующее действие |
-| ---- | ----- | ------------------ |
-| OpenWebUI native capabilities | Native-first оправдан для RBAC/groups, shared resources, web-search, RAG/docs and analytics. | Read-only Admin UI audit on deployed/staging v0.9.6. |
-| Transcription / STT | Lemonfox подходит как priority candidate, но PRD-1 workflow требует server-side STT proxy/adapter. | ADR for STT proxy boundary. |
-| ffmpeg browser workflow | Browser ffmpeg viable as sidecar/module; actual workflow artifact not in repo. | Inspect existing workflow and run browser smoke. |
-| Web-search | Brave `brave_llm_context` is best first pilot if foreign provider is allowed; Yandex Search API is Russian-provider candidate. | Provider ADR and customer cost/privacy approval. |
-| Documents/OCR/Excel | OpenWebUI has extraction engines; OCR/layout-aware broker reports must stay pilot until customer samples are tested. VL OCR is promising but unproven. | Collect test documents, select OCR/VL OCR candidates and run extraction preview. |
-| Providers/model catalog | Use exact model IDs; Claude API is not Claude Code; DeepSeek/YandexGPT/GigaChat need policy/procurement decision. | Provider catalog ADR. |
-| Analytics/costs | Native analytics may satisfy basic visibility; hard budgets require gateway/future ADR. | Runtime analytics proof with test users/groups. |
-| Manager visibility/no-delete | Native RBAC/sharing and chat-delete permission are plausible, but manager supervision and no-delete need runtime proof. | Test user matrix and customer privacy policy. |
-| Data masking | Useful building blocks exist, but masking/tokenization is future security slice. | Data policy now; masking ADR later. |
+[research-actualization-report]: ../reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md
+
+### OpenWebUI native capabilities
+
+Finding:
+
+- Native-first оправдан для RBAC/groups, shared resources, web-search, RAG/docs and analytics.
+
+Next action:
+
+- Read-only Admin UI audit on deployed/staging v0.9.6.
+
+### Transcription / STT
+
+Finding:
+
+- Lemonfox подходит как priority candidate, но PRD-1 workflow требует server-side STT proxy/adapter.
+
+Next action:
+
+- ADR for STT proxy boundary.
+
+### ffmpeg browser workflow
+
+Finding:
+
+- Browser ffmpeg viable as sidecar/module; actual workflow artifact not in repo.
+
+Next action:
+
+- Inspect existing workflow and run browser smoke.
+
+### Web-search
+
+Finding:
+
+- Brave `brave_llm_context` is best first pilot if foreign provider is allowed.
+- Yandex Search API is Russian-provider candidate.
+
+Next action:
+
+- Provider ADR and customer cost/privacy approval.
+
+### Documents / OCR / Excel
+
+Finding:
+
+- OpenWebUI has extraction engines.
+- OCR/layout-aware broker reports must stay pilot until customer samples are tested.
+- VL OCR is promising but unproven.
+
+Next action:
+
+- Collect test documents, select OCR/VL OCR candidates and run extraction preview.
+
+### Providers / model catalog
+
+Finding:
+
+- Use exact model IDs.
+- Claude API is not Claude Code.
+- DeepSeek/YandexGPT/GigaChat need policy/procurement decision.
+
+Next action:
+
+- Provider catalog ADR.
+
+### Analytics / costs
+
+Finding:
+
+- Native analytics may satisfy basic visibility.
+- Hard budgets require gateway/future ADR.
+
+Next action:
+
+- Runtime analytics proof with test users/groups.
+
+### Manager visibility / no-delete
+
+Finding:
+
+- Native RBAC/sharing and chat-delete permission are plausible.
+- Manager supervision and no-delete need runtime proof.
+
+Next action:
+
+- Test user matrix and customer privacy policy.
+
+### Data masking
+
+Finding:
+
+- Useful building blocks exist, but masking/tokenization is future security slice.
+
+Next action:
+
+- Data policy now; masking ADR later.
 
 ## 10. Что не является реализацией на текущем шаге
 

@@ -13,7 +13,23 @@ access rules are decided.
 
 Provider setup must not start before data policy by provider class is approved.
 
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; custom Stage 2 logic should live
+in bounded domain services, internal APIs, or thin integration shims.
+
+Boundary reference: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
 ## Ready for ADR
+
+### Contract boundaries and domain isolation
+
+Domain: Cross-domain architecture
+Source: CONTRACT_BOUNDARIES, DOMAIN_MAP, ROADMAP, PRD-1
+Why: STT, OCR, web-search, manager visibility, retention and usage analytics can drift if UI,
+provider glue and OpenWebUI core all own decisions implicitly.
+Output: versioned internal contracts and proof gates before implementation slices.
+Depends on: ADR review and runtime proof
+Status: documented; enforce before implementation planning
 
 ### Data policy by provider class
 

@@ -11,6 +11,13 @@ implementation when a domain crosses a boundary:
 - OCR pilot vs production document pipeline;
 - policy/audit/export vs custom chat retention/deletion patch.
 
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; custom Stage 2 logic should live in
+bounded domain services, internal APIs, or thin integration shims.
+
+Frontend must not own security, provider keys, data policy, retention, manager
+visibility or usage accounting.
+
 Use [ADR_TEMPLATE.md](ADR_TEMPLATE.md).
 
 ADR registry order:
@@ -41,3 +48,7 @@ dependencies.
 Implementation gates:
 
 - [Stage 2 Implementation Gates](../IMPLEMENTATION_GATES.md)
+
+Contract boundaries:
+
+- [Stage 2 Contract Boundaries](../CONTRACT_BOUNDARIES.md)

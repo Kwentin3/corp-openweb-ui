@@ -10,6 +10,12 @@ Frontend/UI work follows after backend contracts are clear.
 Frontend must not become the place where security, provider keys, data policy, retention rules or
 access rules are decided.
 
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; custom logic should live in bounded
+domain services, internal APIs, or thin integration shims.
+
+Contract boundary reference: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
 Recommended slice order for risky domains:
 
 1. ADR / policy decision.
@@ -26,6 +32,7 @@ Status: complete.
 - Создать [CONTEXT_INDEX.md](CONTEXT_INDEX.md).
 - Создать [ROADMAP.md](ROADMAP.md).
 - Создать [DOMAIN_MAP.md](DOMAIN_MAP.md).
+- Создать [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 - Создать [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
 - Создать доменные blueprints.
 - Создать research docs.
@@ -113,6 +120,10 @@ backend boundary before UI/browser integration.
 
 Review [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) before moving from ADR
 work into implementation planning.
+
+Review [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) before any task that
+adds custom backend/domain services, internal APIs, thin UI integration or
+provider adapters.
 
 Gate sequence:
 

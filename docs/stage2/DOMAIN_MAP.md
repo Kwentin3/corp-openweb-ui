@@ -7,6 +7,48 @@ are clear.
 Frontend must not become the place where security, provider keys, data policy,
 retention rules or access rules are decided.
 
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; custom Stage 2 logic should live
+in bounded domain services, internal APIs, or thin integration shims.
+
+Related contract map: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
+## Boundary map
+
+### OpenWebUI core
+
+- auth/session surface;
+- users/groups/RBAC where native;
+- chat/workspace UI;
+- prompts/knowledge/workspace models where native;
+- native analytics if sufficient.
+
+### Stage 2 backend/domain services
+
+- STT proxy/job service;
+- provider adapters;
+- policy resolver;
+- usage event collector;
+- transcript normalization;
+- retention/export lifecycle;
+- OCR/VL OCR pilot adapters;
+- internal health/smoke endpoints.
+
+### Frontend/thin UI
+
+- user interaction;
+- upload/progress/cancel UX;
+- calls internal Stage 2 APIs;
+- never stores provider API keys;
+- never decides data policy.
+
+### External providers
+
+- STT provider;
+- LLM providers;
+- web-search providers;
+- OCR/VL OCR providers.
+
 ## Workspaces / RBAC / shared prompts
 
 Goal:

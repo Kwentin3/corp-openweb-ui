@@ -8,6 +8,12 @@ policy, backend boundaries, runtime proof and customer test data.
 Документ не запускает реализацию. Он фиксирует минимальные условия, после
 которых можно переходить к implementation planning and slices.
 
+Related boundary map: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
+Stage 2 custom capabilities must be isolated behind explicit backend contracts.
+OpenWebUI remains the upstream product shell; frontend must not own security,
+provider keys, data policy, retention, manager visibility or usage accounting.
+
 ## 2. Gates
 
 ### Gate 1. Data Policy approved
@@ -75,16 +81,184 @@ policy, backend boundaries, runtime proof and customer test data.
 
 ## 3. Current status
 
-| Gate | Status | Owner | Blocking items | Related docs |
-| ---- | ------ | ----- | -------------- | ------------ |
-| Gate 1. Data Policy approved | proposed | Customer / security / engineering | Approval and examples | ADR-0001; Security blueprint |
-| Gate 2. STT Proxy Boundary approved | blocked by ADR | Engineering | ADR-0004 and ffmpeg artifact | ADR-0004; STT blueprint |
-| Gate 3. Provider Model Catalog approved | blocked by ADR | Engineering / admin | Exact model IDs and accounts | ADR-0006; Provider blueprint |
-| Gate 4. Web-search Provider approved | blocked by ADR | Engineering / admin / customer | Provider and cost/privacy approval | ADR-0007; Web-search blueprint |
-| Gate 5. Manager Visibility and Retention approved | blocked by customer input | Customer / admin / engineering | Matrix, retention, no-delete proof | ADR-0002; ADR-0003 |
-| Gate 6. OCR / VL OCR pilot scope approved | blocked by customer input | Customer / engineering | Test documents and data approval | ADR-0005; VL OCR research |
-| Gate 7. Runtime proof complete | blocked by runtime proof | Engineering / admin | Deployed/staging checks | Acceptance matrix; Backlog |
-| Gate 8. Customer test data package received | blocked by customer input | Customer | Reports, media, OCR, XLSX, matrix | Test data requirements |
-| Gate 9. Implementation slices approved | planned | Engineering / customer | Gates 1-8 and slice acceptance | Backlog; Roadmap |
+### Gate 1. Data Policy approved
+
+Status:
+
+- proposed.
+
+Owner:
+
+- Customer / security / engineering.
+
+Blocking items:
+
+- approval and examples.
+
+Related docs:
+
+- ADR-0001;
+- Security blueprint.
+
+### Gate 2. STT Proxy Boundary approved
+
+Status:
+
+- blocked by ADR.
+
+Owner:
+
+- Engineering.
+
+Blocking items:
+
+- ADR-0004;
+- ffmpeg artifact;
+- [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
+Related docs:
+
+- ADR-0004;
+- STT blueprint.
+
+### Gate 3. Provider Model Catalog approved
+
+Status:
+
+- blocked by ADR.
+
+Owner:
+
+- Engineering / admin.
+
+Blocking items:
+
+- exact model IDs and accounts.
+
+Related docs:
+
+- ADR-0006;
+- Provider blueprint.
+
+### Gate 4. Web-search Provider approved
+
+Status:
+
+- blocked by ADR.
+
+Owner:
+
+- Engineering / admin / customer.
+
+Blocking items:
+
+- provider and cost/privacy approval.
+
+Related docs:
+
+- ADR-0007;
+- Web-search blueprint.
+
+### Gate 5. Manager Visibility and Retention approved
+
+Status:
+
+- blocked by customer input.
+
+Owner:
+
+- Customer / admin / engineering.
+
+Blocking items:
+
+- matrix;
+- retention;
+- no-delete proof.
+
+Related docs:
+
+- ADR-0002;
+- ADR-0003.
+
+### Gate 6. OCR / VL OCR pilot scope approved
+
+Status:
+
+- blocked by customer input.
+
+Owner:
+
+- Customer / engineering.
+
+Blocking items:
+
+- test documents;
+- data approval.
+
+Related docs:
+
+- ADR-0005;
+- VL OCR research.
+
+### Gate 7. Runtime proof complete
+
+Status:
+
+- blocked by runtime proof.
+
+Owner:
+
+- Engineering / admin.
+
+Blocking items:
+
+- deployed/staging checks.
+
+Related docs:
+
+- Acceptance matrix;
+- Backlog.
+
+### Gate 8. Customer test data package received
+
+Status:
+
+- blocked by customer input.
+
+Owner:
+
+- Customer.
+
+Blocking items:
+
+- reports;
+- media;
+- OCR;
+- XLSX;
+- matrix.
+
+Related docs:
+
+- Test data requirements.
+
+### Gate 9. Implementation slices approved
+
+Status:
+
+- planned.
+
+Owner:
+
+- Engineering / customer.
+
+Blocking items:
+
+- Gates 1-8;
+- slice acceptance.
+
+Related docs:
+
+- Backlog;
+- Roadmap.
 
 No gate is marked completed without runtime/customer evidence.

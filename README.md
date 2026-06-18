@@ -76,6 +76,10 @@ implementation.
 
 Реализация Stage 2 должна начинаться с backend/server-side boundaries, policies
 и proofs; UI/frontend follows after backend contracts are clear.
+Custom Stage 2 capabilities должны быть изолированы за явными backend
+contracts. OpenWebUI остается upstream product shell, а frontend не владеет
+security, provider keys, data policy, retention, manager visibility or usage
+accounting.
 
 Подробные отчеты:
 
@@ -92,6 +96,7 @@ implementation.
 - [roadmap](docs/stage2/ROADMAP.md)
 - [context index](docs/stage2/CONTEXT_INDEX.md)
 - [domain map](docs/stage2/DOMAIN_MAP.md)
+- [contract boundaries](docs/stage2/CONTRACT_BOUNDARIES.md)
 - [implementation gates](docs/stage2/IMPLEMENTATION_GATES.md)
 
 ## Быстрый старт на сервере
@@ -129,16 +134,23 @@ bash scripts/smoke-test.sh --strict-tls
 - Stage 2 roadmap: [docs/stage2/ROADMAP.md](docs/stage2/ROADMAP.md)
 - Stage 2 context index: [docs/stage2/CONTEXT_INDEX.md](docs/stage2/CONTEXT_INDEX.md)
 - Stage 2 domain map: [docs/stage2/DOMAIN_MAP.md](docs/stage2/DOMAIN_MAP.md)
+- Stage 2 contract boundaries:
+  [docs/stage2/CONTRACT_BOUNDARIES.md](docs/stage2/CONTRACT_BOUNDARIES.md)
 - Stage 2 implementation gates:
   [docs/stage2/IMPLEMENTATION_GATES.md](docs/stage2/IMPLEMENTATION_GATES.md)
 - Stage 2 research actualization report:
-  [docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md](docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md)
+  [OPENWEBUI Stage 2 research actualization report][stage2-research-actualization-report]
 - Stage 2 agent review:
-  [docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
+  [OPENWEBUI PRD-1 Stage 2 agent review][stage2-agent-review-report]
 - Stage 2 backend-first / VL OCR refine report:
-  [docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
+  [OPENWEBUI Stage 2 backend-first / VL OCR refine report][stage2-backend-vl-ocr-report]
 - Stage 2 PRD-1 source-of-truth sync report:
-  [docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md](docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md)
+  [OPENWEBUI PRD-1 source-of-truth sync report][stage2-source-of-truth-sync-report]
+
+[stage2-research-actualization-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_RESEARCH_ACTUALIZATION.report.md
+[stage2-agent-review-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md
+[stage2-backend-vl-ocr-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md
+[stage2-source-of-truth-sync-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md
 - Blueprint:
   [docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md](docs/blueprint/OPENWEBUI_PRD_0_BLUEPRINT.md)
 - Architecture: [docs/blueprint/ARCHITECTURE_OVERVIEW.md](docs/blueprint/ARCHITECTURE_OVERVIEW.md)
@@ -163,13 +175,19 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/security/FIREWALL_AND_FAIL2BAN.md](docs/security/FIREWALL_AND_FAIL2BAN.md)
 - Pilot checklist: [docs/pilot/PILOT_CHECKLIST.md](docs/pilot/PILOT_CHECKLIST.md)
 - PRD-0 post-acceptance audit:
-  [docs/reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md](docs/reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md)
+  [OPENWEBUI PRD-0 post-acceptance audit][prd0-post-acceptance-audit-report]
 - Engineering report:
-  [docs/reports/2026-06-09/OPENWEBUI_PRD_0_ENGINEERING_PACKAGE.report.md](docs/reports/2026-06-09/OPENWEBUI_PRD_0_ENGINEERING_PACKAGE.report.md)
+  [OPENWEBUI PRD-0 engineering package report][prd0-engineering-package-report]
 - REFINE-2 report:
-  [docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_2_PROVIDERS_AND_HARDENING.report.md](docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_2_PROVIDERS_AND_HARDENING.report.md)
+  [OPENWEBUI PRD-0 REFINE-2 report][prd0-refine-2-report]
+
+[prd0-refine-2-report]: docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_2_PROVIDERS_AND_HARDENING.report.md
+[prd0-post-acceptance-audit-report]: docs/reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md
+[prd0-engineering-package-report]: docs/reports/2026-06-09/OPENWEBUI_PRD_0_ENGINEERING_PACKAGE.report.md
 - REFINE-3 report:
-  [docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_3_LOW_COST_CUSTOMIZATION.report.md](docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_3_LOW_COST_CUSTOMIZATION.report.md)
+  [OPENWEBUI PRD-0 REFINE-3 report][prd0-refine-3-report]
+
+[prd0-refine-3-report]: docs/reports/2026-06-09/OPENWEBUI_PRD_0_REFINE_3_LOW_COST_CUSTOMIZATION.report.md
 
 ## Skeleton
 

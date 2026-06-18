@@ -61,14 +61,68 @@ Result type: model catalog input. No API keys or live calls were used.
 
 ## 4. Recommended catalog classification
 
-| Provider/model family | Stage 2 classification | Notes |
-| --------------------- | ---------------------- | ----- |
-| OpenAI `gpt-5.4-mini` | Production candidate | Good default for low-cost general tasks if account access is available. |
-| Claude API models | Production candidate for complex documents/broker scenario | Do not confuse with Claude Code. Need exact model and cost approval. |
-| DeepSeek V4 Flash/Pro | Alternative/research candidate | Cheap and compatible, but policy/procurement/jurisdiction review needed. |
-| YandexGPT 5.1/5 Lite | Russian provider candidate | Good candidate when Russian provider/data policy is preferred. |
-| GigaChat 2 Lite/Pro/Max | Russian provider candidate | Strong Russian-local option; integration/auth path differs from OpenAI-style providers. |
-| Claude Code | Rejected as employee chat provider | May be separate dev-agent tooling, not PRD-1 chat catalog. |
+### OpenAI `gpt-5.4-mini`
+
+Classification:
+
+- Production candidate.
+
+Notes:
+
+- Good default for low-cost general tasks if account access is available.
+
+### Claude API models
+
+Classification:
+
+- Production candidate for complex documents/broker scenario.
+
+Notes:
+
+- Do not confuse with Claude Code.
+- Need exact model and cost approval.
+
+### DeepSeek V4 Flash / Pro
+
+Classification:
+
+- Alternative/research candidate.
+
+Notes:
+
+- Cheap and compatible.
+- Policy/procurement/jurisdiction review needed.
+
+### YandexGPT 5.1 / 5 Lite
+
+Classification:
+
+- Russian provider candidate.
+
+Notes:
+
+- Good candidate when Russian provider/data policy is preferred.
+
+### GigaChat 2 Lite / Pro / Max
+
+Classification:
+
+- Russian provider candidate.
+
+Notes:
+
+- Strong Russian-local option.
+- Integration/auth path differs from OpenAI-style providers.
+
+### Claude Code
+
+Classification:
+
+- Rejected as employee chat provider.
+
+Notes:
+
+- May be separate dev-agent tooling, not PRD-1 chat catalog.
 
 ## 5. Open questions
 

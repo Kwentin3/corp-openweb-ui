@@ -9,6 +9,7 @@ Read first:
 - [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - [README](README.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
+- [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
 - [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
 
 Additional context:
@@ -23,6 +24,34 @@ Skip unless needed:
 Comment:
 
 - PRD-1 is the source of truth.
+- Stage 2 custom logic must stay behind backend/domain contracts.
+
+## Domain isolation / contract boundaries
+
+Read first:
+
+- [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+- [DOMAIN_MAP](DOMAIN_MAP.md)
+- [ROADMAP](ROADMAP.md)
+
+Additional context:
+
+- [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
+- [decisions/README](decisions/README.md)
+- [Docs format and gates refine report](../reports/2026-06-18/OPENWEBUI_STAGE2_DOCS_FORMAT_AND_GATES_REFINE.report.md)
+
+Skip unless needed:
+
+- Provider setup runbooks.
+- Runtime `.env`.
+
+Comment:
+
+- OpenWebUI remains upstream product shell.
+- Stage 2 custom capabilities live in bounded domain services, internal APIs or
+  thin integration shims.
+- Frontend does not own security, provider keys, data policy, retention, manager
+  visibility or usage accounting.
 
 ## Рабочие пространства / RBAC
 
@@ -51,6 +80,7 @@ Read first:
 
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
+- [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
 
 Additional context:
 
