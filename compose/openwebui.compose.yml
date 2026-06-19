@@ -40,8 +40,8 @@ services:
       https_proxy: ${OPENWEBUI_OUTBOUND_PROXY:-}
       HTTP_PROXY: ${OPENWEBUI_OUTBOUND_PROXY:-}
       HTTPS_PROXY: ${OPENWEBUI_OUTBOUND_PROXY:-}
-      no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik}
-      NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik}
+      no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
+      NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
