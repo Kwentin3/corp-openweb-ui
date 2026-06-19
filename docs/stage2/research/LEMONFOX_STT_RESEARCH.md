@@ -6,12 +6,14 @@ Is Lemonfox suitable as the priority STT provider for corporate OpenWebUI transc
 
 ## 2. Research status
 
-Status: researched from official Lemonfox docs on 2026-06-18 and refined for
-ADR-0004 Stage 2 decisions on 2026-06-19.
+Status: researched from official Lemonfox docs and refined for ADR-0004 Stage 2
+decisions on 2026-06-19.
 
 Result type: provider fit assessment. No API key or live call was used.
 
 ## 3. Confirmed provider facts
+
+Checked source: official Lemonfox Speech to Text API page.
 
 - Endpoint: `POST https://api.lemonfox.ai/v1/audio/transcriptions`.
 - API shape is OpenAI-compatible enough for standard transcription calls.
@@ -21,6 +23,7 @@ Result type: provider fit assessment. No API key or live call was used.
 - Supported formats include `mp3`, `wav`, `flac`, `aac`, `opus`, `ogg`, `m4a`, `mp4`, `mpeg`, `mov`,
   `webm` and more.
 - Response formats: `json`, `text`, `srt`, `verbose_json`, `vtt`.
+- `verbose_json` exposes duration and segment timestamps.
 - Speaker diarization is available through `speaker_labels=true`, with current max 4 speakers, and
   requires `response_format=verbose_json` to access labels.
 - `callback_url` exists for long audio/asynchronous completion.
@@ -32,6 +35,22 @@ Result type: provider fit assessment. No API key or live call was used.
   equivalent credits.
 - Lemonfox homepage states data is deleted immediately after processing and EU-based processing is
   available.
+
+## 3.1. Not documented / needs runtime proof
+
+- Exact Stage 2 `audio/webm;codecs=opus` acceptance is not explicitly
+  documented. Docs list `webm` and `opus`, but not the exact ffmpeg output
+  profile.
+- Exact Stage 2 `audio/ogg;codecs=opus` acceptance is not explicitly
+  documented. Docs list `ogg` and `opus`, but not the exact ffmpeg output
+  profile.
+- Maximum accepted audio duration is not documented.
+- Provider-side cancellation endpoint, stable job id and cancel status model
+  are not documented on the checked STT API page.
+- Callback support is documented, but callback support is not provider-side
+  cancellation.
+- Provider error taxonomy and retryability are not documented enough for a
+  product contract.
 
 ## 4. Fit for PRD-1
 
@@ -61,6 +80,8 @@ It still should be integrated through a server-side proxy because:
 - Public URL upload is not appropriate for sensitive files unless storage access and expiry are
   designed.
 - Long audio UX requires progress/cancel/retry behavior.
+- `supports_provider_cancel` should be treated as unknown/unsupported until a
+  provider cancel path is proven.
 
 ## 6. Recommended next step
 
@@ -89,6 +110,9 @@ Open decisions before implementation:
 - prove whether WebM/Opus or OGG/Opus is the better default output profile;
 - keep MP3 / `audio/mpeg` as source-proven compatibility fallback;
 - document behavior when prepared audio exceeds 100 MB direct upload limit;
+- expose a runtime capability contract so UI can show effective output
+  profiles, limits, storage mode and cancel support without reading provider
+  docs;
 - approve URL/object-storage provider path only after access, expiry and
   sensitivity review;
 - store normalized/prepared audio in S3/object storage with env-configured

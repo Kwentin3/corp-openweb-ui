@@ -220,8 +220,9 @@ Constraints:
   explicit approval and pinned versions;
 - browser preprocessing input limit is `1024 MB`;
 - Lemonfox direct prepared-audio upload limit is `100 MB`;
-- normalized/prepared audio sent to the provider is stored in S3/object storage
-  with env-configured bucket, prefix and retention;
+- normalized/prepared audio storage is controlled by `auto|s3|none` with
+  env-configured bucket, prefix, health and retention when S3/object storage is
+  used;
 - cancel UX is required where technically possible across preprocessing,
   upload and job lifecycle.
 
@@ -427,6 +428,9 @@ Rules:
 - STT provider adapter declares supported input profiles;
 - default profile can be changed via env/config without changing orchestration
   code;
+- Lemonfox official docs list `opus`, `ogg` and `webm` as supported formats,
+  but do not explicitly prove exact WebM/Opus or OGG/Opus compatibility for
+  the Stage 2 ffmpeg output contract;
 - do not choose between WebM/Opus and OGG/Opus until Lemonfox compatibility
   proof is captured.
 
@@ -481,7 +485,82 @@ Rules:
 - Lemonfox is the first provider, not hardwired architecture;
 - future providers can be added without changing browser preprocessing.
 
-## 10. FFMPEG asset loading strategy
+## 10. STT Provider Capability Profile
+
+Each STT adapter must expose a provider capability profile. The profile is
+runtime/config evidence for orchestration and UI affordances. It is not a
+secret store and does not replace adapter-specific request/response handling.
+
+Draft `SttProviderCapabilityProfileV1` for Lemonfox:
+
+```yaml
+profile_version: 1
+provider_id: lemonfox
+adapter_id: lemonfox
+source: official_docs_plus_runtime_proof
+status: proposed_needs_runtime_proof
+base_url_default: https://api.lemonfox.ai
+eu_base_url_candidate: https://eu-api.lemonfox.ai
+transcription_endpoint: /v1/audio/transcriptions
+supported_input_profiles:
+  mp3_high_compat: documented_format_mp3_source_proven
+  opus_webm_compact: docs_list_opus_webm_needs_runtime_proof
+  opus_ogg_compact: docs_list_opus_ogg_needs_runtime_proof
+  wav_pcm_safe: documented_format_wav_larger_fallback
+supported_provider_formats_documented:
+  - mp3
+  - wav
+  - flac
+  - aac
+  - opus
+  - ogg
+  - m4a
+  - mp4
+  - mpeg
+  - mov
+  - webm
+supports_direct_upload: true
+max_direct_upload_mb: 100
+supports_url_upload: true
+max_url_upload_mb: 1024
+max_duration_seconds: null # not documented / needs runtime proof
+supports_callbacks: true
+supports_provider_cancel: null # not documented / treat as unsupported until proof
+response_formats:
+  - json
+  - text
+  - srt
+  - verbose_json
+  - vtt
+supports_segment_timestamps: true
+supports_word_timestamps: true
+supports_speaker_labels: true
+speaker_labels_max_speakers: 4
+language_ru_support: true
+pricing_public_hint: "$0.50 per 3 hours; EU endpoint +20%"
+error_behavior: not_documented_needs_runtime_proof
+```
+
+Lemonfox official documentation confirms direct file upload, public URL input,
+100 MB direct upload limit, 1 GB URL input limit, response formats, speaker
+labels, word timestamps, callback URL and Russian language support. The same
+documentation does not document a provider-side cancellation endpoint, stable
+job id for cancellation, maximum accepted audio duration, exact error taxonomy,
+or explicit WebM/Opus versus OGG/Opus compatibility for Stage 2 output
+profiles. These remain runtime-proof items.
+
+Rules:
+
+- `supports_provider_cancel=null` means "unknown from docs"; implementation
+  treats it as unsupported until runtime/provider proof says otherwise;
+- `max_duration_seconds=null` means no provider duration promise exists in the
+  contract; Stage 2 must enforce an internal max duration before production;
+- `supports_url_upload=true` is documented, but use of URL/object-storage
+  provider paths requires access-control, expiry, sensitivity and runtime proof;
+- response and error mapping must still go through `LemonfoxSttAdapter`, not
+  through UI code.
+
+## 11. FFMPEG asset loading strategy
 
 If implementation chooses ffmpeg.wasm, treat it as an implementation dependency,
 not as the provider boundary.
@@ -545,7 +624,7 @@ Security/header implication:
 - COOP/COEP header changes may affect OpenWebUI, Traefik, embedded resources and
   third-party scripts, so they require a later infra/browser review.
 
-## 11. STT Environment / Configuration Contract
+## 12. STT Environment / Configuration Contract
 
 Stage 2 STT provider, output profile, ffmpeg asset mode, limits, storage,
 retention and cancel behavior must be env/config driven on the server side.
@@ -562,8 +641,11 @@ Required decisions captured there:
 - `STAGE2_STT_FALLBACK_OUTPUT_PROFILE=mp3_high_compat`;
 - `STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB=1024`;
 - `STAGE2_FFMPEG_ASSET_MODE=self_hosted`;
-- `STAGE2_STT_STORAGE_MODE=s3`;
+- `STAGE2_STT_STORAGE_MODE=auto`;
+- `STAGE2_STT_REQUIRE_STORAGE_HEALTH=false`;
 - `STAGE2_STT_MAX_PREPARED_AUDIO_MB=100`;
+- `STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB=1024`;
+- provider/internal duration limit envs remain blank/TBD until accepted;
 - cancel flags for provider-side cancellation when available and local cancel
   when provider cancellation is unavailable.
 
@@ -571,22 +653,33 @@ This is a draft env contract, not a final `.env.example`. Real values and
 secrets must stay server-side and out of Git. No provider key may use
 `NEXT_PUBLIC_*` or any browser-exposed configuration path.
 
-## 12. Limits and too-large behavior
+## 13. Limits and too-large behavior
 
 Documented Stage 2 limits:
 
 ```text
 STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB=1024
 STAGE2_STT_MAX_PREPARED_AUDIO_MB=100
+STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=100
+STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB=1024
+STAGE2_STT_PROVIDER_MAX_DURATION_MINUTES=
+STAGE2_STT_INTERNAL_MAX_DURATION_MINUTES=
 ```
 
 Rules:
 
 - browser-side wasm preprocessing input limit is 1 GB / 1024 MB;
 - Lemonfox direct upload limit is 100 MB prepared audio;
+- Lemonfox public URL input limit is documented as 1 GB, but use of this path
+  is not approved until storage access, expiry and runtime compatibility are
+  proven;
+- Lemonfox maximum audio duration is not documented; Stage 2 must define an
+  internal max duration and keep provider max duration as `TBD` until proven;
 - backend must validate prepared audio size before direct Lemonfox upload;
-- if prepared audio is larger than 100 MB, default behavior is fail with typed
-  error unless a fallback path is approved;
+- UI/backend should warn before provider upload when actual or estimated
+  prepared audio exceeds 100 MB;
+- if prepared audio is larger than 100 MB, default behavior is fail with a typed
+  error unless a fallback path is approved and healthy;
 - possible future fallback paths are URL/object-storage provider path,
   provider URL upload or chunking only if supported and approved;
 - no fallback is silently assumed from Lemonfox URL support without compatibility
@@ -595,20 +688,38 @@ Rules:
 Typed error candidates:
 
 ```text
+provider_direct_upload_limit_warning
 prepared_audio_too_large
 unsupported_input_format
 preprocessing_failed
 provider_direct_upload_limit_exceeded
+storage_required_for_large_audio
+duration_limit_exceeded
 ```
 
-## 13. Storage and retention
+## 14. Storage and retention
 
-Prepared/normalized audio that is sent to the STT provider should be stored in
-S3/object storage.
+Prepared/normalized audio storage is mode-driven. Stage 2 must not silently
+store original source media.
+
+Draft storage modes:
+
+```text
+auto
+s3
+none
+```
 
 Rules:
 
-- storage bucket, prefix and retention must be env-configurable;
+- `auto`: store prepared audio in S3/object storage when bucket/prefix are
+  configured and storage health is good; otherwise use transient local/server
+  lifecycle and do not pretend durable storage exists;
+- `s3`: require configured and healthy S3/object storage; fail fast when
+  unavailable;
+- `none`: do not retain prepared audio after provider handoff/local lifecycle;
+- storage bucket, prefix, mode and retention must be env-configurable;
+- storage health must be visible to backend policy and runtime capabilities;
 - source original media is not stored unless explicitly enabled;
 - prepared audio storage is controlled by `STAGE2_STT_STORE_PREPARED_AUDIO`;
 - prepared audio retention is controlled by
@@ -624,7 +735,7 @@ Cancelled-job behavior:
   stored only if policy explicitly allows it;
 - source media storage remains off by default.
 
-## 14. Lightweight Proof Matrix
+## 15. Lightweight Proof Matrix
 
 Proof matrix is not certification. It is a lightweight reproducibility record.
 
@@ -654,7 +765,7 @@ Operator manual proof exists. The lightweight proof matrix captures
 reproducibility for the already observed scenarios; it must not become a broad
 certification program.
 
-## 15. Cancel UX
+## 16. Cancel UX
 
 Cancel is required UX for Stage 2 transcription.
 
@@ -675,8 +786,9 @@ STT job cancel:
 - mark job as cancelled;
 - stop processing if provider call has not started;
 - if provider API supports cancellation, call provider cancel;
-- if provider call already started and provider has no cancel API, mark local
-  job cancelled and ignore/cleanup late result according to retention policy.
+- if provider call already started and provider has no documented/proven cancel
+  API, mark local job cancelled and ignore/cleanup late result according to
+  retention policy.
 
 Possible job statuses:
 
@@ -696,14 +808,22 @@ Reason code candidates:
 ```text
 cancelled_by_user
 provider_cancel_unsupported
+provider_cancel_unknown
+provider_cancel_supported
 cancelled_locally_provider_continues
+late_provider_result_ignored
 ```
 
 Cancel support should be implemented where technically possible.
 Provider-side cancellation depends on provider capabilities. UX must not leave
 the user with a frozen long-running task.
 
-## 16. Draft Internal Contracts
+For Lemonfox, provider-side cancellation is not documented in the checked
+official STT API page. Until a job id/cancel endpoint is proven, Stage 2 treats
+Lemonfox provider cancellation as unavailable and relies on local cancellation,
+late-result ignoring and retention-controlled cleanup.
+
+## 17. Draft Internal Contracts
 
 These are review-level contract candidates, not final JSON schemas.
 
@@ -730,6 +850,7 @@ Candidate fields:
 - `source_media_stored`;
 - `source_media_object_key`;
 - `storage_mode`;
+- `storage_health_status`;
 - `output_profile_id`;
 - `asset_loading_mode`;
 - `preprocessing_status`;
@@ -740,6 +861,9 @@ Candidate fields:
 - `cancelled_at`;
 - `selected_stt_provider`;
 - `adapter_id`;
+- `provider_capability_profile_version`;
+- `provider_cancel_support`;
+- `max_duration_seconds`;
 - `model`;
 - `language`;
 - `speaker_labels_requested`;
@@ -827,11 +951,48 @@ Supporting contracts from the broader Stage 2 boundary map:
 - `ProviderModelCatalogV1`;
 - `ManagerVisibilityPolicyV1`.
 
-## 17. Draft Endpoint Boundary
+### TranscriptionRuntimeCapabilitiesV1
+
+Purpose:
+
+- expose effective backend transcription capabilities to the UI without
+  leaking secrets or raw provider details.
+
+Candidate fields:
+
+- `contract_version`;
+- `default_provider_id`;
+- `default_adapter_id`;
+- `provider_profiles`;
+- `default_output_profile_id`;
+- `fallback_output_profile_id`;
+- `output_profiles`;
+- `browser_max_input_mb`;
+- `provider_max_direct_upload_mb`;
+- `provider_max_url_upload_mb`;
+- `provider_max_duration_seconds`;
+- `internal_max_duration_seconds`;
+- `storage_modes`;
+- `effective_storage_mode`;
+- `storage_health`;
+- `supports_url_upload`;
+- `supports_callbacks`;
+- `supports_provider_cancel`;
+- `supports_segment_timestamps`;
+- `supports_word_timestamps`;
+- `supports_speaker_labels`;
+- `max_speakers`;
+- `supported_languages`;
+- `warning_reason_codes`;
+- `error_reason_codes`;
+- `unknowns`.
+
+## 18. Draft Endpoint Boundary
 
 Draft endpoint names:
 
 ```text
+GET /stage2-api/transcription/capabilities
 POST /stage2-api/transcription/jobs
 GET /stage2-api/transcription/jobs/{job_id}
 GET /stage2-api/transcription/jobs/{job_id}/result
@@ -845,12 +1006,15 @@ Constraints:
 - request/response schemas must be versioned;
 - long-running transcription should not rely on a single blocking HTTP request;
 - short files may still be processed synchronously behind the job contract;
+- `GET /stage2-api/transcription/capabilities` returns
+  `TranscriptionRuntimeCapabilitiesV1` with effective limits, output profiles,
+  storage mode/health and provider capability flags;
 - browser calls only the internal Stage 2 backend boundary;
 - provider keys live server-side only;
 - routes should prefer sidecar/internal backend API or a thin integration shim
   over deep OpenWebUI core patching.
 
-## 18. Runtime Proof Needed
+## 19. Runtime Proof Needed
 
 Before implementation:
 
@@ -866,6 +1030,7 @@ Before implementation:
   Stage 2 proxy contract without treating it as the only possible output;
 - verify Opus candidate output profile compatibility with Lemonfox before
   making it default;
+- separately verify WebM/Opus and OGG/Opus if both remain profile candidates;
 - verify large-video and large-WAV behavior with recorded metadata;
 - verify no STT API key appears in browser bundle, browser storage or browser
   network logs;
@@ -879,19 +1044,26 @@ Before implementation:
   selected;
 - verify practical max file size and duration limits;
 - verify browser 1 GB input limit and Lemonfox 100 MB direct upload limit;
+- verify Lemonfox URL upload path only if approved; docs state 1 GB URL input
+  limit, but Stage 2 still needs storage expiry/access proof;
+- verify provider maximum duration or keep provider max duration `TBD` and
+  enforce internal duration limits;
 - verify prepared-audio-too-large behavior;
-- verify S3/object storage bucket, prefix and retention config for normalized
-  prepared audio;
+- verify storage mode behavior for `auto`, `s3` and `none`, including storage
+  health reporting and fail-fast behavior for required storage;
 - verify source media storage remains disabled unless explicitly enabled;
 - verify unsupported/large-file error behavior;
 - verify transcript result can be stored or returned without leaking raw
   provider details;
 - verify `UsageEventV1` can be emitted;
 - verify cancel behavior for preprocessing, upload, local STT job and provider
-  job cancellation where Lemonfox/provider supports it;
+  job cancellation where Lemonfox/provider supports it; if provider cancel is
+  not documented, prove local cancellation and late-result handling;
+- verify `TranscriptionRuntimeCapabilitiesV1` does not expose secrets and
+  matches effective server config;
 - verify typed errors for unsupported/too-large files.
 
-## 19. Customer / Operator Input Needed
+## 20. Customer / Operator Input Needed
 
 - Existing ffmpeg workflow repo/path/artifact for implementation handoff.
 - Minimal demo or runnable instructions for reproducible proof.
@@ -915,7 +1087,7 @@ Before implementation:
 - Whether source video upload fallback is allowed when browser preprocessing
   fails.
 
-## 20. Open Questions
+## 21. Open Questions
 
 - How will OpenWebUI session/auth be propagated to the Stage 2 backend?
 - Which S3/object storage bucket and prefix hold prepared/normalized audio?
@@ -923,6 +1095,11 @@ Before implementation:
 - What is cancellation behavior for local ffmpeg work and server/provider work?
 - Which Opus container is accepted by Lemonfox strongly enough to become the
   default output profile?
+- Does Lemonfox accept the exact Stage 2 WebM/Opus and OGG/Opus ffmpeg outputs,
+  not only generic `webm`, `ogg` and `opus` formats from documentation?
+- Does Lemonfox expose any provider-side cancellation API or stable job id for
+  cancellation? If not, local cancellation is the only Stage 2 behavior.
+- What maximum provider duration is actually accepted by Lemonfox?
 - What retention applies to prepared audio after completed, failed and
   cancelled jobs?
 - Which transcript fields are mandatory for first acceptance?
@@ -931,6 +1108,7 @@ Before implementation:
 - How are usage events emitted and reviewed?
 - Is Lemonfox URL/object-storage upload path approved for prepared audio larger
   than 100 MB, or should the first behavior remain fail-fast?
+- Should `auto`, `s3` or `none` be the production storage mode?
 - Is callback/async provider flow required in Practical Stage 2 or deferred?
 - Is native OpenWebUI STT sufficient for a baseline smoke only, or can it reduce
   proxy scope after proof?
@@ -942,7 +1120,7 @@ Before implementation:
 - Is the source project's 1 GB UI limit acceptable, lower than required, or too
   high for corporate browser/mobile acceptance?
 
-## 21. Consequences
+## 22. Consequences
 
 - Frontend/UI work follows backend contract review.
 - ffmpeg remains a media-preprocessing asset, not a security boundary.
@@ -956,8 +1134,8 @@ Before implementation:
 - Opus can become default only after Lemonfox compatibility proof; MP3 remains
   the compatibility fallback.
 - Storage and retention must align with ADR-0001 and ADR-0003.
-- Prepared/normalized audio sent to provider is stored in S3/object storage
-  with env-configured retention.
+- Prepared/normalized audio storage is controlled by `auto|s3|none`; source
+  media remains off unless explicitly enabled.
 - Lemonfox-specific features must be tested before promising them.
 - OpenWebUI upgrade risk is lower if the Stage 2 API remains isolated behind a
   sidecar/internal backend route or thin shim.
@@ -970,7 +1148,7 @@ Before implementation:
   and pinned versions.
 - Source video upload fallback remains disallowed unless explicitly approved.
 
-## 22. Acceptance Signals for ADR Approval
+## 23. Acceptance Signals for ADR Approval
 
 ADR can be approved only when:
 
@@ -984,6 +1162,9 @@ ADR can be approved only when:
 - output profiles are accepted, revised or rejected;
 - STT Provider Adapter Factory is accepted, revised or rejected;
 - Lemonfox first-adapter decision is accepted or explicitly revised;
+- STT Provider Capability Profile is accepted, revised or rejected;
+- `TranscriptionRuntimeCapabilitiesV1` and capabilities endpoint are accepted,
+  revised or rejected;
 - ffmpeg artifact inspection status is explicit;
 - STT env/config contract is reviewed;
 - unresolved open questions are closed or explicitly deferred;
@@ -991,8 +1172,10 @@ ADR can be approved only when:
 - operator manual proof is captured as manual evidence, not as automated proof;
 - production output profile, asset hosting, licensing and file-limit decisions
   are accepted, revised or explicitly deferred;
-- S3/object storage and prepared-audio retention decisions are accepted, revised
-  or explicitly deferred;
+- storage mode, storage health and prepared-audio retention decisions are
+  accepted, revised or explicitly deferred;
+- >100 MB warning/fail/fallback behavior is accepted, revised or explicitly
+  deferred;
 - cancel UX expectations are accepted, revised or explicitly deferred;
 - no implementation has started.
 
@@ -1004,10 +1187,11 @@ Current review state:
   source-proven compatibility fallback;
 - operator manual proof exists for reported mobile and large-file scenarios;
 - implementation readiness still requires lightweight proof matrix, selected
-  Opus output profile proof, S3/object storage config, prepared-audio retention
-  decision and production dependency decisions.
+  Opus output profile proof, storage mode/config, prepared-audio retention
+  decision, provider cancel/duration proof or explicit TBD handling, and
+  production dependency decisions.
 
-## 23. Non-Goals
+## 24. Non-Goals
 
 - No backend implementation.
 - No frontend implementation.
@@ -1023,7 +1207,7 @@ Current review state:
 - No heavy wasm/core binaries or full FFmpeg source vendoring without a separate
   ADR.
 
-## 24. Links
+## 25. Links
 
 - [CONTRACT_BOUNDARIES](../CONTRACT_BOUNDARIES.md)
 - [IMPLEMENTATION_GATES](../IMPLEMENTATION_GATES.md)

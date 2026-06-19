@@ -118,8 +118,8 @@ Status:
 
 - reviewable; not completed until human ADR review, lightweight proof matrix,
   Opus/Lemonfox compatibility proof, Lemonfox adapter config, self-hosted asset
-  path, S3/object storage config, prepared-audio retention and production
-  dependency decisions are complete.
+  path, storage mode/config, prepared-audio retention, provider capability
+  profile review and production dependency decisions are complete.
 
 Owner:
 
@@ -133,15 +133,23 @@ Blocking items:
 - output profile decision: Opus candidate default pending Lemonfox proof, MP3
   compatibility fallback;
 - Lemonfox adapter config decision;
+- Lemonfox provider capability profile review, including documented formats,
+  100 MB direct upload, 1 GB URL input, duration TBD and provider cancel TBD;
+- runtime capabilities endpoint contract:
+  `GET /stage2-api/transcription/capabilities` /
+  `TranscriptionRuntimeCapabilitiesV1`;
 - STT env/config contract review;
 - self-hosted ffmpeg asset path decision;
-- S3/object storage env decision;
+- storage mode/env decision for `auto|s3|none` and storage health behavior;
 - prepared audio retention decision;
-- prepared audio >100 MB behavior;
+- prepared audio >100 MB warning/fail/fallback behavior with stable reason
+  codes;
 - cancel lifecycle expectations for preprocessing, upload and STT job;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
-- production duration limits;
+- Lemonfox URL upload path approval only after storage expiry/access proof;
+- production duration limits and Lemonfox max-duration runtime proof or
+  explicit provider `TBD`;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Related docs:

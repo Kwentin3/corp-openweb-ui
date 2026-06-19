@@ -52,6 +52,11 @@ Acceptance signal:
 - STT API key is not present in browser.
 - STT provider call goes through documented adapter/factory boundary.
 - Lemonfox is first adapter, not hardwired architecture.
+- Lemonfox provider capability profile is reviewed: documented formats,
+  direct/URL upload limits, timestamps, speaker labels, Russian language and
+  documented unknowns.
+- Runtime capabilities endpoint contract is documented and does not expose
+  secrets.
 - Selected output profile is captured and validated; Opus candidate is proven
   before default and MP3 remains compatibility fallback.
 - STT env/config contract is reviewed without real secrets.
@@ -62,10 +67,16 @@ Acceptance signal:
 - Cancel UX is covered for preprocessing, upload and STT job lifecycle where
   technically possible.
 - Production output profile, self-hosted ffmpeg asset path, licensing/ops,
-  S3/object storage, retention and file-limit decisions are documented.
+  storage mode, retention and file-limit decisions are documented.
 - Browser 1 GB input limit and Lemonfox 100 MB prepared-audio direct upload
   limit are documented.
+- Lemonfox 1 GB URL input support is documented as a candidate path, but not
+  approved until storage expiry/access proof exists.
+- Lemonfox max duration and provider-side cancellation are either proven or
+  exposed as `TBD`/unsupported.
 - Prepared audio larger than 100 MB has typed fail/fallback behavior.
+- Prepared audio larger than 100 MB has a warning reason code before provider
+  upload.
 
 Test data needed:
 
@@ -76,15 +87,18 @@ Test data needed:
 - ffmpeg source workflow / proof matrix evidence.
 - Output profile compatibility notes.
 - Lemonfox adapter proof.
-- S3/object storage config decision.
+- Runtime capabilities contract proof.
+- Storage mode/config decision for `auto|s3|none`.
 - Prepared audio retention decision.
 - Prepared audio >100 MB behavior.
+- Duration-limit proof or accepted TBD.
+- Provider-cancel proof or accepted unsupported/TBD behavior.
 
 Status:
 
 - Transferable ffmpeg contract inspected; ADR review, lightweight proof matrix,
-  Opus/Lemonfox proof, self-hosted asset path, S3 storage config, retention and
-  cancel proof needed.
+  Opus/Lemonfox proof, self-hosted asset path, storage mode/config, retention,
+  duration and cancel proof/TBD handling needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

@@ -330,11 +330,11 @@ Update ADR-0004 to state:
 - production ffmpeg asset mode is `self_hosted`;
 - browser preprocessing input limit is 1 GB / 1024 MB;
 - Lemonfox direct prepared-audio upload limit is 100 MB;
-- prepared audio sent to provider should be stored in S3/object storage;
+- prepared audio storage follows ADR-0004 storage mode `auto|s3|none`;
 - operator manual proof exists for reported mobile and large-file cases;
 - operator proof is manual evidence, not automated repository proof;
 - implementation readiness still requires ADR approval, lightweight proof
-  matrix, Opus/Lemonfox proof, self-hosted asset path, S3 storage config and
+  matrix, Opus/Lemonfox proof, self-hosted asset path, storage mode/config and
   production dependency decisions;
 - production caveats remain visible: output profile, CDN/self-host, licensing
   and file limits.

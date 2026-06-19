@@ -142,6 +142,8 @@ Finding:
 Next action:
 
 - Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
+- Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
+  [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Capture reproducible ffmpeg proof matrix and close production dependency
   decisions before implementation acceptance.
 

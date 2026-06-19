@@ -49,14 +49,16 @@ FFMPEG_BROWSER_WORKFLOW_RESEARCH, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing
 need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
-adapter factory, output profiles, response normalization, optional audit and draft job contracts.
+adapter factory, provider capability profile, runtime capabilities endpoint, output profiles,
+response normalization, optional audit and draft job contracts.
 Depends on: human ADR review, STT env contract review, lightweight proof matrix, Lemonfox/Opus
 compatibility proof, production dependency decisions, customer media limits
 Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
 MP3/audio-mpeg source-proven fallback found; operator manual proof captured as manual evidence;
-Lemonfox selected as first adapter; needs lightweight proof matrix, Opus default candidate proof,
-self-hosted asset path, S3 storage config, prepared-audio retention and cancel UX decision before
-implementation
+Lemonfox selected as first adapter; official docs confirm 100 MB direct upload and 1 GB URL input
+but leave exact Opus containers, max duration and provider cancel undocumented; needs lightweight
+proof matrix, Opus default candidate proof, self-hosted asset path, storage mode/config,
+prepared-audio retention, runtime capabilities contract and cancel UX decision before implementation
 
 ### Provider model catalog
 
@@ -175,8 +177,9 @@ Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
 Status: ready to plan after ADR review; must include Lemonfox adapter proof, Opus output profile
-compatibility proof, prepared audio >100 MB behavior, S3 prepared-audio storage proof, cancel
-lifecycle proof where technically possible and no API key in browser proof
+compatibility proof for WebM/Opus and OGG/Opus candidates, prepared audio >100 MB
+warning/fail/fallback behavior, storage mode proof for `auto|s3|none`, duration limit proof,
+provider-cancel unknown/unsupported handling and no API key in browser proof
 
 ### STT env/config contract review
 
@@ -185,7 +188,7 @@ Source: ADR-0004, STT_ENV_CONTRACT
 Why: Stage 2 STT provider, output profile, ffmpeg asset mode, storage, limits and cancel behavior
 must be configured server-side without exposing secrets to browser.
 Output: reviewed draft env contract for Lemonfox, output profiles, self-hosted ffmpeg assets,
-S3/object storage, retention, limits and cancel flags.
+storage mode `auto|s3|none`, retention, limits, runtime capabilities and cancel flags.
 Depends on: ADR-0004 review, data policy, ops/storage decision.
 Status: ready for review; not a real `.env.example`
 
@@ -216,12 +219,24 @@ Status: blocked by production decision
 
 Domain: Transcription / STT / storage
 Source: ADR-0004, STT_ENV_CONTRACT
-Why: Normalized/prepared audio sent to provider must be available through controlled S3/object
-storage, while source media storage must not be enabled silently.
-Output: S3 bucket/prefix/retention decision, prepared-audio cleanup policy, source-media storage
-flag, cancelled-job retention behavior.
+Why: Normalized/prepared audio sent to provider may need controlled S3/object storage, while source
+media storage must not be enabled silently.
+Output: storage mode decision for `auto|s3|none`, S3 bucket/prefix/retention decision when used,
+storage health behavior, prepared-audio cleanup policy, source-media storage flag and
+cancelled-job retention behavior.
 Depends on: data policy, retention policy, operator storage configuration.
 Status: blocked by storage/retention decision
+
+### STT runtime capabilities endpoint
+
+Domain: Transcription / STT / configuration
+Source: ADR-0004, STT_ENV_CONTRACT
+Why: UI must show output profiles, size warnings, duration limits, storage mode and cancel
+affordances from backend truth, not hardcoded Lemonfox assumptions.
+Output: `TranscriptionRuntimeCapabilitiesV1` and
+`GET /stage2-api/transcription/capabilities` contract without secrets.
+Depends on: ADR-0004 review, env/config contract review.
+Status: ready for review; implementation deferred
 
 ### Document extraction/OCR smoke after test data
 

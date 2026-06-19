@@ -91,6 +91,8 @@ accounting.
   report](docs/reports/2026-06-18/OPENWEBUI_FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.report.md)
 - [ADR-0004 ffmpeg operator proof update
   report](docs/reports/2026-06-18/OPENWEBUI_ADR0004_FFMPEG_OPERATOR_PROOF_UPDATE.report.md)
+- [ADR-0004 Lemonfox capabilities and runtime limits
+  report](docs/reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
@@ -152,6 +154,8 @@ bash scripts/smoke-test.sh --strict-tls
   [OPENWEBUI ADR-0004 ffmpeg workflow artifact inspection report][adr0004-ffmpeg-workflow-inspection-report]
 - ADR-0004 ffmpeg operator proof update report:
   [OPENWEBUI ADR-0004 ffmpeg operator proof update report][adr0004-ffmpeg-operator-proof-update-report]
+- ADR-0004 Lemonfox capabilities and runtime limits report:
+  [OPENWEBUI ADR-0004 Lemonfox capabilities and runtime limits report][adr0004-lemonfox-capabilities-report]
 - Stage 2 agent review:
   [OPENWEBUI PRD-1 Stage 2 agent review][stage2-agent-review-report]
 - Stage 2 backend-first / VL OCR refine report:
@@ -163,6 +167,7 @@ bash scripts/smoke-test.sh --strict-tls
 [adr0004-stt-proxy-boundary-review-report]: docs/reports/2026-06-18/OPENWEBUI_ADR0004_STT_PROXY_BOUNDARY_REVIEW.report.md
 [adr0004-ffmpeg-workflow-inspection-report]: docs/reports/2026-06-18/OPENWEBUI_FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.report.md
 [adr0004-ffmpeg-operator-proof-update-report]: docs/reports/2026-06-18/OPENWEBUI_ADR0004_FFMPEG_OPERATOR_PROOF_UPDATE.report.md
+[adr0004-lemonfox-capabilities-report]: docs/reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md
 [stage2-agent-review-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md
 [stage2-backend-vl-ocr-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md
 [stage2-source-of-truth-sync-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md

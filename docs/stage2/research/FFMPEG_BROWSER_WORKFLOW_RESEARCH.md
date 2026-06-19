@@ -101,7 +101,7 @@ Backend-first clarification:
   and MP3 remains compatibility fallback.
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit are covered.
 - prepared audio over 100 MB has documented fail/fallback behavior.
-- S3/object storage config and retention are documented.
+- prepared-audio storage mode/config and retention are documented.
 - ffmpeg.wasm package/core version and asset hosting path are decided.
 - source CDN use through `unpkg.com` is replaced by self-hosted production path,
   or a production CDN exception is explicitly approved.

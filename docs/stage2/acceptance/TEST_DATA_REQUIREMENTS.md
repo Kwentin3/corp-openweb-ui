@@ -33,16 +33,28 @@
 - Зафиксировать Lemonfox adapter compatibility для выбранного output profile.
 - Для Opus отдельно подтвердить, какой контейнер проходит: WebM/Opus или
   OGG/Opus.
+- Подготовить отдельные короткие proof outputs для `audio/webm;codecs=opus` и
+  `audio/ogg;codecs=opus`, потому что Lemonfox docs перечисляют форматы, но не
+  доказывают конкретные Stage 2 ffmpeg profiles.
 - Зафиксировать MP3 / `audio/mpeg` как compatibility fallback.
 - Зафиксировать browser preprocessing input limit: 1 GB / 1024 MB.
 - Зафиксировать Lemonfox direct prepared-audio upload limit: 100 MB.
+- Зафиксировать Lemonfox public URL input limit: 1 GB, если этот путь вообще
+  будет разрешен после storage access/expiry review.
 - Подготовить кейс или synthetic metadata для prepared audio >100 MB, чтобы
-  проверить typed fail/fallback behavior без реальных sensitive media.
-- Зафиксировать S3/object storage bucket/prefix decision for prepared audio
-  без секретов.
+  проверить warning + typed fail/fallback behavior без реальных sensitive
+  media.
+- Зафиксировать storage mode decision for prepared audio: `auto`, `s3` or
+  `none`; for `s3` дополнительно bucket/prefix без секретов.
+- Проверить storage health behavior: `auto` transient fallback, `s3` fail-fast,
+  `none` no retention.
 - Зафиксировать prepared audio retention days decision.
+- Зафиксировать maximum duration cases: accepted internal limit, provider max
+  duration proof or accepted Lemonfox `TBD`.
 - Зафиксировать cancel behavior для preprocessing, upload and STT job where
   technically possible.
+- Для Lemonfox отдельно зафиксировать provider-side cancel: proven supported,
+  proven unsupported or `not documented / treated unsupported`.
 - Ожидаемые шаблоны результата: протокол, задачи, решения, резюме, follow-up.
 - Требования к языку, speaker labels и сроку хранения результата.
 

@@ -29,6 +29,13 @@ orchestration to the server side. MP3 is not a permanent architecture
 constraint; implementation must use an output profile contract. Opus is the
 preferred default candidate if Lemonfox compatibility proof passes.
 
+Lemonfox official docs list `mp3`, `wav`, `flac`, `aac`, `opus`, `ogg`, `m4a`,
+`mp4`, `mpeg`, `mov`, `webm` and more, but do not explicitly prove the exact
+Stage 2 WebM/Opus or OGG/Opus ffmpeg output profiles. The docs state 100 MB
+direct upload and 1 GB public URL input limits. Maximum duration and
+provider-side cancellation are not documented and need runtime proof or explicit
+TBD handling.
+
 Operator manual proof reports successful mobile testing with large videos and
 large WAV files. Treat this as useful manual evidence, not as a reproducible
 proof matrix or universal mobile/file support promise.
@@ -39,7 +46,8 @@ frontend UI.
 ## 4. Target user workflow
 
 Пользователь загружает audio/video. GUI готовит audio через browser ffmpeg workflow according to the
-selected output profile. Prepared audio blob идет в server-side STT proxy and S3/object storage.
+selected output profile. Prepared audio blob идет в server-side STT proxy and storage lifecycle
+according to `auto|s3|none`.
 Proxy проверяет auth/rights/limits/output profile, выбирает `LemonfoxSttAdapter` as first adapter,
 добавляет server-side STT key, вызывает Lemonfox through adapter factory. UI показывает transcript
 и templates: протокол, задачи, решения, резюме, follow-up.
@@ -63,13 +71,18 @@ Boundary contract:
 5. Transcript normalization: provider response becomes a stable internal transcript shape.
 6. Error model: unsupported format, too-large file, provider timeout, quota and validation errors
    are explicit.
-7. Storage: normalized/prepared audio sent to provider is stored in S3/object storage with
-   env-configured bucket, prefix and retention.
-8. File size/duration policy: 1 GB browser input limit, 100 MB Lemonfox direct prepared-audio upload
+7. Runtime capabilities: UI reads
+   `GET /stage2-api/transcription/capabilities` /
+   `TranscriptionRuntimeCapabilitiesV1` for output profiles, limits,
+   storage mode/health and provider capability flags.
+8. Storage: normalized/prepared audio sent to provider follows
+   `auto|s3|none`; `s3` fails fast if required storage is unavailable.
+9. File size/duration policy: 1 GB browser input limit, 100 MB Lemonfox direct prepared-audio upload
    limit, max duration and fallback behavior are documented.
-9. Cancel lifecycle: preprocessing, upload and STT job cancel are supported where technically
+10. `>100 MB` warning/fail/fallback behavior uses stable reason codes.
+11. Cancel lifecycle: preprocessing, upload and STT job cancel are supported where technically
    possible.
-10. UI/browser integration follows after proxy boundary and runtime smoke.
+12. UI/browser integration follows after proxy boundary and runtime smoke.
 
 ## 5. Native OpenWebUI first path
 
@@ -84,6 +97,8 @@ Boundary contract:
 - Minimal fork-slice only if native extension points insufficient.
 - Server-side STT proxy.
 - STT Provider Adapter Factory; Lemonfox is the first provider, not hardwired architecture.
+- STT Provider Capability Profile and
+  `TranscriptionRuntimeCapabilitiesV1` endpoint.
 - Draft STT env/config contract for provider, output profile, ffmpeg assets, limits, storage and
   cancel behavior.
 - Server-side fallback for large files if browser limits hit.
@@ -103,8 +118,10 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Existing ffmpeg project details.
 - FFMPEG workflow artifact inspection and ffmpeg asset loading mode decision.
 - Output profile decision and Lemonfox compatibility proof.
+- Lemonfox capability profile review: direct upload, URL upload, duration TBD,
+  timestamps, speaker labels, callback and provider cancel unknown.
 - STT env/config contract.
-- S3/object storage decision for prepared audio.
+- Storage mode decision for prepared audio: `auto`, `s3` or `none`.
 - Lightweight reproducible proof matrix.
 - Lemonfox research.
 - OpenWebUI capability research.
@@ -121,7 +138,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - STT provider adapter mismatch.
 - CDN/self-host ffmpeg asset mode.
 - Prepared audio over 100 MB.
-- S3/object storage and retention.
+- Storage mode, storage health and retention.
+- Provider maximum duration unknown until proof.
+- Provider-side cancellation not documented until proof.
 - Transcript storage and permissions.
 - OpenWebUI update compatibility.
 
@@ -130,8 +149,12 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - What file size/duration limits are acceptable?
 - Which Opus container does Lemonfox accept well enough for default profile:
   WebM/Opus or OGG/Opus?
+- Does Lemonfox expose provider-side cancellation or only local cancellation is
+  possible?
+- What maximum provider/internal duration should Stage 2 enforce?
 - Which self-hosted ffmpeg asset path is approved under portal/internal CDN?
-- What S3 bucket/prefix/retention should store prepared audio?
+- Should prepared audio storage mode be `auto`, `s3` or `none`, and what
+  bucket/prefix/retention applies when S3 is used?
 - Is server fallback required in Practical Stage 2?
 - Is single-thread ffmpeg.wasm enough, or is multi-thread
   `SharedArrayBuffer` / COOP / COEP support required?
@@ -151,10 +174,15 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Browser bundle/network does not expose STT API key.
 - Provider call is routed through documented STT provider adapter boundary.
 - Lemonfox is first adapter, but orchestration still goes through factory.
+- Provider capability profile is reviewed and runtime capabilities endpoint
+  returns effective limits without secrets.
 - Output profile is selected and validated; Opus candidate is proven before
   default and MP3 remains compatibility fallback.
 - 1 GB browser input and 100 MB Lemonfox direct upload limits are documented.
-- Prepared audio is stored in configurable S3/object storage.
+- Prepared audio storage follows configured `auto|s3|none` semantics.
+- Prepared audio over 100 MB produces warning/fail/fallback reason codes.
+- Max duration and provider-side cancellation are either proven or exposed as
+  `TBD`/unsupported in runtime capabilities.
 - User can apply result templates.
 - User can cancel preprocessing/upload/job lifecycle where technically
   possible.
@@ -169,7 +197,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
 human review. The missing-artifact blocker is removed, but implementation
 readiness still requires lightweight proof matrix, production output profile
-decision, Lemonfox adapter config, self-hosted ffmpeg asset path, S3 prepared
-audio storage config, prepared-audio retention, licensing/ops review, cancel
-lifecycle and file-limit policy. Browser/UI work follows after backend
-contract, preprocessing contract and runtime proof.
+decision, Lemonfox adapter/profile config, self-hosted ffmpeg asset path,
+storage mode/config, prepared-audio retention, licensing/ops review, cancel
+lifecycle, duration and file-limit policy. Browser/UI work follows after
+backend contract, preprocessing contract and runtime proof.

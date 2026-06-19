@@ -50,6 +50,7 @@ internal APIs или thin integration shims.
 - policy resolver;
 - usage event collector;
 - transcript normalization;
+- STT provider capability profile and runtime capabilities endpoint;
 - retention/export lifecycle;
 - OCR/VL OCR pilot adapters;
 - internal health/smoke endpoints.
@@ -111,6 +112,14 @@ Draft internal contracts:
 - `TranscriptResultV1`:
   normalized transcript shape for UI, templates and exports, including source
   output profile, provider adapter and normalized segments.
+- `SttProviderCapabilityProfileV1`:
+  adapter-owned provider capability declaration for supported output profiles,
+  upload limits, URL upload support, duration limits, timestamps, speaker
+  labels, callbacks, provider-side cancellation and unknowns.
+- `TranscriptionRuntimeCapabilitiesV1`:
+  effective server-side transcription capabilities for UI affordances and
+  warnings, including output profiles, storage mode/health, size/duration
+  limits and provider capability flags without secrets.
 - `UsageEventV1`:
   normalized usage record for LLM, web-search, STT, OCR and storage review,
   including preprocessing units, upload bytes, STT billable units and provider
@@ -181,12 +190,15 @@ Current blocker:
 - Opus is the preferred default output-profile candidate pending Lemonfox
   compatibility proof;
 - production ffmpeg asset mode is `self_hosted`;
-- normalized/prepared audio sent to provider is stored in S3/object storage
-  with env-configured retention;
+- normalized/prepared audio storage is controlled by `auto|s3|none`, with S3
+  required only when storage mode/policy says so;
+- runtime capabilities must expose effective output profiles, upload limits,
+  duration TBDs, storage mode/health and provider-side cancellation support;
 - operator manual proof exists for reported mobile and large-file scenarios;
 - implementation readiness still requires ADR review, a lightweight proof
-  matrix, Opus/Lemonfox compatibility proof, self-hosted asset path, S3 storage
-  env decision and prepared-audio retention decision.
+  matrix, Opus/Lemonfox compatibility proof, self-hosted asset path, storage
+  mode/env decision, prepared-audio retention decision and provider
+  cancel/duration proof or explicit TBD handling.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy makes self-host/internal cache the production
