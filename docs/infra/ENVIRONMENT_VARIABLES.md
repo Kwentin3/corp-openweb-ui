@@ -30,6 +30,10 @@
 - `OPENWEBUI_NO_PROXY` - hosts/IPs, которые не должны ходить через outbound proxy.
 - `BACKUP_DIR` - server-local directory для backup artifacts; default `/opt/backups/openwebui-prd0`.
 - `BACKUP_RETENTION_DAYS` - сколько дней хранить backup-файлы, созданные `scripts/backup.sh`; pilot choices: `1`, `7`, `30`, default `7`.
+- `STAGE2_STT_INTERNAL_API_KEY` - server-local token for OpenWebUI Action to
+  call Stage 2 STT sidecar job routes. Never expose in browser or commit.
+- `STAGE2_STT_ALLOW_STUB_TRANSCRIPT` - explicit probe/test flag for sidecar
+  integration without a live STT provider. Keep `false` for live transcription.
 
 ## Provider env contract
 

@@ -31,6 +31,9 @@ backups/
 tmp/
 temp/
 
+# Local proof media and customer samples
+audio/
+
 # Build/cache artifacts
 node_modules/
 dist/
