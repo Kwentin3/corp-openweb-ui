@@ -45,6 +45,9 @@ __pycache__/
 *.tar
 *.tar.gz
 
+# Generated browser ffmpeg.wasm assets; fetch with scripts/fetch-ffmpeg-wasm-assets.sh
+deploy/openwebui-static/stage2-assets/
+
 # Docker local overrides
 docker-compose.override.yml
 compose.override.yml

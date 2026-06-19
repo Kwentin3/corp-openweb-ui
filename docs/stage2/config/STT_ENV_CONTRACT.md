@@ -148,9 +148,10 @@ Draft env names:
 
 ```text
 STAGE2_FFMPEG_ASSET_MODE=self_hosted
-STAGE2_FFMPEG_CORE_BASE_URL=/stage2-assets/ffmpeg/0.12.6/
+STAGE2_FFMPEG_CORE_BASE_URL=/static/stage2-assets/ffmpeg/0.12.6/
 STAGE2_FFMPEG_PACKAGE_VERSION=0.12.6
 STAGE2_FFMPEG_CORE_VERSION=0.12.6
+STAGE2_FFMPEG_UTIL_VERSION=0.12.1
 ```
 
 Rules:
@@ -164,8 +165,15 @@ Rules:
   implementation.
 - No wasm/core binaries or full FFmpeg source are committed by this docs
   contract.
-- Typical implementation loads ffmpeg with explicit `coreURL`, `wasmURL` and
-  `workerURL` derived from `STAGE2_FFMPEG_CORE_BASE_URL`.
+- Current OpenWebUI static patch mounts assets under
+  `/app/backend/open_webui/static/stage2-assets` and serves them through
+  `/static/stage2-assets/...`.
+- `scripts/fetch-ffmpeg-wasm-assets.sh` installs the pinned UMD assets from npm
+  into `deploy/openwebui-static/stage2-assets/ffmpeg/<version>/`; that generated
+  directory is ignored by Git.
+- Typical implementation loads ffmpeg with explicit `coreURL` and `wasmURL`
+  derived from `STAGE2_FFMPEG_CORE_BASE_URL`; the UMD wrapper chunk
+  `814.ffmpeg.js` must live next to `ffmpeg.js`.
 
 ## 8. Storage
 
@@ -326,9 +334,10 @@ Candidate contract:
 ```text
 TranscriptionRuntimeCapabilitiesV1:
   input_accept_mode
-  declared_input_mimes
+  declared_input_mime_prefixes
   declared_input_extensions
   ffmpeg_probe_required
+  require_audio_stream
   selected_output_profile
   fallback_output_profile
   available_output_profiles

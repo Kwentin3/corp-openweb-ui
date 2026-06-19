@@ -177,9 +177,16 @@ class SttProviderCapabilityProfileV1(Stage2Model):
 
 
 class TranscriptionRuntimeCapabilitiesV1(Stage2Model):
+    input_accept_mode: Literal["declared", "broad_ffmpeg_probe"]
+    declared_input_mime_prefixes: list[str]
+    declared_input_extensions: list[str]
+    ffmpeg_probe_required: bool
+    require_audio_stream: bool
     selected_output_profile: str
+    fallback_output_profile: str
     available_output_profiles: list[str]
     max_browser_input_mb: int
+    max_browser_duration_minutes: int | None = None
     max_prepared_audio_mb: int
     max_duration_seconds: int | None = None
     storage_mode: Literal["auto", "s3", "none"]

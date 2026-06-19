@@ -133,9 +133,10 @@ addition to output profile fields:
 ```yaml
 TranscriptionRuntimeCapabilitiesV1:
   input_accept_mode: declared | broad_ffmpeg_probe
-  declared_input_mimes: string[]
+  declared_input_mime_prefixes: string[]
   declared_input_extensions: string[]
   ffmpeg_probe_required: boolean
+  require_audio_stream: boolean
   max_browser_input_mb: number
   max_browser_duration_minutes: number | null
   selected_output_profile: string
@@ -144,7 +145,7 @@ TranscriptionRuntimeCapabilitiesV1:
 
 Rules:
 
-- `declared_input_mimes` and `declared_input_extensions` are UI hints.
+- `declared_input_mime_prefixes` and `declared_input_extensions` are UI hints.
 - `input_accept_mode=broad_ffmpeg_probe` means the UI can offer the action for
   broad media candidates, but successful ffmpeg probe/normalization is still
   required.
@@ -186,6 +187,20 @@ Next target:
 broad media candidate -> ffmpeg probe -> audio stream detected ->
 normalization -> prepared audio -> existing Action/sidecar path
 ```
+
+Current static OpenWebUI patch implementation:
+
+- `deploy/openwebui-static/loader.js` reads safe browser config from
+  `/static/stage2-stt-normalization.json`.
+- Self-hosted ffmpeg.wasm assets are expected under
+  `/static/stage2-assets/ffmpeg/0.12.6/` and are installed with
+  `scripts/fetch-ffmpeg-wasm-assets.sh`.
+- Prepared MP3 uses passthrough and does not load ffmpeg.wasm.
+- Broad media candidates are uploaded with `process=false`, then normalized in
+  the browser to the configured prepared-audio profile and re-uploaded to
+  OpenWebUI before the existing Action/sidecar handoff.
+- The static browser config defaults to `mp3_high_compat` until Opus provider
+  compatibility is proven on the deployed path.
 
 UI rules:
 

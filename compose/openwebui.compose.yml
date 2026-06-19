@@ -52,6 +52,8 @@ services:
     volumes:
       - openwebui_data:/app/backend/data
       - ../deploy/openwebui-static/loader.js:/app/backend/open_webui/static/loader.js:ro
+      - ../deploy/openwebui-static/stage2-stt-normalization.json:/app/backend/open_webui/static/stage2-stt-normalization.json:ro
+      - ../deploy/openwebui-static/stage2-assets:/app/backend/open_webui/static/stage2-assets:ro
     labels:
       - traefik.enable=true
       - traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_HOST}`)
@@ -80,6 +82,11 @@ services:
       STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB: ${STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB:-100}
       STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB: ${STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB:-1024}
       STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES: ${STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES:-}
+      STAGE2_STT_INPUT_ACCEPT_MODE: ${STAGE2_STT_INPUT_ACCEPT_MODE:-broad_ffmpeg_probe}
+      STAGE2_STT_DECLARED_INPUT_EXTENSIONS: ${STAGE2_STT_DECLARED_INPUT_EXTENSIONS:-mp3,wav,m4a,webm,ogg,mp4,mov,mkv,avi,flac,aac}
+      STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES: ${STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES:-audio/,video/}
+      STAGE2_STT_REQUIRE_AUDIO_STREAM: ${STAGE2_STT_REQUIRE_AUDIO_STREAM:-true}
+      STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION: ${STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION:-true}
       STAGE2_STT_OUTPUT_PROFILE: ${STAGE2_STT_OUTPUT_PROFILE:-opus_webm_compact}
       STAGE2_STT_FALLBACK_OUTPUT_PROFILE: ${STAGE2_STT_FALLBACK_OUTPUT_PROFILE:-mp3_high_compat}
       STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB: ${STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB:-1024}

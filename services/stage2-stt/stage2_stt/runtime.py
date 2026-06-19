@@ -34,9 +34,16 @@ def build_runtime_capabilities(
         )
 
     return TranscriptionRuntimeCapabilitiesV1(
+        input_accept_mode=config.input_accept_mode.value,
+        declared_input_mime_prefixes=list(config.declared_input_mime_prefixes),
+        declared_input_extensions=list(config.declared_input_extensions),
+        ffmpeg_probe_required=config.ffmpeg_probe_before_action,
+        require_audio_stream=config.require_audio_stream,
         selected_output_profile=config.output_profile.value,
+        fallback_output_profile=config.fallback_output_profile.value,
         available_output_profiles=available_output_profile_ids(),
         max_browser_input_mb=config.browser_max_input_mb,
+        max_browser_duration_minutes=config.browser_max_duration_minutes,
         max_prepared_audio_mb=config.max_prepared_audio_mb,
         max_duration_seconds=max_duration_seconds,
         storage_mode=config.storage_mode.value,

@@ -1,0 +1,21 @@
+{
+  "version": "stage2-stt-browser-normalization-v1",
+  "input_accept_mode": "broad_ffmpeg_probe",
+  "declared_input_mime_prefixes": ["audio/", "video/"],
+  "declared_input_extensions": ["mp3", "wav", "m4a", "webm", "ogg", "mp4", "mov", "mkv", "avi", "flac", "aac"],
+  "ffmpeg_probe_required": true,
+  "require_audio_stream": true,
+  "selected_output_profile": "mp3_high_compat",
+  "fallback_output_profile": "mp3_high_compat",
+  "available_output_profiles": ["opus_webm_compact", "opus_ogg_compact", "mp3_high_compat", "wav_pcm_safe"],
+  "max_browser_input_mb": 1024,
+  "max_browser_duration_minutes": null,
+  "max_prepared_audio_mb": 100,
+  "ffmpeg_asset_mode": "self_hosted",
+  "ffmpeg_package_version": "0.12.6",
+  "ffmpeg_core_version": "0.12.6",
+  "ffmpeg_util_version": "0.12.1",
+  "ffmpeg_core_base_url": "/static/stage2-assets/ffmpeg/0.12.6",
+  "ffmpeg_script_url": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg.js",
+  "ffmpeg_util_script_url": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-util.js"
+}

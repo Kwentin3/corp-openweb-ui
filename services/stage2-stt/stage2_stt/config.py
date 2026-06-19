@@ -35,6 +35,11 @@ class ProviderCancelSupport(str, Enum):
     UNKNOWN = "unknown"
 
 
+class InputAcceptMode(str, Enum):
+    DECLARED = "declared"
+    BROAD_FFMPEG_PROBE = "broad_ffmpeg_probe"
+
+
 @dataclass(frozen=True)
 class LemonfoxConfig:
     api_key: str | None = field(default=None, repr=False)
@@ -57,6 +62,11 @@ class SttConfig:
     provider: str
     provider_adapter: str
     lemonfox: LemonfoxConfig
+    input_accept_mode: InputAcceptMode
+    declared_input_extensions: tuple[str, ...]
+    declared_input_mime_prefixes: tuple[str, ...]
+    require_audio_stream: bool
+    ffmpeg_probe_before_action: bool
     output_profile: OutputProfile
     fallback_output_profile: OutputProfile
     browser_max_input_mb: int
@@ -100,6 +110,21 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         provider=_str(source, "STAGE2_STT_PROVIDER", "lemonfox"),
         provider_adapter=_str(source, "STAGE2_STT_PROVIDER_ADAPTER", "lemonfox"),
         lemonfox=lemonfox,
+        input_accept_mode=_enum(
+            source, "STAGE2_STT_INPUT_ACCEPT_MODE", InputAcceptMode, "broad_ffmpeg_probe"
+        ),
+        declared_input_extensions=_csv(
+            source,
+            "STAGE2_STT_DECLARED_INPUT_EXTENSIONS",
+            "mp3,wav,m4a,webm,ogg,mp4,mov,mkv,avi,flac,aac",
+        ),
+        declared_input_mime_prefixes=_csv(
+            source, "STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES", "audio/,video/"
+        ),
+        require_audio_stream=_bool(source, "STAGE2_STT_REQUIRE_AUDIO_STREAM", True),
+        ffmpeg_probe_before_action=_bool(
+            source, "STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION", True
+        ),
         output_profile=_enum(source, "STAGE2_STT_OUTPUT_PROFILE", OutputProfile, "opus_webm_compact"),
         fallback_output_profile=_enum(
             source, "STAGE2_STT_FALLBACK_OUTPUT_PROFILE", OutputProfile, "mp3_high_compat"
@@ -156,6 +181,10 @@ def _validate_config(config: SttConfig) -> None:
         raise SttConfigError("Unsupported STAGE2_STT_PROVIDER value")
     if config.provider_adapter != "lemonfox":
         raise SttConfigError("Unsupported STAGE2_STT_PROVIDER_ADAPTER value")
+    if not config.declared_input_extensions:
+        raise SttConfigError("STAGE2_STT_DECLARED_INPUT_EXTENSIONS must not be empty")
+    if not config.declared_input_mime_prefixes:
+        raise SttConfigError("STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES must not be empty")
     if config.browser_max_input_mb <= 0:
         raise SttConfigError("STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB must be positive")
     if config.max_prepared_audio_mb <= 0:
@@ -206,6 +235,11 @@ def _optional_int(env: Mapping[str, str | None], key: str) -> int | None:
         return int(raw)
     except ValueError as exc:
         raise SttConfigError(f"{key} must be an integer") from exc
+
+
+def _csv(env: Mapping[str, str | None], key: str, default: str) -> tuple[str, ...]:
+    raw = _raw(env, key) or default
+    return tuple(item.strip().lstrip(".").lower() for item in raw.split(",") if item.strip())
 
 
 def _bool(env: Mapping[str, str | None], key: str, default: bool) -> bool:
