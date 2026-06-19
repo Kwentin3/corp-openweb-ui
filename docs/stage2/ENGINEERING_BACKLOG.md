@@ -51,14 +51,15 @@ need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
 adapter factory, provider capability profile, runtime capabilities endpoint, output profiles,
 response normalization, optional audit and draft job contracts.
-Depends on: human ADR review, STT env contract review, lightweight proof matrix, Lemonfox/Opus
-compatibility proof, production dependency decisions, customer media limits
+Depends on: human ADR review, owner decisions, STT env contract review, Lemonfox capability
+profile review, output-profile config, production dependency decisions, customer media limits
 Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
 MP3/audio-mpeg source-proven fallback found; operator manual proof captured as manual evidence;
 Lemonfox selected as first adapter; official docs confirm 100 MB direct upload and 1 GB URL input
-but leave exact Opus containers, max duration and provider cancel undocumented; needs lightweight
-proof matrix, Opus default candidate proof, self-hosted asset path, storage mode/config,
-prepared-audio retention, runtime capabilities contract and cancel UX decision before implementation
+but leave exact Opus containers, max duration and provider cancel undocumented; owner/operator proof
+is accepted for planning; remaining pre-implementation decisions are output profile config,
+self-hosted asset path, storage mode/config, prepared-audio retention, runtime capabilities contract
+and cancel UX behavior
 
 ### Provider model catalog
 
@@ -176,10 +177,11 @@ Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
-Status: ready to plan after ADR review; must include Lemonfox adapter proof, Opus output profile
-compatibility proof for WebM/Opus and OGG/Opus candidates, prepared audio >100 MB
-warning/fail/fallback behavior, storage mode proof for `auto|s3|none`, duration limit proof,
-provider-cancel unknown/unsupported handling and no API key in browser proof
+Status: optional implementation/debug smoke after ADR review; not a blocking ADR or
+implementation-planning gate. Keep desktop audio, desktop video, mobile audio, mobile video, large
+WAV and large video checks, plus Lemonfox adapter proof, selected output profile proof, prepared
+audio >100 MB behavior, storage mode behavior, duration limit behavior, provider-cancel
+unknown/unsupported handling and no API key in browser proof.
 
 ### STT env/config contract review
 
@@ -192,16 +194,16 @@ storage mode `auto|s3|none`, retention, limits, runtime capabilities and cancel 
 Depends on: ADR-0004 review, data policy, ops/storage decision.
 Status: ready for review; not a real `.env.example`
 
-### FFMPEG mobile / large-file proof matrix
+### FFMPEG implementation smoke checklist
 
 Domain: Transcription / STT
 Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
-Why: Operator manual proof is useful, but implementation acceptance needs reproducible evidence.
-Output: lightweight proof matrix with device, browser, file type, file size, duration, selected
-output profile, result and evidence for desktop audio, desktop video, mobile audio, mobile video,
+Why: Owner/operator proof is accepted for planning; implementation/debug still benefits from a
+small smoke checklist.
+Output: optional smoke evidence for desktop audio, desktop video, mobile audio, mobile video,
 large WAV and large video.
-Depends on: source workflow access and approved test media.
-Status: ready for runtime proof after ADR review
+Depends on: implementation slice and approved test media.
+Status: optional implementation/debug smoke; not a blocking ADR gate
 
 ### FFMPEG production dependency decisions
 

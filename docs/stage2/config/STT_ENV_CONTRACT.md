@@ -68,9 +68,9 @@ STAGE2_STT_FALLBACK_OUTPUT_PROFILE=mp3_high_compat
 Allowed `STAGE2_STT_OUTPUT_PROFILE` values:
 
 ```text
-mp3_high_compat
 opus_webm_compact
 opus_ogg_compact
+mp3_high_compat
 wav_pcm_safe
 ```
 
@@ -109,7 +109,7 @@ Draft env names:
 
 ```text
 STAGE2_FFMPEG_ASSET_MODE=self_hosted
-STAGE2_FFMPEG_CORE_BASE_URL=/stage2-assets/ffmpeg/
+STAGE2_FFMPEG_CORE_BASE_URL=/stage2-assets/ffmpeg/0.12.6/
 STAGE2_FFMPEG_PACKAGE_VERSION=0.12.6
 STAGE2_FFMPEG_CORE_VERSION=0.12.6
 ```
@@ -119,12 +119,14 @@ Rules:
 - `self_hosted` is the production default.
 - `cdn` is allowed for dev/proof/fallback, or production only with explicit
   approval and pinned versions.
-- Self-hosted assets should be served under the portal domain or an internal
-  CDN.
+- Self-hosted assets should be served under the app public/static path, portal
+  domain or an internal CDN.
 - Cache headers, rollback path and license notices must be documented before
   implementation.
 - No wasm/core binaries or full FFmpeg source are committed by this docs
   contract.
+- Typical implementation loads ffmpeg with explicit `coreURL`, `wasmURL` and
+  `workerURL` derived from `STAGE2_FFMPEG_CORE_BASE_URL`.
 
 ## 7. Storage
 
@@ -253,7 +255,21 @@ GET /stage2-api/transcription/capabilities
 Candidate contract:
 
 ```text
-TranscriptionRuntimeCapabilitiesV1
+TranscriptionRuntimeCapabilitiesV1:
+  selected_output_profile
+  available_output_profiles
+  max_browser_input_mb
+  max_prepared_audio_mb
+  max_duration_seconds
+  storage_mode
+  storage_available
+  provider_id
+  adapter_id
+  supports_provider_cancel
+  cancel_strategy
+  supports_speaker_labels
+  supports_timestamps
+  warnings
 ```
 
 Rules:
@@ -261,6 +277,8 @@ Rules:
 - The endpoint returns effective server-side provider profile, output profiles,
   size/duration limits, storage mode/health, timestamp/speaker-label support
   and provider-cancel support.
+- UI uses the endpoint to show limits, warnings, output-profile behavior and
+  cancel behavior without hardcoded provider assumptions.
 - It must not expose API keys, storage credentials, raw `.env` values or raw
   provider responses.
 - UI reads this endpoint for warnings and affordances; UI does not infer

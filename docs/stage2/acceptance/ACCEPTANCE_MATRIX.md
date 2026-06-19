@@ -60,10 +60,10 @@ Acceptance signal:
 - Selected output profile is captured and validated; Opus candidate is proven
   before default and MP3 remains compatibility fallback.
 - STT env/config contract is reviewed without real secrets.
-- Browser ffmpeg proof matrix captures device, browser, file type, file size,
-  duration, selected output profile, result and evidence.
-- Proof matrix stays lightweight: desktop audio, desktop video, mobile audio,
-  mobile video, large WAV and large video.
+- Owner/operator ffmpeg proof is accepted for ADR planning.
+- Optional implementation smoke checklist remains available for desktop audio,
+  desktop video, mobile audio, mobile video, large WAV and large video.
+- Proof matrix is not a blocking ADR or implementation-planning gate.
 - Cancel UX is covered for preprocessing, upload and STT job lifecycle where
   technically possible.
 - Production output profile, self-hosted ffmpeg asset path, licensing/ops,
@@ -84,7 +84,9 @@ Test data needed:
 - Video.
 - Large file.
 - Large WAV.
-- ffmpeg source workflow / proof matrix evidence.
+- ffmpeg source workflow/operator proof evidence.
+- Optional implementation smoke media: desktop audio, desktop video, mobile
+  audio, mobile video, large WAV and large video.
 - Output profile compatibility notes.
 - Lemonfox adapter proof.
 - Runtime capabilities contract proof.
@@ -96,9 +98,9 @@ Test data needed:
 
 Status:
 
-- Transferable ffmpeg contract inspected; ADR review, lightweight proof matrix,
-  Opus/Lemonfox proof, self-hosted asset path, storage mode/config, retention,
-  duration and cancel proof/TBD handling needed.
+- Transferable ffmpeg contract inspected; owner/operator proof accepted for
+  planning; ADR review, selected output profile config, self-hosted asset path,
+  storage mode/config, retention, duration and cancel TBD handling needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

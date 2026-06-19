@@ -26,16 +26,16 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 
 - ADR-0004 approved.
 - Existing browser ffmpeg workflow contract inspected.
-- Operator manual proof captured as manual evidence for mobile/large-file
-  scenarios.
-- Lightweight proof matrix captured before implementation acceptance.
+- Owner/operator proof accepted for ADR planning.
+- Optional implementation smoke checklist kept for debug; proof matrix is not a
+  blocking ADR or implementation-planning gate.
 - Opus default candidate compatibility with Lemonfox accepted, revised or
   explicitly deferred.
 - MP3 compatibility fallback accepted.
 - `LemonfoxSttAdapter` first-adapter config accepted.
 - STT env/config contract reviewed.
 - Self-hosted ffmpeg production asset path accepted.
-- S3/object storage and prepared-audio retention accepted.
+- Storage mode `auto|s3|none` and prepared-audio retention accepted.
 - Prepared audio >100 MB behavior accepted.
 - Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
@@ -116,10 +116,10 @@ Related docs:
 
 Status:
 
-- reviewable; not completed until human ADR review, lightweight proof matrix,
-  Opus/Lemonfox compatibility proof, Lemonfox adapter config, self-hosted asset
-  path, storage mode/config, prepared-audio retention, provider capability
-  profile review and production dependency decisions are complete.
+- reviewable; not completed until human ADR review, owner decision review,
+  Lemonfox capability profile review, output-profile config, self-hosted asset
+  path, storage mode/config, prepared-audio retention and production dependency
+  decisions are complete.
 
 Owner:
 
@@ -128,8 +128,9 @@ Owner:
 Blocking items:
 
 - ADR-0004 human review;
-- lightweight proof matrix with device/browser/file metadata and selected output
-  profile;
+- owner/operator proof accepted as planning input;
+- optional implementation smoke checklist kept for desktop audio, desktop video,
+  mobile audio, mobile video, large WAV and large video;
 - output profile decision: Opus candidate default pending Lemonfox proof, MP3
   compatibility fallback;
 - Lemonfox adapter config decision;

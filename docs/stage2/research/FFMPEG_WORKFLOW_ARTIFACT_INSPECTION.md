@@ -47,9 +47,10 @@ Inspection status:
 - `external ffmpeg workflow artifact inspected`;
 - `transferable browser-side preprocessing contract found`;
 - `operator manual proof confirms reported mobile and large-file scenarios`;
-- implementation still requires lightweight proof matrix, selected output
-  profile proof, self-hosted asset path, S3 storage config and production
-  dependency decisions.
+- owner/operator proof is accepted for ADR planning;
+- optional implementation smoke may still cover selected output profile,
+  self-hosted asset path, storage mode/config and production dependency
+  decisions.
 
 ## 3. What The Workflow Does
 
@@ -156,10 +157,9 @@ Engineering interpretation:
 - it does not equal automated repository proof;
 - it does not prove universal mobile support;
 - it does not prove all files are supported;
-- Stage 2 acceptance should still capture a lightweight proof matrix with
-  device/browser/file metadata and selected output profile.
+- project owner accepts this proof for ADR planning.
 
-Lightweight proof matrix to capture before implementation acceptance:
+Optional implementation smoke checklist:
 
 | Case | Purpose |
 | ---- | ------- |
@@ -170,9 +170,9 @@ Lightweight proof matrix to capture before implementation acceptance:
 | large WAV | large audio case |
 | large video | large media case |
 
-Required fields are device, browser, file type, file size, duration, selected
-output profile, result and evidence. This is a lightweight reproducibility
-record, not certification.
+Optional smoke fields are device, browser, file type, file size, duration,
+selected output profile, result and evidence. This is implementation/debug
+evidence, not an ADR or implementation-planning gate.
 
 ## 7. Size And Duration Limits
 
@@ -294,8 +294,9 @@ MP3 / `audio/mpeg` remains the source-proven compatibility fallback.
 - Browser must not receive STT provider API keys.
 - Browser must not call STT provider directly.
 - Prepared audio goes to internal storage / Stage 2 backend.
-- Normalized/prepared audio sent to the provider should be stored in S3/object
-  storage with env-configured bucket, prefix and retention.
+- Normalized/prepared audio storage follows ADR-0004 storage mode `auto|s3|none`
+  with env-configured bucket, prefix, health and retention when S3/object
+  storage is used.
 - Backend validates MIME, size, duration, auth/session, policy and retention
   even when browser preprocessing succeeds.
 - Source video upload fallback is not allowed silently; it requires explicit
@@ -306,9 +307,9 @@ MP3 / `audio/mpeg` remains the source-proven compatibility fallback.
 
 - No source code was copied into this repo.
 - No wasm/core binaries were added.
-- No automated proof matrix is captured yet.
+- Proof matrix is not a blocking ADR or implementation-planning gate.
 - Opus default candidate still needs Lemonfox compatibility proof.
-- S3/object storage bucket, prefix and prepared-audio retention are TBD.
+- Storage mode/config and prepared-audio retention are TBD.
 - Exact mobile device and browser metadata are TBD.
 - Exact tested large-file sizes and durations are TBD.
 - Exact production Opus output profile is not final.
@@ -331,11 +332,11 @@ Update ADR-0004 to state:
 - browser preprocessing input limit is 1 GB / 1024 MB;
 - Lemonfox direct prepared-audio upload limit is 100 MB;
 - prepared audio storage follows ADR-0004 storage mode `auto|s3|none`;
-- operator manual proof exists for reported mobile and large-file cases;
-- operator proof is manual evidence, not automated repository proof;
-- implementation readiness still requires ADR approval, lightweight proof
-  matrix, Opus/Lemonfox proof, self-hosted asset path, storage mode/config and
-  production dependency decisions;
+- owner/operator proof is accepted for ADR planning;
+- proof matrix is not a blocking ADR or implementation-planning gate;
+- implementation planning still requires ADR approval, selected output profile,
+  self-hosted asset path, storage mode/config and production dependency
+  decisions;
 - production caveats remain visible: output profile, CDN/self-host, licensing
   and file limits.
 
@@ -373,6 +374,7 @@ Official/reference context from earlier inspection:
 `operator manual proof exists for reported mobile/large-file scenarios`
 
 ADR-0004 is reviewable with the inspected transferable ffmpeg contract.
-Implementation still requires ADR approval, lightweight proof matrix,
-Opus/Lemonfox compatibility proof, self-hosted asset path, S3 storage config,
-prepared-audio retention and production dependency decisions.
+Implementation planning still requires ADR approval, selected output profile,
+self-hosted asset path, storage mode/config, prepared-audio retention and
+production dependency decisions. Optional smoke can run during
+implementation/debug.

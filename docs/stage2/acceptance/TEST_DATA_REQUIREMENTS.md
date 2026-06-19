@@ -20,13 +20,13 @@
 - Большой audio/video file.
 - Большой WAV file для проверки browser ffmpeg preprocessing.
 - Файл с плохим звуком, если такие встречаются.
-- Для lightweight ffmpeg proof matrix по каждому файлу: device, browser, file
-  type, file size, duration, selected output profile, result,
-  evidence link/screenshot/log.
-- Минимальные proof cases: desktop audio, desktop video, mobile audio, mobile
+- Owner/operator proof is accepted for ADR planning.
+- Optional implementation smoke can record device, browser, file type, file
+  size, duration, selected output profile, result and evidence.
+- Optional smoke cases: desktop audio, desktop video, mobile audio, mobile
   video, large WAV, large video.
-- Отдельно зафиксировать operator manual proof cases: mobile large video и
-  mobile large WAV, даже если точные размеры пока `TBD`.
+- Отдельно сохранить operator proof context: workflow accepted in two projects
+  with same stack/architecture, including mobile and large-file cases.
 - Подтвердить, какой output profile был выбран: например source-proven
   `mp3_high_compat`, `opus_webm_compact`, `opus_ogg_compact` или
   `wav_pcm_safe`.

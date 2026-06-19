@@ -79,7 +79,7 @@ them into internal Stage 2 contracts.
 ### Storage/retention
 
 - temporary files and prepared audio blobs;
-- normalized/prepared audio sent to STT provider in S3/object storage;
+- normalized/prepared audio storage through `auto|s3|none`;
 - transcript storage if approved by policy;
 - document/OCR pilot artifacts;
 - usage metadata;
@@ -174,6 +174,8 @@ First implementation-facing contract must be STT proxy boundary:
 
 - `TranscriptionJobV1`;
 - `TranscriptResultV1`;
+- `SttProviderCapabilityProfileV1`;
+- `TranscriptionRuntimeCapabilitiesV1`;
 - `UsageEventV1`;
 - `PolicyDecisionV1`.
 
@@ -181,7 +183,7 @@ First implementation-facing contract must be STT proxy boundary:
 boundary. It recommends a server-side STT proxy/job service and rejects direct
 browser-to-provider calls.
 
-Current blocker:
+Current planning state:
 
 - the external browser ffmpeg preprocessing contract is inspected;
 - transferable source output is MP3 / `audio/mpeg` as a source-proven
@@ -194,11 +196,11 @@ Current blocker:
   required only when storage mode/policy says so;
 - runtime capabilities must expose effective output profiles, upload limits,
   duration TBDs, storage mode/health and provider-side cancellation support;
-- operator manual proof exists for reported mobile and large-file scenarios;
-- implementation readiness still requires ADR review, a lightweight proof
-  matrix, Opus/Lemonfox compatibility proof, self-hosted asset path, storage
-  mode/env decision, prepared-audio retention decision and provider
-  cancel/duration proof or explicit TBD handling.
+- owner/operator proof is accepted for ADR planning and proof matrix is not a
+  blocking ADR or implementation-planning gate;
+- implementation planning still requires ADR review, selected output profile
+  config, self-hosted asset path, storage mode/env decision, prepared-audio
+  retention decision and provider cancel/duration TBD handling.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy makes self-host/internal cache the production

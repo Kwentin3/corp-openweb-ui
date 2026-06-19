@@ -51,6 +51,29 @@ Checked source: official Lemonfox Speech to Text API page.
   cancellation.
 - Provider error taxonomy and retryability are not documented enough for a
   product contract.
+- Retention detail beyond the public homepage statement is not documented
+  enough for a corporate retention contract.
+
+## 3.2. ADR-0004 capability profile values
+
+```text
+provider_id=lemonfox
+adapter_id=lemonfox
+max_direct_upload_mb=100
+max_url_upload_mb=1024
+max_duration_seconds=null
+supports_url_upload=true
+supports_provider_cancel=null
+supports_callbacks=true
+supports_timestamps=true
+supports_word_timestamps=true
+supports_speaker_labels=true
+max_speakers=4
+supported_languages includes russian
+response_formats=json,text,srt,verbose_json,vtt
+retention_policy_notes=homepage_says_deleted_immediately_after_processing_needs_policy_review
+cancel_strategy=local_cancel_until_provider_proof
+```
 
 ## 4. Fit for PRD-1
 
@@ -115,7 +138,7 @@ Open decisions before implementation:
   docs;
 - approve URL/object-storage provider path only after access, expiry and
   sensitivity review;
-- store normalized/prepared audio in S3/object storage with env-configured
-  retention;
+- store or discard normalized/prepared audio according to env-driven storage
+  mode `auto|s3|none` and retention;
 - verify whether provider-side cancellation exists; otherwise use local cancel
   and ignore/cleanup late result by retention policy.

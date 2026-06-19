@@ -106,7 +106,7 @@ Status: next.
 6. Chat Deletion / Retention / Audit.
 7. OCR / VL OCR Pilot Scope.
 8. Native Analytics vs Hard Billing.
-9. Runtime proof matrix.
+9. Runtime smoke/checks where a domain still requires them.
 10. Customer test data package.
 11. Implementation backlog by slices.
 

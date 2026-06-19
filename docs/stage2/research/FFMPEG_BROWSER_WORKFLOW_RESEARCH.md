@@ -46,11 +46,9 @@ transferable for ADR review.
   passes; do not choose WebM/Opus vs OGG/Opus without proof.
 - Stage 2 browser preprocessing input limit is 1 GB / 1024 MB.
 - Lemonfox direct prepared-audio upload limit is 100 MB.
-- Normalized/prepared audio sent to the provider should be stored in S3/object
-  storage with env-configured bucket, prefix and retention.
+- Normalized/prepared audio storage follows ADR-0004 storage mode `auto|s3|none`.
 - Operator manual proof reports success on a mobile device with large videos and
-  large WAV files. This should be treated as useful manual evidence, not as a
-  repository-owned proof matrix.
+  large WAV files. Owner/operator proof is accepted for ADR planning.
 
 ## 4. Integration recommendation
 
@@ -62,7 +60,8 @@ Preferred shape for Stage 2 planning:
 - browser ffmpeg converts/extracts audio locally;
 - server-side STT proxy receives only prepared audio;
 - proxy applies size/duration/output-profile limits and provider key;
-- proxy stores normalized/prepared audio in S3/object storage;
+- proxy stores or discards normalized/prepared audio according to
+  `auto|s3|none`;
 - proxy calls Lemonfox first through `LemonfoxSttAdapter` behind the provider
   adapter factory;
 - transcript is returned to user and can be pasted/sent into OpenWebUI scenario templates.
@@ -127,7 +126,7 @@ Backend-first clarification:
 
 Research complete for integration planning. External browser ffmpeg workflow
 contract is inspected and transferable. ADR-0004 can use MP3 / `audio/mpeg` as
-the source-proven compatibility fallback for review, while implementation
-acceptance still requires a lightweight proof matrix, Opus/Lemonfox
-compatibility proof, self-hosted asset path, S3 storage config and production
-dependency decisions.
+the source-proven compatibility fallback for review. Owner/operator proof is
+accepted for ADR planning; optional implementation/debug smoke may still verify
+selected output profile, Lemonfox compatibility, self-hosted asset path, storage
+mode/config and production dependency decisions.

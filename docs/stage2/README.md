@@ -144,8 +144,11 @@ Next action:
 - Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
 - Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
-- Capture reproducible ffmpeg proof matrix and close production dependency
-  decisions before implementation acceptance.
+- Review final compact STT contract refine report:
+  [OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md).
+- Close production output profile, self-hosted asset path, storage mode,
+  retention, duration and cancel decisions. Optional ffmpeg smoke can run during
+  implementation/debug.
 
 ### ffmpeg browser workflow
 
@@ -154,14 +157,14 @@ Finding:
 - Browser ffmpeg viable as sidecar/module. External workflow contract is
   inspected and transferable: MP3 / `audio/mpeg` output through browser-side
   ffmpeg, then presigned/internal upload and backend STT orchestration.
-- Operator manual proof reports mobile large-video and large-WAV success, but
-  this is not a reproducible proof matrix yet.
+- Owner/operator proof accepts the workflow for ADR planning across two
+  same-stack projects, including mobile and large-file cases.
 
 Next action:
 
 - Use [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
-  as the current contract record, then capture proof matrix and decide output
-  format, asset hosting, licensing/ops and file limits.
+  as the current contract record, then decide output format, asset hosting,
+  licensing/ops and file limits.
 
 ### Web-search
 
@@ -265,7 +268,7 @@ Recommended execution / review order:
 6. Chat Deletion / Retention / Audit.
 7. OCR / VL OCR Pilot Scope.
 8. Native Analytics vs Hard Billing.
-9. Runtime proof matrix.
+9. Optional implementation smoke checklist.
 10. Customer test data package.
 11. Implementation backlog by slices.
 
@@ -275,7 +278,7 @@ dependencies.
 ## 12. Следующий шаг
 
 Review [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
-and close the ffmpeg proof matrix / production dependency decisions.
+and close production dependency decisions.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

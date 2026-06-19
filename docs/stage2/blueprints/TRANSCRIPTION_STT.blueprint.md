@@ -36,9 +36,10 @@ direct upload and 1 GB public URL input limits. Maximum duration and
 provider-side cancellation are not documented and need runtime proof or explicit
 TBD handling.
 
-Operator manual proof reports successful mobile testing with large videos and
-large WAV files. Treat this as useful manual evidence, not as a reproducible
-proof matrix or universal mobile/file support promise.
+Owner/operator proof accepts the ffmpeg workflow for ADR planning: it is
+reported proven in two projects with the same stack/architecture, including
+mobile and large-file cases. Optional implementation smoke can still run during
+implementation/debug.
 
 Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final
 frontend UI.
@@ -122,7 +123,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   timestamps, speaker labels, callback and provider cancel unknown.
 - STT env/config contract.
 - Storage mode decision for prepared audio: `auto`, `s3` or `none`.
-- Lightweight reproducible proof matrix.
+- Optional implementation smoke checklist; not a blocking ADR or
+  implementation-planning gate.
 - Lemonfox research.
 - OpenWebUI capability research.
 - Manager visibility/retention policy.
@@ -188,16 +190,16 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   possible.
 - Unsupported/large files produce clear errors or documented limits.
 - STT proxy API contract is documented before final UI work.
-- Browser ffmpeg/preprocessing output contract is inspected and lightweight
-  proof matrix is captured before implementation acceptance.
+- Browser ffmpeg/preprocessing output contract is inspected and owner/operator
+  proof is accepted for planning.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
 
 ## 13. Implementation readiness
 
 Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
 human review. The missing-artifact blocker is removed, but implementation
-readiness still requires lightweight proof matrix, production output profile
-decision, Lemonfox adapter/profile config, self-hosted ffmpeg asset path,
-storage mode/config, prepared-audio retention, licensing/ops review, cancel
-lifecycle, duration and file-limit policy. Browser/UI work follows after
-backend contract, preprocessing contract and runtime proof.
+planning still requires production output profile decision, Lemonfox
+adapter/profile config, self-hosted ffmpeg asset path, storage mode/config,
+prepared-audio retention, licensing/ops review, cancel lifecycle, duration and
+file-limit policy. Browser/UI work follows after backend contract,
+preprocessing contract and runtime proof.
