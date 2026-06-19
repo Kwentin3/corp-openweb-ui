@@ -17,6 +17,14 @@ import httpx
 from pydantic import BaseModel, Field
 
 
+DEFAULT_WARNING_ALIASES = {
+    "prepared_audio_storage_transient": (
+        "На данном этапе MVP аудиофайл, отправленный на транскрибацию, не сохраняется."
+    ),
+}
+DEFAULT_WARNING_ALIASES_JSON = json.dumps(DEFAULT_WARNING_ALIASES, ensure_ascii=False)
+
+
 class Action:
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -28,6 +36,7 @@ class Action:
         allow_upload_path_access: bool = Field(default=True)
         request_timeout_seconds: int = Field(default=180, ge=1)
         priority: int = Field(default=0)
+        warning_aliases_json: str = Field(default=DEFAULT_WARNING_ALIASES_JSON)
 
     async def action(
         self,
@@ -90,7 +99,7 @@ class Action:
         await self._emit(__event_emitter__, "Transcription complete.", done=True)
         if not transcript:
             transcript = "[empty transcript]"
-        warning_text = f"\n\nWarnings: {', '.join(warnings)}" if warnings else ""
+        warning_text = self._format_warnings(warnings)
         return {"content": f"Transcript:\n\n{transcript}{warning_text}"}
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
@@ -152,6 +161,38 @@ class Action:
         if mime_type in {"audio/wav", "audio/x-wav"}:
             return "wav_pcm_safe"
         return None
+
+    def _format_warnings(self, warnings: list[str]) -> str:
+        normalized = list(dict.fromkeys(str(warning) for warning in warnings if warning))
+        if not normalized:
+            return ""
+
+        aliases = self._warning_aliases()
+        notes = [aliases[warning] for warning in normalized if warning in aliases]
+        technical = [warning for warning in normalized if warning not in aliases]
+
+        parts = []
+        if notes:
+            parts.append("Примечания:\n" + "\n".join(f"- {note}" for note in notes))
+        if technical:
+            parts.append("Технические предупреждения: " + ", ".join(technical))
+        return "\n\n" + "\n\n".join(parts)
+
+    def _warning_aliases(self) -> dict[str, str]:
+        aliases = dict(DEFAULT_WARNING_ALIASES)
+        try:
+            configured = json.loads(self.valves.warning_aliases_json or "{}")
+        except ValueError:
+            return aliases
+        if isinstance(configured, dict):
+            aliases.update(
+                {
+                    str(code): str(message)
+                    for code, message in configured.items()
+                    if code and message
+                }
+            )
+        return aliases
 
     def _uploaded_file_path(self, media: dict) -> Path:
         if not self.valves.allow_upload_path_access:
