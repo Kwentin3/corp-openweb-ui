@@ -1,6 +1,21 @@
 # STT Backend Implementation Plan
 
-Status: planning document. No implementation started.
+Status: historical planning baseline; initial backend implementation is now
+complete for the MVP sidecar/job-route slice.
+
+Implementation baseline note, 2026-06-19:
+
+- `services/stage2-stt` implements config loading, contracts, output profiles,
+  `LemonfoxSttAdapter`, runtime capabilities, private job routes, internal
+  auth, in-memory job store, local cancel semantics and tests.
+- `compose/openwebui.compose.yml` includes the private `stage2-stt` service and
+  mounts the OpenWebUI static STT loader/config/assets path.
+- Lemonfox live smoke and OpenWebUI Action/sidecar path were reported after
+  this plan was written. Do not use this document to re-plan the closed initial
+  sidecar slice.
+- Remaining backend work is production hardening: durable storage/retention,
+  large-file/URL upload policy, duration policy, Opus default proof, richer
+  progress/cancel behavior and transcript history/export workflow.
 
 ## 1. Scope
 
@@ -44,8 +59,9 @@ Out of scope:
 | Gates | `docs/stage2/IMPLEMENTATION_GATES.md` | Lists remaining owner/runtime decisions. |
 | Acceptance | `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md` | Defines expected STT acceptance signals and test data. |
 | Media action probe | `docs/stage2/implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md` | Defines the next OpenWebUI media attachment `Transcribe` action runtime probe. |
-| Playwright UI proof | `docs/reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md` | Proves browser upload works but current visible UI does not expose the STT Action. |
-| Frontend patch plan | `docs/stage2/implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md` | Defines the next small UI slice for attachment-level `Transcribe`. |
+| Runtime completion | `docs/reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md` | Proves prepared-MP3 Action/sidecar/Lemonfox runtime path. |
+| Frontend patch report | `docs/reports/2026-06-19/OPENWEBUI_STT_FRONTEND_MEDIA_ACTION_PATCH.report.md` | Proves the attachment-level `Transcribe` static loader patch for prepared MP3. |
+| Browser normalization report | `docs/reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md` | Proves browser ffmpeg.wasm normalization on generated proof media. |
 
 ## 3. Decisions already made
 
@@ -101,11 +117,9 @@ POST /stage2-api/transcription/jobs/{job_id}/cancel
 
 Rules:
 
-- endpoint names are draft;
-- final routing depends on OpenWebUI auth/session proof;
-- authenticated job routes depend on a passed OpenWebUI media attachment action
-  runtime probe for explicit trigger, file byte/handoff access, transcript
-  return, progress and cancel;
+- endpoints are implemented on the private `stage2-stt` sidecar;
+- OpenWebUI uses a static loader media attachment action path for the MVP
+  browser integration;
 - job routes must require server-side internal auth and stay disabled without
   `STAGE2_STT_INTERNAL_API_KEY`;
 - probe/test stub transcript mode must be explicitly enabled and is not
@@ -194,6 +208,9 @@ Discovery output must name exact files before implementation starts.
 
 ### Slice 0. OpenWebUI media attachment action runtime probe
 
+Status: completed for the MVP static loader path. Remaining work is richer
+progress/cancel/access-policy hardening, not initial path discovery.
+
 Next work is not generic routing/auth alone and not production job routes. It is
 an OpenWebUI Action Function / media attachment action probe.
 
@@ -210,6 +227,9 @@ Probe must confirm:
 Plan: [STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN](STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md).
 
 ### Slice 1. Config and capability model
+
+Status: implemented in `services/stage2-stt/stage2_stt/config.py`,
+`contracts.py` and `runtime.py`.
 
 - locate server config entrypoint;
 - load Stage 2 STT env;
@@ -228,6 +248,9 @@ Acceptance:
 
 ### Slice 2. Lemonfox adapter proof
 
+Status: implemented in `services/stage2-stt/stage2_stt/lemonfox.py`; live
+smoke was reported with operator-provided runtime configuration.
+
 - define provider adapter interface;
 - implement `LemonfoxSttAdapter.get_capabilities()`;
 - prepare request-shape method behind adapter boundary;
@@ -241,6 +264,8 @@ Acceptance:
 - provider response parsing stays inside adapter.
 
 ### Slice 3. Output profile validation
+
+Status: implemented in `output_profiles.py` and validation/job-route tests.
 
 - implement allowed profiles;
 - apply selected and fallback profile from config;
@@ -256,6 +281,9 @@ Acceptance:
 
 ### Slice 4. Storage mode logic
 
+Status: initial `auto|s3|none` decision logic is implemented; production
+storage/retention policy remains pending.
+
 - implement `auto`, `s3`, `none`;
 - define storage health contract;
 - generate object keys without secrets/sensitive metadata;
@@ -270,6 +298,9 @@ Acceptance:
 - retention fields are recorded without enforcing final archive policy.
 
 ### Slice 5. Job model and cancel states
+
+Status: implemented for private sidecar job routes and local cancel state;
+provider-side cancellation remains unproven/unknown for Lemonfox.
 
 - define job statuses:
   `queued`, `preprocessing`, `uploading`, `processing`, `completed`, `failed`,
@@ -287,6 +318,9 @@ Acceptance:
 
 ### Slice 6. Runtime capabilities endpoint
 
+Status: implemented on the private sidecar; public OpenWebUI route is not
+exposed as sidecar JSON.
+
 - add `GET /stage2-api/transcription/capabilities`;
 - return effective provider, adapter, profiles, limits, storage mode/health,
   timestamps/speaker-label support, cancel strategy and warnings;
@@ -299,6 +333,9 @@ Acceptance:
 - no secret-like values appear in response.
 
 ### Slice 7. Minimal smoke / tests
+
+Status: unit/API tests exist under `services/stage2-stt/tests`; runtime and
+Playwright proof are captured in 2026-06-19 reports.
 
 - config validation;
 - adapter capability profile;
@@ -351,6 +388,7 @@ Plan is ready when:
 - stop conditions are defined;
 - no code has started.
 
-Current status: ready for review. No implementation started. Before
-authenticated job routes, run the OpenWebUI-native UX probe and select Action
-Function, OpenAPI Tool Server or minimal patch path explicitly.
+Current status: retained for historical traceability. The initial backend
+sidecar/job-route slice and MVP OpenWebUI Action path are implemented/proven.
+Use current reports and acceptance docs for remaining production-hardening
+work instead of treating this as an unstarted plan.

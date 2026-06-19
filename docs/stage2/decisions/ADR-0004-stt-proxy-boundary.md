@@ -2,6 +2,23 @@
 
 Status: Proposed
 
+Implementation baseline note, 2026-06-19:
+
+- ADR-0004 remains `Proposed`; there was no owner-requested ADR status change.
+- The initial Stage 2 STT implementation now exists outside this ADR text:
+  private `stage2-stt` sidecar job routes, `LemonfoxSttAdapter`, runtime
+  capabilities, internal job-route auth, OpenWebUI static `Transcribe` action
+  patch and browser ffmpeg.wasm normalization are implemented and reported.
+- Prepared MP3, MP4-with-audio and WebM media paths were Playwright-proven on
+  generated proof media. Unsupported/decode-failed and no-audio inputs return
+  safe visible errors before provider handoff.
+- The public OpenWebUI route does not expose the sidecar capabilities endpoint;
+  the sidecar remains private/internal and no browser Lemonfox key is exposed.
+- Remaining ADR-level decisions are production policy/hardening items: final
+  Opus default/provider proof, mobile and large-file acceptance, duration
+  policy, cancellation UX policy, storage/retention, transcript history/export
+  and multi-user permission hardening.
+
 ## 1. Decision Summary
 
 Stage 2 transcription uses a server-side STT proxy/job boundary.
@@ -316,7 +333,7 @@ Contract:
 ```yaml
 TranscriptionRuntimeCapabilitiesV1:
   input_accept_mode: declared | broad_ffmpeg_probe
-  declared_input_mimes: string[]
+  declared_input_mime_prefixes: string[]
   declared_input_extensions: string[]
   ffmpeg_probe_required: boolean
   selected_output_profile: string
@@ -347,6 +364,15 @@ Frontend uses this endpoint to:
 
 The endpoint must not expose API keys, raw `.env` values, storage credentials or
 raw provider responses.
+
+Current implementation note:
+
+- The sidecar implements `GET /stage2-api/transcription/capabilities`
+  privately.
+- OpenWebUI browser code currently reads the safe static config at
+  `/static/stage2-stt-normalization.json`; the public
+  `/stage2-api/transcription/capabilities` path intentionally is not exposed
+  through OpenWebUI as sidecar JSON.
 
 ## 8. Env Contract
 
@@ -575,10 +601,12 @@ POST /stage2-api/transcription/jobs/{job_id}/cancel
 
 Rules:
 
-- final routing depends on OpenWebUI auth/session proof;
-- authenticated job routes also depend on a passed OpenWebUI media attachment
-  action runtime probe for explicit trigger, files, transcript return, progress
-  and cancel;
+- current implementation provides these routes on the private `stage2-stt`
+  sidecar;
+- job routes require server-side internal auth and are disabled without
+  `STAGE2_STT_INTERNAL_API_KEY`;
+- the OpenWebUI media attachment action path is implemented as a static loader
+  patch that reuses the internal Action/sidecar contract;
 - request/response schemas are versioned;
 - long-running transcription uses job lifecycle;
 - short files may still complete synchronously behind job contract;
@@ -588,10 +616,9 @@ Rules:
 
 ## 15. Remaining Implementation Notes
 
-Implementation/debug should verify:
+Implementation/debug should still verify:
 
-- Lemonfox smoke with approved key and approved non-sensitive audio;
-- selected Opus profile or MP3 fallback against Lemonfox;
+- selected Opus profile against Lemonfox if it is promoted to default;
 - prepared audio over 100 MB behavior;
 - URL upload only if storage expiry/access review approves it;
 - storage mode behavior for `auto`, `s3`, `none`;
@@ -600,12 +627,18 @@ Implementation/debug should verify:
 - local cancel and late-result cleanup;
 - no STT key in browser bundle, storage or network logs.
 
-These are implementation/debug checks, not ADR planning blockers.
+The prepared-MP3 Action path, MP3 fallback, private sidecar path, Lemonfox live
+smoke, browser ffmpeg.wasm normalization path, MP4-with-audio proof, WebM proof,
+unsupported input error and no-audio safe error are already implemented/proven
+by the 2026-06-19 reports. The bullets above are remaining hardening and
+production acceptance checks, not a reason to re-plan the completed MVP path.
 
 ## 16. Non-Goals
 
-- No backend implementation.
-- No frontend implementation.
+- This ADR document does not itself accept the ADR or authorize additional
+  production changes.
+- Existing backend/frontend implementation evidence is tracked in the
+  2026-06-19 implementation reports.
 - No Lemonfox setup.
 - No real API keys.
 - No `.env` changes.

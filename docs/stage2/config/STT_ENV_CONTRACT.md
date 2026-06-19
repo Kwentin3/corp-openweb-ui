@@ -9,6 +9,21 @@ It is a planning contract, not a final `.env.example` and not implementation.
 Real values, provider keys and storage credentials must stay server-side and
 out of Git.
 
+Implementation baseline note, 2026-06-19:
+
+- The private `stage2-stt` sidecar implements this config surface for the
+  initial STT slice.
+- `compose/openwebui.compose.yml` currently passes the server-side defaults to
+  `stage2-stt`.
+- The OpenWebUI static browser patch uses
+  `deploy/openwebui-static/stage2-stt-normalization.json` as a UI-safe config
+  file. That file intentionally contains no provider key or internal job-route
+  token.
+- Browser normalization currently selects `mp3_high_compat` for the deployed
+  static path. The sidecar default remains `opus_webm_compact` with
+  `mp3_high_compat` fallback until Opus provider proof and production policy
+  select a final default.
+
 ## 2. Provider selection
 
 Draft env names:
@@ -77,8 +92,9 @@ wav_pcm_safe
 Rules:
 
 - Output profile is selected through policy/config.
-- Opus is the preferred default candidate if Lemonfox compatibility proof
-  passes.
+- Opus remains the preferred default candidate if Lemonfox compatibility proof
+  passes; the current static browser path pins `mp3_high_compat` for proven
+  provider compatibility.
 - Do not choose permanently between `opus_webm_compact` and
   `opus_ogg_compact` until Lemonfox compatibility proof is captured.
 - MP3 / `audio/mpeg` remains the source-proven compatibility fallback.
@@ -161,10 +177,10 @@ Rules:
   approval and pinned versions.
 - Self-hosted assets should be served under the app public/static path, portal
   domain or an internal CDN.
-- Cache headers, rollback path and license notices must be documented before
-  implementation.
-- No wasm/core binaries or full FFmpeg source are committed by this docs
-  contract.
+- Cache headers, rollback path and license notices remain production hardening
+  items.
+- The repo keeps generated wasm/core assets out of Git; production assets are
+  fetched into the ignored static asset directory by script.
 - Current OpenWebUI static patch mounts assets under
   `/app/backend/open_webui/static/stage2-assets` and serves them through
   `/static/stage2-assets/...`.
@@ -323,13 +339,13 @@ Rules:
 
 ## 12. Runtime capabilities endpoint
 
-Candidate endpoint:
+Implemented private sidecar endpoint:
 
 ```text
 GET /stage2-api/transcription/capabilities
 ```
 
-Candidate contract:
+Contract:
 
 ```text
 TranscriptionRuntimeCapabilitiesV1:

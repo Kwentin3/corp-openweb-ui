@@ -1,7 +1,8 @@
 ﻿# Stage 2 Engineering Backlog
 
-Это planning backlog, не issue tracker. Research выполнен 2026-06-18; следующие элементы являются
-decision/planning work, не implementation.
+Это planning backlog, не issue tracker. Research выполнен 2026-06-18; STT
+implementation proof was added on 2026-06-19. Status lines below distinguish
+completed implementation proof from remaining decision/planning work.
 
 ## Delivery rule
 
@@ -62,12 +63,13 @@ Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspecte
 MP3/audio-mpeg source-proven fallback found; operator manual proof captured as manual evidence;
 Lemonfox selected as first adapter; official docs confirm 100 MB direct upload and 1 GB URL input
 but leave exact Opus containers, max duration and provider cancel undocumented; owner/operator proof
-is accepted for planning; prepared-MP3 frontend MVP passed; input compatibility is now
-capability-based around configured browser ffmpeg.wasm probe/normalization; browser normalization
-proof passed for generated MP3 passthrough, MP4 with audio, WebM audio/video, unsupported fake MP4
-and no-audio MP4. Remaining production decisions are Opus/provider proof, storage mode/config,
-prepared-audio retention, large-file behavior and cancel UX behavior. Broad media support must
-still be described as configured ffmpeg.wasm capability-based, not universal FFmpeg support.
+is accepted for planning; private sidecar job routes, internal auth boundary, Lemonfox live smoke,
+prepared-MP3 frontend MVP, OpenWebUI Action path and browser normalization proof have passed.
+Browser normalization proof covers generated MP3 passthrough, MP4 with audio, WebM audio/video,
+unsupported fake MP4 and no-audio MP4. Remaining production decisions are Opus/provider proof,
+storage mode/config, prepared-audio retention, large-file behavior, duration policy and cancel UX
+behavior. Broad media support must still be described as configured ffmpeg.wasm capability-based,
+not universal FFmpeg support.
 
 ### Provider model catalog
 
@@ -172,8 +174,9 @@ Subtasks:
 - cancel semantics;
 - final integration path decision.
 Depends on: admin/staging access, sample media, approved auth boundary.
-Status: research complete; runtime probe needed before authenticated job routes
-or final UI work
+Status: implemented/proven for the MVP static loader path. Keep future work
+scoped to progress/cancel/access-policy hardening, transcript workflow,
+mobile/large-file proof and regression coverage.
 
 ### RBAC/groups proof
 
@@ -209,11 +212,12 @@ Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
-Status: optional implementation/debug smoke after ADR review; not a blocking ADR or
-implementation-planning gate. Keep desktop audio, desktop video, mobile audio, mobile video, large
-WAV and large video checks, plus Lemonfox adapter proof, selected output profile proof, prepared
-audio >100 MB behavior, storage mode behavior, duration limit behavior, provider-cancel
-unknown/unsupported handling and no API key in browser proof.
+Status: prepared-MP3/OpenWebUI Action/sidecar/Lemonfox smoke is proven in the
+2026-06-19 runtime report. Keep desktop video, mobile audio, mobile video,
+large WAV and large video checks, selected Opus profile proof if promoted,
+prepared audio >100 MB behavior, storage mode behavior, duration limit
+behavior and provider-cancel unknown/unsupported handling as follow-up
+acceptance/hardening data.
 
 ### STT env/config contract review
 
@@ -286,7 +290,9 @@ mode and cancel affordances from backend truth, not hardcoded Lemonfox assumptio
 Output: `TranscriptionRuntimeCapabilitiesV1` and
 `GET /stage2-api/transcription/capabilities` contract without secrets.
 Depends on: ADR-0004 review, env/config contract review.
-Status: ready for review; implementation deferred
+Status: implemented on the private `stage2-stt` sidecar; public OpenWebUI route
+is not exposed as sidecar JSON. Keep contract review for future UI-safe dynamic
+capabilities integration.
 
 ### Document extraction/OCR smoke after test data
 
@@ -326,8 +332,10 @@ Output: backend implementation plan with context docs, contracts, endpoints, env
 plan, implementation slices and stop conditions.
 Depends on: ADR-0004 review, Stage 2 STT env/config contract and passed
 OpenWebUI media attachment action probe.
-Status: plan created; ready for review; authenticated job routes deferred until
-OpenWebUI media attachment action probe passes
+Status: initial backend sidecar/job-route implementation completed and proven
+for the MVP path; plan retained as historical traceability. Remaining backend
+work is storage/retention, large-file/URL upload policy, duration/cancel
+hardening and transcript lifecycle.
 
 ### Workspace scenario setup plan
 

@@ -1,6 +1,18 @@
 # STT Media Input Normalization Contract
 
-Status: contract candidate.
+Status: contract candidate; initial browser normalization implementation is
+proven on generated proof media.
+
+Implementation baseline note, 2026-06-19:
+
+- `deploy/openwebui-static/loader.js` implements prepared-MP3 passthrough and
+  browser ffmpeg.wasm probe/normalization after explicit user action.
+- `deploy/openwebui-static/stage2-stt-normalization.json` selects
+  `mp3_high_compat` with self-hosted ffmpeg.wasm assets.
+- Playwright proof passed for prepared MP3 passthrough, MP4 with audio, WebM
+  audio/video, unsupported fake MP4 safe error and no-audio MP4 safe error.
+- This proof does not close mobile, low-memory browser, large/customer media,
+  cancel-during-ffmpeg or production duration/retention questions.
 
 This document separates Stage 2 STT input compatibility from prepared-audio
 output profiles.
@@ -175,13 +187,11 @@ Rules:
 
 ## 8. UI Behavior
 
-Current proven path:
+Current proven paths:
 
 ```text
 prepared MP3 attachment -> process=false upload -> OpenWebUI Action -> sidecar
 ```
-
-Next target:
 
 ```text
 broad media candidate -> ffmpeg probe -> audio stream detected ->

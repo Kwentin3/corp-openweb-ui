@@ -98,9 +98,10 @@ Acceptance signal:
 - Prepared audio larger than 100 MB has a warning reason code before provider
   upload.
 - OpenWebUI media attachment action path is selected and proven for explicit
-  trigger, file byte/handoff access, transcript return, progress and cancel.
-- Prepared-MP3 frontend MVP remains accepted as the current proven path; broad
-  media normalization is a separate next target.
+  trigger, prepared handoff, transcript return and basic user feedback; cancel
+  remains a hardening item unless separately proven in a future run.
+- Prepared-MP3 frontend MVP and browser ffmpeg.wasm broad-media normalization
+  are accepted as implemented/proven MVP paths on generated proof media.
 
 Test data needed:
 
@@ -131,12 +132,23 @@ Test data needed:
 Status:
 
 - Prepared-MP3 OpenWebUI frontend MVP passed.
+- OpenWebUI media attachment `Transcribe` Action path passed for the static
+  loader MVP implementation.
+- Private sidecar job routes, internal auth boundary and Lemonfox live smoke
+  passed in the runtime completion evidence.
 - Browser ffmpeg.wasm normalization proof passed on generated MP3 passthrough,
   MP4 with audio, WebM audio/video, unsupported fake MP4 and no-audio MP4:
   [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md).
+- Self-hosted ffmpeg.wasm assets are configured through
+  `deploy/openwebui-static/stage2-stt-normalization.json` and served from the
+  OpenWebUI static path in the implementation reports.
 - Broad media support remains capability-based around the configured
   ffmpeg.wasm build and browser limits; do not claim universal FFmpeg input
   support.
+- Remaining acceptance data: mobile, low-memory browser, large/customer files,
+  cancel during ffmpeg, duration-limit policy, Opus provider/default proof if
+  selected, production storage/retention, transcript history/export/workflow
+  and multi-user/group permission hardening.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

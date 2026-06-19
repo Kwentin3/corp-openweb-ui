@@ -131,7 +131,8 @@ Related docs:
 
 Status:
 
-- reviewable; not completed until human ADR review, owner decision review,
+- reviewable; initial MVP implementation proof is recorded, but the gate is not
+  completed until human ADR review, owner decision review,
   Lemonfox capability profile review, output-profile config, self-hosted asset
   path, storage mode/config, prepared-audio retention and production dependency
   decisions are complete.
@@ -140,7 +141,18 @@ Owner:
 
 - Engineering.
 
-Blocking items:
+Completed proof now recorded:
+
+- private sidecar job routes and internal auth boundary implemented;
+- prepared-MP3 OpenWebUI Action path implemented/proven;
+- Lemonfox live smoke reported through the sidecar path;
+- browser ffmpeg.wasm normalization runtime proof passed for generated MP3
+  passthrough, MP4 with audio, WebM audio/video, unsupported fake MP4 and
+  no-audio MP4:
+  [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md);
+- sidecar remains private and no Lemonfox/provider key is exposed in browser.
+
+Remaining blocking items:
 
 - ADR-0004 human review;
 - owner/operator proof accepted as planning input;
@@ -151,10 +163,6 @@ Blocking items:
 - input compatibility decision: broad media candidates can be attempted only
   through configured ffmpeg.wasm probe/normalization, not promised by static
   extension list;
-- browser ffmpeg.wasm normalization runtime proof passed for generated MP3
-  passthrough, MP4 with audio, WebM audio/video, unsupported fake MP4 and
-  no-audio MP4:
-  [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md);
 - Lemonfox adapter config decision;
 - Lemonfox provider capability profile review, including documented formats,
   100 MB direct upload, 1 GB URL input, duration TBD and provider cancel TBD;
@@ -170,17 +178,9 @@ Blocking items:
 - prepared audio >100 MB warning/fail/fallback behavior with stable reason
   codes;
 - cancel lifecycle expectations for preprocessing, upload and STT job;
-- OpenWebUI media attachment action runtime probe:
-  - Action sees attached media;
-  - Action can access file bytes or approved handoff;
-  - Action can show status/progress;
-  - Action can call sidecar dummy endpoint;
-  - Action can place transcript in chat/message/artifact;
-  - unsupported files show no action or safe error;
-  - no-audio-stream files show safe error;
-  - ffmpeg decode/probe failures show safe visible error;
-  - no separate STT GUI;
-  - no provider key in browser;
+- OpenWebUI media attachment action path is implemented for the MVP static
+  loader path; remaining work is richer progress/cancel/access-policy
+  hardening and product workflow acceptance;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
 - browser ffmpeg.wasm memory/size/duration rejection behavior is typed and

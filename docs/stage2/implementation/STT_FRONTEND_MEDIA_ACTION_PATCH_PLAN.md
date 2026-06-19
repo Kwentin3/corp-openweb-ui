@@ -1,8 +1,25 @@
 # STT Frontend Media Action Patch Plan
 
-Status: compact next-slice plan after Playwright UI proof.
+Status: historical patch plan; MVP attachment action patch is implemented and
+proven for prepared MP3 and browser-normalized generated media.
 
-## 1. Current problem and risk
+Implementation baseline note, 2026-06-19:
+
+- `deploy/openwebui-static/loader.js` adds the visible attachment-level
+  `Transcribe` action through a static OpenWebUI loader patch.
+- The action reuses OpenWebUI upload/Action APIs and the private `stage2-stt`
+  sidecar; no Lemonfox/provider key is exposed in the browser.
+- Browser ffmpeg.wasm normalization now runs after explicit user action and
+  reuses the same prepared-audio Action/sidecar contract.
+- Remaining work is hardening and product workflow acceptance, not initial
+  visibility of the action.
+
+## 1. Original problem and residual risk
+
+The visibility gap described below is closed for the MVP static loader path.
+The remaining risk is regression/hardening: richer progress/cancel behavior,
+mobile/large-file proof, transcript persistence/export and avoiding drift into
+a separate STT GUI.
 
 The backend/API path works:
 
@@ -84,6 +101,8 @@ infer provider secrets or provider-specific behavior.
 
 ### Slice 1. Prepared-MP3 attachment action button
 
+Status: implemented/proven.
+
 - Add a visible `Транскрибировать` control to supported audio attachment cards.
 - Supported first MIME: `audio/mpeg`.
 - Hide or disable the control for unsupported files with a clear reason.
@@ -100,6 +119,9 @@ Validation:
 
 ### Slice 2. Upload processing isolation
 
+Status: implemented for the Stage 2 path through explicit `process=false`
+uploads and prepared-audio re-upload.
+
 - Avoid or suppress unrelated OpenWebUI default MP3 processing errors for the
   Stage 2 path.
 - Prefer an explicit Stage 2 attachment mode or upload metadata flag if the
@@ -114,6 +136,9 @@ Validation:
 
 ### Slice 3. Progress and cancel surface
 
+Status: basic ready/busy/success/error states are implemented. Cancel and
+richer progress remain hardening items.
+
 - Render Action status events as attachment/chat progress.
 - Add cancel affordance only if it maps to the sidecar cancel contract.
 - If provider cancel is still unknown, label cancel as local cancellation.
@@ -124,7 +149,8 @@ Validation:
 
 ### Slice 4. Browser ffmpeg.wasm normalization
 
-- Add only after Slice 1 passes.
+Status: implemented/proven on generated proof media.
+
 - Trigger normalization after explicit user action.
 - Read output profile and limits from capabilities.
 - Produce prepared audio, then reuse the same Action/sidecar contract.

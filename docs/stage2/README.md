@@ -140,18 +140,33 @@ Finding:
 
 - Lemonfox подходит как priority candidate, но PRD-1 workflow требует server-side STT proxy/adapter.
 
-Next action:
+Current implementation baseline, 2026-06-19:
+
+- Private `stage2-stt` sidecar job routes, `LemonfoxSttAdapter`, internal auth,
+  OpenWebUI static `Transcribe` action and browser ffmpeg.wasm normalization
+  are implemented/proven for the MVP path.
+- Prepared MP3, MP4 with audio and WebM generated proof media pass through the
+  Action/sidecar path; unsupported/decode-failed and no-audio media fail safely
+  before provider handoff.
+- ADR-0004 still needs human review/status decision and production-hardening
+  decisions remain open.
+
+Read next:
 
 - Human review of [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md).
+- Review browser normalization implementation report:
+  [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md).
+- Review runtime completion report:
+  [OPENWEBUI_STT_RUNTIME_COMPLETION.report.md](../reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md).
+- Review docs implementation drift audit:
+  [OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md](../reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md).
 - Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Review final compact STT contract refine report:
   [OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md).
-- Review Playwright UI proof:
-  [OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md](../reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md).
-- Use backend implementation plan:
+- Treat backend implementation plan as historical baseline:
   [STT_BACKEND_IMPLEMENTATION_PLAN.md](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md).
-- Use frontend patch plan for the next UI slice:
+- Treat frontend patch plan as historical baseline:
   [STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md).
 - Close production output profile, self-hosted asset path, storage mode,
   retention, duration and cancel decisions. Optional ffmpeg smoke can run during
@@ -167,11 +182,14 @@ Finding:
 - Owner/operator proof accepts the workflow for ADR planning across two
   same-stack projects, including mobile and large-file cases.
 
-Next action:
+Current implementation:
 
-- Use [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
-  as the current contract record, then decide output format, asset hosting,
-  licensing/ops and file limits.
+- Use [STT media input normalization contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
+  and the browser normalization report as the current implementation record.
+- Current static browser profile is `mp3_high_compat`; Opus remains a candidate
+  until provider proof and production policy select it.
+- Decide output format, asset hosting hardening, licensing/ops and file limits
+  before production acceptance.
 
 ### Web-search
 
@@ -240,12 +258,11 @@ Next action:
 
 - Data policy now; masking ADR later.
 
-## 10. Что не является реализацией на текущем шаге
+## 10. Что не является production acceptance на текущем шаге
 
-- Нет кода.
-- Нет provider setup.
-- Нет server changes.
-- Нет compose/env/scripts changes.
+- STT MVP code exists, but ADR-0004 is still `Proposed`.
+- Нет нового provider setup в документации.
+- Этот docs view не вносит новых compose/env/scripts changes.
 - Нет OpenWebUI fork.
 - Нет API keys.
 - Нет production changes.

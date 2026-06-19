@@ -1,7 +1,7 @@
 # STT OpenWebUI Media Action Probe Plan
 
-Status: planning document. Prepared-MP3 Action path is now proven; broad media
-ffmpeg input normalization remains future work.
+Status: historical probe plan. Prepared-MP3 Action path and browser ffmpeg
+input normalization are now implemented/proven for the MVP path.
 
 ## 1. Goal
 
@@ -23,12 +23,16 @@ prepared MP3 attachment -> process=false upload -> explicit Transcribe action ->
 OpenWebUI Action -> stage2-stt sidecar -> transcript in composer
 ```
 
-Next probe target:
+Current broad-media proven slice:
 
 ```text
 broad media candidate -> ffmpeg probe/decode -> audio stream detected ->
 normalize to approved output profile -> existing Action/sidecar path
 ```
+
+Remaining follow-up probes are production hardening: mobile browsers,
+low-memory behavior, large/customer files, cancel during ffmpeg processing,
+duration policy and transcript persistence/export workflow.
 
 ## 2. Probe scope
 
@@ -51,9 +55,9 @@ normalize to approved output profile -> existing Action/sidecar path
 
 ## 3. Not in scope
 
-- Production job routes.
-- Full Lemonfox transcription.
-- Full browser ffmpeg implementation.
+- Production storage/retention hardening.
+- Mobile/large-file acceptance.
+- Provider-side cancellation proof.
 - Claiming broad input support without ffmpeg probe/normalization proof.
 - Dedicated transcription GUI.
 - Dedicated transcription workspace/history/export/protocol workflow.
@@ -140,7 +144,14 @@ Allowed outcomes:
 - `blocked_by_openwebui_file_context`
 - `ffmpeg_input_normalization_slice_ready`
 
-Any outcome must include evidence links/notes and the next smallest safe slice.
+Recorded outcome, 2026-06-19:
+
+- `ffmpeg_input_normalization_slice_ready` was followed by implementation and
+  proof.
+- The selected MVP path is a thin OpenWebUI static loader patch plus private
+  sidecar job routes.
+- Historical blocker outcomes remain useful only if the static loader path is
+  replaced in a future refactor.
 
 ## 8. Stop conditions
 

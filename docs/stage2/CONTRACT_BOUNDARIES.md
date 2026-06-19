@@ -9,8 +9,20 @@ Stage 2 должен оставаться upgrade-safe: OpenWebUI остаетс
 shell, а custom capabilities добавляются через bounded domain services,
 internal APIs или thin integration shims.
 
-Документ не запускает implementation. Он задает рамку для ADR, proof gates и
-будущих implementation slices.
+Документ задает рамку для ADR, proof gates and implementation slices.
+
+Implementation baseline note, 2026-06-19:
+
+- Initial STT backend sidecar/job routes, Lemonfox adapter, OpenWebUI
+  attachment Action patch and browser ffmpeg.wasm normalization are now
+  implemented/proven in the 2026-06-19 reports.
+- The boundary rule is unchanged: provider keys and policy stay server-side,
+  sidecar is private/backend-only, and browser preprocessing is a media
+  preparation step, not a security boundary.
+- Remaining STT work is hardening/product acceptance, not re-selection of the
+  MVP architecture: mobile/large-file proof, low-memory behavior, cancel during
+  ffmpeg, final duration policy, Opus/provider proof, retention/storage,
+  transcript history/export/workflow and multi-user permission hardening.
 
 ## 2. Principles
 
@@ -227,11 +239,17 @@ First implementation-facing contract must be STT proxy boundary:
 boundary. It recommends a server-side STT proxy/job service and rejects direct
 browser-to-provider calls.
 
-Current planning state:
+Current implementation state:
 
 - the external browser ffmpeg preprocessing contract is inspected;
-- transferable source output is MP3 / `audio/mpeg` as a source-proven
-  compatibility fallback, not a permanent architecture constraint;
+- private sidecar job routes and internal auth are implemented;
+- prepared-MP3 OpenWebUI Action path is implemented and proven;
+- browser ffmpeg.wasm normalization is implemented and proven on generated MP3,
+  MP4-with-audio and WebM proof media;
+- unsupported/decode-failed and no-audio inputs fail safely before provider
+  handoff;
+- OpenWebUI static browser config currently selects MP3 / `audio/mpeg` as the
+  proven compatibility output profile, not a permanent architecture constraint;
 - input compatibility is now broad/capability-based: declared extensions and
   MIME prefixes are UI hints, while actual support requires ffmpeg probe/decode
   and audio-stream detection in the configured browser build;
@@ -244,13 +262,12 @@ Current planning state:
 - runtime capabilities must expose effective output profiles, upload limits,
   input affordance hints, duration TBDs, storage mode/health and provider-side
   cancellation support;
-- owner/operator proof is accepted for ADR planning and proof matrix is not a
-  blocking ADR or implementation-planning gate;
-- implementation planning still requires ADR review, selected output profile
-  config, self-hosted asset path, storage mode/env decision, prepared-audio
-  retention decision, provider cancel/duration TBD handling and selected
-  OpenWebUI media attachment action path before authenticated job routes or UI
-  work.
+- owner/operator proof is accepted for ADR planning and the generated proof
+  matrix now covers the implemented browser-normalization path;
+- remaining production decisions are ADR review/status, final Opus/default
+  output profile policy, storage mode/env decision, prepared-audio retention,
+  provider cancel/duration TBD handling, large/mobile acceptance and transcript
+  lifecycle/workflow.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy makes self-host/internal cache the production

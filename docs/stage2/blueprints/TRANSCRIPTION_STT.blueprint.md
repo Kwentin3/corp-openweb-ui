@@ -54,6 +54,17 @@ Stage 2 transcription work must start from backend/server-side STT proxy
 boundary and the OpenWebUI media attachment action contract, not from a separate
 STT frontend.
 
+Implementation baseline, 2026-06-19:
+
+- Backend sidecar/job routes, `LemonfoxSttAdapter`, runtime capabilities,
+  OpenWebUI attachment `Transcribe` action patch and browser ffmpeg.wasm
+  normalization are implemented.
+- Prepared MP3, MP4 with audio and WebM generated proof media reach the
+  Action/sidecar path; unsupported/decode-failed and no-audio media fail with
+  safe visible errors before provider handoff.
+- The current static browser output profile is `mp3_high_compat`. Opus remains
+  a production default candidate, not a proven deployed default.
+
 ## 4. Target user workflow
 
 MVP workflow:
@@ -65,9 +76,9 @@ transcript in current OpenWebUI chat UX
 ```
 
 Пользователь прикрепляет audio/video inside OpenWebUI chat/workspace UX.
-Prepared MP3 is the current proven path. Next target is broad media attachment
-normalization: the UI may show `Transcribe` for audio/video candidates, then
-must run ffmpeg probe/normalization before provider handoff. This action is the
+Prepared MP3 and generated broad media normalization are current proven paths:
+the UI shows `Transcribe` for audio/video candidates, then runs ffmpeg
+probe/normalization before provider handoff. This action is the
 user intent contract for browser-side ffmpeg.wasm normalization, prepared-audio
 upload/job creation, backend/provider transcription and transcript return into
 the current OpenWebUI chat/message/artifact UX. Prepared audio blob идет в
@@ -124,8 +135,9 @@ Boundary contract:
 10. `>100 MB` warning/fail/fallback behavior uses stable reason codes.
 11. Cancel lifecycle: preprocessing, upload and STT job cancel are supported where technically
    possible.
-12. UI/browser integration follows after proxy boundary, runtime smoke and
-    selected OpenWebUI-native integration path.
+12. UI/browser integration uses the selected OpenWebUI-native static loader
+    Action path for the MVP implementation; future work should harden that path
+    rather than re-plan a separate STT GUI.
 
 ## 5. Native OpenWebUI first path
 
@@ -178,9 +190,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   implementation-planning gate.
 - Lemonfox research.
 - OpenWebUI capability research.
-- OpenWebUI-native STT UX integration runtime probe: Action Function,
-  media attachment action, files/upload references or bytes, events/status,
-  transcript return path and access control on deployed/pinned version.
+- OpenWebUI-native STT UX integration proof: static media attachment action,
+  prepared upload handoff, sidecar call and transcript return are implemented
+  for the MVP path; richer progress/cancel/access-policy hardening remains.
 - Manager visibility/retention policy.
 - Data policy.
 
@@ -223,12 +235,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   `SharedArrayBuffer` / COOP / COEP support required?
 - Where are transcripts stored?
 - Is diarization required in first slice?
-- Does pinned OpenWebUI expose enough file metadata/path/reference to an Action
-  without coupling the sidecar to private `openwebui_data` layout?
-- Can the Action/media attachment path access file bytes or an approved handoff
-  for browser-side normalization?
-- Should MVP return transcript by replacing/appending a chat message, attaching
-  a file/artifact, or both?
+- Which exact transcript persistence/history/export workflow is accepted after
+  the MVP composer/chat return path?
 
 ## 11. Research links
 
@@ -260,7 +268,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - User can cancel preprocessing/upload/job lifecycle where technically
   possible.
 - Unsupported/large/no-audio files produce clear errors or documented limits.
-- STT proxy API contract is documented before final UI work.
+- STT proxy API contract is documented and implemented for the initial sidecar
+  slice.
 - Browser ffmpeg/preprocessing output contract is inspected and owner/operator
   proof is accepted for planning.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
@@ -269,16 +278,16 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Media attachment shows an explicit `Transcribe` action for supported
   audio/video, and unsupported files either do not show the action or return a
   safe error.
-- Selected media attachment action path is documented before authenticated job
-  routes and final UI work.
+- Selected media attachment action path is implemented for the MVP static
+  loader path; remaining work is hardening and product workflow acceptance.
 
 ## 13. Implementation readiness
 
-Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
-human review. The missing-artifact blocker is removed, but implementation
-planning still requires production output profile decision, Lemonfox
-adapter/profile config, self-hosted ffmpeg asset path, storage mode/config,
-prepared-audio retention, licensing/ops review, cancel lifecycle, duration and
-file-limit policy. OpenWebUI media attachment Action/file/event runtime proof is
-also required before authenticated job routes and final UI work. Browser/UI work
-follows after backend contract, preprocessing contract and runtime proof.
+ADR-0004 is still proposed for human review, but the initial implementation
+path is no longer only planned. Backend sidecar/job routes, the OpenWebUI media
+attachment Action path and browser ffmpeg.wasm normalization have been
+implemented/proven. Remaining readiness items are production output-profile
+decision, Opus provider proof if selected, storage mode/config,
+prepared-audio/transcript retention, licensing/ops review, cancel UX, duration
+and file-limit policy, mobile/large-file acceptance and transcript
+history/export workflow.

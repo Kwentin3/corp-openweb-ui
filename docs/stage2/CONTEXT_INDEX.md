@@ -82,6 +82,8 @@ Comment:
 
 Read first:
 
+- [OpenWebUI STT ffmpeg browser normalization implementation report](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md)
+- [OpenWebUI STT runtime completion report](../reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md)
 - [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
 - [STT OpenWebUI media action probe plan](implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md)
 - [STT frontend media action patch plan](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md)
@@ -107,10 +109,14 @@ Skip unless needed:
 Comment:
 
 - API keys never go to the browser.
-- STT proxy ADR must define backend boundary before final UI.
-- OpenWebUI media attachment `Transcribe` action probe must pass before
-  authenticated job routes or final UI work.
+- STT proxy ADR still defines the backend boundary; ADR-0004 remains
+  `Proposed`.
+- Private sidecar job routes, the OpenWebUI media attachment `Transcribe`
+  action and browser ffmpeg.wasm normalization are implemented/proven for the
+  MVP path.
 - Prepared-MP3 frontend MVP passed through a static OpenWebUI loader patch.
+- MP4-with-audio and WebM generated proof media passed through browser
+  normalization into the existing Action/sidecar path.
 - Broad input support is capability-based: declared source formats are hints,
   while actual support requires configured ffmpeg.wasm probe/decode,
   audio-stream detection and normalization to an approved output profile.
@@ -119,6 +125,10 @@ Comment:
 - External ffmpeg workflow contract is inspected and transferable as MP3 /
   `audio/mpeg`; owner/operator proof is accepted for ADR planning, while
   production dependency decisions remain open.
+- Remaining STT hardening: mobile, low-memory browser, large/customer media,
+  cancel during ffmpeg, duration-limit policy, Opus provider proof if selected,
+  production storage/retention, transcript history/export/workflow and
+  multi-user/group permission hardening.
 
 ## Брокерские отчеты / 3-НДФЛ
 

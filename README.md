@@ -70,9 +70,11 @@ data masking/tokenization остаются отдельными optional/future 
 Инженерный домен подготовки к реализации Stage 2:
 [docs/stage2/README.md](docs/stage2/README.md).
 
-Research findings актуализированы 2026-06-18. Оставшиеся blockers:
-runtime proof, customer test data, provider/data policy decisions и ADR перед
-implementation.
+Research findings актуализированы 2026-06-18. STT MVP implementation proof
+добавлен 2026-06-19: private `stage2-stt` sidecar routes, OpenWebUI static
+`Transcribe` action and browser ffmpeg.wasm normalization are implemented and
+reported. Оставшиеся blockers по Stage 2 в целом: customer test data,
+provider/data policy decisions, ADR review/status and production hardening.
 
 Реализация Stage 2 должна начинаться с backend/server-side boundaries, policies
 и proofs; UI/frontend follows after backend contracts are clear.
@@ -95,6 +97,12 @@ accounting.
   report](docs/reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md)
 - [ADR-0004 compact STT contract refine
   report](docs/reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md)
+- [STT runtime completion
+  report](docs/reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md)
+- [STT ffmpeg browser normalization implementation
+  report](docs/reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md)
+- [STT docs implementation drift audit
+  report](docs/reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
@@ -162,6 +170,12 @@ bash scripts/smoke-test.sh --strict-tls
   [OPENWEBUI ADR-0004 Lemonfox capabilities and runtime limits report][adr0004-lemonfox-capabilities-report]
 - ADR-0004 compact STT contract refine report:
   [OPENWEBUI ADR-0004 compact STT contract refine report][adr0004-compact-stt-contract-report]
+- STT runtime completion report:
+  [OPENWEBUI STT runtime completion report][stt-runtime-completion-report]
+- STT ffmpeg browser normalization implementation report:
+  [OPENWEBUI STT ffmpeg browser normalization implementation report][stt-ffmpeg-normalization-report]
+- STT docs implementation drift audit report:
+  [OPENWEBUI STT docs implementation drift audit report][stt-docs-drift-audit-report]
 - Stage 2 agent review:
   [OPENWEBUI PRD-1 Stage 2 agent review][stage2-agent-review-report]
 - Stage 2 backend-first / VL OCR refine report:
@@ -175,6 +189,9 @@ bash scripts/smoke-test.sh --strict-tls
 [adr0004-ffmpeg-operator-proof-update-report]: docs/reports/2026-06-18/OPENWEBUI_ADR0004_FFMPEG_OPERATOR_PROOF_UPDATE.report.md
 [adr0004-lemonfox-capabilities-report]: docs/reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md
 [adr0004-compact-stt-contract-report]: docs/reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md
+[stt-runtime-completion-report]: docs/reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md
+[stt-ffmpeg-normalization-report]: docs/reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md
+[stt-docs-drift-audit-report]: docs/reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md
 [stage2-agent-review-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md
 [stage2-backend-vl-ocr-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md
 [stage2-source-of-truth-sync-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md
