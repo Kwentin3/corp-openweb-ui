@@ -50,9 +50,16 @@ Acceptance signal:
 - STT proxy contract approved.
 - Audio/video upload produces transcript through server-side proxy.
 - STT API key is not present in browser.
+- STT provider call goes through documented adapter/factory boundary.
+- Selected output profile is captured and validated; MP3 is not hardcoded as
+  the only possible output.
 - Browser ffmpeg proof matrix captures device, browser, file type, file size,
-  duration, output format, result and evidence.
-- Production prepared-audio format, asset hosting, licensing/ops and file-limit
+  duration, selected output profile, result and evidence.
+- Proof matrix stays lightweight: desktop audio, desktop video, mobile audio,
+  mobile video, large WAV and large video.
+- Cancel UX is covered for preprocessing, upload and STT job lifecycle where
+  technically possible.
+- Production output profile, asset loading mode, licensing/ops and file-limit
   decisions are documented.
 
 Test data needed:
@@ -62,11 +69,13 @@ Test data needed:
 - Large file.
 - Large WAV.
 - ffmpeg source workflow / proof matrix evidence.
+- Output profile compatibility notes.
+- STT provider adapter decision.
 
 Status:
 
-- Transferable ffmpeg contract inspected; ADR review and runtime proof matrix
-  needed.
+- Transferable ffmpeg contract inspected; ADR review, lightweight proof matrix,
+  selected output profile, STT adapter decision and asset loading mode needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

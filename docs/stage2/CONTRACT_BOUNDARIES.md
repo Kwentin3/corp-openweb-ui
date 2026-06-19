@@ -45,7 +45,7 @@ internal APIs или thin integration shims.
 ### Stage 2 backend/domain services
 
 - STT proxy/job service;
-- provider adapters;
+- STT Provider Adapter Factory and provider adapters;
 - policy resolver;
 - usage event collector;
 - transcript normalization;
@@ -101,14 +101,19 @@ customer media.
 Draft internal contracts:
 
 - `TranscriptionJobV1`:
-  job lifecycle for STT upload, progress, status, cancellation and typed errors.
+  job lifecycle for preprocessing, upload, STT processing, selected output
+  profile, asset loading mode, selected provider adapter, progress,
+  cancellation and typed errors.
 - `TranscriptResultV1`:
-  normalized transcript shape for UI, templates and exports.
+  normalized transcript shape for UI, templates and exports, including source
+  output profile, provider adapter and normalized segments.
 - `UsageEventV1`:
-  normalized usage record for LLM, web-search, STT, OCR and storage review.
+  normalized usage record for LLM, web-search, STT, OCR and storage review,
+  including preprocessing units, upload bytes, STT billable units and provider
+  adapter when available.
 - `PolicyDecisionV1`:
-  backend decision for feature access, data class, provider class, limits and
-  warnings.
+  backend decision for feature access, data class, provider class, output
+  profile, provider adapter, limits and warnings.
 - `ProviderModelCatalogV1`:
   curated provider/model catalog with production, pilot, research, rejected and
   deferred labels.
@@ -136,6 +141,7 @@ These are planning contracts. They are not API implementation.
 
 - Frontend directly calls external STT provider with API key.
 - UI decides whether data may be sent to provider.
+- UI hardcodes MP3 as the only possible transcription output.
 - OpenWebUI core is patched deeply for every custom workflow.
 - Provider response shape leaks into prompts/templates.
 - Manager visibility is implemented through blanket admin access.
@@ -163,16 +169,18 @@ browser-to-provider calls.
 Current blocker:
 
 - the external browser ffmpeg preprocessing contract is inspected;
-- transferable source output is MP3 / `audio/mpeg`;
+- transferable source output is MP3 / `audio/mpeg` as a source-proven
+  candidate, not a permanent architecture constraint;
 - operator manual proof exists for reported mobile and large-file scenarios;
-- implementation readiness still requires ADR review, a reproducible proof
-  matrix and production dependency decisions.
+- implementation readiness still requires ADR review, a lightweight proof
+  matrix, selected output profile, STT adapter decision, asset loading mode and
+  production dependency decisions.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
-The current dependency strategy prefers pinned/self-hosted ffmpeg.wasm assets
-for proof, single-thread first, no silent production dependency on `unpkg.com`,
-and COOP/COEP / `SharedArrayBuffer` review only if multi-thread mode is
-selected.
+The current dependency strategy allows CDN mode for proof/dev and potentially
+production only with explicit approval and pinned versions. Self-host/internal
+cache remains the preferred fallback for corporate deployment. No heavy
+wasm/core assets should be vendored without a separate decision.
 
 ## 8. Related docs
 

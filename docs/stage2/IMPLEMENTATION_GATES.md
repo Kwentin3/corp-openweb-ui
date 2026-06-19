@@ -28,8 +28,11 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 - Existing browser ffmpeg workflow contract inspected.
 - Operator manual proof captured as manual evidence for mobile/large-file
   scenarios.
-- Reproducible proof matrix captured before implementation acceptance.
-- ffmpeg.wasm dependency strategy accepted, revised or rejected.
+- Lightweight proof matrix captured before implementation acceptance.
+- Output profile decision accepted, revised or explicitly deferred.
+- STT Provider Adapter Factory accepted, revised or explicitly deferred.
+- ffmpeg asset loading strategy accepted, revised or rejected.
+- Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
 - No API keys in browser.
 
@@ -108,8 +111,9 @@ Related docs:
 
 Status:
 
-- reviewable; not completed until human ADR review, reproducible proof matrix
-  and production dependency decisions are complete.
+- reviewable; not completed until human ADR review, lightweight proof matrix,
+  selected output profile, STT adapter decision, asset loading mode and
+  production dependency decisions are complete.
 
 Owner:
 
@@ -118,9 +122,13 @@ Owner:
 Blocking items:
 
 - ADR-0004 human review;
-- reproducible mobile/large-file proof matrix with device/browser/file metadata;
-- production prepared-audio output format decision;
-- ffmpeg asset hosting decision: self-host/internal cache vs accepted CDN risk;
+- lightweight proof matrix with device/browser/file metadata and selected output
+  profile;
+- production output profile decision;
+- STT adapter/factory decision;
+- ffmpeg asset loading decision: `cdn mode` with explicit approval vs
+  `self_hosted mode`/internal cache;
+- cancel lifecycle expectations for preprocessing, upload and STT job;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - production file size and duration limits;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).

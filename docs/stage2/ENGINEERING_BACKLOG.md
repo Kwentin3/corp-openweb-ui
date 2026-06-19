@@ -49,11 +49,13 @@ FFMPEG_BROWSER_WORKFLOW_RESEARCH, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing
 need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
-response normalization, optional audit and draft job contracts.
-Depends on: human ADR review, reproducible proof matrix, production dependency decisions, customer
+adapter factory, output profiles, response normalization, optional audit and draft job contracts.
+Depends on: human ADR review, lightweight proof matrix, production dependency decisions, customer
 media limits
 Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
-MP3/audio-mpeg contract found; operator manual proof captured as manual evidence
+MP3/audio-mpeg source-proven candidate found; operator manual proof captured as manual evidence;
+needs lightweight proof matrix, selected output profile, STT adapter decision, asset loading mode and
+cancel UX decision before implementation
 
 ### Provider model catalog
 
@@ -171,16 +173,18 @@ Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
-Status: ready to plan after ADR review; must include prepared-audio output proof, Lemonfox
-compatibility proof and no API key in browser proof
+Status: ready to plan after ADR review; must include selected output profile proof, STT provider
+adapter compatibility proof, cancel lifecycle proof where technically possible and no API key in
+browser proof
 
 ### FFMPEG mobile / large-file proof matrix
 
 Domain: Transcription / STT
 Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: Operator manual proof is useful, but implementation acceptance needs reproducible evidence.
-Output: proof matrix with device, browser, file type, file size, duration, output format, result and
-evidence for mobile large video, mobile large WAV, desktop baseline audio and desktop baseline video.
+Output: lightweight proof matrix with device, browser, file type, file size, duration, selected
+output profile, result and evidence for desktop audio, desktop video, mobile audio, mobile video,
+large WAV and large video.
 Depends on: source workflow access and approved test media.
 Status: ready for runtime proof after ADR review
 
@@ -190,8 +194,8 @@ Domain: Transcription / STT / frontend dependency
 Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: Source workflow uses `unpkg.com`, `@ffmpeg/ffmpeg` v0.12.6 and MP3 / `libmp3lame`; corporate
 production needs explicit dependency, hosting, licensing and limit decisions.
-Output: decision note or ADR update for prepared-audio format, self-host/internal cache path,
-licensing/ops review and max file size/duration policy.
+Output: decision note or ADR update for output profile, `cdn mode` vs `self_hosted mode`,
+licensing/ops review, STT provider adapter compatibility and max file size/duration policy.
 Depends on: ADR-0004 review, STT provider compatibility smoke, ops/licensing review.
 Status: blocked by production decision
 

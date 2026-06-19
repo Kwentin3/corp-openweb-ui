@@ -34,7 +34,7 @@ Later operator-provided/source inspection input:
 - external browser-side ffmpeg workflow exists;
 - source workflow uses `@ffmpeg/ffmpeg` v0.12.6;
 - source workflow loads ffmpeg assets from `unpkg.com`;
-- output contract is MP3 / `audio/mpeg`;
+- source-proven output is MP3 / `audio/mpeg`;
 - command is
   `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`;
 - backend STT/upload pipeline exists;
@@ -47,8 +47,9 @@ Inspection status:
 - `external ffmpeg workflow artifact inspected`;
 - `transferable browser-side preprocessing contract found`;
 - `operator manual proof confirms reported mobile and large-file scenarios`;
-- implementation still requires reproducible proof matrix and production
-  dependency decisions.
+- implementation still requires lightweight proof matrix, selected output
+  profile, STT adapter decision, asset loading mode and production dependency
+  decisions.
 
 ## 3. What The Workflow Does
 
@@ -56,7 +57,8 @@ Confirmed transferable flow:
 
 1. User selects audio or video in the browser.
 2. Browser-side ffmpeg extracts/converts audio locally.
-3. The workflow writes an MP3 output through ffmpeg.wasm.
+3. The workflow writes prepared audio through ffmpeg.wasm. The inspected source
+   workflow writes MP3 / `audio/mpeg` as the source-proven candidate.
 4. Browser receives a prepared audio `Blob`.
 5. Prepared audio is uploaded through a presigned/internal-storage path.
 6. Backend STT orchestration continues by object key.
@@ -86,14 +88,25 @@ Transformation:
 ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3
 ```
 
-Output:
+Source-proven output profile:
 
+- profile id: `mp3_high_compat`;
 - container: MP3;
 - codec: `libmp3lame`;
 - MIME: `audio/mpeg`;
+- status: source-proven candidate;
 - browser output: `Blob`;
 - handoff: presigned/internal upload, then backend STT orchestration by object
   key.
+
+Output profile rule:
+
+- MP3 / `audio/mpeg` is a proven source workflow output, not a permanent
+  architecture constraint;
+- browser preprocessing should expose an output profile instead of hardcoding
+  MP3 as the only possible output;
+- backend validates prepared audio against the selected output profile;
+- STT provider adapter declares supported input profiles.
 
 Security:
 
@@ -139,17 +152,23 @@ Engineering interpretation:
 - it does not equal automated repository proof;
 - it does not prove universal mobile support;
 - it does not prove all files are supported;
-- Stage 2 acceptance should still capture a reproducible proof matrix with
-  device/browser/file metadata.
+- Stage 2 acceptance should still capture a lightweight proof matrix with
+  device/browser/file metadata and selected output profile.
 
-Proof matrix to capture before implementation acceptance:
+Lightweight proof matrix to capture before implementation acceptance:
 
-| Test case | Device | Browser | File type | File size | Duration | Output format | Result | Evidence |
-| --------- | ------ | ------- | --------- | --------: | -------: | ------------- | ------ | -------- |
-| Mobile large video | operator reported | operator reported | video | TBD | TBD | MP3 / `audio/mpeg` | operator reported pass | TBD |
-| Mobile large WAV | operator reported | operator reported | WAV | TBD | TBD | MP3 / `audio/mpeg` | operator reported pass | TBD |
-| Desktop baseline audio | TBD | TBD | MP3/WAV/M4A/WebM | TBD | TBD | MP3 / `audio/mpeg` | TBD | TBD |
-| Desktop baseline video | TBD | TBD | MP4/MOV | TBD | TBD | MP3 / `audio/mpeg` | TBD | TBD |
+| Case | Purpose |
+| ---- | ------- |
+| desktop audio | baseline audio preprocessing |
+| desktop video | baseline video extraction |
+| mobile audio | mobile browser audio path |
+| mobile video | mobile browser video path |
+| large WAV | large audio case |
+| large video | large media case |
+
+Required fields are device, browser, file type, file size, duration, selected
+output profile, result and evidence. This is a lightweight reproducibility
+record, not certification.
 
 ## 7. Size And Duration Limits
 
@@ -183,31 +202,55 @@ Still required:
 
 - reproducible local preprocessing progress proof;
 - cancel during local preprocessing;
+- upload abort and incomplete-object cleanup where possible;
+- STT job cancel behavior where possible;
 - retry after failed local preprocessing;
-- cancel/retry during server-side STT job;
 - typed errors for timeout, quota, provider failure, unsupported format and
   too-large files.
 
-## 9. ffmpeg.wasm Dependency Strategy
+## 9. ffmpeg.wasm Asset Loading Strategy
 
 Source workflow facts:
 
 - source package: `@ffmpeg/ffmpeg` v0.12.6;
 - source asset hosting: `unpkg.com`;
-- source output format: MP3 / `audio/mpeg`;
+- source output profile: MP3 / `audio/mpeg`;
 - source command uses `libmp3lame`.
+
+Asset loading modes:
+
+### cdn mode
+
+- fast setup;
+- useful for proof/dev;
+- can leverage public CDN cache;
+- depends on external availability;
+- may be blocked by corporate network;
+- must pin exact versions;
+- must be explicitly approved for production.
+
+### self_hosted mode
+
+- assets hosted under portal domain or internal CDN;
+- better for corporate controlled environments;
+- predictable availability;
+- requires ops/licensing/cache review;
+- no public CDN dependency;
+- larger deployment asset footprint.
 
 Production strategy:
 
 - treat ffmpeg.wasm as an implementation dependency, not a provider boundary;
 - pin exact package/core versions for Stage 2 implementation;
 - prefer single-thread first unless performance evidence requires multi-thread;
-- do not accept public CDN dependency silently for corporate production;
-- prefer self-hosted or internally cached core assets;
+- CDN is not forbidden, but production CDN use requires explicit approval and
+  pinned versions;
+- production must not silently depend on unpinned public CDN;
+- prefer self-hosted or internally cached core assets as corporate fallback;
 - define asset path, cache headers, rollback and license notices;
 - do not commit heavy wasm/core binaries or FFmpeg source into this repo without
   a separate ADR/decision;
-- select production prepared-audio format after STT provider compatibility and
+- select production output profile after STT provider compatibility and
   licensing/ops review.
 
 Multi-thread caveat:
@@ -216,12 +259,12 @@ Multi-thread caveat:
 - `SharedArrayBuffer` requires secure context and cross-origin isolation;
 - COOP/COEP changes require Traefik/header and OpenWebUI embedding review.
 
-## 10. Output Format Decision
+## 10. Output Profile Decision
 
-Source workflow proves MP3 / `audio/mpeg` as the transferable contract.
+Source workflow proves MP3 / `audio/mpeg` as the transferable default candidate.
 
 MP3 is not automatically the final production decision. Stage 2 should decide
-the production prepared-audio format after:
+the production output profile after:
 
 - STT provider compatibility smoke;
 - licensing review for MP3 / `libmp3lame`;
@@ -252,9 +295,10 @@ Alternatives that remain available for review:
 - No source code was copied into this repo.
 - No wasm/core binaries were added.
 - No automated proof matrix is captured yet.
+- No selected default output profile is approved yet.
 - Exact mobile device and browser metadata are TBD.
 - Exact tested large-file sizes and durations are TBD.
-- Production output format is not final.
+- Production output profile is not final.
 - Production ffmpeg asset hosting is not final.
 - Licensing/ops review is not final.
 - Lemonfox/provider compatibility smoke is still required.
@@ -266,13 +310,15 @@ Update ADR-0004 to state:
 
 - previous `missing ffmpeg artifact` blocker is removed;
 - external ffmpeg workflow artifact was inspected;
-- transferable browser-side preprocessing contract is MP3 / `audio/mpeg`;
+- transferable browser-side preprocessing default candidate is MP3 /
+  `audio/mpeg`;
 - operator manual proof exists for reported mobile and large-file cases;
 - operator proof is manual evidence, not automated repository proof;
-- implementation readiness still requires ADR approval, reproducible proof
-  matrix and production dependency decisions;
-- production caveats remain visible: output format, self-host/CDN, licensing and
-  file limits.
+- implementation readiness still requires ADR approval, lightweight proof
+  matrix, selected output profile, STT adapter decision, asset loading mode and
+  production dependency decisions;
+- production caveats remain visible: output profile, CDN/self-host, licensing
+  and file limits.
 
 ## 14. Sources
 
@@ -308,5 +354,6 @@ Official/reference context from earlier inspection:
 `operator manual proof exists for reported mobile/large-file scenarios`
 
 ADR-0004 is reviewable with the inspected transferable ffmpeg contract.
-Implementation still requires ADR approval, reproducible proof matrix and
-production dependency decisions.
+Implementation still requires ADR approval, lightweight proof matrix, selected
+output profile, STT adapter decision, asset loading mode and production
+dependency decisions.
