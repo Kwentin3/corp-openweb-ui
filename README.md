@@ -148,6 +148,8 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/CONTRACT_BOUNDARIES.md](docs/stage2/CONTRACT_BOUNDARIES.md)
 - Stage 2 implementation gates:
   [docs/stage2/IMPLEMENTATION_GATES.md](docs/stage2/IMPLEMENTATION_GATES.md)
+- Stage 2 STT backend implementation plan:
+  [docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md](docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
 - Stage 2 research actualization report:
   [OPENWEBUI Stage 2 research actualization report][stage2-research-actualization-report]
 - ADR-0004 STT proxy boundary review report:

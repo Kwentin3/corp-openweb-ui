@@ -78,6 +78,7 @@ Comment:
 
 Read first:
 
+- [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)

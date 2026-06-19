@@ -74,6 +74,7 @@ provider setup, usage analytics and web-search.
 | [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
+| [implementation/](implementation/) | Implementation plans for first backend slices. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |
 | [research/](research/) | Research findings, источники, blockers и next steps. |
 | [decisions/](decisions/) | ADR-шаблон и будущие architecture decisions. |
@@ -146,6 +147,8 @@ Next action:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Review final compact STT contract refine report:
   [OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md).
+- Use backend implementation plan:
+  [STT_BACKEND_IMPLEMENTATION_PLAN.md](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md).
 - Close production output profile, self-hosted asset path, storage mode,
   retention, duration and cancel decisions. Optional ffmpeg smoke can run during
   implementation/debug.

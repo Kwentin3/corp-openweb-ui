@@ -269,6 +269,16 @@ Status: ready for runtime proof after ADR-0003 draft
 
 ## Ready for implementation planning after ADRs
 
+### STT backend implementation plan
+
+Domain: Transcription / STT / backend
+Source: ADR-0004, STT_ENV_CONTRACT, TRANSCRIPTION_STT blueprint
+Why: First backend slice needs a compact start package before code discovery and implementation.
+Output: backend implementation plan with context docs, contracts, endpoints, env keys, discovery
+plan, implementation slices and stop conditions.
+Depends on: ADR-0004 review and Stage 2 STT env/config contract.
+Status: plan created; ready for review
+
 ### Workspace scenario setup plan
 
 Domain: Workspaces / RBAC
