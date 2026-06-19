@@ -73,9 +73,11 @@ class SttConfig:
     store_source_media: bool
     prepared_audio_retention_days: int | None
     transcript_retention_days: int | None
+    allow_stub_transcript: bool
     cancel_provider_if_supported: bool
     cancel_local_on_provider_no_cancel: bool
     provider_cancel_support: ProviderCancelSupport
+    internal_api_key: str | None = field(default=None, repr=False)
 
 
 def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
@@ -127,6 +129,8 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
             source, "STAGE2_STT_PREPARED_AUDIO_RETENTION_DAYS"
         ),
         transcript_retention_days=_optional_int(source, "STAGE2_STT_TRANSCRIPT_RETENTION_DAYS"),
+        internal_api_key=_optional_str(source, "STAGE2_STT_INTERNAL_API_KEY"),
+        allow_stub_transcript=_bool(source, "STAGE2_STT_ALLOW_STUB_TRANSCRIPT", False),
         cancel_provider_if_supported=_bool(
             source, "STAGE2_STT_CANCEL_PROVIDER_IF_SUPPORTED", True
         ),

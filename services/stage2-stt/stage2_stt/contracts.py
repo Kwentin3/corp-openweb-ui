@@ -47,6 +47,26 @@ class SourceMediaMetadataV1(Stage2Model):
     object_key: str | None = None
 
 
+class OpenWebUIFileReferenceV1(Stage2Model):
+    file_id: str | None = None
+    filename: str | None = None
+    mime_type: str | None = None
+    size_bytes: int | None = Field(default=None, ge=0)
+
+
+class OpenWebUITranscriptionEnvelopeV1(Stage2Model):
+    source_context: Literal["openwebui"]
+    user_id: str | None = None
+    user_email: str | None = None
+    user_role: str | None = None
+    user_groups: list[str] = Field(default_factory=list)
+    chat_id: str | None = None
+    message_id: str | None = None
+    workspace_id: str | None = None
+    file: OpenWebUIFileReferenceV1 | None = None
+    selected_output_profile: str | None = None
+
+
 class PreparedAudioMetadataV1(Stage2Model):
     output_profile: str
     mime_type: str
@@ -170,4 +190,10 @@ class TranscriptionRuntimeCapabilitiesV1(Stage2Model):
     cancel_strategy: str
     supports_speaker_labels: bool
     supports_timestamps: bool
+    warnings: list[str] = Field(default_factory=list)
+
+
+class TranscriptionJobCreateResponseV1(Stage2Model):
+    job: TranscriptionJobV1
+    result: TranscriptResultV1 | None = None
     warnings: list[str] = Field(default_factory=list)

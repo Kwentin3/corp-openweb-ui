@@ -244,7 +244,30 @@ Rules:
   - `late_provider_result_ignored`;
   - `cancelled_locally_provider_continues`.
 
-## 10. Runtime capabilities endpoint
+## 10. Internal job-route auth and probe mode
+
+Draft env names:
+
+```text
+STAGE2_STT_INTERNAL_API_KEY=
+STAGE2_STT_ALLOW_STUB_TRANSCRIPT=false
+```
+
+Rules:
+
+- `STAGE2_STT_INTERNAL_API_KEY` is server-side only and authorizes internal
+  OpenWebUI Action/sidecar job-route calls.
+- Job routes must reject requests when this key is not configured.
+- Job routes must reject wrong bearer/header tokens.
+- Browser clients must not receive this key.
+- This key must not be committed, logged, documented with a real value or placed
+  in `NEXT_PUBLIC_*`.
+- `STAGE2_STT_ALLOW_STUB_TRANSCRIPT=true` is probe/test mode only. It allows
+  route and Action integration checks without a Lemonfox key.
+- Production transcription requires `STAGE2_LEMONFOX_API_KEY` and must not rely
+  on stub transcript mode.
+
+## 11. Runtime capabilities endpoint
 
 Candidate endpoint:
 
@@ -284,11 +307,12 @@ Rules:
 - UI reads this endpoint for warnings and affordances; UI does not infer
   provider capabilities from hardcoded Lemonfox assumptions.
 
-## 11. Security notes
+## 12. Security notes
 
 - No API keys in browser.
 - Env values are server-side only.
 - No secrets in Git.
 - No provider keys in `NEXT_PUBLIC_*` or browser bundle.
+- No internal job-route token in browser.
 - Do not print `.env` values in reports, logs, screenshots or operator proof.
 - This document is a draft env/config contract, not a final `.env.example`.

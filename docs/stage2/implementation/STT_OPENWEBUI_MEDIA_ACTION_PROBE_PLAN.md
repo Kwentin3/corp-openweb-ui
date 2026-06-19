@@ -77,6 +77,8 @@ backend-mediated upload path.
 - Cancel-shaped behavior or explicit limitation.
 - Whether Action can be restricted to admin/group/workspace.
 - Whether sidecar dummy call works without provider key.
+- Whether sidecar job-route call works with `STAGE2_STT_INTERNAL_API_KEY`.
+- Whether `STAGE2_STT_ALLOW_STUB_TRANSCRIPT=true` is limited to probe/test.
 - Confirmation that no separate STT GUI was used.
 - Confirmation that no provider key appears in browser-visible payloads/logs.
 

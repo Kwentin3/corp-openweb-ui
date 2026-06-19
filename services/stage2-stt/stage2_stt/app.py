@@ -1,15 +1,34 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import json
+import secrets
+from uuid import uuid4
 
-from stage2_stt.config import SttConfigError, load_stt_config
-from stage2_stt.contracts import TranscriptionRuntimeCapabilitiesV1
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from pydantic import ValidationError
+
+from stage2_stt.config import OutputProfile, SttConfigError, load_stt_config
+from stage2_stt.contracts import (
+    OpenWebUITranscriptionEnvelopeV1,
+    PreparedAudioMetadataV1,
+    SourceMediaMetadataV1,
+    TranscriptResultV1,
+    TranscriptionJobCreateResponseV1,
+    TranscriptionJobV1,
+    TranscriptionRuntimeCapabilitiesV1,
+)
+from stage2_stt.job_store import InMemoryTranscriptionJobStore, StoredTranscriptionJob
+from stage2_stt.jobs import JobContext, create_transcription_job, request_cancel
+from stage2_stt.lemonfox import LemonfoxProviderError
+from stage2_stt.provider import SttProviderAdapterFactory
 from stage2_stt.runtime import build_runtime_capabilities
-from stage2_stt.storage import StorageModeError
+from stage2_stt.storage import StorageModeError, resolve_storage_decision
+from stage2_stt.validation import validate_prepared_audio
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="OpenWebUI Stage 2 STT Backend", version="0.1.0")
+    job_store = InMemoryTranscriptionJobStore()
 
     @app.get(
         "/stage2-api/transcription/capabilities",
@@ -25,7 +44,255 @@ def create_app() -> FastAPI:
                 detail={"code": "stage2_stt_config_invalid", "message": str(exc)},
             ) from exc
 
+    @app.post(
+        "/stage2-api/transcription/jobs",
+        response_model=TranscriptionJobCreateResponseV1,
+    )
+    async def create_transcription_job_route(
+        prepared_audio: UploadFile = File(...),
+        envelope: str = Form(...),
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> TranscriptionJobCreateResponseV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        parsed_envelope = _parse_envelope(envelope)
+        output_profile = _resolve_output_profile(parsed_envelope, config.output_profile)
+
+        audio_bytes = await prepared_audio.read()
+        mime_type = prepared_audio.content_type
+        if mime_type is None and parsed_envelope.file is not None:
+            mime_type = parsed_envelope.file.mime_type
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        adapter = SttProviderAdapterFactory(config).create()
+        capability = adapter.capabilities()
+        validation = validate_prepared_audio(
+            config=config,
+            capability=capability,
+            output_profile=output_profile,
+            mime_type=mime_type,
+            size_bytes=len(audio_bytes),
+        )
+        if not validation.accepted:
+            raise HTTPException(
+                status_code=422,
+                detail=validation.error.model_dump() if validation.error else None,
+            )
+
+        if not config.lemonfox.has_api_key and not config.allow_stub_transcript:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "provider_auth_missing",
+                    "message": (
+                        "Live STT job routes require STAGE2_LEMONFOX_API_KEY "
+                        "or explicit STAGE2_STT_ALLOW_STUB_TRANSCRIPT=true for probe mode"
+                    ),
+                    "retryable": False,
+                },
+            )
+
+        storage = resolve_storage_decision(config)
+        job_id = f"stt-{uuid4().hex}"
+        job = create_transcription_job(
+            config=config,
+            job_id=job_id,
+            source_media=SourceMediaMetadataV1(
+                file_name=prepared_audio.filename,
+                mime_type=mime_type,
+                size_bytes=len(audio_bytes),
+                stored=False,
+            ),
+            prepared_audio=PreparedAudioMetadataV1(
+                output_profile=output_profile.value,
+                mime_type=mime_type,
+                size_bytes=len(audio_bytes),
+                retention_days=config.prepared_audio_retention_days,
+            ),
+            storage_available=storage.available,
+            context=JobContext(
+                user_id=parsed_envelope.user_id,
+                workspace_id=parsed_envelope.workspace_id,
+            ),
+        ).model_copy(
+            update={
+                "status": "processing",
+                "selected_output_profile": output_profile.value,
+            }
+        )
+        job_store.put(StoredTranscriptionJob(job=job))
+
+        try:
+            transcript = await adapter.transcribe_bytes(
+                audio_bytes=audio_bytes,
+                filename=prepared_audio.filename or "prepared-audio",
+                mime_type=mime_type,
+                output_profile=output_profile.value,
+                live=config.lemonfox.has_api_key,
+            )
+        except LemonfoxProviderError as exc:
+            failed_job = job.model_copy(update={"status": "failed", "error": exc.error})
+            job_store.put(StoredTranscriptionJob(job=failed_job))
+            raise HTTPException(
+                status_code=502,
+                detail={"job_id": failed_job.job_id, **exc.error.model_dump()},
+            ) from exc
+
+        result = transcript.model_copy(
+            update={
+                "job_id": job.job_id,
+                "warnings": list(dict.fromkeys([*validation.warnings, *transcript.warnings])),
+            }
+        )
+        completed_job = job.model_copy(update={"status": "completed"})
+        job_store.put(StoredTranscriptionJob(job=completed_job, result=result))
+        return TranscriptionJobCreateResponseV1(
+            job=completed_job,
+            result=result,
+            warnings=list(
+                dict.fromkeys([*storage.warnings, *validation.warnings, *result.warnings])
+            ),
+        )
+
+    @app.get(
+        "/stage2-api/transcription/jobs/{job_id}",
+        response_model=TranscriptionJobV1,
+    )
+    def get_transcription_job_route(
+        job_id: str,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> TranscriptionJobV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        record = _get_record_or_404(job_store, job_id)
+        return record.job
+
+    @app.get(
+        "/stage2-api/transcription/jobs/{job_id}/result",
+        response_model=TranscriptResultV1,
+    )
+    def get_transcription_result_route(
+        job_id: str,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> TranscriptResultV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        record = _get_record_or_404(job_store, job_id)
+        if record.result is None:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "transcript_result_not_ready", "status": record.job.status},
+            )
+        return record.result
+
+    @app.post(
+        "/stage2-api/transcription/jobs/{job_id}/cancel",
+        response_model=TranscriptionJobV1,
+    )
+    def cancel_transcription_job_route(
+        job_id: str,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> TranscriptionJobV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        record = _get_record_or_404(job_store, job_id)
+        capability = SttProviderAdapterFactory(config).create().capabilities()
+        updated = request_cancel(job=record.job, config=config, capability=capability)
+        return job_store.update_job(updated).job
+
     return app
 
 
 app = create_app()
+
+
+def _load_config_or_500():
+    try:
+        return load_stt_config()
+    except (SttConfigError, StorageModeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "stage2_stt_config_invalid", "message": str(exc)},
+        ) from exc
+
+
+def _require_internal_auth(
+    *,
+    internal_api_key: str | None,
+    authorization: str | None,
+    x_stage2_internal_token: str | None,
+) -> None:
+    if not internal_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "stage2_stt_internal_auth_not_configured",
+                "message": "STT job routes require server-side internal auth configuration",
+            },
+        )
+    token = x_stage2_internal_token
+    if token is None and authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token or not secrets.compare_digest(token, internal_api_key):
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "stage2_stt_internal_auth_failed", "message": "Unauthorized"},
+        )
+
+
+def _parse_envelope(raw: str) -> OpenWebUITranscriptionEnvelopeV1:
+    try:
+        return OpenWebUITranscriptionEnvelopeV1.model_validate(json.loads(raw))
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_openwebui_envelope", "message": str(exc)},
+        ) from exc
+
+
+def _resolve_output_profile(
+    envelope: OpenWebUITranscriptionEnvelopeV1,
+    default_profile: OutputProfile,
+) -> OutputProfile:
+    raw_profile = envelope.selected_output_profile or default_profile.value
+    try:
+        return OutputProfile(raw_profile)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "invalid_output_profile", "message": raw_profile},
+        ) from exc
+
+
+def _get_record_or_404(
+    job_store: InMemoryTranscriptionJobStore,
+    job_id: str,
+) -> StoredTranscriptionJob:
+    record = job_store.get(job_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "transcription_job_not_found", "job_id": job_id},
+        )
+    return record

@@ -104,6 +104,10 @@ Rules:
 - authenticated job routes depend on a passed OpenWebUI media attachment action
   runtime probe for explicit trigger, file byte/handoff access, transcript
   return, progress and cancel;
+- job routes must require server-side internal auth and stay disabled without
+  `STAGE2_STT_INTERNAL_API_KEY`;
+- probe/test stub transcript mode must be explicitly enabled and is not
+  production transcription;
 - first implementation may start with config, capability model and
   `GET /capabilities` before full job lifecycle;
 - no endpoint exposes provider keys, raw `.env`, storage credentials or raw
@@ -163,6 +167,11 @@ Limits and cancel:
 - `STAGE2_STT_CANCEL_PROVIDER_IF_SUPPORTED`;
 - `STAGE2_STT_CANCEL_LOCAL_ON_PROVIDER_NO_CANCEL`;
 - `STAGE2_STT_PROVIDER_CANCEL_SUPPORT`.
+
+Internal job-route auth/probe mode:
+
+- `STAGE2_STT_INTERNAL_API_KEY`;
+- `STAGE2_STT_ALLOW_STUB_TRANSCRIPT`.
 
 ## 7. Codebase discovery plan
 
