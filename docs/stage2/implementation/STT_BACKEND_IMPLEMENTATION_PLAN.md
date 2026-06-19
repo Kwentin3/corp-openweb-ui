@@ -57,6 +57,8 @@ Out of scope:
 - Runtime capabilities endpoint is needed.
 - Prepared audio over 100 MB has warning/fail behavior.
 - Source media storage is off by default.
+- The sidecar is backend-only; user-facing transcription UX must live inside
+  OpenWebUI, with no separate STT user GUI.
 
 ## 4. Contracts to preserve
 
@@ -95,6 +97,8 @@ Rules:
 
 - endpoint names are draft;
 - final routing depends on OpenWebUI auth/session proof;
+- authenticated job routes depend on a selected OpenWebUI-native integration
+  path for user trigger, file handoff, transcript return, progress and cancel;
 - first implementation may start with config, capability model and
   `GET /capabilities` before full job lifecycle;
 - no endpoint exposes provider keys, raw `.env`, storage credentials or raw
@@ -288,6 +292,8 @@ Stop and report before coding further if:
 - Lemonfox key is needed for a step but not provided by operator;
 - `s3` mode is selected but bucket/config/health is unavailable;
 - implementation requires frontend changes before backend contract;
+- implementation would expose or recommend a separate user-facing STT GUI
+  outside OpenWebUI;
 - implementation requires production/compose/env/scripts changes without a
   separate command;
 - any path would put API key in browser, `NEXT_PUBLIC_*`, logs or tests;
@@ -310,4 +316,6 @@ Plan is ready when:
 - stop conditions are defined;
 - no code has started.
 
-Current status: ready for review. No implementation started.
+Current status: ready for review. No implementation started. Before
+authenticated job routes, run the OpenWebUI-native UX probe and select Action
+Function, OpenAPI Tool Server or minimal patch path explicitly.

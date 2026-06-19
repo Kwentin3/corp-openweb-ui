@@ -14,6 +14,10 @@ Stage 2 custom capabilities must be isolated behind explicit backend contracts.
 OpenWebUI remains the upstream product shell; frontend must not own security,
 provider keys, data policy, retention, manager visibility or usage accounting.
 
+For STT, the user-facing workflow must stay inside OpenWebUI. The Stage 2 STT
+sidecar is backend-only, and no separate user-facing transcription GUI is
+planned.
+
 ## 2. Gates
 
 ### Gate 1. Data Policy approved
@@ -39,6 +43,8 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 - Prepared audio >100 MB behavior accepted.
 - Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
+- OpenWebUI-native STT integration path selected before authenticated job
+  routes or UI work.
 - No API keys in browser.
 
 ### Gate 3. Provider Model Catalog approved
@@ -146,6 +152,8 @@ Blocking items:
 - prepared audio >100 MB warning/fail/fallback behavior with stable reason
   codes;
 - cancel lifecycle expectations for preprocessing, upload and STT job;
+- OpenWebUI-native UX decision and runtime probe for Action Function,
+  OpenAPI Tool Server, file handoff, transcript return, progress and cancel;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
 - Lemonfox URL upload path approval only after storage expiry/access proof;
@@ -159,6 +167,7 @@ Related docs:
 - STT env contract;
 - FFMPEG workflow artifact inspection;
 - STT blueprint.
+- OpenWebUI-native STT UX integration research report.
 
 ### Gate 3. Provider Model Catalog approved
 

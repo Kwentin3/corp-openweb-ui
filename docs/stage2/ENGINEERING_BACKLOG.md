@@ -17,6 +17,9 @@ Stage 2 custom capabilities must be isolated behind explicit backend contracts.
 OpenWebUI remains the upstream product shell; custom Stage 2 logic should live
 in bounded domain services, internal APIs, or thin integration shims.
 
+STT user-facing UX must live inside OpenWebUI. The sidecar is backend-only; do
+not plan a separate STT user GUI.
+
 Boundary reference: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 ## Ready for ADR
@@ -59,7 +62,8 @@ Lemonfox selected as first adapter; official docs confirm 100 MB direct upload a
 but leave exact Opus containers, max duration and provider cancel undocumented; owner/operator proof
 is accepted for planning; remaining pre-implementation decisions are output profile config,
 self-hosted asset path, storage mode/config, prepared-audio retention, runtime capabilities contract
-and cancel UX behavior
+and cancel UX behavior. OpenWebUI-native UX path must be selected before
+authenticated job routes or final UI work.
 
 ### Provider model catalog
 
@@ -142,6 +146,20 @@ Why: Current docs may not match deployed v0.9.6.
 Output: capability proof report with exact Admin UI settings and user/group test results.
 Depends on: admin or staging access
 Status: ready for runtime proof
+
+### OpenWebUI-native STT UX integration probe
+
+Domain: Transcription / STT / OpenWebUI UX
+Source: OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH, ADR-0004, STT backend
+implementation plan
+Why: Users must launch and consume transcription inside OpenWebUI, while
+Stage2 STT sidecar remains backend-only.
+Output: runtime proof for Action Function vs OpenAPI Tool Server on pinned
+OpenWebUI version, including uploaded file reference access, transcript return
+path, events/status, cancel behavior and user/context propagation.
+Depends on: admin/staging access, sample media, approved auth boundary.
+Status: research complete; runtime probe needed before authenticated job routes
+or final UI work
 
 ### RBAC/groups proof
 
@@ -276,8 +294,10 @@ Source: ADR-0004, STT_ENV_CONTRACT, TRANSCRIPTION_STT blueprint
 Why: First backend slice needs a compact start package before code discovery and implementation.
 Output: backend implementation plan with context docs, contracts, endpoints, env keys, discovery
 plan, implementation slices and stop conditions.
-Depends on: ADR-0004 review and Stage 2 STT env/config contract.
-Status: plan created; ready for review
+Depends on: ADR-0004 review, Stage 2 STT env/config contract and selected
+OpenWebUI-native UX path.
+Status: plan created; ready for review; authenticated job routes deferred until
+OpenWebUI-native UX probe passes
 
 ### Workspace scenario setup plan
 

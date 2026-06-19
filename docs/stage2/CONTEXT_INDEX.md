@@ -25,6 +25,8 @@ Comment:
 
 - PRD-1 is the source of truth.
 - Stage 2 custom logic must stay behind backend/domain contracts.
+- For STT, user-facing UX must remain inside OpenWebUI; the sidecar is
+  backend-only.
 
 ## Domain isolation / contract boundaries
 
@@ -79,6 +81,7 @@ Comment:
 Read first:
 
 - [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
+- [OpenWebUI-native STT UX Integration Research](../reports/2026-06-19/OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH.report.md)
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
@@ -98,6 +101,8 @@ Comment:
 
 - API keys never go to the browser.
 - STT proxy ADR must define backend boundary before final UI.
+- OpenWebUI-native Action/OpenAPI/files/events path must be selected before
+  authenticated job routes or final UI work.
 - External ffmpeg workflow contract is inspected and transferable as MP3 /
   `audio/mpeg`; owner/operator proof is accepted for ADR planning, while
   production dependency decisions remain open.

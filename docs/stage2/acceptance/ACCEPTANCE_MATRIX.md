@@ -48,7 +48,10 @@ Research:
 Acceptance signal:
 
 - STT proxy contract approved.
-- Audio/video upload produces transcript through server-side proxy.
+- User starts transcription and receives the result inside OpenWebUI
+  chat/workspace UX.
+- Audio/video upload produces transcript through server-side proxy without a
+  separate user-facing STT GUI.
 - STT API key is not present in browser.
 - STT provider call goes through documented adapter/factory boundary.
 - Lemonfox is first adapter, not hardwired architecture.
@@ -77,6 +80,8 @@ Acceptance signal:
 - Prepared audio larger than 100 MB has typed fail/fallback behavior.
 - Prepared audio larger than 100 MB has a warning reason code before provider
   upload.
+- OpenWebUI-native integration path is selected and proven for trigger, file
+  handoff, transcript return, progress and cancel.
 
 Test data needed:
 
@@ -95,12 +100,14 @@ Test data needed:
 - Prepared audio >100 MB behavior.
 - Duration-limit proof or accepted TBD.
 - Provider-cancel proof or accepted unsupported/TBD behavior.
+- OpenWebUI Action/OpenAPI/files/events runtime probe on the pinned deployment.
 
 Status:
 
 - Transferable ffmpeg contract inspected; owner/operator proof accepted for
-  planning; ADR review, selected output profile config, self-hosted asset path,
-  storage mode/config, retention, duration and cancel TBD handling needed.
+  planning; OpenWebUI-native UX research complete; runtime probe, ADR review,
+  selected output profile config, self-hosted asset path, storage mode/config,
+  retention, duration and cancel TBD handling needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

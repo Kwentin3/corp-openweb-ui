@@ -21,6 +21,9 @@ internal APIs или thin integration shims.
   provider responses.
 - OpenWebUI upstream-first: native capabilities используются первыми, deep fork
   допускается только после proof that native/config/sidecar path is insufficient.
+- OpenWebUI-native STT UX: user-facing transcription starts and finishes inside
+  OpenWebUI chat/workspace UX. The Stage 2 STT sidecar is backend-only; no
+  separate user-facing STT GUI is planned.
 - Thin frontend: frontend отвечает за user interaction, upload/progress/cancel
   UX and calls to internal Stage 2 APIs.
 - No API keys in browser: browser never calls STT/LLM/OCR providers with
@@ -39,6 +42,8 @@ internal APIs или thin integration shims.
 - auth/session surface;
 - users/groups/RBAC where native;
 - chat/workspace UI;
+- user-facing STT trigger/result surface through approved native extension
+  mechanisms or a minimal integration patch;
 - prompts/knowledge/workspace models where native;
 - native analytics if sufficient.
 
@@ -54,6 +59,7 @@ internal APIs или thin integration shims.
 - retention/export lifecycle;
 - OCR/VL OCR pilot adapters;
 - internal health/smoke endpoints.
+- no separate user-facing STT GUI.
 
 ### Frontend/thin UI
 
@@ -158,6 +164,8 @@ These are planning contracts. They are not API implementation.
 - Production silently loads ffmpeg wasm assets from public CDN.
 - Source media is stored by default without explicit retention decision.
 - OpenWebUI core is patched deeply for every custom workflow.
+- Users are sent to a separate STT service UI, then asked to copy transcript
+  back into OpenWebUI manually.
 - Provider response shape leaks into prompts/templates.
 - Manager visibility is implemented through blanket admin access.
 - No-delete is treated as audit/retention.
@@ -200,7 +208,8 @@ Current planning state:
   blocking ADR or implementation-planning gate;
 - implementation planning still requires ADR review, selected output profile
   config, self-hosted asset path, storage mode/env decision, prepared-audio
-  retention decision and provider cancel/duration TBD handling.
+  retention decision, provider cancel/duration TBD handling and selected
+  OpenWebUI-native integration path before authenticated job routes or UI work.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy makes self-host/internal cache the production
@@ -219,3 +228,4 @@ vendored in this docs-only decision.
 - [FFMPEG Workflow Artifact Inspection](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG Browser Workflow Research](research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [Transcription STT Research](research/TRANSCRIPTION_STT_RESEARCH.md)
+- [OpenWebUI-native STT UX Integration Research](../reports/2026-06-19/OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH.report.md)

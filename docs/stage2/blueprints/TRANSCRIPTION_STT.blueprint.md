@@ -12,6 +12,8 @@ server-side STT proxy.
 - ffmpeg workflow проверен на desktop and mobile.
 - API keys не должны попадать в браузер.
 - First STT provider: Lemonfox through `LemonfoxSttAdapter`.
+- User-facing STT UX must live inside OpenWebUI. The sidecar is a
+  backend/domain service, not a separate user-facing transcription GUI.
 
 ## 3. Current known context
 
@@ -41,17 +43,20 @@ reported proven in two projects with the same stack/architecture, including
 mobile and large-file cases. Optional implementation smoke can still run during
 implementation/debug.
 
-Stage 2 transcription work must start from backend/server-side STT proxy boundary, not final
-frontend UI.
+Stage 2 transcription work must start from backend/server-side STT proxy
+boundary and an OpenWebUI-native UX decision, not from a separate STT frontend.
 
 ## 4. Target user workflow
 
-Пользователь загружает audio/video. GUI готовит audio через browser ffmpeg workflow according to the
-selected output profile. Prepared audio blob идет в server-side STT proxy and storage lifecycle
-according to `auto|s3|none`.
+Пользователь загружает audio/video inside OpenWebUI chat/workspace UX and
+starts transcription through an approved OpenWebUI-native action/tool/button
+flow. GUI готовит audio через browser ffmpeg workflow according to the selected
+output profile. Prepared audio blob идет в server-side STT proxy and storage
+lifecycle according to `auto|s3|none`.
 Proxy проверяет auth/rights/limits/output profile, выбирает `LemonfoxSttAdapter` as first adapter,
 добавляет server-side STT key, вызывает Lemonfox through adapter factory. UI показывает transcript
-и templates: протокол, задачи, решения, резюме, follow-up.
+inside OpenWebUI as chat/message/file/artifact output, then templates:
+протокол, задачи, решения, резюме, follow-up.
 
 Current transferable prepared-audio contract from the source workflow is MP3 /
 `audio/mpeg`. Stage 2 keeps it as compatibility fallback. Opus is the preferred
@@ -83,14 +88,21 @@ Boundary contract:
 10. `>100 MB` warning/fail/fallback behavior uses stable reason codes.
 11. Cancel lifecycle: preprocessing, upload and STT job cancel are supported where technically
    possible.
-12. UI/browser integration follows after proxy boundary and runtime smoke.
+12. UI/browser integration follows after proxy boundary, runtime smoke and
+    selected OpenWebUI-native integration path.
 
 ## 5. Native OpenWebUI first path
 
-- Проверить native STT settings.
-- Проверить file upload and chat attachment behavior.
+- Prefer an OpenWebUI Action Function for MVP if runtime probe confirms access
+  to uploaded file references, `__user__` and status/events on the pinned
+  OpenWebUI version.
+- Keep OpenAPI Tool Server as the sidecar-friendly production candidate after
+  schema, file handoff, auth headers and progress/cancel behavior are proven.
+- Проверить native STT settings, file upload/chat attachment behavior,
+  workspace model actions/tools, RBAC/groups and permissions.
 - Использовать native auth/session where possible.
 - Использовать workspace scenario and prompts/templates.
+- Do not build or recommend a separate user-facing STT GUI.
 
 ## 6. Integration / custom implementation path
 
@@ -127,6 +139,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   implementation-planning gate.
 - Lemonfox research.
 - OpenWebUI capability research.
+- OpenWebUI-native STT UX integration runtime probe: Action Function,
+  OpenAPI Tool Server, files/upload references, events/status, transcript return
+  path and access control on deployed/pinned version.
 - Manager visibility/retention policy.
 - Data policy.
 
@@ -145,6 +160,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Provider-side cancellation not documented until proof.
 - Transcript storage and permissions.
 - OpenWebUI update compatibility.
+- OpenWebUI Action/Tool/OpenAPI behavior may differ from latest docs on the
+  pinned deployment until runtime proof is captured.
 
 ## 10. Open questions
 
@@ -162,6 +179,10 @@ Frontend must not decide provider keys, data policy, retention or access rules.
   `SharedArrayBuffer` / COOP / COEP support required?
 - Where are transcripts stored?
 - Is diarization required in first slice?
+- Does pinned OpenWebUI expose enough file metadata/path/reference to an Action
+  without coupling the sidecar to private `openwebui_data` layout?
+- Should MVP return transcript by replacing/appending a chat message, attaching
+  a file/artifact, or both?
 
 ## 11. Research links
 
@@ -193,6 +214,10 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Browser ffmpeg/preprocessing output contract is inspected and owner/operator
   proof is accepted for planning.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
+- User launches and consumes transcription inside OpenWebUI; no separate
+  user-facing STT GUI is accepted.
+- Selected OpenWebUI-native path is documented before authenticated job routes
+  and final UI work.
 
 ## 13. Implementation readiness
 
@@ -201,5 +226,6 @@ human review. The missing-artifact blocker is removed, but implementation
 planning still requires production output profile decision, Lemonfox
 adapter/profile config, self-hosted ffmpeg asset path, storage mode/config,
 prepared-audio retention, licensing/ops review, cancel lifecycle, duration and
-file-limit policy. Browser/UI work follows after backend contract,
-preprocessing contract and runtime proof.
+file-limit policy. OpenWebUI-native Action/OpenAPI/file/event runtime proof is
+also required before authenticated job routes and final UI work. Browser/UI work
+follows after backend contract, preprocessing contract and runtime proof.

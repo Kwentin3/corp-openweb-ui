@@ -10,6 +10,8 @@ Accepted planning decisions:
 
 - browser-to-provider STT calls are rejected;
 - STT API keys stay server-side only;
+- user-facing STT UX lives inside OpenWebUI chat/workspace UX;
+- the Stage 2 STT sidecar is backend-only and has no separate user-facing GUI;
 - Lemonfox is the first STT provider through `LemonfoxSttAdapter`;
 - orchestration uses `SttProviderAdapterFactory`, not direct Lemonfox coupling;
 - browser ffmpeg preprocessing is a media-preparation asset, not a security
@@ -73,6 +75,24 @@ Does not own:
 - retention policy;
 - provider capability inference;
 - direct Lemonfox calls.
+
+### OpenWebUI UX Surface
+
+Owns:
+
+- user-triggered transcription entrypoint through approved native extension
+  mechanisms or a minimal integration patch;
+- file attachment/reference handoff to the backend-side STT contract;
+- transcript placement in chat/message/file/artifact UX;
+- user-visible progress, error and cancel affordances sourced from backend
+  state/events.
+
+Does not own:
+
+- provider keys;
+- Lemonfox-specific decisions;
+- sidecar domain orchestration;
+- separate STT portal or user-facing sidecar UI.
 
 ### Stage 2 Backend / STT Proxy
 
@@ -503,10 +523,13 @@ POST /stage2-api/transcription/jobs/{job_id}/cancel
 Rules:
 
 - final routing depends on OpenWebUI auth/session proof;
+- authenticated job routes also depend on selected OpenWebUI-native UX path for
+  trigger, files, transcript return, progress and cancel;
 - request/response schemas are versioned;
 - long-running transcription uses job lifecycle;
 - short files may still complete synchronously behind job contract;
 - routes prefer sidecar/internal backend API or thin shim over deep core fork.
+- no route is implemented to support a separate user-facing STT GUI.
 
 ## 15. Remaining Implementation Notes
 
