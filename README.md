@@ -70,11 +70,13 @@ data masking/tokenization остаются отдельными optional/future 
 Инженерный домен подготовки к реализации Stage 2:
 [docs/stage2/README.md](docs/stage2/README.md).
 
-Research findings актуализированы 2026-06-18. STT MVP implementation proof
-добавлен 2026-06-19: private `stage2-stt` sidecar routes, OpenWebUI static
-`Transcribe` action and browser ffmpeg.wasm normalization are implemented and
-reported. Оставшиеся blockers по Stage 2 в целом: customer test data,
-provider/data policy decisions, ADR review/status and production hardening.
+Research findings актуализированы 2026-06-18. STT MVP current stage закрыт
+2026-06-19: private `stage2-stt` sidecar routes, OpenWebUI static `Transcribe`
+action, browser ffmpeg.wasm normalization and transcript return to OpenWebUI UX
+are implemented/proven. Оставшаяся STT работа - testing/hardening, not
+architectural discovery. Оставшиеся blockers по Stage 2 в целом: customer test
+data, provider/data policy decisions, ADR review/status and production
+hardening.
 
 Реализация Stage 2 должна начинаться с backend/server-side boundaries, policies
 и proofs; UI/frontend follows after backend contracts are clear.
@@ -82,6 +84,12 @@ Custom Stage 2 capabilities должны быть изолированы за я
 contracts. OpenWebUI остается upstream product shell, а frontend не владеет
 security, provider keys, data policy, retention, manager visibility or usage
 accounting.
+
+Future OpenWebUI-facing Stage 2 features should follow the
+[extension-first implementation pattern](docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md):
+native mechanisms first, then Functions/Actions/Tools, thin static loader or UI
+shim, private backend sidecar, and deep fork only after proof and owner/ADR
+approval.
 
 Подробные отчеты:
 
@@ -103,6 +111,8 @@ accounting.
   report](docs/reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md)
 - [STT docs implementation drift audit
   report](docs/reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md)
+- [STT MVP feature closure
+  report](docs/reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md)
 - [Native Web STT recorder patch
   report](docs/reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
@@ -118,6 +128,8 @@ accounting.
 - [domain map](docs/stage2/DOMAIN_MAP.md)
 - [contract boundaries](docs/stage2/CONTRACT_BOUNDARIES.md)
 - [implementation gates](docs/stage2/IMPLEMENTATION_GATES.md)
+- [extension-first implementation
+  pattern](docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 
 ## Быстрый старт на сервере
 
@@ -158,6 +170,8 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/CONTRACT_BOUNDARIES.md](docs/stage2/CONTRACT_BOUNDARIES.md)
 - Stage 2 implementation gates:
   [docs/stage2/IMPLEMENTATION_GATES.md](docs/stage2/IMPLEMENTATION_GATES.md)
+- Stage 2 extension-first implementation pattern:
+  [docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - Stage 2 STT backend implementation plan:
   [docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md](docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
 - Stage 2 research actualization report:
@@ -178,6 +192,8 @@ bash scripts/smoke-test.sh --strict-tls
   [OPENWEBUI STT ffmpeg browser normalization implementation report][stt-ffmpeg-normalization-report]
 - STT docs implementation drift audit report:
   [OPENWEBUI STT docs implementation drift audit report][stt-docs-drift-audit-report]
+- STT MVP feature closure report:
+  [OPENWEBUI STT MVP feature closure report][stt-mvp-feature-closure-report]
 - Stage 2 agent review:
   [OPENWEBUI PRD-1 Stage 2 agent review][stage2-agent-review-report]
 - Stage 2 backend-first / VL OCR refine report:
@@ -194,6 +210,7 @@ bash scripts/smoke-test.sh --strict-tls
 [stt-runtime-completion-report]: docs/reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md
 [stt-ffmpeg-normalization-report]: docs/reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md
 [stt-docs-drift-audit-report]: docs/reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md
+[stt-mvp-feature-closure-report]: docs/reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md
 [stage2-agent-review-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md
 [stage2-backend-vl-ocr-report]: docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md
 [stage2-source-of-truth-sync-report]: docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md

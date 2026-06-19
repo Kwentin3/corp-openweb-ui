@@ -131,6 +131,8 @@ Test data needed:
 
 Status:
 
+- Current-stage acceptance: passed.
+- Production hardening: pending.
 - Prepared-MP3 OpenWebUI frontend MVP passed.
 - OpenWebUI media attachment `Transcribe` Action path passed for the static
   loader MVP implementation.
@@ -145,6 +147,8 @@ Status:
 - Broad media support remains capability-based around the configured
   ffmpeg.wasm build and browser limits; do not claim universal FFmpeg input
   support.
+- This closes the current Stage 2 STT MVP implementation stage. Remaining STT
+  work is testing/hardening, not architectural discovery.
 - Remaining acceptance data: mobile, low-memory browser, large/customer files,
   cancel during ffmpeg, duration-limit policy, Opus provider/default proof if
   selected, production storage/retention, transcript history/export/workflow

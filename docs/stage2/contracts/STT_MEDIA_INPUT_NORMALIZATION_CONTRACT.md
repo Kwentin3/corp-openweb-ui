@@ -11,6 +11,8 @@ Implementation baseline note, 2026-06-19:
   `mp3_high_compat` with self-hosted ffmpeg.wasm assets.
 - Playwright proof passed for prepared MP3 passthrough, MP4 with audio, WebM
   audio/video, unsupported fake MP4 safe error and no-audio MP4 safe error.
+- This closes the current Stage 2 STT MVP media-normalization implementation
+  stage and makes broader media work a testing/hardening backlog item.
 - This proof does not close mobile, low-memory browser, large/customer media,
   cancel-during-ffmpeg or production duration/retention questions.
 

@@ -23,6 +23,11 @@ Implementation baseline note, 2026-06-19:
   static path. The sidecar default remains `opus_webm_compact` with
   `mp3_high_compat` fallback until Opus provider proof and production policy
   select a final default.
+- STT MVP is implemented/proven/current-stage closed. Remaining config work is
+  production hardening: output-profile policy, mobile/large/low-memory limits,
+  duration/cancel decisions, storage/retention and monitoring.
+- Future agents should not re-plan the STT path from zero or move provider keys
+  into browser config.
 
 ## 2. Provider selection
 

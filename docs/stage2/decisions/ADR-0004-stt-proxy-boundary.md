@@ -14,6 +14,8 @@ Implementation baseline note, 2026-06-19:
   safe visible errors before provider handoff.
 - The public OpenWebUI route does not expose the sidecar capabilities endpoint;
   the sidecar remains private/internal and no browser Lemonfox key is exposed.
+- STT MVP is current-stage closed and ready for broader testing. Remaining STT
+  work is testing/hardening, not architectural discovery.
 - Remaining ADR-level decisions are production policy/hardening items: final
   Opus default/provider proof, mobile and large-file acceptance, duration
   policy, cancellation UX policy, storage/retention, transcript history/export
@@ -613,6 +615,8 @@ Rules:
 - routes prefer sidecar/internal backend API or thin shim over deep core fork.
 - no route is implemented to support a separate user-facing STT GUI.
 - sidecar route/API is not a standalone UX.
+- future agents should not reopen the Action/static-loader/browser-normalization
+  path as discovery work; continue from testing/hardening backlog.
 
 ## 15. Remaining Implementation Notes
 
@@ -650,6 +654,7 @@ production acceptance checks, not a reason to re-plan the completed MVP path.
 ## 17. Links
 
 - [CONTRACT_BOUNDARIES](../CONTRACT_BOUNDARIES.md)
+- [EXTENSION_FIRST_IMPLEMENTATION_PATTERN](../EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [IMPLEMENTATION_GATES](../IMPLEMENTATION_GATES.md)
 - [STT_ENV_CONTRACT](../config/STT_ENV_CONTRACT.md)
 - [TRANSCRIPTION_STT.blueprint](../blueprints/TRANSCRIPTION_STT.blueprint.md)

@@ -31,11 +31,13 @@ AI-среду: рабочие сценарии, группы, prompts/templates,
 2. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
 3. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
    provider calls, storage, policy, usage or UI/backend split.
-4. Открыть профильный blueprint в [blueprints/](blueprints/).
-5. Открыть связанные research-документы в [research/](research/).
-6. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
-7. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
-8. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
+4. Открыть [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
+   для OpenWebUI-facing features.
+5. Открыть профильный blueprint в [blueprints/](blueprints/).
+6. Открыть связанные research-документы в [research/](research/).
+7. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
+8. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
+9. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
    proof.
 
 ## 5. Backend-first delivery principle
@@ -49,6 +51,11 @@ access rules are decided.
 Stage 2 custom capabilities must be isolated behind explicit backend contracts.
 OpenWebUI remains the upstream product shell; custom Stage 2 logic should live in
 bounded domain services, internal APIs, or thin integration shims.
+
+OpenWebUI-facing features should use the extension-first path before any fork:
+native OpenWebUI mechanisms, Functions/Actions/Tools, thin static loader/UI
+shim, private backend/domain sidecar, and only then a deep fork if runtime proof
+and owner/ADR approval require it.
 
 The frontend must not own security, provider keys, data policy, retention,
 manager visibility or usage accounting.
@@ -72,6 +79,7 @@ provider setup, usage analytics and web-search.
 | [CONTEXT_INDEX.md](CONTEXT_INDEX.md) | Быстрый индекс: что читать по домену/задаче. |
 | [DOMAIN_MAP.md](DOMAIN_MAP.md) | Карта инженерных доменов Stage 2. |
 | [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
+| [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md) | Reusable pattern for adding OpenWebUI-facing features without defaulting to a fork. |
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
@@ -145,6 +153,9 @@ Current implementation baseline, 2026-06-19:
 - Private `stage2-stt` sidecar job routes, `LemonfoxSttAdapter`, internal auth,
   OpenWebUI static `Transcribe` action and browser ffmpeg.wasm normalization
   are implemented/proven for the MVP path.
+- Stage 2 STT MVP status: implemented/proven/current-stage closed and ready
+  for broader testing. Remaining work is testing/hardening, not architectural
+  discovery.
 - Native OpenWebUI Web API microphone dictation is patched through a pinned
   OpenWebUI image layer; Stage 2 static loader no longer post-processes native
   microphone input.
@@ -163,8 +174,12 @@ Read next:
   [OPENWEBUI_STT_RUNTIME_COMPLETION.report.md](../reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md).
 - Review docs implementation drift audit:
   [OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md](../reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md).
+- Review STT MVP feature closure report:
+  [OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md](../reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md).
 - Review native Web STT recorder patch report:
   [OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md](../reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md).
+- Reuse the extension-first pattern for future OpenWebUI-facing features:
+  [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md).
 - Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Review final compact STT contract refine report:
@@ -173,9 +188,10 @@ Read next:
   [STT_BACKEND_IMPLEMENTATION_PLAN.md](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md).
 - Treat frontend patch plan as historical baseline:
   [STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md).
-- Close production output profile, self-hosted asset path, storage mode,
-  retention, duration and cancel decisions. Optional ffmpeg smoke can run during
-  implementation/debug.
+- Continue with testing/hardening: mobile/large/low-memory browser proof,
+  duration/cancel policy, storage/retention, Opus default proof if selected,
+  permissions, monitoring and transcript workflow. Optional ffmpeg smoke can
+  run during implementation/debug.
 
 ### ffmpeg browser workflow
 
@@ -265,7 +281,8 @@ Next action:
 
 ## 10. Что не является production acceptance на текущем шаге
 
-- STT MVP code exists, but ADR-0004 is still `Proposed`.
+- STT MVP current stage is closed, but ADR-0004 is still `Proposed` and
+  production hardening is pending.
 - Нет нового provider setup в документации.
 - Этот docs view не вносит новых compose/env/scripts changes.
 - Нет OpenWebUI fork.
@@ -306,8 +323,9 @@ dependencies.
 
 ## 12. Следующий шаг
 
-Review [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
-and close production dependency decisions.
+For STT, do not re-plan the MVP architecture. Review
+[ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md) for
+production policy/hardening decisions and continue broader testing.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

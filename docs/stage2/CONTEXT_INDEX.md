@@ -10,6 +10,7 @@ Read first:
 - [README](README.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+- [EXTENSION_FIRST_IMPLEMENTATION_PATTERN](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
 
 Additional context:
@@ -25,6 +26,9 @@ Comment:
 
 - PRD-1 is the source of truth.
 - Stage 2 custom logic must stay behind backend/domain contracts.
+- OpenWebUI-facing features should follow the extension-first order before a
+  fork: native mechanisms, Functions/Actions/Tools, thin static loader/UI shim,
+  private sidecar, then fork only with proof and owner/ADR approval.
 - For STT, user-facing UX must remain inside OpenWebUI; the sidecar is
   backend-only.
 - MVP STT trigger is explicit `Transcribe` action on an audio/video media
@@ -35,6 +39,7 @@ Comment:
 Read first:
 
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+- [EXTENSION_FIRST_IMPLEMENTATION_PATTERN](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
 - [ROADMAP](ROADMAP.md)
 
@@ -83,10 +88,15 @@ Comment:
 Read first:
 
 - [OpenWebUI STT ffmpeg browser normalization implementation report](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md)
+- [OpenWebUI STT MVP feature closure report](../reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md)
 - [OpenWebUI STT runtime completion report](../reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md)
+- [Extension-first implementation pattern](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
+  (historical traceability)
 - [STT OpenWebUI media action probe plan](implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md)
+  (historical traceability)
 - [STT frontend media action patch plan](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md)
+  (historical traceability)
 - [STT media input normalization contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
 - [OpenWebUI STT Frontend Media Action Patch Report](../reports/2026-06-19/OPENWEBUI_STT_FRONTEND_MEDIA_ACTION_PATCH.report.md)
 - [OpenWebUI STT Playwright UI Proof](../reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md)
@@ -114,6 +124,8 @@ Comment:
 - Private sidecar job routes, the OpenWebUI media attachment `Transcribe`
   action and browser ffmpeg.wasm normalization are implemented/proven for the
   MVP path.
+- Stage 2 STT MVP is current-stage closed and ready for broader testing.
+  Remaining STT work is testing/hardening, not architectural discovery.
 - Prepared-MP3 frontend MVP passed through a static OpenWebUI loader patch.
 - MP4-with-audio and WebM generated proof media passed through browser
   normalization into the existing Action/sidecar path.
@@ -129,6 +141,8 @@ Comment:
   cancel during ffmpeg, duration-limit policy, Opus provider proof if selected,
   production storage/retention, transcript history/export/workflow and
   multi-user/group permission hardening.
+- Do not re-plan STT from zero and do not introduce a separate user-facing STT
+  sidecar GUI for the MVP.
 
 ## Брокерские отчеты / 3-НДФЛ
 

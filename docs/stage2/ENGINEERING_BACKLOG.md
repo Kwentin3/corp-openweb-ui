@@ -18,11 +18,57 @@ Stage 2 custom capabilities must be isolated behind explicit backend contracts.
 OpenWebUI remains the upstream product shell; custom Stage 2 logic should live
 in bounded domain services, internal APIs, or thin integration shims.
 
+OpenWebUI-facing features should follow the extension-first implementation
+pattern before any fork: native mechanisms, Functions/Actions/Tools, thin
+static/UI shim, private backend sidecar, then fork only after proof and
+owner/ADR approval.
+
 STT user-facing UX must live inside OpenWebUI. The sidecar is backend-only; do
 not plan a separate STT user GUI. MVP trigger is an explicit `Transcribe`
 action on an audio/video media attachment, not magic LLM inference.
 
 Boundary reference: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+
+Pattern reference:
+[EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md).
+
+## Current-stage closed / proven
+
+### Stage 2 STT MVP
+
+Domain: Transcription / STT
+Source: runtime, frontend media action, ffmpeg normalization and Playwright
+proof reports from 2026-06-19
+Why: The owner accepts the current feature as correctly closed for this stage;
+further work is testing/hardening.
+Implemented path:
+
+```text
+OpenWebUI media attachment -> static loader Transcribe action ->
+browser ffmpeg.wasm normalization -> OpenWebUI Action Function ->
+private stage2-stt sidecar -> Lemonfox adapter -> transcript returned to
+OpenWebUI composer/chat UX
+```
+
+Completed/proven:
+
+- sidecar backend foundation;
+- private job routes/internal auth;
+- Lemonfox adapter/live smoke;
+- OpenWebUI Action Function path;
+- static loader `Transcribe` button;
+- prepared MP3 path;
+- browser ffmpeg.wasm normalization;
+- MP4 video with audio proof;
+- WebM audio/video proof;
+- unsupported media safe error;
+- no-audio safe error;
+- self-hosted ffmpeg.wasm assets.
+
+Status: implemented/proven/current-stage closed; ready for broader testing.
+
+Sticky instruction: do not re-plan STT from zero, do not fork OpenWebUI without
+proven necessity, and do not treat the sidecar as a user-facing GUI.
 
 ## Ready for ADR
 
@@ -153,7 +199,7 @@ Output: capability proof report with exact Admin UI settings and user/group test
 Depends on: admin or staging access
 Status: ready for runtime proof
 
-### OpenWebUI media attachment transcription action probe
+### OpenWebUI media attachment transcription action proof
 
 Domain: Transcription / STT / OpenWebUI UX
 Source: STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN,
@@ -162,8 +208,8 @@ implementation plan
 Why: Users must launch and consume transcription from a visible media
 attachment action inside OpenWebUI, while Stage2 STT sidecar remains
 backend-only.
-Output: runtime proof for Action Function / media attachment action on pinned
-OpenWebUI version.
+Output: historical runtime proof for Action Function / media attachment action
+on pinned OpenWebUI version.
 Subtasks:
 - Action Function probe;
 - file metadata/bytes probe;
@@ -174,7 +220,7 @@ Subtasks:
 - cancel semantics;
 - final integration path decision.
 Depends on: admin/staging access, sample media, approved auth boundary.
-Status: implemented/proven for the MVP static loader path. Keep future work
+Status: current-stage closed for the MVP static loader path. Keep future work
 scoped to progress/cancel/access-policy hardening, transcript workflow,
 mobile/large-file proof and regression coverage.
 
@@ -205,19 +251,19 @@ Output: smoke results for approved Russian/English queries and documented gaps.
 Depends on: ADR-0007, provider account/key path, allowed query examples
 Status: ready after ADR and provider approval
 
-### STT proxy smoke plan
+### STT proxy smoke proof / hardening data
 
 Domain: Transcription / STT
 Source: TRANSCRIPTION_STT blueprint, ADR-0004
-Why: STT proxy must be proven before final UI work.
-Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
+Why: STT proxy must stay proven while production hardening expands.
+Output: follow-up hardening data for audio/video, key handling, errors,
+size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
-Status: prepared-MP3/OpenWebUI Action/sidecar/Lemonfox smoke is proven in the
-2026-06-19 runtime report. Keep desktop video, mobile audio, mobile video,
-large WAV and large video checks, selected Opus profile proof if promoted,
-prepared audio >100 MB behavior, storage mode behavior, duration limit
-behavior and provider-cancel unknown/unsupported handling as follow-up
-acceptance/hardening data.
+Status: current-stage smoke is proven in the 2026-06-19 reports. Keep desktop
+video, mobile audio, mobile video, large WAV and large video checks, selected
+Opus profile proof if promoted, prepared audio >100 MB behavior, storage mode
+behavior, duration limit behavior and provider-cancel unknown/unsupported
+handling as follow-up acceptance/hardening data.
 
 ### STT env/config contract review
 
@@ -242,20 +288,21 @@ large WAV and large video.
 Depends on: implementation slice and approved test media.
 Status: optional implementation/debug smoke; not a blocking ADR gate
 
-### Browser ffmpeg.wasm input probe and normalization
+### Browser ffmpeg.wasm input normalization hardening
 
 Domain: Transcription / STT / frontend preprocessing
 Source: STT_MEDIA_INPUT_NORMALIZATION_CONTRACT, ADR-0004, STT_ENV_CONTRACT
-Why: Prepared MP3 is proven, but broad media input support must be capability-based and cannot be
-claimed from a static extension list.
-Output: browser ffmpeg.wasm probe/decode, audio-stream detection, normalization to selected output
-profile, progress events and typed safe errors.
+Why: Broad media input support is capability-based and cannot be claimed from a
+static extension list.
+Output: hardening for browser ffmpeg.wasm probe/decode, audio-stream detection,
+normalization to selected output profile, progress events and typed safe
+errors.
 Depends on: approved ffmpeg asset path, input accept mode env, runtime capabilities endpoint,
 representative media.
 Acceptance: Playwright proof for MP3 prepared/passthrough path, MP4 video with audio, WebM
 audio/video if available, unsupported file safe error and no-audio-stream safe error.
-Status: implemented and proven on generated proof media; keep customer/large/mobile media checks
-as follow-up acceptance data
+Status: implemented/proven/current-stage closed on generated proof media; keep
+customer/large/mobile media checks as follow-up acceptance data
 
 ### FFMPEG production dependency decisions
 

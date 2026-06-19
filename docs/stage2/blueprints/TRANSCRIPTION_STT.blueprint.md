@@ -59,6 +59,9 @@ Implementation baseline, 2026-06-19:
 - Backend sidecar/job routes, `LemonfoxSttAdapter`, runtime capabilities,
   OpenWebUI attachment `Transcribe` action patch and browser ffmpeg.wasm
   normalization are implemented.
+- Stage 2 STT MVP is implemented/proven/current-stage closed and ready for
+  broader testing. Remaining work is testing/hardening, not architectural
+  discovery.
 - Prepared MP3, MP4 with audio and WebM generated proof media reach the
   Action/sidecar path; unsupported/decode-failed and no-audio media fail with
   safe visible errors before provider handoff.
@@ -138,6 +141,9 @@ Boundary contract:
 12. UI/browser integration uses the selected OpenWebUI-native static loader
     Action path for the MVP implementation; future work should harden that path
     rather than re-plan a separate STT GUI.
+13. Future OpenWebUI-facing changes follow the extension-first implementation
+    pattern: native mechanisms, Functions/Actions/Tools, thin static/UI shim,
+    private sidecar, then fork only after proof and owner/ADR approval.
 
 ## 5. Native OpenWebUI first path
 
@@ -286,7 +292,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ADR-0004 is still proposed for human review, but the initial implementation
 path is no longer only planned. Backend sidecar/job routes, the OpenWebUI media
 attachment Action path and browser ffmpeg.wasm normalization have been
-implemented/proven. Remaining readiness items are production output-profile
+implemented/proven. The current STT MVP implementation stage is closed; future
+work starts from testing/hardening and product acceptance, not from
+architecture discovery. Remaining readiness items are production output-profile
 decision, Opus provider proof if selected, storage mode/config,
 prepared-audio/transcript retention, licensing/ops review, cancel UX, duration
 and file-limit policy, mobile/large-file acceptance and transcript

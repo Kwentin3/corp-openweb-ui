@@ -22,6 +22,10 @@ MVP STT UX is an explicit `Transcribe` action on an OpenWebUI audio/video media
 attachment. This is the user intent contract; implicit/magic LLM triggering is
 not the MVP path.
 
+Stage 2 STT MVP implementation is current-stage closed and ready for broader
+testing. Remaining STT gate work is production hardening and owner/ADR policy
+review, not architectural discovery or a reason to restart the MVP design.
+
 ## 2. Gates
 
 ### Gate 1. Data Policy approved
@@ -136,6 +140,7 @@ Status:
   Lemonfox capability profile review, output-profile config, self-hosted asset
   path, storage mode/config, prepared-audio retention and production dependency
   decisions are complete.
+- STT MVP current-stage acceptance passed. Production hardening remains pending.
 
 Owner:
 
@@ -181,6 +186,8 @@ Remaining blocking items:
 - OpenWebUI media attachment action path is implemented for the MVP static
   loader path; remaining work is richer progress/cancel/access-policy
   hardening and product workflow acceptance;
+- do not re-open STT Action path, browser normalization or sidecar boundary as
+  discovery work; continue from testing/hardening backlog;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
 - browser ffmpeg.wasm memory/size/duration rejection behavior is typed and

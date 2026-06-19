@@ -9,6 +9,10 @@ Stage 2 должен оставаться upgrade-safe: OpenWebUI остаетс
 shell, а custom capabilities добавляются через bounded domain services,
 internal APIs или thin integration shims.
 
+OpenWebUI-facing features should follow the
+[extension-first implementation pattern](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
+before any deep fork is considered.
+
 Документ задает рамку для ADR, proof gates and implementation slices.
 
 Implementation baseline note, 2026-06-19:
@@ -23,6 +27,10 @@ Implementation baseline note, 2026-06-19:
   MVP architecture: mobile/large-file proof, low-memory behavior, cancel during
   ffmpeg, final duration policy, Opus/provider proof, retention/storage,
   transcript history/export/workflow and multi-user permission hardening.
+- Sticky instruction for future agents: do not re-plan STT from zero, do not
+  create a separate user-facing sidecar GUI, and do not fork OpenWebUI unless
+  native mechanisms, Actions/Tools, thin static/UI shims and the sidecar pattern
+  are proven insufficient.
 
 ## 2. Principles
 
@@ -33,6 +41,9 @@ Implementation baseline note, 2026-06-19:
   provider responses.
 - OpenWebUI upstream-first: native capabilities используются первыми, deep fork
   допускается только после proof that native/config/sidecar path is insufficient.
+- Extension-first: OpenWebUI-facing features are evaluated through native
+  mechanisms, Functions/Actions/Tools, thin static/UI shims and private
+  sidecars before a fork is considered.
 - OpenWebUI-native STT UX: user-facing transcription starts and finishes inside
   OpenWebUI chat/workspace UX. The Stage 2 STT sidecar is backend-only; no
   separate user-facing STT GUI is planned.
@@ -279,6 +290,7 @@ vendored in this docs-only decision.
 
 - [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - [Stage 2 README](README.md)
+- [Extension-First Implementation Pattern](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [Implementation Gates](IMPLEMENTATION_GATES.md)
 - [STT Env Contract](config/STT_ENV_CONTRACT.md)
 - [STT Media Input Normalization Contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
