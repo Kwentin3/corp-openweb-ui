@@ -51,6 +51,7 @@ services:
       WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD:-}
     volumes:
       - openwebui_data:/app/backend/data
+      - ../deploy/openwebui-static/loader.js:/app/backend/open_webui/static/loader.js:ro
     labels:
       - traefik.enable=true
       - traefik.http.routers.openwebui.rule=Host(`${OPENWEBUI_HOST}`)
