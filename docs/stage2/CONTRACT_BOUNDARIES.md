@@ -24,6 +24,10 @@ internal APIs или thin integration shims.
 - OpenWebUI-native STT UX: user-facing transcription starts and finishes inside
   OpenWebUI chat/workspace UX. The Stage 2 STT sidecar is backend-only; no
   separate user-facing STT GUI is planned.
+- MVP STT trigger: audio/video chat attachments expose an explicit
+  `Transcribe` media attachment action. This action is the user intent contract
+  for browser-side media normalization, backend STT job creation, provider
+  transcription and transcript return into the current OpenWebUI chat UX.
 - Thin frontend: frontend отвечает за user interaction, upload/progress/cancel
   UX and calls to internal Stage 2 APIs.
 - No API keys in browser: browser never calls STT/LLM/OCR providers with
@@ -42,8 +46,9 @@ internal APIs или thin integration shims.
 - auth/session surface;
 - users/groups/RBAC where native;
 - chat/workspace UI;
-- user-facing STT trigger/result surface through approved native extension
-  mechanisms or a minimal integration patch;
+- user-facing STT trigger/result surface through an approved native media
+  attachment action or a minimal integration patch;
+- visible `Transcribe` affordance on supported audio/video attachments;
 - prompts/knowledge/workspace models where native;
 - native analytics if sufficient.
 
@@ -52,6 +57,7 @@ internal APIs или thin integration shims.
 - STT proxy/job service;
 - STT Provider Adapter Factory and provider adapters;
 - first STT adapter: `LemonfoxSttAdapter`;
+- backend/domain engine only; not a user-facing portal;
 - policy resolver;
 - usage event collector;
 - transcript normalization;
@@ -64,9 +70,13 @@ internal APIs или thin integration shims.
 ### Frontend/thin UI
 
 - user interaction;
+- detects/receives media attachment context;
+- shows the explicit `Transcribe` action for supported audio/video;
 - upload/progress/cancel UX;
 - local media preprocessing only when covered by an approved contract;
-- calls internal Stage 2 APIs;
+- may run ffmpeg.wasm normalization after explicit user action;
+- sends prepared audio/job request to internal Stage 2 APIs;
+- displays transcript/status/result inside the current OpenWebUI chat UX;
 - never stores provider API keys;
 - never decides data policy;
 - never decides manager visibility;
@@ -81,6 +91,9 @@ internal APIs или thin integration shims.
 
 External provider responses are not product contracts. Provider adapters translate
 them into internal Stage 2 contracts.
+
+Lemonfox is an external STT provider behind `LemonfoxSttAdapter`. It must never
+be visible to the browser/user as a provider-specific workflow.
 
 ### Storage/retention
 
@@ -166,6 +179,10 @@ These are planning contracts. They are not API implementation.
 - OpenWebUI core is patched deeply for every custom workflow.
 - Users are sent to a separate STT service UI, then asked to copy transcript
   back into OpenWebUI manually.
+- Transcription is triggered by magic/implicit LLM inference without an explicit
+  user action on the media attachment. If a user types "транскрибируй" while a
+  media attachment is present, it must map to the same explicit media attachment
+  action contract.
 - Provider response shape leaks into prompts/templates.
 - Manager visibility is implemented through blanket admin access.
 - No-delete is treated as audit/retention.
@@ -209,7 +226,8 @@ Current planning state:
 - implementation planning still requires ADR review, selected output profile
   config, self-hosted asset path, storage mode/env decision, prepared-audio
   retention decision, provider cancel/duration TBD handling and selected
-  OpenWebUI-native integration path before authenticated job routes or UI work.
+  OpenWebUI media attachment action path before authenticated job routes or UI
+  work.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
 The current dependency strategy makes self-host/internal cache the production

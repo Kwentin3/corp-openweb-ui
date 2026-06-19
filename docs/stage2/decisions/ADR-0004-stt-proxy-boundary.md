@@ -12,6 +12,8 @@ Accepted planning decisions:
 - STT API keys stay server-side only;
 - user-facing STT UX lives inside OpenWebUI chat/workspace UX;
 - the Stage 2 STT sidecar is backend-only and has no separate user-facing GUI;
+- MVP user-facing entrypoint is an explicit `Transcribe` action on an
+  OpenWebUI audio/video media attachment;
 - Lemonfox is the first STT provider through `LemonfoxSttAdapter`;
 - orchestration uses `SttProviderAdapterFactory`, not direct Lemonfox coupling;
 - browser ffmpeg preprocessing is a media-preparation asset, not a security
@@ -82,6 +84,7 @@ Owns:
 
 - user-triggered transcription entrypoint through approved native extension
   mechanisms or a minimal integration patch;
+- visible `Transcribe` affordance on supported media attachments;
 - file attachment/reference handoff to the backend-side STT contract;
 - transcript placement in chat/message/file/artifact UX;
 - user-visible progress, error and cancel affordances sourced from backend
@@ -93,6 +96,9 @@ Does not own:
 - Lemonfox-specific decisions;
 - sidecar domain orchestration;
 - separate STT portal or user-facing sidecar UI.
+- magic/implicit LLM-triggered transcription for MVP. Typed convenience such as
+  "транскрибируй" may only map to the same explicit media attachment action
+  contract.
 
 ### Stage 2 Backend / STT Proxy
 
@@ -523,13 +529,15 @@ POST /stage2-api/transcription/jobs/{job_id}/cancel
 Rules:
 
 - final routing depends on OpenWebUI auth/session proof;
-- authenticated job routes also depend on selected OpenWebUI-native UX path for
-  trigger, files, transcript return, progress and cancel;
+- authenticated job routes also depend on a passed OpenWebUI media attachment
+  action runtime probe for explicit trigger, files, transcript return, progress
+  and cancel;
 - request/response schemas are versioned;
 - long-running transcription uses job lifecycle;
 - short files may still complete synchronously behind job contract;
 - routes prefer sidecar/internal backend API or thin shim over deep core fork.
 - no route is implemented to support a separate user-facing STT GUI.
+- sidecar route/API is not a standalone UX.
 
 ## 15. Remaining Implementation Notes
 

@@ -27,6 +27,8 @@ Comment:
 - Stage 2 custom logic must stay behind backend/domain contracts.
 - For STT, user-facing UX must remain inside OpenWebUI; the sidecar is
   backend-only.
+- MVP STT trigger is explicit `Transcribe` action on an audio/video media
+  attachment.
 
 ## Domain isolation / contract boundaries
 
@@ -81,6 +83,7 @@ Comment:
 Read first:
 
 - [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
+- [STT OpenWebUI media action probe plan](implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md)
 - [OpenWebUI-native STT UX Integration Research](../reports/2026-06-19/OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH.report.md)
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
@@ -101,8 +104,10 @@ Comment:
 
 - API keys never go to the browser.
 - STT proxy ADR must define backend boundary before final UI.
-- OpenWebUI-native Action/OpenAPI/files/events path must be selected before
+- OpenWebUI media attachment `Transcribe` action probe must pass before
   authenticated job routes or final UI work.
+- A dedicated transcription workspace/history/export/protocol flow is future,
+  not MVP.
 - External ffmpeg workflow contract is inspected and transferable as MP3 /
   `audio/mpeg`; owner/operator proof is accepted for ADR planning, while
   production dependency decisions remain open.

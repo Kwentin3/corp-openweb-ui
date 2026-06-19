@@ -50,6 +50,15 @@ Acceptance signal:
 - STT proxy contract approved.
 - User starts transcription and receives the result inside OpenWebUI
   chat/workspace UX.
+- Audio/video media attachment exposes an explicit `Transcribe` action.
+- Fully implicit/magic LLM-triggered transcription is not accepted as MVP.
+- Unsupported file does not show the action or returns a safe visible error.
+- The `Transcribe` action triggers browser-side normalization after explicit
+  user intent.
+- User sees immediate acknowledgment, progress/busy state and terminal
+  success/error/cancel state.
+- Result appears in the same OpenWebUI chat/message/artifact UX.
+- User does not leave OpenWebUI.
 - Audio/video upload produces transcript through server-side proxy without a
   separate user-facing STT GUI.
 - STT API key is not present in browser.
@@ -80,8 +89,8 @@ Acceptance signal:
 - Prepared audio larger than 100 MB has typed fail/fallback behavior.
 - Prepared audio larger than 100 MB has a warning reason code before provider
   upload.
-- OpenWebUI-native integration path is selected and proven for trigger, file
-  handoff, transcript return, progress and cancel.
+- OpenWebUI media attachment action path is selected and proven for explicit
+  trigger, file byte/handoff access, transcript return, progress and cancel.
 
 Test data needed:
 
@@ -100,14 +109,15 @@ Test data needed:
 - Prepared audio >100 MB behavior.
 - Duration-limit proof or accepted TBD.
 - Provider-cancel proof or accepted unsupported/TBD behavior.
-- OpenWebUI Action/OpenAPI/files/events runtime probe on the pinned deployment.
+- OpenWebUI media attachment Action/files/events runtime probe on the pinned
+  deployment.
 
 Status:
 
 - Transferable ffmpeg contract inspected; owner/operator proof accepted for
-  planning; OpenWebUI-native UX research complete; runtime probe, ADR review,
-  selected output profile config, self-hosted asset path, storage mode/config,
-  retention, duration and cancel TBD handling needed.
+  planning; OpenWebUI-native UX research complete; media attachment action
+  probe, ADR review, selected output profile config, self-hosted asset path,
+  storage mode/config, retention, duration and cancel TBD handling needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

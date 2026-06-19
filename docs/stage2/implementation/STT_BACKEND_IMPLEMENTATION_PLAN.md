@@ -43,6 +43,7 @@ Out of scope:
 | ffmpeg handoff | `docs/stage2/research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md` | Defines prepared-audio source contract and optional smoke cases. |
 | Gates | `docs/stage2/IMPLEMENTATION_GATES.md` | Lists remaining owner/runtime decisions. |
 | Acceptance | `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md` | Defines expected STT acceptance signals and test data. |
+| Media action probe | `docs/stage2/implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md` | Defines the next OpenWebUI media attachment `Transcribe` action runtime probe. |
 
 ## 3. Decisions already made
 
@@ -59,6 +60,9 @@ Out of scope:
 - Source media storage is off by default.
 - The sidecar is backend-only; user-facing transcription UX must live inside
   OpenWebUI, with no separate STT user GUI.
+- MVP UX is an explicit `Transcribe` action on an OpenWebUI audio/video media
+  attachment. This action is the user intent contract for browser-side
+  normalization, sidecar job creation and transcript return.
 
 ## 4. Contracts to preserve
 
@@ -97,8 +101,9 @@ Rules:
 
 - endpoint names are draft;
 - final routing depends on OpenWebUI auth/session proof;
-- authenticated job routes depend on a selected OpenWebUI-native integration
-  path for user trigger, file handoff, transcript return, progress and cancel;
+- authenticated job routes depend on a passed OpenWebUI media attachment action
+  runtime probe for explicit trigger, file byte/handoff access, transcript
+  return, progress and cancel;
 - first implementation may start with config, capability model and
   `GET /capabilities` before full job lifecycle;
 - no endpoint exposes provider keys, raw `.env`, storage credentials or raw
@@ -175,6 +180,23 @@ Limits and cancel:
 Discovery output must name exact files before implementation starts.
 
 ## 8. Implementation slices
+
+### Slice 0. OpenWebUI media attachment action runtime probe
+
+Next work is not generic routing/auth alone and not production job routes. It is
+an OpenWebUI Action Function / media attachment action probe.
+
+Probe must confirm:
+
+- Action sees attached media and can distinguish supported audio/video;
+- Action can access file bytes or an approved file handoff;
+- Action can emit status/progress;
+- Action can call the sidecar dummy endpoint without provider keys;
+- Action can place a dummy transcript in current chat/message/artifact UX;
+- cancel-shaped interaction is feasible or explicitly limited;
+- no separate STT GUI and no provider key in browser.
+
+Plan: [STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN](STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md).
 
 ### Slice 1. Config and capability model
 
@@ -294,6 +316,8 @@ Stop and report before coding further if:
 - implementation requires frontend changes before backend contract;
 - implementation would expose or recommend a separate user-facing STT GUI
   outside OpenWebUI;
+- implementation relies on magic LLM inference instead of an explicit media
+  attachment `Transcribe` action for MVP;
 - implementation requires production/compose/env/scripts changes without a
   separate command;
 - any path would put API key in browser, `NEXT_PUBLIC_*`, logs or tests;

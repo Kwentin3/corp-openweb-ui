@@ -18,6 +18,10 @@ For STT, the user-facing workflow must stay inside OpenWebUI. The Stage 2 STT
 sidecar is backend-only, and no separate user-facing transcription GUI is
 planned.
 
+MVP STT UX is an explicit `Transcribe` action on an OpenWebUI audio/video media
+attachment. This is the user intent contract; implicit/magic LLM triggering is
+not the MVP path.
+
 ## 2. Gates
 
 ### Gate 1. Data Policy approved
@@ -43,8 +47,8 @@ planned.
 - Prepared audio >100 MB behavior accepted.
 - Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
-- OpenWebUI-native STT integration path selected before authenticated job
-  routes or UI work.
+- OpenWebUI media attachment action runtime probe passes before production job
+  routes or final UI.
 - No API keys in browser.
 
 ### Gate 3. Provider Model Catalog approved
@@ -152,8 +156,15 @@ Blocking items:
 - prepared audio >100 MB warning/fail/fallback behavior with stable reason
   codes;
 - cancel lifecycle expectations for preprocessing, upload and STT job;
-- OpenWebUI-native UX decision and runtime probe for Action Function,
-  OpenAPI Tool Server, file handoff, transcript return, progress and cancel;
+- OpenWebUI media attachment action runtime probe:
+  - Action sees attached media;
+  - Action can access file bytes or approved handoff;
+  - Action can show status/progress;
+  - Action can call sidecar dummy endpoint;
+  - Action can place transcript in chat/message/artifact;
+  - unsupported files show no action or safe error;
+  - no separate STT GUI;
+  - no provider key in browser;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
 - Lemonfox URL upload path approval only after storage expiry/access proof;
@@ -166,7 +177,8 @@ Related docs:
 - ADR-0004;
 - STT env contract;
 - FFMPEG workflow artifact inspection;
-- STT blueprint.
+- STT blueprint;
+- STT OpenWebUI media action probe plan;
 - OpenWebUI-native STT UX integration research report.
 
 ### Gate 3. Provider Model Catalog approved

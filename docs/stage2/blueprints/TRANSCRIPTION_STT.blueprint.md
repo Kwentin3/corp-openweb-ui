@@ -14,6 +14,7 @@ server-side STT proxy.
 - First STT provider: Lemonfox through `LemonfoxSttAdapter`.
 - User-facing STT UX must live inside OpenWebUI. The sidecar is a
   backend/domain service, not a separate user-facing transcription GUI.
+- MVP STT UX is an OpenWebUI-native media attachment `Transcribe` action.
 
 ## 3. Current known context
 
@@ -44,19 +45,35 @@ mobile and large-file cases. Optional implementation smoke can still run during
 implementation/debug.
 
 Stage 2 transcription work must start from backend/server-side STT proxy
-boundary and an OpenWebUI-native UX decision, not from a separate STT frontend.
+boundary and the OpenWebUI media attachment action contract, not from a separate
+STT frontend.
 
 ## 4. Target user workflow
 
-Пользователь загружает audio/video inside OpenWebUI chat/workspace UX and
-starts transcription through an approved OpenWebUI-native action/tool/button
-flow. GUI готовит audio через browser ffmpeg workflow according to the selected
-output profile. Prepared audio blob идет в server-side STT proxy and storage
-lifecycle according to `auto|s3|none`.
+MVP workflow:
+
+```text
+Attach media -> explicit Transcribe action -> browser normalization ->
+sidecar job -> Lemonfox -> transcript in current OpenWebUI chat UX
+```
+
+Пользователь прикрепляет audio/video inside OpenWebUI chat/workspace UX.
+Supported media attachment exposes an explicit `Transcribe` action. This action
+is the user intent contract for browser-side ffmpeg.wasm normalization,
+prepared-audio upload/job creation, backend/provider transcription and
+transcript return into the current OpenWebUI chat/message/artifact UX. Prepared
+audio blob идет в server-side STT proxy and storage lifecycle according to
+`auto|s3|none`.
 Proxy проверяет auth/rights/limits/output profile, выбирает `LemonfoxSttAdapter` as first adapter,
 добавляет server-side STT key, вызывает Lemonfox through adapter factory. UI показывает transcript
 inside OpenWebUI as chat/message/file/artifact output, then templates:
 протокол, задачи, решения, резюме, follow-up.
+
+Future workflow:
+
+```text
+Dedicated transcription workspace/history/export/protocol flow is future.
+```
 
 Current transferable prepared-audio contract from the source workflow is MP3 /
 `audio/mpeg`. Stage 2 keeps it as compatibility fallback. Opus is the preferred
@@ -93,9 +110,12 @@ Boundary contract:
 
 ## 5. Native OpenWebUI first path
 
-- Prefer an OpenWebUI Action Function for MVP if runtime probe confirms access
-  to uploaded file references, `__user__` and status/events on the pinned
-  OpenWebUI version.
+- Prefer an OpenWebUI Action Function/media attachment action for MVP if
+  runtime probe confirms access to uploaded file references or bytes, `__user__`
+  and status/events on the pinned OpenWebUI version.
+- Fully implicit/magic LLM-triggered transcription is rejected for MVP. If a
+  user types "транскрибируй" while a media attachment is present, OpenWebUI may
+  surface or invoke the same explicit attachment action path.
 - Keep OpenAPI Tool Server as the sidecar-friendly production candidate after
   schema, file handoff, auth headers and progress/cancel behavior are proven.
 - Проверить native STT settings, file upload/chat attachment behavior,
@@ -140,8 +160,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Lemonfox research.
 - OpenWebUI capability research.
 - OpenWebUI-native STT UX integration runtime probe: Action Function,
-  OpenAPI Tool Server, files/upload references, events/status, transcript return
-  path and access control on deployed/pinned version.
+  media attachment action, files/upload references or bytes, events/status,
+  transcript return path and access control on deployed/pinned version.
 - Manager visibility/retention policy.
 - Data policy.
 
@@ -181,6 +201,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Is diarization required in first slice?
 - Does pinned OpenWebUI expose enough file metadata/path/reference to an Action
   without coupling the sidecar to private `openwebui_data` layout?
+- Can the Action/media attachment path access file bytes or an approved handoff
+  for browser-side normalization?
 - Should MVP return transcript by replacing/appending a chat message, attaching
   a file/artifact, or both?
 
@@ -216,8 +238,11 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Auth/permissions, provider errors and transcript normalization are covered by runtime proof.
 - User launches and consumes transcription inside OpenWebUI; no separate
   user-facing STT GUI is accepted.
-- Selected OpenWebUI-native path is documented before authenticated job routes
-  and final UI work.
+- Media attachment shows an explicit `Transcribe` action for supported
+  audio/video, and unsupported files either do not show the action or return a
+  safe error.
+- Selected media attachment action path is documented before authenticated job
+  routes and final UI work.
 
 ## 13. Implementation readiness
 
@@ -226,6 +251,6 @@ human review. The missing-artifact blocker is removed, but implementation
 planning still requires production output profile decision, Lemonfox
 adapter/profile config, self-hosted ffmpeg asset path, storage mode/config,
 prepared-audio retention, licensing/ops review, cancel lifecycle, duration and
-file-limit policy. OpenWebUI-native Action/OpenAPI/file/event runtime proof is
+file-limit policy. OpenWebUI media attachment Action/file/event runtime proof is
 also required before authenticated job routes and final UI work. Browser/UI work
 follows after backend contract, preprocessing contract and runtime proof.
