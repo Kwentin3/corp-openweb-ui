@@ -151,6 +151,10 @@ Blocking items:
 - input compatibility decision: broad media candidates can be attempted only
   through configured ffmpeg.wasm probe/normalization, not promised by static
   extension list;
+- browser ffmpeg.wasm normalization runtime proof passed for generated MP3
+  passthrough, MP4 with audio, WebM audio/video, unsupported fake MP4 and
+  no-audio MP4:
+  [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md);
 - Lemonfox adapter config decision;
 - Lemonfox provider capability profile review, including documented formats,
   100 MB direct upload, 1 GB URL input, duration TBD and provider cancel TBD;

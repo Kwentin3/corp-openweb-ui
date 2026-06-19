@@ -63,11 +63,11 @@ MP3/audio-mpeg source-proven fallback found; operator manual proof captured as m
 Lemonfox selected as first adapter; official docs confirm 100 MB direct upload and 1 GB URL input
 but leave exact Opus containers, max duration and provider cancel undocumented; owner/operator proof
 is accepted for planning; prepared-MP3 frontend MVP passed; input compatibility is now
-capability-based around configured browser ffmpeg.wasm probe/normalization; remaining
-pre-implementation decisions are output profile config, self-hosted asset path, storage
-mode/config, prepared-audio retention, runtime capabilities contract and cancel UX behavior.
-Broad media support must not be claimed until ffmpeg probe/normalization is implemented and
-tested.
+capability-based around configured browser ffmpeg.wasm probe/normalization; browser normalization
+proof passed for generated MP3 passthrough, MP4 with audio, WebM audio/video, unsupported fake MP4
+and no-audio MP4. Remaining production decisions are Opus/provider proof, storage mode/config,
+prepared-audio retention, large-file behavior and cancel UX behavior. Broad media support must
+still be described as configured ffmpeg.wasm capability-based, not universal FFmpeg support.
 
 ### Provider model catalog
 
@@ -250,7 +250,8 @@ Depends on: approved ffmpeg asset path, input accept mode env, runtime capabilit
 representative media.
 Acceptance: Playwright proof for MP3 prepared/passthrough path, MP4 video with audio, WebM
 audio/video if available, unsupported file safe error and no-audio-stream safe error.
-Status: next recommended implementation slice after prepared-MP3 MVP
+Status: implemented and proven on generated proof media; keep customer/large/mobile media checks
+as follow-up acceptance data
 
 ### FFMPEG production dependency decisions
 

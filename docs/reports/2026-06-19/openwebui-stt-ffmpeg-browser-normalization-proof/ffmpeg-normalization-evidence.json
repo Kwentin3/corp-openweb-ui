@@ -1,0 +1,270 @@
+{
+  "base_url_host": "gpt.alpha-soft.ru",
+  "generated_media_only": true,
+  "cases": [
+    {
+      "id": "prepared_mp3_passthrough",
+      "filename": "stage2-proof-tone.mp3",
+      "upload_responses": [
+        {
+          "status": 200,
+          "filename": "stage2-proof-tone.mp3",
+          "id_present": true,
+          "mime": "audio/mpeg",
+          "size": 10700
+        }
+      ],
+      "action_responses": [
+        {
+          "status": 200,
+          "content_marker_present": true,
+          "content_error_marker": false
+        }
+      ],
+      "ffmpeg_asset_requests": [],
+      "status_text_sample": null,
+      "reason_code": null,
+      "transcript_marker_visible": true,
+      "passed": true,
+      "cleanup": {
+        "file_delete_statuses": [
+          {
+            "id_present": true,
+            "status": 200
+          }
+        ],
+        "chat_delete_status": null
+      }
+    },
+    {
+      "id": "mp4_video_with_audio",
+      "filename": "stage2-proof-video-audio.mp4",
+      "upload_responses": [
+        {
+          "status": 200,
+          "filename": "stage2-proof-video-audio.mp4",
+          "id_present": true,
+          "mime": "video/mp4",
+          "size": 30382
+        },
+        {
+          "status": 200,
+          "filename": "stage2-proof-video-audio.stage2-stt.mp3",
+          "id_present": true,
+          "mime": "audio/mpeg",
+          "size": 10804
+        }
+      ],
+      "action_responses": [
+        {
+          "status": 200,
+          "content_marker_present": true,
+          "content_error_marker": false
+        }
+      ],
+      "ffmpeg_asset_requests": [
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-util.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.wasm",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/814.ffmpeg.js",
+          "status": 200
+        }
+      ],
+      "status_text_sample": null,
+      "reason_code": null,
+      "transcript_marker_visible": true,
+      "passed": true,
+      "cleanup": {
+        "file_delete_statuses": [
+          {
+            "id_present": true,
+            "status": 200
+          },
+          {
+            "id_present": true,
+            "status": 200
+          }
+        ],
+        "chat_delete_status": null
+      }
+    },
+    {
+      "id": "webm_audio_video",
+      "filename": "stage2-proof-av.webm",
+      "upload_responses": [
+        {
+          "status": 200,
+          "filename": "stage2-proof-av.webm",
+          "id_present": true,
+          "mime": "video/webm",
+          "size": 16465
+        },
+        {
+          "status": 200,
+          "filename": "stage2-proof-av.stage2-stt.mp3",
+          "id_present": true,
+          "mime": "audio/mpeg",
+          "size": 10701
+        }
+      ],
+      "action_responses": [
+        {
+          "status": 200,
+          "content_marker_present": true,
+          "content_error_marker": false
+        }
+      ],
+      "ffmpeg_asset_requests": [
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-util.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.wasm",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/814.ffmpeg.js",
+          "status": 200
+        }
+      ],
+      "status_text_sample": null,
+      "reason_code": null,
+      "transcript_marker_visible": true,
+      "passed": true,
+      "cleanup": {
+        "file_delete_statuses": [
+          {
+            "id_present": true,
+            "status": 200
+          },
+          {
+            "id_present": true,
+            "status": 200
+          }
+        ],
+        "chat_delete_status": null
+      }
+    },
+    {
+      "id": "unsupported_fake_mp4",
+      "filename": "stage2-proof-unsupported.mp4",
+      "upload_responses": [
+        {
+          "status": 200,
+          "filename": "stage2-proof-unsupported.mp4",
+          "id_present": true,
+          "mime": "video/mp4",
+          "size": 16
+        }
+      ],
+      "action_responses": [],
+      "ffmpeg_asset_requests": [
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-util.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.wasm",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/814.ffmpeg.js",
+          "status": 200
+        }
+      ],
+      "status_text_sample": "Формат не удалось обработать в браузере. [ffmpeg_decode_unsupported]",
+      "reason_code": "ffmpeg_decode_unsupported",
+      "transcript_marker_visible": false,
+      "passed": true,
+      "cleanup": {
+        "file_delete_statuses": [
+          {
+            "id_present": true,
+            "status": 200
+          }
+        ],
+        "chat_delete_status": null
+      }
+    },
+    {
+      "id": "no_audio_stream_mp4",
+      "filename": "stage2-proof-noaudio.mp4",
+      "upload_responses": [
+        {
+          "status": 200,
+          "filename": "stage2-proof-noaudio.mp4",
+          "id_present": true,
+          "mime": "video/mp4",
+          "size": 19366
+        }
+      ],
+      "action_responses": [],
+      "ffmpeg_asset_requests": [
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-util.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.js",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/ffmpeg-core.wasm",
+          "status": 200
+        },
+        {
+          "path": "/static/stage2-assets/ffmpeg/0.12.6/814.ffmpeg.js",
+          "status": 200
+        }
+      ],
+      "status_text_sample": "В файле не найден аудиопоток. [ffmpeg_no_audio_stream]",
+      "reason_code": "ffmpeg_no_audio_stream",
+      "transcript_marker_visible": false,
+      "passed": true,
+      "cleanup": {
+        "file_delete_statuses": [
+          {
+            "id_present": true,
+            "status": 200
+          }
+        ],
+        "chat_delete_status": null
+      }
+    }
+  ]
+}

@@ -130,10 +130,13 @@ Test data needed:
 
 Status:
 
-- Prepared-MP3 OpenWebUI frontend MVP passed. Transferable ffmpeg contract
-  inspected; input compatibility contract refined as capability-based; broad
-  browser ffmpeg probe/normalization implementation and proof are still needed
-  before claiming broad media support.
+- Prepared-MP3 OpenWebUI frontend MVP passed.
+- Browser ffmpeg.wasm normalization proof passed on generated MP3 passthrough,
+  MP4 with audio, WebM audio/video, unsupported fake MP4 and no-audio MP4:
+  [OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md](../../reports/2026-06-19/OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md).
+- Broad media support remains capability-based around the configured
+  ffmpeg.wasm build and browser limits; do not claim universal FFmpeg input
+  support.
 
 ## Broker reports / 3-НДФЛ draft analysis
 
