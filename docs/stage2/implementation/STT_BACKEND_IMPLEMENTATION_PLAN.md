@@ -44,6 +44,8 @@ Out of scope:
 | Gates | `docs/stage2/IMPLEMENTATION_GATES.md` | Lists remaining owner/runtime decisions. |
 | Acceptance | `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md` | Defines expected STT acceptance signals and test data. |
 | Media action probe | `docs/stage2/implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md` | Defines the next OpenWebUI media attachment `Transcribe` action runtime probe. |
+| Playwright UI proof | `docs/reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md` | Proves browser upload works but current visible UI does not expose the STT Action. |
+| Frontend patch plan | `docs/stage2/implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md` | Defines the next small UI slice for attachment-level `Transcribe`. |
 
 ## 3. Decisions already made
 

@@ -1,0 +1,193 @@
+{
+  "playwright_mode": "local-shell-playwright",
+  "browser": "system Chrome",
+  "base_url_host": "gpt.alpha-soft.ru",
+  "login": {
+    "url_after_login": "https://gpt.alpha-soft.ru/",
+    "chat_shell_visible": true,
+    "title": "Alpha Soft AI Chat (Open WebUI)",
+    "new_chat_url": "https://gpt.alpha-soft.ru/",
+    "composer_visible": true,
+    "file_inputs": 2
+  },
+  "upload": {
+    "http_status": 200,
+    "file_id_present": true,
+    "filename_sanitized": true,
+    "mime": "audio/mpeg",
+    "size": 3336525,
+    "attachment_visible": true,
+    "body_sample_after_upload": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 stage2-ui-proof.mp3 3.2 MB Предложено Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Give me ideas for what to do with my kids' art Help me study vocabulary for a college entrance exam Overcome procrastination give me tips 'NoneType' object is not subscriptable Alpha Soft AI Chat (Open WebUI)"
+  },
+  "action_discovery": {
+    "buttons_after_upload": [
+      "Открыть боковую панель",
+      "Поиск",
+      "Меню пользователя",
+      "gpt-5.4-mini-2026-03-17",
+      "Add Model",
+      "Установить по умолчанию",
+      "Controls",
+      "Меню пользователя",
+      "×",
+      "Получить информацию о gpt-5.4-mini-2026-03-17 в UI",
+      "stage2-ui-proof.mp3 3.2 MB",
+      "Больше",
+      "Интеграции",
+      "Отключить интерпретатор кода",
+      "Voice Input",
+      "Tell me a fun fact about the Roman Empire",
+      "Show me a code snippet of a website's sticky header",
+      "Explain options trading if I'm familiar with buying and selling stocks",
+      "Give me ideas for what to do with my kids' art",
+      "Help me study vocabulary for a college entrance exam",
+      "Overcome procrastination give me tips",
+      "Close toast"
+    ],
+    "body_has_transcribe_label_after_upload": true,
+    "menu_summaries": {
+      "Больше|More": {
+        "visible": true,
+        "has_action_label": true,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 stage2-ui-proof.mp3 3.2 MB Предложено Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Give me ideas for what to do with my kids' art Help me study vocabulary for a college entrance exam Overcome procrastination give me tips Alpha Soft AI Chat (Open WebUI) Загрузить файлы Захват Прикрепить веб-страницу Прикрепить файлы Прикрепить заметки Прикрепить знания Чаты для контекста"
+      },
+      "Интеграции|Integrations": {
+        "visible": true,
+        "has_action_label": true,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 stage2-ui-proof.mp3 3.2 MB Предложено Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Give me ideas for what to do with my kids' art Help me study vocabulary for a college entrance exam Overcome procrastination give me tips Alpha Soft AI Chat (Open WebUI) Интерпретатор кода"
+      },
+      "Controls": {
+        "visible": true,
+        "has_action_label": true,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 stage2-ui-proof.mp3 3.2 MB Предложено Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Give me ideas for what to do with my kids' art Help me study vocabulary for a college entrance exam Overcome procrastination give me tips Управление Файлы Параметры Системный промпт Расширенные параметры Потоковый вывод ответа По умолчанию Размер чанка дельты потока По умолчанию Вызов функции По умолчанию Теги рассуждения По умолчанию Начальное значение По умолчанию Последовательность останова По умолчанию Температура По умолчанию Усилия для рассуждения По умолчанию logit_bias По умолчанию max_tokens По умолчанию top_k По умолчанию top_p По умолчанию min_p По умолчанию frequency_penalty По умолчанию presence_penalty По умолчанию mirostat По умолчанию mirostat_eta По умолчанию mirostat_tau По умолчанию repeat_last_n По умолчанию tfs_z По умолчанию repeat_penalty По умолчанию use_mmap По умолчанию use_mlock По умолчанию think (Ollama) По умолчанию format (Ollama) По умолчанию num_keep (Ollama) По умолчанию num_ctx (Ollama) По умолчанию num_batch (Ollama) По умолчанию num_thread (Ollama) По умолчанию num_gpu (Ollama) По умолчанию keep_alive (Ollama) По умолчанию Добавить пользовательский параметр Alpha Soft AI Chat (Open WebUI)"
+      }
+    },
+    "url_after_send": "https://gpt.alpha-soft.ru/c/8a7bac7f-a8b7-4032-aceb-c6e780d1ee3f",
+    "body_has_transcribe_label_after_send": true,
+    "body_sample_after_send": "gpt-5.4-mini-2026-03-17 Обсуждение в чате stage2-ui-proof.mp3 3.2 MB UI proof attachment smoke. gpt-5.4-mini-2026-03-17 Запрос UI proof attachment smoke test UI proof attachment smoke best practices browser-based UI attachment validation smoke testing Управление Файлы Обзор Файлы stage2-ui-proof.mp3 3.2 MB Параметры Системный промпт Расширенные параметры Потоковый вывод ответа По умолчанию Размер чанка дельты потока По умолчанию Вызов функции По умолчанию Теги рассуждения По умолчанию Начальное значение По умолчанию Последовательность останова По умолчанию Температура По умолчанию Усилия для рассуждения По умолчанию logit_bias По умолчанию max_tokens По умолчанию top_k По умолчанию top_p По умолчанию min_p По умолчанию frequency_penalty По умолчанию presence_penalty По умолчанию mirostat По умолчанию mirostat_eta По умолчанию mirostat_tau По умолчанию repeat_last_n По умолчанию tfs_z По умолчанию repeat_penalty По умолчанию use_mmap По умолчанию use_mlock По умолчанию think (Ollama) По умолчанию format (Ollama) По умолчанию num_keep (Ollama) По умолчанию num_ctx (Ollama) По умолчанию num_batch (Ollama) По умолчанию num_thread (Ollama) По умолчанию num_gpu (Ollama) По умолчанию keep_alive (Ollama) По умолчанию Добавить пользовательский параметр Alpha Soft AI Chat (Open WebUI)",
+    "buttons_after_send": [
+      "Открыть боковую панель",
+      "Поиск",
+      "Меню пользователя",
+      "gpt-5.4-mini-2026-03-17",
+      "Add Model",
+      "Controls",
+      "Меню пользователя",
+      "stage2-ui-proof.mp3 3.2 MB",
+      "Источники не найдены",
+      "Больше",
+      "Интеграции",
+      "Отключить интерпретатор кода",
+      "Управление",
+      "Файлы",
+      "Обзор",
+      "Закрыть",
+      "stage2-ui-proof.mp3 3.2 MB",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "Добавить пользовательский параметр"
+    ],
+    "visible_action_candidate_count": 2
+  },
+  "action_execution": {
+    "ui_action_clicked": true,
+    "transcript_marker_visible": false,
+    "transcript_text_visible": false,
+    "progress_status_visible": false,
+    "body_sample_final": "gpt-5.4-mini-2026-03-17 Обсуждение в чате stage2-ui-proof.mp3 3.2 MB UI proof attachment smoke. gpt-5.4-mini-2026-03-17 Источники не найдены Проанализировано I found one uploaded file: /mnt/uploads/stage2-ui-proof.mp3 If you want, I can help inspect it further, summarize its contents, or prepare it for review. Продолжить Can you summarize what’s in the uploaded file? Can you tell me if the file format looks correct for a UI proof attachment? Can you help me verify whether this upload was successful or if there are issues with it? Can you extract any useful metadata from the file? Can you suggest what to check next for a UI proof smoke test? Управление Файлы Обзор Файлы stage2-ui-proof.mp3 3.2 MB Параметры Системный промпт Расширенные параметры Потоковый вывод ответа По умолчанию Размер чанка дельты потока По умолчанию Вызов функции По умолчанию Теги рассуждения По умолчанию Начальное значение По умолчанию Последовательность останова По умолчанию Температура По умолчанию Усилия для рассуждения По умолчанию logit_bias По умолчанию max_tokens По умолчанию top_k По умолчанию top_p По умолчанию min_p По умолчанию frequency_penalty По умолчанию presence_penalty По умолчанию mirostat По умолчанию mirostat_eta По умолчанию mirostat_tau По умолчанию repeat_last_n По умолчанию tfs_z По умолчанию repeat_penalty По умолчанию use_mmap По умолчанию use_mlock По умолчанию think (Ollama) По умолчанию format (Ollama) По умолчанию num_keep (Ollama) По умолчанию num_ctx (Ollama) По умолчанию num_batch (Ollama) По умолчанию num_thread (Ollama) По умолчанию num_gpu (Ollama) По умолчанию keep_alive (Ollama) По умолчанию Добавить пользовательский параметр Alpha Soft AI Chat (Open WebUI) stage2-ui-proof.mp3 3.2 MB • Содержание Предпросмотр No content"
+  },
+  "cleanup": {
+    "file_delete_status": 200,
+    "chat_id_present": true,
+    "chat_delete_status": 200
+  },
+  "screenshots": [
+    "01-after-login.png",
+    "02-after-upload.png",
+    "03-more-menu-after-upload.png",
+    "04-after-send-or-action-search.png"
+  ],
+  "network": [
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/cc769731-0801-4e9b-9cce-ba57a4c2e1cc/process/status",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/chat/completions",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/8a7bac7f-a8b7-4032-aceb-c6e780d1ee3f",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/cc769731-0801-4e9b-9cce-ba57a4c2e1cc",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/cc769731-0801-4e9b-9cce-ba57a4c2e1cc/content",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/8a7bac7f-a8b7-4032-aceb-c6e780d1ee3f",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/all/tags",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/cc769731-0801-4e9b-9cce-ba57a4c2e1cc",
+      "status": 200
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/8a7bac7f-a8b7-4032-aceb-c6e780d1ee3f",
+      "status": 200
+    }
+  ]
+}

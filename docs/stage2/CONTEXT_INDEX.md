@@ -84,6 +84,8 @@ Read first:
 
 - [STT backend implementation plan](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
 - [STT OpenWebUI media action probe plan](implementation/STT_OPENWEBUI_MEDIA_ACTION_PROBE_PLAN.md)
+- [STT frontend media action patch plan](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md)
+- [OpenWebUI STT Playwright UI Proof](../reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md)
 - [OpenWebUI-native STT UX Integration Research](../reports/2026-06-19/OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH.report.md)
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
@@ -106,6 +108,9 @@ Comment:
 - STT proxy ADR must define backend boundary before final UI.
 - OpenWebUI media attachment `Transcribe` action probe must pass before
   authenticated job routes or final UI work.
+- Playwright UI proof found that the Action runtime works through API, but the
+  visible OpenWebUI chat UI needs a small attachment-level frontend patch for
+  prepared-MP3 MVP.
 - A dedicated transcription workspace/history/export/protocol flow is future,
   not MVP.
 - External ffmpeg workflow contract is inspected and transferable as MP3 /

@@ -147,8 +147,12 @@ Next action:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Review final compact STT contract refine report:
   [OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_COMPACT_STT_CONTRACT_REFINE.report.md).
+- Review Playwright UI proof:
+  [OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md](../reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md).
 - Use backend implementation plan:
   [STT_BACKEND_IMPLEMENTATION_PLAN.md](implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md).
+- Use frontend patch plan for the next UI slice:
+  [STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md](implementation/STT_FRONTEND_MEDIA_ACTION_PATCH_PLAN.md).
 - Close production output profile, self-hosted asset path, storage mode,
   retention, duration and cancel decisions. Optional ffmpeg smoke can run during
   implementation/debug.

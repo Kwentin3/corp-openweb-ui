@@ -1,0 +1,167 @@
+{
+  "filename_used": "proof-media.mp3",
+  "upload": {
+    "status": 200,
+    "file_id_present": true,
+    "filename_sanitized": true,
+    "attachment_visible": true,
+    "visible_processing_error": true
+  },
+  "strict_discovery": {
+    "labels_after_upload": [
+      "Открыть боковую панель",
+      "Новый чат",
+      "Поиск",
+      "Заметки",
+      "Рабочее пространство",
+      "Меню пользователя",
+      "gpt-5.4-mini-2026-03-17",
+      "Add Model",
+      "Установить по умолчанию",
+      "Controls",
+      "Меню пользователя",
+      "×",
+      "Получить информацию о gpt-5.4-mini-2026-03-17 в UI",
+      "proof-media.mp3 3.2 MB",
+      "Больше",
+      "Интеграции",
+      "Отключить интерпретатор кода",
+      "Voice Input",
+      "Help me study vocabulary for a college entrance exam",
+      "Give me ideas for what to do with my kids' art",
+      "Tell me a fun fact about the Roman Empire",
+      "Show me a code snippet of a website's sticky header",
+      "Explain options trading if I'm familiar with buying and selling stocks",
+      "Overcome procrastination give me tips"
+    ],
+    "action_text_after_upload": false,
+    "menus_before_send": {
+      "Больше|More": {
+        "visible": true,
+        "action_text": false,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 proof-media.mp3 3.2 MB Предложено Help me study vocabulary for a college entrance exam Give me ideas for what to do with my kids' art Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Overcome procrastination give me tips Alpha Soft AI Chat (Open WebUI) Загрузить файлы Захват Прикрепить веб-страницу Прикрепить файлы Прикрепить заметки Прикрепить знания Чаты для контекста"
+      },
+      "Интеграции|Integrations": {
+        "visible": true,
+        "action_text": false,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 proof-media.mp3 3.2 MB Предложено Help me study vocabulary for a college entrance exam Give me ideas for what to do with my kids' art Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Overcome procrastination give me tips Alpha Soft AI Chat (Open WebUI) Интерпретатор кода"
+      },
+      "Controls": {
+        "visible": true,
+        "action_text": false,
+        "sample": "gpt-5.4-mini-2026-03-17 Установить по умолчанию ПРЕДУПРЕЖДЕНИЕ Не отправляйте пароли, токены, API-ключи, приватные SSH-ключи и закрытые персональные данные. Ответы модели нужно проверять. × gpt-5.4-mini-2026-03-17 proof-media.mp3 3.2 MB Предложено Help me study vocabulary for a college entrance exam Give me ideas for what to do with my kids' art Tell me a fun fact about the Roman Empire Show me a code snippet of a website's sticky header Explain options trading if I'm familiar with buying and selling stocks Overcome procrastination give me tips Управление Файлы Параметры Системный промпт Расширенные параметры Потоковый вывод ответа По умолчанию Размер чанка дельты потока По умолчанию Вызов функции По умолчанию Теги рассуждения По умолчанию Начальное значение По умолчанию Последовательность останова По умолчанию Температура По умолчанию Усилия для рассуждения По умолчанию logit_bias По умолчанию max_tokens По умолчанию top_k По умолчанию top_p По умолчанию min_p По умолчанию frequency_penalty По умолчанию presence_penalty По умолчанию mirostat По умолчанию mirostat_eta По умолчанию mirostat_tau По умолчанию repeat_last_n По умолчанию tfs_z По умолчанию repeat_penalty По умолчанию use_mmap По умолчанию use_mlock По умолчанию think (Ollama) По умолчанию format (Ollama) По умолчанию num_keep (Ollama) По умолчанию num_ctx (Ollama) По умолчанию num_batch (Ollama) По умолчанию num_thread (Ollama) По умолчанию num_gpu (Ollama) По умолчанию keep_alive (Ollama) По умолчанию Добавить пользовательский параметр Alpha Soft AI Chat (Open WebUI)"
+      }
+    },
+    "action_text_after_send": false,
+    "labels_after_send": [
+      "Открыть боковую панель",
+      "Новый чат",
+      "Поиск",
+      "Заметки",
+      "Рабочее пространство",
+      "Меню пользователя",
+      "gpt-5.4-mini-2026-03-17",
+      "Add Model",
+      "Controls",
+      "Меню пользователя",
+      "proof-media.mp3 3.2 MB",
+      "Источники не найдены",
+      "Больше",
+      "Интеграции",
+      "Отключить интерпретатор кода",
+      "Управление",
+      "Файлы",
+      "Обзор",
+      "Закрыть",
+      "proof-media.mp3 3.2 MB",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "По умолчанию",
+      "Добавить пользовательский параметр"
+    ],
+    "after_send_has_processing_error": false,
+    "chat_id": "84cfb9ec-bbe6-4428-9844-8a9b05f0f70a",
+    "menus_after_send": [
+      {
+        "label": "Больше",
+        "action_text": false,
+        "sample": "gpt-5.4-mini-2026-03-17 Обсуждение в чате proof-media.mp3 3.2 MB UI proof attachment smoke. gpt-5.4-mini-2026-03-17 Источники не найдены Проанализировано Управление Файлы Обзор Файлы proof-media.mp3 3.2 MB Параметры Системный промпт Расширенные параметры Потоковый вывод ответа По умолчанию Размер чанка дельты потока По умолчанию Вызов функции По умолчанию Теги рассуждения По умолчанию Начальное значение По умолчанию Последовательность останова По умолчанию Температура По умолчанию Усилия для рассуждения По умолчанию logit_bias По умолчанию max_tokens По умолчанию top_k По умолчанию top_p По умолчанию min_p По умолчанию frequency_penalty По умолчанию presence_penalty По умолчанию mirostat По умолчанию mirostat_eta По умолчанию mirostat_tau По умолчанию repeat_last_n По умолчанию tfs_z По умолчанию repeat_penalty По умолчанию use_mmap По умолчанию use_mlock По умолчанию think (Ollama) По умолчанию format (Ollama) По умолчанию num_keep (Ollama) По умолчанию num_ctx (Ollama) По умолчанию num_batch (Ollama) По умолчанию num_thread (Ollama) По умолчанию num_gpu (Ollama) По умолчанию keep_alive (Ollama) По умолчанию Добавить пользовательский параметр Alpha Soft AI Chat (Open WebUI) Загрузить файлы Захват Прикрепить веб-страницу Прикрепить файлы Прикрепить заметки Прикрепить знания Чаты для контекста"
+      }
+    ],
+    "api_chat_actions_called": false
+  },
+  "cleanup": {
+    "file_delete_status": 200,
+    "chat_delete_status": 200
+  },
+  "network": [
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/1999cc5d-b0b4-4a91-bbfc-4c76d2010936/process/status",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/chat/completions",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/84cfb9ec-bbe6-4428-9844-8a9b05f0f70a",
+      "status": 200,
+      "method": "POST"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/1999cc5d-b0b4-4a91-bbfc-4c76d2010936/content",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/files/1999cc5d-b0b4-4a91-bbfc-4c76d2010936",
+      "status": 200,
+      "method": "DELETE"
+    },
+    {
+      "url": "https://gpt.alpha-soft.ru/api/v1/chats/84cfb9ec-bbe6-4428-9844-8a9b05f0f70a",
+      "status": 200,
+      "method": "DELETE"
+    }
+  ]
+}
