@@ -18,6 +18,8 @@ Accepted planning decisions:
 - orchestration uses `SttProviderAdapterFactory`, not direct Lemonfox coupling;
 - browser ffmpeg preprocessing is a media-preparation asset, not a security
   boundary;
+- STT input compatibility is ffmpeg.wasm capability-based, not a static promise
+  for every upstream FFmpeg format;
 - output format is selected by env/config;
 - WebM/Opus vs OGG/Opus is selected by env/config;
 - MP3 remains compatibility fallback;
@@ -66,6 +68,7 @@ Owns:
 - file selection;
 - local media preprocessing after user action;
 - selected output profile metadata;
+- input candidate metadata and ffmpeg probe/normalization status;
 - upload/progress/cancel UI;
 - calls to internal Stage 2 endpoints only.
 
@@ -84,7 +87,8 @@ Owns:
 
 - user-triggered transcription entrypoint through approved native extension
   mechanisms or a minimal integration patch;
-- visible `Transcribe` affordance on supported media attachments;
+- visible `Transcribe` affordance on proven prepared audio or broad media
+  candidates that still require ffmpeg probe/normalization;
 - file attachment/reference handoff to the backend-side STT contract;
 - transcript placement in chat/message/file/artifact UX;
 - user-visible progress, error and cancel affordances sourced from backend
@@ -106,6 +110,7 @@ Owns:
 
 - auth/session and permission checks;
 - output-profile validation;
+- input-side capability/probe contract;
 - selected provider adapter;
 - provider capability profile;
 - runtime capabilities endpoint;
@@ -122,7 +127,7 @@ Owns:
 
 - provider endpoint and auth;
 - request shape;
-- supported input profiles;
+- supported prepared-audio profiles and provider limits;
 - provider limits;
 - URL upload support;
 - timestamp/speaker-label support;
@@ -183,9 +188,18 @@ Rules:
 
 - frontend does not hardcode audio format;
 - backend validates prepared audio against selected profile;
-- adapter declares supported input profiles;
+- adapter declares supported prepared-audio profiles;
 - WebM/Opus vs OGG/Opus is a config/runtime decision;
 - MP3 remains fallback, not a permanent architecture constraint.
+
+Input compatibility is separate from output profile selection. A source media
+file is accepted only when the configured browser ffmpeg.wasm build can probe or
+decode it into an audio stream and normalize it into one of these approved
+prepared-audio profiles within limits.
+
+See also:
+
+- [STT Media Input Normalization Contract](../contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
 
 ## 5. Provider Capability Contract
 
@@ -194,7 +208,7 @@ Rules:
 ```text
 provider_id
 adapter_id
-supported_input_profiles
+supported_prepared_audio_profiles
 max_direct_upload_mb
 max_url_upload_mb
 max_duration_seconds
@@ -231,7 +245,7 @@ Draft `SttProviderCapabilityProfileV1`:
 ```yaml
 provider_id: lemonfox
 adapter_id: lemonfox
-supported_input_profiles:
+supported_prepared_audio_profiles:
   - mp3_high_compat
   - opus_webm_compact
   - opus_ogg_compact
@@ -280,6 +294,8 @@ Documented:
 
 Not documented enough for product contract:
 
+- guaranteed support for every listed source format in the configured
+  browser-side ffmpeg.wasm build;
 - exact Stage 2 WebM/Opus output compatibility;
 - exact Stage 2 OGG/Opus output compatibility;
 - provider-side cancellation endpoint or stable job id;
@@ -299,9 +315,15 @@ Contract:
 
 ```yaml
 TranscriptionRuntimeCapabilitiesV1:
+  input_accept_mode: declared | broad_ffmpeg_probe
+  declared_input_mimes: string[]
+  declared_input_extensions: string[]
+  ffmpeg_probe_required: boolean
   selected_output_profile: string
+  fallback_output_profile: string
   available_output_profiles: string[]
   max_browser_input_mb: number
+  max_browser_duration_minutes: number | null
   max_prepared_audio_mb: number
   max_duration_seconds: number | null
   storage_mode: auto | s3 | none
@@ -337,6 +359,12 @@ Required env groups:
 ```text
 STAGE2_STT_PROVIDER=lemonfox
 STAGE2_STT_PROVIDER_ADAPTER=lemonfox
+STAGE2_STT_INPUT_ACCEPT_MODE=broad_ffmpeg_probe
+STAGE2_STT_DECLARED_INPUT_EXTENSIONS=mp3,wav,m4a,webm,ogg,mp4,mov,mkv,avi,flac,aac
+STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES=audio/,video/
+STAGE2_STT_REQUIRE_AUDIO_STREAM=true
+STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION=true
+STAGE2_STT_ON_FFMPEG_UNSUPPORTED=visible_error
 STAGE2_STT_OUTPUT_PROFILE=opus_webm_compact
 STAGE2_STT_FALLBACK_OUTPUT_PROFILE=mp3_high_compat
 
@@ -433,6 +461,8 @@ Draft env:
 
 ```text
 STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB=1024
+STAGE2_STT_DECLARED_INPUT_EXTENSIONS=mp3,wav,m4a,webm,ogg,mp4,mov,mkv,avi,flac,aac
+STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES=audio/,video/
 STAGE2_STT_MAX_PREPARED_AUDIO_MB=100
 STAGE2_STT_DIRECT_UPLOAD_WARNING_MB=100
 STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE=fail
@@ -441,6 +471,9 @@ STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE=fail
 Rules:
 
 - frontend receives effective limits from runtime capabilities endpoint;
+- declared input extensions/MIME prefixes are UI hints, not decode proof;
+- broad input support must run ffmpeg probe/normalization before provider
+  handoff;
 - if source file is likely to exceed provider prepared-audio limit, UI shows
   early warning;
 - backend checks exact prepared-audio size after preprocessing;
@@ -451,9 +484,17 @@ Reason codes:
 
 ```text
 provider_direct_upload_limit_warning
+ffmpeg_probe_failed
+ffmpeg_decode_unsupported
+ffmpeg_no_audio_stream
+ffmpeg_browser_memory_limit
+ffmpeg_input_too_large
+ffmpeg_duration_limit_exceeded
+ffmpeg_normalization_failed
 prepared_audio_too_large
 provider_direct_upload_limit_exceeded
 storage_required_for_large_audio
+unsupported_input_format
 ```
 
 ## 12. Cancel Contract
@@ -498,9 +539,15 @@ Stage 2 uses local cancel until provider proof exists.
 Contract candidates:
 
 - `TranscriptionJobV1`:
-  job id, user/workspace, source metadata, prepared-audio metadata, storage
-  mode/health, output profile, provider/adapter, status, progress, cancel
-  fields, retention and typed error.
+  job id, user/workspace, source input profile, prepared-audio metadata,
+  storage mode/health, output profile, provider/adapter, status, progress,
+  cancel fields, retention and typed error.
+- `SttMediaInputProfileV1`:
+  browser/source media hints, ffmpeg probe status, detected audio stream,
+  decoded container/codec/duration and rejection reason.
+- `PreparedAudioMetadataV1`:
+  source input profile, selected output profile, prepared audio MIME, size,
+  duration, codec/container, ffmpeg command profile and normalization warnings.
 - `TranscriptResultV1`:
   job id, language, text, normalized segments, speakers, word timestamps,
   duration, output profile, provider adapter, warnings and internal raw-response

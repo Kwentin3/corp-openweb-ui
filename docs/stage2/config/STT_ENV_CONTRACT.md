@@ -84,8 +84,45 @@ Rules:
 - MP3 / `audio/mpeg` remains the source-proven compatibility fallback.
 - Frontend must not hardcode output format.
 - Default profile can change via env/config without changing orchestration code.
+- Output profiles describe prepared audio sent to Stage2/provider, not the
+  user's original source media container.
 
-## 5. Browser preprocessing limits
+## 5. Input compatibility and ffmpeg probe
+
+Draft env names:
+
+```text
+STAGE2_STT_INPUT_ACCEPT_MODE=broad_ffmpeg_probe
+STAGE2_STT_DECLARED_INPUT_EXTENSIONS=mp3,wav,m4a,webm,ogg,mp4,mov,mkv,avi,flac,aac
+STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES=audio/,video/
+STAGE2_STT_REQUIRE_AUDIO_STREAM=true
+STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION=true
+STAGE2_STT_ON_FFMPEG_UNSUPPORTED=visible_error
+```
+
+Allowed `STAGE2_STT_INPUT_ACCEPT_MODE` values:
+
+```text
+declared
+broad_ffmpeg_probe
+```
+
+Rules:
+
+- `broad_ffmpeg_probe` means the UI may show the action for broad media
+  candidates, but support is approved only after the configured browser
+  ffmpeg.wasm build probes/decodes an audio stream and normalizes to an approved
+  output profile.
+- Declared extensions and MIME prefixes are UI affordance hints, not guaranteed
+  decode proof.
+- File extension alone is never sufficient for provider handoff.
+- If no audio stream is detected, fail before provider handoff.
+- If ffmpeg cannot decode the source media in the current browser/build, show a
+  visible safe error and do not call the provider.
+- Keep input compatibility config separate from `STAGE2_STT_OUTPUT_PROFILE` and
+  `STAGE2_STT_FALLBACK_OUTPUT_PROFILE`.
+
+## 6. Browser preprocessing limits
 
 Draft env names:
 
@@ -97,13 +134,15 @@ STAGE2_STT_INTERNAL_MAX_DURATION_MINUTES=
 
 Rules:
 
-- Browser-side wasm input limit is 1 GB / 1024 MB.
+- Browser-side wasm candidate input limit is 1 GB / 1024 MB.
 - Browser and internal duration limits are not selected yet and stay blank/TBD
   until accepted.
 - Backend still validates size, duration, MIME/content-type and selected output
   profile; browser metadata is not trusted as authority.
+- Browser/device memory can reject files below the configured max; report with
+  a typed ffmpeg/browser reason code.
 
-## 6. ffmpeg asset loading
+## 7. ffmpeg asset loading
 
 Draft env names:
 
@@ -128,7 +167,7 @@ Rules:
 - Typical implementation loads ffmpeg with explicit `coreURL`, `wasmURL` and
   `workerURL` derived from `STAGE2_FFMPEG_CORE_BASE_URL`.
 
-## 7. Storage
+## 8. Storage
 
 Draft env names:
 
@@ -170,7 +209,7 @@ Rules:
 - Object keys must not include provider secrets or unnecessary sensitive
   metadata.
 
-## 8. Limits
+## 9. Limits
 
 Draft env names:
 
@@ -201,6 +240,13 @@ Rules:
 - Provider max duration remains blank/TBD because Lemonfox docs do not document
   it; internal max duration must be chosen before production acceptance.
 - Candidate reason codes include:
+  - `ffmpeg_probe_failed`;
+  - `ffmpeg_decode_unsupported`;
+  - `ffmpeg_no_audio_stream`;
+  - `ffmpeg_browser_memory_limit`;
+  - `ffmpeg_input_too_large`;
+  - `ffmpeg_duration_limit_exceeded`;
+  - `ffmpeg_normalization_failed`;
   - `provider_direct_upload_limit_warning`;
   - `prepared_audio_too_large`;
   - `provider_direct_upload_limit_exceeded`;
@@ -209,7 +255,7 @@ Rules:
   - `unsupported_input_format`;
   - `preprocessing_failed`.
 
-## 9. Cancel behavior
+## 10. Cancel behavior
 
 Draft env names:
 
@@ -244,7 +290,7 @@ Rules:
   - `late_provider_result_ignored`;
   - `cancelled_locally_provider_continues`.
 
-## 10. Internal job-route auth and probe mode
+## 11. Internal job-route auth and probe mode
 
 Draft env names:
 
@@ -267,7 +313,7 @@ Rules:
 - Production transcription requires `STAGE2_LEMONFOX_API_KEY` and must not rely
   on stub transcript mode.
 
-## 11. Runtime capabilities endpoint
+## 12. Runtime capabilities endpoint
 
 Candidate endpoint:
 
@@ -279,9 +325,15 @@ Candidate contract:
 
 ```text
 TranscriptionRuntimeCapabilitiesV1:
+  input_accept_mode
+  declared_input_mimes
+  declared_input_extensions
+  ffmpeg_probe_required
   selected_output_profile
+  fallback_output_profile
   available_output_profiles
   max_browser_input_mb
+  max_browser_duration_minutes
   max_prepared_audio_mb
   max_duration_seconds
   storage_mode
@@ -298,8 +350,8 @@ TranscriptionRuntimeCapabilitiesV1:
 Rules:
 
 - The endpoint returns effective server-side provider profile, output profiles,
-  size/duration limits, storage mode/health, timestamp/speaker-label support
-  and provider-cancel support.
+  input affordance hints, size/duration limits, storage mode/health,
+  timestamp/speaker-label support and provider-cancel support.
 - UI uses the endpoint to show limits, warnings, output-profile behavior and
   cancel behavior without hardcoded provider assumptions.
 - It must not expose API keys, storage credentials, raw `.env` values or raw
@@ -307,7 +359,7 @@ Rules:
 - UI reads this endpoint for warnings and affordances; UI does not infer
   provider capabilities from hardcoded Lemonfox assumptions.
 
-## 12. Security notes
+## 13. Security notes
 
 - No API keys in browser.
 - Env values are server-side only.

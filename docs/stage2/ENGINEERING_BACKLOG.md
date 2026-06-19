@@ -53,18 +53,21 @@ FFMPEG_BROWSER_WORKFLOW_RESEARCH, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and ffmpeg preprocessing
 need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
-adapter factory, provider capability profile, runtime capabilities endpoint, output profiles,
-response normalization, optional audit and draft job contracts.
+adapter factory, provider capability profile, runtime capabilities endpoint, capability-based input
+normalization contract, output profiles, response normalization, optional audit and draft job
+contracts.
 Depends on: human ADR review, owner decisions, STT env contract review, Lemonfox capability
 profile review, output-profile config, production dependency decisions, customer media limits
 Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
 MP3/audio-mpeg source-proven fallback found; operator manual proof captured as manual evidence;
 Lemonfox selected as first adapter; official docs confirm 100 MB direct upload and 1 GB URL input
 but leave exact Opus containers, max duration and provider cancel undocumented; owner/operator proof
-is accepted for planning; remaining pre-implementation decisions are output profile config,
-self-hosted asset path, storage mode/config, prepared-audio retention, runtime capabilities contract
-and cancel UX behavior. OpenWebUI media attachment action probe must pass before
-authenticated job routes or final UI work.
+is accepted for planning; prepared-MP3 frontend MVP passed; input compatibility is now
+capability-based around configured browser ffmpeg.wasm probe/normalization; remaining
+pre-implementation decisions are output profile config, self-hosted asset path, storage
+mode/config, prepared-audio retention, runtime capabilities contract and cancel UX behavior.
+Broad media support must not be claimed until ffmpeg probe/normalization is implemented and
+tested.
 
 ### Provider model catalog
 
@@ -218,8 +221,9 @@ Domain: Transcription / STT / configuration
 Source: ADR-0004, STT_ENV_CONTRACT
 Why: Stage 2 STT provider, output profile, ffmpeg asset mode, storage, limits and cancel behavior
 must be configured server-side without exposing secrets to browser.
-Output: reviewed draft env contract for Lemonfox, output profiles, self-hosted ffmpeg assets,
-storage mode `auto|s3|none`, retention, limits, runtime capabilities and cancel flags.
+Output: reviewed draft env contract for Lemonfox, input accept mode, declared input hints,
+ffmpeg probe requirements, output profiles, self-hosted ffmpeg assets, storage mode
+`auto|s3|none`, retention, limits, runtime capabilities and cancel flags.
 Depends on: ADR-0004 review, data policy, ops/storage decision.
 Status: ready for review; not a real `.env.example`
 
@@ -233,6 +237,20 @@ Output: optional smoke evidence for desktop audio, desktop video, mobile audio, 
 large WAV and large video.
 Depends on: implementation slice and approved test media.
 Status: optional implementation/debug smoke; not a blocking ADR gate
+
+### Browser ffmpeg.wasm input probe and normalization
+
+Domain: Transcription / STT / frontend preprocessing
+Source: STT_MEDIA_INPUT_NORMALIZATION_CONTRACT, ADR-0004, STT_ENV_CONTRACT
+Why: Prepared MP3 is proven, but broad media input support must be capability-based and cannot be
+claimed from a static extension list.
+Output: browser ffmpeg.wasm probe/decode, audio-stream detection, normalization to selected output
+profile, progress events and typed safe errors.
+Depends on: approved ffmpeg asset path, input accept mode env, runtime capabilities endpoint,
+representative media.
+Acceptance: Playwright proof for MP3 prepared/passthrough path, MP4 video with audio, WebM
+audio/video if available, unsupported file safe error and no-audio-stream safe error.
+Status: next recommended implementation slice after prepared-MP3 MVP
 
 ### FFMPEG production dependency decisions
 
@@ -262,8 +280,8 @@ Status: blocked by storage/retention decision
 
 Domain: Transcription / STT / configuration
 Source: ADR-0004, STT_ENV_CONTRACT
-Why: UI must show output profiles, size warnings, duration limits, storage mode and cancel
-affordances from backend truth, not hardcoded Lemonfox assumptions.
+Why: UI must show input affordance hints, output profiles, size warnings, duration limits, storage
+mode and cancel affordances from backend truth, not hardcoded Lemonfox assumptions.
 Output: `TranscriptionRuntimeCapabilitiesV1` and
 `GET /stage2-api/transcription/capabilities` contract without secrets.
 Depends on: ADR-0004 review, env/config contract review.

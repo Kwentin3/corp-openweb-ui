@@ -44,6 +44,7 @@ Research:
 - [FFMPEG_WORKFLOW_ARTIFACT_INSPECTION](../research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)
 - [FFMPEG_BROWSER_WORKFLOW_RESEARCH](../research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md)
 - [LEMONFOX_STT_RESEARCH](../research/LEMONFOX_STT_RESEARCH.md)
+- [STT_MEDIA_INPUT_NORMALIZATION_CONTRACT](../contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
 
 Acceptance signal:
 
@@ -55,6 +56,11 @@ Acceptance signal:
 - Unsupported file does not show the action or returns a safe visible error.
 - The `Transcribe` action triggers browser-side normalization after explicit
   user intent.
+- Input compatibility is documented as ffmpeg.wasm capability-based:
+  extension/MIME are hints, and actual support requires ffmpeg probe/decode,
+  audio-stream detection and normalization to an approved output profile.
+- Broad source media is presented as an attempt to normalize, not guaranteed
+  support for every upstream FFmpeg format.
 - User sees immediate acknowledgment, progress/busy state and terminal
   success/error/cancel state.
 - Result appears in the same OpenWebUI chat/message/artifact UX.
@@ -71,6 +77,8 @@ Acceptance signal:
   secrets.
 - Selected output profile is captured and validated; Opus candidate is proven
   before default and MP3 remains compatibility fallback.
+- Input-side runtime capabilities expose accept mode, declared hints,
+  ffmpeg-probe requirement and browser limits without secrets.
 - STT env/config contract is reviewed without real secrets.
 - Owner/operator ffmpeg proof is accepted for ADR planning.
 - Optional implementation smoke checklist remains available for desktop audio,
@@ -91,6 +99,8 @@ Acceptance signal:
   upload.
 - OpenWebUI media attachment action path is selected and proven for explicit
   trigger, file byte/handoff access, transcript return, progress and cancel.
+- Prepared-MP3 frontend MVP remains accepted as the current proven path; broad
+  media normalization is a separate next target.
 
 Test data needed:
 
@@ -104,6 +114,12 @@ Test data needed:
 - Output profile compatibility notes.
 - Lemonfox adapter proof.
 - Runtime capabilities contract proof.
+- ffmpeg input probe/normalization proof for:
+  - MP3 passthrough/prepared path;
+  - MP4 video with audio;
+  - WebM audio/video if available;
+  - unsupported file safe error;
+  - no-audio-stream safe error.
 - Storage mode/config decision for `auto|s3|none`.
 - Prepared audio retention decision.
 - Prepared audio >100 MB behavior.
@@ -114,10 +130,10 @@ Test data needed:
 
 Status:
 
-- Transferable ffmpeg contract inspected; owner/operator proof accepted for
-  planning; OpenWebUI-native UX research complete; media attachment action
-  probe, ADR review, selected output profile config, self-hosted asset path,
-  storage mode/config, retention, duration and cancel TBD handling needed.
+- Prepared-MP3 OpenWebUI frontend MVP passed. Transferable ffmpeg contract
+  inspected; input compatibility contract refined as capability-based; broad
+  browser ffmpeg probe/normalization implementation and proof are still needed
+  before claiming broad media support.
 
 ## Broker reports / 3-НДФЛ draft analysis
 

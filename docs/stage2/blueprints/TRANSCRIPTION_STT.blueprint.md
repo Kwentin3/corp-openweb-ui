@@ -24,13 +24,19 @@ Browser-side ffmpeg preprocessing больше не считается research 
 ffmpeg workflow is a media-preprocessing asset, not a security boundary.
 
 External browser-side ffmpeg workflow contract is now inspected. The source
-workflow uses `@ffmpeg/ffmpeg` v0.12.6, accepts audio/video input, runs
+workflow uses `@ffmpeg/ffmpeg` v0.12.6, accepts audio/video candidates, runs
 `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, returns an MP3 /
 `audio/mpeg` browser `Blob` as the source-proven compatibility fallback, uploads
 prepared audio through a presigned/internal storage path and leaves backend STT
 orchestration to the server side. MP3 is not a permanent architecture
 constraint; implementation must use an output profile contract. Opus is the
 preferred default candidate if Lemonfox compatibility proof passes.
+
+Input compatibility is ffmpeg.wasm capability-based. The product may offer a
+normalization attempt for broad media candidates, but actual support depends on
+the configured ffmpeg.wasm build, browser/runtime memory, file size, duration,
+container, codec and successful audio-stream detection. This is not a guarantee
+that every upstream FFmpeg-supported format is supported in production.
 
 Lemonfox official docs list `mp3`, `wav`, `flac`, `aac`, `opus`, `ogg`, `m4a`,
 `mp4`, `mpeg`, `mov`, `webm` and more, but do not explicitly prove the exact
@@ -53,17 +59,19 @@ STT frontend.
 MVP workflow:
 
 ```text
-Attach media -> explicit Transcribe action -> browser normalization ->
-sidecar job -> Lemonfox -> transcript in current OpenWebUI chat UX
+Attach media candidate -> explicit Transcribe action -> ffmpeg probe ->
+browser normalization -> prepared audio -> sidecar job -> Lemonfox ->
+transcript in current OpenWebUI chat UX
 ```
 
 Пользователь прикрепляет audio/video inside OpenWebUI chat/workspace UX.
-Supported media attachment exposes an explicit `Transcribe` action. This action
-is the user intent contract for browser-side ffmpeg.wasm normalization,
-prepared-audio upload/job creation, backend/provider transcription and
-transcript return into the current OpenWebUI chat/message/artifact UX. Prepared
-audio blob идет в server-side STT proxy and storage lifecycle according to
-`auto|s3|none`.
+Prepared MP3 is the current proven path. Next target is broad media attachment
+normalization: the UI may show `Transcribe` for audio/video candidates, then
+must run ffmpeg probe/normalization before provider handoff. This action is the
+user intent contract for browser-side ffmpeg.wasm normalization, prepared-audio
+upload/job creation, backend/provider transcription and transcript return into
+the current OpenWebUI chat/message/artifact UX. Prepared audio blob идет в
+server-side STT proxy and storage lifecycle according to `auto|s3|none`.
 Proxy проверяет auth/rights/limits/output profile, выбирает `LemonfoxSttAdapter` as first adapter,
 добавляет server-side STT key, вызывает Lemonfox through adapter factory. UI показывает transcript
 inside OpenWebUI as chat/message/file/artifact output, then templates:
@@ -79,25 +87,36 @@ Current transferable prepared-audio contract from the source workflow is MP3 /
 `audio/mpeg`. Stage 2 keeps it as compatibility fallback. Opus is the preferred
 default candidate pending Lemonfox compatibility proof.
 
+Input-side contract candidate:
+
+```text
+SttMediaInputProfileV1 -> PreparedAudioMetadataV1
+```
+
+See:
+
+- [STT Media Input Normalization Contract](../contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
+
 ## 4.1. Backend-first boundary
 
 First implementation slice should define and test the STT proxy API before building final UI.
 
 Boundary contract:
 
-1. STT proxy contract: input audio blob, metadata, selected output profile,
-   output transcript, timestamps/speaker labels where available.
+1. STT proxy contract: prepared audio blob, source input profile metadata,
+   selected output profile, output transcript, timestamps/speaker labels where
+   available.
 2. Auth/permissions: caller must be authenticated and allowed to use transcription.
 3. API key handling: STT provider keys live only server-side.
 4. Provider request: Lemonfox is called first through `LemonfoxSttAdapter` behind
    `SttProviderAdapterFactory`.
 5. Transcript normalization: provider response becomes a stable internal transcript shape.
-6. Error model: unsupported format, too-large file, provider timeout, quota and validation errors
-   are explicit.
+6. Error model: ffmpeg probe/decode failure, no audio stream, too-large file,
+   provider timeout, quota and validation errors are explicit.
 7. Runtime capabilities: UI reads
    `GET /stage2-api/transcription/capabilities` /
-   `TranscriptionRuntimeCapabilitiesV1` for output profiles, limits,
-   storage mode/health and provider capability flags.
+   `TranscriptionRuntimeCapabilitiesV1` for input affordance hints, output
+   profiles, limits, storage mode/health and provider capability flags.
 8. Storage: normalized/prepared audio sent to provider follows
    `auto|s3|none`; `s3` fails fast if required storage is unavailable.
 9. File size/duration policy: 1 GB browser input limit, 100 MB Lemonfox direct prepared-audio upload
@@ -168,6 +187,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 9. Risks and constraints
 
 - Large files.
+- Media containers/codecs that the configured browser ffmpeg.wasm build cannot
+  decode.
+- Files with no audio stream.
 - Progress/cancel UX.
 - Browser memory on mobile.
 - Upload limits/timeouts.
@@ -186,6 +208,8 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 10. Open questions
 
 - What file size/duration limits are acceptable?
+- Which ffmpeg.wasm build/assets and browser environments are accepted as the
+  production capability baseline?
 - Which Opus container does Lemonfox accept well enough for default profile:
   WebM/Opus or OGG/Opus?
 - Does Lemonfox expose provider-side cancellation or only local cancellation is
@@ -216,6 +240,10 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 ## 12. Acceptance signals
 
 - Audio/video test upload produces transcript through server-side proxy.
+- Broad source-media support is presented as an ffmpeg normalization attempt,
+  not a guarantee for every upstream FFmpeg format.
+- Source MIME/extension is treated as a hint until ffmpeg probe/decode detects
+  an audio stream.
 - Browser bundle/network does not expose STT API key.
 - Provider call is routed through documented STT provider adapter boundary.
 - Lemonfox is first adapter, but orchestration still goes through factory.
@@ -231,7 +259,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - User can apply result templates.
 - User can cancel preprocessing/upload/job lifecycle where technically
   possible.
-- Unsupported/large files produce clear errors or documented limits.
+- Unsupported/large/no-audio files produce clear errors or documented limits.
 - STT proxy API contract is documented before final UI work.
 - Browser ffmpeg/preprocessing output contract is inspected and owner/operator
   proof is accepted for planning.

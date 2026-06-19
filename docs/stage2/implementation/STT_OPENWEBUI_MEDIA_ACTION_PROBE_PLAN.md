@@ -1,6 +1,7 @@
 # STT OpenWebUI Media Action Probe Plan
 
-Status: planning document. No production implementation started.
+Status: planning document. Prepared-MP3 Action path is now proven; broad media
+ffmpeg input normalization remains future work.
 
 ## 1. Goal
 
@@ -15,10 +16,26 @@ media attachment -> explicit Transcribe action -> browser normalization ->
 sidecar dummy/job call -> transcript in current OpenWebUI chat UX
 ```
 
+Current proven slice:
+
+```text
+prepared MP3 attachment -> process=false upload -> explicit Transcribe action ->
+OpenWebUI Action -> stage2-stt sidecar -> transcript in composer
+```
+
+Next probe target:
+
+```text
+broad media candidate -> ffmpeg probe/decode -> audio stream detected ->
+normalize to approved output profile -> existing Action/sidecar path
+```
+
 ## 2. Probe scope
 
 - Create a minimal Action Function in staging/admin OpenWebUI.
-- Attach non-sensitive audio/video file in chat.
+- Attach non-sensitive audio/video candidate in chat.
+- Treat source extension/MIME as hints until ffmpeg probe/decode confirms an
+  audio stream.
 - Inspect `__user__`, `__metadata__`, `body["files"]` and `__files__`.
 - Check whether Action can access bytes or only metadata.
 - Check whether approved file handoff is possible without binding sidecar to
@@ -27,6 +44,8 @@ sidecar dummy/job call -> transcript in current OpenWebUI chat UX
 - Call sidecar dummy endpoint without provider key.
 - Return dummy transcript to current chat/message/artifact UX.
 - Test unsupported-file error state.
+- Test no-audio-stream safe error state.
+- Test ffmpeg decode/probe failure safe error state.
 - Test cancel-shaped interaction if possible.
 - Record whether Action can be restricted by admin/group/workspace policy.
 
@@ -35,6 +54,7 @@ sidecar dummy/job call -> transcript in current OpenWebUI chat UX
 - Production job routes.
 - Full Lemonfox transcription.
 - Full browser ffmpeg implementation.
+- Claiming broad input support without ffmpeg probe/normalization proof.
 - Dedicated transcription GUI.
 - Dedicated transcription workspace/history/export/protocol workflow.
 - OpenWebUI deep fork.
@@ -53,6 +73,8 @@ integration layer:
 - Action does not contain Lemonfox logic.
 - Action does not decide provider capabilities, data policy, retention or
   storage mode.
+- Action does not decide broad input compatibility from filename/extension
+  alone.
 - Action calls the sidecar only.
 - Sidecar remains source of truth for capabilities, limits, storage, job state,
   cancel semantics, provider behavior and transcript normalization.
@@ -73,7 +95,8 @@ backend-mediated upload path.
 - Whether event emitter/status works.
 - Transcript placement behavior: chat message, assistant/tool message,
   artifact/file or limitation.
-- Error-state behavior for unsupported file and sidecar dummy failure.
+- Error-state behavior for unsupported file, no audio stream, ffmpeg decode
+  failure and sidecar dummy failure.
 - Cancel-shaped behavior or explicit limitation.
 - Whether Action can be restricted to admin/group/workspace.
 - Whether sidecar dummy call works without provider key.
@@ -88,6 +111,8 @@ The probe must cover user-visible states:
 
 - empty/no media attachment;
 - unsupported media;
+- no-audio-stream media;
+- ffmpeg decode/probe failure;
 - ready with visible `Transcribe` action;
 - disabled/unavailable action with reason;
 - busy/loading normalization;
@@ -113,6 +138,7 @@ Allowed outcomes:
 - `openapi_tool_server_probe_needed`
 - `minimal_frontend_patch_required`
 - `blocked_by_openwebui_file_context`
+- `ffmpeg_input_normalization_slice_ready`
 
 Any outcome must include evidence links/notes and the next smallest safe slice.
 

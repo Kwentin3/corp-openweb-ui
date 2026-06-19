@@ -28,6 +28,9 @@ internal APIs или thin integration shims.
   `Transcribe` media attachment action. This action is the user intent contract
   for browser-side media normalization, backend STT job creation, provider
   transcription and transcript return into the current OpenWebUI chat UX.
+- STT input compatibility is capability-based: broad media candidates may be
+  accepted for ffmpeg.wasm probe/normalization, but output remains restricted to
+  approved prepared-audio profiles.
 - Thin frontend: frontend отвечает за user interaction, upload/progress/cancel
   UX and calls to internal Stage 2 APIs.
 - No API keys in browser: browser never calls STT/LLM/OCR providers with
@@ -48,7 +51,8 @@ internal APIs или thin integration shims.
 - chat/workspace UI;
 - user-facing STT trigger/result surface through an approved native media
   attachment action or a minimal integration patch;
-- visible `Transcribe` affordance on supported audio/video attachments;
+- visible `Transcribe` affordance on proven prepared audio or broad media
+  candidates that still require ffmpeg probe/normalization;
 - prompts/knowledge/workspace models where native;
 - native analytics if sufficient.
 
@@ -62,6 +66,7 @@ internal APIs или thin integration shims.
 - usage event collector;
 - transcript normalization;
 - STT provider capability profile and runtime capabilities endpoint;
+- STT media input profile and normalization result contracts;
 - retention/export lifecycle;
 - OCR/VL OCR pilot adapters;
 - internal health/smoke endpoints.
@@ -75,6 +80,8 @@ internal APIs или thin integration shims.
 - upload/progress/cancel UX;
 - local media preprocessing only when covered by an approved contract;
 - may run ffmpeg.wasm normalization after explicit user action;
+- treats source extension/MIME as hints until ffmpeg probe detects an audio
+  stream;
 - sends prepared audio/job request to internal Stage 2 APIs;
 - displays transcript/status/result inside the current OpenWebUI chat UX;
 - never stores provider API keys;
@@ -128,6 +135,12 @@ Draft internal contracts:
   job lifecycle for preprocessing, upload, STT processing, selected output
   profile, asset loading mode, selected provider adapter, prepared-audio object
   key, storage mode, retention policy, progress, cancellation and typed errors.
+- `SttMediaInputProfileV1`:
+  source media hints, ffmpeg probe/decode status, detected audio stream,
+  duration/container/codec and rejection reason.
+- `PreparedAudioMetadataV1`:
+  normalized prepared-audio metadata, source input profile, selected output
+  profile, output MIME/size/duration, ffmpeg command profile and warnings.
 - `TranscriptResultV1`:
   normalized transcript shape for UI, templates and exports, including source
   output profile, provider adapter and normalized segments.
@@ -174,6 +187,10 @@ These are planning contracts. They are not API implementation.
 - Frontend directly calls external STT provider with API key.
 - UI decides whether data may be sent to provider.
 - UI hardcodes MP3 as the only possible transcription output.
+- UI presents every upstream FFmpeg-supported format as guaranteed product
+  support without proving the configured ffmpeg.wasm build/browser can decode it.
+- UI sends unsupported source media directly to the STT provider when
+  normalization has failed or no audio stream was detected.
 - Production silently loads ffmpeg wasm assets from public CDN.
 - Source media is stored by default without explicit retention decision.
 - OpenWebUI core is patched deeply for every custom workflow.
@@ -198,6 +215,8 @@ These are planning contracts. They are not API implementation.
 First implementation-facing contract must be STT proxy boundary:
 
 - `TranscriptionJobV1`;
+- `SttMediaInputProfileV1`;
+- `PreparedAudioMetadataV1`;
 - `TranscriptResultV1`;
 - `SttProviderCapabilityProfileV1`;
 - `TranscriptionRuntimeCapabilitiesV1`;
@@ -213,6 +232,9 @@ Current planning state:
 - the external browser ffmpeg preprocessing contract is inspected;
 - transferable source output is MP3 / `audio/mpeg` as a source-proven
   compatibility fallback, not a permanent architecture constraint;
+- input compatibility is now broad/capability-based: declared extensions and
+  MIME prefixes are UI hints, while actual support requires ffmpeg probe/decode
+  and audio-stream detection in the configured browser build;
 - Lemonfox is the first Stage 2 STT provider through `LemonfoxSttAdapter`;
 - Opus is the preferred default output-profile candidate pending Lemonfox
   compatibility proof;
@@ -220,7 +242,8 @@ Current planning state:
 - normalized/prepared audio storage is controlled by `auto|s3|none`, with S3
   required only when storage mode/policy says so;
 - runtime capabilities must expose effective output profiles, upload limits,
-  duration TBDs, storage mode/health and provider-side cancellation support;
+  input affordance hints, duration TBDs, storage mode/health and provider-side
+  cancellation support;
 - owner/operator proof is accepted for ADR planning and proof matrix is not a
   blocking ADR or implementation-planning gate;
 - implementation planning still requires ADR review, selected output profile
@@ -241,6 +264,7 @@ vendored in this docs-only decision.
 - [Stage 2 README](README.md)
 - [Implementation Gates](IMPLEMENTATION_GATES.md)
 - [STT Env Contract](config/STT_ENV_CONTRACT.md)
+- [STT Media Input Normalization Contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [Transcription STT Blueprint](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [FFMPEG Workflow Artifact Inspection](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)

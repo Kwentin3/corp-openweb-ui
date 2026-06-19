@@ -34,6 +34,9 @@ not the MVP path.
 
 - ADR-0004 approved.
 - Existing browser ffmpeg workflow contract inspected.
+- STT media input compatibility contract reviewed:
+  input side is ffmpeg.wasm capability-based, output side remains approved
+  prepared-audio profile based.
 - Owner/operator proof accepted for ADR planning.
 - Optional implementation smoke checklist kept for debug; proof matrix is not a
   blocking ADR or implementation-planning gate.
@@ -47,6 +50,8 @@ not the MVP path.
 - Prepared audio >100 MB behavior accepted.
 - Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
+- ffmpeg probe/decode failure, no-audio-stream, browser memory, input-size and
+  normalization failure reason codes agreed.
 - OpenWebUI media attachment action runtime probe passes before production job
   routes or final UI.
 - No API keys in browser.
@@ -143,12 +148,17 @@ Blocking items:
   mobile audio, mobile video, large WAV and large video;
 - output profile decision: Opus candidate default pending Lemonfox proof, MP3
   compatibility fallback;
+- input compatibility decision: broad media candidates can be attempted only
+  through configured ffmpeg.wasm probe/normalization, not promised by static
+  extension list;
 - Lemonfox adapter config decision;
 - Lemonfox provider capability profile review, including documented formats,
   100 MB direct upload, 1 GB URL input, duration TBD and provider cancel TBD;
 - runtime capabilities endpoint contract:
   `GET /stage2-api/transcription/capabilities` /
   `TranscriptionRuntimeCapabilitiesV1`;
+- runtime capabilities include input accept mode, declared input hints,
+  ffmpeg-probe requirement, browser input size and duration limits;
 - STT env/config contract review;
 - self-hosted ffmpeg asset path decision;
 - storage mode/env decision for `auto|s3|none` and storage health behavior;
@@ -163,10 +173,14 @@ Blocking items:
   - Action can call sidecar dummy endpoint;
   - Action can place transcript in chat/message/artifact;
   - unsupported files show no action or safe error;
+  - no-audio-stream files show safe error;
+  - ffmpeg decode/probe failures show safe visible error;
   - no separate STT GUI;
   - no provider key in browser;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
 - browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
+- browser ffmpeg.wasm memory/size/duration rejection behavior is typed and
+  visible to users;
 - Lemonfox URL upload path approval only after storage expiry/access proof;
 - production duration limits and Lemonfox max-duration runtime proof or
   explicit provider `TBD`;
