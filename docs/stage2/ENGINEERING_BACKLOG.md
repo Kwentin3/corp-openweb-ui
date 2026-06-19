@@ -50,12 +50,13 @@ Why: API keys cannot be exposed in browser; Lemonfox-specific capabilities and f
 need server-side control.
 Output: proposed ADR for proxy contract, auth/permissions, upload limits, storage, errors, provider
 adapter factory, output profiles, response normalization, optional audit and draft job contracts.
-Depends on: human ADR review, lightweight proof matrix, production dependency decisions, customer
-media limits
+Depends on: human ADR review, STT env contract review, lightweight proof matrix, Lemonfox/Opus
+compatibility proof, production dependency decisions, customer media limits
 Status: ADR-0004 prepared for review; external ffmpeg workflow contract inspected; transferable
-MP3/audio-mpeg source-proven candidate found; operator manual proof captured as manual evidence;
-needs lightweight proof matrix, selected output profile, STT adapter decision, asset loading mode and
-cancel UX decision before implementation
+MP3/audio-mpeg source-proven fallback found; operator manual proof captured as manual evidence;
+Lemonfox selected as first adapter; needs lightweight proof matrix, Opus default candidate proof,
+self-hosted asset path, S3 storage config, prepared-audio retention and cancel UX decision before
+implementation
 
 ### Provider model catalog
 
@@ -173,9 +174,20 @@ Source: TRANSCRIPTION_STT blueprint, ADR-0004
 Why: STT proxy must be proven before final UI work.
 Output: smoke plan for audio/video, key handling, errors, size/duration and transcript shape.
 Depends on: approved ADR-0004, inspected ffmpeg contract, sample media
-Status: ready to plan after ADR review; must include selected output profile proof, STT provider
-adapter compatibility proof, cancel lifecycle proof where technically possible and no API key in
-browser proof
+Status: ready to plan after ADR review; must include Lemonfox adapter proof, Opus output profile
+compatibility proof, prepared audio >100 MB behavior, S3 prepared-audio storage proof, cancel
+lifecycle proof where technically possible and no API key in browser proof
+
+### STT env/config contract review
+
+Domain: Transcription / STT / configuration
+Source: ADR-0004, STT_ENV_CONTRACT
+Why: Stage 2 STT provider, output profile, ffmpeg asset mode, storage, limits and cancel behavior
+must be configured server-side without exposing secrets to browser.
+Output: reviewed draft env contract for Lemonfox, output profiles, self-hosted ffmpeg assets,
+S3/object storage, retention, limits and cancel flags.
+Depends on: ADR-0004 review, data policy, ops/storage decision.
+Status: ready for review; not a real `.env.example`
 
 ### FFMPEG mobile / large-file proof matrix
 
@@ -194,10 +206,22 @@ Domain: Transcription / STT / frontend dependency
 Source: ADR-0004, FFMPEG_WORKFLOW_ARTIFACT_INSPECTION
 Why: Source workflow uses `unpkg.com`, `@ffmpeg/ffmpeg` v0.12.6 and MP3 / `libmp3lame`; corporate
 production needs explicit dependency, hosting, licensing and limit decisions.
-Output: decision note or ADR update for output profile, `cdn mode` vs `self_hosted mode`,
-licensing/ops review, STT provider adapter compatibility and max file size/duration policy.
+Output: decision note or ADR update for Opus default candidate, MP3 fallback, `self_hosted`
+production asset path, licensing/ops review, Lemonfox adapter compatibility and max
+file size/duration policy.
 Depends on: ADR-0004 review, STT provider compatibility smoke, ops/licensing review.
 Status: blocked by production decision
+
+### STT prepared audio storage and retention
+
+Domain: Transcription / STT / storage
+Source: ADR-0004, STT_ENV_CONTRACT
+Why: Normalized/prepared audio sent to provider must be available through controlled S3/object
+storage, while source media storage must not be enabled silently.
+Output: S3 bucket/prefix/retention decision, prepared-audio cleanup policy, source-media storage
+flag, cancelled-job retention behavior.
+Depends on: data policy, retention policy, operator storage configuration.
+Status: blocked by storage/retention decision
 
 ### Document extraction/OCR smoke after test data
 

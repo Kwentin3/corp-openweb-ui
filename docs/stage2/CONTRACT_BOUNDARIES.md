@@ -46,6 +46,7 @@ internal APIs или thin integration shims.
 
 - STT proxy/job service;
 - STT Provider Adapter Factory and provider adapters;
+- first STT adapter: `LemonfoxSttAdapter`;
 - policy resolver;
 - usage event collector;
 - transcript normalization;
@@ -77,6 +78,7 @@ them into internal Stage 2 contracts.
 ### Storage/retention
 
 - temporary files and prepared audio blobs;
+- normalized/prepared audio sent to STT provider in S3/object storage;
 - transcript storage if approved by policy;
 - document/OCR pilot artifacts;
 - usage metadata;
@@ -88,6 +90,8 @@ deletion/retention ADRs. No-delete is not retention. Retention is not audit.
 ### Admin/operator surface
 
 - provider/model configuration;
+- STT env/config contract for provider, output profile, asset mode, limits,
+  storage and retention;
 - usage review;
 - smoke/proof evidence;
 - feature flags and limits;
@@ -102,8 +106,8 @@ Draft internal contracts:
 
 - `TranscriptionJobV1`:
   job lifecycle for preprocessing, upload, STT processing, selected output
-  profile, asset loading mode, selected provider adapter, progress,
-  cancellation and typed errors.
+  profile, asset loading mode, selected provider adapter, prepared-audio object
+  key, storage mode, retention policy, progress, cancellation and typed errors.
 - `TranscriptResultV1`:
   normalized transcript shape for UI, templates and exports, including source
   output profile, provider adapter and normalized segments.
@@ -142,6 +146,8 @@ These are planning contracts. They are not API implementation.
 - Frontend directly calls external STT provider with API key.
 - UI decides whether data may be sent to provider.
 - UI hardcodes MP3 as the only possible transcription output.
+- Production silently loads ffmpeg wasm assets from public CDN.
+- Source media is stored by default without explicit retention decision.
 - OpenWebUI core is patched deeply for every custom workflow.
 - Provider response shape leaks into prompts/templates.
 - Manager visibility is implemented through blanket admin access.
@@ -170,23 +176,30 @@ Current blocker:
 
 - the external browser ffmpeg preprocessing contract is inspected;
 - transferable source output is MP3 / `audio/mpeg` as a source-proven
-  candidate, not a permanent architecture constraint;
+  compatibility fallback, not a permanent architecture constraint;
+- Lemonfox is the first Stage 2 STT provider through `LemonfoxSttAdapter`;
+- Opus is the preferred default output-profile candidate pending Lemonfox
+  compatibility proof;
+- production ffmpeg asset mode is `self_hosted`;
+- normalized/prepared audio sent to provider is stored in S3/object storage
+  with env-configured retention;
 - operator manual proof exists for reported mobile and large-file scenarios;
 - implementation readiness still requires ADR review, a lightweight proof
-  matrix, selected output profile, STT adapter decision, asset loading mode and
-  production dependency decisions.
+  matrix, Opus/Lemonfox compatibility proof, self-hosted asset path, S3 storage
+  env decision and prepared-audio retention decision.
 
 The ffmpeg workflow is a media preprocessing asset, not a security boundary.
-The current dependency strategy allows CDN mode for proof/dev and potentially
-production only with explicit approval and pinned versions. Self-host/internal
-cache remains the preferred fallback for corporate deployment. No heavy
-wasm/core assets should be vendored without a separate decision.
+The current dependency strategy makes self-host/internal cache the production
+default. CDN mode remains allowed for proof/dev/fallback and production only
+with explicit approval and pinned versions. No heavy wasm/core assets should be
+vendored in this docs-only decision.
 
 ## 8. Related docs
 
 - [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - [Stage 2 README](README.md)
 - [Implementation Gates](IMPLEMENTATION_GATES.md)
+- [STT Env Contract](config/STT_ENV_CONTRACT.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [Transcription STT Blueprint](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [FFMPEG Workflow Artifact Inspection](research/FFMPEG_WORKFLOW_ARTIFACT_INSPECTION.md)

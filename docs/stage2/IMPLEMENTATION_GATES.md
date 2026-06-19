@@ -29,9 +29,14 @@ provider keys, data policy, retention, manager visibility or usage accounting.
 - Operator manual proof captured as manual evidence for mobile/large-file
   scenarios.
 - Lightweight proof matrix captured before implementation acceptance.
-- Output profile decision accepted, revised or explicitly deferred.
-- STT Provider Adapter Factory accepted, revised or explicitly deferred.
-- ffmpeg asset loading strategy accepted, revised or rejected.
+- Opus default candidate compatibility with Lemonfox accepted, revised or
+  explicitly deferred.
+- MP3 compatibility fallback accepted.
+- `LemonfoxSttAdapter` first-adapter config accepted.
+- STT env/config contract reviewed.
+- Self-hosted ffmpeg production asset path accepted.
+- S3/object storage and prepared-audio retention accepted.
+- Prepared audio >100 MB behavior accepted.
 - Cancel UX expectations accepted, revised or explicitly deferred.
 - STT proxy input/output agreed.
 - No API keys in browser.
@@ -112,8 +117,9 @@ Related docs:
 Status:
 
 - reviewable; not completed until human ADR review, lightweight proof matrix,
-  selected output profile, STT adapter decision, asset loading mode and
-  production dependency decisions are complete.
+  Opus/Lemonfox compatibility proof, Lemonfox adapter config, self-hosted asset
+  path, S3/object storage config, prepared-audio retention and production
+  dependency decisions are complete.
 
 Owner:
 
@@ -124,18 +130,24 @@ Blocking items:
 - ADR-0004 human review;
 - lightweight proof matrix with device/browser/file metadata and selected output
   profile;
-- production output profile decision;
-- STT adapter/factory decision;
-- ffmpeg asset loading decision: `cdn mode` with explicit approval vs
-  `self_hosted mode`/internal cache;
+- output profile decision: Opus candidate default pending Lemonfox proof, MP3
+  compatibility fallback;
+- Lemonfox adapter config decision;
+- STT env/config contract review;
+- self-hosted ffmpeg asset path decision;
+- S3/object storage env decision;
+- prepared audio retention decision;
+- prepared audio >100 MB behavior;
 - cancel lifecycle expectations for preprocessing, upload and STT job;
 - licensing/ops review for MP3 / `libmp3lame` and ffmpeg core assets;
-- production file size and duration limits;
+- browser 1 GB input limit and Lemonfox 100 MB direct upload limit proof;
+- production duration limits;
 - [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Related docs:
 
 - ADR-0004;
+- STT env contract;
 - FFMPEG workflow artifact inspection;
 - STT blueprint.
 

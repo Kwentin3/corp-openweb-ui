@@ -23,9 +23,9 @@ transferable for ADR review.
   files read back from that filesystem.
 - Current 0.12+ API uses `new FFmpeg()`, `ffmpeg.load()`, `writeFile()`, `exec()`, `readFile()` and
   `terminate()`.
-- The official usage example loads a core around 31 MB from CDN. CDN is not forbidden, but
-  production integration should explicitly choose `cdn mode` or `self_hosted mode`, pin versions and
-  document approval.
+- The official usage example loads a core around 31 MB from CDN. CDN is not forbidden, but Stage 2
+  production default is `self_hosted`; CDN is dev/proof/fallback unless explicitly approved for
+  production with pinned versions.
 - Multi-thread mode requires `SharedArrayBuffer` and browser security requirements/cross-origin
   isolation. Single-thread mode is simpler but may be slower.
 - The official docs include abort/progress patterns, but UX still needs project-specific
@@ -37,11 +37,17 @@ transferable for ADR review.
 - External workflow inspection confirms the transferable browser-side
   preprocessing contract: `@ffmpeg/ffmpeg` v0.12.6, audio/video input, command
   `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, output MP3 /
-  `audio/mpeg` as a source-proven candidate browser `Blob`, then
+  `audio/mpeg` as a source-proven compatibility fallback browser `Blob`, then
   presigned/internal upload to backend STT orchestration.
 - MP3 / `audio/mpeg` is a proven source workflow output, not a permanent
   architecture constraint. Browser preprocessing should use output profiles and
   backend validation should check the selected profile.
+- Opus is the preferred default candidate if Lemonfox compatibility proof
+  passes; do not choose WebM/Opus vs OGG/Opus without proof.
+- Stage 2 browser preprocessing input limit is 1 GB / 1024 MB.
+- Lemonfox direct prepared-audio upload limit is 100 MB.
+- Normalized/prepared audio sent to the provider should be stored in S3/object
+  storage with env-configured bucket, prefix and retention.
 - Operator manual proof reports success on a mobile device with large videos and
   large WAV files. This should be treated as useful manual evidence, not as a
   repository-owned proof matrix.
@@ -56,7 +62,9 @@ Preferred shape for Stage 2 planning:
 - browser ffmpeg converts/extracts audio locally;
 - server-side STT proxy receives only prepared audio;
 - proxy applies size/duration/output-profile limits and provider key;
-- proxy calls STT providers through a provider adapter factory;
+- proxy stores normalized/prepared audio in S3/object storage;
+- proxy calls Lemonfox first through `LemonfoxSttAdapter` behind the provider
+  adapter factory;
 - transcript is returned to user and can be pasted/sent into OpenWebUI scenario templates.
 
 A deeper OpenWebUI integration can be considered only after the sidecar/proxy path proves user value
@@ -67,17 +75,18 @@ Backend-first clarification:
 - ffmpeg workflow is media preprocessing only;
 - it must not own provider keys, data policy, access control or retention;
 - it must not hardcode MP3 as the only possible output;
+- it must not own storage/retention policy;
 - STT proxy contract and runtime smoke must be defined before final UI integration.
 
 ## 5. Open questions
 
-- Which output profile should be the default after provider compatibility and
-  licensing/ops review?
+- Which Opus container should become default after Lemonfox compatibility proof?
 - Does it already work in target mobile browsers under corporate domain headers?
 - Is multi-thread performance required, or is single-thread enough for pilot?
-- Which ffmpeg asset loading mode is approved for production: CDN with explicit
-  approval or self-host/internal cache?
+- What exact self-hosted ffmpeg asset path is approved under portal/internal
+  CDN?
 - What max local file size is acceptable for low-memory mobile devices?
+- What S3 bucket/prefix/retention should store prepared audio?
 
 ## 6. Acceptance proof needed
 
@@ -88,11 +97,14 @@ Backend-first clarification:
 - no raw media upload before user starts STT proxy call;
 - prepared audio format accepted by Lemonfox or selected STT proxy.
 - browser workflow output contract matches the backend proxy input contract.
-- selected output profile is captured; MP3 is not treated as the only possible
-  output.
+- selected output profile is captured; Opus candidate is proven before default,
+  and MP3 remains compatibility fallback.
+- browser 1 GB input limit and Lemonfox 100 MB direct upload limit are covered.
+- prepared audio over 100 MB has documented fail/fallback behavior.
+- S3/object storage config and retention are documented.
 - ffmpeg.wasm package/core version and asset hosting path are decided.
-- source CDN use through `unpkg.com` is replaced, explicitly accepted or
-  rejected for production.
+- source CDN use through `unpkg.com` is replaced by self-hosted production path,
+  or a production CDN exception is explicitly approved.
 - operator mobile/large-file proof is converted into a lightweight matrix with
   device/browser/file metadata and selected output profile.
 - `SharedArrayBuffer` / COOP / COEP requirements are proven only if
@@ -115,6 +127,7 @@ Backend-first clarification:
 
 Research complete for integration planning. External browser ffmpeg workflow
 contract is inspected and transferable. ADR-0004 can use MP3 / `audio/mpeg` as
-the source-proven candidate for review, while implementation acceptance still
-requires a lightweight proof matrix, selected output profile, STT adapter
-decision, asset loading mode and production dependency decisions.
+the source-proven compatibility fallback for review, while implementation
+acceptance still requires a lightweight proof matrix, Opus/Lemonfox
+compatibility proof, self-hosted asset path, S3 storage config and production
+dependency decisions.

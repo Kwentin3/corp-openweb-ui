@@ -11,7 +11,7 @@ server-side STT proxy.
 - Есть существующий рабочий проект аудио/видео-транскрибации.
 - ffmpeg workflow проверен на desktop and mobile.
 - API keys не должны попадать в браузер.
-- STT provider priority: Lemonfox.
+- First STT provider: Lemonfox through `LemonfoxSttAdapter`.
 
 ## 3. Current known context
 
@@ -23,10 +23,11 @@ ffmpeg workflow is a media-preprocessing asset, not a security boundary.
 External browser-side ffmpeg workflow contract is now inspected. The source
 workflow uses `@ffmpeg/ffmpeg` v0.12.6, accepts audio/video input, runs
 `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`, returns an MP3 /
-`audio/mpeg` browser `Blob` as the source-proven default candidate, uploads
+`audio/mpeg` browser `Blob` as the source-proven compatibility fallback, uploads
 prepared audio through a presigned/internal storage path and leaves backend STT
 orchestration to the server side. MP3 is not a permanent architecture
-constraint; implementation must use an output profile contract.
+constraint; implementation must use an output profile contract. Opus is the
+preferred default candidate if Lemonfox compatibility proof passes.
 
 Operator manual proof reports successful mobile testing with large videos and
 large WAV files. Treat this as useful manual evidence, not as a reproducible
@@ -38,15 +39,14 @@ frontend UI.
 ## 4. Target user workflow
 
 Пользователь загружает audio/video. GUI готовит audio через browser ffmpeg workflow according to the
-selected output profile. Prepared audio blob идет в server-side STT proxy. Proxy проверяет
-auth/rights/limits/output profile, выбирает STT provider adapter, добавляет server-side STT key,
-вызывает Lemonfox/selected provider through adapter factory. UI показывает transcript и templates:
-протокол, задачи, решения, резюме, follow-up.
+selected output profile. Prepared audio blob идет в server-side STT proxy and S3/object storage.
+Proxy проверяет auth/rights/limits/output profile, выбирает `LemonfoxSttAdapter` as first adapter,
+добавляет server-side STT key, вызывает Lemonfox through adapter factory. UI показывает transcript
+и templates: протокол, задачи, решения, резюме, follow-up.
 
 Current transferable prepared-audio contract from the source workflow is MP3 /
-`audio/mpeg`. Stage 2 may reuse this pattern, but production still needs an
-explicit output profile decision after STT provider compatibility and
-licensing/ops review.
+`audio/mpeg`. Stage 2 keeps it as compatibility fallback. Opus is the preferred
+default candidate pending Lemonfox compatibility proof.
 
 ## 4.1. Backend-first boundary
 
@@ -58,14 +58,15 @@ Boundary contract:
    output transcript, timestamps/speaker labels where available.
 2. Auth/permissions: caller must be authenticated and allowed to use transcription.
 3. API key handling: STT provider keys live only server-side.
-4. Provider request: Lemonfox or selected STT provider is called only by proxy/server through
+4. Provider request: Lemonfox is called first through `LemonfoxSttAdapter` behind
    `SttProviderAdapterFactory`.
 5. Transcript normalization: provider response becomes a stable internal transcript shape.
 6. Error model: unsupported format, too-large file, provider timeout, quota and validation errors
    are explicit.
-7. Optional persistence/audit: source file, audio blob and transcript retention are controlled by
-   policy.
-8. File size/duration policy: max duration, max upload and mobile/browser limits are documented.
+7. Storage: normalized/prepared audio sent to provider is stored in S3/object storage with
+   env-configured bucket, prefix and retention.
+8. File size/duration policy: 1 GB browser input limit, 100 MB Lemonfox direct prepared-audio upload
+   limit, max duration and fallback behavior are documented.
 9. Cancel lifecycle: preprocessing, upload and STT job cancel are supported where technically
    possible.
 10. UI/browser integration follows after proxy boundary and runtime smoke.
@@ -82,7 +83,9 @@ Boundary contract:
 - Isolated transcription module.
 - Minimal fork-slice only if native extension points insufficient.
 - Server-side STT proxy.
-- STT Provider Adapter Factory; Lemonfox is a priority candidate, not hardwired architecture.
+- STT Provider Adapter Factory; Lemonfox is the first provider, not hardwired architecture.
+- Draft STT env/config contract for provider, output profile, ffmpeg assets, limits, storage and
+  cancel behavior.
 - Server-side fallback for large files if browser limits hit.
 - Storage/retention handling for source file, audio blob, transcript.
 - Thin UI can reuse the browser preprocessing pattern and call internal Stage 2
@@ -99,7 +102,9 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 
 - Existing ffmpeg project details.
 - FFMPEG workflow artifact inspection and ffmpeg asset loading mode decision.
-- Output profile decision and provider compatibility proof.
+- Output profile decision and Lemonfox compatibility proof.
+- STT env/config contract.
+- S3/object storage decision for prepared audio.
 - Lightweight reproducible proof matrix.
 - Lemonfox research.
 - OpenWebUI capability research.
@@ -115,17 +120,18 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Error handling.
 - STT provider adapter mismatch.
 - CDN/self-host ffmpeg asset mode.
+- Prepared audio over 100 MB.
+- S3/object storage and retention.
 - Transcript storage and permissions.
 - OpenWebUI update compatibility.
 
 ## 10. Open questions
 
 - What file size/duration limits are acceptable?
-- Should production default to source-proven MP3 / `audio/mpeg`, or choose
-  another output profile after review?
-- Which providers/adapters support each input profile?
-- Which asset loading mode is acceptable for production: CDN with explicit
-  approval or self-host/internal cache?
+- Which Opus container does Lemonfox accept well enough for default profile:
+  WebM/Opus or OGG/Opus?
+- Which self-hosted ffmpeg asset path is approved under portal/internal CDN?
+- What S3 bucket/prefix/retention should store prepared audio?
 - Is server fallback required in Practical Stage 2?
 - Is single-thread ffmpeg.wasm enough, or is multi-thread
   `SharedArrayBuffer` / COOP / COEP support required?
@@ -144,8 +150,11 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 - Audio/video test upload produces transcript through server-side proxy.
 - Browser bundle/network does not expose STT API key.
 - Provider call is routed through documented STT provider adapter boundary.
-- Output profile is selected and validated; MP3 is not hardcoded as the only
-  possible output.
+- Lemonfox is first adapter, but orchestration still goes through factory.
+- Output profile is selected and validated; Opus candidate is proven before
+  default and MP3 remains compatibility fallback.
+- 1 GB browser input and 100 MB Lemonfox direct upload limits are documented.
+- Prepared audio is stored in configurable S3/object storage.
 - User can apply result templates.
 - User can cancel preprocessing/upload/job lifecycle where technically
   possible.
@@ -160,6 +169,7 @@ Frontend must not decide provider keys, data policy, retention or access rules.
 Needs ADR for STT proxy boundary before implementation. ADR-0004 is proposed for
 human review. The missing-artifact blocker is removed, but implementation
 readiness still requires lightweight proof matrix, production output profile
-decision, STT adapter decision, ffmpeg asset loading mode, licensing/ops
-review, cancel lifecycle and file-limit policy. Browser/UI work
-follows after backend contract, preprocessing contract and runtime proof.
+decision, Lemonfox adapter config, self-hosted ffmpeg asset path, S3 prepared
+audio storage config, prepared-audio retention, licensing/ops review, cancel
+lifecycle and file-limit policy. Browser/UI work follows after backend
+contract, preprocessing contract and runtime proof.

@@ -6,7 +6,8 @@ Is Lemonfox suitable as the priority STT provider for corporate OpenWebUI transc
 
 ## 2. Research status
 
-Status: researched from official Lemonfox docs on 2026-06-18.
+Status: researched from official Lemonfox docs on 2026-06-18 and refined for
+ADR-0004 Stage 2 decisions on 2026-06-19.
 
 Result type: provider fit assessment. No API key or live call was used.
 
@@ -80,3 +81,17 @@ key:
 ## 8. Status
 
 Research complete. Provider selected as priority candidate, not yet production-approved.
+For ADR-0004 Stage 2 planning, Lemonfox is the first STT provider through
+`LemonfoxSttAdapter`, not hardwired architecture.
+
+Open decisions before implementation:
+
+- prove whether WebM/Opus or OGG/Opus is the better default output profile;
+- keep MP3 / `audio/mpeg` as source-proven compatibility fallback;
+- document behavior when prepared audio exceeds 100 MB direct upload limit;
+- approve URL/object-storage provider path only after access, expiry and
+  sensitivity review;
+- store normalized/prepared audio in S3/object storage with env-configured
+  retention;
+- verify whether provider-side cancellation exists; otherwise use local cancel
+  and ignore/cleanup late result by retention policy.

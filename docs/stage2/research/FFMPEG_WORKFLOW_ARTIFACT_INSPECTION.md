@@ -34,7 +34,7 @@ Later operator-provided/source inspection input:
 - external browser-side ffmpeg workflow exists;
 - source workflow uses `@ffmpeg/ffmpeg` v0.12.6;
 - source workflow loads ffmpeg assets from `unpkg.com`;
-- source-proven output is MP3 / `audio/mpeg`;
+- source-proven output is MP3 / `audio/mpeg` as compatibility fallback;
 - command is
   `ffmpeg -i input.media -vn -c:a libmp3lame -q:a 2 output.mp3`;
 - backend STT/upload pipeline exists;
@@ -48,8 +48,8 @@ Inspection status:
 - `transferable browser-side preprocessing contract found`;
 - `operator manual proof confirms reported mobile and large-file scenarios`;
 - implementation still requires lightweight proof matrix, selected output
-  profile, STT adapter decision, asset loading mode and production dependency
-  decisions.
+  profile proof, self-hosted asset path, S3 storage config and production
+  dependency decisions.
 
 ## 3. What The Workflow Does
 
@@ -58,7 +58,8 @@ Confirmed transferable flow:
 1. User selects audio or video in the browser.
 2. Browser-side ffmpeg extracts/converts audio locally.
 3. The workflow writes prepared audio through ffmpeg.wasm. The inspected source
-   workflow writes MP3 / `audio/mpeg` as the source-proven candidate.
+   workflow writes MP3 / `audio/mpeg` as the source-proven compatibility
+   fallback.
 4. Browser receives a prepared audio `Blob`.
 5. Prepared audio is uploaded through a presigned/internal-storage path.
 6. Backend STT orchestration continues by object key.
@@ -74,6 +75,7 @@ Browser input:
 - accepts `audio/*`;
 - accepts `video/*`;
 - source project UI limit: 1 GB;
+- Stage 2 browser preprocessing input limit: 1 GB / 1024 MB;
 - source-confirmed formats:
   - MP3;
   - WAV;
@@ -94,7 +96,7 @@ Source-proven output profile:
 - container: MP3;
 - codec: `libmp3lame`;
 - MIME: `audio/mpeg`;
-- status: source-proven candidate;
+- status: source-proven fallback / compatibility profile;
 - browser output: `Blob`;
 - handoff: presigned/internal upload, then backend STT orchestration by object
   key.
@@ -107,6 +109,8 @@ Output profile rule:
   MP3 as the only possible output;
 - backend validates prepared audio against the selected output profile;
 - STT provider adapter declares supported input profiles.
+- Opus is the preferred default candidate if Lemonfox compatibility proof
+  passes.
 
 Security:
 
@@ -174,7 +178,9 @@ record, not certification.
 
 Current facts:
 
-- source project UI limit: 1 GB;
+- source project UI limit and Stage 2 browser preprocessing input limit:
+  1 GB / 1024 MB;
+- Lemonfox direct upload prepared-audio limit: 100 MB;
 - operator manually tested large videos and large WAV files successfully;
 - previous provider/upload context included a 2 GB server-side guard in an
   external upload path;
@@ -185,7 +191,7 @@ Stage 2 still needs production policy:
 - max accepted file size;
 - max accepted duration;
 - device/browser support matrix;
-- fallback behavior for files over limit;
+- fallback behavior for prepared audio over 100 MB;
 - typed error for unsupported or too-large files;
 - whether server-side fallback is needed for practical Stage 2.
 
@@ -232,7 +238,7 @@ Asset loading modes:
 ### self_hosted mode
 
 - assets hosted under portal domain or internal CDN;
-- better for corporate controlled environments;
+- production default for corporate controlled environments;
 - predictable availability;
 - requires ops/licensing/cache review;
 - no public CDN dependency;
@@ -243,10 +249,10 @@ Production strategy:
 - treat ffmpeg.wasm as an implementation dependency, not a provider boundary;
 - pin exact package/core versions for Stage 2 implementation;
 - prefer single-thread first unless performance evidence requires multi-thread;
+- production default is `self_hosted`;
 - CDN is not forbidden, but production CDN use requires explicit approval and
   pinned versions;
 - production must not silently depend on unpinned public CDN;
-- prefer self-hosted or internally cached core assets as corporate fallback;
 - define asset path, cache headers, rollback and license notices;
 - do not commit heavy wasm/core binaries or FFmpeg source into this repo without
   a separate ADR/decision;
@@ -261,10 +267,12 @@ Multi-thread caveat:
 
 ## 10. Output Profile Decision
 
-Source workflow proves MP3 / `audio/mpeg` as the transferable default candidate.
+Source workflow proves MP3 / `audio/mpeg` as the transferable compatibility
+fallback.
 
-MP3 is not automatically the final production decision. Stage 2 should decide
-the production output profile after:
+MP3 is not automatically the final production default. Opus is the preferred
+default candidate if Lemonfox compatibility proof passes. Stage 2 should decide
+the exact Opus container after:
 
 - STT provider compatibility smoke;
 - licensing review for MP3 / `libmp3lame`;
@@ -278,12 +286,16 @@ Alternatives that remain available for review:
 - `audio/ogg;codecs=opus`;
 - `audio/wav`, if size is acceptable.
 
+MP3 / `audio/mpeg` remains the source-proven compatibility fallback.
+
 ## 11. Security And Privacy Notes
 
 - Browser preprocessing is not a security boundary.
 - Browser must not receive STT provider API keys.
 - Browser must not call STT provider directly.
 - Prepared audio goes to internal storage / Stage 2 backend.
+- Normalized/prepared audio sent to the provider should be stored in S3/object
+  storage with env-configured bucket, prefix and retention.
 - Backend validates MIME, size, duration, auth/session, policy and retention
   even when browser preprocessing succeeds.
 - Source video upload fallback is not allowed silently; it requires explicit
@@ -295,11 +307,13 @@ Alternatives that remain available for review:
 - No source code was copied into this repo.
 - No wasm/core binaries were added.
 - No automated proof matrix is captured yet.
-- No selected default output profile is approved yet.
+- Opus default candidate still needs Lemonfox compatibility proof.
+- S3/object storage bucket, prefix and prepared-audio retention are TBD.
 - Exact mobile device and browser metadata are TBD.
 - Exact tested large-file sizes and durations are TBD.
-- Production output profile is not final.
-- Production ffmpeg asset hosting is not final.
+- Exact production Opus output profile is not final.
+- Production ffmpeg asset hosting path is not final, but `self_hosted` is the
+  default mode.
 - Licensing/ops review is not final.
 - Lemonfox/provider compatibility smoke is still required.
 - No API keys were used.
@@ -310,12 +324,17 @@ Update ADR-0004 to state:
 
 - previous `missing ffmpeg artifact` blocker is removed;
 - external ffmpeg workflow artifact was inspected;
-- transferable browser-side preprocessing default candidate is MP3 /
+- transferable browser-side preprocessing compatibility fallback is MP3 /
   `audio/mpeg`;
+- Opus is preferred default candidate pending Lemonfox compatibility proof;
+- production ffmpeg asset mode is `self_hosted`;
+- browser preprocessing input limit is 1 GB / 1024 MB;
+- Lemonfox direct prepared-audio upload limit is 100 MB;
+- prepared audio sent to provider should be stored in S3/object storage;
 - operator manual proof exists for reported mobile and large-file cases;
 - operator proof is manual evidence, not automated repository proof;
 - implementation readiness still requires ADR approval, lightweight proof
-  matrix, selected output profile, STT adapter decision, asset loading mode and
+  matrix, Opus/Lemonfox proof, self-hosted asset path, S3 storage config and
   production dependency decisions;
 - production caveats remain visible: output profile, CDN/self-host, licensing
   and file limits.
@@ -354,6 +373,6 @@ Official/reference context from earlier inspection:
 `operator manual proof exists for reported mobile/large-file scenarios`
 
 ADR-0004 is reviewable with the inspected transferable ffmpeg contract.
-Implementation still requires ADR approval, lightweight proof matrix, selected
-output profile, STT adapter decision, asset loading mode and production
-dependency decisions.
+Implementation still requires ADR approval, lightweight proof matrix,
+Opus/Lemonfox compatibility proof, self-hosted asset path, S3 storage config,
+prepared-audio retention and production dependency decisions.

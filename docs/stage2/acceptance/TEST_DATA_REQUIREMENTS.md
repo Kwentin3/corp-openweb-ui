@@ -30,7 +30,17 @@
 - Подтвердить, какой output profile был выбран: например source-proven
   `mp3_high_compat`, `opus_webm_compact`, `opus_ogg_compact` или
   `wav_pcm_safe`.
-- Зафиксировать provider adapter compatibility для выбранного STT provider.
+- Зафиксировать Lemonfox adapter compatibility для выбранного output profile.
+- Для Opus отдельно подтвердить, какой контейнер проходит: WebM/Opus или
+  OGG/Opus.
+- Зафиксировать MP3 / `audio/mpeg` как compatibility fallback.
+- Зафиксировать browser preprocessing input limit: 1 GB / 1024 MB.
+- Зафиксировать Lemonfox direct prepared-audio upload limit: 100 MB.
+- Подготовить кейс или synthetic metadata для prepared audio >100 MB, чтобы
+  проверить typed fail/fallback behavior без реальных sensitive media.
+- Зафиксировать S3/object storage bucket/prefix decision for prepared audio
+  без секретов.
+- Зафиксировать prepared audio retention days decision.
 - Зафиксировать cancel behavior для preprocessing, upload and STT job where
   technically possible.
 - Ожидаемые шаблоны результата: протокол, задачи, решения, резюме, follow-up.

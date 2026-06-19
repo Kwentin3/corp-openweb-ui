@@ -51,16 +51,21 @@ Acceptance signal:
 - Audio/video upload produces transcript through server-side proxy.
 - STT API key is not present in browser.
 - STT provider call goes through documented adapter/factory boundary.
-- Selected output profile is captured and validated; MP3 is not hardcoded as
-  the only possible output.
+- Lemonfox is first adapter, not hardwired architecture.
+- Selected output profile is captured and validated; Opus candidate is proven
+  before default and MP3 remains compatibility fallback.
+- STT env/config contract is reviewed without real secrets.
 - Browser ffmpeg proof matrix captures device, browser, file type, file size,
   duration, selected output profile, result and evidence.
 - Proof matrix stays lightweight: desktop audio, desktop video, mobile audio,
   mobile video, large WAV and large video.
 - Cancel UX is covered for preprocessing, upload and STT job lifecycle where
   technically possible.
-- Production output profile, asset loading mode, licensing/ops and file-limit
-  decisions are documented.
+- Production output profile, self-hosted ffmpeg asset path, licensing/ops,
+  S3/object storage, retention and file-limit decisions are documented.
+- Browser 1 GB input limit and Lemonfox 100 MB prepared-audio direct upload
+  limit are documented.
+- Prepared audio larger than 100 MB has typed fail/fallback behavior.
 
 Test data needed:
 
@@ -70,12 +75,16 @@ Test data needed:
 - Large WAV.
 - ffmpeg source workflow / proof matrix evidence.
 - Output profile compatibility notes.
-- STT provider adapter decision.
+- Lemonfox adapter proof.
+- S3/object storage config decision.
+- Prepared audio retention decision.
+- Prepared audio >100 MB behavior.
 
 Status:
 
 - Transferable ffmpeg contract inspected; ADR review, lightweight proof matrix,
-  selected output profile, STT adapter decision and asset loading mode needed.
+  Opus/Lemonfox proof, self-hosted asset path, S3 storage config, retention and
+  cancel proof needed.
 
 ## Broker reports / 3-НДФЛ draft analysis
 
