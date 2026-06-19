@@ -94,7 +94,14 @@
 		ffmpegLogBuffer: [],
 		progressStatus: null,
 		originalFetch: null,
-		scriptPromises: new Map()
+		scriptPromises: new Map(),
+		nativeVoice: {
+			pending: false,
+			beforeText: '',
+			accumulatedTranscript: '',
+			correctionTimer: null,
+			startedAt: 0
+		}
 	};
 
 	function extensionOf(filename) {
@@ -780,6 +787,128 @@
 		return true;
 	}
 
+	function composerElement() {
+		return document.querySelector('#chat-input [contenteditable="true"], #chat-input[contenteditable="true"], #message-input-container [contenteditable="true"], [contenteditable="true"]');
+	}
+
+	function composerText() {
+		const composer = composerElement();
+		return composer ? String(composer.innerText || composer.textContent || '') : '';
+	}
+
+	function replaceComposerText(text) {
+		const composer = composerElement();
+		if (!composer) {
+			return false;
+		}
+		composer.focus();
+		if ('value' in composer) {
+			composer.value = text;
+			composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: text }));
+			return true;
+		}
+		const selection = window.getSelection();
+		if (selection) {
+			const range = document.createRange();
+			range.selectNodeContents(composer);
+			selection.removeAllRanges();
+			selection.addRange(range);
+		}
+		let replaced = false;
+		try {
+			replaced = document.execCommand('insertText', false, text);
+		} catch (_) {
+			replaced = false;
+		}
+		if (!replaced) {
+			composer.textContent = text;
+		}
+		composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText', data: text }));
+		return true;
+	}
+
+	function ltrimLength(value) {
+		const match = String(value || '').match(/^\s*/);
+		return match ? match[0].length : 0;
+	}
+
+	function correctNativeVoiceInsertion() {
+		const voice = state.nativeVoice;
+		if (!voice.pending) {
+			return;
+		}
+		const beforeText = voice.beforeText || '';
+		const currentText = composerText();
+		if (!currentText.startsWith(beforeText)) {
+			if (Date.now() - voice.startedAt > 30000) {
+				voice.pending = false;
+			}
+			return;
+		}
+
+		const rawInsertion = currentText.slice(beforeText.length);
+		if (!rawInsertion) {
+			if (Date.now() - voice.startedAt > 30000) {
+				voice.pending = false;
+			}
+			return;
+		}
+
+		if (!currentText) {
+			voice.pending = false;
+			return;
+		}
+
+		const accumulated = voice.accumulatedTranscript || '';
+		let insertion = rawInsertion;
+		const leadingLength = ltrimLength(insertion);
+		const leading = insertion.slice(0, leadingLength);
+		const candidate = insertion.slice(leadingLength);
+		if (accumulated && candidate.startsWith(accumulated)) {
+			insertion = `${leading}${candidate.slice(accumulated.length)}`;
+			replaceComposerText(`${beforeText}${insertion}`);
+		}
+
+		const inserted = insertion.trim();
+		if (inserted) {
+			voice.accumulatedTranscript = `${accumulated}${inserted}`;
+		}
+		voice.pending = false;
+	}
+
+	function scheduleNativeVoiceCorrection() {
+		clearTimeout(state.nativeVoice.correctionTimer);
+		state.nativeVoice.correctionTimer = window.setTimeout(correctNativeVoiceInsertion, 60);
+	}
+
+	function isComposerTarget(target) {
+		return Boolean(target && typeof target.closest === 'function' && target.closest('#message-input-container, #chat-input'));
+	}
+
+	function installNativeVoiceGuard() {
+		if (window.__stage2NativeVoiceGuardInstalled) {
+			return;
+		}
+		window.__stage2NativeVoiceGuardInstalled = true;
+		document.addEventListener('click', (event) => {
+			const target = event.target;
+			if (target && typeof target.closest === 'function' && target.closest('#voice-input-button')) {
+				state.nativeVoice.pending = true;
+				state.nativeVoice.beforeText = composerText();
+				state.nativeVoice.startedAt = Date.now();
+				return;
+			}
+			if (state.nativeVoice.pending) {
+				scheduleNativeVoiceCorrection();
+			}
+		}, true);
+		document.addEventListener('input', (event) => {
+			if (state.nativeVoice.pending && isComposerTarget(event.target)) {
+				scheduleNativeVoiceCorrection();
+			}
+		}, true);
+	}
+
 	function observeUi() {
 		const observer = new MutationObserver(queueScan);
 		observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -787,6 +916,7 @@
 	}
 
 	patchFetch();
+	installNativeVoiceGuard();
 	loadConfig().then(queueScan).catch(() => queueScan());
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', observeUi, { once: true });
