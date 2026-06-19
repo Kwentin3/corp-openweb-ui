@@ -70,7 +70,8 @@
 		provider_direct_upload_limit_exceeded: '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0435 \u0430\u0443\u0434\u0438\u043e \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0435\u0442 \u043b\u0438\u043c\u0438\u0442 \u043f\u0440\u044f\u043c\u043e\u0439 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438.',
 		unsupported_input_format: '\u0424\u043e\u0440\u043c\u0430\u0442 \u043d\u0435 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0430\u043d \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043d\u043e\u0439 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u043e\u0439.',
 		ffmpeg_assets_unavailable: 'FFmpeg assets are not available',
-		source_file_unavailable: '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0432 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438. \u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0437\u0430\u043d\u043e\u0432\u043e.'
+		source_file_unavailable: '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0432 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438. \u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0437\u0430\u043d\u043e\u0432\u043e.',
+		stt_action_failed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043a STT \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d.'
 	});
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -184,9 +185,16 @@
 		return prefixMatch || activeConfig.declared_input_extensions.includes(extension);
 	}
 
-	function isMp3FileLike(filename, mimeType) {
-		const mime = baseMime(mimeType);
-		return mime === MP3_MIME || mime === 'audio/mp3' || extensionOf(filename) === 'mp3';
+	function isPreparedStage2Audio(file) {
+		if (!file || file.prepared !== true) {
+			return false;
+		}
+		const profile = String(file.output_profile || '');
+		const definition = PROFILE_DEFINITIONS[profile];
+		if (!definition) {
+			return false;
+		}
+		return baseMime(file.mime_type) === baseMime(definition.mime_type);
 	}
 
 	function uploadFormDataCandidate(body) {
@@ -400,8 +408,8 @@
 	}
 
 	function setErrorStatus(status, error) {
-		const code = (error && error.code) || 'unsupported_input_format';
-		const message = (error && error.message) || ERROR_MESSAGES[code] || ERROR_MESSAGES.unsupported_input_format;
+		const code = (error && error.code) || 'stt_action_failed';
+		const message = (error && error.message) || ERROR_MESSAGES[code] || ERROR_MESSAGES.stt_action_failed;
 		if (status) {
 			status.dataset.stage2SttStatus = 'failed';
 			status.dataset.stage2SttReason = code;
@@ -688,7 +696,7 @@
 		button.textContent = RUNNING_LABEL;
 		delete status.dataset.stage2SttReason;
 		try {
-			const preparedFile = isMp3FileLike(file.filename, file.mime_type) ? file : await prepareMediaFile(file, status);
+			const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);
 			await callTranscriptionAction(preparedFile, status);
 			button.textContent = DONE_LABEL;
 			setStatus(status, 'completed');
@@ -729,17 +737,17 @@
 		});
 		const result = await response.json().catch(() => ({}));
 		if (!response.ok) {
-			throw new Error(result.detail || 'Transcription action failed.');
+			throw stageError('stt_action_failed', result.detail || 'Transcription action failed.');
 		}
 		const content = String(result.content || '').trim();
 		if (!content) {
-			throw new Error('Transcription action returned an empty result.');
+			throw stageError('stt_action_failed', 'Transcription action returned an empty result.');
 		}
 		if (/^(STT sidecar request failed|STT transcription is not configured|Unable to access|No supported prepared audio)/i.test(content)) {
-			throw new Error(content);
+			throw stageError('stt_action_failed', content);
 		}
 		if (!appendToComposer(content)) {
-			throw new Error('Composer is unavailable for transcript insertion.');
+			throw stageError('stt_action_failed', 'Composer is unavailable for transcript insertion.');
 		}
 	}
 
