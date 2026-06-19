@@ -145,6 +145,9 @@ Current implementation baseline, 2026-06-19:
 - Private `stage2-stt` sidecar job routes, `LemonfoxSttAdapter`, internal auth,
   OpenWebUI static `Transcribe` action and browser ffmpeg.wasm normalization
   are implemented/proven for the MVP path.
+- Native OpenWebUI Web API microphone dictation is patched through a pinned
+  OpenWebUI image layer; Stage 2 static loader no longer post-processes native
+  microphone input.
 - Prepared MP3, MP4 with audio and WebM generated proof media pass through the
   Action/sidecar path; unsupported/decode-failed and no-audio media fail safely
   before provider handoff.
@@ -160,6 +163,8 @@ Read next:
   [OPENWEBUI_STT_RUNTIME_COMPLETION.report.md](../reports/2026-06-19/OPENWEBUI_STT_RUNTIME_COMPLETION.report.md).
 - Review docs implementation drift audit:
   [OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md](../reports/2026-06-19/OPENWEBUI_STT_DOCS_IMPLEMENTATION_DRIFT_AUDIT.report.md).
+- Review native Web STT recorder patch report:
+  [OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md](../reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md).
 - Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
   [OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md](../reports/2026-06-19/OPENWEBUI_ADR0004_LEMONFOX_CAPABILITIES_AND_RUNTIME_LIMITS.report.md).
 - Review final compact STT contract refine report:
