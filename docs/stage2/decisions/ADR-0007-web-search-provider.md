@@ -25,13 +25,20 @@ to a search provider.
 Choose the first pilot-provider strategy:
 
 - A. Brave `brave_llm_context` as first paid API pilot.
-- B. Private SearXNG as self-host/privacy-oriented pilot.
+- B. Private SearXNG as self-hosted meta-search candidate discovery gateway.
 - C. Yandex Search API as RU-provider pilot after privacy/data-egress approval.
 - D. Defer provider setup until owner approves data and cost policy.
 
 This ADR recommends a default, but it does not mark the provider as accepted
 until the owner approves provider, budget, data classes, retention and group
 scope.
+
+Owner matrix as of 2026-06-20:
+
+- primary paid API pilot: Brave Search API / `brave_llm_context`;
+- self-host comparison track: private SearXNG instance;
+- RU-provider candidate: Yandex Search API later, after privacy/data-egress
+  review.
 
 ## 3. Recommended Decision
 
@@ -47,8 +54,8 @@ Recommended default:
 
 Alternatives:
 
-- Use private SearXNG if the owner wants more operational control and accepts
-  SearXNG maintenance plus upstream-engine leakage risk.
+- Use private SearXNG as a comparison track if the owner wants more operational
+  control and accepts SearXNG maintenance plus upstream-engine leakage risk.
 - Use Yandex Search API only after a provider-specific privacy review,
   especially user-info/chat-id forwarding and search mode/cost behavior.
 - Treat Tavily, Firecrawl, Exa, Perplexity and You.com as fallback/enrichment
@@ -61,7 +68,7 @@ Alternatives:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Brave `brave_llm_context` | First paid API candidate | Foreign provider receives minimized query | Server-side Admin UI/env only | Medium/TBD by smoke | Good expected | Brave Search lists Search/LLM Context at about `$5 / 1k` requests, monthly credits, high capacity; OpenWebUI docs warn free-tier users to set concurrency `1` | Low ops, API latency | LLM-optimized passages and URLs | Yes | Foreign provider; paid; token/context bloat if overused | Best default if approved |
 | Brave classic `brave` | Search snippets then page fetch | Foreign provider plus fetched source sites | Server-side only | Medium/TBD | Good expected | Same Brave Search commercial plan family | More page-fetch variability | Search result URLs/snippets plus loader output | Yes | Fetch failures/proxy issues; more scraping surface | Backup to LLM Context |
-| Private SearXNG | Self-host/metasearch | Private instance plus upstream engines | SearXNG URL/server config | Depends on engines | Depends on engines | Self-host cost; no provider API fee, but upstream blocks/CAPTCHA risk | Ops-heavy; limiter/JSON config required | Result URLs/snippets | Yes | Not fully private; reliability; anti-bot maintenance | Good privacy/ops alternative |
+| Private SearXNG | Self-hosted meta-search candidate discovery gateway | Private instance plus upstream engines/public sources | SearXNG URL/server config | Depends on engines | Depends on engines | No direct paid API path, but infra/ops cost remains; upstream blocks/CAPTCHA risk | Ops-heavy; limiter/JSON config required | Normalized candidate URLs/snippets | Yes | Not a full web index; not fully private; reliability; anti-bot maintenance | Comparison track, not Brave replacement until proven |
 | Yandex Search API | RU-provider candidate | Yandex Cloud receives query and optional metadata | Server-side only | Good expected for RU | Medium/TBD | Yandex docs separate quotas/limits and pricing by synchronous/deferred/generative modes | Cloud/procurement setup | XML/HTML/rawData parsing via native provider | Yes/community/provider docs | User-info/chat-id forwarding review; XML parser issues; generative mode cost | RU candidate after privacy ADR |
 | Tavily | LLM-oriented search/extract | Foreign provider | Server-side only | TBD | Good expected | Docs list free credits and PAYG credit pricing | Managed API | Structured search/extract | Yes | Credit model; another foreign processor | Fallback/enrichment |
 | Firecrawl | Search/scrape/extract | Foreign provider or self-host if separately deployed | Server-side only | TBD | Good extraction expected | Pricing page lists credit costs for scrape/search/extract | Good extraction, more moving parts | Search plus page text | Yes | Search is not the simplest first provider; extraction costs | Follow-up extraction layer |
@@ -116,7 +123,8 @@ Before exposing Web Search to a pilot group, prove or explicitly block:
 - Native-first reduces custom code and keeps the user workflow inside
   OpenWebUI.
 - Provider choice creates privacy, cost, procurement and retention obligations.
-- SearXNG is not fully private unless upstream engine exposure is handled.
+- SearXNG is not a privacy guarantee; it is a private instance boundary and
+  upstream engine exposure must be handled.
 - Yandex requires separate review of metadata forwarding and search mode.
 - Hard billing and custom event capture remain future work unless owner requires
   them as a pilot gate.
@@ -156,5 +164,7 @@ Before exposing Web Search to a pilot group, prove or explicitly block:
 - [Integration boundary](../contracts/OPENWEBUI_WEB_SEARCH_INTEGRATION_BOUNDARY.md)
 - [External research 2026-06-20](../research/WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20.md)
 - [Native pilot plan](../implementation/WEB_SEARCH_NATIVE_PILOT_PLAN.md)
+- [Private SearXNG instance plan](../implementation/SEARXNG_PRIVATE_INSTANCE_PLAN.md)
+- [Candidate set comparison plan](../implementation/WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md)
 - [ADR-0001 Data Policy](ADR-0001-data-policy-by-provider-class.md)
 - [ADR-0008 Native Analytics vs Hard Billing](ADR-0008-native-analytics-vs-hard-billing.md)

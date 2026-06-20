@@ -1,0 +1,79 @@
+# Optional Stage 2 Web Search overlay.
+#
+# Use together with compose/openwebui.compose.yml:
+# docker compose --env-file .env \
+#   -f compose/openwebui.compose.yml \
+#   -f compose/searxng.private.compose.yml up -d searxng searxng-valkey
+#
+# No public port is exposed by default. OpenWebUI reaches SearXNG through the
+# internal Docker network as http://searxng:8080/search?q=<query>.
+
+services:
+  openwebui:
+    environment:
+      ENABLE_WEB_SEARCH: ${ENABLE_WEB_SEARCH:-true}
+      WEB_SEARCH_ENGINE: ${WEB_SEARCH_ENGINE:-searxng}
+      WEB_SEARCH_RESULT_COUNT: ${WEB_SEARCH_RESULT_COUNT:-3}
+      WEB_SEARCH_CONCURRENT_REQUESTS: ${WEB_SEARCH_CONCURRENT_REQUESTS:-1}
+      WEB_LOADER_CONCURRENT_REQUESTS: ${WEB_LOADER_CONCURRENT_REQUESTS:-2}
+      WEB_SEARCH_TRUST_ENV: ${WEB_SEARCH_TRUST_ENV:-true}
+      BYPASS_WEB_SEARCH_WEB_LOADER: ${BYPASS_WEB_SEARCH_WEB_LOADER:-false}
+      SEARXNG_QUERY_URL: ${SEARXNG_QUERY_URL:-http://searxng:8080/search?q=<query>}
+      SEARXNG_LANGUAGE: ${SEARXNG_LANGUAGE:-ru}
+      no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,searxng,searxng:8080,searxng-valkey}
+      NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,searxng,searxng:8080,searxng-valkey}
+    depends_on:
+      searxng:
+        condition: service_healthy
+
+  searxng:
+    image: ${SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}
+    container_name: searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET}
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-}
+      SEARXNG_LIMITER: ${SEARXNG_LIMITER:-true}
+      SEARXNG_PUBLIC_INSTANCE: ${SEARXNG_PUBLIC_INSTANCE:-false}
+      SEARXNG_IMAGE_PROXY: ${SEARXNG_IMAGE_PROXY:-false}
+      SEARXNG_VALKEY_URL: ${SEARXNG_VALKEY_URL:-valkey://searxng-valkey:6379/0}
+    expose:
+      - "8080"
+    volumes:
+      - ../deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ../deploy/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng_cache:/var/cache/searxng
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).read()\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - web
+
+  searxng-valkey:
+    image: ${SEARXNG_VALKEY_IMAGE:-docker.io/valkey/valkey:8-alpine}
+    container_name: searxng-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    expose:
+      - "6379"
+    volumes:
+      - searxng_valkey:/data
+    networks:
+      - web
+
+volumes:
+  searxng_cache:
+    name: searxng_cache
+  searxng_valkey:
+    name: searxng_valkey

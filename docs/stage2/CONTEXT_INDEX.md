@@ -184,6 +184,7 @@ Additional context:
 - [WEB_SEARCH_USAGE_EVENT_CONTRACT](contracts/WEB_SEARCH_USAGE_EVENT_CONTRACT.md)
 - [WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT](contracts/WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md)
 - [WEB_SEARCH_NATIVE_PILOT_PLAN](implementation/WEB_SEARCH_NATIVE_PILOT_PLAN.md)
+- [WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN](implementation/WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md)
 - [WEB_SEARCH_RUNTIME_PROBE report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_RUNTIME_PROBE.report.md)
 - [WEB_SEARCH_DOMAIN_AND_PROBE report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_DOMAIN_AND_PROBE.report.md)
 - Existing [WEB_SEARCH_PROVIDER_RESEARCH](../infra/WEB_SEARCH_PROVIDER_RESEARCH.md)
@@ -197,8 +198,9 @@ Comment:
 - Native OpenWebUI Web Search is the first path.
 - Brave `brave_llm_context` is the first-pilot candidate if foreign search and
   budget are approved.
-- Private SearXNG is the privacy/ops alternative, but not fully private because
-  upstream engines can still receive queries.
+- Private SearXNG is the self-hosted meta-search comparison track, not a
+  privacy guarantee, because upstream engines can still receive
+  minimized queries.
 - Yandex Search is the Russian-provider candidate after metadata-forwarding and
   cost-mode review.
 - No sidecar/fork/custom gateway until native runtime smoke proves a concrete

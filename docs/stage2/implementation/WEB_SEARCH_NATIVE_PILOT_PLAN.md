@@ -41,9 +41,19 @@ Default:
 
 Alternatives:
 
-- private SearXNG if foreign paid API use is rejected;
+- private SearXNG if foreign paid API use is rejected or if owner wants a
+  self-hosted meta-search comparison track;
 - Yandex Search API after metadata-forwarding/cost-mode review;
 - defer if no provider/data/cost decision is approved.
+
+Private SearXNG setup details live in
+[SEARXNG_PRIVATE_INSTANCE_PLAN](SEARXNG_PRIVATE_INSTANCE_PLAN.md). It is not a
+custom gateway or sidecar; OpenWebUI still uses native Web Search provider
+`searxng`.
+
+Candidate-set comparison details live in
+[WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN](WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md).
+Use the same query matrix for Brave and SearXNG.
 
 ## 4. Config Plan
 
@@ -64,6 +74,16 @@ Config names only; do not put values in docs:
 - `YANDEX_WEB_SEARCH_CONFIG`
 - provider-specific API key/config variable for any alternative engine.
 
+For private SearXNG overlay, additional non-secret/runtime config names:
+
+- `SEARXNG_IMAGE`
+- `SEARXNG_VALKEY_IMAGE`
+- `SEARXNG_SECRET`
+- `SEARXNG_LIMITER`
+- `SEARXNG_VALKEY_URL`
+- `SEARXNG_PUBLIC_INSTANCE`
+- `SEARXNG_IMAGE_PROXY`
+
 Initial smoke values to approve:
 
 - result count: `3`;
@@ -79,6 +99,8 @@ Initial smoke values to approve:
 3. Expand to all approved users only after acceptance.
 4. Keep provider dashboard usage visible during pilot.
 5. Record all evidence in sanitized report; no raw secrets or sensitive queries.
+6. If SearXNG is compared, keep it internal-only and run direct JSON API smoke
+   before OpenWebUI smoke.
 
 ## 6. Smoke Plan
 
@@ -100,6 +122,26 @@ Provider smoke:
 - latency recorded;
 - no-results case recorded;
 - provider 429/timeout behavior recorded if safe.
+
+SearXNG-specific smoke:
+
+- `/search?q=OpenWebUI&format=json` returns valid JSON;
+- private SearXNG is not exposed publicly;
+- upstream-engine leakage warning is accepted by owner;
+- candidate set is captured before answer generation;
+- candidate URL/title/snippet/source engine are captured where available;
+- no third-party search API key is present in OpenWebUI/browser for the SearXNG
+  path;
+- empty/CAPTCHA/rate-limited result cases are recorded.
+
+Comparison smoke:
+
+- same query set is used for Brave and SearXNG;
+- candidate set quality is scored;
+- final answer groundedness is scored;
+- source visibility is checked;
+- search, load/extraction and total answer latency are recorded;
+- logs are checked for raw query/raw result/provider key exposure.
 
 Permissions smoke:
 

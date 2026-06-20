@@ -1,0 +1,10 @@
+# Stage 2 private SearXNG limiter config.
+# Keep this conservative. If pilot queries hit false-positive bot blocks, tune
+# limits with runtime evidence rather than disabling limiter globally.
+
+[botdetection.ip_limit]
+link_token = true
+
+[botdetection.ip_lists]
+block_ip = []
+pass_ip = []

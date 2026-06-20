@@ -8,11 +8,43 @@
 compose/openwebui.compose.yml
 ```
 
+Optional Stage 2 Web Search overlays:
+
+```text
+compose/searxng.private.compose.yml
+compose/searxng.debug.compose.yml
+```
+
 Запуск:
 
 ```bash
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
+
+Private SearXNG candidate запуск:
+
+```bash
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml up -d
+```
+
+Requires Docker Compose v2 or a compatible `docker-compose` binary on a
+Linux-container Docker host. The local Codex Windows Docker context used during
+planning did not provide Compose and reported `Server OS=windows`, so SearXNG
+runtime smoke must run on stage/server or a Linux-container Docker host.
+
+Local-only SearXNG debug exposure:
+
+```bash
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml \
+  -f compose/searxng.debug.compose.yml up -d searxng
+```
+
+`searxng.debug.compose.yml` binds SearXNG to `127.0.0.1` by default. Do not use
+it for public exposure.
 
 ## Services
 
@@ -34,12 +66,31 @@ docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 - читает primary OpenAI-compatible provider config из `.env`;
 - secondary provider получает через OpenWebUI Admin UI и persistent config.
 
+`searxng` optional:
+
+- image задается через `SEARXNG_IMAGE`;
+- default discovery tag is `docker.io/searxng/searxng:latest`;
+- production-like rollout must pin a reviewed SearXNG tag;
+- no public port by default;
+- internal URL for OpenWebUI: `http://searxng:8080/search?q=<query>`;
+- config: `deploy/searxng/settings.yml`;
+- limiter config: `deploy/searxng/limiter.toml`.
+
+`searxng-valkey` optional:
+
+- image задается через `SEARXNG_VALKEY_IMAGE`;
+- default tag `docker.io/valkey/valkey:8-alpine`;
+- supports SearXNG limiter/bot-protection;
+- no public port.
+
 ## Named volumes
 
 Используются явные имена:
 
 - `openwebui_data`;
 - `traefik_letsencrypt`.
+- optional `searxng_cache`;
+- optional `searxng_valkey`.
 
 Это упрощает backup/restore и снижает риск случайного project-prefix mismatch.
 
@@ -75,3 +126,13 @@ docker compose --env-file .env.example -f compose/openwebui.compose.yml config
 ## Provider note
 
 Compose intentionally does not define `OPENAI_API_BASE_URLS` or `OPENAI_API_KEYS`. PRD-0 uses a single primary provider through `.env`; the secondary OpenAI/Gemini connection is configured in Admin UI.
+
+## Web Search / SearXNG note
+
+Private SearXNG is a Stage 2 Web Search candidate, not PRD-0 scope and not the
+primary paid provider path. It is enabled only when the optional SearXNG compose
+overlay is included.
+
+SearXNG is private only as an instance boundary. Upstream engines may still
+receive minimized queries. Public SearXNG instances must not be used for
+corporate acceptance.

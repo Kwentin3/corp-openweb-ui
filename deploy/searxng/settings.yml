@@ -1,0 +1,48 @@
+# SearXNG settings for the Stage 2 private OpenWebUI Web Search candidate.
+#
+# Values that are deployment secrets are supplied through environment variables
+# in compose/searxng.private.compose.yml and server-local .env.
+
+use_default_settings:
+  engines:
+    remove:
+      - google
+
+general:
+  debug: false
+  instance_name: "Alpha Soft private SearXNG"
+
+search:
+  safe_search: 1
+  default_lang: "ru"
+  formats:
+    - html
+    - json
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  base_url: false
+  limiter: true
+  public_instance: false
+  secret_key: "replace-with-server-local-searxng-secret"
+  image_proxy: false
+  method: "GET"
+  default_http_headers:
+    X-Content-Type-Options: nosniff
+    X-Download-Options: noopen
+    X-Robots-Tag: noindex, nofollow
+    Referrer-Policy: no-referrer
+
+valkey:
+  url: valkey://searxng-valkey:6379/0
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  pool_connections: 20
+  pool_maxsize: 20
+  enable_http2: true
+
+ui:
+  static_use_hash: true

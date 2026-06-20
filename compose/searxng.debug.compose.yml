@@ -1,0 +1,15 @@
+# Optional local debug overlay for private SearXNG.
+#
+# Use only for operator/admin troubleshooting, together with both main compose
+# files. It binds SearXNG to localhost by default and must not be used for
+# public exposure.
+#
+# docker compose --env-file .env \
+#   -f compose/openwebui.compose.yml \
+#   -f compose/searxng.private.compose.yml \
+#   -f compose/searxng.debug.compose.yml up -d searxng
+
+services:
+  searxng:
+    ports:
+      - "${SEARXNG_DEBUG_BIND:-127.0.0.1}:${SEARXNG_DEBUG_PORT:-18080}:8080"

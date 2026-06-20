@@ -221,6 +221,17 @@ Acceptance signal:
 - Forbidden examples are documented.
 - Analytics/cost visibility path is documented or the native gap is explicitly
   accepted.
+- If private SearXNG is used, JSON API returns valid JSON and the instance is
+  internal-only by default.
+- If private SearXNG is used, upstream-engine query leakage is documented and
+  accepted by owner.
+- Brave and SearXNG comparison uses the same query set.
+- Candidate set is captured before final answer generation.
+- Final answer is captured separately from the candidate set.
+- Candidate source, loaded/extracted source and evidence used in answer are
+  distinguished where native OpenWebUI evidence allows it.
+- SearXNG is not promoted from comparison track until candidate quality,
+  answer groundedness, latency, source visibility and log/privacy evidence pass.
 
 Test data needed:
 
@@ -232,11 +243,17 @@ Test data needed:
 - 2 no-sufficient-evidence examples.
 - Expected source/citation behavior.
 - Provider key through approved secret path only.
+- For SearXNG: direct JSON API smoke query and allowed upstream engine list.
+- Brave vs SearXNG comparison query matrix.
+- Candidate-set capture format: URL, title, snippet, source engine/provider,
+  rank/score and freshness metadata where available.
 
 Status:
 
 - Documentation domain ready.
 - Provider ADR proposed for owner review.
+- Private SearXNG compose/config plan ready for runtime smoke as a comparison
+  track.
 - Runtime live probe blocked by missing deployed/staging access, provider
   credentials and owner provider approval.
 

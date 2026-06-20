@@ -11,8 +11,9 @@ No provider key or live provider request was used.
 - Native OpenWebUI should be the first pilot path.
 - Brave `brave_llm_context` is the best first paid API candidate if foreign
   provider use and budget are approved.
-- Private SearXNG is the privacy/ops alternative, but it is not fully private:
-  upstream engines can still see queries and may block automated traffic.
+- Private SearXNG is the self-hosted meta-search comparison track, but it is not
+  fully private: upstream engines can still see queries and may block automated
+  traffic.
 - Yandex Search API is the RU-provider candidate, but needs privacy review for
   metadata forwarding and mode/cost selection before live smoke.
 - Tavily, Firecrawl, Exa, Kagi, Perplexity, You.com and SERP wrappers are useful
@@ -68,6 +69,19 @@ for first smoke after approval.
 SearXNG provides an HTTP search API and requires JSON output to be enabled for
 API use. The OpenWebUI SearXNG provider expects a SearXNG query URL.
 
+SearXNG mechanism and product value:
+
+- SearXNG is a self-hosted meta-search gateway, not a search provider with its
+  own global web index.
+- It calls enabled upstream engines, public search pages, public/free APIs or
+  source-specific engines depending on configuration.
+- It aggregates and normalizes the returned candidate set for OpenWebUI.
+- It does not write the final answer and is not an LLM agent.
+- It is useful as a controlled candidate discovery layer and comparison track.
+- It allows changing upstream engines without changing OpenWebUI integration.
+- It does not remove external egress: upstream engines can still receive
+  minimized queries.
+
 Operational risks:
 
 - public instances are not acceptable for acceptance;
@@ -75,9 +89,13 @@ Operational risks:
 - upstream engines can still see searches;
 - automated traffic may hit CAPTCHA/blocking;
 - latency and quality depend on selected engines.
+- HTML/parser drift and public API rate limits can break individual engines.
+- If configured only to call Brave API, SearXNG becomes Brave-through-proxy and
+  loses most comparison value.
 
-Pilot implication: good fallback if owner rejects foreign paid API, but needs
-ops setup before smoke.
+Pilot implication: useful comparison track if owner wants self-host/no-direct-
+paid-API evidence, but Brave remains the primary first smoke while the Brave
+account/key already exists.
 
 ### Yandex Search API
 

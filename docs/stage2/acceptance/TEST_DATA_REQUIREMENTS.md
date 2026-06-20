@@ -113,6 +113,24 @@
   secret path and never in browser/test data.
 - Confirmation whether native/provider-dashboard cost visibility is enough for
   pilot or hard budget enforcement is required first.
+- For private SearXNG:
+  - direct JSON API smoke query, for example `OpenWebUI`;
+  - accepted upstream engine list for the pilot;
+  - CAPTCHA/rate-limit/empty-results evidence;
+  - confirmation that public SearXNG instances are not used;
+  - confirmation that SearXNG is internal-only or debug-local-only;
+  - confirmation that upstream query leakage is accepted by owner.
+- Brave vs SearXNG comparison matrix:
+  - same RU ordinary queries for both paths;
+  - same EN ordinary queries for both paths;
+  - same freshness-sensitive queries for both paths;
+  - same conflicting-source queries for both paths;
+  - same no-sufficient-evidence queries for both paths;
+  - candidate set capture for each provider/path;
+  - final answer capture for each provider/path;
+  - source visibility and loaded-evidence notes;
+  - search latency, page load/extraction latency and total answer latency;
+  - log check for raw query/result/provider key exposure.
 
 ## Groups / roles / manager visibility
 

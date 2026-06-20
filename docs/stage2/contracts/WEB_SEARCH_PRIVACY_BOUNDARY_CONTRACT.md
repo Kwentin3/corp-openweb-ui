@@ -39,14 +39,17 @@ Do not send to external search providers by default:
   internal incident identifiers.
 - If minimization would destroy the meaning, block the request or ask the user
   to remove sensitive data before searching.
+- Apply the same minimization rule to Brave, Yandex and SearXNG upstream
+  engines.
 
 ## Provider Classes
 
 - Foreign paid API: allowed only for approved non-sensitive queries.
 - Russian cloud API: allowed only after owner/data-policy approval for the
   specific data class and cost mode.
-- Private SearXNG: may reduce direct vendor exposure, but upstream engines can
-  still receive queries; do not treat it as fully private.
+- Private SearXNG: provides a private instance boundary and local control over
+  engine selection/logs, but upstream engines, public APIs and parsed public
+  pages can still receive minimized queries; do not treat it as fully private.
 - Local/self-host index: preferred for internal/private content, but not part of
   the first native Web Search pilot unless separately scoped.
 
@@ -57,6 +60,7 @@ Do not send to external search providers by default:
 - Chat id forwarding is disallowed unless a provider-specific ADR accepts it.
 - Yandex and OpenWebUI `external` provider paths need special review because
   upstream code may forward user/session metadata when configured that way.
+- SearXNG upstream engine exposure must be owner-approved before live queries.
 
 ## Logging And Retention
 

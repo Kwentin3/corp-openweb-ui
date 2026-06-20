@@ -489,7 +489,7 @@ External sources:
 | --- | --- | --- | --- | --- |
 | Brave `brave_llm_context` | External web-search API with LLM-ready passages. | Best first paid API pilot if foreign provider is allowed. | Native OpenWebUI support; no separate page scrape; predictable Search pricing; retry on 429 exists upstream. | Foreign-provider approval; cost approval; RU quality smoke; current pricing/limits; provider key path. |
 | Brave `brave` | Classic web search snippets + OpenWebUI page loading. | Second to `brave_llm_context`. | Native support and familiar result shape. | More page-fetch failures, latency and SSRF/web-loader surface than LLM Context path. |
-| SearXNG private instance | Self-hosted metasearch. | Best privacy/ops pilot if avoiding external paid API key is more important than stable quality. | No direct paid API key; local control; community pattern for OpenWebUI; JSON/safesearch/language controls. | Still sends queries to upstream engines; public instances are unreliable; CAPTCHA/rate-limit/bot blocking; ops burden; result quality varies by engines. |
+| SearXNG private instance | Self-hosted meta-search candidate discovery gateway. | Comparison track if avoiding a direct paid API path is more important than stable quality. | Local gateway control; configurable upstream engines; community pattern for OpenWebUI; JSON/safesearch/language controls. | No owned web index; still sends minimized queries to upstream engines; public instances are unreliable; CAPTCHA/rate-limit/bot blocking; ops burden; result quality varies by engines. |
 | Yandex Search API | Russian-provider search candidate. | Strong RU candidate after privacy ADR. | Native OpenWebUI `yandex` engine; Russian search type; useful for Russian customer stance. | Current upstream path may forward user/chat headers; API returns raw XML payload; mode/pricing/quotas differ; procurement and data egress approval required. |
 | Tavily | LLM-oriented search/extract API. | Fallback/enrichment layer, not mandatory first step. | AI-oriented structured results; search/extract/crawl APIs; easy integration. | Another foreign provider; credit model; extraction depth can affect cost/latency; native OpenWebUI integration is simple but less transparent than raw SERP. |
 | Firecrawl | Search + scrape/extract/read layer. | Prefer as loader/extraction layer after URL search, not first search provider unless extraction is the real need. | Strong page extraction/scraping; retry/backoff in upstream OpenWebUI Firecrawl module; self-host option may exist. | Costs and rate/concurrency limits; scrape timeouts; not a replacement for provider/privacy policy. |
@@ -581,8 +581,8 @@ Community sources:
 
 ### 6.5. Pitfalls / decisions not to repeat
 
-- Do not treat SearXNG as "private web search" without saying that upstream engines still receive
-  queries.
+- Do not describe SearXNG as private end-to-end search without saying that
+  upstream engines still receive queries.
 - Do not use public SearXNG instances for corporate acceptance.
 - Do not increase result count/concurrency to hide quality issues; it increases latency, cost and
   noise.
@@ -618,7 +618,7 @@ Recommended first architecture path:
 
 1. Native OpenWebUI Web Search config/runtime probe.
 2. Native provider pilot with `brave_llm_context` if foreign provider use and budget are approved.
-3. Private SearXNG pilot only if the owner prioritizes self-host/no-paid-API over provider
+3. Private SearXNG comparison only if the owner prioritizes self-hosted meta-search over provider
    reliability and accepts upstream-engine leakage/ops work.
 4. Yandex Search API as RU-provider candidate after explicit privacy ADR, because upstream code may
    forward user/chat headers and Yandex config/mode affects payload and cost.
@@ -651,7 +651,8 @@ Hypothesis verdict:
 
 - Confirmed: first pilot does not need a fork and likely does not need a sidecar.
 - Refined: first pilot should prefer native OpenWebUI + Brave `brave_llm_context` if foreign
-  provider approval exists; otherwise evaluate private SearXNG as a controlled self-host pilot.
+  provider approval exists; otherwise evaluate private SearXNG as a controlled meta-search
+  comparison track.
 - Refined: Yandex is a serious RU candidate, but not before privacy/data-egress ADR.
 
 ## 7. Data / Privacy / Security Boundary
@@ -877,5 +878,5 @@ Not required yet:
 Reason: internal repo context plus external OpenWebUI/provider research confirm the first architecture
 path should be native OpenWebUI Web Search configuration and runtime proof. The provider ADR can now
 choose between Brave `brave_llm_context` as the preferred first paid API pilot, private SearXNG as the
-self-host/privacy pilot, or Yandex Search after a stricter privacy decision. No fork or sidecar is
+self-hosted meta-search comparison track, or Yandex Search after a stricter privacy decision. No fork or sidecar is
 justified for the first pilot unless runtime smoke proves a concrete policy gap.

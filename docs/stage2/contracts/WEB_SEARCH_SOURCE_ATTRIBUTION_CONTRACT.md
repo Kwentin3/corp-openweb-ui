@@ -23,6 +23,31 @@ Each visible source should expose:
 - provider;
 - searched_at or fetched_at timestamp when available.
 
+## Candidate Set vs Loaded Evidence
+
+Source attribution starts at the candidate set, but candidate links are not the
+same thing as evidence actually used in the final answer.
+
+Candidate source:
+
+- URL/title/snippet returned by Brave, Yandex, SearXNG or another search path;
+- may not include full page text;
+- may come from a specific upstream engine behind SearXNG.
+
+Loaded/extracted source:
+
+- page/content fetched from a selected candidate URL;
+- normalized and chunked by OpenWebUI web loader or equivalent extraction path;
+- may fail even when candidate search succeeds.
+
+Evidence used in answer:
+
+- the subset of candidate/loaded material that the LLM actually uses for the
+  final response.
+
+If OpenWebUI only shows candidate links but not loaded/extracted evidence, mark
+that as a source-attribution limitation in the runtime report.
+
 ## Source Display
 
 - Source links/cards must be visible near the answer or in the OpenWebUI source

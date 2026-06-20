@@ -34,6 +34,9 @@
   call Stage 2 STT sidecar job routes. Never expose in browser or commit.
 - `STAGE2_STT_ALLOW_STUB_TRANSCRIPT` - explicit probe/test flag for sidecar
   integration without a live STT provider. Keep `false` for live transcription.
+- `SEARXNG_SECRET` - server-local SearXNG secret used only when the optional
+  private SearXNG overlay is enabled. Generate a real value in `.env`; do not
+  commit it.
 
 ## Provider env contract
 
@@ -106,12 +109,53 @@ OpenWebUI OpenAI route uses `aiohttp` with `trust_env=True`; this path expects a
 ```env
 OPENWEBUI_OUTBOUND_PROXY=http://172.18.0.1:8118
 OPENWEBUI_SOCKS5_UPSTREAM=socks5h://user:password@proxy-host:1080
-OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,gpt.alpha-soft.ru
+OPENWEBUI_NO_PROXY=localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,searxng,searxng:8080,searxng-valkey,gpt.alpha-soft.ru
 ```
 
 Bridge listener не должен быть public. При UFW `deny incoming` нужен точечный allow только от Docker subnet к Docker gateway port bridge, например `172.18.0.0/16 -> 172.18.0.1:8118/tcp`. Не открывать `8118/tcp` для `Anywhere`.
 
 Реальные proxy credentials не коммитить. Если proxy credentials были переданы через чат или ticket, считать их раскрытыми и заменить после стабилизации пилота.
+
+When the private SearXNG overlay is enabled, `OPENWEBUI_NO_PROXY` must include
+`searxng`, `searxng:8080` and `searxng-valkey`; otherwise OpenWebUI may try to
+reach the internal SearXNG service through the outbound proxy.
+
+## Stage 2 Web Search / Private SearXNG
+
+These variables are used only with
+`compose/searxng.private.compose.yml`:
+
+```env
+SEARXNG_IMAGE=docker.io/searxng/searxng:latest
+SEARXNG_VALKEY_IMAGE=docker.io/valkey/valkey:8-alpine
+SEARXNG_SECRET=replace-with-random-strong-searxng-secret
+SEARXNG_BASE_URL=
+SEARXNG_LIMITER=true
+SEARXNG_PUBLIC_INSTANCE=false
+SEARXNG_IMAGE_PROXY=false
+SEARXNG_VALKEY_URL=valkey://searxng-valkey:6379/0
+ENABLE_WEB_SEARCH=true
+WEB_SEARCH_ENGINE=searxng
+WEB_SEARCH_RESULT_COUNT=3
+WEB_SEARCH_CONCURRENT_REQUESTS=1
+WEB_LOADER_CONCURRENT_REQUESTS=2
+WEB_SEARCH_TRUST_ENV=true
+BYPASS_WEB_SEARCH_WEB_LOADER=false
+SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>
+SEARXNG_LANGUAGE=ru
+SEARXNG_DEBUG_BIND=127.0.0.1
+SEARXNG_DEBUG_PORT=18080
+```
+
+Notes:
+
+- `SEARXNG_SECRET` must be generated server-side, for example with
+  `openssl rand -hex 32`.
+- `SEARXNG_IMAGE=latest` is acceptable only for first discovery if owner accepts
+  it; pin a reviewed tag before production-like rollout.
+- `SEARXNG_DEBUG_BIND` must stay local-only unless owner/security explicitly
+  approves another exposure model.
+- Public SearXNG instances are not acceptable for corporate acceptance.
 
 ## Provider endpoints
 
