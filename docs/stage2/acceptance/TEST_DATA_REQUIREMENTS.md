@@ -84,11 +84,35 @@
 
 ## Web-search
 
-- 5-10 типовых русскоязычных запросов.
-- 3-5 англоязычных запросов.
-- Примеры задач, где web-search запрещен из-за чувствительных данных.
-- Ожидаемый result count.
-- Требования к источникам/цитированию.
+- 5-10 типовых безопасных русскоязычных запросов, без персональных данных,
+  клиентских данных, реквизитов, налоговых идентификаторов, внутренних URL и
+  секретов.
+- 3-5 безопасных англоязычных запросов.
+- 3-5 forbidden sensitive examples:
+  - запрос с паспортными/налоговыми/банковскими данными;
+  - запрос с текстом клиентского документа;
+  - запрос с internal/private URL;
+  - запрос с token/API key/password;
+  - запрос с payroll/customer-confidential data.
+- 2 freshness-sensitive examples where current date/source recency matters.
+- 2 conflicting-source examples where the answer must mention conflict.
+- 2 no-sufficient-evidence examples where the expected answer is a visible
+  insufficient-evidence/no-results state.
+- Ожидаемый result count для первого smoke: `3`, если owner не утвердит другое.
+- Ожидаемая search concurrency для первого smoke: `1`, если owner не утвердит
+  другое.
+- Требования к источникам/цитированию:
+  - title;
+  - URL;
+  - snippet/excerpt;
+  - provider;
+  - searched_at or fetched_at when available.
+- Expected behavior for quota/rate-limit, timeout, no-results and
+  policy-blocked states.
+- Confirmation that provider key is available only through approved server-side
+  secret path and never in browser/test data.
+- Confirmation whether native/provider-dashboard cost visibility is enough for
+  pilot or hard budget enforcement is required first.
 
 ## Groups / roles / manager visibility
 

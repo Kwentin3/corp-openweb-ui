@@ -194,20 +194,51 @@ Blueprint:
 Research:
 
 - [WEB_SEARCH_PROVIDERS_RESEARCH](../research/WEB_SEARCH_PROVIDERS_RESEARCH.md)
+- [WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20](../research/WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20.md)
+
+Contracts / decisions:
+
+- [ADR-0007 Web Search Provider](../decisions/ADR-0007-web-search-provider.md)
+- [WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT](../contracts/WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT.md)
+- [WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT](../contracts/WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md)
+- [WEB_SEARCH_USAGE_EVENT_CONTRACT](../contracts/WEB_SEARCH_USAGE_EVENT_CONTRACT.md)
+- [OPENWEBUI_WEB_SEARCH_INTEGRATION_BOUNDARY](../contracts/OPENWEBUI_WEB_SEARCH_INTEGRATION_BOUNDARY.md)
 
 Acceptance signal:
 
-- Russian/English smoke queries work.
-- Result count, concurrency and policy are documented.
+- Provider ADR is proposed for owner review or accepted for pilot.
+- Provider key path is approved and server-side only.
+- Provider keys are not visible in browser responses, frontend config,
+  localStorage/sessionStorage or runtime reports.
+- Raw sensitive queries and raw result bodies are not logged by default.
+- Result count is documented and starts low.
+- Search concurrency is documented and starts low.
+- Web Search can be enabled/disabled by approved group or the native gap is
+  recorded.
+- Russian/English safe smoke queries work.
+- Source links/cards are visible for grounded answers.
+- Quota, timeout, no-results and policy-blocked errors are visible.
+- Forbidden examples are documented.
+- Analytics/cost visibility path is documented or the native gap is explicitly
+  accepted.
 
 Test data needed:
 
-- Web-search task examples.
-- Provider key.
+- 5-10 Russian safe queries.
+- 3-5 English safe queries.
+- 3-5 forbidden sensitive examples.
+- 2 freshness-sensitive examples.
+- 2 conflicting-source examples.
+- 2 no-sufficient-evidence examples.
+- Expected source/citation behavior.
+- Provider key through approved secret path only.
 
 Status:
 
-- Research complete; provider ADR needed.
+- Documentation domain ready.
+- Provider ADR proposed for owner review.
+- Runtime live probe blocked by missing deployed/staging access, provider
+  credentials and owner provider approval.
 
 ## PDF/DOCX/XLSX basic handling and OCR pilot
 

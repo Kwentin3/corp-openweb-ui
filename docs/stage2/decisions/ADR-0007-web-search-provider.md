@@ -1,90 +1,160 @@
-﻿# ADR-0007 Web-search Provider
+﻿# ADR-0007 Web Search Provider
 
-Status: Proposed
+Status: proposed_for_owner_review
+
+Date: 2026-06-20
 
 ## 1. Context
 
-PRD-1 requires web-search for all users, but with rules, limits, result count,
-concurrency and cost visibility.
+Web Search is a Stage 2 / PRD-1 feature. PRD-1 requires controlled web
+grounding for OpenWebUI users with rules, limits, result count, concurrency,
+instructions and cost visibility.
 
-Brave is the first-pilot candidate if foreign provider use is allowed. Yandex
-Search is the Russian-provider candidate. Yandex Search must not be confused
-with YandexGPT or GigaChat.
+OpenWebUI has native Web Search configuration and provider support. The first
+Stage 2 Web Search slice should therefore start with native OpenWebUI Web
+Search, then prove runtime behavior on the deployed/staging instance. A sidecar,
+fork or custom search gateway is not justified until native runtime smoke proves
+a concrete gap.
 
-## 2. Problem
+Web Search can become a hidden privacy and cost channel. The system must not
+silently send full prompts, secrets, financial/accounting data or customer data
+to a search provider.
 
-Web-search can become a hidden privacy and cost channel if users send sensitive
-queries to external search providers without limits or warnings.
+## 2. Decision To Make
 
-## 3. Decision needed
+Choose the first pilot-provider strategy:
 
-Approve provider choice, usage rules, limits and smoke checks before setup.
+- A. Brave `brave_llm_context` as first paid API pilot.
+- B. Private SearXNG as self-host/privacy-oriented pilot.
+- C. Yandex Search API as RU-provider pilot after privacy/data-egress approval.
+- D. Defer provider setup until owner approves data and cost policy.
 
-## 4. Options
+This ADR recommends a default, but it does not mark the provider as accepted
+until the owner approves provider, budget, data classes, retention and group
+scope.
 
-Option 1. Brave Search pilot.
+## 3. Recommended Decision
 
-- Strong first candidate.
-- Foreign-provider/data-policy approval required.
+Recommended default:
 
-Option 2. Yandex Search pilot.
+- Use native OpenWebUI Web Search first.
+- Use Brave `brave_llm_context` for the first paid API smoke if foreign provider
+  usage and budget are approved.
+- Start with result count `3` and search concurrency `1`.
+- Keep source attribution visible and required.
+- Use native analytics/provider dashboard for pilot cost visibility unless the
+  owner requires hard budget enforcement before any pilot.
 
-- Russian-provider candidate.
-- Needs adapter/native capability check and cost approval.
+Alternatives:
 
-Option 3. Defer web-search.
+- Use private SearXNG if the owner wants more operational control and accepts
+  SearXNG maintenance plus upstream-engine leakage risk.
+- Use Yandex Search API only after a provider-specific privacy review,
+  especially user-info/chat-id forwarding and search mode/cost behavior.
+- Treat Tavily, Firecrawl, Exa, Perplexity and You.com as fallback/enrichment
+  candidates, not the first default, unless their LLM-oriented extraction is
+  explicitly desired.
 
-- Avoids privacy/cost risk.
-- Misses a PRD-1 priority.
+## 4. Provider Comparison
 
-## 5. Recommended option
+| Provider | Role | Data egress | API key path | RU quality expectation | EN quality expectation | Pricing/limits signal checked 2026-06-20 | Latency/ops | Source visibility | Native OpenWebUI support | Risks | Pilot fit |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Brave `brave_llm_context` | First paid API candidate | Foreign provider receives minimized query | Server-side Admin UI/env only | Medium/TBD by smoke | Good expected | Brave Search lists Search/LLM Context at about `$5 / 1k` requests, monthly credits, high capacity; OpenWebUI docs warn free-tier users to set concurrency `1` | Low ops, API latency | LLM-optimized passages and URLs | Yes | Foreign provider; paid; token/context bloat if overused | Best default if approved |
+| Brave classic `brave` | Search snippets then page fetch | Foreign provider plus fetched source sites | Server-side only | Medium/TBD | Good expected | Same Brave Search commercial plan family | More page-fetch variability | Search result URLs/snippets plus loader output | Yes | Fetch failures/proxy issues; more scraping surface | Backup to LLM Context |
+| Private SearXNG | Self-host/metasearch | Private instance plus upstream engines | SearXNG URL/server config | Depends on engines | Depends on engines | Self-host cost; no provider API fee, but upstream blocks/CAPTCHA risk | Ops-heavy; limiter/JSON config required | Result URLs/snippets | Yes | Not fully private; reliability; anti-bot maintenance | Good privacy/ops alternative |
+| Yandex Search API | RU-provider candidate | Yandex Cloud receives query and optional metadata | Server-side only | Good expected for RU | Medium/TBD | Yandex docs separate quotas/limits and pricing by synchronous/deferred/generative modes | Cloud/procurement setup | XML/HTML/rawData parsing via native provider | Yes/community/provider docs | User-info/chat-id forwarding review; XML parser issues; generative mode cost | RU candidate after privacy ADR |
+| Tavily | LLM-oriented search/extract | Foreign provider | Server-side only | TBD | Good expected | Docs list free credits and PAYG credit pricing | Managed API | Structured search/extract | Yes | Credit model; another foreign processor | Fallback/enrichment |
+| Firecrawl | Search/scrape/extract | Foreign provider or self-host if separately deployed | Server-side only | TBD | Good extraction expected | Pricing page lists credit costs for scrape/search/extract | Good extraction, more moving parts | Search plus page text | Yes | Search is not the simplest first provider; extraction costs | Follow-up extraction layer |
+| Serper | Google SERP wrapper | Foreign SERP wrapper | Server-side only | Good Google-like expected | Good Google-like expected | Site advertises free queries and low per-1k pricing | Managed API | Structured SERP | Yes | SERP wrapper compliance/ToS; provider review | Low-cost fallback |
+| SerpApi | Mature SERP wrapper | Foreign SERP wrapper | Server-side only | Good Google-like expected | Good Google-like expected | Pricing page lists free tier and paid plans | Mature but paid | Rich structured SERP | Yes | Cost/compliance | Special SERP coverage only |
+| SearchAPI | SERP wrapper | Foreign SERP wrapper | Server-side only | Good Google-like expected | Good Google-like expected | Pricing page lists free requests and paid plans from monthly tiers | Managed API | Structured SERP | Yes | No first-pilot advantage over Brave/SearXNG/Yandex | Fallback |
+| Exa | AI search/contents | Foreign provider | Server-side only | TBD | Good AI-search expected | Exa pricing update lists search-with-contents per 1k and content add-ons | Managed API | Contents/highlights | Yes | Cost model; foreign provider | Fallback for AI-oriented search |
+| Kagi | Premium search API | Foreign provider | Server-side only | TBD | Good expected | Kagi docs describe API portal; public preview opened in 2026 | Newer API surface | Premium results | Yes | Preview/availability/procurement | Research-only for now |
+| Perplexity Search | Search API / grounded APIs | Foreign provider | Server-side only | TBD | Good expected | Docs say Search API is per request without token-based pricing; Sonar is separate | Managed API | Search results/citations | Yes | Answer API vs search API confusion; foreign provider | Fallback if approved |
+| You.com | Search/contents API | Foreign provider | Server-side only | TBD | Good expected | Pricing page lists Search API per 1k calls and Contents API per 1k pages | Managed API | LLM-ready snippets | Yes | Foreign provider; cost | Fallback |
+| YaCy | Self-host/distributed search | Local/distributed peers depending setup | Local config | Weak/TBD | Weak/TBD | Self-host operational cost | High ops; quality risk | Search result URLs | Yes | Index quality/ranking/ops | Not first pilot |
 
-Choose Brave or Yandex Search after ADR-0001 data policy and customer
-cost/privacy approval.
+## 5. Privacy And Cost Rules
 
-The decision must define:
+- Do not send the full user prompt to an external search provider by default.
+- Apply query minimization.
+- Do not send secrets, tokens, private keys, credentials, private URLs or
+  customer documents to search providers.
+- Broker, tax, financial, personal and accounting data are allowed only if the
+  data policy explicitly permits the selected provider class.
+- Provider keys must live only in server-local env/Admin UI/approved secret
+  store.
+- Browser must not receive provider keys.
+- Raw queries and raw result bodies must not be logged by default without
+  retention approval.
+- Result count and concurrency start low.
+- Source attribution is mandatory for grounded answers.
 
-- web-search for all users but with rules;
-- result count;
-- concurrency;
-- cost visibility;
-- prohibited query examples;
-- Yandex Search vs YandexGPT/GigaChat distinction.
+## 6. Required Runtime Probes Before Pilot
 
-## 6. Consequences
+Before exposing Web Search to a pilot group, prove or explicitly block:
 
-- Web-search setup waits for provider approval.
-- Sensitive data examples must be prohibited in user instructions.
-- Usage/cost visibility must be checked in runtime.
-- Provider-specific limits and query examples become acceptance inputs.
+- exact OpenWebUI deployed/staging version/image;
+- native Web Search settings exist in the deployed Admin UI;
+- provider engines available include the selected provider and relevant
+  alternatives;
+- result count, search concurrency, web-loader controls, domain/fetch filters,
+  bypass loader and trust-env/proxy controls are available or gaps recorded;
+- `features.web_search` or equivalent group permission behavior;
+- ordinary user without permission cannot use Web Search;
+- approved pilot user can use Web Search;
+- provider key values are not visible in browser responses, frontend config,
+  localStorage/sessionStorage or logs;
+- RU/EN safe smoke queries return visible source links/cards;
+- timeout, quota/rate-limit, no-results and policy-blocked states are visible;
+- proxy path works if the deployment requires `WEB_SEARCH_TRUST_ENV=True`;
+- SSRF/fetch-boundary tests are planned with safe fixtures;
+- analytics/cost visibility path is documented or gap accepted.
 
-## 7. Runtime proof needed
+## 7. Consequences
 
-- Russian smoke queries.
-- English smoke queries.
-- Result count/concurrency settings.
-- Cost visibility path.
-- Group/feature access proof if applicable.
+- Native-first reduces custom code and keeps the user workflow inside
+  OpenWebUI.
+- Provider choice creates privacy, cost, procurement and retention obligations.
+- SearXNG is not fully private unless upstream engine exposure is handled.
+- Yandex requires separate review of metadata forwarding and search mode.
+- Hard billing and custom event capture remain future work unless owner requires
+  them as a pilot gate.
+- Sidecar and fork remain future options only after native runtime proof shows a
+  specific gap.
 
-## 8. Customer input needed
+## 8. Owner Decisions Needed
 
-- Provider preference: Brave, Yandex Search or defer.
-- Allowed/prohibited query examples.
-- Result count/concurrency expectations.
-- Cost limit expectations.
-- Provider account/key path.
+- Provider: Brave, private SearXNG, Yandex, or defer.
+- Budget and provider account owner.
+- Allowed provider class for ordinary business queries.
+- Forbidden query/data examples.
+- First pilot group.
+- Default result count and concurrency.
+- Metadata retention period.
+- Whether native/provider-dashboard cost visibility is enough for pilot.
+- Whether Yandex user-info/chat-id forwarding is acceptable if Yandex is chosen.
 
-## 9. Acceptance signals
+## 9. Acceptance Signals
 
-- Provider selected.
-- Rules and limits documented.
-- Smoke queries pass.
-- Prohibited-query examples are included in instructions.
-- Cost visibility is documented or gap is recorded.
+- Provider strategy is owner-approved for pilot or explicitly deferred.
+- Runtime probe report exists and separates passed checks from blockers.
+- Provider key path is server-side only.
+- No provider secrets are visible in browser/runtime evidence.
+- RU/EN safe smoke queries pass.
+- Source cards/links are visible.
+- Policy-blocked sensitive examples are documented.
+- Usage/cost visibility path is documented or gap accepted.
 
 ## 10. Links
 
-- [WEB_SEARCH](../blueprints/WEB_SEARCH.blueprint.md)
-- [WEB_SEARCH_PROVIDERS_RESEARCH](../research/WEB_SEARCH_PROVIDERS_RESEARCH.md)
-- [USAGE_ANALYTICS_BILLING_RESEARCH](../research/USAGE_ANALYTICS_BILLING_RESEARCH.md)
+- [WEB_SEARCH blueprint](../blueprints/WEB_SEARCH.blueprint.md)
+- [Web Search context index](../WEB_SEARCH_CONTEXT_INDEX.md)
+- [Privacy boundary contract](../contracts/WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT.md)
+- [Usage event contract](../contracts/WEB_SEARCH_USAGE_EVENT_CONTRACT.md)
+- [Source attribution contract](../contracts/WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md)
+- [Integration boundary](../contracts/OPENWEBUI_WEB_SEARCH_INTEGRATION_BOUNDARY.md)
+- [External research 2026-06-20](../research/WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20.md)
+- [Native pilot plan](../implementation/WEB_SEARCH_NATIVE_PILOT_PLAN.md)
 - [ADR-0001 Data Policy](ADR-0001-data-policy-by-provider-class.md)
+- [ADR-0008 Native Analytics vs Hard Billing](ADR-0008-native-analytics-vs-hard-billing.md)

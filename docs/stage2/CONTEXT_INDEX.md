@@ -171,12 +171,21 @@ Comment:
 
 Read first:
 
+- [WEB_SEARCH_CONTEXT_INDEX](WEB_SEARCH_CONTEXT_INDEX.md)
 - [WEB_SEARCH](blueprints/WEB_SEARCH.blueprint.md)
 - [ADR-0007 Web-search Provider](decisions/ADR-0007-web-search-provider.md)
+- [OpenWebUI Web Search Integration Boundary](contracts/OPENWEBUI_WEB_SEARCH_INTEGRATION_BOUNDARY.md)
 
 Additional context:
 
+- [WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20](research/WEB_SEARCH_EXTERNAL_RESEARCH_2026-06-20.md)
 - [WEB_SEARCH_PROVIDERS_RESEARCH](research/WEB_SEARCH_PROVIDERS_RESEARCH.md)
+- [WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT](contracts/WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT.md)
+- [WEB_SEARCH_USAGE_EVENT_CONTRACT](contracts/WEB_SEARCH_USAGE_EVENT_CONTRACT.md)
+- [WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT](contracts/WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md)
+- [WEB_SEARCH_NATIVE_PILOT_PLAN](implementation/WEB_SEARCH_NATIVE_PILOT_PLAN.md)
+- [WEB_SEARCH_RUNTIME_PROBE report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_RUNTIME_PROBE.report.md)
+- [WEB_SEARCH_DOMAIN_AND_PROBE report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_DOMAIN_AND_PROBE.report.md)
 - Existing [WEB_SEARCH_PROVIDER_RESEARCH](../infra/WEB_SEARCH_PROVIDER_RESEARCH.md)
 
 Skip unless needed:
@@ -185,8 +194,15 @@ Skip unless needed:
 
 Comment:
 
-- Brave is the first-pilot candidate if foreign search is allowed.
-- Yandex Search is the Russian-provider candidate.
+- Native OpenWebUI Web Search is the first path.
+- Brave `brave_llm_context` is the first-pilot candidate if foreign search and
+  budget are approved.
+- Private SearXNG is the privacy/ops alternative, but not fully private because
+  upstream engines can still receive queries.
+- Yandex Search is the Russian-provider candidate after metadata-forwarding and
+  cost-mode review.
+- No sidecar/fork/custom gateway until native runtime smoke proves a concrete
+  gap.
 
 ## Documents / OCR / Excel
 
