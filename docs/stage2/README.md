@@ -83,6 +83,7 @@ provider setup, usage analytics and web-search.
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
 | [proposals/](proposals/) | Customer-facing proposals for agreeing the next Stage 2 direction. |
+| [CUSTOMER_STAGE2_RUNTIME_DECISIONS.md](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md) | Справка для заказчика по решениям после runtime-аудита OpenWebUI. |
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
 | [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md) | Native capability audit summary and scenario assembly guidance. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |

@@ -167,6 +167,10 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - PRD-1 Stage 2 customer summary:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
+- Предложение по развитию Stage 2:
+  [docs/stage2/proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md](docs/stage2/proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
+- Решения после runtime-аудита OpenWebUI:
+  [docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md](docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
 - PRD-1 initial historical draft:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md)
 - PRD-1 changelog:
