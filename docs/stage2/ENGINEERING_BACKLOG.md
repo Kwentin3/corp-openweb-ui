@@ -239,16 +239,17 @@ Source: OPENWEBUI_CAPABILITY_RESEARCH,
 [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
 Why: Current docs may not match deployed v0.9.6, and Stage 2 needs a
 configuration-first proof path before implementation.
-Output: initial capability audit completed with public runtime proof and
-native-fit matrix. Remaining output is exact Admin UI settings and
-user/group test results.
-Depends on: admin or staging access for test-user proof
+Output: initial capability audit completed with public runtime proof,
+native-fit matrix and authenticated four-actor synthetic proof.
+Depends on: customer decisions for no-delete, manager visibility, Web Search
+scope and analytics expectations
 Status: public runtime version/health/static proof captured on 2026-06-24;
 authenticated admin API proof captured on 2026-06-24 via approved local `.env`
-variable names without printing values. Remaining proof is the four-actor
-test-user matrix, blocked by absence of `stage2-proof-*` actors/groups and by
-the need for explicit approval before creating users/resources on the deployed
-stand.
+variable names without printing values. A later 2026-06-24 synthetic run
+created temporary `stage2-proof-*` actors/resources, completed the four-actor
+matrix, and deleted all proof entities. Remaining gaps are no-delete,
+manager positive visibility, Web Search scoped-default policy and immediate
+synthetic analytics rows.
 
 ### OpenWebUI media attachment transcription action proof
 

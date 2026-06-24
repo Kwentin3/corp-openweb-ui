@@ -289,13 +289,15 @@ Related docs:
 
 Status:
 
-- partially proven for public deployed version/health/static assets and
-  authenticated admin API access. The 2026-06-24 follow-up used approved local
-  `.env` variable names without printing values and proved admin API access,
-  default permissions, endpoint reachability, analytics aggregates and Preview
-  Access endpoints. Gate 7 remains open for the four-actor test-user matrix
-  because `stage2-proof-*` actors/groups do not exist and this run did not
-  create users/resources without explicit operator approval.
+- partial with actor matrix. Public deployed version/health/static assets and
+  authenticated admin API access are proven. The 2026-06-24 synthetic run used
+  approved local `.env` variable names without printing values, created
+  temporary `stage2-proof-*` actors/resources, completed inside/outside
+  model/prompt/Knowledge/file/Web Search/delete/manager checks, and deleted all
+  proof entities. Gate 7 remains open only for concrete runtime/policy gaps:
+  no-delete is not enforced, Web Search is globally enabled, manager positive
+  shared-list visibility did not confirm, and analytics did not show immediate
+  synthetic user rows.
 
 Owner:
 
@@ -303,14 +305,10 @@ Owner:
 
 Blocking items:
 
-- deployed/staging Admin UI checks;
-- RBAC/groups/model visibility matrix;
-- prompts/knowledge sharing proof;
-- analytics proof;
-- no-delete UI/API proof;
-- manager visibility proof;
-- Web Search permission proof;
-- safe synthetic file upload/extraction proof.
+- customer no-delete/retention decision;
+- customer Web Search scope/default policy;
+- manager visibility policy and positive shared-resource proof;
+- analytics timing/export/cost proof;
 
 Related docs:
 

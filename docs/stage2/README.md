@@ -141,18 +141,20 @@ Finding:
 - Native-first оправдан для RBAC/groups, shared resources, web-search, RAG/docs and analytics.
 - 2026-06-24 runtime audit confirmed deployed public version `0.9.6`, public
   health endpoints, protected unauthenticated `/api/models`, and the served
-  Stage 2 STT static loader. Admin/test-user proof for RBAC, prompts,
-  knowledge, analytics, no-delete and manager visibility remains required.
-- 2026-06-24 Admin/Test-User follow-up used approved local `.env` variable
-  names without printing values and proved authenticated admin API access.
-  The proof remains partial because `stage2-proof-*` actors/groups do not
-  exist and this run did not create users/resources on the deployed stand
-  without explicit operator approval. Details are in
+  Stage 2 STT static loader.
+- 2026-06-24 Admin/Test-User proof used approved local `.env` variable names
+  without printing values, proved authenticated admin API access, created
+  temporary synthetic four-actor proof resources, completed the actor matrix
+  and deleted all proof entities. The proof remains partial for concrete
+  runtime gaps: no-delete is not enforced, Web Search is globally enabled,
+  manager positive shared-list visibility did not confirm, and analytics did
+  not show immediate synthetic user rows. Details are in
   [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 Next action:
 
-- Read-only Admin UI audit on deployed/staging v0.9.6.
+- Resolve customer decisions for no-delete, manager visibility, Web Search
+  scope/default policy and analytics expectations.
 - Use the reusable native capability page:
   [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md).
 - Full audit report:

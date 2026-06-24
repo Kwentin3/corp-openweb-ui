@@ -28,9 +28,9 @@ Status:
 
 - Research complete. 2026-06-24 native capability audit captured public
   deployed version/health proof and confirmed native-first fit. The 2026-06-24
-  authenticated follow-up proved admin API access and default permissions, but
-  test-user visibility proof is still needed because `stage2-proof-*`
-  actors/groups do not exist.
+  authenticated synthetic proof created temporary `stage2-proof-*` actors and
+  confirmed inside/outside group visibility for restricted model, prompt and
+  Knowledge. Production acceptance still needs the real customer group matrix.
 
 ## Audio/video transcription
 
@@ -479,8 +479,9 @@ Status:
 
 - Research complete. 2026-06-24 audit kept this as runtime/customer proof
   because native groups/sharing do not by themselves prove supervisory access.
-  The authenticated follow-up proved Preview Access endpoints, but did not run
-  manager/employee actors because `stage2-proof-*` actors/groups do not exist.
+  The authenticated synthetic proof ran manager/inside/outside actors: manager
+  could not read the inside personal chat and outside could not open the tested
+  shared link, but positive manager shared-list visibility did not confirm.
 
 ## Chat deletion restriction check
 
@@ -510,10 +511,9 @@ Test data needed:
 Status:
 
 - Research complete. 2026-06-24 audit kept this as runtime proof because
-  non-admin UI/API delete behavior was not tested. The authenticated follow-up
-  proved default `chat.delete=True` and `chat.delete_message=True`, but did not
-  run the non-admin UI/API delete test because `stage2-proof-*` actors do not
-  exist.
+  non-admin UI/API delete behavior was not tested. The authenticated synthetic
+  proof ran the non-admin API delete test: delete returned `200` with current
+  `chat.delete=True`, so no-delete is not enforced on the deployed runtime.
 
 ## Retention policy decision
 
