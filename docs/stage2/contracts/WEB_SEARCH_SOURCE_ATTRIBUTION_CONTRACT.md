@@ -1,6 +1,6 @@
 ﻿# Web Search Source Attribution Contract
 
-Status: draft for product/acceptance review.
+Status: draft with Brave runtime baseline observation from 2026-06-23.
 
 ## Purpose
 
@@ -47,6 +47,25 @@ Evidence used in answer:
 
 If OpenWebUI only shows candidate links but not loaded/extracted evidence, mark
 that as a source-attribution limitation in the runtime report.
+
+## Current Brave LLM Context Baseline
+
+For `brave_llm_context`, Brave returns LLM-oriented passages and source URLs.
+The current working OpenWebUI baseline passes those docs directly to the LLM:
+
+- `BYPASS_WEB_SEARCH_WEB_LOADER=true`;
+- `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true`.
+
+This is accepted for the first Brave smoke because the provider already returns
+compact LLM context. The alternative path that stores Brave results into a
+`web-search-*` vector collection and retrieves sources again is not accepted
+yet; runtime diagnostics showed it could return `0` sources even after search
+results were found and embedded.
+
+Keep that alternative path as a deferred known issue. It becomes required only
+if source attribution must depend on loaded long pages, classic `brave`, SearXNG
+page loading, or full RAG over fetched content. Until then, do not claim
+vectorized Web Search retrieval is accepted.
 
 ## Source Display
 

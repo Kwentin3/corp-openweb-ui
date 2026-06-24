@@ -2,6 +2,14 @@
 
 Дата исследования: 2026-06-09.
 
+Stage 2 runtime update: 2026-06-23.
+
+Brave `brave_llm_context` now has a working native OpenWebUI smoke baseline on
+the deployed instance. Yandex works as the RU direct API path by
+owner/operator confirmation. Private SearXNG works as a native meta-search
+comparison path in snippet/bypass mode. This does not change PRD-0 scope; it
+updates Stage 2 runtime status.
+
 ## Статус для PRD-0
 
 Веб-поиск сейчас остается non-goal PRD-0. Этот документ фиксирует исследование и готовый выбор на случай, если оператор отдельно решит расширить scope.
@@ -14,7 +22,7 @@
 
 1. `brave_llm_context` - основной кандидат, если можно завести Brave Search API key. Он лучше обычного `brave` для LLM-чата, потому что OpenWebUI получает готовые релевантные passages и не обязан отдельно скрейпить найденные страницы.
 2. `tavily` - лучший быстрый бесплатный старт без карты, если нужен managed provider с простым onboarding.
-3. `searxng` - самый дешевый по API-cost вариант, но он добавляет отдельный self-hosted сервис и эксплуатацию.
+3. `searxng` - рабочий self-hosted comparison path без direct API fee, но он добавляет отдельный сервис, limiter/NO_PROXY config и эксплуатацию.
 4. `serper` - дешевый Google SERP API на объеме, если нужна именно выдача Google и оператор готов купить пачку credits.
 5. `ddgs` / DuckDuckGo-like engines - только для smoke/test, не как основной provider для пилота.
 
@@ -60,17 +68,31 @@ WEB_SEARCH_RESULT_COUNT=3
 WEB_SEARCH_CONCURRENT_REQUESTS=1
 WEB_LOADER_CONCURRENT_REQUESTS=2
 WEB_SEARCH_TRUST_ENV=True
+BYPASS_WEB_SEARCH_WEB_LOADER=True
+BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=True
 ```
 
 API key хранить только в server-local `.env` или Admin UI. Не коммитить ключи.
+На 2026-06-23 Yandex Search также добавлен через OpenWebUI Admin UI и прошел
+operator/native smoke как рабочий RU-provider path. Runtime status фиксируем
+отдельно от policy approval: рабочий smoke не означает автоматический rollout
+для всех пользователей и всех типов данных.
+
+Для `brave_llm_context` текущий рабочий baseline намеренно обходит web loader и
+вторичный embedding/retrieval. Brave уже возвращает LLM-oriented passages, а
+runtime diagnostics показали, что vectorized `web-search-*` retrieval path мог
+вернуть `0` sources после успешного поиска и embedding. Это deferred known
+issue: чинить позже, только если нам понадобятся длинные страницы, classic
+`brave`, SearXNG page loading или полноценный RAG over fetched content.
 
 ## Сравнение кандидатов
 
 | Provider / engine | Цена/лимит на дату исследования | Плюсы | Минусы | Вывод |
 | --- | --- | --- | --- | --- |
 | Brave `brave_llm_context` | Brave Search plan: `$5` за 1,000 requests, есть `$5` monthly credits | Хороший fit для LLM, меньше отдельного scraping, штатно описан в OpenWebUI | Вероятно нужна учетная запись/API key; для free/low tier держать concurrency `1` | Первый кандидат для пилота |
+| Yandex `yandex` | Yandex Search API: цена зависит от sync/deferred/generative mode | Российский provider path; 2026-06-23 Admin UI/native smoke passed | Нужно контролировать cost mode, metadata forwarding, raw XML/HTML/rawData parsing и запрет sensitive queries | Рабочий RU-provider path после operator smoke; rollout только после policy/cost approval |
 | Tavily `tavily` | Free: 1,000 API credits/month, no credit card; PAYG `$0.008`/credit | Самый простой бесплатный managed старт | Стоимость зависит от credit accounting; не Google SERP | Хороший fallback без карты |
-| SearXNG `searxng` | API fee отсутствует, но есть VPS/ops cost | Максимально дешево по внешним API, self-hosted | Нужно поднимать и поддерживать сервис, включить JSON format, качество зависит от backends | Хорош для later self-host path, не самый простой PRD-0 |
+| SearXNG `searxng` | API fee отсутствует, но есть VPS/ops cost | Self-hosted meta-search comparison path; native smoke passed in snippet/bypass mode | Нужны сервис, limiter/NO_PROXY config, engine tuning; качество зависит от upstream engines; CAPTCHA/rate-limit observed | Готов к three-path comparison, не primary |
 | Serper `serper` | 2,500 free queries; Starter `$50` за 50k credits, `$1.00`/1k, credits valid 6 months | Дешевый Google SERP на объеме | Нужно покупать пакет; это внешний SERP wrapper | Хороший paid вариант при регулярном использовании |
 | DDGS / DuckDuckGo-style | Бесплатно как библиотека/metasearch | Можно быстро проверить механику web search | Нестабильность, backend-зависимость, возможные блокировки | Только smoke/test |
 | SearchAPI `searchapi` | Developer: `$40`/month за 10,000 searches, `$4`/1k | Managed SERP provider | Дороже Serper/Brave для простого пилота | Не первый выбор |
@@ -81,12 +103,17 @@ API key хранить только в server-local `.env` или Admin UI. Не
 ## Рекомендованный порядок теста
 
 1. Оставить PRD-0 без web search до отдельного operator decision.
-2. Если решение принято, начать с `brave_llm_context`.
-3. Выставить `WEB_SEARCH_RESULT_COUNT=3`, `WEB_SEARCH_CONCURRENT_REQUESTS=1`, `WEB_LOADER_CONCURRENT_REQUESTS=2`, `WEB_SEARCH_TRUST_ENV=True`.
+2. Для Stage 2 текущий первый baseline держать на рабочем `brave_llm_context`.
+3. Выставить `WEB_SEARCH_RESULT_COUNT=3`, `WEB_SEARCH_CONCURRENT_REQUESTS=1`, `WEB_LOADER_CONCURRENT_REQUESTS=2`, `WEB_SEARCH_TRUST_ENV=True`, `BYPASS_WEB_SEARCH_WEB_LOADER=True`, `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=True`.
 4. Проверить один русский и один английский запрос.
 5. Проверить, что ответы содержат источники и не падают при загрузке страниц через proxy.
-6. Если Brave onboarding/лимиты неудобны, проверить `tavily`.
-7. Если нужен бесплатный self-host path без external API fee, планировать отдельную задачу на SearXNG.
+6. Yandex Search считать рабочим альтернативным RU-provider path после
+   Admin UI/native smoke; перед расширением аудитории отдельно принять
+   policy/cost/metadata rules.
+7. Если Brave/Yandex onboarding или лимиты неудобны, проверить `tavily`.
+8. SearXNG уже доказан как private native comparison path; следующий шаг -
+   сравнить Brave / Yandex / SearXNG, а не назначать SearXNG основным
+   provider path.
 
 ## Acceptance для будущего включения
 

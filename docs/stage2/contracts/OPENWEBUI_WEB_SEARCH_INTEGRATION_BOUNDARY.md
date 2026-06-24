@@ -1,6 +1,6 @@
 ﻿# OpenWebUI Web Search Integration Boundary
 
-Status: draft for engineering review.
+Status: draft with native Brave smoke baseline observed on 2026-06-23.
 
 ## Purpose
 
@@ -31,6 +31,19 @@ Native OpenWebUI should own for the first pilot:
 - domain/fetch filters when available;
 - group/feature permissions when available;
 - source display behavior.
+
+Current runtime note:
+
+- Brave `brave_llm_context` passes native smoke when OpenWebUI uses direct
+  Web Search docs context.
+- The extra vectorized web-search retrieval path is not accepted yet; runtime
+  diagnostics showed it can return `0` sources after successful search and
+  embedding.
+- Treat that path as a deferred known issue. It should be fixed later only when
+  the product needs long page loading, classic `brave`, SearXNG page loading, or
+  full RAG over fetched content.
+- Do not introduce a wrapper or sidecar to solve that path until the current
+  native direct-context baseline is insufficient for a product scenario.
 
 ## Stage 2-Owned Concerns
 

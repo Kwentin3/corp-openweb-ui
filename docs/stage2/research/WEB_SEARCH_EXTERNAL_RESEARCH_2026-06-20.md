@@ -2,7 +2,9 @@
 
 Status: current provider/runtime research for ADR-0007.
 
-No provider key or live provider request was used.
+No provider key or live provider request was used during the 2026-06-20
+research. Post-research runtime update: on 2026-06-23, Yandex Search was
+configured through OpenWebUI Admin UI and passed operator/native smoke.
 
 ## Executive Summary
 
@@ -14,8 +16,9 @@ No provider key or live provider request was used.
 - Private SearXNG is the self-hosted meta-search comparison track, but it is not
   fully private: upstream engines can still see queries and may block automated
   traffic.
-- Yandex Search API is the RU-provider candidate, but needs privacy review for
-  metadata forwarding and mode/cost selection before live smoke.
+- Yandex Search API is now a working RU-provider path after 2026-06-23 Admin
+  UI/native smoke; broader rollout still needs privacy review for metadata
+  forwarding and mode/cost selection.
 - Tavily, Firecrawl, Exa, Kagi, Perplexity, You.com and SERP wrappers are useful
   fallback or enrichment options, not the default first slice.
 
@@ -99,12 +102,12 @@ account/key already exists.
 
 ### Yandex Search API
 
-Yandex Search API is a real RU-provider candidate. Official docs describe
+Yandex Search API is a real RU-provider path. Official docs describe
 quotas/limits and different request modes. Pricing differs materially by mode:
 synchronous/deferred/generative response have different costs and rate limits.
 
-OpenWebUI has a Yandex Web Search provider path, but the live smoke needs an
-extra privacy check:
+OpenWebUI has a Yandex Web Search provider path, and operator/native smoke
+passed on 2026-06-23. Before broad use, keep an extra privacy/cost check:
 
 - whether user-info headers can be avoided;
 - whether chat id/session metadata is forwarded;
@@ -112,8 +115,9 @@ extra privacy check:
 - whether generative/expensive mode is disabled unless approved;
 - what provider errors and raw results are logged.
 
-Pilot implication: do not run live Yandex smoke before owner approves this
-privacy/cost review.
+Pilot implication: Yandex can be treated as technically working after Admin
+UI/native smoke, but do not roll it out beyond controlled testing before owner
+approval of this privacy/cost review.
 
 ### Tavily
 
@@ -201,8 +205,10 @@ Recommended first path:
 3. Smoke Brave `brave_llm_context` with result count `3`, concurrency `1`.
 4. Verify source display, permission gating, no browser key exposure, no raw
    sensitive logs, quota/timeout/no-results UX and cost visibility.
-5. Use private SearXNG only if foreign API use is not approved.
-6. Use Yandex only after metadata-forwarding and mode/cost review.
+5. Use Yandex as the working RU-provider path for controlled follow-up, gated
+   by metadata-forwarding, allowed data class and mode/cost review.
+6. Use private SearXNG only if self-hosted meta-search comparison remains
+   useful after Brave/Yandex checks.
 
 ## Sources Checked 2026-06-20
 

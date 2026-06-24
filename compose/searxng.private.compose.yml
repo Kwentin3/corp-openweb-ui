@@ -7,6 +7,10 @@
 #
 # No public port is exposed by default. OpenWebUI reaches SearXNG through the
 # internal Docker network as http://searxng:8080/search?q=<query>.
+#
+# When OpenWebUI Admin UI uses Web Search engine "searxng", keep both
+# searxng and searxng-valkey running. They are internal runtime dependencies
+# and use restart: unless-stopped for reboot/crash recovery.
 
 services:
   openwebui:

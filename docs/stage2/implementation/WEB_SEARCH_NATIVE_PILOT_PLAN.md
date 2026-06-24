@@ -1,6 +1,8 @@
 ﻿# Web Search Native Pilot Plan
 
-Status: ready for owner/provider approval, not approved for live traffic yet.
+Status: provider connectivity baseline proven for Brave, Yandex and private
+SearXNG on 2026-06-23; user pilot rollout pending policy, group, logging,
+comparison and cost checks.
 
 ## 1. Goal
 
@@ -43,7 +45,8 @@ Alternatives:
 
 - private SearXNG if foreign paid API use is rejected or if owner wants a
   self-hosted meta-search comparison track;
-- Yandex Search API after metadata-forwarding/cost-mode review;
+- Yandex Search API as the working RU-provider path after 2026-06-23 Admin
+  UI/native smoke, with rollout gated by metadata-forwarding/cost-mode review;
 - defer if no provider/data/cost decision is approved.
 
 Private SearXNG setup details live in
@@ -53,7 +56,42 @@ custom gateway or sidecar; OpenWebUI still uses native Web Search provider
 
 Candidate-set comparison details live in
 [WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN](WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md).
-Use the same query matrix for Brave and SearXNG.
+Use the same query matrix for Brave, Yandex and SearXNG where policy allows it.
+
+## 3.1 Current Runtime Baseline
+
+The deployed OpenWebUI instance has a working admin/manual smoke baseline:
+
+- provider: Brave;
+- engine: `brave_llm_context`;
+- result count: `3`;
+- search concurrency: `1`;
+- web loader bypass: enabled;
+- web-search embedding/retrieval bypass: enabled;
+- selected smoke model: `gpt-5.4-mini-2026-03-17`;
+- Code Interpreter: not enabled by default for this model during Web Search
+  smoke.
+
+Additional provider status:
+
+- Yandex Search API was configured through OpenWebUI Admin UI and passed
+  operator/native smoke on 2026-06-23.
+- Treat Yandex as a working RU-provider path for controlled testing, not as
+  all-user rollout approval.
+- Private SearXNG native provider smoke passed in snippet/bypass mode on
+  2026-06-23. Treat it as a comparison path, not primary.
+
+Reasoning:
+
+- `brave_llm_context` already returns LLM-oriented passages plus URLs.
+- The classic OpenWebUI path that stores web-search snippets in a vector
+  collection and retrieves them again returned `0` sources during runtime
+  diagnostics.
+- The direct Brave context path worked after bypassing that extra
+  embedding/retrieval step.
+- Keep the vectorized retrieval path as a deferred known issue, not a pilot
+  blocker. Revisit it only when long page loading, classic `brave`, SearXNG page
+  loading or full RAG over fetched content becomes a real product requirement.
 
 ## 4. Config Plan
 
@@ -65,12 +103,14 @@ Config names only; do not put values in docs:
 - `WEB_SEARCH_CONCURRENT_REQUESTS`
 - `WEB_LOADER_CONCURRENT_REQUESTS`
 - `BYPASS_WEB_SEARCH_WEB_LOADER`
+- `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL`
 - `WEB_SEARCH_TRUST_ENV`
 - `BRAVE_SEARCH_API_KEY`
 - `BRAVE_SEARCH_CONTEXT_TOKENS`
 - `SEARXNG_QUERY_URL`
 - `SEARXNG_LANGUAGE`
 - `YANDEX_WEB_SEARCH_API_KEY`
+- `YANDEX_WEB_SEARCH_URL`
 - `YANDEX_WEB_SEARCH_CONFIG`
 - provider-specific API key/config variable for any alternative engine.
 
@@ -88,9 +128,10 @@ Initial smoke values to approve:
 
 - result count: `3`;
 - search concurrency: `1`;
-- web loader: enabled unless `brave_llm_context` smoke intentionally bypasses
-  page fetch;
-- trust env: enabled only if runtime egress requires proxy env.
+- web loader: bypassed for the `brave_llm_context` baseline;
+- web-search embedding/retrieval: bypassed for the `brave_llm_context`
+  baseline;
+- trust env: enabled when runtime egress requires proxy env.
 
 ## 5. Rollout Plan
 
@@ -122,6 +163,12 @@ Provider smoke:
 - latency recorded;
 - no-results case recorded;
 - provider 429/timeout behavior recorded if safe.
+
+Current partial result:
+
+- one safe RU manual smoke passed after the current Brave baseline config was
+  applied;
+- the full RU/EN matrix remains pending before pilot rollout.
 
 SearXNG-specific smoke:
 

@@ -58,8 +58,10 @@ Do not send to external search providers by default:
 - User identity forwarding is disallowed unless a provider-specific ADR accepts
   it.
 - Chat id forwarding is disallowed unless a provider-specific ADR accepts it.
-- Yandex and OpenWebUI `external` provider paths need special review because
-  upstream code may forward user/session metadata when configured that way.
+- Yandex Search has passed Admin UI/native smoke, but rollout beyond
+  admin/manual testing still needs special review because upstream code may
+  forward user/session metadata when configured that way.
+- OpenWebUI `external` provider paths need the same special review before use.
 - SearXNG upstream engine exposure must be owner-approved before live queries.
 
 ## Logging And Retention

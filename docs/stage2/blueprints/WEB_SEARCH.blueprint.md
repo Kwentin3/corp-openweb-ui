@@ -76,4 +76,7 @@ prohibited examples.
 
 ## 13. Implementation readiness
 
-Needs provider selection research and cost/policy decision.
+Provider connectivity baseline is proven for Brave `brave_llm_context`, Yandex
+Search API and private SearXNG native snippet/bypass path. Pilot rollout still
+needs group scope, forbidden-query policy, logging/retention proof, EN/RU
+comparison matrix and cost visibility.

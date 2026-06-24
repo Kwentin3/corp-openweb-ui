@@ -1,13 +1,19 @@
 ﻿# Web Search Candidate Set Comparison Plan
 
-Status: ready for runtime smoke after owner/runtime access.
+Status: Brave, Yandex and private SearXNG provider connectivity baselines are
+ready for three-path comparison; production rollout remains pending.
 
 ## 1. Purpose
 
-Compare Brave `brave_llm_context` and private SearXNG as two ways to generate a
-candidate set for OpenWebUI/LLM. This is not a generic search-engine benchmark
-and not a claim that SearXNG can stand in for Brave, Yandex or any owned search
-index.
+Compare three native OpenWebUI Web Search paths as candidate-set generators for
+OpenWebUI/LLM:
+
+- Path A: Brave direct API / `brave_llm_context`;
+- Path B: Yandex direct API / `yandex`;
+- Path C: private SearXNG meta-search.
+
+This is not a generic search-engine benchmark and not a claim that SearXNG can
+stand in for Brave, Yandex or any owned search index.
 
 ## 2. Product Model
 
@@ -62,28 +68,51 @@ Compare:
 Path A:
 
 ```text
-OpenWebUI -> Brave brave_llm_context -> candidate/context -> LLM answer
+OpenWebUI -> Brave brave_llm_context -> LLM-oriented candidate/context
+  -> direct Web Search docs context -> LLM answer
 ```
 
 Path B:
 
 ```text
-OpenWebUI -> private SearXNG -> enabled upstream engines/public sources
-  -> normalized candidate set -> OpenWebUI web loader -> LLM answer
-```
-
-Optional later path:
-
-```text
 OpenWebUI -> Yandex Search API -> candidate set -> LLM answer
 ```
 
-Yandex is not part of the first comparison until privacy/data-egress review is
-approved.
+Path C:
+
+```text
+OpenWebUI -> private SearXNG -> enabled upstream engines/public sources
+  -> normalized candidate set -> OpenWebUI snippet/bypass path -> LLM answer
+```
+
+Path proof status:
+
+| Path | Represents | Current proof | Known risks |
+| --- | --- | --- | --- |
+| A. Brave `brave_llm_context` | direct paid API with LLM-oriented context | runtime baseline proven | paid foreign provider; vectorized retrieval path not accepted |
+| B. Yandex `yandex` | RU direct API path | owner/operator-confirmed via Admin UI/native smoke | metadata-forwarding, cost mode and privacy review remain to be completed |
+| C. Private SearXNG | private meta-search candidate gateway | native smoke passed in snippet/bypass mode | upstream CAPTCHA/rate-limit, ops burden, private boundary only |
+
+Current Path A baseline on 2026-06-23:
+
+- result count `3`;
+- search concurrency `1`;
+- web loader bypass enabled;
+- web-search embedding/retrieval bypass enabled;
+- Code Interpreter not enabled by default for the selected smoke model.
+
+Do not compare SearXNG against the broken vectorized Brave retrieval path. The
+comparison should use the current working Brave direct-context baseline unless a
+separate fix proves vectorized web-search retrieval.
+
+The vectorized retrieval path is a deferred known issue, not part of the
+candidate-set comparison. Bring it back only if the next scope needs long pages,
+classic `brave`, SearXNG page loading, or full RAG over fetched content.
 
 ## 6. Query Set
 
-Use the same live-safe queries for Brave and SearXNG.
+Use the same live-safe queries for Brave, Yandex and private SearXNG unless a
+provider-specific policy gate blocks a query.
 
 RU ordinary:
 
@@ -147,6 +176,7 @@ For each query/provider:
 - whether raw result appeared in logs;
 - whether provider key or internal endpoint leaked to browser;
 - Brave request cost estimate;
+- Yandex request/cost-mode note;
 - SearXNG infra/ops note;
 - human evaluator notes.
 
@@ -194,6 +224,7 @@ Operational fit:
 Brave remains primary if:
 
 - SearXNG quality is weaker or unstable;
+- Yandex is useful mainly for RU queries but not a better default;
 - SearXNG has CAPTCHA/rate-limit issues;
 - SearXNG ops burden outweighs no-direct-paid-API benefit;
 - Brave source visibility and latency are clearly better.
@@ -217,12 +248,19 @@ SearXNG should not become primary if:
 - source attribution is poor;
 - raw sensitive queries appear in logs.
 
+Yandex can become the preferred RU path if:
+
+- RU source quality is better than Brave/SearXNG;
+- metadata-forwarding behavior is accepted;
+- cost mode is understood and approved;
+- source cards and browser-secret checks pass.
+
 ## 10. Output Report Template
 
 After runtime comparison, produce:
 
 ```text
-docs/reports/YYYY-MM-DD/OPENWEBUI_WEB_SEARCH_BRAVE_VS_SEARXNG_COMPARISON.report.md
+docs/reports/YYYY-MM-DD/OPENWEBUI_WEB_SEARCH_THREE_PATH_COMPARISON.report.md
 ```
 
 The report must include:
@@ -241,8 +279,9 @@ The report must include:
 
 Allowed final recommendations:
 
-- `brave_primary_searxng_secondary`
-- `searxng_viable_self_host_meta_search_alternative`
-- `searxng_not_viable_for_pilot`
-- `need_more_runtime_evidence`
-- `yandex_should_be_evaluated_next`
+- `brave_primary_yandex_ru_searxng_deferred`
+- `brave_primary_yandex_ru_searxng_fallback`
+- `yandex_ru_candidate_brave_secondary`
+- `searxng_viable_but_requires_tuning`
+- `searxng_not_worth_ops_burden`
+- `need_more_comparison_evidence`

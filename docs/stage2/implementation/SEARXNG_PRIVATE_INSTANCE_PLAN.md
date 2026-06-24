@@ -1,6 +1,9 @@
 ﻿# SearXNG Private Instance Plan
 
-Status: ready for local/stage runtime smoke, not selected as primary provider.
+Status: runtime smoke passed in snippet/bypass mode on 2026-06-23; ready for
+three-path comparison. If OpenWebUI Admin UI selects `searxng` as the active
+Web Search engine, `searxng` and `searxng-valkey` are always-on internal
+runtime dependencies.
 
 ## 1. Purpose
 
@@ -60,6 +63,14 @@ docker compose --env-file .env \
   -f compose/searxng.private.compose.yml up -d
 ```
 
+Always-on mode:
+
+- `searxng` and `searxng-valkey` have `restart: unless-stopped`;
+- keep both services running while OpenWebUI Admin UI uses
+  `WEB_SEARCH_ENGINE=searxng`;
+- do not use `docker compose stop searxng searxng-valkey` unless the WebGUI
+  provider has first been changed away from `searxng`.
+
 Optional local-only debug port:
 
 ```bash
@@ -90,8 +101,14 @@ Do not use it for public exposure.
 
 `deploy/searxng/limiter.toml`:
 
-- enables `link_token` for IP limit bot-detection flow;
-- keeps block/pass lists empty until runtime evidence requires changes.
+- keeps the limiter enabled;
+- sets `link_token=false` for the private runtime path;
+- passlists loopback and private Docker CIDR ranges for internal smoke;
+- keeps `block_ip` empty.
+
+The runtime smoke showed that the default limiter behavior could return `429`
+for private internal JSON requests. The accepted stage fix is a private
+Docker-network passlist, not public exposure and not a global limiter disable.
 
 Server-local `.env` must provide a generated `SEARXNG_SECRET`. The committed
 `.env.example` contains only a placeholder. Official SearXNG container docs
@@ -111,10 +128,28 @@ Config names only; values belong in server-local `.env` or Admin UI:
 - `WEB_SEARCH_TRUST_ENV=true` if the deployment uses proxy env for page fetch;
 - `BYPASS_WEB_SEARCH_WEB_LOADER=false` for first source-card smoke unless
   latency/fetch failures require a snippet-only comparison.
+- Runtime smoke passed with `BYPASS_WEB_SEARCH_WEB_LOADER=true` and
+  `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true`; this proves the candidate
+  set/snippet path, not full page loading.
+
+OpenWebUI WebGUI value for **Settings -> Web Search -> Searxng request URL**:
+
+```text
+http://searxng:8080/search?q=<query>
+```
+
+Keep the `<query>` placeholder literal. OpenWebUI strips the legacy query string
+and sends native SearXNG parameters such as `q`, `format=json`, `pageno`,
+`safesearch` and `language`.
 
 `OPENWEBUI_NO_PROXY` must include `searxng`, `searxng:8080` and
 `searxng-valkey` so OpenWebUI does not try to reach the private SearXNG service
 through an outbound proxy.
+
+If the running OpenWebUI container predates the SearXNG overlay/env contract,
+recreate it through the native compose overlay so `NO_PROXY` is actually present
+inside the container. Without that, OpenWebUI may route `http://searxng:8080`
+through the outbound proxy and fail.
 
 ## 6. Smoke Tests
 
@@ -138,6 +173,15 @@ Expected:
 - `results` is present;
 - result count is non-zero for safe public queries.
 
+2026-06-23 stage result:
+
+- SearXNG `/healthz` returned `200`;
+- direct JSON returned valid JSON with non-zero results;
+- OpenWebUI-to-SearXNG internal JSON returned non-zero results after
+  `NO_PROXY` was applied;
+- six safe RU/EN OpenWebUI native searches returned `200` with source items in
+  snippet/bypass mode.
+
 OpenWebUI native smoke:
 
 - Admin UI shows Web Search settings.
@@ -156,6 +200,45 @@ OpenWebUI native smoke:
 
 Forbidden examples must only be used for policy/UX validation and must not be
 sent to external upstream engines without a policy gate.
+
+SSH troubleshooting when WebGUI shows `An error occurred while searching the web`:
+
+```bash
+ssh <stage-target>
+cd <openwebui-deploy-dir>
+
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml ps openwebui searxng searxng-valkey
+```
+
+Expected:
+
+- `openwebui` is `Up` and `healthy`;
+- `searxng` is `Up` and `healthy`;
+- `searxng-valkey` is `Up`.
+
+If `searxng` or `searxng-valkey` is stopped while WebGUI still uses
+`searxng`, start them through the native overlay:
+
+```bash
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml up -d searxng searxng-valkey
+```
+
+Then verify internal connectivity from OpenWebUI:
+
+```bash
+docker exec -i openwebui python - <<'PY'
+import json, urllib.request
+url = "http://searxng:8080/search?q=OpenWebUI&format=json"
+data = json.load(urllib.request.urlopen(url, timeout=20))
+print(len(data.get("results", [])))
+PY
+```
+
+The command should print a non-zero result count for a normal public query.
 
 ## 7. Security And Privacy Notes
 
@@ -192,7 +275,8 @@ Fast rollback to primary paid path:
 1. Disable Web Search or change `WEB_SEARCH_ENGINE` back to the approved paid
    provider.
 2. Remove `compose/searxng.private.compose.yml` from the runtime command.
-3. Stop SearXNG services:
+3. Only after the WebGUI provider is no longer `searxng`, stop SearXNG
+   services:
 
 ```bash
 docker compose --env-file .env \
@@ -214,8 +298,9 @@ docker compose --env-file .env \
 - HTML/parser drift and public API rate limits can affect candidate quality.
 - If SearXNG is configured to use only Brave API, it becomes Brave-through-proxy
   and loses most comparison value.
-- JSON API success does not prove OpenWebUI source attribution or model usage;
-  native OpenWebUI smoke is still required.
+- JSON API success alone does not prove full OpenWebUI answer quality. Native
+  OpenWebUI snippet/bypass smoke has passed, but full page loading and
+  vectorized retrieval remain separate known issues.
 - This plan does not create a sidecar, custom gateway, OpenAPI Tool Server or
   separate GUI.
 

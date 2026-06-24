@@ -120,6 +120,67 @@ When the private SearXNG overlay is enabled, `OPENWEBUI_NO_PROXY` must include
 `searxng`, `searxng:8080` and `searxng-valkey`; otherwise OpenWebUI may try to
 reach the internal SearXNG service through the outbound proxy.
 
+If OpenWebUI was already running before these no-proxy entries were added,
+restart/recreate the container through the native compose overlay. The
+2026-06-23 SearXNG smoke showed that the old container without these entries
+could route `http://searxng:8080` through the outbound proxy and fail.
+
+## Stage 2 Web Search / Brave runtime baseline
+
+Current working Brave smoke baseline on the deployed OpenWebUI instance:
+
+```env
+ENABLE_WEB_SEARCH=true
+WEB_SEARCH_ENGINE=brave_llm_context
+WEB_SEARCH_RESULT_COUNT=3
+WEB_SEARCH_CONCURRENT_REQUESTS=1
+WEB_LOADER_CONCURRENT_REQUESTS=2
+WEB_SEARCH_TRUST_ENV=true
+BYPASS_WEB_SEARCH_WEB_LOADER=true
+BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true
+BRAVE_SEARCH_API_KEY=<server-local-or-admin-ui-only>
+BRAVE_SEARCH_CONTEXT_TOKENS=8192
+```
+
+Notes:
+
+- Do not commit a real `BRAVE_SEARCH_API_KEY`.
+- For `brave_llm_context`, the web loader and web-search embedding/retrieval
+  bypasses are intentional. Brave already returns LLM-oriented passages.
+- The vectorized `web-search-*` retrieval path is a known issue until it is
+  separately fixed and proven. Keep it deferred unless long page loading,
+  classic `brave`, SearXNG page loading, or full RAG over fetched content is in
+  scope.
+- Code Interpreter should not be enabled by default for the selected Web Search
+  smoke model; otherwise the model may choose browser Pyodide instead of native
+  Web Search context.
+
+## Stage 2 Web Search / Yandex Search API
+
+Yandex Search API is configured through OpenWebUI Admin UI on the deployed
+instance and passed an operator/native smoke on 2026-06-23. Treat it as a
+working RU-provider path, not merely a research candidate.
+
+The local `.env` section is allowed as an operator notebook for variable names
+and server-local values. Do not commit real keys. For runtime changes, prefer
+OpenWebUI Admin UI when practical because OpenWebUI `ConfigVar` values may
+override env after first initialization.
+
+```env
+YANDEX_WEB_SEARCH_API_KEY=<server-local-or-admin-ui-only>
+YANDEX_WEB_SEARCH_URL=https://searchapi.api.cloud.yandex.net/v2/web/search
+YANDEX_WEB_SEARCH_CONFIG=
+```
+
+Notes:
+
+- Do not commit a real `YANDEX_WEB_SEARCH_API_KEY`.
+- Prefer OpenWebUI Admin UI for operator-managed runtime keys when practical.
+- Keep broad rollout gated by allowed data classes, query minimization,
+  metadata-forwarding review and cost-mode acceptance.
+- Do not enable generative/expensive Yandex search modes unless separately
+  approved.
+
 ## Stage 2 Web Search / Private SearXNG
 
 These variables are used only with
@@ -156,6 +217,16 @@ Notes:
 - `SEARXNG_DEBUG_BIND` must stay local-only unless owner/security explicitly
   approves another exposure model.
 - Public SearXNG instances are not acceptable for corporate acceptance.
+- Runtime smoke passed on 2026-06-23 in native OpenWebUI snippet/bypass mode.
+  It did not prove full page loading or vectorized retrieval.
+- OpenWebUI WebGUI SearXNG request URL must be exactly
+  `http://searxng:8080/search?q=<query>` when the provider is `searxng`.
+- `searxng` and `searxng-valkey` must stay running while WebGUI provider is
+  `searxng`; both services use `restart: unless-stopped` in the private
+  overlay.
+- `deploy/searxng/limiter.toml` uses `link_token=false` plus loopback/private
+  Docker CIDR passlist for the private stage topology. Keep the limiter enabled
+  and do not expose SearXNG publicly.
 
 ## Provider endpoints
 

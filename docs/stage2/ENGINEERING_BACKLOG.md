@@ -70,6 +70,23 @@ Status: implemented/proven/current-stage closed; ready for broader testing.
 Sticky instruction: do not re-plan STT from zero, do not fork OpenWebUI without
 proven necessity, and do not treat the sidecar as a user-facing GUI.
 
+### Native mobile microphone dictation issue
+
+Domain: Transcription / STT / OpenWebUI native microphone UX
+Source:
+[OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md](../reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md)
+Why: On mobile, native chat microphone dictation can show the recording
+waveform but produce no audio transcription and stop after about five seconds.
+The current live config uses `audio.stt.engine = web`, so this path is browser
+Web Speech API dictation, separate from the Stage 2 attachment `Transcribe`
+Action/sidecar path.
+Output: mobile browser event/network trace for `SpeechRecognition`
+(`onstart`, `onresult`, `onerror`, `onend`) and a product decision: either keep
+Web API microphone as desktop/convenience only with explicit mobile feedback, or
+route mobile microphone recordings through server-side STT.
+Depends on: real failing mobile device/browser trace.
+Status: known runtime issue; diagnostic audit complete; no code fix selected.
+
 ## Ready for ADR
 
 ### Contract boundaries and domain isolation
@@ -133,10 +150,33 @@ Status: ready for ADR after data policy draft
 Domain: Web-search
 Source: WEB_SEARCH_PROVIDERS_RESEARCH, existing infra web-search research
 Why: Web-search нужен всем, но provider choice affects cost/privacy and Russian-provider stance.
-Output: provider ADR: Brave first pilot vs Yandex Search API vs self-hosted/external, with limits
-and prohibited-query examples.
+Output: provider ADR/runtime status covering Brave first pilot, Yandex Search
+as a working RU-provider path after Admin UI/native smoke, and
+self-hosted/external comparison options, with limits and prohibited-query
+examples.
 Depends on: data policy, customer privacy/cost approval, smoke queries
-Status: ready for ADR after data policy draft
+Status: Brave and Yandex native smokes passed; rollout governance still open
+data policy, customer privacy/cost approval and group scope.
+
+### Vectorized Web Search retrieval path
+
+Domain: Web-search / retrieval / page loading
+Source:
+[OPENWEBUI_WEB_SEARCH_BRAVE_RUNTIME_BASELINE.report.md](../reports/2026-06-23/OPENWEBUI_WEB_SEARCH_BRAVE_RUNTIME_BASELINE.report.md),
+[WEB_SEARCH_CONTEXT_INDEX.md](WEB_SEARCH_CONTEXT_INDEX.md)
+Why: Runtime diagnostics showed that OpenWebUI can create `web-search-*`
+collections from search results, but follow-up vectorized retrieval can return
+`0` sources after successful search and embedding. The current working Brave
+baseline bypasses this extra path and passes `brave_llm_context` evidence
+directly to the LLM.
+Output: focused fix/proof for
+`search -> web-search-* vector collection -> retrieval sources -> LLM context`,
+including collection ownership/session scope, chunk metadata, source retrieval
+query, and visible source attribution.
+Depends on: a real product need for long page loading, classic `brave`, SearXNG
+page loading, or full RAG over fetched content.
+Status: known deferred runtime issue; do not block the current Brave
+`brave_llm_context` baseline or SearXNG candidate-set comparison on it.
 
 ### Manager visibility policy
 
@@ -246,10 +286,13 @@ Status: ready for runtime proof
 
 Domain: Web-search
 Source: WEB_SEARCH_PROVIDERS_RESEARCH, ADR-0007
-Why: Web-search for all users requires provider, result count, concurrency and cost proof.
-Output: smoke results for approved Russian/English queries and documented gaps.
+Why: Web-search for all users requires provider, result count, concurrency and
+cost proof.
+Output: smoke results for approved Russian/English queries, including current
+Brave baseline and Yandex RU-provider path, plus documented gaps.
 Depends on: ADR-0007, provider account/key path, allowed query examples
-Status: ready after ADR and provider approval
+Status: Brave and Yandex admin/manual smokes passed; EN matrix, permission
+scope, logging/retention and cost visibility still need rollout proof.
 
 ### STT proxy smoke proof / hardening data
 

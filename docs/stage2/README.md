@@ -82,6 +82,7 @@ provider setup, usage analytics and web-search.
 | [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md) | Reusable pattern for adding OpenWebUI-facing features without defaulting to a fork. |
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
+| [proposals/](proposals/) | Customer-facing proposals for agreeing the next Stage 2 direction. |
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |
 | [research/](research/) | Research findings, источники, blockers и next steps. |
@@ -159,6 +160,11 @@ Current implementation baseline, 2026-06-19:
 - Native OpenWebUI Web API microphone dictation is patched through a pinned
   OpenWebUI image layer; Stage 2 static loader no longer post-processes native
   microphone input.
+- Known issue as of 2026-06-23: native mobile microphone dictation can show the
+  recording waveform but produce no audio transcription and stop after about
+  five seconds. This is tracked as native Web Speech API/mobile hardening, not
+  as a `stage2-stt` sidecar failure. See
+  [OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md](../reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md).
 - Prepared MP3, MP4 with audio and WebM generated proof media pass through the
   Action/sidecar path; unsupported/decode-failed and no-audio media fail safely
   before provider handoff.
@@ -178,6 +184,8 @@ Read next:
   [OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md](../reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md).
 - Review native Web STT recorder patch report:
   [OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md](../reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md).
+- Review mobile native microphone STT issue audit:
+  [OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md](../reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md).
 - Reuse the extension-first pattern for future OpenWebUI-facing features:
   [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md).
 - Review latest ADR-0004 Lemonfox capabilities/runtime limits report:
@@ -217,7 +225,8 @@ Current implementation:
 Finding:
 
 - Brave `brave_llm_context` is best first pilot if foreign provider is allowed.
-- Yandex Search API is Russian-provider candidate.
+- Yandex Search API is a working Russian-provider path after 2026-06-23 Admin
+  UI/native smoke; rollout still needs policy/cost approval.
 
 Next action:
 

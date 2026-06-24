@@ -101,6 +101,11 @@
 - Ожидаемый result count для первого smoke: `3`, если owner не утвердит другое.
 - Ожидаемая search concurrency для первого smoke: `1`, если owner не утвердит
   другое.
+- For the current Brave `brave_llm_context` baseline:
+  - web loader bypass must be enabled;
+  - web-search embedding/retrieval bypass must be enabled;
+  - Code Interpreter must not be enabled by default for the selected Web Search
+    smoke model.
 - Требования к источникам/цитированию:
   - title;
   - URL;
@@ -120,12 +125,12 @@
   - confirmation that public SearXNG instances are not used;
   - confirmation that SearXNG is internal-only or debug-local-only;
   - confirmation that upstream query leakage is accepted by owner.
-- Brave vs SearXNG comparison matrix:
-  - same RU ordinary queries for both paths;
-  - same EN ordinary queries for both paths;
-  - same freshness-sensitive queries for both paths;
-  - same conflicting-source queries for both paths;
-  - same no-sufficient-evidence queries for both paths;
+- Brave / Yandex / SearXNG comparison matrix:
+  - same RU ordinary queries for all allowed paths;
+  - same EN ordinary queries for all allowed paths;
+  - same freshness-sensitive queries for all allowed paths;
+  - same conflicting-source queries for all allowed paths;
+  - same no-sufficient-evidence queries for all allowed paths;
   - candidate set capture for each provider/path;
   - final answer capture for each provider/path;
   - source visibility and loaded-evidence notes;

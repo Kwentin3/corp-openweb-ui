@@ -209,6 +209,12 @@ Native microphone note:
   accumulator bug. That is not the Stage 2 media attachment STT path. Treat it
   as native recorder maintenance unless the user explicitly asks about the
   microphone route.
+- Known issue as of 2026-06-23: on mobile, native microphone dictation can show
+  the recording waveform but produce no audio transcription and stop after about
+  five seconds. Current evidence points to browser Web Speech API/mobile
+  recognition behavior under `audio.stt.engine = web`, not to the `stage2-stt`
+  sidecar. See
+  `docs/reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md`.
 
 ## 7. Current limitations / hardening backlog
 
@@ -385,10 +391,15 @@ Pitfalls:
   disappear when durable storage is configured and healthy.
 - Native OpenWebUI microphone dictation is a separate path from attachment
   Transcribe.
+- Native mobile microphone dictation currently has a known issue: waveform is
+  visible, but audio transcription is not produced and recording stops after
+  about five seconds; keep it separate from attachment `Transcribe` sidecar
+  status.
 
 Hardening backlog:
 mobile/large/low-memory media, practical >100 MB behavior, browser ffmpeg
-cancel, upload/job cancel and late-result cleanup, duration policy,
+cancel, native mobile microphone Web Speech API trace/fallback, upload/job
+cancel and late-result cleanup, duration policy,
 storage/retention/cleanup, durable job store if needed, permissions/groups,
 transcript history/export/workflow, monitoring/logging/usage/cost events, Opus
 proof if promoted, ffmpeg asset cache/rollback/versioning, OpenWebUI image

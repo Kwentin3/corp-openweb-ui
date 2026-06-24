@@ -1,9 +1,13 @@
 ﻿# Web Search Context Index
 
-Status: native-first pilot preparation, provider not yet approved.
+Status: provider connectivity baseline proven on 2026-06-23 for Brave, Yandex
+and private SearXNG; production rollout and full provider comparison remain
+pending.
 
-Operational source of truth for this work is local `main / origin/main` at
-`be49bbdbcab56a50e7d88a80e22a78073740b8ca`.
+Operational source of truth for this work is local `main / origin/main`; the
+last committed baseline before this runtime refine is
+`7d0e02c24808f3501e7c92b0ce48fcee646aa393`. Live runtime settings were verified
+on 2026-06-23 on the deployed OpenWebUI container.
 
 ## Current Position
 
@@ -11,8 +15,13 @@ Operational source of truth for this work is local `main / origin/main` at
 - The first implementation slice must use native OpenWebUI Web Search unless
   runtime smoke proves a concrete privacy, cost, UX, security or runtime gap.
 - No sidecar, fork or custom search gateway is approved for the first slice.
-- Provider choice, budget, data-egress policy and runtime credentials remain
-  owner decisions.
+- Brave `brave_llm_context` is the current direct-context native baseline.
+- Yandex Search API is the working RU direct API path, operator-confirmed
+  through Admin UI/native smoke.
+- Private SearXNG is a working private native meta-search comparison path in
+  snippet/bypass mode, not the primary provider.
+- Budget, data-egress policy, retention and group rollout remain owner
+  decisions.
 
 ## Read First
 
@@ -29,6 +38,10 @@ Operational source of truth for this work is local `main / origin/main` at
 
 ## Runtime Evidence
 
+- [Brave runtime baseline report](../reports/2026-06-23/OPENWEBUI_WEB_SEARCH_BRAVE_RUNTIME_BASELINE.report.md)
+- [Yandex runtime baseline report](../reports/2026-06-23/OPENWEBUI_WEB_SEARCH_YANDEX_RUNTIME_BASELINE.report.md)
+- [SearXNG runtime smoke report](../reports/2026-06-23/OPENWEBUI_SEARXNG_RUNTIME_SMOKE.report.md)
+- [Provider baseline closeout report](../reports/2026-06-23/OPENWEBUI_WEB_SEARCH_PROVIDER_BASELINE_CLOSEOUT.report.md)
 - [Context recon report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_CONTEXT_RECON.report.md)
 - [Runtime probe report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_RUNTIME_PROBE.report.md)
 - [Domain and probe final report](../reports/2026-06-20/OPENWEBUI_WEB_SEARCH_DOMAIN_AND_PROBE.report.md)
@@ -52,16 +65,45 @@ Minimum pilot acceptance:
   default;
 - native analytics/cost visibility is proven or the gap is explicitly accepted.
 
+Current Brave baseline status:
+
+- safe RU smoke passed on the deployed OpenWebUI instance with visible search
+  results and a grounded answer;
+- provider key values were not printed into docs or diagnostic output;
+- group permission, EN matrix, logging-retention and cost-visibility checks
+  remain pending before all-user rollout.
+
+Current provider baseline status:
+
+- Brave `brave_llm_context`: native direct-context baseline proven.
+- Yandex Search API: native RU direct API path works by owner/operator
+  confirmation; full smoke evidence remains pending unless separately captured.
+- Private SearXNG: native private meta-search path proven in snippet/bypass
+  mode; ready for Brave/Yandex/SearXNG candidate-set comparison.
+
 ## Active Decisions
 
-- Default recommendation: Brave `brave_llm_context` for the first paid API
-  smoke if foreign provider and budget are approved.
+- Current working baseline: Brave `brave_llm_context` as the first paid native
+  Web Search path.
+- Runtime config baseline: result count `3`, search concurrency `1`, web loader
+  bypass enabled, web-search embedding/retrieval bypass enabled.
+- Known deferred issue: the vectorized Web Search path
+  `search -> web-search-* vector collection -> retrieval sources` can return
+  `0` sources after successful search and embedding. Do not fix it in the main
+  Brave direct-context baseline; revisit it when a product scenario needs long
+  page loading, classic `brave`, SearXNG page loading, or full RAG over fetched
+  content.
+- Code Interpreter must not be enabled by default for Web Search smoke on the
+  selected model; otherwise the model can choose browser Pyodide instead of
+  native Web Search context.
 - Self-hosted meta-search comparison track: private SearXNG, with explicit
   warning that upstream engines still see queries.
-- Private SearXNG has an optional compose/config plan, but remains a comparison
-  track unless owner promotes it over Brave.
-- RU-provider candidate: Yandex Search API, only after privacy review of
-  user-info/chat-id forwarding and cost mode.
+- Private SearXNG runtime smoke passed in snippet/bypass mode. It remains a
+  comparison track unless owner promotes it after quality, privacy, logging and
+  ops evidence.
+- Working RU-provider path: Yandex Search API passed Admin UI/native smoke on
+  2026-06-23. Keep broad rollout gated by user-info/chat-id forwarding review,
+  allowed data classes and cost mode.
 - Defer provider setup if owner cannot approve provider, budget, data classes,
   retention or group scope.
 
@@ -77,9 +119,9 @@ Minimum pilot acceptance:
 - OpenWebUI loader/extraction prepares context/evidence where enabled.
 - The LLM writes the answer and should show sources or say evidence is
   insufficient.
-- The Brave vs SearXNG comparison checks whether SearXNG candidates are good
-  enough for useful grounded answers, not whether SearXNG can stand in for
-  Brave or Yandex as an index-owning provider.
+- The Brave/Yandex/SearXNG comparison checks candidate quality, latency,
+  source visibility, privacy/logging and ops cost. It does not claim SearXNG can
+  stand in for Brave or Yandex as an index-owning provider.
 
 ## Conceptual Model: Candidate Discovery vs Answer Generation
 
@@ -114,15 +156,39 @@ Comparison model:
 
 - Path A: native OpenWebUI -> Brave `brave_llm_context` -> paid
   LLM-oriented candidate/context -> LLM answer.
-- Path B: native OpenWebUI -> private SearXNG -> enabled upstream engines /
-  public sources -> normalized candidate set -> OpenWebUI loader -> LLM answer.
-- Path C later: native OpenWebUI -> Yandex Search API -> candidate set -> LLM
-  answer, only after privacy/data-egress review.
+- Path B: native OpenWebUI -> Yandex Search API -> candidate set -> LLM
+  answer. Operator/native smoke passed on 2026-06-23; production rollout still
+  needs policy/cost/metadata approval.
+- Path C: native OpenWebUI -> private SearXNG -> enabled upstream engines /
+  public sources -> normalized candidate set -> OpenWebUI snippet/bypass path
+  -> LLM answer. Runtime smoke passed on 2026-06-23; full page loading and
+  vectorized retrieval are not proven.
+
+## Explicitly Not Proven Yet
+
+- production rollout;
+- ordinary-user allow/deny permissions;
+- full EN/RU comparative matrix;
+- cost visibility and budget guardrails;
+- logging/retention policy;
+- full page loading;
+- vectorized `web-search-*` retrieval;
+- Yandex privacy/data-egress and metadata-forwarding review;
+- SearXNG as primary provider.
+
+## Recommended Next Tasks
+
+1. Run the three-path comparison: Brave / Yandex / private SearXNG.
+2. Close rollout policy gates: pilot group, permission allow/deny, forbidden
+   query handling, logs/retention and cost visibility.
+3. Tune SearXNG only if comparison shows enough value: engine allowlist, RU
+   quality, CAPTCHA/rate-limit handling and image pinning.
+4. Keep vectorized retrieval and long-page loading as a separate future known
+   issue.
 
 ## Open Questions For Owner
 
-- Which provider is approved for the first smoke: Brave, private SearXNG,
-  Yandex, or defer?
+- Which groups receive the proven Brave baseline first?
 - Are foreign search providers allowed for ordinary non-sensitive business
   queries?
 - Which data classes are forbidden for Web Search under all provider classes?

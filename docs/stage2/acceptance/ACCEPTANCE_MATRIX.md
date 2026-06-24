@@ -153,6 +153,10 @@ Status:
   cancel during ffmpeg, duration-limit policy, Opus provider/default proof if
   selected, production storage/retention, transcript history/export/workflow
   and multi-user/group permission hardening.
+- Known mobile native microphone issue: recording waveform may be visible while
+  audio transcription is not produced and recording stops after about five
+  seconds. This is native Web Speech API/mobile acceptance work and does not
+  reopen the attachment-level `Transcribe` Action/sidecar MVP proof.
 
 ## Broker reports / 3-НДФЛ draft analysis
 
@@ -217,21 +221,26 @@ Acceptance signal:
   recorded.
 - Russian/English safe smoke queries work.
 - Source links/cards are visible for grounded answers.
+- For the Brave `brave_llm_context` baseline, source evidence is passed to the
+  LLM directly with web-loader and web-search embedding/retrieval bypass enabled.
 - Quota, timeout, no-results and policy-blocked errors are visible.
 - Forbidden examples are documented.
 - Analytics/cost visibility path is documented or the native gap is explicitly
   accepted.
-- If private SearXNG is used, JSON API returns valid JSON and the instance is
+- Private SearXNG JSON/native snippet smoke has passed and the instance remains
   internal-only by default.
 - If private SearXNG is used, upstream-engine query leakage is documented and
   accepted by owner.
-- Brave and SearXNG comparison uses the same query set.
+- Brave, Yandex and SearXNG comparison uses the same query set where policy
+  allows it.
 - Candidate set is captured before final answer generation.
 - Final answer is captured separately from the candidate set.
 - Candidate source, loaded/extracted source and evidence used in answer are
   distinguished where native OpenWebUI evidence allows it.
 - SearXNG is not promoted from comparison track until candidate quality,
   answer groundedness, latency, source visibility and log/privacy evidence pass.
+- If Yandex Search is offered beyond admin/manual testing, Yandex
+  metadata-forwarding, allowed data classes and cost mode are approved.
 
 Test data needed:
 
@@ -243,19 +252,43 @@ Test data needed:
 - 2 no-sufficient-evidence examples.
 - Expected source/citation behavior.
 - Provider key through approved secret path only.
-- For SearXNG: direct JSON API smoke query and allowed upstream engine list.
-- Brave vs SearXNG comparison query matrix.
+- For SearXNG: direct JSON API smoke query, native snippet/bypass smoke result
+  and allowed upstream engine list.
+- Brave / Yandex / SearXNG comparison query matrix.
+- For Yandex: safe RU smoke query, approved `YANDEX_WEB_SEARCH_CONFIG` mode and
+  metadata-forwarding decision.
 - Candidate-set capture format: URL, title, snippet, source engine/provider,
   rank/score and freshness metadata where available.
 
 Status:
 
-- Documentation domain ready.
-- Provider ADR proposed for owner review.
-- Private SearXNG compose/config plan ready for runtime smoke as a comparison
-  track.
-- Runtime live probe blocked by missing deployed/staging access, provider
-  credentials and owner provider approval.
+- Brave `brave_llm_context` native smoke baseline passed on the deployed
+  OpenWebUI instance on 2026-06-23.
+- Yandex Search Admin UI/native smoke passed on the deployed OpenWebUI instance
+  on 2026-06-23; treat it as a working RU-provider path, still policy-gated for
+  broader rollout.
+- Private SearXNG native provider smoke passed on the deployed OpenWebUI
+  instance on 2026-06-23 in snippet/bypass mode; treat it as a comparison path,
+  not primary.
+- Working baseline: result count `3`, search concurrency `1`,
+  `BYPASS_WEB_SEARCH_WEB_LOADER=true`,
+  `BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true`, Code Interpreter not enabled
+  by default for the selected Web Search smoke model.
+- Vectorized web-search retrieval path is a known issue: OpenWebUI can create
+  `web-search-*` collections from Brave results, but the follow-up retrieval
+  path returned `0` sources in runtime diagnostics. Do not treat that path as
+  accepted until separately fixed and proven. Defer the fix until a product
+  scenario needs long page loading, classic `brave`, SearXNG page loading, or
+  full RAG over fetched content.
+- Provider ADR should be updated from first-smoke selection to pilot rollout
+  governance.
+- Private SearXNG is ready for three-path comparison. Full page loading and
+  vectorized retrieval remain unproven.
+- Known SearXNG runtime caveats: upstream DuckDuckGo CAPTCHA and
+  Brave-through-SearXNG rate-limit noise were observed during smoke.
+- Pending before rollout beyond admin/manual smoke: approved group scope,
+  permission checks, EN matrix, forbidden-query policy checks, logging/retention
+  proof and cost visibility.
 
 ## PDF/DOCX/XLSX basic handling and OCR pilot
 

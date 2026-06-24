@@ -11,6 +11,11 @@ Status: researched from official OpenWebUI, Brave and Yandex Search API docs on 
 
 Result type: provider decision input. No provider key or live query was used.
 
+Runtime note: this research was followed by 2026-06-23 deployed-instance smoke
+tests. Brave `brave_llm_context` became the first working native baseline.
+Yandex Search was also configured through OpenWebUI Admin UI and passed
+operator/native smoke as a working RU-provider path.
+
 ## 3. Findings
 
 - OpenWebUI has native Web Search and provider-specific engines.
@@ -29,8 +34,9 @@ Result type: provider decision input. No provider key or live query was used.
 - Yandex Search API pricing is materially different by mode: daytime synchronous search is about $4
   per 1,000 requests; deferred search is much cheaper; generative response is much more expensive.
   Quotas include 10 synchronous requests/sec and 1 generative response/sec by default.
-- Yandex Search API is a real Russian provider candidate, but it may require more integration work
-  and billing/procurement setup than Brave.
+- Yandex Search API is a real Russian provider path. The 2026-06-23 Admin
+  UI/native smoke passed, but broader use still requires metadata-forwarding,
+  data-policy and cost-mode approval.
 
 ## 4. Recommendation
 
@@ -39,8 +45,9 @@ Preferred Stage 2 decision path:
 1. Use native OpenWebUI Web Search first.
 2. Select Brave `brave_llm_context` for the first pilot if foreign provider use is allowed and
    customer accepts pricing.
-3. Keep Yandex Search API as the Russian-provider candidate for a separate ADR/smoke if data
-   residency/procurement or Russian search quality is decisive.
+3. Keep Yandex Search API as the working Russian-provider path for controlled
+   follow-up after Admin UI/native smoke, with rollout gated by data policy,
+   metadata-forwarding and cost-mode decisions.
 4. Do not build a custom search gateway unless native providers fail smoke tests or source policy
    requires a controlled intermediary.
 
@@ -70,8 +77,9 @@ Risk:
 
 Fit:
 
-- Russian provider candidate.
+- Russian provider path.
 - Official OpenWebUI env exists.
+- Admin UI/native smoke passed on 2026-06-23.
 
 Risk:
 
@@ -117,4 +125,7 @@ Risk:
 
 ## 8. Status
 
-Research complete. Provider ADR required before setup.
+Research complete. Brave `brave_llm_context` is now proven as the first native
+smoke baseline. Yandex Search is also proven by Admin UI/native smoke as a
+working RU-provider path, with policy/cost/metadata approval still required
+before broader rollout. SearXNG comparison remains a separate follow-up track.

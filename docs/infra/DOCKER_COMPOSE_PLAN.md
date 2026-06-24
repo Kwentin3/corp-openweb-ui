@@ -34,6 +34,11 @@ Linux-container Docker host. The local Codex Windows Docker context used during
 planning did not provide Compose and reported `Server OS=windows`, so SearXNG
 runtime smoke must run on stage/server or a Linux-container Docker host.
 
+Stage runtime update 2026-06-23: private SearXNG smoke passed on the stage
+Linux Docker host in native OpenWebUI snippet/bypass mode. After operator
+selection of WebGUI provider `searxng`, `searxng` and `searxng-valkey` are
+treated as always-on internal runtime dependencies.
+
 Local-only SearXNG debug exposure:
 
 ```bash
@@ -71,6 +76,9 @@ it for public exposure.
 - image задается через `SEARXNG_IMAGE`;
 - default discovery tag is `docker.io/searxng/searxng:latest`;
 - production-like rollout must pin a reviewed SearXNG tag;
+- restart policy is `unless-stopped`;
+- keep running whenever OpenWebUI Admin UI selects Web Search engine
+  `searxng`;
 - no public port by default;
 - internal URL for OpenWebUI: `http://searxng:8080/search?q=<query>`;
 - config: `deploy/searxng/settings.yml`;
@@ -80,6 +88,9 @@ it for public exposure.
 
 - image задается через `SEARXNG_VALKEY_IMAGE`;
 - default tag `docker.io/valkey/valkey:8-alpine`;
+- restart policy is `unless-stopped`;
+- keep running whenever OpenWebUI Admin UI selects Web Search engine
+  `searxng`;
 - supports SearXNG limiter/bot-protection;
 - no public port.
 
@@ -133,6 +144,42 @@ Private SearXNG is a Stage 2 Web Search candidate, not PRD-0 scope and not the
 primary paid provider path. It is enabled only when the optional SearXNG compose
 overlay is included.
 
+OpenWebUI WebGUI value for the SearXNG request URL:
+
+```text
+http://searxng:8080/search?q=<query>
+```
+
+If WebGUI provider is `searxng`, both optional containers must be running.
+Check through SSH:
+
+```bash
+ssh <stage-target>
+cd <openwebui-deploy-dir>
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml ps openwebui searxng searxng-valkey
+```
+
+If `searxng` or `searxng-valkey` is stopped, recover with:
+
+```bash
+docker compose --env-file .env \
+  -f compose/openwebui.compose.yml \
+  -f compose/searxng.private.compose.yml up -d searxng searxng-valkey
+```
+
 SearXNG is private only as an instance boundary. Upstream engines may still
 receive minimized queries. Public SearXNG instances must not be used for
 corporate acceptance.
+
+Runtime notes from the successful smoke:
+
+- `deploy/searxng/limiter.toml` needs the private Docker passlist and
+  `link_token=false` for this stage topology.
+- OpenWebUI must run with `NO_PROXY` entries for `searxng`,
+  `searxng:8080` and `searxng-valkey`.
+- If the OpenWebUI container was started before those env values existed,
+  recreate it with the private overlay before testing SearXNG.
+- The private overlay did not publish SearXNG or Valkey host ports; the debug
+  overlay was not enabled.

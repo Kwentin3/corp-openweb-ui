@@ -15,6 +15,7 @@ Read first:
 
 Additional context:
 
+- [Customer Stage 2 Governance Proposal](proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
 - [Customer summary](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
 - [PRD-0 audit](../reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md)
 
@@ -101,6 +102,7 @@ Read first:
 - [OpenWebUI STT Frontend Media Action Patch Report](../reports/2026-06-19/OPENWEBUI_STT_FRONTEND_MEDIA_ACTION_PATCH.report.md)
 - [OpenWebUI STT Playwright UI Proof](../reports/2026-06-19/OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md)
 - [OpenWebUI-native STT UX Integration Research](../reports/2026-06-19/OPENWEBUI_NATIVE_STT_UX_INTEGRATION_RESEARCH.report.md)
+- [OpenWebUI mobile microphone STT anamnesis audit](../reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md)
 - [TRANSCRIPTION_STT](blueprints/TRANSCRIPTION_STT.blueprint.md)
 - [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
@@ -141,6 +143,10 @@ Comment:
   cancel during ffmpeg, duration-limit policy, Opus provider proof if selected,
   production storage/retention, transcript history/export/workflow and
   multi-user/group permission hardening.
+- Known issue as of 2026-06-23: native mobile microphone dictation can show the
+  recording waveform but produce no audio transcription and stop after about
+  five seconds. Track this as native Web Speech API/mobile hardening, not as a
+  `stage2-stt` sidecar failure.
 - Do not re-plan STT from zero and do not introduce a separate user-facing STT
   sidecar GUI for the MVP.
 
@@ -196,13 +202,23 @@ Skip unless needed:
 Comment:
 
 - Native OpenWebUI Web Search is the first path.
-- Brave `brave_llm_context` is the first-pilot candidate if foreign search and
-  budget are approved.
-- Private SearXNG is the self-hosted meta-search comparison track, not a
-  privacy guarantee, because upstream engines can still receive
-  minimized queries.
-- Yandex Search is the Russian-provider candidate after metadata-forwarding and
-  cost-mode review.
+- Brave `brave_llm_context` is the current working native direct-context
+  baseline.
+- The current Brave baseline uses result count `3`, search concurrency `1`,
+  web-loader bypass and web-search embedding/retrieval bypass.
+- Known deferred issue: vectorized Web Search retrieval can create
+  `web-search-*` collections after search/embedding but return `0` sources on
+  follow-up retrieval. Revisit only for long pages, classic `brave`, SearXNG
+  page loading or full RAG over fetched content.
+- Private SearXNG is the self-hosted meta-search comparison track. It gives a
+  private instance boundary, but upstream engines can still receive minimized
+  queries. Runtime smoke passed in snippet/bypass mode on 2026-06-23.
+- Yandex Search is a working Russian-provider path after 2026-06-23 Admin
+  UI/native smoke; broaden use only after metadata-forwarding, allowed data
+  class and cost-mode review.
+- Current closeout status: Brave, Yandex and private SearXNG provider
+  connectivity is proven; production rollout and full provider comparison are
+  pending.
 - No sidecar/fork/custom gateway until native runtime smoke proves a concrete
   gap.
 

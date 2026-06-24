@@ -74,9 +74,12 @@ Research findings актуализированы 2026-06-18. STT MVP current sta
 2026-06-19: private `stage2-stt` sidecar routes, OpenWebUI static `Transcribe`
 action, browser ffmpeg.wasm normalization and transcript return to OpenWebUI UX
 are implemented/proven. Оставшаяся STT работа - testing/hardening, not
-architectural discovery. Оставшиеся blockers по Stage 2 в целом: customer test
-data, provider/data policy decisions, ADR review/status and production
-hardening.
+architectural discovery. Known issue as of 2026-06-23: native mobile microphone
+dictation can show the recording waveform but produce no audio transcription and
+stop after about five seconds; this is native Web Speech API/mobile hardening,
+not a `stage2-stt` sidecar failure. Оставшиеся blockers по Stage 2 в целом:
+customer test data, provider/data policy decisions, ADR review/status and
+production hardening.
 
 Реализация Stage 2 должна начинаться с backend/server-side boundaries, policies
 и proofs; UI/frontend follows after backend contracts are clear.
@@ -115,6 +118,8 @@ approval.
   report](docs/reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md)
 - [Native Web STT recorder patch
   report](docs/reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md)
+- [Mobile microphone STT anamnesis audit
+  report](docs/reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
@@ -227,6 +232,14 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md](docs/infra/WEB_SEARCH_PROVIDER_RESEARCH.md)
 - Stage 2 Web Search context:
   [docs/stage2/WEB_SEARCH_CONTEXT_INDEX.md](docs/stage2/WEB_SEARCH_CONTEXT_INDEX.md)
+  - Current status: Brave `brave_llm_context` native smoke baseline proven on
+    2026-06-23; Yandex Search also passed Admin UI/native smoke on 2026-06-23
+    as a working RU-provider path; private SearXNG native smoke passed in
+    snippet/bypass mode and remains a comparison track.
+  - Known deferred issue: vectorized Web Search retrieval can return `0`
+    sources after successful search/embedding. Fix later only if we need long
+    page loading, classic `brave`, SearXNG page loading, or full RAG over
+    fetched content.
 - Deployment runbook: [docs/ops/DEPLOYMENT_RUNBOOK.md](docs/ops/DEPLOYMENT_RUNBOOK.md)
 - Docker bootstrap: [docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md](docs/ops/BOOTSTRAP_DOCKER_UBUNTU.md)
 - Host hardening runbook: [docs/ops/HOST_HARDENING_RUNBOOK.md](docs/ops/HOST_HARDENING_RUNBOOK.md)
