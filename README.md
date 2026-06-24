@@ -120,6 +120,8 @@ approval.
   report](docs/reports/2026-06-19/OPENWEBUI_NATIVE_WEB_STT_RECORDER_PATCH.report.md)
 - [Mobile microphone STT anamnesis audit
   report](docs/reports/2026-06-23/OPENWEBUI_MOBILE_MICROPHONE_STT_ANAMNESIS_AUDIT.report.md)
+- [Native OpenWebUI capability runtime audit
+  report](docs/reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md)
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
@@ -179,6 +181,8 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - Stage 2 STT backend implementation plan:
   [docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md](docs/stage2/implementation/STT_BACKEND_IMPLEMENTATION_PLAN.md)
+- Stage 2 native capability audit:
+  [docs/stage2/implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](docs/stage2/implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
 - Stage 2 research actualization report:
   [OPENWEBUI Stage 2 research actualization report][stage2-research-actualization-report]
 - ADR-0004 STT proxy boundary review report:

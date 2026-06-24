@@ -15,6 +15,8 @@ Read first:
 
 Additional context:
 
+- [OpenWebUI native capability audit](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
+- [OpenWebUI native capability runtime audit report](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md)
 - [Customer Stage 2 Governance Proposal](proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
 - [Customer summary](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
 - [PRD-0 audit](../reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md)
@@ -67,11 +69,13 @@ Comment:
 
 Read first:
 
+- [OPENWEBUI_NATIVE_CAPABILITY_AUDIT](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
 - [WORKSPACES_AND_RBAC](blueprints/WORKSPACES_AND_RBAC.blueprint.md)
 - [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
 
 Additional context:
 
+- [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT report](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md)
 - [OPENWEBUI_CAPABILITY_RESEARCH](research/OPENWEBUI_CAPABILITY_RESEARCH.md)
 - [RBAC_MANAGER_VISIBILITY_RESEARCH](research/RBAC_MANAGER_VISIBILITY_RESEARCH.md)
 - [ACCESS_POLICY](../security/ACCESS_POLICY.md)
@@ -82,7 +86,9 @@ Skip unless needed:
 
 Comment:
 
-- Research is done; runtime proof is still needed for the deployed version.
+- Research is done and public runtime version/health proof was captured on
+  2026-06-24. Admin/test-user proof is still needed for RBAC, model visibility,
+  prompts, knowledge, analytics, no-delete and manager visibility.
 
 ## Транскрибация
 

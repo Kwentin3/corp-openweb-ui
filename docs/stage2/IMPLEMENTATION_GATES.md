@@ -289,7 +289,8 @@ Related docs:
 
 Status:
 
-- blocked by runtime proof.
+- partially proven for public deployed version/health/static assets; blocked by
+  admin/test-user runtime proof.
 
 Owner:
 
@@ -297,10 +298,19 @@ Owner:
 
 Blocking items:
 
-- deployed/staging checks.
+- deployed/staging Admin UI checks;
+- RBAC/groups/model visibility matrix;
+- prompts/knowledge sharing proof;
+- analytics proof;
+- no-delete UI/API proof;
+- manager visibility proof;
+- Web Search permission proof;
+- safe synthetic file upload/extraction proof.
 
 Related docs:
 
+- [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md);
+- [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md);
 - Acceptance matrix;
 - Backlog.
 

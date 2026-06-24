@@ -84,6 +84,7 @@ provider setup, usage analytics and web-search.
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |
 | [proposals/](proposals/) | Customer-facing proposals for agreeing the next Stage 2 direction. |
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
+| [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md) | Native capability audit summary and scenario assembly guidance. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |
 | [research/](research/) | Research findings, источники, blockers и next steps. |
 | [decisions/](decisions/) | ADR-шаблон и будущие architecture decisions. |
@@ -138,10 +139,18 @@ Research выполнен по первичным источникам и лок
 Finding:
 
 - Native-first оправдан для RBAC/groups, shared resources, web-search, RAG/docs and analytics.
+- 2026-06-24 runtime audit confirmed deployed public version `0.9.6`, public
+  health endpoints, protected unauthenticated `/api/models`, and the served
+  Stage 2 STT static loader. Admin/test-user proof for RBAC, prompts,
+  knowledge, analytics, no-delete and manager visibility remains required.
 
 Next action:
 
 - Read-only Admin UI audit on deployed/staging v0.9.6.
+- Use the reusable native capability page:
+  [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md).
+- Full audit report:
+  [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md).
 
 ### Transcription / STT
 

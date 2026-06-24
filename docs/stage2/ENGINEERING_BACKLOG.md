@@ -233,11 +233,17 @@ Status: research artifact created; pilot candidate choice pending
 ### OpenWebUI native capability audit
 
 Domain: Workspaces / RBAC / analytics / files
-Source: OPENWEBUI_CAPABILITY_RESEARCH
-Why: Current docs may not match deployed v0.9.6.
-Output: capability proof report with exact Admin UI settings and user/group test results.
-Depends on: admin or staging access
-Status: ready for runtime proof
+Source: OPENWEBUI_CAPABILITY_RESEARCH,
+[OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md),
+[OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
+Why: Current docs may not match deployed v0.9.6, and Stage 2 needs a
+configuration-first proof path before implementation.
+Output: initial capability audit completed with public runtime proof and
+native-fit matrix. Remaining output is exact Admin UI settings and
+user/group test results.
+Depends on: admin or staging access for test-user proof
+Status: public runtime version/health/static proof captured on 2026-06-24;
+admin/test-user proof still required.
 
 ### OpenWebUI media attachment transcription action proof
 
