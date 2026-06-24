@@ -143,10 +143,11 @@ Finding:
   health endpoints, protected unauthenticated `/api/models`, and the served
   Stage 2 STT static loader. Admin/test-user proof for RBAC, prompts,
   knowledge, analytics, no-delete and manager visibility remains required.
-- 2026-06-24 Admin/Test-User proof attempt was blocked by missing approved
-  admin/staging access. A follow-up env recheck found
-  `WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD` absent from the current agent
-  execution context; the operator checklist is documented in
+- 2026-06-24 Admin/Test-User follow-up used approved local `.env` variable
+  names without printing values and proved authenticated admin API access.
+  The proof remains partial because `stage2-proof-*` actors/groups do not
+  exist and this run did not create users/resources on the deployed stand
+  without explicit operator approval. Details are in
   [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 Next action:
@@ -156,7 +157,7 @@ Next action:
   [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md).
 - Full audit report:
   [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md).
-- Admin/Test-User proof checklist:
+- Admin/Test-User proof report:
   [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 ### Transcription / STT

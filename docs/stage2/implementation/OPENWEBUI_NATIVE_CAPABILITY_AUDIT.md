@@ -105,17 +105,17 @@ Use this sequence for the first safe scenario proof.
 
 | Domain | Current classification | What is safe now | What remains |
 | --- | --- | --- | --- |
-| Workspaces / scenario setup | native-with-configuration | scenario skeletons and Admin UI proof | customer groups/owners |
-| RBAC/groups | native-with-configuration | test matrix | exact policy and no-deny handling |
-| Shared prompts | native-ready, proof pending | prompt templates with synthetic data | owner/change approval |
-| Knowledge | native-with-configuration | instructions/templates | customer docs and OCR samples |
+| Workspaces / scenario setup | native-with-configuration, admin API partial proof | scenario skeletons and admin endpoint proof | customer groups/owners and test actors |
+| RBAC/groups | native-with-configuration, admin API partial proof | default permissions and Preview Access endpoints | inside/outside actor matrix |
+| Shared prompts | native-ready, endpoint proof pending content | prompt templates with synthetic data | owner/change approval and test prompt |
+| Knowledge | native-with-configuration, endpoint proof pending content | instructions/templates | customer docs, OCR samples and synthetic KB proof |
 | Model catalog | native-with-configuration | catalog skeleton | data policy, exact IDs |
-| Analytics | native-partial | admin proof plan | hard billing decision if needed |
-| Web Search | provider baseline ready | comparison and rollout gates | customer policy/cost/group scope |
+| Analytics | native-partial, admin API proof | model/user aggregate endpoint proof | hard billing decision if needed |
+| Web Search | provider baseline ready, default permission visible | comparison and rollout gates | customer policy/cost/group scope |
 | STT sidecar | current-stage closed | hardening checklist | production retention/cancel/limits |
-| Files/documents | native-partial | synthetic file proof | parser/OCR/customer samples |
+| Files/documents | native-partial, default upload permission visible | synthetic file proof | parser/OCR/customer samples |
 | Manager visibility | native-partial | sharing proof | customer privacy policy |
-| Chat deletion/no-delete | needs-runtime-proof | non-admin UI/API test | retention/audit decision |
+| Chat deletion/no-delete | setting visible, behavior proof pending | non-admin UI/API test | retention/audit decision |
 
 ## 5. Boundaries Of The Native Path
 
@@ -156,32 +156,55 @@ Custom slice candidates:
 - OCR/document extraction pipeline after customer samples prove need;
 - usage event collector or gateway only if native analytics is insufficient.
 
-## 7. Runtime Proof Still Required
+## 7. Runtime Proof Status
 
-The 2026-06-24 audit proved:
+The 2026-06-24 public audit proved:
 
 - deployed public version `0.9.6`;
 - public health;
 - protected unauthenticated `/api/models`;
 - Stage 2 static STT loader and normalization config are served.
 
-It did not prove:
+The 2026-06-24 authenticated follow-up proved through admin API:
 
-- Admin UI setting names;
+- approved admin credential variable names were present in local `.env`;
+- credential values were not printed or committed;
+- authenticated admin API login succeeds with role `admin`;
+- users/groups/models/prompts/knowledge/files/chats/functions/audio config and
+  analytics endpoints are reachable;
+- runtime has 4 users, 1 group, no `stage2-proof-*` actors, no users with
+  groups, 4 models, 0 prompts, 0 knowledge items, 40 files and 1 function;
+- Preview Access endpoints work for user and group views;
+- default Workspace and Sharing permissions are false for ordinary users;
+- default Chat permissions include `file_upload=True`, `delete=True`,
+  `delete_message=True`, `stt=True` and `web_upload=True`;
+- default Features include `web_search=True`, while `api_keys=False` and
+  `direct_tool_servers=False`;
+- Analytics endpoints return model/user aggregates with token-count fields;
+- native STT settings are visible through the audio config API, while the Stage
+  2 media attachment sidecar remains the accepted architecture.
+
+It still does not prove:
+
 - group/model/prompt/knowledge visibility;
-- analytics dashboard;
+- slash-command prompt behavior;
+- Knowledge retrieval behavior;
+- group-restricted Workspace Model behavior;
+- two-user analytics workflow;
 - non-admin chat delete behavior;
 - manager visibility behavior;
 - Web Search feature permission behavior;
 - file extraction behavior.
 
-Use the runtime checklist in the audit report before implementation planning.
+Use the runtime checklist in the audit report before state-changing proof.
 
 ## 8. Recommended Next Work
 
-1. Run admin/test-user native capability proof on deployed `0.9.6`.
+1. Get explicit operator approval to create or use `stage2-proof-*` actors and
+   `Team-Stage2-Proof` / permission groups on the deployed stand.
 2. Prepare one safe configuration-first scenario with synthetic data.
-3. Prove native analytics and decide whether ADR-0008 stays native-first.
+3. Complete the four-actor proof matrix and decide whether ADR-0008 stays
+   native-first.
 4. Continue Web Search comparison only inside rollout gates.
 5. Ask customer for data policy, group matrix, manager visibility policy,
    retention requirements and document/OCR samples before production changes.

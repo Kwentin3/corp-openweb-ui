@@ -244,11 +244,11 @@ native-fit matrix. Remaining output is exact Admin UI settings and
 user/group test results.
 Depends on: admin or staging access for test-user proof
 Status: public runtime version/health/static proof captured on 2026-06-24;
-admin/test-user proof attempt on 2026-06-24 was blocked by missing approved
-admin/staging access. Follow-up env recheck found
-`WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD` absent from the current agent
-execution context. Operator checklist is ready; authenticated proof still
-required.
+authenticated admin API proof captured on 2026-06-24 via approved local `.env`
+variable names without printing values. Remaining proof is the four-actor
+test-user matrix, blocked by absence of `stage2-proof-*` actors/groups and by
+the need for explicit approval before creating users/resources on the deployed
+stand.
 
 ### OpenWebUI media attachment transcription action proof
 
