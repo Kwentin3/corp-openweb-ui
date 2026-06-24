@@ -245,7 +245,9 @@ user/group test results.
 Depends on: admin or staging access for test-user proof
 Status: public runtime version/health/static proof captured on 2026-06-24;
 admin/test-user proof attempt on 2026-06-24 was blocked by missing approved
-admin/staging access. Operator checklist is ready; authenticated proof still
+admin/staging access. Follow-up env recheck found
+`WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD` absent from the current agent
+execution context. Operator checklist is ready; authenticated proof still
 required.
 
 ### OpenWebUI media attachment transcription action proof

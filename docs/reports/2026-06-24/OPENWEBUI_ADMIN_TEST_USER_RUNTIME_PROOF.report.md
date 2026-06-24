@@ -7,14 +7,20 @@ Repository: `Kwentin3/corp-openweb-ui`
 Scope: Stage 2 / PRD-1 native OpenWebUI capabilities, Admin/Test-User proof
 matrix.
 
-Verdict: `admin_test_user_runtime_proof_blocked_by_access`
+Verdict: `admin_test_user_runtime_proof_blocked_by_operator_policy`
 
 ## Executive Summary
 
-Admin/test-user runtime proof was not completed in this run because no
-approved admin/staging credentials or pre-created test actors were available.
+Admin/test-user runtime proof was re-attempted after the operator instruction to
+use `WEBUI_ADMIN_EMAIL` and `WEBUI_ADMIN_PASSWORD` from the execution
+environment. The variables were checked safely without printing values, but
+they were not present in the current Windows Process/User/Machine environment
+available to this agent.
+
 No attempt was made to read `.env`, recover credentials, inspect cookies,
-extract tokens or create users/groups without operator approval.
+extract tokens or create users/groups without operator approval. Because the
+credentials were not present in this execution context, authenticated Admin UI
+proof was not started.
 
 The only runtime checks performed were safe unauthenticated access checks on
 the already documented deployed OpenWebUI surface:
@@ -26,13 +32,25 @@ the already documented deployed OpenWebUI surface:
 - Stage 2 STT normalization config is served.
 
 This means the previous native-first conclusion is unchanged, but the required
-Admin/Test-User matrix is still not proven. The next step is an operator-run or
-operator-approved authenticated proof with four actors: Admin, Manager/РО,
-Employee inside group and Employee outside group.
+Admin/Test-User matrix is still not proven. The blocker is now classified as an
+operator/environment injection issue, not an OpenWebUI capability result. The
+next step is to expose the two env variables to the agent process or run the
+authenticated checklist in an approved operator session with four actors:
+Admin, Manager/РО, Employee inside group and Employee outside group.
 
 ## Runtime Access Status
 
-Status: `blocked_by_admin_or_staging_access`
+Status: `blocked_by_operator_env_access`
+
+Admin credential env check:
+
+| Variable | Present |
+| --- | --- |
+| `WEBUI_ADMIN_EMAIL` | no |
+| `WEBUI_ADMIN_PASSWORD` | no |
+
+Credential values were not printed. No password, cookie, bearer token or
+session token was saved.
 
 Available:
 
@@ -44,6 +62,8 @@ Available:
 Not available:
 
 - admin session;
+- `WEBUI_ADMIN_EMAIL` in Process/User/Machine env;
+- `WEBUI_ADMIN_PASSWORD` in Process/User/Machine env;
 - staging/test-user credentials;
 - approved permission to create users/groups on the deployed instance;
 - approved customer test documents;
@@ -120,6 +140,22 @@ Official OpenWebUI references checked for operator checklist labels:
   `https://docs.openwebui.com/features/extensibility/plugin/tools/`
 
 ## Runtime Checks Performed
+
+Credential environment checks:
+
+```text
+WEBUI_ADMIN_EMAIL present: no
+WEBUI_ADMIN_PASSWORD present: no
+
+WEBUI_ADMIN_EMAIL Process present: no
+WEBUI_ADMIN_EMAIL User present: no
+WEBUI_ADMIN_EMAIL Machine present: no
+WEBUI_ADMIN_PASSWORD Process present: no
+WEBUI_ADMIN_PASSWORD User present: no
+WEBUI_ADMIN_PASSWORD Machine present: no
+```
+
+No credential values were displayed or captured.
 
 Local Docker:
 
@@ -675,12 +711,18 @@ Forbidden evidence:
 
 ## Final Verdict
 
-`admin_test_user_runtime_proof_blocked_by_access`
+`admin_test_user_runtime_proof_blocked_by_operator_policy`
 
-The current run did not prove Admin/Test-User native capability behavior. It
-confirmed only that the deployed OpenWebUI public surface is still reachable on
-version `0.9.6`, unauthenticated model access is protected and Stage 2 STT
-static assets are served.
+The follow-up run did not prove Admin/Test-User native capability behavior.
+The required `WEBUI_ADMIN_EMAIL` and `WEBUI_ADMIN_PASSWORD` values were not
+present in the current execution environment, and their values were not printed
+or recovered from files. Authenticated OpenWebUI login was therefore not
+attempted.
 
-Gate 7 remains open. The next evidence-bearing step is an approved
-authenticated operator proof using the actor matrix and checklist above.
+The run still confirmed only that the deployed OpenWebUI public surface is
+reachable on version `0.9.6`, unauthenticated model access is protected and
+Stage 2 STT static assets are served.
+
+Gate 7 remains open. The next evidence-bearing step is to provide the two env
+variables to the agent process or run an approved authenticated operator proof
+using the actor matrix and checklist above.

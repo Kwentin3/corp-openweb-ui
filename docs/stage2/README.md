@@ -144,7 +144,9 @@ Finding:
   Stage 2 STT static loader. Admin/test-user proof for RBAC, prompts,
   knowledge, analytics, no-delete and manager visibility remains required.
 - 2026-06-24 Admin/Test-User proof attempt was blocked by missing approved
-  admin/staging access; the operator checklist is documented in
+  admin/staging access. A follow-up env recheck found
+  `WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD` absent from the current agent
+  execution context; the operator checklist is documented in
   [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 Next action:

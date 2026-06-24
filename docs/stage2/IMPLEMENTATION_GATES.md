@@ -292,7 +292,9 @@ Status:
 - partially proven for public deployed version/health/static assets; blocked by
   admin/test-user runtime proof. The 2026-06-24 Admin/Test-User attempt did
   not have approved admin/staging access, so it produced an operator checklist
-  instead of authenticated proof.
+  instead of authenticated proof. A follow-up env recheck found
+  `WEBUI_ADMIN_EMAIL`/`WEBUI_ADMIN_PASSWORD` absent from the current agent
+  execution context.
 
 Owner:
 
