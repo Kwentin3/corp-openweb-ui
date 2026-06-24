@@ -143,6 +143,9 @@ Finding:
   health endpoints, protected unauthenticated `/api/models`, and the served
   Stage 2 STT static loader. Admin/test-user proof for RBAC, prompts,
   knowledge, analytics, no-delete and manager visibility remains required.
+- 2026-06-24 Admin/Test-User proof attempt was blocked by missing approved
+  admin/staging access; the operator checklist is documented in
+  [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 Next action:
 
@@ -151,6 +154,8 @@ Next action:
   [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md).
 - Full audit report:
   [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md).
+- Admin/Test-User proof checklist:
+  [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md).
 
 ### Transcription / STT
 

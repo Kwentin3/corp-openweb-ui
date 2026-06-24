@@ -28,7 +28,9 @@ Status:
 
 - Research complete. 2026-06-24 native capability audit captured public
   deployed version/health proof and confirmed native-first fit; Admin UI and
-  test-user visibility proof are still needed.
+  test-user visibility proof are still needed. The 2026-06-24
+  Admin/Test-User proof attempt was blocked by missing approved admin/staging
+  access and produced an operator checklist instead.
 
 ## Audio/video transcription
 
@@ -414,7 +416,8 @@ Test data needed:
 Status:
 
 - Research complete. 2026-06-24 audit confirmed native analytics is still a
-  runtime-proof item because admin access was not available.
+  runtime-proof item because admin access was not available. The follow-up
+  Admin/Test-User proof checklist remains blocked by the same access gap.
 
 ## Data policy and no false masking promise
 
@@ -475,6 +478,8 @@ Status:
 
 - Research complete. 2026-06-24 audit kept this as runtime/customer proof
   because native groups/sharing do not by themselves prove supervisory access.
+  The follow-up Admin/Test-User proof checklist did not run authenticated
+  manager/employee actors because approved admin/staging access was unavailable.
 
 ## Chat deletion restriction check
 
@@ -504,7 +509,9 @@ Test data needed:
 Status:
 
 - Research complete. 2026-06-24 audit kept this as runtime proof because
-  non-admin UI/API delete behavior was not tested.
+  non-admin UI/API delete behavior was not tested. The follow-up
+  Admin/Test-User proof checklist did not run the non-admin UI/API delete test
+  because approved admin/staging access was unavailable.
 
 ## Retention policy decision
 

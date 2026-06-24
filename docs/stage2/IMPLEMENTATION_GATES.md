@@ -290,7 +290,9 @@ Related docs:
 Status:
 
 - partially proven for public deployed version/health/static assets; blocked by
-  admin/test-user runtime proof.
+  admin/test-user runtime proof. The 2026-06-24 Admin/Test-User attempt did
+  not have approved admin/staging access, so it produced an operator checklist
+  instead of authenticated proof.
 
 Owner:
 
@@ -310,6 +312,7 @@ Blocking items:
 Related docs:
 
 - [OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md](../reports/2026-06-24/OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md);
+- [OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md);
 - [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md);
 - Acceptance matrix;
 - Backlog.
