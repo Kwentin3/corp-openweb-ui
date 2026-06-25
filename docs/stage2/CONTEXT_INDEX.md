@@ -56,6 +56,7 @@ Additional context:
 
 - [OpenWebUI native capability audit](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
 - [Customer runtime decisions](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
+- [CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH](research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md)
 - [USAGE_ANALYTICS_BILLING_RESEARCH](research/USAGE_ANALYTICS_BILLING_RESEARCH.md)
 - [VL_OCR_PROVIDER_RESEARCH](research/VL_OCR_PROVIDER_RESEARCH.md)
 - [DOCUMENTS_OCR_EXCEL_RESEARCH](research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
@@ -71,6 +72,8 @@ Comment:
 
 - This stream is for internal documentation, skeletons, synthetic data,
   research, benchmark plans and proof plans.
+- Corporate AI workspace use-case research is available as fact base before
+  expanding or selecting user stories.
 - Synthetic proof can support mechanics and candidate comparison, but it does
   not close customer acceptance or implementation gates.
 - VL OCR research and synthetic benchmark can start now; customer OCR pilot

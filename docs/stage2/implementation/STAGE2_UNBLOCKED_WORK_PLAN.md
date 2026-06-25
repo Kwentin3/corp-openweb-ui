@@ -76,6 +76,7 @@ production acceptance на реальных данных заказчика.
 Входные данные:
 
 - PRD-1;
+- [Corporate AI workspace use-case research](../research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md);
 - native capability audit;
 - runtime proof;
 - текущие Stage 2 blueprints и backlog.

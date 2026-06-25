@@ -91,6 +91,7 @@ provider setup, usage analytics and web-search.
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
 | [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md) | Внутренний план работ, которые можно делать без нового согласования с заказчиком. |
 | [WORKSPACE_SCENARIO_USER_STORIES.md](implementation/WORKSPACE_SCENARIO_USER_STORIES.md) | Черновая структура рабочих сценариев через user stories - описания задачи глазами пользователя. |
+| [CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md](research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md) | Внешний research реальных корпоративных AI-workspace сценариев; база для будущего выбора user stories. |
 | [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md) | Native capability audit summary and scenario assembly guidance. |
 | [testdata/SYNTHETIC_TEST_DATA_INDEX.md](testdata/SYNTHETIC_TEST_DATA_INDEX.md) | Индекс искусственных тестовых данных для проверок и сравнений без данных заказчика. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |

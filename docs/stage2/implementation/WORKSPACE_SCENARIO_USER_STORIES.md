@@ -3,6 +3,10 @@
 Статус: внутренний skeleton для проектирования сценариев. Не является
 утвержденной инструкцией для пользователей или администраторов.
 
+Перед расширением или выбором user stories читать
+[Corporate AI Workspace Use Cases Research](../research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md).
+Он фиксирует внешнюю фактуру и не создает новые user stories.
+
 ## 1. Назначение
 
 `User story` - это короткое описание задачи глазами пользователя:
