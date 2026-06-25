@@ -75,6 +75,10 @@ warnings. Результат OCR должен быть проверяемым:
   обещается.
 - [VL OCR Provider Research](../research/VL_OCR_PROVIDER_RESEARCH.md) уже
   фиксирует candidate classes and risks.
+- [VL OCR API Provider Shortlist Research](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
+  уже выбирает первых benchmark candidates for raster image -> external
+  VL/OCR API -> JSON -> LLM context MVP: Mistral OCR 4 / Document AI, Alibaba
+  Qwen-OCR / Qwen3-VL and Azure Document Intelligence.
 - [Documents OCR Excel Research](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
   уже фиксирует OpenWebUI extraction engines, Tika, Docling, Mistral OCR and
   pilot limitations.
@@ -340,15 +344,16 @@ Ordered context route:
 1. [CONTEXT_INDEX.md](../CONTEXT_INDEX.md)
 2. [CONTEXT_USAGE_RULES.md](../CONTEXT_USAGE_RULES.md)
 3. [OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md](OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
-4. [VL_OCR_PROVIDER_RESEARCH.md](../research/VL_OCR_PROVIDER_RESEARCH.md)
-5. [DOCUMENTS_OCR_EXCEL_RESEARCH.md](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
-6. [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
-7. [STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
-8. [STAGE2_SELECTED_USER_STORIES.md](../implementation/STAGE2_SELECTED_USER_STORIES.md)
-9. [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](../implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
-10. [ACCEPTANCE_MATRIX.md](../acceptance/ACCEPTANCE_MATRIX.md)
-11. [IMPLEMENTATION_GATES.md](../IMPLEMENTATION_GATES.md)
-12. [CONTRACT_BOUNDARIES.md](../CONTRACT_BOUNDARIES.md)
+4. [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
+5. [VL_OCR_PROVIDER_RESEARCH.md](../research/VL_OCR_PROVIDER_RESEARCH.md)
+6. [DOCUMENTS_OCR_EXCEL_RESEARCH.md](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
+7. [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+8. [STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
+9. [STAGE2_SELECTED_USER_STORIES.md](../implementation/STAGE2_SELECTED_USER_STORIES.md)
+10. [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](../implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
+11. [ACCEPTANCE_MATRIX.md](../acceptance/ACCEPTANCE_MATRIX.md)
+12. [IMPLEMENTATION_GATES.md](../IMPLEMENTATION_GATES.md)
+13. [CONTRACT_BOUNDARIES.md](../CONTRACT_BOUNDARIES.md)
 
 ## 17. Open questions
 
@@ -372,8 +377,10 @@ Ordered context route:
 Recommended next step:
 
 ```text
-Open OCR / VL OCR Provider Shortlist Research task.
+Prepare OCR / VL OCR synthetic benchmark plan and `DocumentExtractionResultV1`
+adapter contract.
 ```
 
-Do not start benchmark execution immediately. First prepare provider shortlist
-and capability profiles.
+Do not start benchmark execution immediately. Provider shortlist and capability
+profiles now exist; next prepare benchmark plan, input/output/error contract and
+synthetic test classes.

@@ -291,16 +291,21 @@ Owner:
 
 Blocking items:
 
-- provider shortlist;
 - input/output contracts;
 - benchmark plan;
 - test documents;
 - data approval.
 
+Completed inputs:
+
+- provider shortlist research:
+  [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md).
+
 Related docs:
 
 - ADR-0005;
-- VL OCR research.
+- VL OCR research;
+- VL OCR API provider shortlist research.
 
 ### Gate 7. Runtime proof complete
 

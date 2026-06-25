@@ -533,6 +533,7 @@ Comment:
 Read first:
 
 - [OCR / VL OCR Infrastructure Epic Context Pack](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
+- [VL OCR API Provider Shortlist Research](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
 - [DOCUMENTS_OCR_EXCEL](blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [ADR-0005 OCR / VL OCR Pilot Scope](decisions/ADR-0005-ocr-vl-ocr-pilot-scope.md)
 
@@ -549,6 +550,10 @@ Skip unless needed:
 Comment:
 
 - OCR/VL OCR is a pilot.
+- Provider shortlist research exists for the raster image MVP path. First
+  synthetic benchmark candidates are Mistral OCR 4 / Document AI, Alibaba
+  Qwen-OCR / Qwen3-VL and Azure Document Intelligence; Gemini and hosted
+  PaddleOCR-VL are backup/optional.
 - `ST2-US-013` user-story proof execution is paused until the OCR / VL OCR
   infrastructure epic defines provider shortlist, contracts and benchmark plan.
 - Production OCR/layout pipeline remains future.
@@ -560,6 +565,7 @@ Comment:
 Read first:
 
 - [OCR / VL OCR Infrastructure Epic Context Pack](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
+- [VL OCR API Provider Shortlist Research](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
 - [DOCUMENTS_OCR_EXCEL](blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [VL_OCR_PROVIDER_RESEARCH](research/VL_OCR_PROVIDER_RESEARCH.md)
 - [TEST_DATA_REQUIREMENTS](acceptance/TEST_DATA_REQUIREMENTS.md)

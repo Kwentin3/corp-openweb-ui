@@ -94,6 +94,7 @@ provider setup, usage analytics and web-search.
 | [CONTEXT_INDEX.md](CONTEXT_INDEX.md) | Быстрый индекс: что читать по домену/задаче. |
 | [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md) | Правила context routing: source-of-truth hierarchy, document type rules and stop conditions. |
 | [OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md) | Handoff pack для OCR / VL OCR Infrastructure & Provider Benchmark Epic; `ST2-US-013` paused until provider shortlist, contracts and benchmark plan. |
+| [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md) | Provider shortlist research для raster image -> external VL/OCR API -> JSON -> LLM context MVP; рекомендует Mistral OCR 4, Alibaba Qwen-OCR/Qwen3-VL and Azure Document Intelligence for first synthetic benchmark. |
 | [DOMAIN_MAP.md](DOMAIN_MAP.md) | Карта инженерных доменов Stage 2. |
 | [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
 | [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md) | Reusable pattern for adding OpenWebUI-facing features without defaulting to a fork. |
@@ -284,13 +285,16 @@ Finding:
 - OpenWebUI has extraction engines.
 - OCR/layout-aware broker reports must stay pilot until customer samples are tested.
 - VL OCR is promising but unproven.
+- VL OCR API provider shortlist research now recommends first synthetic
+  benchmark candidates: Mistral OCR 4 / Document AI, Alibaba Qwen-OCR /
+  Qwen3-VL, and Azure Document Intelligence.
 - `ST2-US-013` is paused as user-story proof until OCR / VL OCR infrastructure
   epic defines provider shortlist, input/output contracts and benchmark plan.
 
 Next action:
 
-- Open OCR / VL OCR Provider Shortlist Research task; do not run benchmark or
-  provider API yet.
+- Prepare OCR / VL OCR synthetic benchmark plan and `DocumentExtractionResultV1`
+  adapter contract; do not run benchmark or provider API yet.
 
 ### Providers / model catalog
 

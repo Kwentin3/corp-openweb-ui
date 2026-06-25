@@ -131,6 +131,8 @@ approval.
 - [Stage 2 agent review](docs/reports/2026-06-18/OPENWEBUI_PRD1_STAGE2_AGENT_REVIEW.report.md)
 - [Backend-first refine
   report](docs/reports/2026-06-18/OPENWEBUI_STAGE2_BACKEND_FIRST_VL_OCR_REFINE.report.md)
+- [VL OCR API provider shortlist research
+  report](docs/reports/2026-06-25/OPENWEBUI_VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.report.md)
 - [Source-of-truth sync
   report](docs/reports/2026-06-18/OPENWEBUI_PRD1_SOURCE_OF_TRUTH_SYNC.report.md)
 
@@ -181,6 +183,8 @@ bash scripts/smoke-test.sh --strict-tls
   [selected stories](docs/stage2/implementation/STAGE2_SELECTED_USER_STORIES.md),
   [synthetic data requirements](docs/stage2/testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md),
   [proof plans](docs/stage2/implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
+- Stage 2 VL OCR API provider shortlist research:
+  [docs/stage2/research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](docs/stage2/research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
 - PRD-1 initial historical draft:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md)
 - PRD-1 changelog:
