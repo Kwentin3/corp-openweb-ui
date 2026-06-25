@@ -47,6 +47,7 @@ Comment:
 Read first:
 
 - [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
+- [Stage 2 Scenario Shortlist](implementation/STAGE2_SCENARIO_SHORTLIST.md)
 - [Workspace scenario user stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
 - [Synthetic test data index](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
 - [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
@@ -74,6 +75,8 @@ Comment:
   research, benchmark plans and proof plans.
 - Corporate AI workspace use-case research is available as fact base before
   expanding or selecting user stories.
+- Scenario shortlist and first draft user stories are available as a docs-only
+  selection layer before synthetic data or proof planning.
 - Synthetic proof can support mechanics and candidate comparison, but it does
   not close customer acceptance or implementation gates.
 - VL OCR research and synthetic benchmark can start now; customer OCR pilot

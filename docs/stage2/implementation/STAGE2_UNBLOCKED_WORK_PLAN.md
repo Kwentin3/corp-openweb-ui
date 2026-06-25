@@ -87,6 +87,7 @@ production acceptance на реальных данных заказчика.
 
 Артефакт:
 
+- [STAGE2_SCENARIO_SHORTLIST.md](STAGE2_SCENARIO_SHORTLIST.md);
 - [WORKSPACE_SCENARIO_USER_STORIES.md](WORKSPACE_SCENARIO_USER_STORIES.md).
 
 Можно ли делать без заказчика:
@@ -645,6 +646,7 @@ research, benchmark plans and proof plans.
 ## 7. Ссылки
 
 - [PRD-1](../../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
+- [Stage 2 Scenario Shortlist](STAGE2_SCENARIO_SHORTLIST.md)
 - [Customer runtime decisions](../proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
 - [OpenWebUI Admin/Test-User Runtime Proof](../../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md)
 - [OpenWebUI Native Capability Audit](OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
