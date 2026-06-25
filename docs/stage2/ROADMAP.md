@@ -30,6 +30,7 @@ Status: complete.
 
 - Создать `docs/stage2/README.md`.
 - Создать [CONTEXT_INDEX.md](CONTEXT_INDEX.md).
+- Создать [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md).
 - Создать [ROADMAP.md](ROADMAP.md).
 - Создать [DOMAIN_MAP.md](DOMAIN_MAP.md).
 - Создать [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).

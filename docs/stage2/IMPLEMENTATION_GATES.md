@@ -11,6 +11,9 @@ policy, backend boundaries, runtime proof and customer test data.
 Unblocked planning reference:
 [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
 
+Context routing and document-type rules:
+[CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md).
+
 Unblocked work can prepare user stories, synthetic data, research, benchmark
 plans and proof plans. It does not close customer gates and does not authorize
 runtime changes.

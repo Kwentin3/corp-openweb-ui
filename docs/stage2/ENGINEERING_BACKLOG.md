@@ -41,6 +41,10 @@ customer gates.
 Reference:
 [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
 
+Context routing:
+[CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md). Backlog status does not
+override implementation gates, approved ADR status or customer-data boundaries.
+
 ### Workspace scenario user stories
 
 Domain: Workspaces / RBAC / prompts / Knowledge

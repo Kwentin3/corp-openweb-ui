@@ -8,6 +8,10 @@
 Этот документ фиксирует работы Stage 2, которые можно выполнять сейчас без
 нового согласования с заказчиком.
 
+Перед выбором документов для конкретной задачи использовать
+[CONTEXT_INDEX.md](../CONTEXT_INDEX.md) и
+[CONTEXT_USAGE_RULES.md](../CONTEXT_USAGE_RULES.md).
+
 Цель - не менять runtime и не включать новые production-функции, а подготовить
 структуру: сценарии, шаблоны, искусственные тестовые данные, планы проверок,
 исследования и будущие решения.
@@ -654,6 +658,7 @@ research, benchmark plans and proof plans.
 ## 7. Ссылки
 
 - [PRD-1](../../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
+- [Stage 2 Context Usage Rules](../CONTEXT_USAGE_RULES.md)
 - [Stage 2 Scenario Shortlist](STAGE2_SCENARIO_SHORTLIST.md)
 - [Customer runtime decisions](../proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
 - [OpenWebUI Admin/Test-User Runtime Proof](../../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md)

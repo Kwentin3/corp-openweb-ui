@@ -2,12 +2,85 @@
 
 Цель: быстро понять, какие документы читать по конкретной будущей задаче.
 
+Этот файл - главный маршрутизатор контекста Stage 2. Правила чтения и
+ограничения вынесены в [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md).
+
+## How to use this index
+
+1. Определи тип задачи и домен: planning, selected stories, synthetic data,
+   proof execution, implementation planning, customer-facing proposal, Web
+   Search, STT, OCR/VL OCR, analytics, provider/model catalog, data policy,
+   manager visibility/retention or operations.
+2. Открой соответствующий route ниже.
+3. Сначала прочитай `Read first`.
+4. Затем прочитай `Additional context`, если задача касается статуса,
+   blockers, соседнего домена or acceptance.
+5. Перед runtime/implementation обязательно открой
+   [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) and
+   [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
+6. Если статусы противоречат друг другу, не продолжай silently. Зафиксируй
+   conflict: документы, строки, расхождение and owner decision needed.
+
+Do not read `.env`, secrets, tokens, credentials, private URLs or customer data
+unless a separate task explicitly approves it. Do not run runtime proof, change
+OpenWebUI config or create users/groups/models/prompts/Knowledge from a
+docs-only route.
+
+## Source of truth hierarchy
+
+| Level | Source | Rule |
+| ----- | ------ | ---- |
+| 1 | [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md) | Главный продуктовый источник. |
+| 2 | [Stage 2 README](README.md) / this index | Навигация and context routing. |
+| 3 | [ROADMAP](ROADMAP.md) | Порядок движения и phase/status frame. |
+| 4 | [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md) | Условия перехода к implementation/runtime work. |
+| 5 | [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md) | Границы backend/frontend/custom logic/provider calls. |
+| 6 | [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md) | Текущий planning/status backlog. |
+| 7 | ADRs | Решения только если approved; proposed ADR is not final decision. |
+| 8 | Reports | Evidence: что было проверено. |
+| 9 | Research | Контекст and варианты; не команда к реализации. |
+| 10 | Proposals | Customer-facing documents; not engineering backlog. |
+| 11 | User stories / selected stories | Planning artifacts; not production scope. |
+| 12 | Synthetic data docs | Mechanics only; not customer acceptance. |
+| 13 | Proof plans | Plans only; not executed proof. |
+
+Если более низкий уровень противоречит gate/contract/approved ADR, используй
+gate/contract/approved ADR как ограничение и зафиксируй conflict.
+
+## Document type rules
+
+- Research не является решением.
+- Report не является планом реализации.
+- Proposal не является backlog.
+- Draft/proposed ADR не является approved decision.
+- Synthetic data не доказывает качество на реальных данных.
+- Docs-only document не разрешает runtime changes.
+- Customer-facing document не должен использоваться как engineering source без
+  связанного internal doc.
+- Proof plan не означает, что proof выполнен.
+
+## Global guardrails
+
+Запрещено без отдельного approval:
+
+- не использовать customer data;
+- не запускать runtime proof or smoke;
+- не читать `.env`, secrets, tokens, credentials or private URLs;
+- не подключать provider accounts;
+- не создавать users/groups/models/prompts/Knowledge;
+- не менять OpenWebUI config;
+- не писать production code;
+- не считать synthetic proof production acceptance;
+- не считать proposed ADR approved;
+- не считать customer proposal implementation task.
+
 ## Общий Stage 2 scope
 
 Read first:
 
 - [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - [README](README.md)
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
 - [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
@@ -42,10 +115,68 @@ Comment:
 - MVP STT trigger is explicit `Transcribe` action on an audio/video media
   attachment.
 
+## Selected stories / synthetic data / proof prep
+
+Use this route for tasks about selected stories, synthetic data requirements,
+proof plans, first execution package or follow-up proof preparation.
+
+Read first:
+
+1. [Stage 2 Selected User Stories](implementation/STAGE2_SELECTED_USER_STORIES.md)
+2. [Stage 2 Selected Stories Synthetic Data Requirements](testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
+3. [Stage 2 Selected Stories Proof Plans](implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
+4. [Selected Stories Proof Prep Report](../reports/2026-06-25/OPENWEBUI_STAGE2_SELECTED_STORIES_PROOF_PREP.report.md)
+5. [Synthetic Test Data Index](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+6. [Acceptance Matrix](acceptance/ACCEPTANCE_MATRIX.md)
+7. [Implementation Gates](IMPLEMENTATION_GATES.md)
+
+Additional context:
+
+- [Stage 2 Scenario Shortlist](implementation/STAGE2_SCENARIO_SHORTLIST.md)
+- [Workspace Scenario User Stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
+- [Corporate AI Workspace Use Cases Research](research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md)
+
+Do not do:
+
+- do not create synthetic files unless the task explicitly asks for it;
+- do not execute proof plans without separate runtime approval;
+- do not use customer data;
+- do not create users, groups, models, prompts or Knowledge;
+- do not change OpenWebUI config.
+
+Blockers / gates:
+
+- customer acceptance remains blocked for real documents, real groups,
+  provider/data policy, expected outputs and customer decisions;
+- proof plans have `Runtime changes needed: none` for the docs-only package;
+- runtime proof requires a separate approved task and Gate 7 context.
+
+## Task-specific routing shortcuts
+
+Use this table to choose the detailed route below.
+
+| Task type | Start route | Must also read | Do not do | Blockers / gates |
+| --------- | ----------- | -------------- | --------- | ---------------- |
+| Unblocked planning | Unblocked planning | Context usage rules, backlog, acceptance | Runtime/config/customer-data actions | Customer decisions still open. |
+| Scenario selection / user stories | Selected stories or Unblocked planning | Shortlist, user stories, research report | Treat draft stories as production scope | Real roles, owners and customer workflows. |
+| Synthetic data creation | Selected stories / synthetic data / proof prep | Synthetic index, test data requirements | Use real names, customer docs, secrets or private URLs | Customer acceptance still needs real data. |
+| Proof plan execution | Operations / acceptance plus selected proof plans | Implementation gates, contract boundaries, acceptance matrix | Run proof from docs-only task | Separate runtime approval and Gate 7 context. |
+| Implementation planning | Domain isolation / contract boundaries | ROADMAP, gates, backlog, ADRs | Start code/config before gates | Gates 1-9 as applicable. |
+| Web Search | Web-search | Data policy, usage/cost, selected proof route if query matrix task | Use private/customer queries or rollout globally | Rollout policy, logs, cost, group defaults. |
+| STT | Транскрибация | ADR-0004, gates, contract boundaries | Re-plan STT MVP from zero | Production hardening, retention, media samples. |
+| OCR / VL OCR | Documents / OCR / Excel | Test data requirements, ADR-0005, selected proof route | Promise production OCR quality | Customer samples and provider/data policy. |
+| Usage analytics | Стоимость / analytics | ADR-0008, selected proof route for report shape | Promise hard billing or invoice parity | Native proof, visibility policy, price catalog. |
+| Provider/model catalog | Provider catalog / models | Data policy, ADR-0006 | Connect provider accounts | Provider/data approval and exact model IDs. |
+| Data policy | Data policy / masking | ADR-0001, security docs | Promise automatic masking | Customer/security approval. |
+| Customer-facing proposal | General scope plus proposals | PRD-1, customer summary, internal matching docs | Treat proposal as implementation backlog | Owner/customer approval required. |
+| Manager visibility / no-delete / retention | Руководители и чаты; Retention / audit / no-delete | ADR-0002, ADR-0003, runtime proof reports | Treat manager visibility as admin sees everything | Customer privacy/retention policy and runtime proof. |
+
 ## Unblocked planning / work without new customer approval
 
 Read first:
 
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
 - [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [Stage 2 Scenario Shortlist](implementation/STAGE2_SCENARIO_SHORTLIST.md)
 - [Workspace scenario user stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
@@ -90,10 +221,95 @@ Comment:
 - Usage analytics proof should target user/day/week/model/token/message and
   approximate-cost breakdown before any hard billing/gateway decision.
 
+## Proof execution / runtime checks
+
+Read first:
+
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
+- [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
+- [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+- [ACCEPTANCE_MATRIX](acceptance/ACCEPTANCE_MATRIX.md)
+- domain-specific proof plan or report for the task.
+
+Additional context:
+
+- [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
+- [TEST_DATA_REQUIREMENTS](acceptance/TEST_DATA_REQUIREMENTS.md)
+- selected route above if the task starts from selected stories.
+
+Do not do:
+
+- do not run runtime proof from a docs-only task;
+- do not read `.env` or credentials unless separately approved;
+- do not create users/groups/models/prompts/Knowledge unless the proof task
+  explicitly approves it and cleanup expectations are defined.
+
+Blockers / gates:
+
+- runtime proof requires separate approval, approved test data or synthetic
+  test plan, and clear cleanup/rollback expectations;
+- customer data requires customer-approved intake and data policy.
+
+## Customer-facing proposals
+
+Read first:
+
+- [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
+- [Customer summary](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
+- [Customer Stage 2 Governance Proposal](proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
+- [Customer runtime decisions / решения после runtime-аудита](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
+
+Additional context:
+
+- matching internal route for the topic, for example Web-search, analytics,
+  OCR/VL OCR, manager visibility or data policy.
+
+Do not do:
+
+- do not treat customer proposal text as engineering backlog;
+- do not add implementation commitments that are not backed by internal docs,
+  gates and customer decisions.
+
+Blockers / gates:
+
+- customer-facing wording must stay aligned with PRD-1, gates and internal
+  status; unresolved runtime/customer decisions remain unresolved.
+
+## Implementation planning
+
+Read first:
+
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
+- [ROADMAP](ROADMAP.md)
+- [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
+- [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+- [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
+- relevant ADRs and blueprint for the domain.
+
+Additional context:
+
+- relevant proof reports;
+- relevant research;
+- [ACCEPTANCE_MATRIX](acceptance/ACCEPTANCE_MATRIX.md);
+- [TEST_DATA_REQUIREMENTS](acceptance/TEST_DATA_REQUIREMENTS.md).
+
+Do not do:
+
+- do not start production code, provider setup or OpenWebUI config changes from
+  planning docs;
+- do not treat proposed ADRs as approved decisions.
+
+Blockers / gates:
+
+- implementation planning starts only after applicable gates, owner decisions
+  and proof/customer-data blockers are explicit.
+
 ## Domain isolation / contract boundaries
 
 Read first:
 
+- [CONTEXT_USAGE_RULES](CONTEXT_USAGE_RULES.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
 - [EXTENSION_FIRST_IMPLEMENTATION_PATTERN](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
@@ -477,18 +693,23 @@ Comment:
 
 ## Source status
 
-Found:
+Current routing entrypoints:
 
 - `README.md`
+- `docs/stage2/README.md`
+- `docs/stage2/CONTEXT_INDEX.md`
+- `docs/stage2/CONTEXT_USAGE_RULES.md`
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md`
-- `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md`
-- `docs/reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md`
-- `docs/blueprint/*`
-- `docs/infra/*`
-- `docs/ops/*`
-- `docs/security/*`
-- `docs/reports/2026-06-09/*`
+- `docs/stage2/ROADMAP.md`
+- `docs/stage2/ENGINEERING_BACKLOG.md`
+- `docs/stage2/IMPLEMENTATION_GATES.md`
+- `docs/stage2/CONTRACT_BOUNDARIES.md`
+- `docs/stage2/blueprints/*`
+- `docs/stage2/research/*`
+- `docs/stage2/decisions/*`
+- `docs/stage2/implementation/*`
+- `docs/stage2/acceptance/*`
+- `docs/reports/YYYY-MM-DD/*`
 
-Missing:
-
-- `docs/README.md`
+No separate `docs/README.md` is expected for Stage 2. Use root `README.md`
+and `docs/stage2/README.md`.

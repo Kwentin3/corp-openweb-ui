@@ -28,21 +28,27 @@ AI-среду: рабочие сценарии, группы, prompts/templates,
 ## 4. Как пользоваться этим доменом
 
 1. Начать с [CONTEXT_INDEX.md](CONTEXT_INDEX.md), если задача точечная.
-2. Открыть
+2. Открыть [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md), чтобы отличить
+   research, report, proposal, ADR, proof plan and docs-only boundaries.
+3. Открыть
    [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md),
    если задача касается работ, которые можно делать без нового согласования с
    заказчиком.
-3. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
-4. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
+4. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
+5. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
    provider calls, storage, policy, usage or UI/backend split.
-5. Открыть [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
+6. Открыть [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
    для OpenWebUI-facing features.
-6. Открыть профильный blueprint в [blueprints/](blueprints/).
-7. Открыть связанные research-документы в [research/](research/).
-8. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
-9. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
-10. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
+7. Открыть профильный blueprint в [blueprints/](blueprints/).
+8. Открыть связанные research-документы в [research/](research/).
+9. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
+10. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
+11. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
    proof.
+
+Stage 2 docs are not implementation by default. A docs-only plan, research
+note, customer proposal or proof plan does not authorize runtime proof,
+OpenWebUI config changes or creation of users/groups/models/prompts/Knowledge.
 
 ## 5. Backend-first delivery principle
 
@@ -81,6 +87,7 @@ provider setup, usage analytics and web-search.
 | -------- | ---------- |
 | [ROADMAP.md](ROADMAP.md) | Дорожная карта подготовки к реализации. |
 | [CONTEXT_INDEX.md](CONTEXT_INDEX.md) | Быстрый индекс: что читать по домену/задаче. |
+| [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md) | Правила context routing: source-of-truth hierarchy, document type rules and stop conditions. |
 | [DOMAIN_MAP.md](DOMAIN_MAP.md) | Карта инженерных доменов Stage 2. |
 | [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
 | [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md) | Reusable pattern for adding OpenWebUI-facing features without defaulting to a fork. |

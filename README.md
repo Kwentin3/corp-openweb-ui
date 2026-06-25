@@ -188,6 +188,8 @@ bash scripts/smoke-test.sh --strict-tls
 - Stage 2 engineering domain: [docs/stage2/README.md](docs/stage2/README.md)
 - Stage 2 roadmap: [docs/stage2/ROADMAP.md](docs/stage2/ROADMAP.md)
 - Stage 2 context index: [docs/stage2/CONTEXT_INDEX.md](docs/stage2/CONTEXT_INDEX.md)
+- Stage 2 context usage rules:
+  [docs/stage2/CONTEXT_USAGE_RULES.md](docs/stage2/CONTEXT_USAGE_RULES.md)
 - Stage 2 domain map: [docs/stage2/DOMAIN_MAP.md](docs/stage2/DOMAIN_MAP.md)
 - Stage 2 contract boundaries:
   [docs/stage2/CONTRACT_BOUNDARIES.md](docs/stage2/CONTRACT_BOUNDARIES.md)
