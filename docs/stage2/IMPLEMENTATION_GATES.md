@@ -92,6 +92,8 @@ review, not architectural discovery or a reason to restart the MVP design.
 ### Gate 6. OCR / VL OCR pilot scope approved
 
 - ADR-0005 approved.
+- Provider shortlist, input/output contracts, error contract and benchmark plan
+  defined.
 - Test data selected.
 - Acceptance per document class defined.
 - Synthetic benchmark alone does not prove production OCR readiness.
@@ -289,6 +291,9 @@ Owner:
 
 Blocking items:
 
+- provider shortlist;
+- input/output contracts;
+- benchmark plan;
 - test documents;
 - data approval.
 

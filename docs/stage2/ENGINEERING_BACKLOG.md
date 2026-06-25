@@ -66,8 +66,10 @@ Output:
 Depends on: scenario shortlist, workspace user stories and synthetic data
 index.
 Status: prepared as docs-only package for `ST2-US-001`, `ST2-US-002`,
-`ST2-US-003`, `ST2-US-009`, `ST2-US-011` и `ST2-US-013`. Runtime proof и
-создание synthetic files требуют отдельного согласования.
+`ST2-US-003`, `ST2-US-009` and `ST2-US-011`. `ST2-US-013` remains a marker
+but proof execution is paused under the OCR / VL OCR Infrastructure &
+Provider Benchmark Epic. Runtime proof и создание synthetic files требуют
+отдельного согласования.
 
 ### Synthetic test data pack
 
@@ -88,14 +90,25 @@ Depends on: native analytics endpoint proof, provider price catalog skeleton.
 Status: next independent proof. Hard billing/gateway remains a separate
 customer decision.
 
+### OCR / VL OCR Infrastructure & Provider Benchmark Epic
+
+Domain: Documents / OCR / VL OCR
+Output: handoff context, provider shortlist research frame, input/output
+contract draft, error/limitation contract and synthetic benchmark plan.
+Depends on: OCR/VL OCR context pack, VL OCR provider research, documents/OCR
+research, data policy and synthetic test data index.
+Status: ready for provider shortlist research; no runtime/provider setup yet.
+
 ### VL OCR candidate research + synthetic benchmark
 
 Domain: Documents / OCR / VL OCR
 Output: candidate shortlist and synthetic benchmark plan.
 Depends on: VL OCR provider research, documents/OCR/Excel research and
 synthetic test data index.
-Status: ready for research/benchmark. Customer OCR pilot and production
-acceptance remain blocked by real documents and provider/data policy.
+Status: folded under OCR / VL OCR Infrastructure & Provider Benchmark Epic.
+Provider shortlist research can start; benchmark execution waits for contracts
+and benchmark plan. Customer OCR pilot and production acceptance remain blocked
+by real documents and provider/data policy.
 
 ### Simple document extraction synthetic proof
 

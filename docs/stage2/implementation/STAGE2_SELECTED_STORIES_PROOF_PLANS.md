@@ -132,6 +132,7 @@ Status: plan prepared; proof not executed.
 
 ```text
 Story ID: ST2-US-013
+Status: paused pending OCR / VL OCR infrastructure epic.
 Proof goal: Подготовить OCR/VL OCR candidate shortlist and benchmark criteria for synthetic documents only.
 Preconditions: Synthetic scan/table/document requirements exist; candidate classes are listed; runtime/provider execution has separate approval if needed later.
 Synthetic input: Fake scan description, fake invoice/act description and fake table-like PDF description.
@@ -146,7 +147,7 @@ Fail signal: Plan claims production OCR quality, uses real documents or sends da
 What this proof does not prove: Quality on real scans, broker reports, tables, stamps, handwriting or customer document classes.
 Customer decisions required later: Real samples, expected output, allowed provider class, data policy and pilot owner.
 Runtime changes needed: none
-Status: plan prepared; proof not executed.
+Do not execute as proof until provider shortlist, contracts and benchmark plan are ready.
 ```
 
 ## Links

@@ -113,6 +113,7 @@ What it does not prove: OCR quality on real scans, broker reports, stamps, signa
 Required markers: SYNTHETIC TEST DATA; generated/fake text; visible synthetic watermark if files are later created.
 Expected output shape: Candidate comparison table with extracted text, table structure, confidence/uncertainty, latency, cost and privacy notes.
 Safety rules: Do not use real broker reports, real scans, real invoices, personal data, customer logos or provider calls in this task.
+Synthetic files for OCR/VL OCR should not be created until infrastructure epic defines benchmark classes and output contract.
 Status: requirements only; files and benchmark not created.
 ```
 

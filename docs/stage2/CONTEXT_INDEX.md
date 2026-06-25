@@ -41,7 +41,8 @@ Compact route map:
 - provider setup/accounts: use
   [Provider setup / provider accounts](#provider-setup--provider-accounts);
 - Web Search and OCR/VL OCR: use [Web-search](#web-search) or
-  [Documents / OCR / Excel](#documents--ocr--excel);
+  [Documents / OCR / Excel](#documents--ocr--excel); OCR / VL OCR epic starts
+  from [OCR / VL OCR Infrastructure Epic Context Pack](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md);
 - customer-facing materials: use
   [Customer-facing proposals](#customer-facing-proposals).
 
@@ -190,7 +191,7 @@ Use this table to choose the detailed route below.
 | Implementation planning | Domain isolation / contract boundaries | ROADMAP, gates, backlog, ADRs | Start code/config before gates | Gates 1-9 as applicable. |
 | Web Search | Web-search | Data policy, usage/cost, selected proof route if query matrix task | Use private/customer queries or rollout globally | Rollout policy, logs, cost, group defaults. |
 | STT | Транскрибация | ADR-0004, gates, contract boundaries | Re-plan STT MVP from zero | Production hardening, retention, media samples. |
-| OCR / VL OCR | Documents / OCR / Excel | Test data requirements, ADR-0005, selected proof route | Promise production OCR quality | Customer samples and provider/data policy. |
+| OCR / VL OCR | Documents / OCR / Excel | OCR / VL OCR epic context pack, test data requirements, ADR-0005 | Execute ST2-US-013 as proof or promise production OCR quality | Infrastructure epic, customer samples and provider/data policy. |
 | Usage analytics | Стоимость / analytics | ADR-0008, selected proof route for report shape | Promise hard billing or invoice parity | Native proof, visibility policy, price catalog. |
 | Provider/model catalog | Provider catalog / models | Data policy, ADR-0006 | Connect provider accounts | Provider/data approval and exact model IDs. |
 | Provider setup / provider accounts | Provider setup / provider accounts | Data policy, provider catalog, gates, contract boundaries, secrets/security docs | Read/print keys, create/change accounts, update production provider config | Approved data policy and explicit provider/account approval. |
@@ -531,6 +532,7 @@ Comment:
 
 Read first:
 
+- [OCR / VL OCR Infrastructure Epic Context Pack](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
 - [DOCUMENTS_OCR_EXCEL](blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [ADR-0005 OCR / VL OCR Pilot Scope](decisions/ADR-0005-ocr-vl-ocr-pilot-scope.md)
 
@@ -547,6 +549,8 @@ Skip unless needed:
 Comment:
 
 - OCR/VL OCR is a pilot.
+- `ST2-US-013` user-story proof execution is paused until the OCR / VL OCR
+  infrastructure epic defines provider shortlist, contracts and benchmark plan.
 - Production OCR/layout pipeline remains future.
 - Synthetic benchmark results can prepare a pilot, but they do not prove
   production OCR readiness for real customer documents.
@@ -555,6 +559,7 @@ Comment:
 
 Read first:
 
+- [OCR / VL OCR Infrastructure Epic Context Pack](context/OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
 - [DOCUMENTS_OCR_EXCEL](blueprints/DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [VL_OCR_PROVIDER_RESEARCH](research/VL_OCR_PROVIDER_RESEARCH.md)
 - [TEST_DATA_REQUIREMENTS](acceptance/TEST_DATA_REQUIREMENTS.md)
@@ -571,6 +576,8 @@ Comment:
 
 - Classify by document type.
 - Do not use "OCR works for everything" as acceptance.
+- Do not route ST2-US-013 directly into proof execution before infrastructure
+  epic contracts and benchmark plan exist.
 
 ## Provider catalog / models
 

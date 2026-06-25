@@ -57,8 +57,8 @@ customer data, production rollout and runtime changes.
 - `ST2-US-011` выделен отдельно: Stage 2 нужна конкретная форма отчета
   пользователь -> день/неделя -> модель -> сообщения -> токены -> примерная
   стоимость.
-- `ST2-US-013` фиксирует OCR/VL OCR как отдельный synthetic benchmark /
-  candidate-selection track без обещания качества на реальных документах.
+- `ST2-US-013` фиксирует OCR/VL OCR как marker, но execution paused: сначала
+  нужен OCR / VL OCR Infrastructure & Provider Benchmark epic.
 - Knowledge/RAG и broker reports не включены в первый пакет, потому что их
   полезность и acceptance зависят от домена заказчика, реальных документов,
   владельцев и expected output.
@@ -72,7 +72,12 @@ customer data, production rollout and runtime changes.
 | `ST2-US-003` | Meetings / post-transcription workflow | STT MVP path уже закрыт; следующий риск - полезная обработка transcript. | Summary, decisions, action items на fake meeting transcript. | Реальные media, consent, retention and transcript access rules. |
 | `ST2-US-009` | Web Search / public research | Web Search ценен, но rollout policy-gated. | Safe public query matrix, source-list shape, candidate-set wording. | Rollout scope, logs, cost, allowed data and group defaults. |
 | `ST2-US-011` | Usage analytics | Basic visibility нужна до hard billing/gateway. | Report shape and synthetic usage rows. | Reporting granularity, manager/admin visibility and price catalog acceptance. |
-| `ST2-US-013` | OCR / VL OCR candidate shortlist | OCR/VL OCR не должен потеряться, но real quality blocked. | Candidate taxonomy and synthetic benchmark requirements. | Real scans, broker reports, provider approval and expected output sample. |
+| `ST2-US-013` | OCR / VL OCR candidate shortlist | OCR/VL OCR не должен потеряться, но proof execution paused до infrastructure epic. | Context pack, provider taxonomy, input/output contract draft and benchmark frame. | Provider shortlist, real scans, broker reports, provider approval and expected output sample. |
+
+`ST2-US-013` execution paused as user-story proof. Moved under OCR / VL OCR
+Infrastructure & Provider Benchmark Epic. Reason: provider shortlist,
+input/output contract, safety boundary and synthetic benchmark plan must be
+defined first.
 
 ## 5. Таблица отложенных stories
 
