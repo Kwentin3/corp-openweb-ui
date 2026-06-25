@@ -177,6 +177,10 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md](docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
 - Stage 2 Unblocked Work Plan:
   [docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md](docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
+- Stage 2 selected story proof prep:
+  [selected stories](docs/stage2/implementation/STAGE2_SELECTED_USER_STORIES.md),
+  [synthetic data requirements](docs/stage2/testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md),
+  [proof plans](docs/stage2/implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
 - PRD-1 initial historical draft:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md)
 - PRD-1 changelog:

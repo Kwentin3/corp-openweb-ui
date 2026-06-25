@@ -8,6 +8,7 @@ Research base:
 
 - [Corporate AI Workspace Use Cases Research](../research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md)
 - [Stage 2 Scenario Shortlist](STAGE2_SCENARIO_SHORTLIST.md)
+- [Stage 2 Selected User Stories](STAGE2_SELECTED_USER_STORIES.md)
 - [Corporate AI Use Case Research Report](../../reports/2026-06-25/OPENWEBUI_CORPORATE_AI_USE_CASE_RESEARCH.report.md)
 
 ## 1. Назначение
@@ -29,6 +30,8 @@ Research base:
 
 Все stories ниже - draft для последующего отбора и proof. Они не создают
 synthetic files, не создают prompts/Knowledge в OpenWebUI и не меняют runtime.
+Первый малый execution-пакет выбран отдельно:
+[STAGE2_SELECTED_USER_STORIES.md](STAGE2_SELECTED_USER_STORIES.md).
 
 ## 2. Выбранный shortlist сценариев
 
@@ -401,6 +404,8 @@ Acceptance signal: Story clearly states synthetic-only boundary and customer-blo
 ## 6. Ссылки
 
 - [Stage 2 Scenario Shortlist](STAGE2_SCENARIO_SHORTLIST.md)
+- [Stage 2 Selected User Stories](STAGE2_SELECTED_USER_STORIES.md)
+- [Stage 2 Selected Stories Proof Plans](STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
 - [Stage 2 Unblocked Work Plan](STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [Synthetic Test Data Index](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
 - [OpenWebUI Native Capability Audit](OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)

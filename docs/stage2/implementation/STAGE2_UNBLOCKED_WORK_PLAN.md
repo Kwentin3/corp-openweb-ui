@@ -88,7 +88,8 @@ production acceptance на реальных данных заказчика.
 Артефакт:
 
 - [STAGE2_SCENARIO_SHORTLIST.md](STAGE2_SCENARIO_SHORTLIST.md);
-- [WORKSPACE_SCENARIO_USER_STORIES.md](WORKSPACE_SCENARIO_USER_STORIES.md).
+- [WORKSPACE_SCENARIO_USER_STORIES.md](WORKSPACE_SCENARIO_USER_STORIES.md);
+- [STAGE2_SELECTED_USER_STORIES.md](STAGE2_SELECTED_USER_STORIES.md).
 
 Можно ли делать без заказчика:
 
@@ -132,7 +133,8 @@ production acceptance на реальных данных заказчика.
 
 Артефакт:
 
-- [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md).
+- [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md);
+- [STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md).
 
 Можно ли делать без заказчика:
 
@@ -609,6 +611,12 @@ production acceptance на реальных данных заказчика.
 Такой порядок сначала задает сценарии и безопасные данные, а потом уже строит
 proof/benchmark вокруг них.
 
+Текущий первый execution-пакет подготовлен для `ST2-US-001`, `ST2-US-002`,
+`ST2-US-003`, `ST2-US-009`, `ST2-US-011` и `ST2-US-013`:
+[STAGE2_SELECTED_USER_STORIES.md](STAGE2_SELECTED_USER_STORIES.md),
+[STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
+и [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](STAGE2_SELECTED_STORIES_PROOF_PLANS.md).
+
 ## 5. Связь с PRD-1
 
 План следует PRD-1: Stage 2 строится вокруг рабочих сценариев, а не вокруг
@@ -655,4 +663,7 @@ research, benchmark plans and proof plans.
 - [Engineering Backlog](../ENGINEERING_BACKLOG.md)
 - [Implementation Gates](../IMPLEMENTATION_GATES.md)
 - [Workspace Scenario User Stories](WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Stage 2 Selected User Stories](STAGE2_SELECTED_USER_STORIES.md)
+- [Stage 2 Selected Stories Proof Plans](STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
 - [Synthetic Test Data Index](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+- [Stage 2 Selected Stories Synthetic Data Requirements](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)

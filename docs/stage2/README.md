@@ -92,6 +92,9 @@ provider setup, usage analytics and web-search.
 | [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md) | Внутренний план работ, которые можно делать без нового согласования с заказчиком. |
 | [STAGE2_SCENARIO_SHORTLIST.md](implementation/STAGE2_SCENARIO_SHORTLIST.md) | Короткий список первых Stage 2 сценариев и корзины: можно сейчас, нужен заказчик, future. |
 | [WORKSPACE_SCENARIO_USER_STORIES.md](implementation/WORKSPACE_SCENARIO_USER_STORIES.md) | Черновая структура рабочих сценариев через user stories - описания задачи глазами пользователя. |
+| [STAGE2_SELECTED_USER_STORIES.md](implementation/STAGE2_SELECTED_USER_STORIES.md) | Первый малый execution-пакет выбранных stories для synthetic data requirements и proof plans. |
+| [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md) | Планы проверки только на уровне документации для выбранных stories; runtime proof не запускался. |
+| [testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md) | Требования к искусственным тестовым данным для выбранных stories без создания файлов. |
 | [CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md](research/CORPORATE_AI_WORKSPACE_USE_CASES_RESEARCH.md) | Внешний research реальных корпоративных AI-workspace сценариев; база для будущего выбора user stories. |
 | [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md) | Native capability audit summary and scenario assembly guidance. |
 | [testdata/SYNTHETIC_TEST_DATA_INDEX.md](testdata/SYNTHETIC_TEST_DATA_INDEX.md) | Индекс искусственных тестовых данных для проверок и сравнений без данных заказчика. |

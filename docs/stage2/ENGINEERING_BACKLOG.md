@@ -51,6 +51,20 @@ Depends on: PRD-1, native capability audit, synthetic data index.
 Status: ready for documentation / ready to start. Real groups, owners and
 customer workflows remain customer input.
 
+### Selected story proof prep package
+
+Domain: Workspaces / STT workflow / Web Search / analytics / OCR
+Output:
+[STAGE2_SELECTED_USER_STORIES.md](implementation/STAGE2_SELECTED_USER_STORIES.md),
+[STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
+и
+[STAGE2_SELECTED_STORIES_PROOF_PLANS.md](implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md).
+Depends on: scenario shortlist, workspace user stories and synthetic data
+index.
+Status: prepared as docs-only package for `ST2-US-001`, `ST2-US-002`,
+`ST2-US-003`, `ST2-US-009`, `ST2-US-011` и `ST2-US-013`. Runtime proof и
+создание synthetic files требуют отдельного согласования.
+
 ### Synthetic test data pack
 
 Domain: Acceptance / test data / proof planning

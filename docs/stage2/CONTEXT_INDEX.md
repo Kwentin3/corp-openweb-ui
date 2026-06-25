@@ -49,6 +49,9 @@ Read first:
 - [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [Stage 2 Scenario Shortlist](implementation/STAGE2_SCENARIO_SHORTLIST.md)
 - [Workspace scenario user stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Stage 2 selected user stories](implementation/STAGE2_SELECTED_USER_STORIES.md)
+- [Stage 2 selected stories proof plans](implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
+- [Stage 2 selected stories synthetic data requirements](testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
 - [Synthetic test data index](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
 - [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
 - [ACCEPTANCE_MATRIX](acceptance/ACCEPTANCE_MATRIX.md)
@@ -77,6 +80,9 @@ Comment:
   expanding or selecting user stories.
 - Scenario shortlist and first draft user stories are available as a docs-only
   selection layer before synthetic data or proof planning.
+- First selected stories, synthetic data requirements and proof plans are now
+  documented for `ST2-US-001`, `ST2-US-002`, `ST2-US-003`, `ST2-US-009`,
+  `ST2-US-011` and `ST2-US-013`.
 - Synthetic proof can support mechanics and candidate comparison, but it does
   not close customer acceptance or implementation gates.
 - VL OCR research and synthetic benchmark can start now; customer OCR pilot
