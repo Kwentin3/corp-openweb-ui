@@ -28,16 +28,20 @@ AI-среду: рабочие сценарии, группы, prompts/templates,
 ## 4. Как пользоваться этим доменом
 
 1. Начать с [CONTEXT_INDEX.md](CONTEXT_INDEX.md), если задача точечная.
-2. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
-3. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
+2. Открыть
+   [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md),
+   если задача касается работ, которые можно делать без нового согласования с
+   заказчиком.
+3. Открыть [DOMAIN_MAP.md](DOMAIN_MAP.md), если нужно понять границы Stage 2.
+4. Открыть [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md), если задача касается custom logic,
    provider calls, storage, policy, usage or UI/backend split.
-4. Открыть [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
+5. Открыть [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
    для OpenWebUI-facing features.
-5. Открыть профильный blueprint в [blueprints/](blueprints/).
-6. Открыть связанные research-документы в [research/](research/).
-7. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
-8. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
-9. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
+6. Открыть профильный blueprint в [blueprints/](blueprints/).
+7. Открыть связанные research-документы в [research/](research/).
+8. Проверить acceptance в [acceptance/ACCEPTANCE_MATRIX.md](acceptance/ACCEPTANCE_MATRIX.md).
+9. Проверить implementation gates в [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md).
+10. Не начинать implementation до review roadmap/blueprints/research, ADR по спорным точкам и runtime
    proof.
 
 ## 5. Backend-first delivery principle
@@ -85,7 +89,10 @@ provider setup, usage analytics and web-search.
 | [proposals/](proposals/) | Customer-facing proposals for agreeing the next Stage 2 direction. |
 | [CUSTOMER_STAGE2_RUNTIME_DECISIONS.md](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md) | Справка для заказчика по решениям после runtime-аудита OpenWebUI. |
 | [implementation/](implementation/) | Implementation plans for first backend slices. |
+| [STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md) | Внутренний план работ, которые можно делать без нового согласования с заказчиком. |
+| [WORKSPACE_SCENARIO_USER_STORIES.md](implementation/WORKSPACE_SCENARIO_USER_STORIES.md) | Черновая структура рабочих сценариев через user stories - описания задачи глазами пользователя. |
 | [OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md) | Native capability audit summary and scenario assembly guidance. |
+| [testdata/SYNTHETIC_TEST_DATA_INDEX.md](testdata/SYNTHETIC_TEST_DATA_INDEX.md) | Индекс искусственных тестовых данных для проверок и сравнений без данных заказчика. |
 | [blueprints/](blueprints/) | Доменные инженерные рамки, не реализация. |
 | [research/](research/) | Research findings, источники, blockers и next steps. |
 | [decisions/](decisions/) | ADR-шаблон и будущие architecture decisions. |

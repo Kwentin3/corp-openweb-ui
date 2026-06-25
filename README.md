@@ -70,6 +70,10 @@ data masking/tokenization остаются отдельными optional/future 
 Инженерный домен подготовки к реализации Stage 2:
 [docs/stage2/README.md](docs/stage2/README.md).
 
+Внутренний план работ, которые можно выполнять без нового согласования с
+заказчиком:
+[docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md](docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
+
 Research findings актуализированы 2026-06-18. STT MVP current stage закрыт
 2026-06-19: private `stage2-stt` sidecar routes, OpenWebUI static `Transcribe`
 action, browser ffmpeg.wasm normalization and transcript return to OpenWebUI UX
@@ -171,6 +175,8 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md](docs/stage2/proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
 - Решения после runtime-аудита OpenWebUI:
   [docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md](docs/stage2/proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
+- Stage 2 Unblocked Work Plan:
+  [docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md](docs/stage2/implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - PRD-1 initial historical draft:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_INITIAL_DRAFT.md)
 - PRD-1 changelog:

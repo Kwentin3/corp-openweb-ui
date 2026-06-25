@@ -8,6 +8,13 @@ policy, backend boundaries, runtime proof and customer test data.
 Документ не запускает реализацию. Он фиксирует минимальные условия, после
 которых можно переходить к implementation planning and slices.
 
+Unblocked planning reference:
+[STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
+
+Unblocked work can prepare user stories, synthetic data, research, benchmark
+plans and proof plans. It does not close customer gates and does not authorize
+runtime changes.
+
 Related boundary map: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 
 Stage 2 custom capabilities must be isolated behind explicit backend contracts.
@@ -298,6 +305,8 @@ Status:
   no-delete is not enforced, Web Search is globally enabled, manager positive
   shared-list visibility did not confirm, and analytics did not show immediate
   synthetic user rows.
+- The unblocked work plan can prepare follow-up proof plans and synthetic
+  matrices, but it does not close Gate 7 without approved runtime proof.
 
 Owner:
 
@@ -323,6 +332,8 @@ Related docs:
 Status:
 
 - blocked by customer input.
+- Synthetic test data can support mechanical proof and benchmark preparation,
+  but it does not replace the customer test data package.
 
 Owner:
 

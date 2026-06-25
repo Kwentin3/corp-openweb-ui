@@ -8,6 +8,7 @@ Read first:
 
 - [PRD-1](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
 - [README](README.md)
+- [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [DOMAIN_MAP](DOMAIN_MAP.md)
 - [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
 - [EXTENSION_FIRST_IMPLEMENTATION_PATTERN](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md)
@@ -20,6 +21,8 @@ Additional context:
 - [OpenWebUI admin/test-user runtime proof report](../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md)
 - [Customer Stage 2 Governance Proposal](proposals/CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
 - [Customer runtime decisions / решения после runtime-аудита](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
+- [Workspace scenario user stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Synthetic test data index](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
 - [Customer summary](../prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md)
 - [PRD-0 audit](../reports/2026-06-16/OPENWEBUI_PRD_0_POST_ACCEPTANCE_AUDIT.report.md)
 
@@ -38,6 +41,42 @@ Comment:
   backend-only.
 - MVP STT trigger is explicit `Transcribe` action on an audio/video media
   attachment.
+
+## Unblocked planning / work without new customer approval
+
+Read first:
+
+- [Stage 2 Unblocked Work Plan](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
+- [Workspace scenario user stories](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Synthetic test data index](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+- [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
+- [ACCEPTANCE_MATRIX](acceptance/ACCEPTANCE_MATRIX.md)
+
+Additional context:
+
+- [OpenWebUI native capability audit](implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
+- [Customer runtime decisions](proposals/CUSTOMER_STAGE2_RUNTIME_DECISIONS.md)
+- [USAGE_ANALYTICS_BILLING_RESEARCH](research/USAGE_ANALYTICS_BILLING_RESEARCH.md)
+- [VL_OCR_PROVIDER_RESEARCH](research/VL_OCR_PROVIDER_RESEARCH.md)
+- [DOCUMENTS_OCR_EXCEL_RESEARCH](research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
+- [WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN](implementation/WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md)
+
+Skip unless separately approved:
+
+- Runtime `.env`.
+- Customer documents.
+- Stand runtime smoke/proof.
+
+Comment:
+
+- This stream is for internal documentation, skeletons, synthetic data,
+  research, benchmark plans and proof plans.
+- Synthetic proof can support mechanics and candidate comparison, but it does
+  not close customer acceptance or implementation gates.
+- VL OCR research and synthetic benchmark can start now; customer OCR pilot
+  remains blocked by real samples and data policy.
+- Usage analytics proof should target user/day/week/model/token/message and
+  approximate-cost breakdown before any hard billing/gateway decision.
 
 ## Domain isolation / contract boundaries
 

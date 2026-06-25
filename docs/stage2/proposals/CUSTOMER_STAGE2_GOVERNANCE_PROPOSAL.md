@@ -189,6 +189,7 @@ Governance)**.
 - [Stage 2 context index / индекс контекста](../CONTEXT_INDEX.md)
 - [Stage 2 roadmap / дорожная карта](../ROADMAP.md)
 - [Stage 2 engineering backlog / инженерный список задач](../ENGINEERING_BACKLOG.md)
+- [Внутренний план работ без нового согласования](../implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 
 Текущий статус функций:
 

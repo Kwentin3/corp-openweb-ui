@@ -32,6 +32,70 @@ Boundary reference: [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md).
 Pattern reference:
 [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md).
 
+## Ready to start without new customer approval
+
+These items are documentation, skeleton, research, benchmark-plan and proof-plan
+work. They do not change runtime, do not use customer data and do not close
+customer gates.
+
+Reference:
+[STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
+
+### Workspace scenario user stories
+
+Domain: Workspaces / RBAC / prompts / Knowledge
+Output:
+[WORKSPACE_SCENARIO_USER_STORIES.md](implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+and follow-up scenario drafts.
+Depends on: PRD-1, native capability audit, synthetic data index.
+Status: ready for documentation / ready to start. Real groups, owners and
+customer workflows remain customer input.
+
+### Synthetic test data pack
+
+Domain: Acceptance / test data / proof planning
+Output:
+[SYNTHETIC_TEST_DATA_INDEX.md](testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+and later explicitly synthetic files if approved.
+Depends on: acceptance matrix and test data requirements.
+Status: ready to start. Synthetic data supports mechanical proof only; it does
+not replace customer samples.
+
+### Usage analytics proof
+
+Domain: Usage analytics / costs
+Output: proof plan for user/day/week/model/token/message and approximate-cost
+breakdown, plus native gap list if OpenWebUI analytics is insufficient.
+Depends on: native analytics endpoint proof, provider price catalog skeleton.
+Status: next independent proof. Hard billing/gateway remains a separate
+customer decision.
+
+### VL OCR candidate research + synthetic benchmark
+
+Domain: Documents / OCR / VL OCR
+Output: candidate shortlist and synthetic benchmark plan.
+Depends on: VL OCR provider research, documents/OCR/Excel research and
+synthetic test data index.
+Status: ready for research/benchmark. Customer OCR pilot and production
+acceptance remain blocked by real documents and provider/data policy.
+
+### Simple document extraction synthetic proof
+
+Domain: Documents / PDF / DOCX / XLSX
+Output: mechanical proof plan for simple PDF/DOCX/XLSX synthetic files.
+Depends on: synthetic test data index.
+Status: ready after synthetic data index. Real broker reports, scans and
+complex Excel remain customer-blocked.
+
+### Configuration-first scenario proof
+
+Domain: Workspaces / RBAC / prompts / Knowledge
+Output: proof plan for group, Workspace Model, shared prompt, Knowledge and
+actor matrix using synthetic resources.
+Depends on: workspace scenario user stories and synthetic test data index.
+Status: ready after user stories and synthetic data. Runtime proof still needs
+separate approval.
+
 ## Current-stage closed / proven
 
 ### Stage 2 STT MVP
@@ -206,6 +270,8 @@ Output: ADR or decision note for pilot candidate list, test set, evaluation crit
 document-type classification.
 Depends on: customer samples and data policy
 Status: waiting for customer test data; ready for ADR skeleton
+and synthetic benchmark planning. Customer pilot remains blocked by real
+documents and provider/data policy.
 
 ### Native analytics vs hard billing
 
@@ -226,7 +292,8 @@ Why: Need to compare native extraction, Tika/Docling, Mistral OCR/document AI, c
 local/VLM options before promising OCR quality.
 Output: short candidate shortlist and pilot plan for 2-3 candidates.
 Depends on: customer data policy and sample documents
-Status: research artifact created; pilot candidate choice pending
+Status: research artifact created; synthetic benchmark planning can start;
+customer pilot candidate choice remains blocked by samples and data policy
 
 ## Ready for runtime proof
 

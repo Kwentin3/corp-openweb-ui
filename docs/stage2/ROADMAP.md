@@ -76,6 +76,28 @@ Remaining blockers:
 - Customer approval for manager visibility, no-delete and retention/audit policy boundaries.
 - OCR/VL OCR pilot test set and provider/candidate list.
 
+## Parallel stream. Unblocked documentation and proof planning
+
+Status: active.
+
+Some Stage 2 work can continue without waiting for new customer decisions:
+scenario user stories, synthetic test data index, usage analytics proof plan,
+VL OCR synthetic benchmark plan, simple document extraction proof plan and
+configuration-first scenario proof plan.
+
+Reference:
+[STAGE2_UNBLOCKED_WORK_PLAN.md](implementation/STAGE2_UNBLOCKED_WORK_PLAN.md).
+
+This stream is documentation, research, benchmark-plan and proof-plan work. It
+does not change runtime, does not use customer data and does not close Gate 7
+or Gate 8.
+
+Exit signal:
+
+- user stories and synthetic test data structure are ready;
+- proof plans are linked to acceptance and implementation gates;
+- customer-blocked acceptance remains explicitly blocked.
+
 ## Phase 2. Architecture decisions
 
 Status: next.

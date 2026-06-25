@@ -196,6 +196,7 @@
 - [Основное предложение Stage 2](CUSTOMER_STAGE2_GOVERNANCE_PROPOSAL.md)
 - [Admin/Test-User Runtime Proof report](../../reports/2026-06-24/OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md)
 - [OpenWebUI Native Capability Audit](../implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md)
+- [Stage 2 Unblocked Work Plan](../implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
 - [Implementation Gates](../IMPLEMENTATION_GATES.md)
 - [Engineering Backlog](../ENGINEERING_BACKLOG.md)
 - [Acceptance Matrix](../acceptance/ACCEPTANCE_MATRIX.md)

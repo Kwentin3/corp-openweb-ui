@@ -3,6 +3,19 @@
 Тестовые данные нужны до implementation planning. Без них acceptance будет проверять впечатления, а
 не требования PRD-1.
 
+## Synthetic data boundary
+
+Для независимых proof/benchmark работ до получения customer samples использовать
+[Synthetic Test Data Index](../testdata/SYNTHETIC_TEST_DATA_INDEX.md).
+
+Synthetic data - это искусственные тестовые данные без данных заказчика. Они
+подходят для проверки механики загрузки, prompts, Knowledge, простого
+извлечения, Web Search safe matrix и analytics proof shape.
+
+Synthetic data не закрывает production acceptance: реальные брокерские отчеты,
+OCR/scans, XLSX, media, group matrix and provider/data policy examples остаются
+customer test data package.
+
 ## Broker reports / 3-НДФЛ
 
 - Простой отчет по брокерскому счету.

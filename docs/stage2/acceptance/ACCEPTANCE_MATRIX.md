@@ -1,5 +1,24 @@
 ﻿# Stage 2 Acceptance Matrix
 
+## Synthetic proof boundary
+
+Synthetic data - это искусственные тестовые данные без данных заказчика.
+
+Synthetic data can support mechanical proof: загрузка файлов, доступы,
+prompts, Knowledge, простое извлечение, Web Search safe matrix, analytics proof
+shape and OCR/VL OCR candidate comparison.
+
+Customer data remains required for production acceptance: реальные группы,
+реальные документы, broker reports, scans, XLSX, media, provider/data policy
+and expected outputs.
+
+References:
+
+- [Stage 2 Unblocked Work Plan](../implementation/STAGE2_UNBLOCKED_WORK_PLAN.md)
+- [Workspace Scenario User Stories](../implementation/WORKSPACE_SCENARIO_USER_STORIES.md)
+- [Synthetic Test Data Index](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+- [Test Data Requirements](TEST_DATA_REQUIREMENTS.md)
+
 ## Minimum working scenarios with groups, prompts and owner
 
 Domain:
@@ -347,6 +366,8 @@ Acceptance signal:
 
 - VL OCR candidate list selected.
 - Pilot test set collected before implementation.
+- Synthetic benchmark can start for candidate comparison, but customer pilot
+  still requires approved samples.
 
 Test data needed:
 
@@ -358,7 +379,8 @@ Test data needed:
 
 Status:
 
-- Planned; blocked by customer samples.
+- Synthetic benchmark planning can start. Customer pilot and production
+  acceptance remain blocked by customer samples and provider/data policy.
 
 ## Provider model catalog
 
@@ -407,6 +429,8 @@ Acceptance signal:
 
 - Admin sees usage or documented gap.
 - Hard billing decision is separated.
+- Proof answers at least: user, day/week, model, token count, message count and
+  approximate cost or a documented native gap.
 
 Test data needed:
 
