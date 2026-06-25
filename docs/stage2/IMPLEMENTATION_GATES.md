@@ -81,6 +81,7 @@ review, not architectural discovery or a reason to restart the MVP design.
 - ADR-0007 approved.
 - Provider selected.
 - Result count/concurrency/cost policy defined.
+- Smoke/proven connectivity alone does not approve production rollout.
 
 ### Gate 5. Manager Visibility and Retention policy approved
 
@@ -93,6 +94,7 @@ review, not architectural discovery or a reason to restart the MVP design.
 - ADR-0005 approved.
 - Test data selected.
 - Acceptance per document class defined.
+- Synthetic benchmark alone does not prove production OCR readiness.
 
 ### Gate 7. Runtime proof complete
 

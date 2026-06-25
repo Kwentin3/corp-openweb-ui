@@ -5,6 +5,9 @@
 Этот файл - главный маршрутизатор контекста Stage 2. Правила чтения и
 ограничения вынесены в [CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md).
 
+Статус: навигационный индекс. Не является разрешением на implementation,
+runtime changes, provider setup или использование customer data.
+
 ## How to use this index
 
 1. Определи тип задачи и домен: planning, selected stories, synthetic data,
@@ -25,6 +28,22 @@ Do not read `.env`, secrets, tokens, credentials, private URLs or customer data
 unless a separate task explicitly approves it. Do not run runtime proof, change
 OpenWebUI config or create users/groups/models/prompts/Knowledge from a
 docs-only route.
+
+Compact route map:
+
+- selected stories / synthetic data / proof prep: start with
+  [Selected stories / synthetic data / proof prep](#selected-stories--synthetic-data--proof-prep);
+- first route choice: use
+  [Task-specific routing shortcuts](#task-specific-routing-shortcuts);
+- runtime/proof tasks: use
+  [Proof execution / runtime checks](#proof-execution--runtime-checks);
+- implementation tasks: use [Implementation planning](#implementation-planning);
+- provider setup/accounts: use
+  [Provider setup / provider accounts](#provider-setup--provider-accounts);
+- Web Search and OCR/VL OCR: use [Web-search](#web-search) or
+  [Documents / OCR / Excel](#documents--ocr--excel);
+- customer-facing materials: use
+  [Customer-facing proposals](#customer-facing-proposals).
 
 ## Source of truth hierarchy
 
@@ -73,6 +92,12 @@ gate/contract/approved ADR как ограничение и зафиксируй
 - не считать synthetic proof production acceptance;
 - не считать proposed ADR approved;
 - не считать customer proposal implementation task.
+- Web Search smoke/proven connectivity does not approve production rollout.
+  Если Web Search smoke прошёл, это значит только, что техническая связность
+  проверена. Это не значит, что Web Search можно включать всем пользователям.
+- OCR/VL OCR synthetic benchmark does not prove production OCR readiness. Если
+  benchmark пройден на synthetic data, это не значит, что OCR готов к реальным
+  документам заказчика.
 
 ## Общий Stage 2 scope
 
@@ -168,6 +193,7 @@ Use this table to choose the detailed route below.
 | OCR / VL OCR | Documents / OCR / Excel | Test data requirements, ADR-0005, selected proof route | Promise production OCR quality | Customer samples and provider/data policy. |
 | Usage analytics | Стоимость / analytics | ADR-0008, selected proof route for report shape | Promise hard billing or invoice parity | Native proof, visibility policy, price catalog. |
 | Provider/model catalog | Provider catalog / models | Data policy, ADR-0006 | Connect provider accounts | Provider/data approval and exact model IDs. |
+| Provider setup / provider accounts | Provider setup / provider accounts | Data policy, provider catalog, gates, contract boundaries, secrets/security docs | Read/print keys, create/change accounts, update production provider config | Approved data policy and explicit provider/account approval. |
 | Data policy | Data policy / masking | ADR-0001, security docs | Promise automatic masking | Customer/security approval. |
 | Customer-facing proposal | General scope plus proposals | PRD-1, customer summary, internal matching docs | Treat proposal as implementation backlog | Owner/customer approval required. |
 | Manager visibility / no-delete / retention | Руководители и чаты; Retention / audit / no-delete | ADR-0002, ADR-0003, runtime proof reports | Treat manager visibility as admin sees everything | Customer privacy/retention policy and runtime proof. |
@@ -495,6 +521,9 @@ Comment:
 - Current closeout status: Brave, Yandex and private SearXNG provider
   connectivity is proven; production rollout and full provider comparison are
   pending.
+- Smoke/proven connectivity is only a technical connectivity result. It does
+  not approve production rollout, group defaults or enabling Web Search for all
+  users.
 - No sidecar/fork/custom gateway until native runtime smoke proves a concrete
   gap.
 
@@ -519,6 +548,8 @@ Comment:
 
 - OCR/VL OCR is a pilot.
 - Production OCR/layout pipeline remains future.
+- Synthetic benchmark results can prepare a pilot, but they do not prove
+  production OCR readiness for real customer documents.
 
 ## Сканы / картинки / PDF OCR
 
@@ -563,6 +594,46 @@ Comment:
 - Claude API is a provider.
 - Claude Code is not a chat provider.
 - Exact model IDs are required.
+
+## Provider setup / provider accounts
+
+Use this route for tasks about provider setup, provider accounts, model/provider
+access, keys handoff, safe smoke preparation or production provider config.
+
+Read first:
+
+1. [PROVIDERS_MODEL_CATALOG](blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md)
+2. [ADR-0001 Data Policy](decisions/ADR-0001-data-policy-by-provider-class.md)
+3. [ADR-0006 Provider Model Catalog](decisions/ADR-0006-provider-model-catalog.md)
+4. [ENGINEERING_BACKLOG](ENGINEERING_BACKLOG.md)
+5. [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
+6. [CONTRACT_BOUNDARIES](CONTRACT_BOUNDARIES.md)
+7. [PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH](research/PROVIDERS_YANDEX_GIGACHAT_DEEPSEEK_CLAUDE_RESEARCH.md)
+8. [SECRETS_POLICY](../security/SECRETS_POLICY.md)
+9. [SECURITY_MINIMUM](../security/SECURITY_MINIMUM.md)
+
+Additional context after approval:
+
+- [PROVIDER_CONNECTIONS_PLAN](../infra/PROVIDER_CONNECTIONS_PLAN.md)
+- [PROVIDER_SETUP_RUNBOOK](../ops/PROVIDER_SETUP_RUNBOOK.md)
+
+Do not do:
+
+- do not read or print provider keys;
+- do not create or change provider accounts;
+- do not update production provider config;
+- do not start provider setup before approved data policy;
+- do not treat provider research as approval.
+
+Provider setup нельзя начинать до утверждённой политики данных по классам
+провайдеров.
+
+Blockers / gates:
+
+- Gate 1: data policy by provider class;
+- Gate 3: provider model catalog;
+- explicit provider/account approval by customer/operator;
+- safe key handoff procedure that does not expose secrets in docs, logs or git.
 
 ## Стоимость / analytics
 

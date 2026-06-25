@@ -50,6 +50,11 @@ Stage 2 docs are not implementation by default. A docs-only plan, research
 note, customer proposal or proof plan does not authorize runtime proof,
 OpenWebUI config changes or creation of users/groups/models/prompts/Knowledge.
 
+Для задач по selected stories, synthetic data и proof prep сначала используйте
+route в [CONTEXT_INDEX.md](CONTEXT_INDEX.md) и правила в
+[CONTEXT_USAGE_RULES.md](CONTEXT_USAGE_RULES.md). README не дублирует полный
+порядок чтения.
+
 ## 5. Backend-first delivery principle
 
 Stage 2 implementation must start from backend/server-side boundaries, policies and proofs.

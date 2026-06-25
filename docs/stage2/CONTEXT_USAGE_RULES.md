@@ -60,6 +60,8 @@ runtime changes.
 - Proof plan не означает, что proof выполнен.
 - Runtime proof report показывает evidence конкретного запуска; он не
   разрешает повторный runtime proof без approval.
+- Web Search technical proof is not Web Search rollout approval.
+- OCR/VL OCR synthetic benchmark is not production OCR acceptance.
 - Docs-only document не разрешает runtime changes, config changes,
   provider setup or user/group/model/prompt/Knowledge creation.
 
@@ -77,6 +79,13 @@ runtime changes.
 - не считать synthetic proof production acceptance;
 - не считать proposed ADR approved;
 - не считать customer proposal implementation task.
+- Web Search smoke/proven connectivity does not approve production rollout.
+  Техническая связность не означает, что Web Search можно включать всем
+  пользователям.
+- OCR/VL OCR synthetic benchmark does not prove production OCR readiness.
+  Synthetic data не заменяет реальные документы заказчика для acceptance.
+- Provider setup requires approved data policy and explicit provider/account
+  approval.
 
 ## 5. Selected stories route
 
@@ -109,6 +118,10 @@ Stop and report a typed blocker if:
 - proof plan is being treated as executed proof;
 - proposed ADR is being treated as approved;
 - customer-facing proposal is being treated as implementation backlog;
+- Web Search smoke/proven connectivity is being treated as rollout approval;
+- OCR/VL OCR synthetic benchmark is being treated as production acceptance;
+- provider setup is being started without approved data policy and explicit
+  provider/account approval;
 - runtime/config/provider action is implied by a docs-only document;
 - expected output depends on real groups, real documents, provider policy,
   customer decisions or expected output samples that are missing.
