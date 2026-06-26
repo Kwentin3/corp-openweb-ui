@@ -56,7 +56,7 @@ customer data, production rollout and runtime changes.
   включение Web Search всем.
 - `ST2-US-011` выделен отдельно: Stage 2 нужна конкретная форма отчета
   пользователь -> день/неделя -> модель -> сообщения -> токены -> примерная
-  стоимость.
+  usage/cost visibility.
 - `ST2-US-013` фиксирует OCR/VL OCR как marker, но execution paused: сначала
   нужен OCR / VL OCR Infrastructure & Provider Benchmark epic.
 - Knowledge/RAG и broker reports не включены в первый пакет, потому что их

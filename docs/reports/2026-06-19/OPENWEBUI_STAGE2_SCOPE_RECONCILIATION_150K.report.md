@@ -1,8 +1,17 @@
-# OpenWebUI Stage 2 Scope Reconciliation 150K Report
+# OpenWebUI Stage 2 Scope Reconciliation Report
 
 ## 1. Summary
 
-Подготовлен scope reconciliation для договора на 150 000 рублей по Stage 2.
+Подготовлен scope reconciliation для limited Stage 2 tranche.
+
+Политика коммерческой документации:
+
+```text
+GitHub-документация фиксирует состав работ, трудозатраты, статусы,
+доказательства и ограничения. Денежные суммы, график оплаты и финансовые
+условия фиксируются только в договорах, счетах и актах и не хранятся в
+markdown-документации репозитория.
+```
 
 Вывод: текущие фактически выполненные работы нельзя корректно описывать ни как "только STT + Web Search", ни как "полный PRD-1 завершен". Корректная договорная рамка:
 
@@ -14,7 +23,7 @@
 
 Основной документ:
 
-- `docs/commercial/STAGE2_SCOPE_RECONCILIATION_150K.md`
+- scope reconciliation commercial file
 
 ## 2. Sources Reviewed
 
@@ -22,7 +31,7 @@
 
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md`
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md`
-- `docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md`
+- completed-work commercial audit file
 - `docs/stage2/README.md`
 - `docs/stage2/CONTEXT_INDEX.md`
 - `docs/stage2/ENGINEERING_BACKLOG.md`
@@ -72,7 +81,7 @@ Statuses used:
 - `RESEARCH_ONLY`
 - `PLANNED_FUTURE`
 
-`OUT_OF_150K` was not required as the primary status because future exclusions are represented through `RESEARCH_ONLY` and `PLANNED_FUTURE`, with explicit exclusion wording.
+`OUT_OF_TRANCHE` was not required as the primary status because future exclusions are represented through `RESEARCH_ONLY` and `PLANNED_FUTURE`, with explicit exclusion wording.
 
 ## 4. Actual Done vs Planned Findings
 
@@ -114,13 +123,13 @@ Not completed as full PRD-1:
 - AD/SSO;
 - full Web Search policies/logs/limits/forbidden-query/cost governance.
 
-## 5. Recommended 150K Scope
+## 5. Recommended Limited Tranche Scope
 
 Recommended tranche title:
 
 **Этап 2. Часть 1: первый функционально-архитектурный срез Stage 2 корпоративного OpenWebUI**
 
-Included in the 150K scope:
+Included in the limited tranche scope:
 
 - STT/media transcription capability.
 - Web Search baseline capability.
@@ -140,7 +149,7 @@ This framing is also safer than claiming full Stage 2 completion, because the fu
 
 ## 6. Key Exclusions
 
-Exclude from the current 150K contract as completed deliverables:
+Exclude from the current limited tranche as completed deliverables:
 
 - full PRD-1 completion;
 - full managed corporate workspace;
@@ -169,14 +178,14 @@ Contract preparation is ready if the contract follows the reconciliation documen
 - include STT and Web Search baseline as user-visible delivered capabilities;
 - include architecture, contracts, gates, backlog and reports as completed work;
 - explicitly mark full PRD-1 as future scope;
-- treat the existing 75 000 рублей act/invoice as a partial payment or partial closing document under the same 150 000 рублей tranche, if both sides confirm that accounting model;
+- keep any relationship with existing external act/invoice documents outside GitHub markdown, in the parties' contract documents;
 - avoid duplicating already paid work.
 
-The existing 75 000 рублей act/invoice should not be described as completion of the full Stage 2. It should be reconciled as part of the first 150 000 рублей tranche or handled as a separately documented partial acceptance, depending on the parties' accounting decision.
+Any existing external act/invoice should not be described as completion of the full Stage 2. Its financial treatment belongs only in contract documents outside GitHub.
 
 ## 8. Final Verdict
 
-The Stage 2 150K reconciliation is ready for contract draft preparation.
+The Stage 2 limited-tranche reconciliation is ready for contract draft preparation.
 
 Final verdict:
 

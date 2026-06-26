@@ -113,10 +113,10 @@ High-level fit:
 | Raw text output | Yes via normalized markdown/text |
 | Batch mode | Yes; OCR 4 announcement says Batch API discount |
 | Latency | Mistral claims low latency; no independent latency proof for our workload |
-| Pricing | OCR 4 API: $4 / 1,000 pages; Batch API: $2 / 1,000 pages; Document AI: $5 / 1,000 pages |
-| Pricing unit | Per page |
-| Estimated cost for 100 images | About $0.40 OCR API; $0.20 batch; $0.50 Document AI, assuming one image = one page |
-| Estimated cost for 1,000 images | About $4 OCR API; $2 batch; $5 Document AI |
+| Commercial terms | Check external billing docs; monetary values are not stored in repository markdown |
+| Billing unit | Per page |
+| 100-image planning signal | Use provider-reported usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use provider-reported usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | Not confirmed in this pass |
 | Rate limits | Account/model dependent; verify before benchmark |
 | Auth model | Mistral API key, server-side only |
@@ -163,10 +163,10 @@ High-level fit:
 | Raw text output | Yes |
 | Batch mode | Multi-image inputs supported; not a page-priced batch OCR pipeline |
 | Latency | Expected low for flash, higher for plus; no workload proof |
-| Pricing | Official Qwen3-VL Flash global tier shown as low as $0.022 input / $0.215 output per 1M tokens for first 32K context; Qwen3-VL Plus global starts around $0.143 input / $1.434 output per 1M tokens. Third-party model directories list `qwen-vl-ocr` around $0.07 input / $0.16 output per 1M tokens; verify in Model Studio console |
-| Pricing unit | Per input/output token |
-| Estimated cost for 100 images | Rough planning range $0.02-$0.10 depending image tokens, output size and exact model |
-| Estimated cost for 1,000 images | Rough planning range $0.15-$1.00; verify with `usage.image_tokens` during synthetic benchmark |
+| Commercial terms | Check external Model Studio billing docs; monetary values are not stored in repository markdown |
+| Billing unit | Per input/output token |
+| 100-image planning signal | Use provider-reported token usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use provider-reported token usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | Model Studio docs mention 1M free visual-understanding tokens in Singapore region for 90 days after activation |
 | Rate limits | Model/account/region dependent |
 | Auth model | DashScope/Model Studio API key, server-side only |
@@ -213,10 +213,10 @@ High-level fit:
 | Raw text output | Yes |
 | Batch mode | Yes, async/batch patterns |
 | Latency | Good enterprise service; benchmark needed |
-| Pricing | Official page and Azure Retail Prices API show Read at $1.50 / 1,000 pages for first volume tier; Layout/prebuilt around $10 / 1,000 pages; custom extraction around $30 / 1,000 pages |
-| Pricing unit | Per page |
-| Estimated cost for 100 images | Read: $0.15; Layout/prebuilt: $1.00 |
-| Estimated cost for 1,000 images | Read: $1.50; Layout/prebuilt: $10.00 |
+| Commercial terms | Check Azure billing docs; monetary values are not stored in repository markdown |
+| Billing unit | Per page |
+| 100-image planning signal | Use provider-reported page usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use provider-reported page usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | 500 pages/month free tier on pricing page |
 | Rate limits | Azure resource tier/region dependent |
 | Auth model | Azure key/AAD, server-side only |
@@ -263,10 +263,10 @@ High-level fit:
 | Raw text output | Yes |
 | Batch mode | Batch API exists; not required for MVP |
 | Latency | Usually low for Flash/Lite; benchmark needed |
-| Pricing | Token based. Official Gemini pricing shows low Flash/Lite image/text input pricing; token docs say images are counted as 258 tokens for small images or tiled at 258 tokens per 768x768 tile |
-| Pricing unit | Per input/output token |
-| Estimated cost for 100 images | Roughly cents for input plus output; planning range $0.05-$0.30 depending model and JSON size |
-| Estimated cost for 1,000 images | Roughly $0.50-$3.00 for Flash/Lite style JSON extraction if output remains compact; verify with count-tokens |
+| Commercial terms | Token based; check external Gemini billing docs. Monetary values are not stored in repository markdown |
+| Billing unit | Per input/output token |
+| 100-image planning signal | Use token counts and provider-reported usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use token counts and provider-reported usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | Gemini API has free tier/rate limits depending model/region |
 | Rate limits | Model/tier dependent |
 | Auth model | Google API key or Vertex credentials, server-side only |
@@ -313,10 +313,10 @@ High-level fit:
 | Raw text output | Yes |
 | Batch mode | Yes |
 | Latency | Good; benchmark needed |
-| Pricing | Enterprise Document OCR $1.50 / 1,000 pages; Layout Parser $10 / 1,000 pages; Form Parser $30 / 1,000 pages |
-| Pricing unit | Per page |
-| Estimated cost for 100 images | OCR: $0.15; Layout: $1; Form Parser: $3 |
-| Estimated cost for 1,000 images | OCR: $1.50; Layout: $10; Form Parser: $30 |
+| Commercial terms | Check Google Cloud billing docs; monetary values are not stored in repository markdown |
+| Billing unit | Per page |
+| 100-image planning signal | Use provider-reported page usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use provider-reported page usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | Standard Google Cloud trial/credits may apply, not assumed |
 | Rate limits | Processor/project dependent |
 | Auth model | GCP service account/server-side only |
@@ -363,10 +363,10 @@ High-level fit:
 | Raw text output | Yes in principle |
 | Batch mode | Provider-specific |
 | Latency | Unknown for hosted; local/hosted GPU may vary widely |
-| Pricing | Novita-related public calculators list around $0.02 / 1M input and $0.02 / 1M output tokens; Fireworks path is on-demand GPU/deployment, not simple per-page OCR pricing; PaddleOCR official API pricing not confirmed |
-| Pricing unit | Provider-specific token or GPU second/hour |
-| Estimated cost for 100 images | Could be below $0.01-$0.10 on token-priced hosted path, but this is not reliable until account-level API pricing is confirmed |
-| Estimated cost for 1,000 images | Could be below $0.10-$1.00 on token-priced hosted path; on-demand GPU can be much higher if cold/warm time dominates |
+| Commercial terms | Provider-specific token or GPU deployment terms; monetary values are not stored in repository markdown |
+| Billing unit | Provider-specific token or GPU second/hour |
+| 100-image planning signal | Use account-level API usage after benchmark; no monetary estimate in GitHub |
+| 1,000-image planning signal | Use account-level API usage after benchmark; no monetary estimate in GitHub |
 | Free tier / trial | Provider-specific; not assumed |
 | Rate limits | Provider-specific |
 | Auth model | Provider API key, server-side only |
@@ -440,20 +440,20 @@ Planning estimates for one raster image = one page unless provider is token
 based. Token-based estimates assume compact JSON output, not verbose reasoning.
 Actual benchmark must log provider-reported usage and normalized page count.
 
-| Candidate | Pricing model | 100 images estimate | 1,000 images estimate | Comment |
+| Candidate | Billing model | 100 images signal | 1,000 images signal | Comment |
 | --------- | ------------- | ------------------- | --------------------- | ------- |
-| Mistral OCR 4 | $4 / 1K pages; $2 batch | $0.40; $0.20 batch | $4; $2 batch | Good price/performance if OCR 4 behavior matches docs |
-| Mistral Document AI | $5 / 1K pages | $0.50 | $5 | Good if schema extraction is needed immediately |
-| Azure Read | $1.50 / 1K pages | $0.15 | $1.50 | Cheapest mature deterministic OCR baseline |
-| Azure Layout / prebuilt | About $10 / 1K pages | $1 | $10 | Strong for tables/layout, still affordable for benchmark |
-| Google Document AI OCR | $1.50 / 1K pages | $0.15 | $1.50 | Comparable to Azure Read |
-| Google Document AI Layout | $10 / 1K pages | $1 | $10 | Comparable to Azure Layout |
-| Google Document AI Form Parser | $30 / 1K pages | $3 | $30 | More expensive; use only if form parser is needed |
-| Alibaba Qwen3-VL / Qwen-OCR | Token based | $0.02-$0.10 rough | $0.15-$1 rough | Potentially cheapest serious VL track; verify exact model usage |
-| Google Gemini Flash/Lite | Token based | $0.05-$0.30 rough | $0.50-$3 rough | Good VLM comparator; not deterministic OCR |
-| Hosted PaddleOCR-VL | Token/GPU based by provider | $0.01-$0.10 possible | $0.10-$1 possible, but uncertain | Interesting only after provider API shape is proven |
-| OCR.space | Free/plan based | Free under daily limit | Free over multiple days or paid plan | Too weak for serious layout benchmark |
-| AWS Textract | Page/features based | Basic text cheap; forms/tables much higher | Can reach tens of dollars per 1K pages for forms/tables | Russian support gap makes it low priority |
+| Mistral OCR 4 | Page/batch based | External billing docs only | External billing docs only | Good price/performance candidate if OCR 4 behavior matches docs |
+| Mistral Document AI | Page based | External billing docs only | External billing docs only | Good if schema extraction is needed immediately |
+| Azure Read | Page based | External billing docs only | External billing docs only | Mature deterministic OCR baseline |
+| Azure Layout / prebuilt | Page based | External billing docs only | External billing docs only | Strong for tables/layout |
+| Google Document AI OCR | Page based | External billing docs only | External billing docs only | Comparable to Azure Read |
+| Google Document AI Layout | Page based | External billing docs only | External billing docs only | Comparable to Azure Layout |
+| Google Document AI Form Parser | Page/features based | External billing docs only | External billing docs only | Use only if form parser is needed |
+| Alibaba Qwen3-VL / Qwen-OCR | Token based | External billing docs only | External billing docs only | Potentially useful serious VL track; verify exact model usage |
+| Google Gemini Flash/Lite | Token based | External billing docs only | External billing docs only | Good VLM comparator; not deterministic OCR |
+| Hosted PaddleOCR-VL | Token/GPU based by provider | External billing docs only | External billing docs only | Interesting only after provider API shape is proven |
+| OCR.space | Plan based | External billing docs only | External billing docs only | Too weak for serious layout benchmark |
+| AWS Textract | Page/features based | External billing docs only | External billing docs only | Russian support gap makes it low priority |
 
 Price conclusion:
 

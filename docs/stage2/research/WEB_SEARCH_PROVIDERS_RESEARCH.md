@@ -24,16 +24,15 @@ operator/native smoke as a working RU-provider path.
 - OpenWebUI environment docs include Yandex Web Search variables: `YANDEX_WEB_SEARCH_URL` and
   `YANDEX_WEB_SEARCH_API_KEY`.
 - Existing repo research already recommended `brave_llm_context` with low result count/concurrency
-  for PRD-0-adjacent planning. That remains directionally valid, but pricing changed/currently needs
-  budget approval.
-- Brave official pricing currently lists Search at $5 per 1,000 requests, with $5 free credits per
-  month and 50 requests/second capacity. Brave LLM Context is positioned for AI/agent grounding.
+  for PRD-0-adjacent planning. That remains directionally valid, but external billing terms need
+  owner approval.
+- Brave official billing docs describe Search request units, credits and capacity. Brave LLM Context
+  is positioned for AI/agent grounding.
 - Yandex Search API supports text search, image search and generative response. Text results may
   return XML/HTML raw data depending on query mode; generative response uses YandexGPT over search
   results.
-- Yandex Search API pricing is materially different by mode: daytime synchronous search is about $4
-  per 1,000 requests; deferred search is much cheaper; generative response is much more expensive.
-  Quotas include 10 synchronous requests/sec and 1 generative response/sec by default.
+- Yandex Search API commercial terms are materially different by mode: synchronous, deferred and
+  generative response paths have separate billing and quota implications.
 - Yandex Search API is a real Russian provider path. The 2026-06-23 Admin
   UI/native smoke passed, but broader use still requires metadata-forwarding,
   data-policy and cost-mode approval.
@@ -44,7 +43,7 @@ Preferred Stage 2 decision path:
 
 1. Use native OpenWebUI Web Search first.
 2. Select Brave `brave_llm_context` for the first pilot if foreign provider use is allowed and
-   customer accepts pricing.
+   customer accepts external billing terms.
 3. Keep Yandex Search API as the working Russian-provider path for controlled
    follow-up after Admin UI/native smoke, with rollout gated by data policy,
    metadata-forwarding and cost-mode decisions.

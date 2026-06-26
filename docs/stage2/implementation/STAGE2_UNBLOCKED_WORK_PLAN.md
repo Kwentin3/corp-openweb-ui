@@ -161,7 +161,7 @@ production acceptance на реальных данных заказчика.
 Что делаем:
 
 - готовим proof plan по разрезам: пользователь, день/неделя, модель, токены,
-  сообщения и примерная стоимость;
+  сообщения и примерный usage/cost signal;
 - описываем ожидаемые поля и ограничения;
 - отделяем basic analytics от hard billing.
 
@@ -241,7 +241,7 @@ production acceptance на реальных данных заказчика.
 
 - customer samples;
 - allowed provider class;
-- можно ли использовать зарубежные/RU/cloud OCR providers.
+- можно ли использовать иностранные/RU/cloud OCR providers.
 
 Статус:
 

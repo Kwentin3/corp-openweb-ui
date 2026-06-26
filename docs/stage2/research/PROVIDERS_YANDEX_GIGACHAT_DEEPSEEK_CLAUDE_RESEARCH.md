@@ -36,7 +36,7 @@ Result type: model catalog input. No API keys or live calls were used.
 - Current docs list `deepseek-v4-flash` and `deepseek-v4-pro`.
 - `deepseek-chat` and `deepseek-reasoner` are marked for deprecation on 2026-07-24 and should not be
   introduced as fresh Stage 2 model IDs.
-- DeepSeek V4 pricing is very low in official docs, but procurement, jurisdiction and privacy policy
+- DeepSeek V4 billing terms appear favorable in official docs, but procurement, jurisdiction and privacy policy
   still need customer approval.
 
 ### YandexGPT / Yandex Cloud AI Studio
@@ -57,7 +57,7 @@ Result type: model catalog input. No API keys or live calls were used.
   access.
 - Official docs state first-generation `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` route to
   second-generation analogs; implementation should use explicit current IDs where possible.
-- Pricing docs for model pages list 65/500/650 RUB per 1M tokens for Lite/Pro/Max classes.
+- Billing docs for model pages list class-specific token terms for Lite/Pro/Max classes; exact values are not stored in repository markdown.
 
 ## 4. Recommended catalog classification
 

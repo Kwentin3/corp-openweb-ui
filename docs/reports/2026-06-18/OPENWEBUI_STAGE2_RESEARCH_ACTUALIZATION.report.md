@@ -48,7 +48,7 @@ blockers и какие ADR/проверки нужны до implementation.
 - `docs/stage2/research/TRANSCRIPTION_STT_RESEARCH.md` - STT architecture, native OpenWebUI STT,
   Lemonfox, server-side proxy.
 - `docs/stage2/research/LEMONFOX_STT_RESEARCH.md` - Lemonfox endpoint, limits, formats, diarization,
-  EU endpoint, pricing, risks.
+  EU endpoint, billing terms, risks.
 - `docs/stage2/research/FFMPEG_BROWSER_WORKFLOW_RESEARCH.md` - ffmpeg.wasm integration boundary,
   browser constraints, sidecar/module recommendation.
 - `docs/stage2/research/WEB_SEARCH_PROVIDERS_RESEARCH.md` - OpenWebUI web-search, Brave, Yandex
@@ -155,10 +155,10 @@ blockers и какие ADR/проверки нужны до implementation.
 - OpenWebUI поддерживает native web-search providers and env/admin configuration.
 - Brave has `brave` and `brave_llm_context`; LLM Context лучше подходит для AI grounding, потому что
   возвращает подготовленные passages and avoids extra scraping.
-- Brave pricing currently: Search $5 / 1,000 requests, $5 monthly credits, 50 rps capacity.
+- Brave billing currently uses request-based Search/LLM Context terms with credits and capacity.
 - OpenWebUI docs include Yandex Web Search variables.
 - Yandex Search API supports text/image/generative search, sync/deferred modes, quotas and different
-  pricing. Generative response is much more expensive than simple text search.
+  billing terms. Generative response mode has different commercial implications than simple text search.
 
 Вывод:
 

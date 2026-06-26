@@ -12,7 +12,7 @@ proof-plan и не production-инструкция.
 поиск ответа с опорой на документы. `VL OCR` - распознавание документа через
 зрительно-языковую модель. `Analytics` - статистика использования.
 `Governance` - правила управления: доступы, ограничения, безопасность,
-стоимость.
+usage/cost visibility.
 
 ## 1. Research Base
 
@@ -69,7 +69,7 @@ Shortlist основан на уже выполненном research:
 | 3 | Внутренний Knowledge / RAG | Центральный workspace-паттерн: ответ с опорой на документы. | Быстрый поиск по policy, инструкциям, методичкам. | High | Да, на synthetic Knowledge. | Реальная база знаний, владельцы, права доступа, refresh policy. | Устаревшие документы, oversharing, prompt injection, нет источников. |
 | 4 | PDF/DOCX document assistant | PRD-1 требует базовую работу с документами без обещания production OCR. | Быстрый разбор простых документов и договоров. | High | Да, на synthetic PDF/DOCX. | Реальные документы, expected outputs, allowed provider class. | Потеря структуры, legal/tax hallucination, неполный extraction. |
 | 5 | Web Search / внешние исследования | Есть Stage 2 provider comparison and source-attribution track. | Публичный research с источниками и контролем query policy. | High | Да, через safe public queries. | Rollout scope, logs, cost, allowed data, group defaults. | Private queries, слабые источники, provider leakage, cost. |
-| 6 | Usage analytics / отчет по токенам | PRD-1 требует basic analytics/cost visibility; hard billing отделен. | Админ видит нагрузку, модели, токены, примерную стоимость. | High | Да, через report shape. | Нужная детализация, privacy level, hard billing decision. | Подмена analytics биллингом, неполная стоимость, user-level privacy. |
+| 6 | Usage analytics / отчет по токенам | PRD-1 требует basic analytics/cost visibility; hard billing отделен. | Админ видит нагрузку, модели, токены и usage/cost signal. | High | Да, через report shape. | Нужная детализация, privacy level, hard billing decision. | Подмена analytics биллингом, неполный usage/cost signal, user-level privacy. |
 | 7 | OCR / VL OCR candidate benchmark | OCR pilot важен, но production quality customer-blocked. | Ранний отбор candidates для сканов и сложных PDF без реальных данных. | High | Да, только как synthetic candidate story. | Реальные scans, provider/data approval, expected good output. | OCR hallucination, неверные таблицы, privacy, cost, auditability. |
 
 ## 4. Не вошли в первый shortlist, но остаются важными

@@ -10,7 +10,7 @@
 на документы. `Knowledge` - база знаний или набор подключенных материалов.
 `Workspace` - рабочая зона с моделью, правилами, шаблонами и доступами.
 `Governance` - правила управления: доступы, ограничения, безопасность,
-стоимость. `VL OCR` - распознавание документа через зрительно-языковую модель.
+usage/cost visibility. `VL OCR` - распознавание документа через зрительно-языковую модель.
 `Analytics` - статистика использования.
 
 ## 1. Scope
@@ -855,7 +855,7 @@ limits are needed.
 
 Кто использует: admins, finance/ops, security, managers, platform owner.
 
-Какая задача: управлять стоимостью, adoption and risk.
+Какая задача: управлять usage/cost signal, adoption and risk.
 
 Какие входные данные: usage events, model catalog, provider prices, groups,
 users, retention policy.

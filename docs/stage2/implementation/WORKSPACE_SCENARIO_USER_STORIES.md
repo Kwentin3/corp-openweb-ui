@@ -342,7 +342,7 @@ ID: ST2-US-011
 Название: Отчет по использованию AI
 Сценарий: Usage analytics / отчет по токенам
 Роль: администратор
-User story: Как администратор, я хочу видеть использование по пользователям, периодам, моделям, сообщениям и токенам, чтобы понимать нагрузку и примерную стоимость Stage 2.
+User story: Как администратор, я хочу видеть использование по пользователям, периодам, моделям, сообщениям и токенам, чтобы понимать нагрузку и usage/cost signal Stage 2.
 Зачем это нужно: PRD-1 требует basic analytics/cost visibility, а не сразу hard billing.
 Входные данные: Usage events, model catalog, provider price catalog draft, reporting period.
 Ожидаемый результат: Report shape by user/day/week/model/messages/tokens/approx cost.

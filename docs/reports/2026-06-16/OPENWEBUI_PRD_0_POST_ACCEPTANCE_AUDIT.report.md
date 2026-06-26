@@ -313,7 +313,7 @@ Do not design Stage 2 inside this audit. Reasonable discussion tracks are:
 - admin account/password/key rotation policy;
 - periodic server-side hardening recertification.
 
-### B. Управление моделями и стоимостью
+### B. Управление моделями и usage/cost visibility
 
 - whether to add Claude or other providers;
 - model selection rules for users;
@@ -363,7 +363,7 @@ Do not design Stage 2 inside this audit. Reasonable discussion tracks are:
 5. Нужны ли бюджеты, лимиты и usage reports уже в Stage 2?
 6. Нужно ли руководителям видеть чаты сотрудников, или это запрещено/нежелательно по privacy policy?
 7. Какие типы документов пользователи хотят загружать: PDF, Word, Excel, договоры, внутренние базы?
-8. Должен ли web search стать частью Stage 2, и какой provider допустим с точки зрения стоимости и privacy?
+8. Должен ли web search стать частью Stage 2, и какой provider допустим с точки зрения usage/cost policy и privacy?
 9. Кто отвечает за backup restore drills, secret rotation и обновления OpenWebUI?
 10. Stage 2 должен быть развитием OpenWebUI или отдельной задачей на агентный слой/интеграции?
 

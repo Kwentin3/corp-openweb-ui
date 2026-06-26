@@ -1,12 +1,23 @@
-# Stage 2 Scope Reconciliation for 150K Contract
+# Stage 2 Scope Reconciliation for Limited Commercial Tranche
 
 ## 1. Purpose
 
-Цель документа - зафиксировать, как корректно сузить полный Stage 2 из PRD-1 под договор на 150 000 рублей с учетом уже фактически выполненных работ.
+Цель документа - зафиксировать, как корректно сузить полный Stage 2 из PRD-1 под limited Stage 2 tranche с учетом уже фактически выполненных работ.
 
 Документ не является договором. Его назначение - дать безопасную основу для предмета договора, приложения к договору, акта или коммерческого описания результата.
 
-Главный вывод: договор на 150 000 рублей не должен описывать весь PRD-1 как завершенный. Корректная формулировка - первый функционально-архитектурный срез Stage 2, где пользовательски реализованы транскрибация аудио/видео и базовый Web Search, а остальные направления Stage 2 подготовлены архитектурно, документально или вынесены в будущие этапы.
+Главный вывод: limited commercial tranche не должен описывать весь PRD-1 как завершенный. Корректная формулировка - первый функционально-архитектурный срез Stage 2, где пользовательски реализованы транскрибация аудио/видео и базовый Web Search, а остальные направления Stage 2 подготовлены архитектурно, документально или вынесены в будущие этапы.
+
+## Commercial Documentation Policy
+
+```text
+GitHub-документация фиксирует состав работ, трудозатраты, статусы,
+доказательства и ограничения. Денежные суммы, график оплаты и финансовые
+условия фиксируются только в договорах, счетах и актах и не хранятся в
+markdown-документации репозитория.
+```
+
+Оценка трудозатрат подлежит отдельной фиксации. Финансовые условия данного этапа фиксируются вне GitHub-документации в договорных документах.
 
 ## 2. Inputs Reviewed
 
@@ -15,7 +26,7 @@
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md`
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md`
 - `docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CUSTOMER_SUMMARY.md`
-- `docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md`
+- completed-work commercial audit file
 - `README.md`
 - `docs/stage2/README.md`
 - `docs/stage2/CONTEXT_INDEX.md`
@@ -43,7 +54,7 @@
 
 ## 3. Full PRD-1 Planned Scope
 
-Полный Stage 2 по PRD-1 шире бюджета 150 000 рублей. Он включает не только пользовательские функции, но и управляемую корпоративную среду, политики доступа, документы, OCR, брокерские сценарии, управленческую видимость, retention, аналитику стоимости и приемочные контуры.
+Полный Stage 2 по PRD-1 шире текущего limited tranche. Он включает не только пользовательские функции, но и управляемую корпоративную среду, политики доступа, документы, OCR, брокерские сценарии, управленческую видимость, retention, usage/cost visibility и приемочные контуры.
 
 Крупные направления полного PRD-1:
 
@@ -63,29 +74,29 @@
 - пользовательская и администраторская документация;
 - acceptance, smoke, gates и backlog.
 
-В рамках 150 000 рублей корректно принять не весь PRD-1, а ограниченный срез: реализованные пользовательские capabilities, архитектурную подготовку следующих направлений и приемочную документацию.
+В рамках limited Stage 2 tranche корректно принять не весь PRD-1, а ограниченный срез: реализованные пользовательские capabilities, архитектурную подготовку следующих направлений и приемочную документацию.
 
 ## 4. Actual Implementation Status by Direction
 
-| PRD-1 direction | Planned in full Stage 2 | Actual status | Evidence | Include in 150K? | Commercial wording | Notes |
+| PRD-1 direction | Planned in full Stage 2 | Actual status | Evidence | Include in tranche? | Commercial wording | Notes |
 |---|---|---|---|---|---|---|
 | Корпоративная рабочая среда / workspace model | Управляемая корпоративная рабочая среда, сценарии работы, workspace rules. | DONE_ARCHITECTURE | `docs/stage2/README.md`, `docs/stage2/CONTEXT_INDEX.md`, `docs/stage2/ENGINEERING_BACKLOG.md`, PRD-1. | Да, как архитектурная подготовка. | Архитектурная подготовка управляемой корпоративной рабочей среды OpenWebUI. | Полноценная настройка рабочих пространств и эксплуатационные правила остаются будущим scope. |
 | Groups/RBAC/access | Группы пользователей, роли, доступы, правила включения функций. | PARTIAL | PRD-1, `docs/stage2/IMPLEMENTATION_GATES.md`, `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md`. | Частично. | Анализ и подготовка рамки для дальнейшего управления доступами и группами. | Не заявлять как завершенную RBAC-функцию. Политики групп, allow/deny и rollout governance остаются будущим scope. |
-| Shared prompts/templates/knowledge | Общие prompts, templates, инструкции и knowledge-базы. | PLANNED_FUTURE | PRD-1, Stage 2 backlog/context docs. | Нет, кроме фиксации как следующего направления. | Направление включено в дальнейший Stage 2 roadmap. | Не включать в 150K как готовую пользовательскую функцию. |
+| Shared prompts/templates/knowledge | Общие prompts, templates, инструкции и knowledge-базы. | PLANNED_FUTURE | PRD-1, Stage 2 backlog/context docs. | Нет, кроме фиксации как следующего направления. | Направление включено в дальнейший Stage 2 roadmap. | Не включать в текущий tranche как готовую пользовательскую функцию. |
 | Model catalog/provider policy | Каталог моделей, provider classes, правила выбора и ограничения провайдеров. | PARTIAL | PRD-1, `docs/stage2/CONTEXT_INDEX.md`, Web Search contracts, STT context pack. | Да, как архитектурная подготовка. | Подготовлены границы и принципы provider policy для STT и Web Search. | Единый production model catalog, hard budgets и централизованный gateway не завершены. |
 | STT / transcription | Транскрибация аудио/видео через безопасный серверный контур. | DONE_FEATURE | `services/stage2-stt/`, `deploy/openwebui-static/loader.js`, `docs/reports/2026-06-19/OPENWEBUI_STT_MVP_FEATURE_CLOSURE.report.md`, `OPENWEBUI_STT_PLAYWRIGHT_UI_PROOF.report.md`, `OPENWEBUI_STT_RUNTIME_COMPLETION.report.md`. | Да. | Реализован модуль транскрибации аудио/видео в OpenWebUI через browser normalization, private STT sidecar и provider proxy. | Production hardening для mobile, long files, cancel, retention, history/export и monitoring остается будущим scope. |
 | Web Search | Web Search для пользователей с политиками, лимитами, governance и cost visibility. | DONE_BASELINE | `docs/stage2/WEB_SEARCH_CONTEXT_INDEX.md`, `OPENWEBUI_WEB_SEARCH_BRAVE_RUNTIME_BASELINE.report.md`, `OPENWEBUI_WEB_SEARCH_YANDEX_RUNTIME_BASELINE.report.md`, `OPENWEBUI_SEARXNG_RUNTIME_SMOKE.report.md`, `OPENWEBUI_WEB_SEARCH_PROVIDER_BASELINE_CLOSEOUT.report.md`, `compose/searxng.private.compose.yml`, `deploy/searxng/`. | Да. | Реализован базовый контур Web Search как LLM search tool с provider paths Brave, Yandex Search API и private SearXNG. | Brave/Yandex были относительно простыми через native API/config/Admin GUI. SearXNG потребовал отдельной private-infra подготовки. Full governance, policies, logs, limits, forbidden-query policy, cost visibility и quality matrix не закрыты. |
-| Documents: PDF/DOCX/XLSX | Документные сценарии, загрузка и обработка PDF/DOCX/XLSX. | RESEARCH_ONLY | PRD-1, Stage 2 backlog/context docs. | Нет. | Документный pipeline сохранен как будущий этап. | Не включать как готовую функцию в 150K. |
-| OCR / VL OCR / layout-aware PDF | OCR, vision-language OCR, layout-aware PDF processing. | RESEARCH_ONLY | PRD-1, Stage 2 backlog/context docs. | Нет. | OCR/VL OCR рассматривается как отдельный будущий пилот/этап. | Не заявлять production OCR или pilot как завершенные в 150K. |
+| Documents: PDF/DOCX/XLSX | Документные сценарии, загрузка и обработка PDF/DOCX/XLSX. | RESEARCH_ONLY | PRD-1, Stage 2 backlog/context docs. | Нет. | Документный pipeline сохранен как будущий этап. | Не включать как готовую функцию в текущий tranche. |
+| OCR / VL OCR / layout-aware PDF | OCR, vision-language OCR, layout-aware PDF processing. | RESEARCH_ONLY | PRD-1, Stage 2 backlog/context docs. | Нет. | OCR/VL OCR рассматривается как отдельный будущий пилот/этап. | Не заявлять production OCR или pilot как завершенные в текущем tranche. |
 | Broker reports / 3-НДФЛ | Брокерские отчеты и сценарии подготовки 3-НДФЛ. | PLANNED_FUTURE | PRD-1. | Нет. | Брокерские отчеты и 3-НДФЛ остаются отдельным будущим направлением. | Не включать в текущий договор как выполненную работу. |
 | Manager visibility / read-only access to work chats | Управленческий read-only доступ к рабочим чатам и правила видимости. | PLANNED_FUTURE | PRD-1, Stage 2 backlog/context docs. | Нет. | Направление зафиксировано для дальнейшей проработки. | Требует отдельного решения по privacy, ролям, retention и UX. |
-| No-delete / retention / audit | Запрет удаления, retention policy, аудит действий и технические проверки. | PLANNED_FUTURE | PRD-1, Stage 2 gates/backlog. | Нет. | Требования retention и audit вынесены в следующий scope. | В 150K не заявлять как завершенную compliance-функцию. |
+| No-delete / retention / audit | Запрет удаления, retention policy, аудит действий и технические проверки. | PLANNED_FUTURE | PRD-1, Stage 2 gates/backlog. | Нет. | Требования retention и audit вынесены в следующий scope. | В текущем tranche не заявлять как завершенную compliance-функцию. |
 | Data policy / provider class policy | Классы данных, правила отправки во внешние провайдеры, privacy/data-egress controls. | DONE_ARCHITECTURE | `docs/stage2/contracts/WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT.md`, `WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md`, STT proxy boundary docs, PRD-1. | Да, как архитектурный результат. | Подготовлены boundary contracts для STT и Web Search, включая privacy/source/usage constraints. | Финальная утвержденная data policy и enforcement остаются будущим scope. |
 | Analytics / cost visibility | Видимость стоимости, usage analytics, лимиты и отчеты. | PLANNED_FUTURE | PRD-1, Web Search backlog and closeout reports. | Нет. | Cost visibility и analytics сохранены как отдельный следующий этап. | В Web Search baseline cost visibility прямо остается незакрытым governance gap. |
-| User/admin docs | Документация для пользователя, администратора и передачи контекста. | DONE_ARCHITECTURE | `README.md`, `docs/stage2/README.md`, `docs/stage2/CONTEXT_INDEX.md`, `docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md`, reports. | Да. | Подготовлен комплект Stage 2 документации, audit/reports и context handoff для дальнейшей приемки и развития. | Это не заменяет полный пользовательский manual для всех будущих направлений PRD-1. |
+| User/admin docs | Документация для пользователя, администратора и передачи контекста. | DONE_ARCHITECTURE | `README.md`, `docs/stage2/README.md`, `docs/stage2/CONTEXT_INDEX.md`, completed-work commercial audit file, reports. | Да. | Подготовлен комплект Stage 2 документации, audit/reports и context handoff для дальнейшей приемки и развития. | Это не заменяет полный пользовательский manual для всех будущих направлений PRD-1. |
 | Acceptance/smoke/gates/backlog | Приемочная матрица, smoke evidence, gates, backlog и staged delivery discipline. | DONE_ARCHITECTURE | `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md`, `docs/stage2/IMPLEMENTATION_GATES.md`, `docs/stage2/ENGINEERING_BACKLOG.md`, runtime and Playwright reports. | Да. | Актуализированы acceptance matrix, implementation gates, smoke evidence и backlog по Stage 2. | Acceptance закрывает текущий срез, а не весь полный PRD-1. |
 
-## 5. Recommended 150K Tranche Framing
+## 5. Recommended Limited Tranche Framing
 
 Рекомендуемое название:
 
@@ -97,7 +108,7 @@
 
 Такое framing точнее, чем "STT + Web Search", потому что фактически выполнены не только две функции, но и значимый архитектурный слой: decomposition, extension-first pattern, contracts, runtime evidence, acceptance/gates/backlog и коммерческий audit.
 
-Такое framing безопаснее, чем "полный Stage 2", потому что PRD-1 включает больше направлений, чем можно корректно закрыть бюджетом 150 000 рублей.
+Такое framing безопаснее, чем "полный Stage 2", потому что PRD-1 включает больше направлений, чем можно корректно закрыть одним limited commercial tranche.
 
 ## 6. Included Scope
 
@@ -164,7 +175,7 @@
 
 ## 7. Excluded / Future Scope
 
-Следующие направления не следует включать в договор на 150 000 рублей как завершенные:
+Следующие направления не следует включать в текущий limited commercial tranche как завершенные:
 
 - полный managed workspace model;
 - полный groups/RBAC/access rollout;
@@ -209,19 +220,19 @@ Web Search hardening также остается будущим scope:
 - broad privacy/data-egress review;
 - final decision on Brave/Yandex/SearXNG as default provider path.
 
-## 8. Relationship to Existing 75K Act/Invoice
+## 8. Relationship to Existing External Act/Invoice
 
-Существующий акт/счет на 75 000 рублей следует трактовать как частичную оплату или первый закрывающий документ в рамках более широкого согласованного среза на 150 000 рублей.
+Если по этому направлению уже оформлялся внешний акт или счет, его связь с текущим tranche должна фиксироваться только во внешних договорных документах, а не в repository markdown.
 
 Рекомендуемая логика:
 
-- не считать 75 000 рублей отдельным завершением полного Stage 2;
-- не дублировать оплату за уже принятые работы;
-- в договоре или приложении на 150 000 рублей указать, что ранее оформленные 75 000 рублей относятся к первой части этого же Stage 2 tranche, если это соответствует бухгалтерской схеме сторон;
+- не считать ранее оформленный внешний документ завершением полного Stage 2;
+- не дублировать уже принятые работы;
+- в договоре или приложении указать связь ранее оформленного документа с этим же Stage 2 tranche, если это соответствует бухгалтерской схеме сторон;
 - второй закрывающий документ на оставшуюся часть должен закрывать согласованный "Этап 2. Часть 1", а не весь PRD-1;
-- полный PRD-1 должен остаться roadmap/future scope за пределами текущих 150 000 рублей.
+- полный PRD-1 должен остаться roadmap/future scope за пределами текущего tranche.
 
-Коммерчески безопасная формула: 150 000 рублей покрывают первый функционально-архитектурный срез Stage 2, включая фактически реализованные STT и Web Search baseline, архитектурную подготовку будущих направлений и приемочную документацию. Существующие 75 000 рублей учитываются как ранее оформленная часть оплаты этого среза, если стороны подтверждают такую связку.
+Коммерчески безопасная формула: текущий limited commercial tranche покрывает первый функционально-архитектурный срез Stage 2, включая фактически реализованные STT и Web Search baseline, архитектурную подготовку будущих направлений и приемочную документацию. Финансовая связка с ранее оформленными внешними документами должна храниться вне GitHub.
 
 ## 9. Commercial Wording Recommendation
 
@@ -243,7 +254,7 @@ Web Search hardening также остается будущим scope:
 
 ## 10. Final Recommendation
 
-Контракт на 150 000 рублей можно готовить, если его предмет будет сформулирован как первый функционально-архитектурный срез Stage 2, а не как полный PRD-1.
+Договорные документы можно готовить, если их предмет будет сформулирован как первый функционально-архитектурный срез Stage 2, а не как полный PRD-1.
 
 Рекомендуемый title для коммерческих документов:
 
@@ -259,7 +270,7 @@ Web Search hardening также остается будущим scope:
 - STT и Web Search включены как фактически реализованные capabilities;
 - architecture/contracts/acceptance/backlog включены как выполненная подготовительная работа;
 - полный PRD-1 явно отделен как future scope;
-- существующие 75 000 рублей учтены как ранее оформленная часть оплаты этого же tranche или как отдельная предоплата/закрытие, в зависимости от бухгалтерского решения сторон.
+- связь с ранее оформленными внешними документами описана только вне GitHub, в договорных документах сторон.
 
 Итоговый статус:
 

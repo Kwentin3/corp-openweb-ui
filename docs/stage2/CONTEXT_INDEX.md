@@ -192,7 +192,7 @@ Use this table to choose the detailed route below.
 | Web Search | Web-search | Data policy, usage/cost, selected proof route if query matrix task | Use private/customer queries or rollout globally | Rollout policy, logs, cost, group defaults. |
 | STT | Транскрибация | ADR-0004, gates, contract boundaries | Re-plan STT MVP from zero | Production hardening, retention, media samples. |
 | OCR / VL OCR | Documents / OCR / Excel | OCR / VL OCR epic context pack, test data requirements, ADR-0005 | Execute ST2-US-013 as proof or promise production OCR quality | Infrastructure epic, customer samples and provider/data policy. |
-| Usage analytics | Стоимость / analytics | ADR-0008, selected proof route for report shape | Promise hard billing or invoice parity | Native proof, visibility policy, price catalog. |
+| Usage analytics | Usage/cost visibility / analytics | ADR-0008, selected proof route for report shape | Promise hard billing or invoice parity | Native proof, visibility policy, provider catalog. |
 | Provider/model catalog | Provider catalog / models | Data policy, ADR-0006 | Connect provider accounts | Provider/data approval and exact model IDs. |
 | Provider setup / provider accounts | Provider setup / provider accounts | Data policy, provider catalog, gates, contract boundaries, secrets/security docs | Read/print keys, create/change accounts, update production provider config | Approved data policy and explicit provider/account approval. |
 | Data policy | Data policy / masking | ADR-0001, security docs | Promise automatic masking | Customer/security approval. |
@@ -648,7 +648,7 @@ Blockers / gates:
 - explicit provider/account approval by customer/operator;
 - safe key handoff procedure that does not expose secrets in docs, logs or git.
 
-## Стоимость / analytics
+## Usage/cost visibility / analytics
 
 Read first:
 

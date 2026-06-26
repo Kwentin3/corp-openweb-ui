@@ -33,7 +33,7 @@ Relevant documented facts captured in Stage 2 docs:
 - `callback_url` is documented for long audio/asynchronous completion.
 - Russian is listed as a supported language.
 - EU endpoint is documented as `eu-api.lemonfox.ai` with 20% surcharge.
-- Public pricing hint is documented as $0.50 per 3 hours.
+- Public billing terms exist, but monetary values are not stored in repository markdown.
 
 ## 2. Lemonfox facts not documented enough for product contract
 
@@ -63,7 +63,7 @@ Key refinements:
 - Added draft `SttProviderCapabilityProfileV1` for Lemonfox.
 - Captured documented Lemonfox formats, upload limits, URL upload support,
   timestamps, word timestamps, speaker labels, Russian language support,
-  callbacks and pricing hint.
+  callbacks and billing terms.
 - Marked WebM/Opus, OGG/Opus, max duration, provider-side cancellation and
   error taxonomy as runtime-proof items.
 - Changed storage model from implied S3-only to `auto|s3|none`.

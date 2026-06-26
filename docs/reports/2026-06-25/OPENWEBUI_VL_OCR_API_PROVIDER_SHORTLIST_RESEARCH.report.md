@@ -84,12 +84,12 @@ privacy terms, region and real account pricing are verified.
 
 Most interesting pricing for first benchmark:
 
-- Azure Read: about $1.50 / 1,000 pages.
-- Azure Layout/prebuilt: about $10 / 1,000 pages.
-- Google Document AI Enterprise OCR: $1.50 / 1,000 pages.
-- Google Document AI Layout Parser: $10 / 1,000 pages.
-- Mistral OCR 4: $4 / 1,000 pages, or $2 / 1,000 pages with Batch API.
-- Mistral Document AI: $5 / 1,000 pages.
+- Azure Read: external billing docs only; monetary values are not stored in repository markdown.
+- Azure Layout/prebuilt: external billing docs only; monetary values are not stored in repository markdown.
+- Google Document AI Enterprise OCR: external billing docs only; monetary values are not stored in repository markdown.
+- Google Document AI Layout Parser: external billing docs only; monetary values are not stored in repository markdown.
+- Mistral OCR 4: external billing docs only; monetary values are not stored in repository markdown.
+- Mistral Document AI: external billing docs only; monetary values are not stored in repository markdown.
 - Alibaba Qwen3-VL/Qwen-OCR: token-priced and potentially very cheap; exact
   image-token/output usage must be measured in benchmark.
 - Hosted PaddleOCR-VL: potentially very cheap on token-priced hosted platforms,

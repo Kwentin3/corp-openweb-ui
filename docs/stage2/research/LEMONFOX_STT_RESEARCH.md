@@ -29,10 +29,8 @@ Checked source: official Lemonfox Speech to Text API page.
 - `callback_url` exists for long audio/asynchronous completion.
 - Word timestamps are available through `timestamp_granularities[]=word` with `verbose_json`.
 - Language can be provided explicitly; Russian is listed as supported.
-- EU endpoint: use `eu-api.lemonfox.ai`; official docs state a 20% surcharge for EU-based
-  processing.
-- Pricing stated by Lemonfox: $0.50 per 3 hours of speech; $5/month includes 30 hours STT or
-  equivalent credits.
+- EU endpoint: use `eu-api.lemonfox.ai`; EU-based processing may have separate commercial terms.
+- Provider billing terms must be checked outside GitHub documentation.
 - Lemonfox homepage states data is deleted immediately after processing and EU-based processing is
   available.
 

@@ -59,8 +59,8 @@ OpenWebUI Brave docs describe two relevant modes:
 - `brave_llm_context`: Brave LLM Context endpoint, designed for AI/agent
   grounding and able to reduce separate page scraping.
 
-Brave official pricing pages currently present Search, including LLM Context, at
-about `$5 / 1,000` requests with monthly credits and commercial capacity. The
+Brave official billing pages currently present Search, including LLM Context, with
+request-based terms, credits and commercial capacity. The
 OpenWebUI Brave docs warn that free-tier users should set concurrency to `1` to
 avoid HTTP 429.
 
@@ -103,7 +103,7 @@ account/key already exists.
 ### Yandex Search API
 
 Yandex Search API is a real RU-provider path. Official docs describe
-quotas/limits and different request modes. Pricing differs materially by mode:
+quotas/limits and different request modes. Commercial terms differ materially by mode:
 synchronous/deferred/generative response have different costs and rate limits.
 
 OpenWebUI has a Yandex Web Search provider path, and operator/native smoke
@@ -122,7 +122,7 @@ approval of this privacy/cost review.
 ### Tavily
 
 Tavily is an LLM-oriented search/extract/crawl provider. Docs show free monthly
-credits and pay-as-you-go credit pricing. It is useful when the product wants
+credits and pay-as-you-go credit model. It is useful when the product wants
 RAG-ready search/extract behavior.
 
 Pilot implication: fallback/enrichment, not first default because Brave/SearXNG
@@ -130,7 +130,7 @@ Pilot implication: fallback/enrichment, not first default because Brave/SearXNG
 
 ### Firecrawl
 
-Firecrawl focuses on search/scrape/crawl/extract. Pricing is credit-based and
+Firecrawl focuses on search/scrape/crawl/extract. Billing is credit-based and
 Search/Scrape have separate credit costs.
 
 Pilot implication: useful as extraction layer if native page fetch is weak, but
@@ -138,7 +138,7 @@ not first provider for a minimal native search smoke.
 
 ### SERP Wrappers: Serper, SerpApi, SearchAPI
 
-These providers expose structured Google-like SERP data with their own pricing
+These providers expose structured Google-like SERP data with their own billing
 and compliance/ToS posture. Serper advertises a low-cost Google SERP API and
 free starter queries. SerpApi is mature and broad but can be more expensive.
 SearchAPI offers a paid SERP API with free trial requests.
@@ -148,7 +148,7 @@ requirement.
 
 ### Exa
 
-Exa is an AI-oriented search/contents provider. Current pricing update describes
+Exa is an AI-oriented search/contents provider. Current billing docs describe
 search-with-contents per 1k requests and add-on content/summarization charges.
 
 Pilot implication: research/fallback for AI search, not first default.
@@ -171,7 +171,7 @@ only if owner explicitly wants Perplexity.
 
 ### You.com
 
-You.com publishes Search API and Contents API pricing; search returns
+You.com publishes Search API and Contents API billing terms; search returns
 LLM-ready snippets and metadata.
 
 Pilot implication: fallback foreign provider.

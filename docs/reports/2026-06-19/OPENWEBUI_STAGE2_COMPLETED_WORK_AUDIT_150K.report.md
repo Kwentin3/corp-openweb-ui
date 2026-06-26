@@ -1,14 +1,14 @@
-# OpenWebUI Stage 2 Completed Work Audit 150K Report
+# OpenWebUI Stage 2 Completed Work Audit Report
 
 ## 1. Summary
 
 Created a commercial audit/scope document for the already completed Stage 2 Tranche 1 work:
 
 ```text
-docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md
+completed-work commercial audit file
 ```
 
-The document frames the completed and proven work as a limited 150 000 ruble tranche: OpenWebUI media transcription module with browser media normalization, server-side STT sidecar, OpenWebUI Action integration, Lemonfox adapter, plus Web Search provider baseline work for Brave, Yandex and private SearXNG.
+The document frames the completed and proven work as a limited Stage 2 tranche: OpenWebUI media transcription module with browser media normalization, server-side STT sidecar, OpenWebUI Action integration, Lemonfox adapter, plus Web Search provider baseline work for Brave, Yandex and private SearXNG.
 
 The document does not claim that full PRD-1 / Practical Stage 2 is complete.
 
@@ -124,7 +124,7 @@ Partial / hardening:
 - SearXNG promotion beyond comparison track;
 - full page loading and vectorized `web-search-*` retrieval.
 
-Future / out of this 150 000 ruble tranche:
+Future / out of this limited Stage 2 tranche:
 
 - full Practical Stage 2;
 - workspaces/groups/prompts/knowledge;
@@ -146,13 +146,16 @@ Created the recommended commercial scope:
 Этап 2. Часть 1: транскрибация аудио/видео и базовый веб-поиск в корпоративном OpenWebUI
 ```
 
-Cost framed as:
+Commercial documentation policy added:
 
 ```text
-150 000 рублей.
+GitHub-документация фиксирует состав работ, трудозатраты, статусы,
+доказательства и ограничения. Денежные суммы, график оплаты и финансовые
+условия фиксируются только в договорах, счетах и актах и не хранятся в
+markdown-документации репозитория.
 ```
 
-The amount is explicitly limited to the audited tranche and does not include the full PRD-1 scope or external runtime/API/server/provider costs.
+Financial terms are explicitly kept outside repository markdown. The audited tranche does not include the full PRD-1 scope or external runtime/API/server/provider terms.
 
 ## 6. Contract/act wording prepared
 
@@ -162,7 +165,7 @@ Prepared contract wording with:
 - scope of work;
 - result of work;
 - limitations;
-- cost.
+- financial-terms policy.
 
 The wording now includes both STT and Web Search provider baseline work.
 
@@ -170,7 +173,7 @@ Prepared act wording with:
 
 - completed work statement;
 - accepted result statement;
-- 150 000 ruble amount;
+- financial-terms policy;
 - explicit limitation that the act does not close full PRD-1.
 
 The act wording now mentions Brave, Yandex and private SearXNG as completed Web Search provider paths, while keeping full rollout and production policy gates outside the tranche.
@@ -179,8 +182,8 @@ The act wording now mentions Brave, Yandex and private SearXNG as completed Web 
 
 Created:
 
-- `docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md`
-- `docs/reports/2026-06-19/OPENWEBUI_STAGE2_COMPLETED_WORK_AUDIT_150K.report.md`
+- completed-work commercial audit file
+- completed-work audit report file
 
 No code, compose, env, historical report, or PRD source file was changed by this task.
 
