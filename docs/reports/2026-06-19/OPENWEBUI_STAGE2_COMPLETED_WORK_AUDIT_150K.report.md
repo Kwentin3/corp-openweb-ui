@@ -8,7 +8,7 @@ Created a commercial audit/scope document for the already completed Stage 2 Tran
 docs/commercial/STAGE2_COMPLETED_WORK_AUDIT_150K.md
 ```
 
-The document frames the completed and proven work as a limited 150 000 ruble tranche: OpenWebUI media transcription module with browser media normalization, server-side STT sidecar, OpenWebUI Action integration, Lemonfox adapter, runtime proof, Playwright proof, tests/smoke and documentation closure.
+The document frames the completed and proven work as a limited 150 000 ruble tranche: OpenWebUI media transcription module with browser media normalization, server-side STT sidecar, OpenWebUI Action integration, Lemonfox adapter, plus Web Search provider baseline work for Brave, Yandex and private SearXNG.
 
 The document does not claim that full PRD-1 / Practical Stage 2 is complete.
 
@@ -55,6 +55,19 @@ Code/config proof paths inspected:
 - `services/stage2-stt/`
 - `services/stage2-stt/openwebui_actions/stage2_media_transcription_action.py`
 - `services/stage2-stt/tests/`
+- `docs/stage2/WEB_SEARCH_CONTEXT_INDEX.md`
+- `docs/stage2/implementation/WEB_SEARCH_CANDIDATE_SET_COMPARISON_PLAN.md`
+- `docs/stage2/implementation/SEARXNG_PRIVATE_INSTANCE_PLAN.md`
+- `docs/stage2/contracts/WEB_SEARCH_PRIVACY_BOUNDARY_CONTRACT.md`
+- `docs/stage2/contracts/WEB_SEARCH_SOURCE_ATTRIBUTION_CONTRACT.md`
+- `docs/reports/2026-06-23/OPENWEBUI_WEB_SEARCH_BRAVE_RUNTIME_BASELINE.report.md`
+- `docs/reports/2026-06-23/OPENWEBUI_WEB_SEARCH_YANDEX_RUNTIME_BASELINE.report.md`
+- `docs/reports/2026-06-23/OPENWEBUI_SEARXNG_RUNTIME_SMOKE.report.md`
+- `docs/reports/2026-06-23/OPENWEBUI_WEB_SEARCH_PROVIDER_BASELINE_CLOSEOUT.report.md`
+- `compose/searxng.private.compose.yml`
+- `deploy/searxng/settings.yml`
+- `deploy/searxng/limiter.toml`
+- `.env.example`
 
 All requested paths were present.
 
@@ -79,7 +92,13 @@ Completed / claimable work:
 - Lemonfox live smoke through sidecar path;
 - Playwright proof;
 - targeted pytest coverage;
-- Stage 2/STT documentation actualization and closure context pack.
+- Stage 2/STT documentation actualization and closure context pack;
+- native OpenWebUI Web Search domain/contracts/acceptance package;
+- Brave `brave_llm_context` direct-context runtime baseline;
+- Yandex Search API working RU direct API path by owner/operator confirmation;
+- private SearXNG internal meta-search runtime smoke in snippet/bypass mode;
+- optional SearXNG compose/config artifacts and operator recovery documentation;
+- Brave / Yandex / private SearXNG candidate-set comparison plan.
 
 ## 4. Partial/future work separated
 
@@ -96,13 +115,20 @@ Partial / hardening:
 - Opus provider/default proof;
 - transcript history/export/workflow;
 - multi-user/group permission hardening;
-- monitoring, structured logs and usage/cost events.
+- monitoring, structured logs and usage/cost events;
+- full Web Search production rollout for all users;
+- Web Search ordinary-user allow/deny permissions;
+- full EN/RU Brave/Yandex/SearXNG comparative matrix;
+- Web Search forbidden-query, logging/retention and cost-visibility gates;
+- Yandex privacy/data-egress and metadata-forwarding review;
+- SearXNG promotion beyond comparison track;
+- full page loading and vectorized `web-search-*` retrieval.
 
 Future / out of this 150 000 ruble tranche:
 
 - full Practical Stage 2;
 - workspaces/groups/prompts/knowledge;
-- web-search for all users;
+- full Web Search rollout for all users beyond the completed provider baselines;
 - OCR/layout-aware PDF pilot;
 - broker reports / 3-NDFL workflow;
 - hard billing/gateway;
@@ -117,7 +143,7 @@ Future / out of this 150 000 ruble tranche:
 Created the recommended commercial scope:
 
 ```text
-Этап 2. Часть 1: модуль транскрибации аудио/видео в корпоративном OpenWebUI
+Этап 2. Часть 1: транскрибация аудио/видео и базовый веб-поиск в корпоративном OpenWebUI
 ```
 
 Cost framed as:
@@ -138,12 +164,16 @@ Prepared contract wording with:
 - limitations;
 - cost.
 
+The wording now includes both STT and Web Search provider baseline work.
+
 Prepared act wording with:
 
 - completed work statement;
 - accepted result statement;
 - 150 000 ruble amount;
 - explicit limitation that the act does not close full PRD-1.
+
+The act wording now mentions Brave, Yandex and private SearXNG as completed Web Search provider paths, while keeping full rollout and production policy gates outside the tranche.
 
 ## 7. Files changed
 
