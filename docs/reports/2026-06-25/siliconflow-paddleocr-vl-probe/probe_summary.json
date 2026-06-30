@@ -1,0 +1,49 @@
+{
+    "status":  "blocked",
+    "blocker_code":  "no_successful_chat_completion",
+    "generated_at":  "2026-06-25T23:08:27",
+    "base_url":  "https://api.siliconflow.cn/v1",
+    "synthetic_image":  {
+                            "path":  "D:\\Users\\Roman\\Desktop\\Проекты\\corp-openweb ui\\docs\\reports\\2026-06-25\\siliconflow-paddleocr-vl-probe\\synthetic_test_document.png",
+                            "sha256":  "D4976F04BA0020B81E1025B6F5C1D6ABB81C0E85F0CB8684A43E246EA71344B0",
+                            "bytes":  37918
+                        },
+    "tested_model_ids":  [
+                             "PaddlePaddle/PaddleOCR-VL-1.5",
+                             "PaddlePaddle/PaddleOCR-VL"
+                         ],
+    "models_summary_path":  "models_summary.json",
+    "chat_summary_path":  "chat_summary.json",
+    "working_model_id":  null,
+    "endpoint_working":  null,
+    "accepts_base64":  false,
+    "temporary_public_url_probe":  {
+                                       "attempted":  false,
+                                       "source":  "0x0.st",
+                                       "url_created":  false,
+                                       "tested":  false,
+                                       "accepts_url":  false,
+                                       "error":  "uploads disabled because it’s been almost nothing but AI botnet spam for the past few months. will be back with a few changes at some point. no ETA."
+                                   },
+    "returns_markdown":  false,
+    "returns_valid_instruction_json":  false,
+    "usage_present":  false,
+    "balance_delta_cny":  null,
+    "balance_probe":  {
+                          "before_status_code":  401,
+                          "before_ok":  false,
+                          "after_status_code":  401,
+                          "after_ok":  false,
+                          "raw_balance_not_recorded":  true
+                      },
+    "errors":  [
+                   {
+                       "input_kind":  "data_uri_base64_png",
+                       "model":  "PaddlePaddle/PaddleOCR-VL-1.5",
+                       "status_code":  401,
+                       "error":  {
+                                     "message":  "The remote server returned an error: (401) Unauthorized."
+                                 }
+                   }
+               ]
+}

@@ -1,0 +1,22 @@
+﻿{
+    "endpoint":  "GET /models",
+    "ok":  true,
+    "status_code":  200,
+    "latency_ms":  3735,
+    "object":  "list",
+    "model_count":  70,
+    "tested_ids":  [
+                       {
+                           "id":  "PaddlePaddle/PaddleOCR-VL-1.5",
+                           "listed":  false
+                       },
+                       {
+                           "id":  "PaddlePaddle/PaddleOCR-VL",
+                           "listed":  false
+                       }
+                   ],
+    "matching_model_ids":  [
+
+                           ],
+    "error":  null
+}

@@ -97,8 +97,8 @@ Output: handoff context, provider shortlist research, input/output contract
 draft, error/limitation contract and synthetic benchmark plan.
 Depends on: OCR/VL OCR context pack, VL OCR provider research, documents/OCR
 research, data policy and synthetic test data index.
-Status: provider shortlist research complete; benchmark plan and adapter
-contracts next. No runtime/provider setup yet.
+Status: corrected provider shortlist research V2 complete; benchmark plan and
+adapter contracts next. No runtime/provider setup yet.
 
 ### VL OCR candidate research + synthetic benchmark
 
@@ -107,8 +107,8 @@ Output: candidate shortlist and synthetic benchmark plan.
 Depends on: VL OCR provider research, documents/OCR/Excel research and
 synthetic test data index.
 Status: folded under OCR / VL OCR Infrastructure & Provider Benchmark Epic.
-Provider shortlist research is complete. Benchmark execution waits for
-contracts and benchmark plan. Customer OCR pilot and production acceptance
+Corrected provider shortlist research V2 is complete. Benchmark execution waits
+for contracts and benchmark plan. Customer OCR pilot and production acceptance
 remain blocked by real documents and provider/data policy.
 
 ### Simple document extraction synthetic proof
@@ -320,14 +320,14 @@ Status: ready for decision after runtime proof
 
 Domain: Documents / OCR / Excel
 Source: VL_OCR_PROVIDER_RESEARCH,
-VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH
-Why: Need to compare native extraction, Tika/Docling, Mistral OCR/document AI, cloud OCR and
-local/VLM options before promising OCR quality.
+VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2
+Why: Need to compare dedicated OCR-VL/VLM document parsing APIs, hosted
+PaddleOCR-VL and baseline-only OCR/Document AI before promising OCR quality.
 Output: short candidate shortlist and pilot plan for 2-3 candidates.
 Depends on: customer data policy and sample documents
-Status: provider shortlist research artifact created; synthetic benchmark
-planning can start; customer pilot candidate choice remains blocked by samples
-and data policy
+Status: corrected provider shortlist research V2 artifact created; synthetic
+benchmark planning can start; customer pilot candidate choice remains blocked
+by samples and data policy
 
 ## Ready for runtime proof
 

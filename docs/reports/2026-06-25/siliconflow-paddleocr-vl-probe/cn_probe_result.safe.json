@@ -1,0 +1,82 @@
+﻿{
+    "status":  "blocked",
+    "generated_at":  "2026-06-25T23:10:34.5761960+03:00",
+    "secrets_printed":  false,
+    "synthetic_image":  {
+                            "path":  "docs/reports/2026-06-25/siliconflow-paddleocr-vl-probe/synthetic_test_document.png",
+                            "bytes":  37918,
+                            "sha256":  "d4976f04ba0020b81e1025b6f5c1d6abb81c0e85f0cb8684a43e246ea71344b0",
+                            "contains_customer_data":  false
+                        },
+    "official_tested_endpoint":  "https://api.siliconflow.cn/v1/chat/completions",
+    "models_endpoint":  {
+                            "endpoint":  "GET /models",
+                            "ok":  false,
+                            "status_code":  401,
+                            "latency_ms":  2569,
+                            "object":  null,
+                            "model_count":  0,
+                            "tested_ids":  [
+                                               {
+                                                   "id":  "PaddlePaddle/PaddleOCR-VL-1.5",
+                                                   "listed":  false
+                                               },
+                                               {
+                                                   "id":  "PaddlePaddle/PaddleOCR-VL",
+                                                   "listed":  false
+                                               }
+                                           ],
+                            "matching_model_ids":  [
+
+                                                   ],
+                            "error":  {
+                                          "code":  null,
+                                          "message":  "Удаленный сервер возвратил ошибку: (401) Несанкционированный.",
+                                          "type":  "System.Net.WebException"
+                                      }
+                        },
+    "tested_model_ids":  [
+                             "PaddlePaddle/PaddleOCR-VL-1.5",
+                             "PaddlePaddle/PaddleOCR-VL"
+                         ],
+    "working_model_id":  null,
+    "base64_accepted":  false,
+    "public_url":  {
+                       "attempted":  false,
+                       "upload":  null,
+                       "chat":  null
+                   },
+    "chat_summaries":  [
+                           {
+                               "label":  "base64_primary",
+                               "input_kind":  "data_image_base64",
+                               "request_model":  "PaddlePaddle/PaddleOCR-VL-1.5",
+                               "ok":  false,
+                               "status_code":  401,
+                               "latency_ms":  698,
+                               "trace_id_present":  false,
+                               "response_model":  null,
+                               "finish_reason":  null,
+                               "usage":  null,
+                               "returns_markdown_like_content":  false,
+                               "json_instruction":  {
+                                                        "valid_json_found":  false,
+                                                        "has_required_fields":  null,
+                                                        "error":  "No successful response"
+                                                    },
+                               "content_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                               "content_excerpt":  null,
+                               "error":  {
+                                             "code":  null,
+                                             "message":  "The remote server returned an error: (401) Unauthorized.",
+                                             "type":  "System.Net.WebException"
+                                         }
+                           }
+                       ],
+    "can_normalize_to_document_extraction_result_v1":  false,
+    "cost_usage":  {
+                       "pricing_page_signal":  "SiliconFlow pricing page lists PaddlePaddle/PaddleOCR-VL-1.5 as free input and free output.",
+                       "api_usage_present":  false,
+                       "actual_deduction_observed_via_api":  "not_available_in_chat_or_models_response"
+                   }
+}

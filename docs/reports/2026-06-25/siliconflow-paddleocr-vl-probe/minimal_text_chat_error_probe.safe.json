@@ -1,0 +1,23 @@
+﻿[
+    {
+        "base_url":  "https://api.siliconflow.com/v1",
+        "model":  "PaddlePaddle/PaddleOCR-VL-1.5",
+        "status_code":  400,
+        "latency_ms":  2621,
+        "body":  "{\"code\":20012,\"message\":\"Model does not exist. Please check it carefully.\",\"data\":null}"
+    },
+    {
+        "base_url":  "https://api.siliconflow.com/v1",
+        "model":  "PaddlePaddle/PaddleOCR-VL",
+        "status_code":  400,
+        "latency_ms":  2153,
+        "body":  "{\"code\":20012,\"message\":\"Model does not exist. Please check it carefully.\",\"data\":null}"
+    },
+    {
+        "base_url":  "https://api.siliconflow.cn/v1",
+        "model":  "PaddlePaddle/PaddleOCR-VL-1.5",
+        "status_code":  401,
+        "latency_ms":  2044,
+        "body":  "\"Api key is invalid\""
+    }
+]

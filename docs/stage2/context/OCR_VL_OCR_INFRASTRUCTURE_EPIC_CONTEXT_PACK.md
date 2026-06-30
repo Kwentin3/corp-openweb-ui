@@ -75,10 +75,14 @@ warnings. Результат OCR должен быть проверяемым:
   обещается.
 - [VL OCR Provider Research](../research/VL_OCR_PROVIDER_RESEARCH.md) уже
   фиксирует candidate classes and risks.
-- [VL OCR API Provider Shortlist Research](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
-  уже выбирает первых benchmark candidates for raster image -> external
-  VL/OCR API -> JSON -> LLM context MVP: Mistral OCR 4 / Document AI, Alibaba
-  Qwen-OCR / Qwen3-VL and Azure Document Intelligence.
+- [VL OCR API Provider Shortlist Research V2](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md)
+  уточняет corrected scope для raster image -> hosted OCR-VL/VLM document API
+  -> structured JSON/text/tables -> LLM context MVP: Alibaba Qwen-OCR/Qwen-VL,
+  Datalab Chandra and hosted PaddleOCR-VL path. Mistral OCR, Azure Document
+  Intelligence and other classic OCR/Document AI providers are baseline-only.
+- [VL OCR API Provider Shortlist Research V1](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
+  remains useful as a broad baseline, but should not be used as the corrected
+  OCR-VL shortlist.
 - [Documents OCR Excel Research](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
   уже фиксирует OpenWebUI extraction engines, Tika, Docling, Mistral OCR and
   pilot limitations.
@@ -344,16 +348,17 @@ Ordered context route:
 1. [CONTEXT_INDEX.md](../CONTEXT_INDEX.md)
 2. [CONTEXT_USAGE_RULES.md](../CONTEXT_USAGE_RULES.md)
 3. [OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md](OCR_VL_OCR_INFRASTRUCTURE_EPIC_CONTEXT_PACK.md)
-4. [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
-5. [VL_OCR_PROVIDER_RESEARCH.md](../research/VL_OCR_PROVIDER_RESEARCH.md)
-6. [DOCUMENTS_OCR_EXCEL_RESEARCH.md](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
-7. [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
-8. [STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
-9. [STAGE2_SELECTED_USER_STORIES.md](../implementation/STAGE2_SELECTED_USER_STORIES.md)
-10. [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](../implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
-11. [ACCEPTANCE_MATRIX.md](../acceptance/ACCEPTANCE_MATRIX.md)
-12. [IMPLEMENTATION_GATES.md](../IMPLEMENTATION_GATES.md)
-13. [CONTRACT_BOUNDARIES.md](../CONTRACT_BOUNDARIES.md)
+4. [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md)
+5. [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](../research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md)
+6. [VL_OCR_PROVIDER_RESEARCH.md](../research/VL_OCR_PROVIDER_RESEARCH.md)
+7. [DOCUMENTS_OCR_EXCEL_RESEARCH.md](../research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
+8. [SYNTHETIC_TEST_DATA_INDEX.md](../testdata/SYNTHETIC_TEST_DATA_INDEX.md)
+9. [STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md](../testdata/STAGE2_SELECTED_STORIES_SYNTHETIC_DATA_REQUIREMENTS.md)
+10. [STAGE2_SELECTED_USER_STORIES.md](../implementation/STAGE2_SELECTED_USER_STORIES.md)
+11. [STAGE2_SELECTED_STORIES_PROOF_PLANS.md](../implementation/STAGE2_SELECTED_STORIES_PROOF_PLANS.md)
+12. [ACCEPTANCE_MATRIX.md](../acceptance/ACCEPTANCE_MATRIX.md)
+13. [IMPLEMENTATION_GATES.md](../IMPLEMENTATION_GATES.md)
+14. [CONTRACT_BOUNDARIES.md](../CONTRACT_BOUNDARIES.md)
 
 ## 17. Open questions
 

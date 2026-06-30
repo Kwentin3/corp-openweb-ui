@@ -1,0 +1,23 @@
+{
+    "input_kind":  "data_uri_base64_png",
+    "model_requested":  "PaddlePaddle/PaddleOCR-VL-1.5",
+    "ok":  false,
+    "status_code":  401,
+    "latency_ms":  698,
+    "trace_id_present":  false,
+    "response_model":  null,
+    "finish_reason":  null,
+    "returns_markdown_likely":  false,
+    "returns_instruction_json_valid":  false,
+    "instruction_json_source":  "none",
+    "instruction_json_fields":  [
+
+                                ],
+    "instruction_json_missing_fields":  null,
+    "can_normalize_to_DocumentExtractionResultV1":  false,
+    "usage":  null,
+    "error":  {
+                  "message":  "The remote server returned an error: (401) Unauthorized."
+              },
+    "content_excerpt":  null
+}

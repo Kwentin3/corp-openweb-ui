@@ -1,0 +1,26 @@
+﻿{
+    "endpoint":  "GET /models",
+    "ok":  false,
+    "status_code":  401,
+    "latency_ms":  2569,
+    "object":  null,
+    "model_count":  0,
+    "tested_ids":  [
+                       {
+                           "id":  "PaddlePaddle/PaddleOCR-VL-1.5",
+                           "listed":  false
+                       },
+                       {
+                           "id":  "PaddlePaddle/PaddleOCR-VL",
+                           "listed":  false
+                       }
+                   ],
+    "matching_model_ids":  [
+
+                           ],
+    "error":  {
+                  "code":  null,
+                  "message":  "Удаленный сервер возвратил ошибку: (401) Несанкционированный.",
+                  "type":  "System.Net.WebException"
+              }
+}

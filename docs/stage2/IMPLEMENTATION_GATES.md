@@ -299,13 +299,16 @@ Blocking items:
 Completed inputs:
 
 - provider shortlist research:
+  [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md);
+- historical broad baseline:
   [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md).
 
 Related docs:
 
 - ADR-0005;
 - VL OCR research;
-- VL OCR API provider shortlist research.
+- VL OCR API provider shortlist research V2;
+- VL OCR API provider shortlist research V1 broad baseline.
 
 ### Gate 7. Runtime proof complete
 

@@ -1,0 +1,8 @@
+﻿{
+    "base64_primary":  {
+                           "status_code":  401,
+                           "latency_ms":  698,
+                           "trace_id_present":  false,
+                           "body":  null
+                       }
+}
