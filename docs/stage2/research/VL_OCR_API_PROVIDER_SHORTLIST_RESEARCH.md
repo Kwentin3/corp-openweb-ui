@@ -1,5 +1,12 @@
 ﻿# VL OCR API Provider Shortlist Research
 
+> Historical note:
+> This V1 provider shortlist is preserved as research history.
+> For current OCR/VL OCR shortlist context, prefer:
+> `docs/stage2/research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH_V2.md`
+>
+> OCR/VL OCR remains research/future scope for the current Stage 2 contract slice.
+
 Checked date: 2026-06-25.
 
 Status: research and recommendation only. No runtime proof, provider account

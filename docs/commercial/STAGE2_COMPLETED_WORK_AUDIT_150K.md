@@ -1,4 +1,14 @@
-# Аудит выполненных работ Stage 2 / Транш 1
+﻿# Аудит выполненных работ Stage 2 / Транш 1
+
+> Историческая заметка:
+> Этот документ сохранен как исторический audit выполненных работ Stage 2.
+> Он не является текущим документом для согласования объема работ с заказчиком.
+>
+> Актуальный customer-facing scope:
+> `docs/commercial/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md`
+>
+> Актуальный internal handoff:
+> `docs/commercial/STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md`
 
 ## 1. Назначение документа
 

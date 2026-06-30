@@ -46,6 +46,22 @@ Compact route map:
 - customer-facing materials: use
   [Customer-facing proposals](#customer-facing-proposals).
 
+## Stage 2 documentation representation
+
+Current documentation split:
+
+- Customer-facing source of truth:
+  [STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS](../commercial/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md)
+
+- Internal contract/evidence handoff:
+  [STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK](../commercial/STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md)
+
+- Documentation representation model:
+  [STAGE2_DOCS_REPRESENTATION_MODEL](../commercial/STAGE2_DOCS_REPRESENTATION_MODEL.md)
+
+- Reports:
+  dated evidence and historical context, not customer-facing source documents.
+
 ## Source of truth hierarchy
 
 | Level | Source | Rule |

@@ -1,5 +1,39 @@
 ﻿# Stage 2 Acceptance Matrix
 
+## Current Stage 2 contract-scope acceptance
+
+Acceptance for the current limited Stage 2 slice uses marker `CURRENT_SCOPE`.
+It covers:
+
+- base STT inside OpenWebUI;
+- STT v2 transcript post-processing;
+- starter transcript-processing templates;
+- simple DOCX export of processed text;
+- Web Search baseline;
+- Web Search scenarios;
+- corporate prompt pack;
+- onboarding pack;
+- basic pilot access matrix.
+
+This current slice is not the whole PRD-1.
+
+## Broad PRD-1 / future acceptance
+
+Acceptance items for broader PRD-1 and future stages use marker
+`BROAD_PRD` or `FUTURE_SCOPE`. They include:
+
+- OCR / VL OCR;
+- broker reports / 3-НДФЛ;
+- full document pipeline;
+- CRM/task tracker integration;
+- retention/audit;
+- full Web Search governance;
+- AD/SSO/SCIM;
+- analytics/cost visibility.
+
+These items stay outside the current contract-scope slice unless separately
+approved.
+
 ## Synthetic proof boundary
 
 Synthetic data - это искусственные тестовые данные без данных заказчика.
@@ -20,6 +54,12 @@ References:
 - [Test Data Requirements](TEST_DATA_REQUIREMENTS.md)
 
 ## Minimum working scenarios with groups, prompts and owner
+
+Scope marker:
+
+- `CURRENT_SCOPE` for the basic pilot access matrix, starter prompt pack and
+  pilot group visibility checks.
+- `BROAD_PRD` for full workspace/RBAC governance beyond the pilot.
 
 Domain:
 
@@ -52,6 +92,12 @@ Status:
   Knowledge. Production acceptance still needs the real customer group matrix.
 
 ## Audio/video transcription
+
+Scope marker:
+
+- `CURRENT_SCOPE` for base STT in OpenWebUI and STT v2 transcript
+  post-processing.
+- `FUTURE_SCOPE` for production hardening beyond the current limited slice.
 
 Domain:
 
@@ -183,6 +229,10 @@ Status:
 
 ## Broker reports / 3-НДФЛ draft analysis
 
+Scope marker:
+
+- `FUTURE_SCOPE`.
+
 Domain:
 
 - Broker reports.
@@ -209,6 +259,12 @@ Status:
 - Blocked by customer input.
 
 ## Web-search for all with rules and limits
+
+Scope marker:
+
+- `CURRENT_SCOPE` for Web Search baseline and ready usage scenarios.
+- `BROAD_PRD` for full governance, hard limits, extended logs and broad
+  rollout policy.
 
 Domain:
 
@@ -315,6 +371,11 @@ Status:
 
 ## PDF/DOCX/XLSX basic handling and OCR pilot
 
+Scope marker:
+
+- `CURRENT_SCOPE` only for simple DOCX export of processed STT results.
+- `BROAD_PRD` / `FUTURE_SCOPE` for full PDF/DOCX/XLSX handling and OCR pilot.
+
 Domain:
 
 - Documents / OCR / Excel.
@@ -350,6 +411,10 @@ Status:
 
 ## VL OCR pilot candidate selection
 
+Scope marker:
+
+- `FUTURE_SCOPE`.
+
 Domain:
 
 - Documents / OCR / VL OCR.
@@ -384,6 +449,10 @@ Status:
 
 ## Provider model catalog
 
+Scope marker:
+
+- `BROAD_PRD`.
+
 Domain:
 
 - Providers.
@@ -412,6 +481,10 @@ Status:
 - Research complete; catalog ADR needed.
 
 ## Basic analytics / cost visibility
+
+Scope marker:
+
+- `BROAD_PRD` / `FUTURE_SCOPE`.
 
 Domain:
 
@@ -446,6 +519,11 @@ Status:
 
 ## Data policy and no false masking promise
 
+Scope marker:
+
+- `CURRENT_SCOPE` only for user-facing warnings and pilot data-use guidance.
+- `BROAD_PRD` for full provider/data policy enforcement and masking roadmap.
+
 Domain:
 
 - Security / data policy.
@@ -474,6 +552,10 @@ Status:
 - Research complete; policy decision needed before provider setup.
 
 ## Manager work-chat visibility
+
+Scope marker:
+
+- `FUTURE_SCOPE`.
 
 Domain:
 
@@ -509,6 +591,10 @@ Status:
 
 ## Chat deletion restriction check
 
+Scope marker:
+
+- `FUTURE_SCOPE`.
+
 Domain:
 
 - No-delete policy.
@@ -541,6 +627,10 @@ Status:
 
 ## Retention policy decision
 
+Scope marker:
+
+- `FUTURE_SCOPE`.
+
 Domain:
 
 - Retention / audit.
@@ -567,6 +657,12 @@ Status:
 - Policy decision needed.
 
 ## Ops and acceptance handoff
+
+Scope marker:
+
+- `CURRENT_SCOPE` for the current Stage 2 documentation, acceptance and
+  handoff package.
+- `BROAD_PRD` for extended operational governance beyond the current slice.
 
 Domain:
 

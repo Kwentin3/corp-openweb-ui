@@ -1,4 +1,14 @@
-# Stage 2 Scope Reconciliation for Limited Commercial Tranche
+﻿# Stage 2 Scope Reconciliation for Limited Commercial Tranche
+
+> Историческая заметка:
+> Этот документ сохранен как исторический контекст сверки Stage 2.
+> Он не является текущим customer-facing source of truth.
+>
+> Актуальный документ для согласования с заказчиком:
+> `docs/commercial/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md`
+>
+> Актуальный внутренний handoff/evidence-документ:
+> `docs/commercial/STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md`
 
 ## 1. Purpose
 
