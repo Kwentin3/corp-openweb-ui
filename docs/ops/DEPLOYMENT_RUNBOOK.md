@@ -88,9 +88,10 @@ Primary provider задается в `.env`. Secondary provider добавляе
 - первый admin email/password;
 - operator current public IP, если нужно добавить fail2ban ignore list.
 
-## 8. Выполнить preflight
+## 8. Синхронизировать browser config и выполнить preflight
 
 ```bash
+bash scripts/render-stage2-stt-browser-config.sh
 bash scripts/preflight.sh
 bash scripts/network-hardening-check.sh
 ```
@@ -103,6 +104,9 @@ bash scripts/network-hardening-check.sh
 docker compose --env-file .env -f compose/openwebui.compose.yml pull
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d
 ```
+
+Если `.env` менялся между preflight и запуском compose, повторить
+`bash scripts/render-stage2-stt-browser-config.sh` перед `up -d`.
 
 ## 10. Проверить strict TLS
 

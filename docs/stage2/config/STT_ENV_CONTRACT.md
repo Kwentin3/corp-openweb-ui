@@ -57,7 +57,7 @@ STAGE2_LEMONFOX_MODEL=
 STAGE2_LEMONFOX_LANGUAGE=ru
 STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS=false
 STAGE2_LEMONFOX_ENABLE_TIMESTAMPS=true
-STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=100
+STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=400
 STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB=1024
 STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES=
 ```
@@ -67,7 +67,10 @@ Rules:
 - `STAGE2_LEMONFOX_API_KEY` is server-side only.
 - No Lemonfox key may be exposed through browser config, browser storage,
   browser logs or `NEXT_PUBLIC_*`.
-- The 100 MB value reflects the Lemonfox direct upload prepared-audio limit.
+- The 400 MB value is the application-side deployment limit for prepared audio.
+  Lemonfox public direct-upload documentation has historically listed lower
+  file limits; files above that boundary need live provider proof or an
+  approved URL/object-storage path.
 - The 1024 MB value reflects the documented Lemonfox public URL input limit.
 - Lemonfox maximum audio duration is not documented and remains blank/TBD until
   runtime proof or provider confirmation.
@@ -156,6 +159,9 @@ STAGE2_STT_INTERNAL_MAX_DURATION_MINUTES=
 Rules:
 
 - Browser-side wasm candidate input limit is 1 GB / 1024 MB.
+- Browser-visible config is generated from server env by
+  `scripts/render-stage2-stt-browser-config.sh`; do not hand-edit
+  `deploy/openwebui-static/stage2-stt-normalization.json` on the server.
 - Browser and internal duration limits are not selected yet and stay blank/TBD
   until accepted.
 - Backend still validates size, duration, MIME/content-type and selected output
@@ -243,8 +249,8 @@ Rules:
 Draft env names:
 
 ```text
-STAGE2_STT_MAX_PREPARED_AUDIO_MB=100
-STAGE2_STT_DIRECT_UPLOAD_WARNING_MB=100
+STAGE2_STT_MAX_PREPARED_AUDIO_MB=400
+STAGE2_STT_DIRECT_UPLOAD_WARNING_MB=400
 STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE=fail
 STAGE2_STT_PROVIDER_MAX_DURATION_MINUTES=
 STAGE2_STT_INTERNAL_MAX_DURATION_MINUTES=
@@ -264,6 +270,9 @@ Rules:
   `STAGE2_STT_DIRECT_UPLOAD_WARNING_MB`.
 - Default behavior is `fail` with a typed error unless fallback path is
   approved.
+- Current deployment default raises the app-side prepared-audio and direct
+  upload warning thresholds to 400 MB; operator env remains the source of truth
+  for later changes.
 - Do not assert URL upload or object-storage provider path until Lemonfox
   compatibility, expiry and access-control behavior are proven.
 - Provider max duration remains blank/TBD because Lemonfox docs do not document

@@ -20,7 +20,7 @@
 		available_output_profiles: ['opus_webm_compact', 'opus_ogg_compact', 'mp3_high_compat', 'wav_pcm_safe'],
 		max_browser_input_mb: 1024,
 		max_browser_duration_minutes: null,
-		max_prepared_audio_mb: 100,
+		max_prepared_audio_mb: 400,
 		ffmpeg_asset_mode: 'self_hosted',
 		ffmpeg_package_version: '0.12.6',
 		ffmpeg_core_version: '0.12.6',
@@ -116,6 +116,21 @@
 	function byteLimit(mb) {
 		const number = Number(mb);
 		return Number.isFinite(number) && number > 0 ? number * 1024 * 1024 : null;
+	}
+
+	function formatLimitMb(mb) {
+		const number = Number(mb);
+		if (!Number.isFinite(number) || number <= 0) {
+			return '\u043d\u0435 \u0437\u0430\u0434\u0430\u043d';
+		}
+		if (number >= 1024 && number % 1024 === 0) {
+			return `${number / 1024} GB`;
+		}
+		return `${number} MB`;
+	}
+
+	function limitSummary(config) {
+		return `\u041b\u0438\u043c\u0438\u0442\u044b: \u0438\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u0434\u043e ${formatLimitMb(config.max_browser_input_mb)}; \u0430\u0443\u0434\u0438\u043e \u043f\u043e\u0441\u043b\u0435 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0438 \u0434\u043e ${formatLimitMb(config.max_prepared_audio_mb)}.`;
 	}
 
 	function stageError(code, fallbackMessage) {
@@ -378,6 +393,14 @@
 		button.style.background = 'rgba(14, 165, 233, 0.10)';
 		button.style.color = 'inherit';
 		button.style.cursor = 'pointer';
+		button.addEventListener('focus', () => {
+			button.style.outline = '2px solid rgba(14, 165, 233, 0.75)';
+			button.style.outlineOffset = '2px';
+		});
+		button.addEventListener('blur', () => {
+			button.style.outline = 'none';
+			button.style.outlineOffset = '0';
+		});
 
 		const status = document.createElement('div');
 		status.dataset.stage2SttStatus = 'ready';
@@ -387,6 +410,14 @@
 		status.style.lineHeight = '1rem';
 		status.style.color = 'rgb(107, 114, 128)';
 		status.style.whiteSpace = 'normal';
+
+		loadConfig()
+			.then((config) => {
+				if (status.dataset.stage2SttStatus === 'ready') {
+					setStatus(status, 'ready', `${STATUS_TEXT.ready} ${limitSummary(config)}`);
+				}
+			})
+			.catch(() => {});
 
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
@@ -542,7 +573,7 @@
 		const durationSeconds = parseDurationSeconds(logsText());
 		const durationLimitMinutes = Number(config.max_browser_duration_minutes);
 		if (durationSeconds !== null && Number.isFinite(durationLimitMinutes) && durationLimitMinutes > 0 && durationSeconds > durationLimitMinutes * 60) {
-			throw stageError('ffmpeg_duration_limit_exceeded');
+			throw stageError('ffmpeg_duration_limit_exceeded', `\u0414\u043b\u0438\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u0444\u0430\u0439\u043b\u0430 \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0435\u0442 \u043b\u0438\u043c\u0438\u0442: \u0434\u043e ${durationLimitMinutes} \u043c\u0438\u043d.`);
 		}
 		return { durationSeconds };
 	}
@@ -571,7 +602,7 @@
 		}
 		const inputLimit = byteLimit(config.max_browser_input_mb);
 		if (inputLimit !== null && sourceFile.size > inputLimit) {
-			throw stageError('ffmpeg_input_too_large');
+			throw stageError('ffmpeg_input_too_large', `\u0424\u0430\u0439\u043b \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0435\u0442 \u043b\u0438\u043c\u0438\u0442 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043d\u043e\u0439 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438: \u0434\u043e ${formatLimitMb(config.max_browser_input_mb)}.`);
 		}
 
 		const ffmpeg = await loadFfmpeg(config, status);
@@ -599,7 +630,7 @@
 					const data = await ffmpeg.readFile(outputName);
 					const outputBytes = data instanceof Uint8Array ? data : new Uint8Array(data);
 					if (preparedLimit !== null && outputBytes.byteLength > preparedLimit) {
-						throw stageError('prepared_audio_too_large');
+						throw stageError('prepared_audio_too_large', `\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0435 \u0430\u0443\u0434\u0438\u043e \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0435\u0442 \u043b\u0438\u043c\u0438\u0442 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438: \u0434\u043e ${formatLimitMb(config.max_prepared_audio_mb)}.`);
 					}
 					const preparedFile = new File(
 						[outputBytes],
@@ -693,15 +724,20 @@
 			return;
 		}
 		button.disabled = true;
+		button.style.opacity = '0.65';
+		button.style.cursor = 'wait';
 		button.textContent = RUNNING_LABEL;
 		delete status.dataset.stage2SttReason;
 		try {
 			const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);
 			await callTranscriptionAction(preparedFile, status);
 			button.textContent = DONE_LABEL;
+			button.style.cursor = 'default';
 			setStatus(status, 'completed');
 		} catch (error) {
 			button.disabled = false;
+			button.style.opacity = '1';
+			button.style.cursor = 'pointer';
 			button.textContent = TRANSCRIBE_LABEL;
 			setErrorStatus(status, error);
 		}

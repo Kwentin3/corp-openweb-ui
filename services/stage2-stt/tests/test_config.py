@@ -32,10 +32,10 @@ def test_config_loads_defaults_without_lemonfox_key():
     assert config.declared_input_mime_prefixes == ("audio/", "video/")
     assert config.require_audio_stream is True
     assert config.ffmpeg_probe_before_action is True
-    assert config.output_profile is OutputProfile.OPUS_WEBM_COMPACT
+    assert config.output_profile is OutputProfile.MP3_HIGH_COMPAT
     assert config.fallback_output_profile is OutputProfile.MP3_HIGH_COMPAT
     assert config.browser_max_input_mb == 1024
-    assert config.max_prepared_audio_mb == 100
+    assert config.max_prepared_audio_mb == 400
     assert config.storage_mode is StorageMode.AUTO
 
 

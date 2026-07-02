@@ -48,7 +48,7 @@ class LemonfoxConfig:
     language: str = "ru"
     enable_speaker_labels: bool = False
     enable_timestamps: bool = True
-    max_direct_upload_mb: int = 100
+    max_direct_upload_mb: int = 400
     max_url_upload_mb: int = 1024
     provider_max_duration_minutes: int | None = None
 
@@ -71,6 +71,11 @@ class SttConfig:
     fallback_output_profile: OutputProfile
     browser_max_input_mb: int
     browser_max_duration_minutes: int | None
+    ffmpeg_asset_mode: str
+    ffmpeg_core_base_url: str
+    ffmpeg_package_version: str
+    ffmpeg_core_version: str
+    ffmpeg_util_version: str
     max_prepared_audio_mb: int
     direct_upload_warning_mb: int
     on_prepared_audio_too_large: PreparedAudioTooLargeBehavior
@@ -99,7 +104,7 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         language=_str(source, "STAGE2_LEMONFOX_LANGUAGE", "ru"),
         enable_speaker_labels=_bool(source, "STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS", False),
         enable_timestamps=_bool(source, "STAGE2_LEMONFOX_ENABLE_TIMESTAMPS", True),
-        max_direct_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB", 100),
+        max_direct_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB", 400),
         max_url_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB", 1024),
         provider_max_duration_minutes=_optional_int(
             source, "STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES"
@@ -125,7 +130,7 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         ffmpeg_probe_before_action=_bool(
             source, "STAGE2_STT_FFMPEG_PROBE_BEFORE_ACTION", True
         ),
-        output_profile=_enum(source, "STAGE2_STT_OUTPUT_PROFILE", OutputProfile, "opus_webm_compact"),
+        output_profile=_enum(source, "STAGE2_STT_OUTPUT_PROFILE", OutputProfile, "mp3_high_compat"),
         fallback_output_profile=_enum(
             source, "STAGE2_STT_FALLBACK_OUTPUT_PROFILE", OutputProfile, "mp3_high_compat"
         ),
@@ -133,8 +138,15 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         browser_max_duration_minutes=_optional_int(
             source, "STAGE2_FFMPEG_BROWSER_MAX_DURATION_MINUTES"
         ),
-        max_prepared_audio_mb=_int(source, "STAGE2_STT_MAX_PREPARED_AUDIO_MB", 100),
-        direct_upload_warning_mb=_int(source, "STAGE2_STT_DIRECT_UPLOAD_WARNING_MB", 100),
+        ffmpeg_asset_mode=_str(source, "STAGE2_FFMPEG_ASSET_MODE", "self_hosted"),
+        ffmpeg_core_base_url=_str(
+            source, "STAGE2_FFMPEG_CORE_BASE_URL", "/static/stage2-assets/ffmpeg/0.12.6/"
+        ),
+        ffmpeg_package_version=_str(source, "STAGE2_FFMPEG_PACKAGE_VERSION", "0.12.6"),
+        ffmpeg_core_version=_str(source, "STAGE2_FFMPEG_CORE_VERSION", "0.12.6"),
+        ffmpeg_util_version=_str(source, "STAGE2_FFMPEG_UTIL_VERSION", "0.12.1"),
+        max_prepared_audio_mb=_int(source, "STAGE2_STT_MAX_PREPARED_AUDIO_MB", 400),
+        direct_upload_warning_mb=_int(source, "STAGE2_STT_DIRECT_UPLOAD_WARNING_MB", 400),
         on_prepared_audio_too_large=_enum(
             source,
             "STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE",
@@ -187,6 +199,16 @@ def _validate_config(config: SttConfig) -> None:
         raise SttConfigError("STAGE2_STT_DECLARED_INPUT_MIME_PREFIXES must not be empty")
     if config.browser_max_input_mb <= 0:
         raise SttConfigError("STAGE2_FFMPEG_BROWSER_MAX_INPUT_MB must be positive")
+    if config.ffmpeg_asset_mode not in {"self_hosted", "cdn"}:
+        raise SttConfigError("STAGE2_FFMPEG_ASSET_MODE must be one of: self_hosted, cdn")
+    if not config.ffmpeg_core_base_url.startswith(("/", "http://", "https://")):
+        raise SttConfigError("STAGE2_FFMPEG_CORE_BASE_URL must be an absolute path or HTTP URL")
+    if not config.ffmpeg_package_version:
+        raise SttConfigError("STAGE2_FFMPEG_PACKAGE_VERSION must not be empty")
+    if not config.ffmpeg_core_version:
+        raise SttConfigError("STAGE2_FFMPEG_CORE_VERSION must not be empty")
+    if not config.ffmpeg_util_version:
+        raise SttConfigError("STAGE2_FFMPEG_UTIL_VERSION must not be empty")
     if config.max_prepared_audio_mb <= 0:
         raise SttConfigError("STAGE2_STT_MAX_PREPARED_AUDIO_MB must be positive")
     if config.direct_upload_warning_mb <= 0:

@@ -8,7 +8,8 @@ Implementation baseline note, 2026-06-19:
 - `deploy/openwebui-static/loader.js` implements prepared-MP3 passthrough and
   browser ffmpeg.wasm probe/normalization after explicit user action.
 - `deploy/openwebui-static/stage2-stt-normalization.json` selects
-  `mp3_high_compat` with self-hosted ffmpeg.wasm assets.
+  `mp3_high_compat` with self-hosted ffmpeg.wasm assets and is generated from
+  the server `.env` before deploy.
 - Playwright proof passed for prepared MP3 passthrough, MP4 with audio, WebM
   audio/video, unsupported fake MP4 safe error and no-audio MP4 safe error.
 - This closes the current Stage 2 STT MVP media-normalization implementation
@@ -204,6 +205,9 @@ Current static OpenWebUI patch implementation:
 
 - `deploy/openwebui-static/loader.js` reads safe browser config from
   `/static/stage2-stt-normalization.json`.
+- `deploy/openwebui-static/stage2-stt-normalization.json` is rendered from
+  validated Stage 2 STT env by `scripts/render-stage2-stt-browser-config.sh`;
+  do not hand-edit it on the server.
 - Self-hosted ffmpeg.wasm assets are expected under
   `/static/stage2-assets/ffmpeg/0.12.6/` and are installed with
   `scripts/fetch-ffmpeg-wasm-assets.sh`.

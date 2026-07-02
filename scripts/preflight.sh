@@ -98,6 +98,17 @@ fi
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose plugin is not available"
 command -v curl >/dev/null 2>&1 || warn "curl is not installed; smoke-test.sh needs it"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required for Stage 2 STT browser config rendering"
+
+STAGE2_STT_BROWSER_CONFIG_TMP="$(mktemp)"
+trap 'rm -f "$STAGE2_STT_BROWSER_CONFIG_TMP"' EXIT
+PYTHONPATH="$ROOT_DIR/services/stage2-stt${PYTHONPATH:+:$PYTHONPATH}" \
+  python3 -m stage2_stt.browser_config "$STAGE2_STT_BROWSER_CONFIG_TMP"
+if cmp -s "$STAGE2_STT_BROWSER_CONFIG_TMP" "$ROOT_DIR/deploy/openwebui-static/stage2-stt-normalization.json"; then
+  info "Stage 2 STT browser config matches .env"
+else
+  warn "Stage 2 STT browser config is out of sync; run scripts/render-stage2-stt-browser-config.sh before compose up"
+fi
 
 if command -v getent >/dev/null 2>&1; then
   getent hosts "$OPENWEBUI_HOST" >/dev/null 2>&1 || fail "DNS does not resolve for $OPENWEBUI_HOST"

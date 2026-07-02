@@ -158,6 +158,7 @@ cd /opt/openwebui-prd0
 cp .env.example .env
 chmod 600 .env
 vi .env
+bash scripts/render-stage2-stt-browser-config.sh
 bash scripts/preflight.sh
 bash scripts/network-hardening-check.sh
 docker compose --env-file .env -f compose/openwebui.compose.yml up -d

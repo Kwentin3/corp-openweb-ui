@@ -9,7 +9,7 @@ def test_lemonfox_adapter_capability_profile_exists():
 
     assert capability.provider_id == "lemonfox"
     assert capability.adapter_id == "lemonfox"
-    assert capability.max_direct_upload_mb == 100
+    assert capability.max_direct_upload_mb == 400
     assert capability.max_url_upload_mb == 1024
     assert "mp3_high_compat" in capability.supported_input_profiles
     assert "opus_webm_compact" in capability.supported_input_profiles

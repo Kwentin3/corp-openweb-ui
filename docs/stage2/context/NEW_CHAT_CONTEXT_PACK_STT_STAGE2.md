@@ -239,7 +239,8 @@ Current hardening backlog:
 
 Known current limitations:
 
-- Current browser static config pins `mp3_high_compat`.
+- Current generated browser config defaults to `mp3_high_compat`; changing it
+  must go through `STAGE2_STT_OUTPUT_PROFILE` and provider/browser proof.
 - Input support depends on the configured ffmpeg.wasm build, browser memory,
   duration/size limits, container/codec and audio-stream detection.
 - The sidecar job store is in-memory in the MVP.
