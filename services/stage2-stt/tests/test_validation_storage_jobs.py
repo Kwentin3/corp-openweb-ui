@@ -48,7 +48,7 @@ def test_output_profile_validation_rejects_wrong_mime():
     assert result.error.code == "unsupported_input_format"
 
 
-def test_prepared_audio_over_400_mb_fails_by_default():
+def test_prepared_audio_over_100_mb_fails_by_default():
     config = load_stt_config({})
     capability = LemonfoxSttAdapter(config).capabilities()
 
@@ -57,7 +57,7 @@ def test_prepared_audio_over_400_mb_fails_by_default():
         capability=capability,
         output_profile=OutputProfile.MP3_HIGH_COMPAT,
         mime_type="audio/mpeg",
-        size_bytes=401 * BYTES_PER_MB,
+        size_bytes=101 * BYTES_PER_MB,
     )
 
     assert result.accepted is False
@@ -69,7 +69,7 @@ def test_provider_direct_upload_limit_exceeded_when_internal_limit_is_higher():
     config = load_stt_config(
         {
             "STAGE2_STT_MAX_PREPARED_AUDIO_MB": "500",
-            "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB": "400",
+            "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB": "100",
         }
     )
     capability = LemonfoxSttAdapter(config).capabilities()
@@ -79,7 +79,7 @@ def test_provider_direct_upload_limit_exceeded_when_internal_limit_is_higher():
         capability=capability,
         output_profile=OutputProfile.MP3_HIGH_COMPAT,
         mime_type="audio/mpeg",
-        size_bytes=401 * BYTES_PER_MB,
+        size_bytes=101 * BYTES_PER_MB,
     )
 
     assert result.accepted is False

@@ -57,7 +57,7 @@ STAGE2_LEMONFOX_MODEL=
 STAGE2_LEMONFOX_LANGUAGE=ru
 STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS=false
 STAGE2_LEMONFOX_ENABLE_TIMESTAMPS=true
-STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=400
+STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=100
 STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB=1024
 STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES=
 ```
@@ -67,10 +67,9 @@ Rules:
 - `STAGE2_LEMONFOX_API_KEY` is server-side only.
 - No Lemonfox key may be exposed through browser config, browser storage,
   browser logs or `NEXT_PUBLIC_*`.
-- The 400 MB value is the application-side deployment limit for prepared audio.
-  Lemonfox public direct-upload documentation has historically listed lower
-  file limits; files above that boundary need live provider proof or an
-  approved URL/object-storage path.
+- The 100 MB value reflects the documented Lemonfox direct upload limit for a
+  file object. Prepared audio above that boundary requires live provider proof
+  or an approved URL/object-storage path.
 - The 1024 MB value reflects the documented Lemonfox public URL input limit.
 - Lemonfox maximum audio duration is not documented and remains blank/TBD until
   runtime proof or provider confirmation.
@@ -249,8 +248,8 @@ Rules:
 Draft env names:
 
 ```text
-STAGE2_STT_MAX_PREPARED_AUDIO_MB=400
-STAGE2_STT_DIRECT_UPLOAD_WARNING_MB=400
+STAGE2_STT_MAX_PREPARED_AUDIO_MB=100
+STAGE2_STT_DIRECT_UPLOAD_WARNING_MB=100
 STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE=fail
 STAGE2_STT_PROVIDER_MAX_DURATION_MINUTES=
 STAGE2_STT_INTERNAL_MAX_DURATION_MINUTES=
@@ -270,9 +269,9 @@ Rules:
   `STAGE2_STT_DIRECT_UPLOAD_WARNING_MB`.
 - Default behavior is `fail` with a typed error unless fallback path is
   approved.
-- Current deployment default raises the app-side prepared-audio and direct
-  upload warning thresholds to 400 MB; operator env remains the source of truth
-  for later changes.
+- Current deployment default keeps the app-side prepared-audio and direct
+  upload warning thresholds at 100 MB while the provider path sends a file
+  object directly to Lemonfox.
 - Do not assert URL upload or object-storage provider path until Lemonfox
   compatibility, expiry and access-control behavior are proven.
 - Provider max duration remains blank/TBD because Lemonfox docs do not document

@@ -37,7 +37,7 @@ def test_runtime_capabilities_endpoint_works_without_lemonfox_key(monkeypatch):
     ]
     assert body["max_browser_input_mb"] == 1024
     assert body["max_browser_duration_minutes"] is None
-    assert body["max_prepared_audio_mb"] == 400
+    assert body["max_prepared_audio_mb"] == 100
     assert body["provider_id"] == "lemonfox"
     assert body["adapter_id"] == "lemonfox"
     assert "lemonfox_api_key_absent_live_calls_disabled" in body["warnings"]

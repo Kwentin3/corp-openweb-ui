@@ -20,7 +20,7 @@
 		available_output_profiles: ['opus_webm_compact', 'opus_ogg_compact', 'mp3_high_compat', 'wav_pcm_safe'],
 		max_browser_input_mb: 1024,
 		max_browser_duration_minutes: null,
-		max_prepared_audio_mb: 400,
+		max_prepared_audio_mb: 100,
 		ffmpeg_asset_mode: 'self_hosted',
 		ffmpeg_package_version: '0.12.6',
 		ffmpeg_core_version: '0.12.6',

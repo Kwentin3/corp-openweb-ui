@@ -48,7 +48,7 @@ class LemonfoxConfig:
     language: str = "ru"
     enable_speaker_labels: bool = False
     enable_timestamps: bool = True
-    max_direct_upload_mb: int = 400
+    max_direct_upload_mb: int = 100
     max_url_upload_mb: int = 1024
     provider_max_duration_minutes: int | None = None
 
@@ -104,7 +104,7 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         language=_str(source, "STAGE2_LEMONFOX_LANGUAGE", "ru"),
         enable_speaker_labels=_bool(source, "STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS", False),
         enable_timestamps=_bool(source, "STAGE2_LEMONFOX_ENABLE_TIMESTAMPS", True),
-        max_direct_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB", 400),
+        max_direct_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB", 100),
         max_url_upload_mb=_int(source, "STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB", 1024),
         provider_max_duration_minutes=_optional_int(
             source, "STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES"
@@ -145,8 +145,8 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         ffmpeg_package_version=_str(source, "STAGE2_FFMPEG_PACKAGE_VERSION", "0.12.6"),
         ffmpeg_core_version=_str(source, "STAGE2_FFMPEG_CORE_VERSION", "0.12.6"),
         ffmpeg_util_version=_str(source, "STAGE2_FFMPEG_UTIL_VERSION", "0.12.1"),
-        max_prepared_audio_mb=_int(source, "STAGE2_STT_MAX_PREPARED_AUDIO_MB", 400),
-        direct_upload_warning_mb=_int(source, "STAGE2_STT_DIRECT_UPLOAD_WARNING_MB", 400),
+        max_prepared_audio_mb=_int(source, "STAGE2_STT_MAX_PREPARED_AUDIO_MB", 100),
+        direct_upload_warning_mb=_int(source, "STAGE2_STT_DIRECT_UPLOAD_WARNING_MB", 100),
         on_prepared_audio_too_large=_enum(
             source,
             "STAGE2_STT_ON_PREPARED_AUDIO_TOO_LARGE",

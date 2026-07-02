@@ -35,7 +35,7 @@ def test_config_loads_defaults_without_lemonfox_key():
     assert config.output_profile is OutputProfile.MP3_HIGH_COMPAT
     assert config.fallback_output_profile is OutputProfile.MP3_HIGH_COMPAT
     assert config.browser_max_input_mb == 1024
-    assert config.max_prepared_audio_mb == 400
+    assert config.max_prepared_audio_mb == 100
     assert config.storage_mode is StorageMode.AUTO
 
 
