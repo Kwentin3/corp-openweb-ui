@@ -4,6 +4,8 @@
 
 - `.env.example` коммитится.
 - `.env` создается на сервере и не коммитится.
+- Для PRD-0 серверный `.env` является источником правды; локальный workspace
+  `.env` можно синхронизировать с сервера только как ignored runtime copy.
 
 ## Required variables
 
@@ -34,6 +36,30 @@
   call Stage 2 STT sidecar job routes. Never expose in browser or commit.
 - `STAGE2_STT_ALLOW_STUB_TRANSCRIPT` - explicit probe/test flag for sidecar
   integration without a live STT provider. Keep `false` for live transcription.
+- `STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS` - enables LemonFox diarization.
+  Current Stage 2 STT v2 PRD-0 runtime has `true`.
+- `STAGE2_STT_ARTIFACT_STORE_MODE` - internal STT v2 artifact store mode.
+  Current server-local value is `sqlite`.
+- `STAGE2_STT_ARTIFACT_STORE_PATH` - internal SQLite path mounted inside the
+  `stage2-stt` container; current contract uses
+  `/data/stage2-stt/artifacts.sqlite3`.
+- `STAGE2_STT_ARTIFACT_PAYLOAD_DIR` - internal payload directory for future
+  oversized internal payloads; current contract uses
+  `/data/stage2-stt/artifact-payloads`.
+- `STAGE2_STT_TRANSCRIPT_TTL_DAYS`, `STAGE2_STT_TRANSFORMATION_TTL_DAYS`,
+  `STAGE2_STT_PREPARED_AUDIO_TTL_HOURS` - STT v2 retention knobs.
+- `STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED` - must stay `false` for
+  Gate 1-2 product paths; raw provider payload is not product storage.
+- `STAGE2_STT_PROMPT_CATALOG_MODE` - STT v2 post-processing prompt catalog
+  mode. Current MVP uses `openwebui_sqlite` with a read-only OpenWebUI data
+  volume mount.
+- `STAGE2_STT_OPENWEBUI_PROMPT_DB_PATH` - sidecar-local read-only path to
+  OpenWebUI `webui.db`, currently `/openwebui-data/webui.db`.
+- `STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE` - post-processing executor mode.
+  Keep `disabled` until Gate 4 runtime proof enables `openai_compatible`.
+- `STAGE2_STT_POSTPROCESSING_OPENAI_MODEL` and
+  `STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS` - Gate 4 post-processing
+  model and explicit single-pass transcript threshold.
 - `SEARXNG_SECRET` - server-local SearXNG secret used only when the optional
   private SearXNG overlay is enabled. Generate a real value in `.env`; do not
   commit it.
@@ -91,9 +117,9 @@ WEBUI_BANNERS="[{\"id\":\"prd0-policy-warning-v1\",\"type\":\"warning\",\"title\
 
 ## Outbound proxy
 
-OpenWebUI supports proxy configuration through standard environment variables `http_proxy`, `https_proxy` and `no_proxy`.
+OpenWebUI and `stage2-stt` support proxy configuration through standard environment variables `http_proxy`, `https_proxy` and `no_proxy`.
 
-В PRD-0 repo-level variable `OPENWEBUI_OUTBOUND_PROXY` прокидывается в контейнер OpenWebUI как:
+В PRD-0 repo-level variable `OPENWEBUI_OUTBOUND_PROXY` прокидывается в контейнеры OpenWebUI and `stage2-stt` как:
 
 - `http_proxy`;
 - `https_proxy`;
@@ -102,7 +128,7 @@ OpenWebUI supports proxy configuration through standard environment variables `h
 
 `OPENWEBUI_NO_PROXY` прокидывается как `no_proxy` и `NO_PROXY`.
 
-OpenWebUI OpenAI route uses `aiohttp` with `trust_env=True`; this path expects an HTTP proxy in `http_proxy`/`https_proxy`. Direct `socks5h://` in `OPENWEBUI_OUTBOUND_PROXY` is not supported for this path.
+OpenWebUI OpenAI route uses `aiohttp` with `trust_env=True`; the STT v2 post-processing executor uses `httpx` with standard proxy environment handling. Both paths expect an HTTP proxy in `http_proxy`/`https_proxy`. Direct `socks5h://` in `OPENWEBUI_OUTBOUND_PROXY` is not supported for these paths.
 
 Для SOCKS5 использовать local HTTP-to-SOCKS bridge, for example host-local Privoxy on the Docker bridge gateway:
 

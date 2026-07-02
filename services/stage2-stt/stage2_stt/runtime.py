@@ -5,6 +5,7 @@ from stage2_stt.contracts import TranscriptionRuntimeCapabilitiesV1
 from stage2_stt.output_profiles import available_output_profile_ids
 from stage2_stt.provider import SttProviderAdapterFactory
 from stage2_stt.storage import StorageHealthProbe, resolve_storage_decision
+from stage2_stt.artifact_store import resolve_artifact_store_decision
 
 
 def build_runtime_capabilities(
@@ -15,8 +16,9 @@ def build_runtime_capabilities(
     adapter = SttProviderAdapterFactory(config).create()
     provider_capability = adapter.capabilities()
     storage = resolve_storage_decision(config, health_probe=storage_health_probe)
+    artifact_store = resolve_artifact_store_decision(config)
 
-    warnings = list(storage.warnings)
+    warnings = list(dict.fromkeys([*storage.warnings, *artifact_store.warnings]))
     if not config.lemonfox.has_api_key:
         warnings.append("lemonfox_api_key_absent_live_calls_disabled")
     if provider_capability.max_duration_seconds is None:
@@ -48,6 +50,8 @@ def build_runtime_capabilities(
         max_duration_seconds=max_duration_seconds,
         storage_mode=config.storage_mode.value,
         storage_available=storage.available,
+        artifact_store_mode=artifact_store.mode,
+        artifact_store_available=artifact_store.available,
         provider_id=provider_capability.provider_id,
         adapter_id=provider_capability.adapter_id,
         supports_provider_cancel=provider_capability.supports_provider_cancel,

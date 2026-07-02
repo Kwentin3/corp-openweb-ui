@@ -38,6 +38,8 @@ def test_runtime_capabilities_endpoint_works_without_lemonfox_key(monkeypatch):
     assert body["max_browser_input_mb"] == 1024
     assert body["max_browser_duration_minutes"] is None
     assert body["max_prepared_audio_mb"] == 100
+    assert body["artifact_store_mode"] == "disabled"
+    assert body["artifact_store_available"] is False
     assert body["provider_id"] == "lemonfox"
     assert body["adapter_id"] == "lemonfox"
     assert "lemonfox_api_key_absent_live_calls_disabled" in body["warnings"]
@@ -56,3 +58,19 @@ def test_runtime_capabilities_endpoint_does_not_expose_secrets(monkeypatch):
     assert "STAGE2_LEMONFOX_API_KEY" not in serialized
     assert "private-audio-bucket" not in serialized
     assert "lemonfox_api_key_absent_live_calls_disabled" not in response.json()["warnings"]
+
+
+def test_runtime_capabilities_endpoint_reports_sqlite_artifact_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("STAGE2_STT_ARTIFACT_STORE_MODE", "sqlite")
+    monkeypatch.setenv(
+        "STAGE2_STT_ARTIFACT_STORE_PATH",
+        str(tmp_path / "artifacts.sqlite3"),
+    )
+
+    response = TestClient(create_app()).get("/stage2-api/transcription/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["artifact_store_mode"] == "sqlite"
+    assert body["artifact_store_available"] is True
+    assert str(tmp_path) not in response.text

@@ -9,20 +9,29 @@ from pydantic import ValidationError
 
 from stage2_stt.config import OutputProfile, SttConfigError, load_stt_config
 from stage2_stt.contracts import (
+    ArtifactAccessContextV1,
     OpenWebUITranscriptionEnvelopeV1,
+    PostProcessingRequestV1,
+    PostProcessingResultV1,
+    PostProcessingTemplateV1,
     PreparedAudioMetadataV1,
+    PromptCatalogUserContextV1,
     SourceMediaMetadataV1,
     TranscriptResultV1,
     TranscriptionJobCreateResponseV1,
     TranscriptionJobV1,
     TranscriptionRuntimeCapabilitiesV1,
 )
+from stage2_stt.artifact_store import ArtifactStoreError, ArtifactStoreFactory
 from stage2_stt.job_store import InMemoryTranscriptionJobStore, StoredTranscriptionJob
 from stage2_stt.jobs import JobContext, create_transcription_job, request_cancel
 from stage2_stt.lemonfox import LemonfoxProviderError
+from stage2_stt.post_processing import PostProcessingError, PostProcessingService
+from stage2_stt.prompt_catalog import PromptCatalogError, PromptCatalogFactory
 from stage2_stt.provider import SttProviderAdapterFactory
 from stage2_stt.runtime import build_runtime_capabilities
 from stage2_stt.storage import StorageModeError, resolve_storage_decision
+from stage2_stt.transcript_store import TranscriptArtifactLinks, TranscriptStoreAdapter
 from stage2_stt.validation import validate_prepared_audio
 
 
@@ -151,12 +160,31 @@ def create_app() -> FastAPI:
             }
         )
         completed_job = job.model_copy(update={"status": "completed"})
+        transcript_ref = None
+        artifact_warnings: list[str] = []
+        try:
+            artifact_store = ArtifactStoreFactory(config).create()
+            transcript_store = TranscriptStoreAdapter(store=artifact_store, config=config)
+            transcript_ref = transcript_store.put_transcript(
+                result,
+                TranscriptArtifactLinks(job=completed_job, envelope=parsed_envelope),
+            )
+            result = transcript_store.get_transcript(
+                transcript_ref,
+                _access_context_from_envelope(parsed_envelope),
+            )
+        except ArtifactStoreError as exc:
+            artifact_warnings.append(exc.code)
+
         job_store.put(StoredTranscriptionJob(job=completed_job, result=result))
         return TranscriptionJobCreateResponseV1(
             job=completed_job,
             result=result,
+            transcript_ref=transcript_ref,
             warnings=list(
-                dict.fromkeys([*storage.warnings, *validation.warnings, *result.warnings])
+                dict.fromkeys(
+                    [*storage.warnings, *validation.warnings, *result.warnings, *artifact_warnings]
+                )
             ),
         )
 
@@ -200,6 +228,156 @@ def create_app() -> FastAPI:
                 detail={"code": "transcript_result_not_ready", "status": record.job.status},
             )
         return record.result
+
+    @app.get(
+        "/stage2-api/transcription/transcripts/{transcript_ref}",
+        response_model=TranscriptResultV1,
+    )
+    def get_transcript_by_ref_route(
+        transcript_ref: str,
+        user_id: str | None = None,
+        workspace_id: str | None = None,
+        chat_id: str | None = None,
+        message_id: str | None = None,
+        openwebui_file_id: str | None = None,
+        tenant_id: str | None = None,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> TranscriptResultV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            store = ArtifactStoreFactory(config).create()
+            transcript_store = TranscriptStoreAdapter(store=store, config=config)
+            return transcript_store.get_transcript(
+                transcript_ref,
+                ArtifactAccessContextV1(
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    openwebui_file_id=openwebui_file_id,
+                    tenant_id=tenant_id,
+                ),
+            )
+        except ArtifactStoreError as exc:
+            _raise_artifact_http_error(exc)
+
+    @app.get(
+        "/stage2-api/transcription/post-processing/templates",
+        response_model=list[PostProcessingTemplateV1],
+    )
+    def list_post_processing_templates_route(
+        user_id: str | None = None,
+        user_role: str | None = None,
+        user_groups: str | None = None,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> list[PostProcessingTemplateV1]:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return PromptCatalogFactory(config).create().list_templates(
+                PromptCatalogUserContextV1(
+                    user_id=user_id,
+                    user_role=user_role,
+                    user_groups=_parse_user_groups(user_groups),
+                )
+            )
+        except PromptCatalogError as exc:
+            _raise_prompt_catalog_http_error(exc)
+
+    @app.get(
+        "/stage2-api/transcription/post-processing/templates/{template_id}",
+        response_model=PostProcessingTemplateV1,
+    )
+    def get_post_processing_template_route(
+        template_id: str,
+        user_id: str | None = None,
+        user_role: str | None = None,
+        user_groups: str | None = None,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> PostProcessingTemplateV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return PromptCatalogFactory(config).create().get_template(
+                template_id,
+                PromptCatalogUserContextV1(
+                    user_id=user_id,
+                    user_role=user_role,
+                    user_groups=_parse_user_groups(user_groups),
+                ),
+            ).template
+        except PromptCatalogError as exc:
+            _raise_prompt_catalog_http_error(exc)
+
+    @app.get(
+        "/stage2-api/transcription/post-processing/templates/by-command/{command}",
+        response_model=PostProcessingTemplateV1,
+    )
+    def resolve_post_processing_template_command_route(
+        command: str,
+        user_id: str | None = None,
+        user_role: str | None = None,
+        user_groups: str | None = None,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> PostProcessingTemplateV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return PromptCatalogFactory(config).create().resolve_command(
+                command,
+                PromptCatalogUserContextV1(
+                    user_id=user_id,
+                    user_role=user_role,
+                    user_groups=_parse_user_groups(user_groups),
+                ),
+            ).template
+        except PromptCatalogError as exc:
+            _raise_prompt_catalog_http_error(exc)
+
+    @app.post(
+        "/stage2-api/transcription/post-processing/execute",
+        response_model=PostProcessingResultV1,
+    )
+    async def execute_post_processing_route(
+        request: PostProcessingRequestV1,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> PostProcessingResultV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return await PostProcessingService(config=config).execute(request)
+        except ArtifactStoreError as exc:
+            _raise_artifact_http_error(exc)
+        except PromptCatalogError as exc:
+            _raise_prompt_catalog_http_error(exc)
+        except PostProcessingError as exc:
+            _raise_post_processing_http_error(exc)
 
     @app.post(
         "/stage2-api/transcription/jobs/{job_id}/cancel",
@@ -296,3 +474,62 @@ def _get_record_or_404(
             detail={"code": "transcription_job_not_found", "job_id": job_id},
         )
     return record
+
+
+def _access_context_from_envelope(
+    envelope: OpenWebUITranscriptionEnvelopeV1,
+) -> ArtifactAccessContextV1:
+    return ArtifactAccessContextV1(
+        workspace_id=envelope.workspace_id,
+        user_id=envelope.user_id,
+        chat_id=envelope.chat_id,
+        message_id=envelope.message_id,
+        openwebui_file_id=envelope.file.file_id if envelope.file is not None else None,
+    )
+
+
+def _raise_artifact_http_error(exc: ArtifactStoreError) -> None:
+    status_by_code = {
+        "artifact_not_found": 404,
+        "artifact_expired": 410,
+        "artifact_access_denied": 403,
+        "artifact_scope_unverified": 403,
+        "artifact_payload_unavailable": 500,
+        "artifact_store_unavailable": 503,
+    }
+    raise HTTPException(
+        status_code=status_by_code.get(exc.code, 500),
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _parse_user_groups(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _raise_prompt_catalog_http_error(exc: PromptCatalogError) -> None:
+    status_by_code = {
+        "prompt_not_found": 404,
+        "prompt_access_denied": 403,
+        "prompt_catalog_unavailable": 503,
+    }
+    raise HTTPException(
+        status_code=status_by_code.get(exc.code, 500),
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _raise_post_processing_http_error(exc: PostProcessingError) -> None:
+    status_by_code = {
+        "postprocessing_executor_unavailable": 503,
+        "postprocessing_execution_failed": 502,
+        "transcript_too_long_single_pass": 413,
+        "speakers_required": 422,
+        "artifact_scope_unverified": 403,
+    }
+    raise HTTPException(
+        status_code=status_by_code.get(exc.code, 500),
+        detail={"code": exc.code, "message": exc.message},
+    )

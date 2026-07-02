@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -115,8 +115,78 @@ class TranscriptSegmentV1(Stage2Model):
     words: list[TranscriptWordV1] = Field(default_factory=list)
 
 
+class ArtifactScopeV1(Stage2Model):
+    scope_id: str
+    workspace_id: str | None = None
+    user_id: str | None = None
+    chat_id: str | None = None
+    message_id: str | None = None
+    openwebui_file_id: str | None = None
+    stage2_job_id: str | None = None
+    client_label: str | None = None
+    project_label: str | None = None
+    external_context_id: str | None = None
+    tenant_id: str | None = None
+    access_context_hash: str | None = None
+
+
+class ArtifactAccessContextV1(Stage2Model):
+    workspace_id: str | None = None
+    user_id: str | None = None
+    chat_id: str | None = None
+    message_id: str | None = None
+    openwebui_file_id: str | None = None
+    tenant_id: str | None = None
+
+
+class ArtifactRefV1(Stage2Model):
+    artifact_ref: str
+    artifact_type: Literal[
+        "source_file",
+        "prepared_audio",
+        "stt_job",
+        "transcript_result",
+        "post_processing_result",
+        "projection",
+        "diagnostic_provider_payload",
+    ]
+    version: Literal["v1"] = "v1"
+    artifact_scope: ArtifactScopeV1
+    created_at: str
+    expires_at: str | None = None
+
+
+class ArtifactRecordV1(Stage2Model):
+    artifact_ref: ArtifactRefV1
+    parent_refs: list[str] = Field(default_factory=list)
+    payload_kind: Literal["inline_json", "file_ref", "object_ref", "redacted", "external_ref"]
+    payload_ref: str | None = None
+    payload_inline: dict[str, Any] | None = None
+    checksum_sha256: str | None = None
+    size_bytes: int | None = Field(default=None, ge=0)
+    safe_metadata: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    retention_class: str
+    created_by: str | None = None
+
+
+class ArtifactChainEdgeV1(Stage2Model):
+    from_ref: str
+    to_ref: str
+    transform: Literal["normalize_audio", "transcribe", "project_transcript", "post_process"]
+    created_at: str
+
+
+class ArtifactChainV1(Stage2Model):
+    chain_id: str
+    root_ref: str
+    latest_refs: list[str] | None = None
+    edges: list[ArtifactChainEdgeV1] = Field(default_factory=list)
+
+
 class TranscriptResultV1(Stage2Model):
     job_id: str | None = None
+    transcript_ref: str | None = None
     text: str
     language: str | None = None
     duration_seconds: float | None = None
@@ -125,6 +195,10 @@ class TranscriptResultV1(Stage2Model):
     provider_id: str
     adapter_id: str
     warnings: list[str] = Field(default_factory=list)
+    safe_provider_metadata: dict[str, Any] = Field(default_factory=dict)
+    transcript_hash: str | None = None
+    artifact_scope: ArtifactScopeV1 | None = None
+    source_links: dict[str, Any] = Field(default_factory=dict)
     internal_provider_response_ref: str | None = None
 
 
@@ -191,6 +265,8 @@ class TranscriptionRuntimeCapabilitiesV1(Stage2Model):
     max_duration_seconds: int | None = None
     storage_mode: Literal["auto", "s3", "none"]
     storage_available: bool
+    artifact_store_mode: Literal["sqlite", "memory_test", "disabled"]
+    artifact_store_available: bool
     provider_id: str
     adapter_id: str
     supports_provider_cancel: bool | None
@@ -203,4 +279,46 @@ class TranscriptionRuntimeCapabilitiesV1(Stage2Model):
 class TranscriptionJobCreateResponseV1(Stage2Model):
     job: TranscriptionJobV1
     result: TranscriptResultV1 | None = None
+    transcript_ref: str | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+class PromptCatalogUserContextV1(Stage2Model):
+    user_id: str | None = None
+    user_role: str | None = None
+    user_groups: list[str] = Field(default_factory=list)
+
+
+class PostProcessingTemplateV1(Stage2Model):
+    template_id: str
+    command: str
+    label: str
+    openwebui_prompt_id: str
+    prompt_version: str | None = None
+    prompt_body_hash: str
+    tags: list[str] = Field(default_factory=list)
+    requires_speakers: bool = False
+    chunkable: bool = False
+    access_grants: list[str] = Field(default_factory=list)
+
+
+class PostProcessingRequestV1(Stage2Model):
+    transcript_ref: str
+    template_id: str
+    user_context: PromptCatalogUserContextV1
+    artifact_context: ArtifactAccessContextV1
+
+
+class PostProcessingResultV1(Stage2Model):
+    result_ref: str | None = None
+    transcript_ref: str
+    template_id: str
+    command: str
+    label: str
+    openwebui_prompt_id: str
+    prompt_version: str | None = None
+    prompt_body_hash: str
+    transcript_hash: str | None = None
+    text: str
+    warnings: list[str] = Field(default_factory=list)
+    artifact_scope: ArtifactScopeV1 | None = None

@@ -23,6 +23,22 @@ class StorageMode(str, Enum):
     NONE = "none"
 
 
+class ArtifactStoreMode(str, Enum):
+    DISABLED = "disabled"
+    SQLITE = "sqlite"
+    MEMORY_TEST = "memory_test"
+
+
+class PromptCatalogMode(str, Enum):
+    DISABLED = "disabled"
+    OPENWEBUI_SQLITE = "openwebui_sqlite"
+
+
+class PostProcessingExecutorMode(str, Enum):
+    DISABLED = "disabled"
+    OPENAI_COMPATIBLE = "openai_compatible"
+
+
 class PreparedAudioTooLargeBehavior(str, Enum):
     FAIL = "fail"
     USE_URL_UPLOAD_IF_SUPPORTED = "use_url_upload_if_supported"
@@ -88,6 +104,23 @@ class SttConfig:
     store_source_media: bool
     prepared_audio_retention_days: int | None
     transcript_retention_days: int | None
+    artifact_store_mode: ArtifactStoreMode
+    artifact_store_path: str | None
+    artifact_payload_dir: str | None
+    artifact_transcript_ttl_days: int
+    artifact_transformation_ttl_days: int
+    artifact_prepared_audio_ttl_hours: int
+    diagnostic_provider_payload_enabled: bool
+    diagnostic_provider_payload_ttl_hours: int
+    artifact_rotation_interval_hours: int
+    artifact_hard_delete_after_expiry: bool
+    prompt_catalog_mode: PromptCatalogMode
+    openwebui_prompt_db_path: str | None
+    postprocessing_executor_mode: PostProcessingExecutorMode
+    postprocessing_openai_base_url: str | None
+    postprocessing_openai_api_key: str | None = field(repr=False)
+    postprocessing_openai_model: str | None
+    postprocessing_max_transcript_chars: int
     allow_stub_transcript: bool
     cancel_provider_if_supported: bool
     cancel_local_on_provider_no_cancel: bool
@@ -166,6 +199,58 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
             source, "STAGE2_STT_PREPARED_AUDIO_RETENTION_DAYS"
         ),
         transcript_retention_days=_optional_int(source, "STAGE2_STT_TRANSCRIPT_RETENTION_DAYS"),
+        artifact_store_mode=_enum(
+            source,
+            "STAGE2_STT_ARTIFACT_STORE_MODE",
+            ArtifactStoreMode,
+            "disabled",
+        ),
+        artifact_store_path=_optional_str(source, "STAGE2_STT_ARTIFACT_STORE_PATH"),
+        artifact_payload_dir=_optional_str(source, "STAGE2_STT_ARTIFACT_PAYLOAD_DIR"),
+        artifact_transcript_ttl_days=_int(source, "STAGE2_STT_TRANSCRIPT_TTL_DAYS", 14),
+        artifact_transformation_ttl_days=_int(
+            source, "STAGE2_STT_TRANSFORMATION_TTL_DAYS", 14
+        ),
+        artifact_prepared_audio_ttl_hours=_int(
+            source, "STAGE2_STT_PREPARED_AUDIO_TTL_HOURS", 24
+        ),
+        diagnostic_provider_payload_enabled=_bool(
+            source, "STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED", False
+        ),
+        diagnostic_provider_payload_ttl_hours=_int(
+            source, "STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_TTL_HOURS", 0
+        ),
+        artifact_rotation_interval_hours=_int(
+            source, "STAGE2_STT_ARTIFACT_ROTATION_INTERVAL_HOURS", 24
+        ),
+        artifact_hard_delete_after_expiry=_bool(
+            source, "STAGE2_STT_ARTIFACT_HARD_DELETE_AFTER_EXPIRY", True
+        ),
+        prompt_catalog_mode=_enum(
+            source,
+            "STAGE2_STT_PROMPT_CATALOG_MODE",
+            PromptCatalogMode,
+            "disabled",
+        ),
+        openwebui_prompt_db_path=_optional_str(source, "STAGE2_STT_OPENWEBUI_PROMPT_DB_PATH"),
+        postprocessing_executor_mode=_enum(
+            source,
+            "STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE",
+            PostProcessingExecutorMode,
+            "disabled",
+        ),
+        postprocessing_openai_base_url=_optional_str(
+            source, "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL"
+        ),
+        postprocessing_openai_api_key=_optional_str(
+            source, "STAGE2_STT_POSTPROCESSING_OPENAI_API_KEY"
+        ),
+        postprocessing_openai_model=_optional_str(
+            source, "STAGE2_STT_POSTPROCESSING_OPENAI_MODEL"
+        ),
+        postprocessing_max_transcript_chars=_int(
+            source, "STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS", 60000
+        ),
         internal_api_key=_optional_str(source, "STAGE2_STT_INTERNAL_API_KEY"),
         allow_stub_transcript=_bool(source, "STAGE2_STT_ALLOW_STUB_TRANSCRIPT", False),
         cancel_provider_if_supported=_bool(
@@ -221,6 +306,55 @@ def _validate_config(config: SttConfig) -> None:
         raise SttConfigError("STAGE2_LEMONFOX_BASE_URL must be an HTTP URL")
     if config.storage_mode is StorageMode.NONE and config.store_source_media:
         raise SttConfigError("STAGE2_STT_STORE_SOURCE_MEDIA cannot be true when storage mode is none")
+    if config.artifact_store_mode is ArtifactStoreMode.SQLITE and not config.artifact_store_path:
+        raise SttConfigError(
+            "STAGE2_STT_ARTIFACT_STORE_PATH is required when "
+            "STAGE2_STT_ARTIFACT_STORE_MODE=sqlite"
+        )
+    if config.artifact_store_mode is ArtifactStoreMode.MEMORY_TEST:
+        raise SttConfigError("STAGE2_STT_ARTIFACT_STORE_MODE=memory_test is unit-test only")
+    if config.artifact_transcript_ttl_days <= 0:
+        raise SttConfigError("STAGE2_STT_TRANSCRIPT_TTL_DAYS must be positive")
+    if config.artifact_transformation_ttl_days <= 0:
+        raise SttConfigError("STAGE2_STT_TRANSFORMATION_TTL_DAYS must be positive")
+    if config.artifact_prepared_audio_ttl_hours <= 0:
+        raise SttConfigError("STAGE2_STT_PREPARED_AUDIO_TTL_HOURS must be positive")
+    if config.diagnostic_provider_payload_enabled:
+        raise SttConfigError(
+            "STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED must remain false for Gate 1-2"
+        )
+    if config.diagnostic_provider_payload_ttl_hours != 0:
+        raise SttConfigError("STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_TTL_HOURS must be 0")
+    if config.artifact_rotation_interval_hours <= 0:
+        raise SttConfigError("STAGE2_STT_ARTIFACT_ROTATION_INTERVAL_HOURS must be positive")
+    if (
+        config.prompt_catalog_mode is PromptCatalogMode.OPENWEBUI_SQLITE
+        and not config.openwebui_prompt_db_path
+    ):
+        raise SttConfigError(
+            "STAGE2_STT_OPENWEBUI_PROMPT_DB_PATH is required when "
+            "STAGE2_STT_PROMPT_CATALOG_MODE=openwebui_sqlite"
+        )
+    if config.postprocessing_max_transcript_chars <= 0:
+        raise SttConfigError("STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS must be positive")
+    if config.postprocessing_executor_mode is PostProcessingExecutorMode.OPENAI_COMPATIBLE:
+        if not config.postprocessing_openai_base_url:
+            raise SttConfigError(
+                "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL is required when "
+                "STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE=openai_compatible"
+            )
+        if not config.postprocessing_openai_base_url.startswith(("http://", "https://")):
+            raise SttConfigError("STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL must be an HTTP URL")
+        if not config.postprocessing_openai_api_key:
+            raise SttConfigError(
+                "STAGE2_STT_POSTPROCESSING_OPENAI_API_KEY is required when "
+                "STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE=openai_compatible"
+            )
+        if not config.postprocessing_openai_model:
+            raise SttConfigError(
+                "STAGE2_STT_POSTPROCESSING_OPENAI_MODEL is required when "
+                "STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE=openai_compatible"
+            )
 
 
 def _raw(env: Mapping[str, str | None], key: str) -> str | None:

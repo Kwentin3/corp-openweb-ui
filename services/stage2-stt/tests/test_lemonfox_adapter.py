@@ -43,3 +43,56 @@ def test_lemonfox_normalizes_verbose_json_response():
     assert result.duration_seconds == 1.5
     assert result.segments[0].words[0].text == "hello"
     assert result.provider_id == "lemonfox"
+
+
+def test_lemonfox_request_form_enables_speaker_labels_and_verbose_json():
+    adapter = LemonfoxSttAdapter(
+        load_stt_config({"STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS": "true"})
+    )
+
+    form = adapter._request_form()
+
+    assert form["response_format"] == "verbose_json"
+    assert form["speaker_labels"] == "true"
+    assert form["timestamp_granularities[]"] == "word"
+
+
+def test_lemonfox_normalizes_speaker_labels_without_raw_payload_leak():
+    marker = "raw-lemonfox-marker-should-not-survive"
+    adapter = LemonfoxSttAdapter(
+        load_stt_config({"STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS": "true"})
+    )
+
+    result = adapter.normalize_transcript(
+        {
+            "text": "A hello. B hi.",
+            "raw_marker": marker,
+            "segments": [
+                {
+                    "text": "A hello.",
+                    "start": 0,
+                    "end": 1,
+                    "speaker": "speaker_0",
+                    "words": [
+                        {"word": "A", "start": 0, "end": 0.1, "speaker": "speaker_0"},
+                        {"word": "hello", "start": 0.1, "end": 1, "speaker": "speaker_0"},
+                    ],
+                },
+                {
+                    "text": "B hi.",
+                    "start": 1,
+                    "end": 2,
+                    "speaker": "speaker_1",
+                    "words": [
+                        {"word": "B", "start": 1, "end": 1.1, "speaker": "speaker_1"},
+                        {"word": "hi", "start": 1.1, "end": 2, "speaker": "speaker_1"},
+                    ],
+                },
+            ],
+        },
+        output_profile="mp3_high_compat",
+    )
+
+    assert {segment.speaker for segment in result.segments} == {"speaker_0", "speaker_1"}
+    assert result.segments[0].words[0].speaker == "speaker_0"
+    assert marker not in result.model_dump_json()

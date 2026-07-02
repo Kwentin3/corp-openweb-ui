@@ -15,6 +15,8 @@ def _clear_provider_env(monkeypatch):
     monkeypatch.delenv("STAGE2_STT_OUTPUT_PROFILE", raising=False)
     monkeypatch.delenv("STAGE2_STT_STORAGE_MODE", raising=False)
     monkeypatch.delenv("STAGE2_STT_AUDIO_BUCKET", raising=False)
+    monkeypatch.delenv("STAGE2_STT_ARTIFACT_STORE_MODE", raising=False)
+    monkeypatch.delenv("STAGE2_STT_ARTIFACT_STORE_PATH", raising=False)
 
 
 def _enable_internal_stub(monkeypatch):
@@ -51,6 +53,15 @@ def _post_job(client: TestClient, *, token: str = INTERNAL_TOKEN, content_type: 
         headers={"Authorization": f"Bearer {token}"},
         data={"envelope": _envelope()},
         files={"prepared_audio": ("sample.mp3", b"fake-mp3", content_type)},
+    )
+
+
+def _enable_internal_stub_with_artifact_store(monkeypatch, tmp_path):
+    _enable_internal_stub(monkeypatch)
+    monkeypatch.setenv("STAGE2_STT_ARTIFACT_STORE_MODE", "sqlite")
+    monkeypatch.setenv(
+        "STAGE2_STT_ARTIFACT_STORE_PATH",
+        str(tmp_path / "artifacts.sqlite3"),
     )
 
 
@@ -110,6 +121,8 @@ def test_job_route_creates_completed_stub_job_and_exposes_result(monkeypatch):
     assert body["result"]["job_id"] == body["job"]["job_id"]
     assert body["result"]["provider_id"] == "lemonfox"
     assert "lemonfox_api_key_absent_stub_result" in body["result"]["warnings"]
+    assert body["transcript_ref"] is None
+    assert "artifact_store_unavailable" in body["warnings"]
 
     result_response = client.get(
         f"/stage2-api/transcription/jobs/{body['job']['job_id']}/result",
@@ -118,6 +131,71 @@ def test_job_route_creates_completed_stub_job_and_exposes_result(monkeypatch):
 
     assert result_response.status_code == 200
     assert result_response.json()["job_id"] == body["job"]["job_id"]
+
+
+def test_job_route_persists_transcript_ref_and_retrieves_structured_result(monkeypatch, tmp_path):
+    _enable_internal_stub_with_artifact_store(monkeypatch, tmp_path)
+    client = TestClient(create_app())
+
+    response = _post_job(client)
+
+    assert response.status_code == 200
+    body = response.json()
+    transcript_ref = body["transcript_ref"]
+    assert transcript_ref.startswith("art_")
+    assert body["result"]["transcript_ref"] == transcript_ref
+    assert body["result"]["artifact_scope"]["user_id"] == "user-1"
+    assert body["result"]["artifact_scope"]["chat_id"] == "chat-1"
+    assert body["result"]["transcript_hash"]
+
+    result_response = client.get(
+        f"/stage2-api/transcription/transcripts/{transcript_ref}",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        params={
+            "user_id": "user-1",
+            "chat_id": "chat-1",
+            "message_id": "message-1",
+            "openwebui_file_id": "file-1",
+        },
+    )
+
+    assert result_response.status_code == 200
+    assert result_response.json()["transcript_ref"] == transcript_ref
+    assert result_response.json()["source_links"]["openwebui_file_id"] == "file-1"
+
+
+def test_transcript_ref_route_fails_closed_for_loader_visible_ref_only(monkeypatch, tmp_path):
+    _enable_internal_stub_with_artifact_store(monkeypatch, tmp_path)
+    client = TestClient(create_app())
+    created = _post_job(client).json()
+
+    response = client.get(
+        f"/stage2-api/transcription/transcripts/{created['transcript_ref']}",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "artifact_scope_unverified"
+
+
+def test_transcript_ref_route_fails_closed_for_wrong_user(monkeypatch, tmp_path):
+    _enable_internal_stub_with_artifact_store(monkeypatch, tmp_path)
+    client = TestClient(create_app())
+    created = _post_job(client).json()
+
+    response = client.get(
+        f"/stage2-api/transcription/transcripts/{created['transcript_ref']}",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        params={
+            "user_id": "user-2",
+            "chat_id": "chat-1",
+            "message_id": "message-1",
+            "openwebui_file_id": "file-1",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "artifact_access_denied"
 
 
 def test_job_route_records_openwebui_selected_output_profile(monkeypatch):

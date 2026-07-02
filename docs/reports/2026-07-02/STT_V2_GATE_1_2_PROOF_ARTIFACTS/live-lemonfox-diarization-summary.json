@@ -1,0 +1,29 @@
+{
+  "capability": {
+    "artifact_store_available": true,
+    "artifact_store_mode": "sqlite",
+    "supports_speaker_labels": true,
+    "warnings": [
+      "prepared_audio_storage_transient",
+      "provider_max_duration_unknown",
+      "provider_cancel_unknown_local_cancel_only"
+    ]
+  },
+  "created_status": 200,
+  "distinct_segment_speakers": [
+    "SPEAKER_00",
+    "SPEAKER_01"
+  ],
+  "provider_error_code": null,
+  "provider_status_code": null,
+  "retrieved_status": 200,
+  "segment_count": 4,
+  "segment_speaker_count": 4,
+  "sqlite_counts": {
+    "artifact_edges": 3,
+    "artifact_records": 4,
+    "transcript_index": 1
+  },
+  "transcript_ref_prefix": "art_",
+  "word_speaker_count": 17
+}

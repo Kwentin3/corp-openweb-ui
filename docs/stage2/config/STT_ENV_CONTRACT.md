@@ -55,7 +55,7 @@ STAGE2_LEMONFOX_API_KEY=
 STAGE2_LEMONFOX_BASE_URL=https://api.lemonfox.ai
 STAGE2_LEMONFOX_MODEL=
 STAGE2_LEMONFOX_LANGUAGE=ru
-STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS=false
+STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS=true
 STAGE2_LEMONFOX_ENABLE_TIMESTAMPS=true
 STAGE2_LEMONFOX_MAX_DIRECT_UPLOAD_MB=100
 STAGE2_LEMONFOX_MAX_URL_UPLOAD_MB=1024
@@ -65,6 +65,9 @@ STAGE2_LEMONFOX_PROVIDER_MAX_DURATION_MINUTES=
 Rules:
 
 - `STAGE2_LEMONFOX_API_KEY` is server-side only.
+- `STAGE2_LEMONFOX_ENABLE_SPEAKER_LABELS=true` is the current Stage 2 STT v2
+  runtime decision for PRD-0. The implementation default may remain false, but
+  server `.env` is the operational source of truth.
 - No Lemonfox key may be exposed through browser config, browser storage,
   browser logs or `NEXT_PUBLIC_*`.
 - The 100 MB value reflects the documented Lemonfox direct upload limit for a

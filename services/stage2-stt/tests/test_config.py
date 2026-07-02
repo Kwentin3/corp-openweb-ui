@@ -3,6 +3,8 @@ import pytest
 from stage2_stt.config import (
     InputAcceptMode,
     OutputProfile,
+    PostProcessingExecutorMode,
+    PromptCatalogMode,
     SttConfigError,
     StorageMode,
     load_stt_config,
@@ -37,6 +39,13 @@ def test_config_loads_defaults_without_lemonfox_key():
     assert config.browser_max_input_mb == 1024
     assert config.max_prepared_audio_mb == 100
     assert config.storage_mode is StorageMode.AUTO
+    assert config.artifact_store_mode.value == "disabled"
+    assert config.artifact_transcript_ttl_days == 14
+    assert config.artifact_prepared_audio_ttl_hours == 24
+    assert config.diagnostic_provider_payload_enabled is False
+    assert config.prompt_catalog_mode is PromptCatalogMode.DISABLED
+    assert config.postprocessing_executor_mode is PostProcessingExecutorMode.DISABLED
+    assert config.postprocessing_max_transcript_chars == 60000
 
 
 def test_invalid_config_fails_fast():
@@ -44,3 +53,31 @@ def test_invalid_config_fails_fast():
         load_stt_config({"STAGE2_STT_OUTPUT_PROFILE": "not-a-profile"})
 
     assert "STAGE2_STT_OUTPUT_PROFILE" in str(exc_info.value)
+
+
+def test_sqlite_artifact_store_requires_explicit_path():
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_ARTIFACT_STORE_MODE": "sqlite"})
+
+    assert "STAGE2_STT_ARTIFACT_STORE_PATH" in str(exc_info.value)
+
+
+def test_openwebui_sqlite_prompt_catalog_requires_explicit_db_path():
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_PROMPT_CATALOG_MODE": "openwebui_sqlite"})
+
+    assert "STAGE2_STT_OPENWEBUI_PROMPT_DB_PATH" in str(exc_info.value)
+
+
+def test_openai_postprocessing_executor_requires_complete_server_side_config():
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE": "openai_compatible"})
+
+    assert "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL" in str(exc_info.value)
+
+
+def test_gate_1_2_rejects_diagnostic_provider_payload_storage():
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED": "true"})
+
+    assert "STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED" in str(exc_info.value)

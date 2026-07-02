@@ -46,6 +46,22 @@ class Action:
         __event_emitter__=None,
         **kwargs,
     ):
+        operation = self._stage2_operation(body)
+        if operation == "list_postprocessing_templates":
+            return await self._list_postprocessing_templates(
+                body=body,
+                user=__user__ or {},
+                metadata=__metadata__ or {},
+                emitter=__event_emitter__,
+            )
+        if operation == "execute_postprocessing":
+            return await self._execute_postprocessing(
+                body=body,
+                user=__user__ or {},
+                metadata=__metadata__ or {},
+                emitter=__event_emitter__,
+            )
+
         await self._emit(__event_emitter__, "Checking media attachment...", done=False)
 
         files = self._collect_files(body, __metadata__, kwargs.get("__files__"))
@@ -100,7 +116,85 @@ class Action:
         if not transcript:
             transcript = "[empty transcript]"
         warning_text = self._format_warnings(warnings)
-        return {"content": f"Transcript:\n\n{transcript}{warning_text}"}
+        ref_text = self._format_transcript_ref(result.get("transcript_ref"))
+        return {"content": f"Transcript:\n\n{transcript}{ref_text}{warning_text}"}
+
+    def _stage2_operation(self, body: dict) -> str | None:
+        stage2 = body.get("stage2_stt") if isinstance(body, dict) else None
+        if not isinstance(stage2, dict):
+            return None
+        operation = stage2.get("operation")
+        return str(operation) if operation else None
+
+    async def _list_postprocessing_templates(
+        self,
+        *,
+        body: dict,
+        user: dict,
+        metadata: dict,
+        emitter,
+    ) -> dict:
+        await self._emit(emitter, "Loading transcript actions...", done=False)
+        token = self.valves.internal_api_key or os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
+        if not token:
+            await self._emit(emitter, "STT sidecar internal token is not configured.", done=True)
+            return {
+                "content": "STT post-processing is not configured for this OpenWebUI action.",
+                "stage2_stt_templates": [],
+            }
+        try:
+            templates = await self._call_sidecar_templates(
+                token=token,
+                user=user,
+            )
+        except httpx.HTTPError as exc:
+            await self._emit(emitter, "Transcript actions unavailable.", done=True)
+            return {
+                "content": f"STT post-processing templates unavailable: {exc}",
+                "stage2_stt_templates": [],
+            }
+        await self._emit(emitter, "Transcript actions loaded.", done=True)
+        return {"content": "", "stage2_stt_templates": templates}
+
+    async def _execute_postprocessing(
+        self,
+        *,
+        body: dict,
+        user: dict,
+        metadata: dict,
+        emitter,
+    ) -> dict:
+        stage2 = body.get("stage2_stt") if isinstance(body, dict) else {}
+        if not isinstance(stage2, dict):
+            stage2 = {}
+        transcript_ref = str(stage2.get("transcript_ref") or "")
+        template_id = str(stage2.get("template_id") or "")
+        if not transcript_ref.startswith("art_") or not template_id:
+            return {"content": "STT post-processing request is invalid."}
+
+        token = self.valves.internal_api_key or os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
+        if not token:
+            await self._emit(emitter, "STT sidecar internal token is not configured.", done=True)
+            return {"content": "STT post-processing is not configured for this OpenWebUI action."}
+
+        await self._emit(emitter, "Running transcript action...", done=False)
+        try:
+            result = await self._call_sidecar_postprocessing(
+                token=token,
+                user=user,
+                metadata=metadata,
+                body=body,
+                transcript_ref=transcript_ref,
+                template_id=template_id,
+            )
+        except httpx.HTTPStatusError as exc:
+            await self._emit(emitter, "Transcript action failed.", done=True)
+            return {"content": self._format_postprocessing_error(exc)}
+        except httpx.HTTPError as exc:
+            await self._emit(emitter, "Transcript action failed.", done=True)
+            return {"content": f"STT post-processing request failed: {exc}"}
+        await self._emit(emitter, "Transcript action complete.", done=True)
+        return {"content": self._format_postprocessing_result(result)}
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:
@@ -178,6 +272,30 @@ class Action:
             parts.append("Технические предупреждения: " + ", ".join(technical))
         return "\n\n" + "\n\n".join(parts)
 
+    def _format_transcript_ref(self, transcript_ref: Any) -> str:
+        if not isinstance(transcript_ref, str) or not transcript_ref.startswith("art_"):
+            return ""
+        return f"\n\nTranscript reference: `{transcript_ref}`"
+
+    def _format_postprocessing_result(self, result: dict) -> str:
+        text = str(result.get("text") or "").strip() or "[empty post-processing result]"
+        label = str(result.get("label") or result.get("template_id") or "Transcript action")
+        ref = result.get("result_ref")
+        ref_text = f"\n\nPost-processing result reference: `{ref}`" if isinstance(ref, str) and ref.startswith("art_") else ""
+        return f"{label}\n\n{text}{ref_text}"
+
+    def _format_postprocessing_error(self, exc: httpx.HTTPStatusError) -> str:
+        try:
+            payload = exc.response.json()
+        except ValueError:
+            return f"STT post-processing failed with HTTP {exc.response.status_code}."
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if isinstance(detail, dict):
+            code = detail.get("code") or "postprocessing_failed"
+            message = detail.get("message") or "Post-processing failed"
+            return f"STT post-processing failed: {message} [{code}]"
+        return f"STT post-processing failed with HTTP {exc.response.status_code}."
+
     def _warning_aliases(self) -> dict[str, str]:
         aliases = dict(DEFAULT_WARNING_ALIASES)
         try:
@@ -232,6 +350,26 @@ class Action:
             "selected_output_profile": output_profile,
         }
 
+    def _build_artifact_context(self, *, user: dict, metadata: dict, body: dict) -> dict:
+        stage2 = body.get("stage2_stt") if isinstance(body, dict) else {}
+        if not isinstance(stage2, dict):
+            stage2 = {}
+        return {
+            "workspace_id": stage2.get("workspace_id") or metadata.get("workspace_id"),
+            "user_id": user.get("id") or user.get("user_id"),
+            "chat_id": stage2.get("chat_id") or metadata.get("chat_id") or body.get("chat_id"),
+            "message_id": stage2.get("message_id") or metadata.get("message_id"),
+            "openwebui_file_id": stage2.get("openwebui_file_id"),
+            "tenant_id": stage2.get("tenant_id"),
+        }
+
+    def _build_user_context(self, *, user: dict) -> dict:
+        return {
+            "user_id": user.get("id") or user.get("user_id"),
+            "user_role": user.get("role"),
+            "user_groups": user.get("groups") or [],
+        }
+
     async def _call_sidecar(
         self,
         *,
@@ -247,6 +385,50 @@ class Action:
                 headers={"Authorization": f"Bearer {token}"},
                 data={"envelope": json.dumps(envelope)},
                 files={"prepared_audio": (filename, audio_bytes, mime_type)},
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def _call_sidecar_templates(self, *, token: str, user: dict) -> list[dict]:
+        params = self._build_user_context(user=user)
+        groups = params.pop("user_groups", [])
+        if groups:
+            params["user_groups"] = ",".join(str(group) for group in groups if group)
+        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
+            response = await client.get(
+                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/templates",
+                headers={"Authorization": f"Bearer {token}"},
+                params={key: value for key, value in params.items() if value},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload if isinstance(payload, list) else []
+
+    async def _call_sidecar_postprocessing(
+        self,
+        *,
+        token: str,
+        user: dict,
+        metadata: dict,
+        body: dict,
+        transcript_ref: str,
+        template_id: str,
+    ) -> dict:
+        request = {
+            "transcript_ref": transcript_ref,
+            "template_id": template_id,
+            "user_context": self._build_user_context(user=user),
+            "artifact_context": self._build_artifact_context(
+                user=user,
+                metadata=metadata,
+                body=body,
+            ),
+        }
+        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/execute",
+                headers={"Authorization": f"Bearer {token}"},
+                json=request,
             )
             response.raise_for_status()
             return response.json()

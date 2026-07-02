@@ -71,7 +71,8 @@
 		unsupported_input_format: '\u0424\u043e\u0440\u043c\u0430\u0442 \u043d\u0435 \u043f\u043e\u0434\u0434\u0435\u0440\u0436\u0430\u043d \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043d\u043e\u0439 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u043e\u0439.',
 		ffmpeg_assets_unavailable: 'FFmpeg assets are not available',
 		source_file_unavailable: '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0432 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438. \u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0437\u0430\u043d\u043e\u0432\u043e.',
-		stt_action_failed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043a STT \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d.'
+		stt_action_failed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043a STT \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d.',
+		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.'
 	});
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -80,7 +81,10 @@
 		normalizing: '\u041d\u043e\u0440\u043c\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u0430\u0443\u0434\u0438\u043e...',
 		uploading: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0433\u043e \u0430\u0443\u0434\u0438\u043e...',
 		transcribing: '\u041e\u0442\u043f\u0440\u0430\u0432\u043a\u0430 \u0432 STT...',
-		completed: '\u0422\u0435\u043a\u0441\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.'
+		completed: '\u0422\u0435\u043a\u0441\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.',
+		loading_actions: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439...',
+		action_running: '\u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f...',
+		action_completed: '\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d.'
 	});
 	const state = {
 		filesById: new Map(),
@@ -730,10 +734,14 @@
 		delete status.dataset.stage2SttReason;
 		try {
 			const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);
-			await callTranscriptionAction(preparedFile, status);
+			const content = await callTranscriptionAction(preparedFile, status);
 			button.textContent = DONE_LABEL;
 			button.style.cursor = 'default';
 			setStatus(status, 'completed');
+			const transcriptRef = extractTranscriptRef(content);
+			if (transcriptRef) {
+				loadPostprocessingActions(preparedFile, transcriptRef, button.parentElement, status).catch(() => {});
+			}
 		} catch (error) {
 			button.disabled = false;
 			button.style.opacity = '1';
@@ -785,6 +793,153 @@
 		if (!appendToComposer(content)) {
 			throw stageError('stt_action_failed', 'Composer is unavailable for transcript insertion.');
 		}
+		return content;
+	}
+
+	function extractTranscriptRef(text) {
+		const match = String(text || '').match(/Transcript reference:\s*`(art_[^`]+)`/);
+		return match ? match[1] : null;
+	}
+
+	async function loadPostprocessingActions(file, transcriptRef, panel, status) {
+		if (!panel || panel.dataset.stage2SttPostActions === transcriptRef) {
+			return;
+		}
+		setStatus(status, 'loading_actions');
+		const templates = await listPostprocessingTemplates(transcriptRef, file);
+		if (!Array.isArray(templates) || templates.length === 0) {
+			setStatus(status, 'completed');
+			return;
+		}
+		installPostprocessingActions(panel, file, transcriptRef, templates, status);
+		setStatus(status, 'completed');
+	}
+
+	async function listPostprocessingTemplates(transcriptRef, file) {
+		const model = await selectedModelId();
+		const payload = {
+			id: `stage2-stt-actions-${Date.now()}`,
+			chat_id: currentChatId(),
+			session_id: currentSessionId(),
+			model,
+			messages: [],
+			stage2_stt: {
+				operation: 'list_postprocessing_templates',
+				transcript_ref: transcriptRef,
+				openwebui_file_id: file.id,
+				chat_id: currentChatId()
+			}
+		};
+		const response = await fetch(ACTION_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+		const result = await response.json().catch(() => ({}));
+		if (!response.ok) {
+			return [];
+		}
+		return Array.isArray(result.stage2_stt_templates) ? result.stage2_stt_templates : [];
+	}
+
+	function installPostprocessingActions(panel, file, transcriptRef, templates, status) {
+		panel.dataset.stage2SttPostActions = transcriptRef;
+		const actions = document.createElement('div');
+		actions.dataset.stage2SttPostActionPanel = '1';
+		actions.style.display = 'flex';
+		actions.style.flexWrap = 'wrap';
+		actions.style.gap = '0.35rem';
+		actions.style.marginTop = '0.25rem';
+
+		for (const template of templates) {
+			if (!template || !template.template_id) {
+				continue;
+			}
+			const actionButton = document.createElement('button');
+			actionButton.type = 'button';
+			actionButton.dataset.stage2SttPostAction = template.template_id;
+			actionButton.textContent = template.label || template.command || template.template_id;
+			actionButton.title = actionButton.textContent;
+			actionButton.style.border = '1px solid rgba(34, 197, 94, 0.35)';
+			actionButton.style.borderRadius = '0.5rem';
+			actionButton.style.padding = '0.2rem 0.45rem';
+			actionButton.style.fontSize = '0.75rem';
+			actionButton.style.lineHeight = '1rem';
+			actionButton.style.background = 'rgba(34, 197, 94, 0.10)';
+			actionButton.style.color = 'inherit';
+			actionButton.style.cursor = 'pointer';
+			actionButton.addEventListener('focus', () => {
+				actionButton.style.outline = '2px solid rgba(34, 197, 94, 0.75)';
+				actionButton.style.outlineOffset = '2px';
+			});
+			actionButton.addEventListener('blur', () => {
+				actionButton.style.outline = 'none';
+				actionButton.style.outlineOffset = '0';
+			});
+			actionButton.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				runPostprocessingAction(file, transcriptRef, template, actionButton, status);
+			});
+			actions.appendChild(actionButton);
+		}
+		if (actions.childNodes.length) {
+			panel.appendChild(actions);
+		}
+	}
+
+	async function runPostprocessingAction(file, transcriptRef, template, button, status) {
+		if (button.disabled) {
+			return;
+		}
+		button.disabled = true;
+		button.style.opacity = '0.65';
+		button.style.cursor = 'wait';
+		setStatus(status, 'action_running');
+		try {
+			const content = await callPostprocessingAction(file, transcriptRef, template);
+			if (!appendToComposer(content)) {
+				throw stageError('postprocessing_failed', 'Composer is unavailable for post-processing insertion.');
+			}
+			setStatus(status, 'action_completed');
+		} catch (error) {
+			button.disabled = false;
+			button.style.opacity = '1';
+			button.style.cursor = 'pointer';
+			setErrorStatus(status, error && error.code ? error : stageError('postprocessing_failed', error && error.message));
+		}
+	}
+
+	async function callPostprocessingAction(file, transcriptRef, template) {
+		const model = await selectedModelId();
+		const payload = {
+			id: `stage2-stt-post-${Date.now()}`,
+			chat_id: currentChatId(),
+			session_id: currentSessionId(),
+			model,
+			messages: [],
+			stage2_stt: {
+				operation: 'execute_postprocessing',
+				transcript_ref: transcriptRef,
+				template_id: template.template_id,
+				openwebui_file_id: file.id,
+				chat_id: currentChatId()
+			}
+		};
+		const response = await fetch(ACTION_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+		const result = await response.json().catch(() => ({}));
+		if (!response.ok) {
+			throw stageError('postprocessing_failed', result.detail || 'Post-processing action failed.');
+		}
+		const content = String(result.content || '').trim();
+		if (!content || /^STT post-processing failed/i.test(content)) {
+			throw stageError('postprocessing_failed', content || 'Post-processing action returned an empty result.');
+		}
+		return content;
 	}
 
 	function appendToComposer(text) {
