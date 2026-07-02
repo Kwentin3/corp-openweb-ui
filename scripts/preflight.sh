@@ -18,11 +18,9 @@ info() {
 }
 
 [ -f "$ENV_FILE" ] || fail ".env not found. Copy .env.example to .env first."
+command -v python3 >/dev/null 2>&1 || fail "python3 is required for preflight and Stage 2 STT browser config rendering"
 
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+eval "$(python3 "$ROOT_DIR/scripts/export-env-file.py" "$ENV_FILE")"
 
 [ -n "${OPENWEBUI_HOST:-}" ] || fail "OPENWEBUI_HOST is empty"
 [ -n "${LETSENCRYPT_EMAIL:-}" ] || fail "LETSENCRYPT_EMAIL is empty"
@@ -98,7 +96,6 @@ fi
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker compose version >/dev/null 2>&1 || fail "docker compose plugin is not available"
 command -v curl >/dev/null 2>&1 || warn "curl is not installed; smoke-test.sh needs it"
-command -v python3 >/dev/null 2>&1 || fail "python3 is required for Stage 2 STT browser config rendering"
 
 STAGE2_STT_BROWSER_CONFIG_TMP="$(mktemp)"
 trap 'rm -f "$STAGE2_STT_BROWSER_CONFIG_TMP"' EXIT
