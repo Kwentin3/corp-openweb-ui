@@ -239,9 +239,7 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
             PostProcessingExecutorMode,
             "disabled",
         ),
-        postprocessing_openai_base_url=_optional_str(
-            source, "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL"
-        ),
+        postprocessing_openai_base_url=_postprocessing_openai_base_url(source),
         postprocessing_openai_api_key=_optional_str(
             source, "STAGE2_STT_POSTPROCESSING_OPENAI_API_KEY"
         ),
@@ -371,6 +369,12 @@ def _str(env: Mapping[str, str | None], key: str, default: str) -> str:
 
 def _optional_str(env: Mapping[str, str | None], key: str) -> str | None:
     return _raw(env, key)
+
+
+def _postprocessing_openai_base_url(env: Mapping[str, str | None]) -> str | None:
+    return _optional_str(env, "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL") or _optional_str(
+        env, "OPENAI_API_BASE_URL"
+    )
 
 
 def _int(env: Mapping[str, str | None], key: str, default: int) -> int:
