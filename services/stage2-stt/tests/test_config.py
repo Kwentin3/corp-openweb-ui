@@ -89,6 +89,19 @@ def test_openai_postprocessing_base_url_falls_back_to_primary_openai_base_url():
     assert config.postprocessing_openai_base_url == "https://api.openai.com/v1"
 
 
+def test_openai_postprocessing_api_key_falls_back_to_primary_openai_api_key():
+    config = load_stt_config(
+        {
+            "STAGE2_STT_POSTPROCESSING_EXECUTOR_MODE": "openai_compatible",
+            "STAGE2_STT_POSTPROCESSING_OPENAI_BASE_URL": "https://api.openai.com/v1",
+            "OPENAI_API_KEY": "unit-primary-key",
+            "STAGE2_STT_POSTPROCESSING_OPENAI_MODEL": "unit-model",
+        }
+    )
+
+    assert config.postprocessing_openai_api_key == "unit-primary-key"
+
+
 def test_gate_1_2_rejects_diagnostic_provider_payload_storage():
     with pytest.raises(SttConfigError) as exc_info:
         load_stt_config({"STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED": "true"})
