@@ -25,11 +25,12 @@ esac
   printf 'FAIL: .env not found\n' >&2
   exit 1
 }
+command -v python3 >/dev/null 2>&1 || {
+  printf 'FAIL: python3 is required to parse .env\n' >&2
+  exit 1
+}
 
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+eval "$(python3 "$ROOT_DIR/scripts/export-env-file.py" "$ENV_FILE")"
 
 [ -n "${OPENWEBUI_HOST:-}" ] || {
   printf 'FAIL: OPENWEBUI_HOST is empty\n' >&2
