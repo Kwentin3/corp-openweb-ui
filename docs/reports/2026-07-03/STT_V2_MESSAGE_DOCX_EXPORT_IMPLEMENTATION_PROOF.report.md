@@ -1,13 +1,13 @@
 # STT v2 Message-Level DOCX Export Implementation Proof
 
-Status: local implementation verified; runtime deployment pending.
+Status: implemented, pushed and deployed to PRD-0; manual authenticated browser click proof pending.
 
 Date: 2026-07-03.
 
 ## 1. Executive Summary
 
-Gate 8 MVP is implemented locally as a message-level DOCX export for completed
-assistant messages.
+Gate 8 MVP is implemented and deployed as a message-level DOCX export for
+completed assistant messages.
 
 Implemented contour:
 
@@ -175,22 +175,119 @@ contract precedence: renderer prefers message_markdown when provided.
 
 ## 6. Runtime Deployment
 
-Runtime deployment is pending at the time of this initial local proof report.
-
-Required after commit/push:
+Implementation commit:
 
 ```text
-server pull/fast-forward
-rebuild stage2-stt
-update OpenWebUI Action DB content
-restart/recreate OpenWebUI if needed
-verify HTTPS 200
-verify sidecar endpoint through Docker network
-manual authenticated browser export proof if credentials/session are available
+bea93c1 feat: add message docx export
+```
+
+Server git state:
+
+```text
+target=/opt/openwebui-prd0
+git status: ## main...origin/main
+HEAD=bea93c1
+```
+
+Sidecar build/recreate:
+
+```text
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d --build stage2-stt
+
+build installed:
+python-docx-1.2.0
+
+stage2_image_id=sha256:4eb259c6e037cf08fafb8e9210be26aec0a0554fcddeb0195161c7ec58231298
+stage2_container_image=sha256:4eb259c6e037cf08fafb8e9210be26aec0a0554fcddeb0195161c7ec58231298
+```
+
+Runtime config/import proof:
+
+```text
+python_docx_import=True
+message_docx_max_message_chars=100000
+message_docx_max_docx_mb=5
+artifact_store_mode=sqlite
+```
+
+OpenWebUI Action DB update:
+
+```text
+backup_dir=/opt/openwebui-prd0/backups/codex-stt-v2/20260703T104928Z-message-docx-export
+rows_updated=1
+file_sha256=766bdb0ce575f5a43272e39cf97d03a1a8e8dcd04653b52a17ae5fbdab3d1e20
+db_sha256=766bdb0ce575f5a43272e39cf97d03a1a8e8dcd04653b52a17ae5fbdab3d1e20
+has_export_operation=True
+has_docx_endpoint=True
+```
+
+OpenWebUI restart/health:
+
+```text
+openwebui_health=healthy
+openwebui: Up / healthy
+stage2-stt: Up
+```
+
+Static loader proof:
+
+```text
+host_loader_sha256=33d32b94edbb13aab331bd0cf4edb5d5a98792fddfb0c0cfce73c80be5c2f56b
+container_loader_sha256=33d32b94edbb13aab331bd0cf4edb5d5a98792fddfb0c0cfce73c80be5c2f56b
+public_loader_sha256=33d32b94edbb13aab331bd0cf4edb5d5a98792fddfb0c0cfce73c80be5c2f56b
+public_loader_has_export_message_docx=True
+```
+
+Public HTTPS proof:
+
+```text
+https://gpt.alpha-soft.ru/ -> HTTP 200
+```
+
+Runtime sidecar DOCX endpoint proof:
+
+```text
+POST http://127.0.0.1:8080/stage2-api/message-docx/exports from stage2-stt container
+status_code=200
+schema_version=MessageDocxExportResultV1
+delivery=base64
+content_type=application/vnd.openxmlformats-officedocument.wordprocessingml.document
+size_bytes=37017
+checksum_ok=True
+docx_openable=True
+selected_present=True
+previous_absent=True
+next_absent=True
+no_stage2_internal_token=True
+no_authorization=True
+no_bearer=True
+no_cookie=True
+no_provider_payload=True
+```
+
+Recent log scan:
+
+```text
+stage2-stt logs since deploy:
+no traceback/exception/error/secret/raw-provider markers
+
+openwebui logs since restart:
+startup emitted read-only static loader filesystem warnings because loader.js is
+bind-mounted read-only; service continued to healthy and served /static/loader.js
+with HTTP 200.
+```
+
+Manual authenticated browser proof still required:
+
+```text
+click DOCX under a completed assistant message
+verify browser save prompt/download
+open downloaded DOCX locally
+repeat on STT transcript and STT post-processing result
 ```
 
 ## 7. Current Verdict
 
 ```text
-LOCAL_PASS_RUNTIME_PENDING
+SERVER_SIDE_PASS_BROWSER_MANUAL_PENDING
 ```
