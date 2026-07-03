@@ -107,6 +107,51 @@ def test_message_docx_semantic_html_preserves_visible_chat_structure():
     assert "https://example.com/source" in hyperlink_targets
 
 
+def test_message_docx_semantic_markdown_precedes_truncated_html_source():
+    markdown = (
+        "## Meeting Notes\n\n"
+        "Visible intro.\n\n"
+        "---\n\n"
+        "## Action items\n\n"
+        "| Task | Owner | Due |\n"
+        "|---|---|---|\n"
+        "| Prepare letter | Olga | Soon |\n\n"
+        "If needed, I can also format this for chat."
+    )
+    html = "<h2>Meeting Notes</h2><p>Visible intro.</p><hr><p>DOM-only truncated marker</p>"
+    request = MessageDocxExportRequestV1.model_validate(
+        _request(
+            message_text="Meeting Notes\nVisible intro.",
+            message_markdown=markdown,
+            message_html=html,
+            source="openwebui_chat_api",
+            options={
+                "include_chat_title": True,
+                "include_model_name": True,
+                "include_timestamp": True,
+                "formatting_profile": "semantic_chat_v1",
+            },
+        )
+    )
+
+    result = MessageDocxExportService(config=load_stt_config({})).export(request)
+    payload = base64.b64decode(result.download_payload_base64)
+    document = Document(BytesIO(payload))
+    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    table_rows = [
+        [cell.text for cell in row.cells]
+        for table in document.tables
+        for row in table.rows
+    ]
+
+    assert result.warnings == []
+    assert "Action items" in text
+    assert "If needed, I can also format this for chat." in text
+    assert "DOM-only truncated marker" not in text
+    assert any(row == ["Task", "Owner", "Due"] for row in table_rows)
+    assert any(row == ["Prepare letter", "Olga", "Soon"] for row in table_rows)
+
+
 def test_message_docx_semantic_profile_warns_when_structured_source_is_unavailable():
     request = MessageDocxExportRequestV1.model_validate(
         _request(

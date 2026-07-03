@@ -92,17 +92,40 @@ def test_loader_docx_action_payload_includes_openwebui_action_envelope():
     assert "operation: 'export_message_docx'" in action_block
 
 
-def test_loader_docx_request_uses_semantic_html_without_fake_markdown():
+def test_loader_docx_request_uses_canonical_markdown_before_dom_html_fallback():
     source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function buildMessageDocxRequest")
+    start = source.index("async function buildMessageDocxRequest")
     end = source.index("function extractScopedMessageText", start)
     request_block = source[start:end]
 
+    assert "const chatId = currentChatId();" in request_block
+    assert "const messageId = messageIdFromRoot(root);" in request_block
+    assert "const markdown = await fetchCanonicalMessageMarkdown(chatId, messageId);" in request_block
     assert "const html = extractScopedMessageHtml(content);" in request_block
-    assert "message_markdown: null" in request_block
+    assert "message_markdown: markdown" in request_block
     assert "message_html: html" in request_block
-    assert "formatting_profile: html ? 'semantic_chat_v1' : 'simple_mvp'" in request_block
+    assert "source: markdown ? 'openwebui_chat_api' : 'dom'" in request_block
+    assert "formatting_profile: hasStructuredSource ? 'semantic_chat_v1' : 'simple_mvp'" in request_block
+    assert "message_markdown: null" not in request_block
     assert "message_markdown: text" not in request_block
+
+
+def test_loader_docx_fetches_openwebui_chat_markdown_safely():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function fetchCanonicalMessageMarkdown")
+    end = source.index("function extractScopedMessageText", start)
+    fetch_block = source[start:end]
+
+    assert "String(chatId).startsWith('local:')" in fetch_block
+    assert "`/api/v1/chats/${encodeURIComponent(chatId)}`" in fetch_block
+    assert "cache: 'no-store'" in fetch_block
+    assert "findCanonicalChatMessage(payload, messageId)" in fetch_block
+    assert "collectCanonicalMessages(candidates, chat.messages)" in fetch_block
+    assert "collectCanonicalMessages(candidates, chat.history && chat.history.messages)" in fetch_block
+    assert "collectCanonicalMessages(candidates, payload.messages)" in fetch_block
+    assert "collectCanonicalMessages(candidates, payload.history && payload.history.messages)" in fetch_block
+    assert "message.content ?? message.text ?? message.message" in fetch_block
+    assert "value.text ?? value.content ?? value.message ?? ''" in fetch_block
 
 
 def test_loader_docx_extraction_avoids_global_response_content_container():

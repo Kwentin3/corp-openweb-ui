@@ -584,3 +584,88 @@ Follow-up verdict:
 ```text
 SEMANTIC_DOCX_SERVER_SIDE_PASS_BROWSER_MANUAL_RECOMMENDED
 ```
+
+## 12. Follow-Up: Markdown-First DOCX Source Refactor
+
+Reason:
+
+- a user-provided DOCX generated after the semantic rollout preserved the first
+  rendered part of the assistant answer but lost the markdown table and tail
+  content after a horizontal rule;
+- audit showed the served loader sent sanitized DOM HTML with
+  `message_markdown: null`, while the sidecar renderer preferred HTML over
+  structured markdown;
+- this contradicted the intended contract precedence: canonical OpenWebUI
+  message markdown first, DOM HTML second, plain text fallback last.
+
+Implementation changes:
+
+- `deploy/openwebui-static/loader.js`
+  - `buildMessageDocxRequest` is now async;
+  - the loader fetches `/api/v1/chats/{chat_id}` with `cache: no-store`;
+  - it searches common OpenWebUI chat shapes:
+    `chat.messages`, `chat.history.messages`, `messages`,
+    `history.messages`;
+  - it extracts canonical message content from `content`, `text` or `message`;
+  - when canonical markdown is found, request source becomes
+    `openwebui_chat_api`;
+  - sanitized DOM HTML remains as fallback and is still sent for resilience;
+  - empty/whitespace markdown safely degrades to `null`;
+  - duplicate `currentChatId` behavior was collapsed to the later shared helper,
+    now supporting both `/c/{id}` and `/chat/{id}`.
+
+- `services/stage2-stt/stage2_stt/message_docx.py`
+  - `semantic_chat_v1` now renders structured `message_markdown` before
+    `message_html`;
+  - `message_html` remains fallback when canonical markdown is missing or not
+    structured.
+
+- `docs/stage2/contracts/STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md`
+  - status and validation wording now state markdown-first semantic export;
+  - acceptance explicitly requires proof that markdown wins over truncated DOM
+    HTML.
+
+- `docs/stage2/operations/STT_V2_MESSAGE_DOCX_EXPORT_RUNBOOK.md`
+  - runtime behavior now documents markdown -> sanitized HTML -> plain text
+    source precedence;
+  - manual proof now includes content after markdown horizontal rules.
+
+Regression tests added:
+
+- renderer test proves structured markdown with a table after `---` wins over a
+  truncated HTML source and preserves:
+  - the `Action items` heading;
+  - the markdown table as a real DOCX table;
+  - the paragraph after the table;
+  - absence of the HTML-only truncated marker.
+- loader static tests prove:
+  - request construction awaits canonical markdown fetch;
+  - `message_markdown` is populated from canonical markdown, not plain text;
+  - source becomes `openwebui_chat_api` only when markdown is present;
+  - OpenWebUI chat API fetch uses no-store and supports current known message
+    containers.
+
+Local verification:
+
+```text
+python -m pytest -q services/stage2-stt/tests/test_message_docx.py services/stage2-stt/tests/test_loader_static.py
+25 passed in 1.57s
+
+python -m pytest -q services/stage2-stt/tests
+100 passed in 3.42s
+
+python -m compileall -q services/stage2-stt
+pass
+
+node --check deploy/openwebui-static/loader.js
+pass
+
+git diff --check
+pass with Windows LF/CRLF Git warnings only
+```
+
+Local verdict:
+
+```text
+MARKDOWN_FIRST_DOCX_LOCAL_PASS_SERVER_DEPLOY_PENDING
+```

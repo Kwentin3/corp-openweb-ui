@@ -346,12 +346,12 @@ def _render_simple_markdown(document: Document, text: str) -> None:
 
 
 def _render_semantic_message(document: Document, request: MessageDocxExportRequestV1) -> None:
+    if request.message_markdown and _looks_structured_markdown(request.message_markdown):
+        _render_semantic_markdown(document, request.message_markdown)
+        return
     if request.message_html and request.message_html.strip():
         root = _parse_semantic_html(request.message_html)
         _render_html_children(document, root.children)
-        return
-    if request.message_markdown and _looks_structured_markdown(request.message_markdown):
-        _render_semantic_markdown(document, request.message_markdown)
         return
     _render_simple_markdown(document, request.message_text)
 

@@ -9,11 +9,11 @@ Date: 2026-07-03.
 Message-level DOCX export adds a DOCX button under completed assistant messages
 in OpenWebUI. A click exports only that selected assistant message.
 
-Current runtime behavior uses `semantic_chat_v1` when the loader can send
-sanitized selected-message HTML. The `simple_mvp` profile remains as a
-compatibility fallback when only plain text is available. Semantic export
-preserves document structure visible in chat: headings, paragraphs, lists,
-tables, blockquotes, links and code blocks.
+Current runtime behavior uses `semantic_chat_v1` when the loader can send a
+structured source. Source precedence is canonical OpenWebUI message markdown
+first, sanitized selected-message HTML second, and plain text as the final
+compatibility fallback. Semantic export preserves document structure visible in
+chat: headings, paragraphs, lists, tables, blockquotes, links and code blocks.
 
 It does not export:
 
@@ -95,7 +95,7 @@ node --check deploy/openwebui-static/loader.js
 Expected current local result:
 
 ```text
-85 passed
+100 passed
 ```
 
 ## 6. Manual Browser Proof
@@ -125,9 +125,11 @@ Additional proof for `semantic_chat_v1` rollout:
 3. Open the DOCX in Word, LibreOffice or `python-docx`.
 4. Confirm tables remain tables, lists remain lists, links remain links and code
    remains a monospace block.
-5. Confirm no toolbar controls, hidden config, raw HTML, script/style/event
+5. Confirm content after a markdown horizontal rule is still present, especially
+   markdown tables and any following paragraphs.
+6. Confirm no toolbar controls, hidden config, raw HTML, script/style/event
    handlers, prompt bodies, provider payloads or internal URLs are present.
-6. Repeat on a plain-text-only message and confirm a typed degradation warning or
+7. Repeat on a plain-text-only message and confirm a typed degradation warning or
    typed refusal, depending on the selected fallback mode.
 
 ## 7. Failure Handling

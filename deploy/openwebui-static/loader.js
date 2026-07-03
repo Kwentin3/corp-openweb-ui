@@ -585,7 +585,7 @@
 		}
 		setDocxButtonState(button, 'loading');
 		try {
-			const request = buildMessageDocxRequest(root, content);
+			const request = await buildMessageDocxRequest(root, content);
 			const result = await callMessageDocxAction(request);
 			const saved = await saveMessageDocxResult(result);
 			setDocxButtonState(button, saved === false ? 'ready' : 'success');
@@ -594,23 +594,26 @@
 		}
 	}
 
-	function buildMessageDocxRequest(root, content) {
+	async function buildMessageDocxRequest(root, content) {
 		const text = extractScopedMessageText(content);
 		if (!text) {
 			throw stageError('message_docx_empty_message');
 		}
-		const html = extractScopedMessageHtml(content);
+		const chatId = currentChatId();
 		const messageId = messageIdFromRoot(root);
+		const markdown = await fetchCanonicalMessageMarkdown(chatId, messageId);
+		const html = extractScopedMessageHtml(content);
+		const hasStructuredSource = Boolean(markdown || html);
 		return {
 			schema_version: 'MessageDocxExportRequestV1',
 			request_id: `docx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-			chat_id: currentChatId(),
+			chat_id: chatId,
 			message_id: messageId,
 			message_role: 'assistant',
 			message_text: text,
-			message_markdown: null,
+			message_markdown: markdown,
 			message_html: html,
-			source: 'dom',
+			source: markdown ? 'openwebui_chat_api' : 'dom',
 			safe_metadata: {
 				chat_title: safeDocumentTitle(),
 				model_name: scopedText(root, '#response-message-model-name'),
@@ -622,9 +625,80 @@
 				include_chat_title: true,
 				include_model_name: true,
 				include_timestamp: true,
-				formatting_profile: html ? 'semantic_chat_v1' : 'simple_mvp'
+				formatting_profile: hasStructuredSource ? 'semantic_chat_v1' : 'simple_mvp'
 			}
 		};
+	}
+
+	async function fetchCanonicalMessageMarkdown(chatId, messageId) {
+		if (!chatId || String(chatId).startsWith('local:') || !messageId) {
+			return null;
+		}
+		const fetcher = state.originalFetch || window.fetch.bind(window);
+		try {
+			const response = await fetcher(`/api/v1/chats/${encodeURIComponent(chatId)}`, { cache: 'no-store' });
+			if (!response.ok) {
+				return null;
+			}
+			const payload = await response.json().catch(() => null);
+			const message = findCanonicalChatMessage(payload, messageId);
+			return canonicalMessageMarkdown(message);
+		} catch (_) {
+			return null;
+		}
+	}
+
+	function findCanonicalChatMessage(payload, messageId) {
+		if (!payload || !messageId) {
+			return null;
+		}
+		const chat = payload.chat && typeof payload.chat === 'object' ? payload.chat : payload;
+		const candidates = [];
+		collectCanonicalMessages(candidates, chat.messages);
+		collectCanonicalMessages(candidates, chat.history && chat.history.messages);
+		collectCanonicalMessages(candidates, payload.messages);
+		collectCanonicalMessages(candidates, payload.history && payload.history.messages);
+		const targetId = String(messageId);
+		return candidates.find((message) => {
+			if (!message || typeof message !== 'object') {
+				return false;
+			}
+			const id = message.id || message.message_id;
+			return id != null && String(id) === targetId;
+		}) || null;
+	}
+
+	function collectCanonicalMessages(target, value) {
+		if (Array.isArray(value)) {
+			target.push(...value);
+			return;
+		}
+		if (value && typeof value === 'object') {
+			target.push(...Object.values(value));
+		}
+	}
+
+	function canonicalMessageMarkdown(message) {
+		if (!message || typeof message !== 'object') {
+			return null;
+		}
+		const value = message.content ?? message.text ?? message.message;
+		const text = canonicalContentText(value);
+		const trimmed = text ? text.trim() : '';
+		return trimmed || null;
+	}
+
+	function canonicalContentText(value) {
+		if (typeof value === 'string') {
+			return value;
+		}
+		if (Array.isArray(value)) {
+			return value.map(canonicalContentText).filter(Boolean).join('\n');
+		}
+		if (value && typeof value === 'object') {
+			return canonicalContentText(value.text ?? value.content ?? value.message ?? '');
+		}
+		return '';
 	}
 
 	function extractScopedMessageText(content) {
@@ -686,12 +760,6 @@
 	function messageIdFromRoot(root) {
 		const id = root && root.id ? String(root.id) : '';
 		return id.startsWith('message-') ? id.slice('message-'.length) : null;
-	}
-
-	function currentChatId() {
-		const path = window.location.pathname || '';
-		const match = path.match(/\/(?:c|chat)\/([^/?#]+)/);
-		return match ? decodeURIComponent(match[1]) : null;
 	}
 
 	function safeDocumentTitle() {
@@ -1052,8 +1120,8 @@
 	}
 
 	function currentChatId() {
-		const match = window.location.pathname.match(/\/c\/([^/?#]+)/);
-		return match ? match[1] : `local:stage2-stt-${Date.now()}`;
+		const match = (window.location.pathname || '').match(/\/(?:c|chat)\/([^/?#]+)/);
+		return match ? decodeURIComponent(match[1]) : `local:stage2-stt-${Date.now()}`;
 	}
 
 	function currentSessionId() {

@@ -1,6 +1,7 @@
 # STT v2 Message-Level DOCX Export Contract
 
-Status: implemented MVP contract plus implemented semantic formatting extension.
+Status: implemented MVP contract plus implemented markdown-first semantic
+formatting extension.
 
 Date: 2026-07-03.
 
@@ -102,8 +103,9 @@ Validation:
 - `message_markdown` must contain real markdown/source markdown when provided.
   It must not be populated with plain text only to satisfy a field.
 - `message_html` must contain sanitized selected-message HTML only when provided.
-  It is ignored by the implemented `simple_mvp` renderer, but is the preferred
-  source for the implemented `semantic_chat_v1` renderer.
+  It is ignored by the implemented `simple_mvp` renderer and is the fallback
+  structured source for the implemented `semantic_chat_v1` renderer when
+  canonical markdown is unavailable or not structured.
 - Browser-provided identity and hidden runtime fields are not trusted.
 
 Structured source precedence for `semantic_chat_v1`:
@@ -311,8 +313,11 @@ selector layer. Loader rules:
   nested bullet lists, numbered lists, tables, blockquotes, code blocks, links and
   inline emphasis;
 - a rich fixture must prove that tables are not flattened into plain text;
-- a loader test must prove that `message_markdown` is not a duplicate of plain
-  text unless the source is actually markdown;
+- a loader test must prove that the browser first attempts canonical OpenWebUI
+  message markdown and that `message_markdown` is not a duplicate of plain text
+  unless the source is actually markdown;
+- a renderer test must prove that structured `message_markdown` wins over
+  truncated or incomplete DOM HTML when both are provided;
 - an HTML sanitizer test must prove scripts, styles, event handlers, hidden
   config and data attributes are removed before rendering;
 - a generated DOCX no-leak scan must pass on semantic fixtures;
