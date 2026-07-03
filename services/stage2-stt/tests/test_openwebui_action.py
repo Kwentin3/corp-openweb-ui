@@ -83,6 +83,84 @@ def test_action_returns_backward_compatible_flat_transcript_with_safe_ref(monkey
     assert "{" not in response["content"]
 
 
+def test_action_formats_speaker_segments_for_readable_raw_transcript(monkeypatch, tmp_path):
+    action = Action()
+    action.valves.internal_api_key = "unit-token"
+    action.valves.upload_root = str(tmp_path)
+    upload_path = tmp_path / "file-1_sample.mp3"
+    upload_path.write_bytes(b"fake-mp3")
+
+    async def fake_call_sidecar(**kwargs):
+        return {
+            "result": {
+                "text": "flat fallback should not be used",
+                "segments": [
+                    {
+                        "speaker": "SPEAKER_00",
+                        "start_seconds": 0,
+                        "end_seconds": 4.2,
+                        "text": "Первый фрагмент.",
+                    },
+                    {
+                        "speaker": "SPEAKER_00",
+                        "start_seconds": 4.2,
+                        "end_seconds": 8.0,
+                        "text": "Продолжение.",
+                    },
+                    {
+                        "speaker": "SPEAKER_01",
+                        "start_seconds": 8.0,
+                        "end_seconds": 12.0,
+                        "text": "Ответ.",
+                    },
+                ],
+            },
+            "transcript_ref": "art_safe_reference",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(action, "_call_sidecar", fake_call_sidecar)
+
+    response = asyncio.run(
+        action.action(
+            {"files": [{"file": {"id": "file-1", "filename": "sample.mp3", "mime_type": "audio/mpeg"}}]},
+            __user__={"id": "user-1"},
+            __metadata__={"chat_id": "chat-1"},
+        )
+    )
+
+    content = response["content"]
+    assert content.startswith(
+        "Transcript:\n\n[00:00-00:08] Спикер 1:\n"
+        "Первый фрагмент. Продолжение."
+    )
+    assert "[00:08-00:12] Спикер 2:\nОтвет." in content
+    assert "Transcript reference: `art_safe_reference`" in content
+    assert "flat fallback should not be used" not in content
+    assert "SPEAKER_00" not in content
+    assert "SPEAKER_01" not in content
+    assert "{" not in content
+
+
+def test_action_transcript_formatter_uses_flat_fallback_without_speakers():
+    action = Action()
+
+    text = action._format_transcript_result(
+        {
+            "text": "plain transcript",
+            "segments": [
+                {
+                    "start_seconds": 0,
+                    "end_seconds": 5,
+                    "text": "segment text",
+                }
+            ],
+        }
+    )
+
+    assert text == "plain transcript"
+
+
 def test_action_lists_postprocessing_templates_without_prompt_body(monkeypatch):
     action = Action()
     action.valves.internal_api_key = "unit-token"

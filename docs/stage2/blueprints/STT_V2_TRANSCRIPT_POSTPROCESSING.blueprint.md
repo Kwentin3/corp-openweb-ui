@@ -567,6 +567,15 @@ Rules:
 - `internal_provider_response_ref` must not be dereferenced for prompt input,
   chat output, DOCX export or browser-visible state.
 
+Raw transcript chat display:
+
+- derive only from normalized `TranscriptResultV1`;
+- if segment speaker labels exist, render a speaker-labeled raw transcript in
+  chat;
+- use stable generic labels such as `Спикер 1`, not inferred real names;
+- merge adjacent same-speaker segments where it improves readability;
+- fall back to current flat `text` when speaker labels are absent.
+
 ### 6.2. ArtifactScopeV1
 
 ```text
@@ -733,6 +742,8 @@ Rules:
 
 - projection is derived only from normalized `TranscriptResultV1`;
 - speaker-labeled projection must use normalized speaker fields only;
+- chat display projection is presentation-only and must not rewrite transcript
+  meaning;
 - projection may be stored as a transformation artifact for executed results.
 
 ### 6.8. PromptInputVariablesV1
@@ -1342,6 +1353,10 @@ Separate three concerns:
    optional user context.
 3. `PromptExecutionSnapshotV1`: execution metadata such as prompt id, command,
    prompt version/hash, model id, execution time and warnings.
+
+Raw chat output can use the same normalized projection principle, but it remains
+presentation-only. It must help a user inspect the raw transcript before applying
+prompt templates, not become a post-processed result.
 
 Do not store the full rendered prompt body by default. That would duplicate the
 production prompt body outside OpenWebUI and weaken the source-of-truth rule.

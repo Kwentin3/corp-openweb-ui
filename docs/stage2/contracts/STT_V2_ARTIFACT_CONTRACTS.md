@@ -81,6 +81,27 @@ Rules:
 - `internal_provider_response_ref` is optional diagnostic-only metadata.
 - Product flow must work when `internal_provider_response_ref` is absent/null.
 
+### 3.1. Raw Transcript Chat Display Projection
+
+The user-visible raw transcript may be rendered as a deterministic display
+projection. This projection is presentation-only: it does not modify
+`TranscriptResultV1`, does not call an LLM and does not infer real participant
+names.
+
+Rules:
+
+- source is only normalized `TranscriptResultV1`;
+- if `segments[].speaker` is present, render a readable speaker-labeled raw
+  transcript;
+- map provider labels such as `SPEAKER_00` to stable generic labels such as
+  `Спикер 1` for the current transcript;
+- adjacent segments from the same speaker may be merged for readability;
+- timestamps may be shown when segment timing is available;
+- if speaker labels are absent, keep the backward-compatible flat transcript
+  text;
+- do not expose raw LemonFox JSON, provider payloads, prompt bodies, logs,
+  secrets or hidden config.
+
 ## 4. ArtifactScopeV1
 
 `ArtifactScopeV1` binds an artifact to available context.
@@ -251,6 +272,8 @@ Rules:
 
 - derived only from normalized `TranscriptResultV1`;
 - speaker labels come only from normalized fields;
+- chat display projection is deterministic presentation and must not infer real
+  speaker names;
 - no raw provider JSON.
 
 ## 10. ArtifactStoreAdapter
@@ -304,6 +327,8 @@ This contract is satisfied when:
 - contract tests validate required fields and nullability;
 - `TranscriptResultV1` stores speaker labels when provider returns them;
 - `transcript_ref` resolves to the normalized transcript;
+- raw transcript chat output uses speaker-labeled display when normalized
+  speaker segments are available;
 - `ArtifactScopeV1` contains only available identifiers;
 - post-processing access preserves OpenWebUI file identity continuity across
   browser normalization;

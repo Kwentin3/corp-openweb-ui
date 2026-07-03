@@ -34,6 +34,7 @@ left ambiguous.
 | G1-DIA-008 | Word speakers normalized when available | `words[].speaker` populated if provider returns word speaker data | `pytest tests/test_lemonfox_adapter.py tests/test_stt_v2_artifact_store.py` | Pass | Word-speaker proof is conditional on provider returning word speakers | `STT_V2_ARTIFACT_CONTRACTS.md` |
 | G1-DIA-009 | No invented participant names | Projection/output uses generic provider-normalized labels only | test/report inspection | Pass | Tests preserve generic `speaker_0` / `speaker_1`; no projection names invented | `STT_V2_DIARIZATION_PROOF_CONTRACT.md` |
 | G1-DIA-010 | No raw provider leak | Raw LemonFox payload absent from chat/action/loader/logs/product artifacts | test/db/grep proof | Pass | Raw provider marker excluded from normalized result and SQLite product artifacts | `STT_V2_DIARIZATION_PROOF_CONTRACT.md` |
+| G1-DIA-011 | Speaker-labeled raw chat display | Action output renders readable speaker turns from normalized segments | `pytest tests/test_openwebui_action.py` | Pass | Generic labels only; no real-name inference or provider JSON | `STT_V2_ARTIFACT_CONTRACTS.md` |
 
 ## 3. Gate 2: Artifact Store And Structured Transcript
 
@@ -61,7 +62,7 @@ left ambiguous.
 
 | ID | Requirement | Expected proof | Test/report artifact | Pass/Fail | Notes | Linked contract |
 | --- | --- | --- | --- | --- | --- | --- |
-| BC-001 | Flat transcript output unchanged | Existing Action returns compatible `Transcript:` text | `pytest tests/test_openwebui_action.py` | Pass | Content still starts with `Transcript:\n\n...`; ref is additive | `STT_V2_BACKWARD_COMPATIBILITY_CONTRACT.md` |
+| BC-001 | Flat transcript fallback unchanged | Action returns compatible `Transcript:` text when speaker labels are absent | `pytest tests/test_openwebui_action.py` | Pass | Content still starts with `Transcript:\n\n...`; ref is additive | `STT_V2_BACKWARD_COMPATIBILITY_CONTRACT.md` |
 | BC-002 | Artifact-store failure does not corrupt chat | forced store failure still returns safe flat output or typed safe error | `pytest tests/test_job_routes.py` | Pass | Disabled store returns no fake ref and warning only | `STT_V2_BACKWARD_COMPATIBILITY_CONTRACT.md` |
 | BC-003 | Normal chat remains usable | loader/artifact failures do not block base chat | test/proof report | Pass | Artifact retrieval failures are isolated to internal endpoint | `STT_V2_BACKWARD_COMPATIBILITY_CONTRACT.md` |
 | BC-004 | No OpenWebUI core patch | diff review shows no core patch | git diff proof | Pass | Changes stay under `services/stage2-stt` plus Gate docs/reports | `STT_V2_GATE_1_2_IMPLEMENTATION_BOUNDARY.md` |

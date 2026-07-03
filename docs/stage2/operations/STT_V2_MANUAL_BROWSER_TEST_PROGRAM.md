@@ -57,11 +57,15 @@ Expected:
 2. Confirm the answer appears in the same chat.
 3. Confirm the visible output starts with `Transcript:`.
 4. Confirm a `Transcript reference` is present when artifact storage succeeds.
+5. If provider speaker labels are present, confirm the raw transcript is
+   grouped into readable generic speaker turns such as `Спикер 1` / `Спикер 2`.
 
 Expected:
 
 - Transcript text is visible in the same chat.
-- The old flat transcript output still works.
+- The old flat transcript output still works when speaker labels are absent.
+- Speaker-labeled output uses generic labels only; it does not infer real
+  participant names.
 - No raw provider JSON is visible.
 - No debug headers, tokens or API keys are visible.
 
@@ -147,6 +151,8 @@ Mark the browser test `PASS` if:
 - login and new chat work;
 - upload and transcription work;
 - transcript appears in the same chat;
+- speaker-labeled transcripts are readable when labels are available, with flat
+  fallback otherwise;
 - both quick actions are visible;
 - both quick actions return results in the same chat;
 - no raw provider/debug/secret content is visible.

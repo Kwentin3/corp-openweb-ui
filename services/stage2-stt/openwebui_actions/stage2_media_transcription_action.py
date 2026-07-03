@@ -110,7 +110,7 @@ class Action:
             await self._emit(__event_emitter__, "STT sidecar request failed.", done=True)
             return {"content": f"STT sidecar request failed: {exc}"}
 
-        transcript = ((result.get("result") or {}).get("text") or "").strip()
+        transcript = self._format_transcript_result(result.get("result"))
         warnings = result.get("warnings") or []
         await self._emit(__event_emitter__, "Transcription complete.", done=True)
         if not transcript:
@@ -276,6 +276,113 @@ class Action:
         if not isinstance(transcript_ref, str) or not transcript_ref.startswith("art_"):
             return ""
         return f"\n\nTranscript reference: `{transcript_ref}`"
+
+    def _format_transcript_result(self, result: Any) -> str:
+        if not isinstance(result, dict):
+            return ""
+
+        plain_text = str(result.get("text") or "").strip()
+        segments = result.get("segments")
+        if not isinstance(segments, list):
+            return plain_text
+
+        has_speakers = any(
+            isinstance(segment, dict) and bool(segment.get("speaker"))
+            for segment in segments
+        )
+        if not has_speakers:
+            return plain_text
+
+        turns = self._speaker_turns(segments)
+        if not turns:
+            return plain_text
+
+        return "\n\n".join(self._format_speaker_turn(turn) for turn in turns)
+
+    def _speaker_turns(self, segments: list[Any]) -> list[dict[str, Any]]:
+        speaker_labels: dict[str, str] = {}
+        turns: list[dict[str, Any]] = []
+
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+
+            text = str(segment.get("text") or "").strip()
+            if not text:
+                continue
+
+            speaker = self._display_speaker_label(segment.get("speaker"), speaker_labels)
+            start_seconds = self._optional_seconds(
+                segment.get("start_seconds", segment.get("start"))
+            )
+            end_seconds = self._optional_seconds(
+                segment.get("end_seconds", segment.get("end"))
+            )
+
+            if turns and turns[-1]["speaker"] == speaker:
+                turns[-1]["texts"].append(text)
+                if turns[-1]["start_seconds"] is None:
+                    turns[-1]["start_seconds"] = start_seconds
+                if end_seconds is not None:
+                    turns[-1]["end_seconds"] = end_seconds
+                continue
+
+            turns.append(
+                {
+                    "speaker": speaker,
+                    "texts": [text],
+                    "start_seconds": start_seconds,
+                    "end_seconds": end_seconds,
+                }
+            )
+
+        return turns
+
+    def _display_speaker_label(self, raw_speaker: Any, labels: dict[str, str]) -> str:
+        speaker = str(raw_speaker or "").strip()
+        if not speaker:
+            return "Спикер неизвестен"
+        if speaker not in labels:
+            labels[speaker] = f"Спикер {len(labels) + 1}"
+        return labels[speaker]
+
+    def _format_speaker_turn(self, turn: dict[str, Any]) -> str:
+        time_prefix = self._format_time_prefix(
+            turn.get("start_seconds"),
+            turn.get("end_seconds"),
+        )
+        text = " ".join(str(part).strip() for part in turn.get("texts") or [] if part)
+        return f"{time_prefix}{turn['speaker']}:\n{text}"
+
+    def _optional_seconds(self, value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            return None
+        if seconds < 0:
+            return None
+        return seconds
+
+    def _format_time_prefix(self, start_seconds: Any, end_seconds: Any) -> str:
+        start = self._format_seconds(start_seconds)
+        end = self._format_seconds(end_seconds)
+        if start and end:
+            return f"[{start}-{end}] "
+        if start:
+            return f"[{start}] "
+        return ""
+
+    def _format_seconds(self, value: Any) -> str:
+        if value is None:
+            return ""
+        total_seconds = int(round(float(value)))
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
 
     def _format_postprocessing_result(self, result: dict) -> str:
         text = str(result.get("text") or "").strip() or "[empty post-processing result]"
