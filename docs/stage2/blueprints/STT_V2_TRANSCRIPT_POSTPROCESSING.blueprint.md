@@ -1597,7 +1597,18 @@ Required tests:
 
 ## 12. Future DOCX Export Blueprint
 
-DOCX is the final export gate, not an immediate implementation slice.
+DOCX was originally planned as the final post-processing export gate. A generic
+message-level DOCX export now exists as a separate Gate 8 extension path; its
+compatibility fallback is `simple_mvp`, and the implemented rich-formatting
+profile is `semantic_chat_v1` when structured selected-message HTML is available.
+
+For current message-level export rules, source precedence, semantic formatting
+scope and no-leak checks, use
+`docs/stage2/contracts/STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md` as the source of
+truth.
+
+The specialized post-processing DOCX path below remains future work for exports
+that must be based specifically on `PostProcessingResultV1`.
 
 ### 12.1. Endpoint/File API Path
 
@@ -1636,6 +1647,10 @@ Minimal layout:
 - processed text/sections;
 - optional warnings;
 - export timestamp.
+
+If the exported processed result contains structured sections, tables, lists or
+speaker blocks, the future post-processing renderer should align with
+`semantic_chat_v1` rather than flattening the result to plain text.
 
 ### 12.3. No-secrets Checks
 
@@ -1827,6 +1842,7 @@ Exit criteria:
 
 - sidecar endpoint exports DOCX from `PostProcessingResultV1`;
 - DOCX opens;
+- semantic fixtures are preserved when `semantic_chat_v1` is requested;
 - no-secrets scan passes;
 - no raw transcript/provider JSON/logs/internal URLs included by default;
 - OpenWebUI file API upload is either proven or deferred explicitly.

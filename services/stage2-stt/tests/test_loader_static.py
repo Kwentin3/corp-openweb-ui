@@ -92,6 +92,19 @@ def test_loader_docx_action_payload_includes_openwebui_action_envelope():
     assert "operation: 'export_message_docx'" in action_block
 
 
+def test_loader_docx_request_uses_semantic_html_without_fake_markdown():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function buildMessageDocxRequest")
+    end = source.index("function extractScopedMessageText", start)
+    request_block = source[start:end]
+
+    assert "const html = extractScopedMessageHtml(content);" in request_block
+    assert "message_markdown: null" in request_block
+    assert "message_html: html" in request_block
+    assert "formatting_profile: html ? 'semantic_chat_v1' : 'simple_mvp'" in request_block
+    assert "message_markdown: text" not in request_block
+
+
 def test_loader_docx_extraction_avoids_global_response_content_container():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function extractScopedMessageText")
@@ -99,7 +112,12 @@ def test_loader_docx_extraction_avoids_global_response_content_container():
     extract_block = source[start:end]
 
     assert "content.cloneNode(true)" in extract_block
-    assert "button, svg, textarea, input, select, script, style, noscript" in extract_block
+    assert "cleanDocxClone(clone)" in extract_block
+    assert "function extractScopedMessageHtml" in extract_block
+    assert "sanitizeDocxHtml(clone)" in extract_block
+    assert "DOCX_REMOVE_SELECTOR" in source
+    assert "node.removeAttribute(attribute.name)" in extract_block
+    assert "safeDocxHref(attribute.value)" in extract_block
     assert "document.querySelector('#response-content-container')" not in source
 
 

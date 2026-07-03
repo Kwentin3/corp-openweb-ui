@@ -98,6 +98,7 @@ provider setup, usage analytics and web-search.
 | [VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md](research/VL_OCR_API_PROVIDER_SHORTLIST_RESEARCH.md) | Historical V1 broad baseline; useful for Mistral/Azure/Document AI comparison but not the main corrected OCR-VL shortlist. |
 | [DOMAIN_MAP.md](DOMAIN_MAP.md) | Карта инженерных доменов Stage 2. |
 | [CONTRACT_BOUNDARIES.md](CONTRACT_BOUNDARIES.md) | Доменные границы и versioned internal contracts. |
+| [STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md](contracts/STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md) | Message-level DOCX export contract; `simple_mvp` fallback and implemented `semantic_chat_v1` formatting profile. |
 | [EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md](EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md) | Reusable pattern for adding OpenWebUI-facing features without defaulting to a fork. |
 | [IMPLEMENTATION_GATES.md](IMPLEMENTATION_GATES.md) | Gates перед implementation planning. |
 | [ENGINEERING_BACKLOG.md](ENGINEERING_BACKLOG.md) | Planning backlog без issue-tracker семантики. |

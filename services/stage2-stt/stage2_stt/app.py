@@ -594,6 +594,9 @@ def _raise_message_docx_http_error(exc: MessageDocxExportError) -> None:
         "message_docx_no_safe_source": 422,
         "message_docx_access_denied": 403,
         "message_docx_no_leak_check_failed": 422,
+        "message_docx_unsupported_formatting_profile": 422,
+        "message_docx_unsafe_html": 422,
+        "message_docx_structured_source_unavailable": 422,
     }
     raise HTTPException(
         status_code=status_by_code.get(exc.code, 500),

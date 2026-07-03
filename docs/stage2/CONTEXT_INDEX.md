@@ -430,6 +430,9 @@ Read first:
 - [STT v2 diarization proof contract](acceptance/STT_V2_DIARIZATION_PROOF_CONTRACT.md)
 - [STT v2 Gate 1-2 env contract](config/STT_V2_GATE_1_2_ENV_CONTRACT.md)
 - [STT v2 backward compatibility contract](contracts/STT_V2_BACKWARD_COMPATIBILITY_CONTRACT.md)
+- [STT v2 message-level DOCX export contract](contracts/STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md)
+- [STT v2 message-level DOCX export runbook](operations/STT_V2_MESSAGE_DOCX_EXPORT_RUNBOOK.md)
+- [STT v2 message-level DOCX export implementation proof](../reports/2026-07-03/STT_V2_MESSAGE_DOCX_EXPORT_IMPLEMENTATION_PROOF.report.md)
 - [STT v2 Gate 1-2 acceptance matrix](acceptance/STT_V2_GATE_1_2_ACCEPTANCE_MATRIX.md)
 - [STT v2 Gate 1-2 implementation boundary](implementation/STT_V2_GATE_1_2_IMPLEMENTATION_BOUNDARY.md)
 - [STT v2 Gate 1-2 proof report template](acceptance/STT_V2_GATE_1_2_PROOF_REPORT_TEMPLATE.md)
@@ -479,6 +482,9 @@ Comment:
   `stage2-stt` sidecar failure.
 - Do not re-plan STT from zero and do not introduce a separate user-facing STT
   sidecar GUI for the MVP.
+- Message-level DOCX export is a separate Gate 8 extension path. The implemented
+  fallback profile is `simple_mvp`; semantic chat formatting is implemented as
+  `semantic_chat_v1` in the message-level DOCX contract.
 
 ## Брокерские отчеты / 3-НДФЛ
 

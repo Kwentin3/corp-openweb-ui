@@ -1,6 +1,6 @@
 # STT v2 Message-Level DOCX Export Runbook
 
-Status: MVP operator runbook.
+Status: MVP operator runbook with semantic formatting notes.
 
 Date: 2026-07-03.
 
@@ -8,6 +8,12 @@ Date: 2026-07-03.
 
 Message-level DOCX export adds a DOCX button under completed assistant messages
 in OpenWebUI. A click exports only that selected assistant message.
+
+Current runtime behavior uses `semantic_chat_v1` when the loader can send
+sanitized selected-message HTML. The `simple_mvp` profile remains as a
+compatibility fallback when only plain text is available. Semantic export
+preserves document structure visible in chat: headings, paragraphs, lists,
+tables, blockquotes, links and code blocks.
 
 It does not export:
 
@@ -17,6 +23,10 @@ It does not export:
 - attachments/images/tool artifacts;
 - raw provider payloads;
 - hidden prompts or internal config.
+
+It is not expected to clone OpenWebUI CSS pixel-for-pixel. Semantic parity is the
+goal: the DOCX should remain readable and structurally equivalent to the visible
+message.
 
 ## 2. Runtime Components
 
@@ -102,6 +112,23 @@ Use a normal authenticated OpenWebUI session.
 8. Confirm previous/next chat messages and toolbar labels are absent.
 9. Repeat for an STT transcript assistant message.
 10. Repeat for an STT post-processing result message.
+
+When `semantic_chat_v1` is active, rich formatting should be preserved as
+document semantics. If only `simple_mvp` fallback is used, rich formatting may be
+simplified and the result should carry a typed degradation warning.
+
+Additional proof for `semantic_chat_v1` rollout:
+
+1. Generate an assistant message containing headings, paragraphs, nested lists,
+   a markdown table, a blockquote, a link and a fenced code block.
+2. Export the message to DOCX.
+3. Open the DOCX in Word, LibreOffice or `python-docx`.
+4. Confirm tables remain tables, lists remain lists, links remain links and code
+   remains a monospace block.
+5. Confirm no toolbar controls, hidden config, raw HTML, script/style/event
+   handlers, prompt bodies, provider payloads or internal URLs are present.
+6. Repeat on a plain-text-only message and confirm a typed degradation warning or
+   typed refusal, depending on the selected fallback mode.
 
 ## 7. Failure Handling
 

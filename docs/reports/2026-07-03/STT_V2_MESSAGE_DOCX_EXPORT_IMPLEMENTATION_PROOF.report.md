@@ -401,3 +401,97 @@ Follow-up verdict:
 ```text
 SERVER_LOADER_ENVELOPE_FIX_DEPLOYED_BROWSER_RETRY_PENDING
 ```
+
+## 9. Follow-Up: Semantic Chat Formatting Gap
+
+Observed product gap after successful browser download:
+
+```text
+The DOCX export is scoped and openable, but rich assistant-message formatting is
+simplified compared with the chat view.
+```
+
+Current implementation boundary:
+
+- loader extracts scoped visible text from the selected assistant message;
+- `message_text` and `message_markdown` are populated from that plain-text
+  extraction;
+- `message_html` is null;
+- sidecar renderer uses the `simple_mvp` profile and a small markdown subset.
+
+Interpretation:
+
+The behavior is consistent with the implemented MVP, but it does not satisfy the
+new product expectation that "DOCX exports what the user sees in chat" for rich
+messages containing tables, nested lists, links, blockquotes or code blocks.
+
+Documentation/contract follow-up:
+
+- `STT_V2_MESSAGE_DOCX_EXPORT_CONTRACT.md` now defines the target
+  `semantic_chat_v1` formatting profile;
+- `semantic_chat_v1` requires structured markdown or sanitized selected-message
+  HTML before falling back to plain text;
+- `simple_mvp` remains the implemented compatibility profile until code and proof
+  are added;
+- future implementation must prove semantic fixtures, sanitizer behavior,
+  no-leak checks and typed degradation/refusal.
+
+Follow-up verdict:
+
+```text
+DOCX_DELIVERY_MVP_PASS_SEMANTIC_FORMATTING_TARGET_DOCUMENTED
+```
+
+## 10. Follow-Up: Semantic Chat Formatting Implementation
+
+Implementation summary:
+
+- loader now builds `semantic_chat_v1` requests when sanitized selected-message
+  HTML is available;
+- loader no longer sets `message_markdown` to a plain-text duplicate;
+- sidecar accepts `semantic_chat_v1` in `MessageDocxFormattingProfileV1`;
+- sidecar renders semantic HTML through the existing `DocxExportAdapterFactory`
+  path without adding a new runtime dependency;
+- sidecar preserves headings, paragraphs, lists, tables, blockquotes, links and
+  code blocks as DOCX document semantics;
+- `simple_mvp` remains available as fallback when structured source is absent;
+- fallback returns `message_docx_formatting_degraded`;
+- unsafe HTML links return typed refusal `message_docx_unsafe_html`.
+
+Local proof:
+
+```text
+python -m pytest -q services/stage2-stt/tests/test_message_docx.py
+13 passed in 1.50s
+
+python -m pytest -q services/stage2-stt/tests/test_loader_static.py
+10 passed in 0.46s
+
+python -m pytest -q services/stage2-stt/tests/test_openwebui_action.py
+14 passed in 0.74s
+
+python -m pytest -q services/stage2-stt/tests
+98 passed in 3.53s
+
+python -m compileall -q services/stage2-stt
+pass
+
+node --check deploy/openwebui-static/loader.js
+pass
+```
+
+Acceptance added:
+
+- semantic HTML fixture preserves visible chat structure in generated DOCX;
+- generated DOCX contains a real table instead of flattened table text;
+- generated DOCX contains a hyperlink relationship;
+- fallback warning is asserted when structured source is unavailable;
+- unsafe JavaScript link is rejected through typed sidecar error;
+- loader static proof asserts `message_markdown: null`,
+  `message_html: html`, and `semantic_chat_v1` request selection.
+
+Follow-up verdict:
+
+```text
+SEMANTIC_DOCX_LOCAL_PASS_SERVER_DEPLOY_PENDING
+```

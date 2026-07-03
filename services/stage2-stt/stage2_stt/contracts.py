@@ -347,7 +347,7 @@ class PostProcessingResultV1(Stage2Model):
 
 MessageDocxSourceV1 = Literal["openwebui_chat_api", "dom", "action_body", "artifact"]
 MessageDocxDeliveryV1 = Literal["base64", "download_url", "openwebui_file_id"]
-MessageDocxFormattingProfileV1 = Literal["simple_mvp"]
+MessageDocxFormattingProfileV1 = Literal["simple_mvp", "semantic_chat_v1"]
 
 
 class MessageDocxSafeMetadataV1(Stage2Model):

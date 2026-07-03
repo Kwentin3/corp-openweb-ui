@@ -88,6 +88,8 @@
 		message_docx_access_denied: '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a DOCX-\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0443.',
 		message_docx_no_leak_check_failed: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u043e\u0442\u043a\u043b\u043e\u043d\u0451\u043d \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.'
 	});
+	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status]';
+	const DOCX_ALLOWED_HTML_TAGS = new Set(['a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
 		loading_ffmpeg: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 FFmpeg...',
@@ -597,6 +599,7 @@
 		if (!text) {
 			throw stageError('message_docx_empty_message');
 		}
+		const html = extractScopedMessageHtml(content);
 		const messageId = messageIdFromRoot(root);
 		return {
 			schema_version: 'MessageDocxExportRequestV1',
@@ -605,8 +608,8 @@
 			message_id: messageId,
 			message_role: 'assistant',
 			message_text: text,
-			message_markdown: text,
-			message_html: null,
+			message_markdown: null,
+			message_html: html,
 			source: 'dom',
 			safe_metadata: {
 				chat_title: safeDocumentTitle(),
@@ -619,14 +622,14 @@
 				include_chat_title: true,
 				include_model_name: true,
 				include_timestamp: true,
-				formatting_profile: 'simple_mvp'
+				formatting_profile: html ? 'semantic_chat_v1' : 'simple_mvp'
 			}
 		};
 	}
 
 	function extractScopedMessageText(content) {
 		const clone = content.cloneNode(true);
-		clone.querySelectorAll('button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status]').forEach((node) => node.remove());
+		cleanDocxClone(clone);
 		const blocks = clone.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, blockquote, td, th');
 		const parts = [];
 		for (const block of blocks) {
@@ -637,6 +640,43 @@
 		}
 		const text = parts.length ? parts.join('\n') : normalizeDocxText(clone.textContent || '');
 		return text.replace(/\n{3,}/g, '\n\n').trim();
+	}
+
+	function extractScopedMessageHtml(content) {
+		const clone = content.cloneNode(true);
+		cleanDocxClone(clone);
+		sanitizeDocxHtml(clone);
+		const html = String(clone.innerHTML || '').trim();
+		return html || null;
+	}
+
+	function cleanDocxClone(clone) {
+		clone.querySelectorAll(DOCX_REMOVE_SELECTOR).forEach((node) => node.remove());
+		clone.querySelectorAll('[hidden], [aria-hidden="true"]').forEach((node) => node.remove());
+	}
+
+	function sanitizeDocxHtml(root) {
+		// Preserve message semantics for DOCX while stripping OpenWebUI chrome and hidden attributes.
+		for (const node of Array.from(root.querySelectorAll('*'))) {
+			const tag = String(node.tagName || '').toLowerCase();
+			if (!DOCX_ALLOWED_HTML_TAGS.has(tag)) {
+				node.replaceWith(...Array.from(node.childNodes));
+				continue;
+			}
+			for (const attribute of Array.from(node.attributes)) {
+				const name = String(attribute.name || '').toLowerCase();
+				if (tag === 'a' && name === 'href' && safeDocxHref(attribute.value)) {
+					node.setAttribute('href', attribute.value.trim());
+				} else {
+					node.removeAttribute(attribute.name);
+				}
+			}
+		}
+	}
+
+	function safeDocxHref(value) {
+		const href = String(value || '').trim().toLowerCase();
+		return href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:');
 	}
 
 	function normalizeDocxText(text) {

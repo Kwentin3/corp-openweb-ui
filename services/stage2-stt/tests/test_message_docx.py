@@ -56,6 +56,99 @@ def test_message_docx_export_generates_openable_docx_with_selected_message_only(
     assert "toolbar-control-sentinel" not in text
 
 
+def test_message_docx_semantic_html_preserves_visible_chat_structure():
+    html = (
+        "<h2>Interview Notes</h2>"
+        "<p>Selected <strong>assistant</strong> <em>message</em> with "
+        '<a href="https://example.com/source">source link</a>.</p>'
+        "<ul><li>first point<ul><li>nested point</li></ul></li><li>second point</li></ul>"
+        "<blockquote>quoted decision</blockquote>"
+        "<table><thead><tr><th>Speaker</th><th>Decision</th></tr></thead>"
+        "<tbody><tr><td>Speaker 1</td><td>Approve</td></tr></tbody></table>"
+        "<pre><code>code block</code></pre>"
+    )
+    request = MessageDocxExportRequestV1.model_validate(
+        _request(
+            message_text="Interview Notes\nSelected assistant message.",
+            message_markdown=None,
+            message_html=html,
+            options={
+                "include_chat_title": True,
+                "include_model_name": True,
+                "include_timestamp": True,
+                "formatting_profile": "semantic_chat_v1",
+            },
+        )
+    )
+
+    result = MessageDocxExportService(config=load_stt_config({})).export(request)
+    payload = base64.b64decode(result.download_payload_base64)
+    document = Document(BytesIO(payload))
+    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    table_rows = [
+        [cell.text for cell in row.cells]
+        for table in document.tables
+        for row in table.rows
+    ]
+    hyperlink_targets = {
+        rel.target_ref
+        for rel in document.part.rels.values()
+        if "hyperlink" in rel.reltype
+    }
+
+    assert result.warnings == []
+    assert "Interview Notes" in text
+    assert "first point" in text
+    assert "nested point" in text
+    assert "quoted decision" in text
+    assert "code block" in text
+    assert any(row == ["Speaker", "Decision"] for row in table_rows)
+    assert any(row == ["Speaker 1", "Approve"] for row in table_rows)
+    assert "https://example.com/source" in hyperlink_targets
+
+
+def test_message_docx_semantic_profile_warns_when_structured_source_is_unavailable():
+    request = MessageDocxExportRequestV1.model_validate(
+        _request(
+            message_text="Plain selected assistant message.",
+            message_markdown=None,
+            message_html=None,
+            options={
+                "include_chat_title": True,
+                "include_model_name": True,
+                "include_timestamp": True,
+                "formatting_profile": "semantic_chat_v1",
+            },
+        )
+    )
+
+    result = MessageDocxExportService(config=load_stt_config({})).export(request)
+
+    assert result.warnings == ["message_docx_formatting_degraded"]
+
+
+def test_message_docx_semantic_profile_refuses_unsafe_html_links():
+    request = MessageDocxExportRequestV1.model_validate(
+        _request(
+            message_text="Unsafe link",
+            message_markdown=None,
+            message_html='<p><a href="javascript:alert(1)">bad</a></p>',
+            options={
+                "include_chat_title": True,
+                "include_model_name": True,
+                "include_timestamp": True,
+                "formatting_profile": "semantic_chat_v1",
+            },
+        )
+    )
+    service = MessageDocxExportService(config=load_stt_config({}))
+
+    with pytest.raises(MessageDocxExportError) as exc_info:
+        service.export(request)
+
+    assert exc_info.value.code == "message_docx_unsafe_html"
+
+
 def test_message_docx_export_refuses_non_assistant_role_with_typed_error():
     request = MessageDocxExportRequestV1.model_validate(_request(message_role="user"))
     service = MessageDocxExportService(config=load_stt_config({}))
@@ -144,6 +237,30 @@ def test_message_docx_route_returns_typed_terminal_refusal(monkeypatch):
     assert response.json()["detail"]["code"] == "message_docx_message_too_large"
 
 
+def test_message_docx_route_returns_typed_unsafe_html_refusal(monkeypatch):
+    monkeypatch.setenv("STAGE2_STT_INTERNAL_API_KEY", INTERNAL_TOKEN)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/stage2-api/message-docx/exports",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        json=_request(
+            message_text="Unsafe link",
+            message_markdown=None,
+            message_html='<p><a href="javascript:alert(1)">bad</a></p>',
+            options={
+                "include_chat_title": True,
+                "include_model_name": True,
+                "include_timestamp": True,
+                "formatting_profile": "semantic_chat_v1",
+            },
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "message_docx_unsafe_html"
+
+
 def test_message_docx_uses_factory_anchor():
     assert "DocxExportAdapterFactory.create" in FACTORY_REQUIRED
     assert "must not call python-docx directly" in FORBIDDEN
@@ -157,7 +274,7 @@ def _request(**overrides):
         "message_id": "msg-1",
         "message_role": "assistant",
         "message_text": "Selected assistant message.",
-        "message_markdown": "Selected assistant message.",
+        "message_markdown": None,
         "message_html": None,
         "source": "dom",
         "safe_metadata": {

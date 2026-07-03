@@ -302,7 +302,7 @@ def test_action_exports_message_docx_without_chat_content(monkeypatch):
                         "message_id": "msg-1",
                         "message_role": "assistant",
                         "message_text": "Selected assistant message.",
-                        "message_markdown": "Selected assistant message.",
+                        "message_markdown": None,
                         "message_html": None,
                         "source": "dom",
                         "safe_metadata": {
