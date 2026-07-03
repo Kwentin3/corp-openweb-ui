@@ -37,6 +37,8 @@ Gate 3+ only:
 - quick action contracts;
 - prompt execution contracts;
 - `PostProcessingRequestV1`;
+- `PostProcessingPromptDraftRequestV1`;
+- `PostProcessingPromptDraftV1`;
 - `PostProcessingResultV1`;
 - chunking map/reduce contracts;
 - DOCX contracts.
@@ -320,7 +322,37 @@ Rules:
 - missing/expired refs return typed failures;
 - current in-memory job store is not runtime-sufficient for Gate 2 Done.
 
-## 12. Acceptance Criteria
+## 12. PostProcessingPromptDraftV1
+
+Gate 4 native-chat quick actions use a render-only prompt draft before ordinary
+OpenWebUI chat submission.
+
+```text
+transcript_ref: string
+template_id: string
+command: string
+label: string
+openwebui_prompt_id: string
+prompt_version: string | null
+prompt_body_hash: string
+transcript_hash: string | null
+prompt_text: string
+warnings: string[]
+artifact_scope: ArtifactScopeV1 | null
+```
+
+Rules:
+
+- draft generation resolves `template_id` through `PromptCatalogAdapter`;
+- draft generation reads transcript only through `TranscriptStoreAdapter`;
+- prompt input is rendered from normalized transcript projection only;
+- no raw provider JSON, secrets, logs or hidden config may enter `prompt_text`;
+- draft creation does not create `PostProcessingResultV1`;
+- quick actions may submit `prompt_text` through the native OpenWebUI composer;
+- if composer submission cannot be proven, the prompt may remain as a visible
+  draft and normal chat must continue to work.
+
+## 13. Acceptance Criteria
 
 This contract is satisfied when:
 
@@ -330,6 +362,8 @@ This contract is satisfied when:
 - raw transcript chat output uses speaker-labeled display when normalized
   speaker segments are available;
 - `ArtifactScopeV1` contains only available identifiers;
+- native-chat prompt drafts use the same artifact access and prompt access
+  checks as server-side post-processing execution;
 - post-processing access preserves OpenWebUI file identity continuity across
   browser normalization;
 - `ArtifactChainV1` records lineage without execution behavior;

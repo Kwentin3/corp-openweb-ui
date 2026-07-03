@@ -74,9 +74,10 @@ Accepted product decisions:
 
 - `TranscriptResultV1` is the canonical product transcript artifact.
 - Quick action click means template selection, user confirmation and permission
-  to execute the selected post-processing prompt.
-- Target quick-action UX is auto-run. Composer insertion is proof/fallback mode
-  only.
+  to create a native OpenWebUI user prompt turn for the selected template.
+- Target quick-action UX is native chat submission: draft prompt, submit through
+  the ordinary composer, receive a normal assistant message. Server-side
+  execution remains a compatibility/fallback path.
 - DOCX is a future final export gate after structured transcript preservation,
   artifact lineage, prompt routing, prompt execution and `PostProcessingResultV1`
   are stable.
@@ -339,11 +340,12 @@ MVP must store at least:
 - prepared audio reference/checksum/profile;
 - STT job record;
 - normalized `TranscriptResultV1`;
-- `TranscriptProjectionV1` for executed post-processing;
+- `TranscriptProjectionV1` for executed post-processing or prompt draft proof;
 - `PromptInputVariablesV1`;
 - `PromptExecutionSnapshotV1`;
 - selected prompt metadata/version/hash;
 - `PostProcessingRequestV1`;
+- `PostProcessingPromptDraftV1`;
 - `PostProcessingResultV1`.
 
 ### 5.6. Quick Action Auto-run
@@ -351,21 +353,24 @@ MVP must store at least:
 ```text
 loader requests UI-safe quick-action catalog
 -> user clicks "Краткий пересказ" or "Протокол встречи"
--> click confirms selected template and execution
+-> click confirms selected template and native chat submission intent
 -> loader/action sends transcript_ref + template_id + user/chat context + the
    same OpenWebUI file id that created transcript_ref
 -> sidecar resolves OpenWebUI Prompt metadata and access
 -> sidecar builds prompt input from normalized TranscriptResultV1
--> executor runs selected prompt
--> sidecar stores PostProcessingResultV1 and chain edge
--> result returns to the same OpenWebUI chat
+-> sidecar returns PostProcessingPromptDraftV1 with rendered prompt_text
+-> loader places prompt_text into the ordinary OpenWebUI composer
+-> loader submits through native OpenWebUI send control when available
+-> normal assistant response appears as the next chat message
 ```
 
 Quick action must never carry prompt body. It carries only a stable prompt/action
-reference and UI-safe metadata.
+reference and UI-safe metadata before the user clicks. After click, the rendered
+prompt draft becomes the visible user prompt sent through OpenWebUI chat.
 
-Composer insertion is allowed only as proof/fallback mode when auto-run execution
-path is not yet proven. It is not the target product UX.
+If native send cannot be found safely, the loader may leave the prompt draft in
+the composer with an explicit status instead of silently falling back to
+server-side execution.
 
 ### 5.7. Missing Prompt
 
@@ -845,7 +850,32 @@ Validation:
 - prompt access must be proven for the requesting user/context;
 - prompt input must be built only from normalized transcript/projection data.
 
-### 6.12. PostProcessingResultV1
+### 6.12. PostProcessingPromptDraftV1
+
+```text
+transcript_ref: string
+template_id: string
+command: string
+label: string
+openwebui_prompt_id: string
+prompt_version: string | null
+prompt_body_hash: string
+transcript_hash: string | null
+prompt_text: string
+warnings: string[]
+artifact_scope: ArtifactScopeV1 | null
+```
+
+Rules:
+
+- draft is render-only and does not create `PostProcessingResultV1`;
+- draft uses the same prompt access, artifact access, long transcript and
+  speaker-required checks as server-side execution;
+- `prompt_text` is the visible native user prompt submitted through OpenWebUI;
+- `prompt_text` must be built from normalized transcript projection only;
+- loader must not hardcode prompt bodies.
+
+### 6.13. PostProcessingResultV1
 
 ```text
 result_id: string
@@ -1013,33 +1043,33 @@ Interface:
 
 ```text
 execute(request, template, prompt_variables) -> PostProcessingResultV1
+draft_prompt(request, template, prompt_variables) -> PostProcessingPromptDraftV1
 ```
 
 Implementation options:
 
-1. Native OpenWebUI execution path if API proof can capture output safely.
+1. Render-only prompt draft plus native OpenWebUI composer submission.
 2. Sidecar-to-OpenWebUI internal API path if auth, model selection and output
    capture are approved.
-3. Composer insertion fallback for proof mode only.
+3. Server-side execution fallback through OpenAI-compatible executor.
 
 Recommendation:
 
-- product target is auto-run;
-- fallback may unblock early proof, but gates must label it as fallback and not
-  product-complete quick action UX.
+- product target is native chat submission;
+- server-side execution may unblock proof/fallback, but must not be presented as
+  the primary quick-action UX.
 
 Auto-run proof plan:
 
-1. Identify the OpenWebUI/internal API path that can execute a selected Prompt
-   for the current user/session.
-2. Prove how the output is captured as `PostProcessingResultV1`.
-3. Prove model selection rules: default model, prompt-specific model or user
-   selected model.
-4. Prove how the result is linked back to the originating chat/message/artifact
-   scope.
-5. Prove execution failure behavior: typed error, no partial result, base chat
-   unaffected.
-6. Keep composer insertion as proof/fallback mode only.
+1. Render selected Prompt into `PostProcessingPromptDraftV1`.
+2. Submit `prompt_text` through the ordinary OpenWebUI composer when the native
+   send control is available.
+3. If native send is unavailable, leave a visible draft and keep normal chat
+   usable.
+4. Keep server-side `PostProcessingResultV1` execution as compatibility/fallback
+   only.
+5. Prove execution failure behavior: typed error, no partial hidden result, base
+   chat unaffected.
 
 ### 7.6. UiActionAdapter
 
@@ -1047,7 +1077,7 @@ Interface:
 
 ```text
 list_quick_actions(transcript_ref, user_context) -> UIAction[]
-submit_quick_action(action_id, transcript_ref, options) -> PostProcessingResultV1
+submit_quick_action(action_id, transcript_ref, options) -> native chat prompt turn
 ```
 
 Implementation:
@@ -1754,10 +1784,11 @@ Exit criteria:
 Exit criteria:
 
 - quick actions are visible after successful transcript;
-- click confirms template selection and execution;
-- selected prompt executes automatically through approved path;
-- result returns to same chat workflow;
-- fallback composer insertion, if used in proof, is labelled non-target;
+- click confirms template selection and native prompt submission intent;
+- selected prompt is rendered as `PostProcessingPromptDraftV1`;
+- prompt draft is submitted through ordinary OpenWebUI chat when possible;
+- assistant response returns as the next normal chat message;
+- server-side post-processing execution, if used in proof, is labelled fallback;
 - failure path is safe.
 
 ### Gate 5. Prompt Catalog Access Proof

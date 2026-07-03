@@ -12,6 +12,7 @@ from stage2_stt.contracts import (
     ArtifactAccessContextV1,
     OpenWebUIFileReferenceV1,
     OpenWebUITranscriptionEnvelopeV1,
+    PostProcessingPromptDraftRequestV1,
     PostProcessingRequestV1,
     PromptCatalogUserContextV1,
     SourceMediaMetadataV1,
@@ -21,6 +22,8 @@ from stage2_stt.contracts import (
 )
 from stage2_stt.jobs import create_transcription_job
 from stage2_stt.post_processing import (
+    FACTORY_REQUIRED,
+    FORBIDDEN,
     PostProcessingError,
     PostProcessingService,
     build_transcript_projection,
@@ -39,6 +42,11 @@ class FakeExecutor:
         return "Processed transcript result"
 
 
+def test_post_processing_factory_antidrift_anchors():
+    assert "PostProcessingExecutorFactory.create" in FACTORY_REQUIRED
+    assert "must not call OpenAI-compatible post-processing directly" in FORBIDDEN
+
+
 def test_post_processing_executes_template_and_stores_result(tmp_path):
     config = _config(tmp_path)
     _create_prompt_db(tmp_path / "webui.db")
@@ -46,7 +54,7 @@ def test_post_processing_executes_template_and_stores_result(tmp_path):
         tmp_path / "webui.db",
         prompt_id="prompt-summary",
         command="stt-summary",
-        name="Краткий пересказ",
+        name="Summary",
         content="Summarize:\n{{TRANSCRIPT_WITH_SPEAKERS}}",
         template_id="stage2.stt.summary.v1",
         requires_speakers=False,
@@ -77,6 +85,42 @@ def test_post_processing_executes_template_and_stores_result(tmp_path):
     assert "Summarize" not in result.model_dump_json()
     assert "speaker_0: hello" in executor.rendered_prompts[0]
     assert _artifact_count(config.artifact_store_path, "post_processing_result") == 1
+
+
+def test_post_processing_drafts_native_chat_prompt_without_storing_result(tmp_path):
+    config = _config(tmp_path)
+    _create_prompt_db(tmp_path / "webui.db")
+    _insert_prompt(
+        tmp_path / "webui.db",
+        prompt_id="prompt-summary",
+        command="stt-summary",
+        name="Краткий пересказ",
+        content="Summarize:\n{{TRANSCRIPT_WITH_SPEAKERS}}",
+        template_id="stage2.stt.summary.v1",
+        requires_speakers=False,
+    )
+    store = ArtifactStoreFactory(config).create()
+    transcript_ref = _put_transcript(config, store, _speaker_transcript())
+    service = PostProcessingService(config=config, artifact_store=store, executor=FakeExecutor())
+
+    draft = service.draft_prompt(
+        PostProcessingPromptDraftRequestV1(
+            transcript_ref=transcript_ref,
+            template_id="stage2.stt.summary.v1",
+            user_context=PromptCatalogUserContextV1(user_id="user-1", user_role="user"),
+            artifact_context=_artifact_context(),
+        )
+    )
+
+    assert draft.transcript_ref == transcript_ref
+    assert draft.template_id == "stage2.stt.summary.v1"
+    assert draft.openwebui_prompt_id == "prompt-summary"
+    assert draft.prompt_body_hash
+    assert draft.transcript_hash
+    assert "Summarize" in draft.prompt_text
+    assert "speaker_0: hello" in draft.prompt_text
+    assert "raw_provider" not in draft.prompt_text
+    assert _artifact_count(config.artifact_store_path, "post_processing_result") == 0
 
 
 def test_post_processing_refuses_long_transcript_without_chunking(tmp_path):

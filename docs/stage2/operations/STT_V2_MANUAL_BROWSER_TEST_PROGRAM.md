@@ -86,28 +86,30 @@ Expected:
 ## 5. Short Summary
 
 1. Click `Краткий пересказ`.
-2. Wait for completion.
-3. Confirm the processed result appears in the same chat.
+2. Confirm OpenWebUI receives a user prompt draft for the selected template.
+3. Confirm the prompt is submitted through the normal chat composer.
+4. Wait for the next assistant message.
 
 Expected:
 
-- The result is readable.
-- The result is returned in the same OpenWebUI chat.
-- A post-processing result reference is visible.
-- No prompt body, raw provider JSON, token or debug payload is visible.
+- The raw transcript is not mutated with a processed result.
+- The selected template becomes an explicit user prompt turn.
+- The assistant response appears as the next normal OpenWebUI message.
+- No raw provider JSON, token or debug payload is visible.
 
 ## 6. Meeting Protocol
 
 1. Click `Протокол встречи`.
-2. Wait for completion.
-3. Confirm the processed result appears in the same chat.
+2. Confirm OpenWebUI receives a user prompt draft for the selected template.
+3. Confirm the prompt is submitted through the normal chat composer.
+4. Wait for the next assistant message.
 
 Expected:
 
-- The result is readable.
-- The result is returned in the same OpenWebUI chat.
-- A post-processing result reference is visible.
-- No prompt body, raw provider JSON, token or debug payload is visible.
+- The raw transcript is not mutated with a processed result.
+- The selected template becomes an explicit user prompt turn.
+- The assistant response appears as the next normal OpenWebUI message.
+- No raw provider JSON, token or debug payload is visible.
 
 ## 7. Long Transcript Behavior
 
@@ -154,7 +156,8 @@ Mark the browser test `PASS` if:
 - speaker-labeled transcripts are readable when labels are available, with flat
   fallback otherwise;
 - both quick actions are visible;
-- both quick actions return results in the same chat;
+- both quick actions create native prompt turns and receive assistant replies in
+  the same chat;
 - no raw provider/debug/secret content is visible.
 
 Mark `FAIL` if:
@@ -164,4 +167,4 @@ Mark `FAIL` if:
 - transcript never appears;
 - both quick actions are missing;
 - a quick action fails repeatedly;
-- secrets, raw provider payloads or prompt bodies are visible.
+- secrets or raw provider payloads are visible.

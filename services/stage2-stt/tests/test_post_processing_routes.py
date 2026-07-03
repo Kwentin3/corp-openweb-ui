@@ -6,6 +6,19 @@ import uuid
 from fastapi.testclient import TestClient
 
 from stage2_stt.app import create_app
+from stage2_stt.artifact_store import ArtifactStoreFactory
+from stage2_stt.config import load_stt_config
+from stage2_stt.contracts import (
+    ArtifactAccessContextV1,
+    OpenWebUIFileReferenceV1,
+    OpenWebUITranscriptionEnvelopeV1,
+    PreparedAudioMetadataV1,
+    SourceMediaMetadataV1,
+    TranscriptResultV1,
+    TranscriptSegmentV1,
+)
+from stage2_stt.jobs import create_transcription_job
+from stage2_stt.transcript_store import TranscriptArtifactLinks, TranscriptStoreAdapter
 
 
 INTERNAL_TOKEN = "unit-test-internal-token"
@@ -92,10 +105,121 @@ def test_post_processing_template_route_private_prompt_fails_closed(monkeypatch,
     assert response.json()["detail"]["code"] == "prompt_access_denied"
 
 
+def test_post_processing_prompt_draft_route_returns_rendered_prompt(monkeypatch, tmp_path):
+    db_path = tmp_path / "webui.db"
+    artifact_path = tmp_path / "artifacts.sqlite3"
+    _create_prompt_db(db_path)
+    _insert_prompt(
+        db_path,
+        prompt_id="prompt-summary",
+        command="stt-summary",
+        name="Summary",
+        content="Summarize {{TRANSCRIPT_WITH_SPEAKERS}}",
+        template_id="stage2.stt.summary.v1",
+        public=True,
+    )
+    _enable_prompt_catalog(monkeypatch, db_path)
+    monkeypatch.setenv("STAGE2_STT_ARTIFACT_STORE_MODE", "sqlite")
+    monkeypatch.setenv("STAGE2_STT_ARTIFACT_STORE_PATH", str(artifact_path))
+    monkeypatch.setenv("STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS", "60000")
+    config = load_stt_config()
+    store = ArtifactStoreFactory(config).create()
+    transcript_ref = TranscriptStoreAdapter(store=store, config=config).put_transcript(
+        _speaker_transcript(),
+        _links(config),
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/stage2-api/transcription/post-processing/prompt-draft",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        json={
+            "transcript_ref": transcript_ref,
+            "template_id": "stage2.stt.summary.v1",
+            "user_context": {"user_id": "user-1", "user_role": "user", "user_groups": []},
+            "artifact_context": _artifact_context().model_dump(mode="json"),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["transcript_ref"] == transcript_ref
+    assert payload["template_id"] == "stage2.stt.summary.v1"
+    assert payload["openwebui_prompt_id"] == "prompt-summary"
+    assert "Summarize" in payload["prompt_text"]
+    assert "speaker_0: hello" in payload["prompt_text"]
+    assert "raw_provider" not in payload["prompt_text"]
+
+
 def _enable_prompt_catalog(monkeypatch, db_path):
     monkeypatch.setenv("STAGE2_STT_INTERNAL_API_KEY", INTERNAL_TOKEN)
     monkeypatch.setenv("STAGE2_STT_PROMPT_CATALOG_MODE", "openwebui_sqlite")
     monkeypatch.setenv("STAGE2_STT_OPENWEBUI_PROMPT_DB_PATH", str(db_path))
+
+
+def _links(config):
+    envelope = OpenWebUITranscriptionEnvelopeV1(
+        source_context="openwebui",
+        user_id="user-1",
+        user_email="user@example.test",
+        user_role="user",
+        chat_id="chat-1",
+        message_id="message-1",
+        workspace_id="workspace-1",
+        file=OpenWebUIFileReferenceV1(
+            file_id="file-1",
+            filename="sample.mp3",
+            mime_type="audio/mpeg",
+            size_bytes=9,
+        ),
+        selected_output_profile="mp3_high_compat",
+    )
+    job = create_transcription_job(
+        config=config,
+        job_id="stt-route-test-job",
+        source_media=SourceMediaMetadataV1(
+            file_name="sample.mp3",
+            mime_type="audio/mpeg",
+            size_bytes=9,
+        ),
+        prepared_audio=PreparedAudioMetadataV1(
+            output_profile="mp3_high_compat",
+            mime_type="audio/mpeg",
+            size_bytes=9,
+        ),
+        storage_available=False,
+    ).model_copy(update={"status": "completed"})
+    return TranscriptArtifactLinks(job=job, envelope=envelope)
+
+
+def _speaker_transcript():
+    return TranscriptResultV1(
+        text="hello",
+        language="ru",
+        duration_seconds=1.0,
+        segments=[
+            TranscriptSegmentV1(
+                text="hello",
+                start_seconds=0,
+                end_seconds=1,
+                speaker="speaker_0",
+            )
+        ],
+        output_profile="mp3_high_compat",
+        provider_id="lemonfox",
+        adapter_id="lemonfox",
+        warnings=[],
+    )
+
+
+def _artifact_context():
+    return ArtifactAccessContextV1(
+        workspace_id="workspace-1",
+        user_id="user-1",
+        chat_id="chat-1",
+        message_id="message-1",
+        openwebui_file_id="file-1",
+    )
 
 
 def _create_prompt_db(path):

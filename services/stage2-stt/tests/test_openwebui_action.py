@@ -229,6 +229,44 @@ def test_action_executes_postprocessing_with_artifact_context(monkeypatch):
     assert captured["user"]["id"] == "user-1"
 
 
+def test_action_drafts_postprocessing_prompt_without_chat_content(monkeypatch):
+    action = Action()
+    action.valves.internal_api_key = "unit-token"
+    captured = {}
+
+    async def fake_prompt_draft(**kwargs):
+        captured.update(kwargs)
+        return {
+            "template_id": "stage2.stt.summary.v1",
+            "label": "Summary",
+            "prompt_text": "Summarize this transcript:\nhello",
+        }
+
+    monkeypatch.setattr(action, "_call_sidecar_postprocessing_prompt_draft", fake_prompt_draft)
+
+    response = asyncio.run(
+        action.action(
+            {
+                "chat_id": "chat-1",
+                "stage2_stt": {
+                    "operation": "draft_postprocessing_prompt",
+                    "transcript_ref": "art_transcript_reference",
+                    "template_id": "stage2.stt.summary.v1",
+                    "openwebui_file_id": "file-1",
+                },
+            },
+            __user__={"id": "user-1", "role": "user", "groups": ["group-1"]},
+            __metadata__={"chat_id": "chat-1"},
+        )
+    )
+
+    assert response["content"] == ""
+    assert response["stage2_stt_prompt_draft"]["prompt_text"].startswith("Summarize")
+    assert captured["transcript_ref"] == "art_transcript_reference"
+    assert captured["template_id"] == "stage2.stt.summary.v1"
+    assert captured["user"]["id"] == "user-1"
+
+
 def test_action_exports_message_docx_without_chat_content(monkeypatch):
     action = Action()
     action.valves.internal_api_key = "unit-token"

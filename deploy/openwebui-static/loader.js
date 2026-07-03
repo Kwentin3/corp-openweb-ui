@@ -77,6 +77,8 @@
 		source_file_unavailable: '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0432 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438. \u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0437\u0430\u043d\u043e\u0432\u043e.',
 		stt_action_failed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043a STT \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d.',
 		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.',
+		postprocessing_prompt_blocked: '\u0412 \u043f\u043e\u043b\u0435 \u0443\u0436\u0435 \u0435\u0441\u0442\u044c \u0434\u0440\u0443\u0433\u043e\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0438\u043b\u0438 \u043e\u0447\u0438\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043e \u043f\u0435\u0440\u0435\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043c.',
+		postprocessing_submit_unavailable: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0433\u043e\u0442\u043e\u0432, \u043d\u043e \u043a\u043d\u043e\u043f\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438 OpenWebUI \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430.',
 		message_docx_unsupported_role: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u043e\u0432 \u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442\u0430.',
 		message_docx_empty_message: '\u0412 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438 \u043d\u0435\u0442 \u0442\u0435\u043a\u0441\u0442\u0430 \u0434\u043b\u044f DOCX.',
 		message_docx_streaming_message: '\u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430.',
@@ -95,8 +97,9 @@
 		transcribing: '\u041e\u0442\u043f\u0440\u0430\u0432\u043a\u0430 \u0432 STT...',
 		completed: '\u0422\u0435\u043a\u0441\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d \u0432 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.',
 		loading_actions: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439...',
-		action_running: '\u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f...',
-		action_completed: '\u0420\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d.'
+		action_running: '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0440\u043e\u0441\u0430...',
+		action_completed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d \u0432 LLM.',
+		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.'
 	});
 	const state = {
 		filesById: new Map(),
@@ -1204,11 +1207,17 @@
 		button.style.cursor = 'wait';
 		setStatus(status, 'action_running');
 		try {
-			const content = await callPostprocessingAction(file, transcriptRef, template);
-			if (!appendToComposer(content)) {
-				throw stageError('postprocessing_failed', 'Composer is unavailable for post-processing insertion.');
+			const draft = await callPostprocessingPromptDraft(file, transcriptRef, template);
+			const submitStatus = await submitPostprocessingPromptDraft(draft.prompt_text, transcriptRef);
+			if (submitStatus === 'submitted') {
+				setStatus(status, 'action_completed');
+				return;
 			}
-			setStatus(status, 'action_completed');
+			if (submitStatus === 'draft_ready') {
+				setStatus(status, 'action_prompt_ready');
+				return;
+			}
+			throw stageError('postprocessing_submit_unavailable');
 		} catch (error) {
 			button.disabled = false;
 			button.style.opacity = '1';
@@ -1217,16 +1226,16 @@
 		}
 	}
 
-	async function callPostprocessingAction(file, transcriptRef, template) {
+	async function callPostprocessingPromptDraft(file, transcriptRef, template) {
 		const model = await selectedModelId();
 		const payload = {
-			id: `stage2-stt-post-${Date.now()}`,
+			id: `stage2-stt-prompt-${Date.now()}`,
 			chat_id: currentChatId(),
 			session_id: currentSessionId(),
 			model,
 			messages: [],
 			stage2_stt: {
-				operation: 'execute_postprocessing',
+				operation: 'draft_postprocessing_prompt',
 				transcript_ref: transcriptRef,
 				template_id: template.template_id,
 				openwebui_file_id: file.id,
@@ -1240,17 +1249,143 @@
 		});
 		const result = await response.json().catch(() => ({}));
 		if (!response.ok) {
-			throw stageError('postprocessing_failed', result.detail || 'Post-processing action failed.');
+			throw stageError('postprocessing_failed', result.detail || 'Post-processing prompt draft failed.');
 		}
-		const content = String(result.content || '').trim();
-		if (!content || /^STT post-processing failed/i.test(content)) {
-			throw stageError('postprocessing_failed', content || 'Post-processing action returned an empty result.');
+		const draft = result.stage2_stt_prompt_draft;
+		if (!draft || typeof draft.prompt_text !== 'string' || !draft.prompt_text.trim()) {
+			const content = String(result.content || '').trim();
+			throw stageError('postprocessing_failed', content || 'Post-processing prompt draft returned an empty result.');
 		}
-		return content;
+		return draft;
+	}
+
+	async function submitPostprocessingPromptDraft(promptText, transcriptRef) {
+		const composer = findComposer();
+		if (!composer) {
+			return 'failed';
+		}
+		const composerText = (composer.innerText || composer.textContent || '').trim();
+		if (composerText && transcriptRef && !composerText.includes(transcriptRef)) {
+			throw stageError('postprocessing_prompt_blocked');
+		}
+		if (!replaceComposerText(composer, promptText)) {
+			return 'failed';
+		}
+		const submitted = await submitComposer(composer);
+		return submitted ? 'submitted' : 'draft_ready';
+	}
+
+	function findComposer() {
+		return document.querySelector('#message-input-container [contenteditable="true"], [contenteditable="true"]');
+	}
+
+	function replaceComposerText(composer, text) {
+		if (!composer) {
+			return false;
+		}
+		composer.focus();
+		const selection = window.getSelection();
+		if (selection) {
+			const range = document.createRange();
+			range.selectNodeContents(composer);
+			selection.removeAllRanges();
+			selection.addRange(range);
+		}
+		let inserted = false;
+		try {
+			inserted = document.execCommand('insertText', false, text);
+		} catch (_) {
+			inserted = false;
+		}
+		if (!inserted) {
+			composer.textContent = text;
+		}
+		composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+		return true;
+	}
+
+	async function submitComposer(composer) {
+		for (let attempt = 0; attempt < 20; attempt += 1) {
+			const button = findComposerSubmitButton(composer);
+			if (button) {
+				button.click();
+				return true;
+			}
+			await nextFrame();
+		}
+		return false;
+	}
+
+	function findComposerSubmitButton(composer) {
+		const scopes = uniqueElements([
+			composer && composer.closest('form'),
+			document.querySelector('#message-input-container'),
+			composer && composer.closest('#message-input-container')
+		]);
+		const selectors = [
+			'#send-message-button',
+			'[data-testid="send-button"]',
+			'button[type="submit"]',
+			'button[aria-label="Send message"]',
+			'button[aria-label="Send"]',
+			'button[aria-label="\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435"]',
+			'button[aria-label="\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c"]',
+			'button[title="Send message"]',
+			'button[title="Send"]',
+			'button[title="\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435"]',
+			'button[title="\u041e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c"]'
+		];
+		for (const scope of scopes) {
+			for (const selector of selectors) {
+				const button = scope.querySelector(selector);
+				if (isUsableButton(button)) {
+					return button;
+				}
+			}
+			for (const button of scope.querySelectorAll('button')) {
+				if (isUsableButton(button) && isSendButton(button)) {
+					return button;
+				}
+			}
+		}
+		return null;
+	}
+
+	function uniqueElements(elements) {
+		const seen = new Set();
+		const unique = [];
+		for (const element of elements) {
+			if (element && !seen.has(element)) {
+				seen.add(element);
+				unique.push(element);
+			}
+		}
+		return unique;
+	}
+
+	function isUsableButton(button) {
+		if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') {
+			return false;
+		}
+		const rect = button.getBoundingClientRect();
+		return rect.width > 0 && rect.height > 0;
+	}
+
+	function isSendButton(button) {
+		const text = [
+			button.textContent,
+			button.getAttribute('aria-label'),
+			button.getAttribute('title')
+		].join(' ');
+		return /\b(send|submit)\b|\u043e\u0442\u043f\u0440\u0430\u0432/i.test(text);
+	}
+
+	function nextFrame() {
+		return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 	}
 
 	function appendToComposer(text) {
-		const composer = document.querySelector('#message-input-container [contenteditable="true"], [contenteditable="true"]');
+		const composer = findComposer();
 		if (!composer) {
 			return false;
 		}

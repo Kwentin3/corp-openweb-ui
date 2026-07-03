@@ -309,6 +309,27 @@ class PostProcessingRequestV1(Stage2Model):
     artifact_context: ArtifactAccessContextV1
 
 
+class PostProcessingPromptDraftRequestV1(Stage2Model):
+    transcript_ref: str
+    template_id: str
+    user_context: PromptCatalogUserContextV1
+    artifact_context: ArtifactAccessContextV1
+
+
+class PostProcessingPromptDraftV1(Stage2Model):
+    transcript_ref: str
+    template_id: str
+    command: str
+    label: str
+    openwebui_prompt_id: str
+    prompt_version: str | None = None
+    prompt_body_hash: str
+    transcript_hash: str | None = None
+    prompt_text: str
+    warnings: list[str] = Field(default_factory=list)
+    artifact_scope: ArtifactScopeV1 | None = None
+
+
 class PostProcessingResultV1(Stage2Model):
     result_ref: str | None = None
     transcript_ref: str

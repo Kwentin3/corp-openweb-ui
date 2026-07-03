@@ -61,6 +61,13 @@ class Action:
                 metadata=__metadata__ or {},
                 emitter=__event_emitter__,
             )
+        if operation == "draft_postprocessing_prompt":
+            return await self._draft_postprocessing_prompt(
+                body=body,
+                user=__user__ or {},
+                metadata=__metadata__ or {},
+                emitter=__event_emitter__,
+            )
         if operation == "export_message_docx":
             return await self._export_message_docx(
                 body=body,
@@ -207,6 +214,58 @@ class Action:
             return {"content": f"STT post-processing request failed: {exc}"}
         await self._emit(emitter, "Transcript action complete.", done=True)
         return {"content": self._format_postprocessing_result(result)}
+
+    async def _draft_postprocessing_prompt(
+        self,
+        *,
+        body: dict,
+        user: dict,
+        metadata: dict,
+        emitter,
+    ) -> dict:
+        stage2 = body.get("stage2_stt") if isinstance(body, dict) else {}
+        if not isinstance(stage2, dict):
+            stage2 = {}
+        transcript_ref = str(stage2.get("transcript_ref") or "")
+        template_id = str(stage2.get("template_id") or "")
+        if not transcript_ref.startswith("art_") or not template_id:
+            return {
+                "content": "STT post-processing prompt draft request is invalid.",
+                "stage2_stt_prompt_draft": None,
+            }
+
+        token = self.valves.internal_api_key or os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
+        if not token:
+            await self._emit(emitter, "STT sidecar internal token is not configured.", done=True)
+            return {
+                "content": "STT post-processing is not configured for this OpenWebUI action.",
+                "stage2_stt_prompt_draft": None,
+            }
+
+        await self._emit(emitter, "Preparing transcript prompt...", done=False)
+        try:
+            result = await self._call_sidecar_postprocessing_prompt_draft(
+                token=token,
+                user=user,
+                metadata=metadata,
+                body=body,
+                transcript_ref=transcript_ref,
+                template_id=template_id,
+            )
+        except httpx.HTTPStatusError as exc:
+            await self._emit(emitter, "Transcript prompt preparation failed.", done=True)
+            return {
+                "content": self._format_postprocessing_error(exc),
+                "stage2_stt_prompt_draft": None,
+            }
+        except httpx.HTTPError as exc:
+            await self._emit(emitter, "Transcript prompt preparation failed.", done=True)
+            return {
+                "content": f"STT post-processing prompt draft request failed: {exc}",
+                "stage2_stt_prompt_draft": None,
+            }
+        await self._emit(emitter, "Transcript prompt ready.", done=True)
+        return {"content": "", "stage2_stt_prompt_draft": result}
 
     async def _export_message_docx(
         self,
@@ -612,7 +671,58 @@ class Action:
         transcript_ref: str,
         template_id: str,
     ) -> dict:
-        request = {
+        request = self._build_postprocessing_request(
+            user=user,
+            metadata=metadata,
+            body=body,
+            transcript_ref=transcript_ref,
+            template_id=template_id,
+        )
+        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/execute",
+                headers={"Authorization": f"Bearer {token}"},
+                json=request,
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def _call_sidecar_postprocessing_prompt_draft(
+        self,
+        *,
+        token: str,
+        user: dict,
+        metadata: dict,
+        body: dict,
+        transcript_ref: str,
+        template_id: str,
+    ) -> dict:
+        request = self._build_postprocessing_request(
+            user=user,
+            metadata=metadata,
+            body=body,
+            transcript_ref=transcript_ref,
+            template_id=template_id,
+        )
+        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/prompt-draft",
+                headers={"Authorization": f"Bearer {token}"},
+                json=request,
+            )
+            response.raise_for_status()
+            return response.json()
+
+    def _build_postprocessing_request(
+        self,
+        *,
+        user: dict,
+        metadata: dict,
+        body: dict,
+        transcript_ref: str,
+        template_id: str,
+    ) -> dict:
+        return {
             "transcript_ref": transcript_ref,
             "template_id": template_id,
             "user_context": self._build_user_context(user=user),
@@ -622,14 +732,6 @@ class Action:
                 body=body,
             ),
         }
-        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            response = await client.post(
-                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/execute",
-                headers={"Authorization": f"Bearer {token}"},
-                json=request,
-            )
-            response.raise_for_status()
-            return response.json()
 
     async def _call_sidecar_message_docx(self, *, token: str, request: dict) -> dict:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:

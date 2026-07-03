@@ -17,6 +17,40 @@ def test_loader_binds_postprocessing_actions_to_prepared_file_scope():
     assert "loadPostprocessingActions(file, transcriptRef, button.parentElement, status)" not in run_transcription
 
 
+def test_loader_quick_action_drafts_native_chat_prompt_instead_of_processed_result():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function runPostprocessingAction")
+    end = source.index("async function callPostprocessingPromptDraft", start)
+    action_block = source[start:end]
+
+    assert "const draft = await callPostprocessingPromptDraft(file, transcriptRef, template);" in action_block
+    assert "submitPostprocessingPromptDraft(draft.prompt_text, transcriptRef)" in action_block
+    assert "appendToComposer(content)" not in action_block
+
+
+def test_loader_quick_action_uses_prompt_draft_operation():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function callPostprocessingPromptDraft")
+    end = source.index("async function submitPostprocessingPromptDraft", start)
+    draft_block = source[start:end]
+
+    assert "operation: 'draft_postprocessing_prompt'" in draft_block
+    assert "stage2_stt_prompt_draft" in draft_block
+    assert "execute_postprocessing" not in draft_block
+
+
+def test_loader_quick_action_submits_prompt_without_overwriting_unrelated_draft():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function submitPostprocessingPromptDraft")
+    end = source.index("function findComposer", start)
+    submit_block = source[start:end]
+
+    assert "composerText && transcriptRef && !composerText.includes(transcriptRef)" in submit_block
+    assert "postprocessing_prompt_blocked" in submit_block
+    assert "replaceComposerText(composer, promptText)" in submit_block
+    assert "submitComposer(composer)" in submit_block
+
+
 def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function queueScan")

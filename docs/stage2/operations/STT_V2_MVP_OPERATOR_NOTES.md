@@ -18,7 +18,8 @@ It owns:
 - SQLite ArtifactStore records;
 - transcript lookup by opaque `transcript_ref`;
 - prompt catalog access through the accepted MVP `openwebui_sqlite` adapter;
-- post-processing execution;
+- render-only native chat prompt drafts for transcript quick actions;
+- server-side post-processing execution as a compatibility/fallback path;
 - typed long-transcript refusal.
 
 OpenWebUI owns:
@@ -81,12 +82,19 @@ Quick-action bridge check:
 - execute installed OpenWebUI Action operation `list_postprocessing_templates`;
 - expected two template commands and no prompt body in the returned payload.
 
-Post-processing check:
+Native prompt draft check:
 
-- execute both templates against a valid recent `transcript_ref` and its full
-  artifact context;
+- execute installed OpenWebUI Action operation `draft_postprocessing_prompt`
+  against a valid recent `transcript_ref` and its full artifact context;
+- expected empty `content`, a `stage2_stt_prompt_draft.prompt_text` value,
+  prompt hash/version metadata and no secret/raw-provider markers.
+
+Server-side post-processing fallback check:
+
+- execute `execute_postprocessing` only when the compatibility path is being
+  verified;
 - expected status 200, `result_ref` prefix `art_`, prompt hash length 64 and
-  no secret/prompt-body markers in Action output.
+  no secret/raw-provider markers in Action output.
 
 Provider egress check:
 
@@ -122,14 +130,13 @@ Do not share logs containing:
 - API keys or token values;
 - `Authorization` headers;
 - raw LemonFox/provider payloads;
-- full rendered prompts;
-- prompt bodies.
+- hidden config or secrets.
 
 ## Failure Signals
 
 Provider egress is likely broken when:
 
-- post-processing returns provider/executor failure;
+- server-side fallback post-processing returns provider/executor failure;
 - direct provider connectivity from `stage2-stt` fails;
 - OpenWebUI has proxy/no-proxy env but `stage2-stt` does not.
 
@@ -144,11 +151,12 @@ ArtifactStore is likely broken when:
 
 - `artifact_store_available=false`;
 - `transcript_ref` is absent after transcription;
-- post-processing fails with artifact access or scope errors.
+- prompt draft or post-processing fails with artifact access or scope errors.
 
 ## MVP Limitations
 
-- DOCX export is not implemented.
+- Message-level DOCX export is implemented separately; specialized structured
+  post-processing DOCX export is not part of this MVP note.
 - Chunking/map-reduce is not implemented.
 - Long transcripts receive safe refusal instead of silent truncation.
 - OpenWebUI Prompt API Adapter is deferred.

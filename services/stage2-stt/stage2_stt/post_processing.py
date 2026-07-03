@@ -15,6 +15,8 @@ from stage2_stt.artifact_store import (
 from stage2_stt.config import PostProcessingExecutorMode, SttConfig
 from stage2_stt.contracts import (
     ArtifactRecordV1,
+    PostProcessingPromptDraftRequestV1,
+    PostProcessingPromptDraftV1,
     PostProcessingRequestV1,
     PostProcessingResultV1,
     PromptCatalogUserContextV1,
@@ -112,7 +114,53 @@ class PostProcessingService:
         self.artifact_store = artifact_store or ArtifactStoreFactory(config).create()
         self.executor = executor or PostProcessingExecutorFactory(config).create()
 
+    def draft_prompt(
+        self, request: PostProcessingPromptDraftRequestV1
+    ) -> PostProcessingPromptDraftV1:
+        transcript, resolved_template, projection = self._resolve_prompt_context(request)
+        rendered_prompt = render_prompt_body(
+            resolved_template.prompt_body,
+            projection,
+        )
+        return PostProcessingPromptDraftV1(
+            transcript_ref=request.transcript_ref,
+            template_id=resolved_template.template.template_id,
+            command=resolved_template.template.command,
+            label=resolved_template.template.label,
+            openwebui_prompt_id=resolved_template.template.openwebui_prompt_id,
+            prompt_version=resolved_template.template.prompt_version,
+            prompt_body_hash=resolved_template.template.prompt_body_hash,
+            transcript_hash=transcript.transcript_hash,
+            prompt_text=rendered_prompt,
+            warnings=[],
+            artifact_scope=transcript.artifact_scope,
+        )
+
     async def execute(self, request: PostProcessingRequestV1) -> PostProcessingResultV1:
+        transcript, resolved_template, projection = self._resolve_prompt_context(request)
+        rendered_prompt = render_prompt_body(
+            resolved_template.prompt_body,
+            projection,
+        )
+        processed_text = await self.executor.execute(rendered_prompt)
+        result = PostProcessingResultV1(
+            transcript_ref=request.transcript_ref,
+            template_id=resolved_template.template.template_id,
+            command=resolved_template.template.command,
+            label=resolved_template.template.label,
+            openwebui_prompt_id=resolved_template.template.openwebui_prompt_id,
+            prompt_version=resolved_template.template.prompt_version,
+            prompt_body_hash=resolved_template.template.prompt_body_hash,
+            transcript_hash=transcript.transcript_hash,
+            text=processed_text,
+            warnings=[],
+            artifact_scope=transcript.artifact_scope,
+        )
+        return self._store_result(result)
+
+    def _resolve_prompt_context(
+        self, request: PostProcessingRequestV1 | PostProcessingPromptDraftRequestV1
+    ):
         transcript_store = TranscriptStoreAdapter(store=self.artifact_store, config=self.config)
         try:
             transcript = transcript_store.get_transcript(
@@ -141,26 +189,7 @@ class PostProcessingService:
                 "speakers_required",
                 "Selected post-processing template requires speaker labels",
             )
-
-        rendered_prompt = render_prompt_body(
-            resolved_template.prompt_body,
-            projection,
-        )
-        processed_text = await self.executor.execute(rendered_prompt)
-        result = PostProcessingResultV1(
-            transcript_ref=request.transcript_ref,
-            template_id=resolved_template.template.template_id,
-            command=resolved_template.template.command,
-            label=resolved_template.template.label,
-            openwebui_prompt_id=resolved_template.template.openwebui_prompt_id,
-            prompt_version=resolved_template.template.prompt_version,
-            prompt_body_hash=resolved_template.template.prompt_body_hash,
-            transcript_hash=transcript.transcript_hash,
-            text=processed_text,
-            warnings=[],
-            artifact_scope=transcript.artifact_scope,
-        )
-        return self._store_result(result)
+        return transcript, resolved_template, projection
 
     def _store_result(self, result: PostProcessingResultV1) -> PostProcessingResultV1:
         if result.artifact_scope is None:

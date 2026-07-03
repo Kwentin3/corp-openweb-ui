@@ -13,6 +13,8 @@ from stage2_stt.contracts import (
     MessageDocxExportRequestV1,
     MessageDocxExportResultV1,
     OpenWebUITranscriptionEnvelopeV1,
+    PostProcessingPromptDraftRequestV1,
+    PostProcessingPromptDraftV1,
     PostProcessingRequestV1,
     PostProcessingResultV1,
     PostProcessingTemplateV1,
@@ -375,6 +377,30 @@ def create_app() -> FastAPI:
         )
         try:
             return await PostProcessingService(config=config).execute(request)
+        except ArtifactStoreError as exc:
+            _raise_artifact_http_error(exc)
+        except PromptCatalogError as exc:
+            _raise_prompt_catalog_http_error(exc)
+        except PostProcessingError as exc:
+            _raise_post_processing_http_error(exc)
+
+    @app.post(
+        "/stage2-api/transcription/post-processing/prompt-draft",
+        response_model=PostProcessingPromptDraftV1,
+    )
+    def draft_post_processing_prompt_route(
+        request: PostProcessingPromptDraftRequestV1,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> PostProcessingPromptDraftV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return PostProcessingService(config=config).draft_prompt(request)
         except ArtifactStoreError as exc:
             _raise_artifact_http_error(exc)
         except PromptCatalogError as exc:
