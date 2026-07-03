@@ -1600,7 +1600,8 @@ Required tests:
 DOCX was originally planned as the final post-processing export gate. A generic
 message-level DOCX export now exists as a separate Gate 8 extension path; its
 compatibility fallback is `simple_mvp`, and the implemented rich-formatting
-profile is `semantic_chat_v1` when structured selected-message HTML is available.
+profile is markdown-first `semantic_chat_v1` when canonical message markdown or
+sanitized selected-message HTML is available.
 
 For current message-level export rules, source precedence, semantic formatting
 scope and no-leak checks, use

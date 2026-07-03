@@ -9,7 +9,8 @@ It covers:
 - STT v2 transcript post-processing;
 - starter transcript-processing templates;
 - safe DOCX export of selected processed/chat text with `simple_mvp` fallback
-  and `semantic_chat_v1` formatting when structured message HTML is available;
+  and markdown-first `semantic_chat_v1` formatting when canonical message
+  markdown or sanitized selected-message HTML is available;
 - Web Search baseline;
 - Web Search scenarios;
 - corporate prompt pack;
@@ -375,8 +376,8 @@ Status:
 Scope marker:
 
 - `CURRENT_SCOPE` for safe DOCX export of selected processed/chat text with
-  `simple_mvp` fallback and `semantic_chat_v1` formatting when structured
-  message HTML is available.
+  `simple_mvp` fallback and markdown-first `semantic_chat_v1` formatting when
+  canonical message markdown or sanitized selected-message HTML is available.
 - `semantic_chat_v1` preserves visible chat document semantics such as headings,
   lists, tables, links, blockquotes and code blocks.
 - `BROAD_PRD` / `FUTURE_SCOPE` for full PDF/DOCX/XLSX handling and OCR pilot.

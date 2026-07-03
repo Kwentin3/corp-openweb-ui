@@ -11,10 +11,10 @@ optionally export that processed result to a simple DOCX file.
 
 Current code already has the STT sidecar, OpenWebUI Action, static loader,
 browser ffmpeg.wasm normalization config, Lemonfox adapter, transcript result
-contracts and speaker fields. Current code does not have STT v2
-post-processing actions, transcript template execution, a DOCX export path or a
-confirmed native OpenWebUI runtime path for template management on the target
-stand.
+contracts and speaker fields. Current code now also has a generic message-level
+DOCX export path. It still does not have a specialized processed-result-only
+DOCX artifact path or a separate native OpenWebUI runtime path for template
+management on the target stand.
 
 Recommended implementation posture: native-first, extension-first, no separate
 "Meetings" app, no separate transcript history store, no heavy OpenWebUI fork.
@@ -138,7 +138,7 @@ Simple DOCX export:
 
 | Area | File/path | What exists | Relevant for STT v2 | Gap |
 | --- | --- | --- | --- | --- |
-| STT FastAPI app | `services/stage2-stt/stage2_stt/app.py` | Capabilities endpoint, job create/result/cancel routes, internal auth, provider call, normalized response. | Can remain the base transcript source and, if needed, host export/post-processing support. | No STT v2 template execution or DOCX endpoint. |
+| STT FastAPI app | `services/stage2-stt/stage2_stt/app.py` | Capabilities endpoint, job create/result/cancel routes, internal auth, provider call, normalized response, and message-level DOCX export endpoint. | Can remain the base transcript source and, if needed, host export/post-processing support. | No STT v2 template execution; specialized processed-result-only DOCX artifact path remains future. |
 | Job creation/result routes | `app.py`, `jobs.py`, `job_store.py` | In-memory job store, typed status, result retrieval, local cancel semantics. | Result route can return `TranscriptResultV1` with segments if v2 needs structured transcript. | Current OpenWebUI Action consumes create response and only returns flat text to user. |
 | Provider adapter | `provider.py` | Adapter factory with Lemonfox implementation. | Keeps provider boundary clean; v2 should not depend on raw provider payloads. | Only Lemonfox adapter is registered. |
 | Lemonfox adapter | `lemonfox.py` | `verbose_json` request, optional speaker labels, timestamp flags, normalized transcript segments/words. | Speaker-aware processing can rely on normalized segment/word speaker fields. | Provider labels depend on runtime config and provider output quality. |
@@ -148,7 +148,7 @@ Simple DOCX export:
 | Static loader | `deploy/openwebui-static/loader.js` | Adds `Транскрибировать` button, prepares media, calls Action, appends returned content to composer. | Likely hook for showing post-processing buttons if native prompts are insufficient. | Loader DOM patching is brittle across OpenWebUI upgrades; no v2 UI yet. |
 | ffmpeg normalization | `loader.js`, `stage2-stt-normalization.json` | Browser probe/normalization config and profile definitions. | Keep as base media ingestion; v2 should not change it unless testing needs base STT. | Generated `stage2-assets/ffmpeg/` directory is ignored and absent in current checkout. |
 | Validation/storage | `validation.py`, `storage.py` | MIME/profile/size checks, storage decision warnings. | Do not bypass backend validation when v2 touches transcript source/result routes. | Storage/retention policy remains production hardening. |
-| Tests | `services/stage2-stt/tests/` | Capabilities, config, provider normalization, job routes, validation/storage/job behavior, Action warning tests. | Add focused v2 tests near any new code. | No template execution, speaker-aware output or DOCX export tests. |
+| Tests | `services/stage2-stt/tests/` | Capabilities, config, provider normalization, job routes, validation/storage/job behavior, Action warning tests, and message-level DOCX export tests. | Add focused v2 tests near any new code. | No template execution, speaker-aware output or specialized processed-result DOCX export tests. |
 | Compose/static mount | `compose/openwebui.compose.yml` | Mounts loader/config/assets, configures private `stage2-stt` service and STT env defaults. | Confirms extension-first deployment shape. | No v2 env/config; no code change should happen before runtime path is selected. |
 | Native prompts/templates docs | `docs/stage2/implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md`, handoff docs | Native Workspace Prompts are the preferred path and synthetic proof exists. | First-choice template management route. | Target runtime admin/user sharing behavior still needs manual verification. |
 
@@ -190,7 +190,8 @@ Evidence summary:
   post-processing;
 - native Workspace Prompts are preferred but still require target-runtime
   verification for production sharing/visibility behavior;
-- DOCX export is not implemented.
+- generic message-level DOCX export is implemented/proven; specialized
+  processed-result-only DOCX export remains future work.
 
 ## 9. Native OpenWebUI capabilities to reuse
 
@@ -204,8 +205,11 @@ Reuse before custom building:
   target runtime.
 - Existing static loader only as the minimal helper for media action discovery
   and, if required, post-processing buttons.
-- Existing OpenWebUI file storage/download behavior for DOCX delivery if it
-  provides a safe artifact path.
+- Existing generic message-level DOCX browser download path for selected
+  assistant messages.
+- OpenWebUI file storage/download behavior remains relevant only if a future
+  processed-result-only artifact path needs stored files instead of base64
+  browser delivery.
 
 Native assumptions to verify:
 
@@ -260,9 +264,10 @@ OpenWebUI model path cannot run the template flow.
 
 ### Layer 3. Export
 
-Add DOCX export only for processed results. If backend export is needed, add a
-small endpoint or Action-backed artifact path and use a common Python DOCX
-library. Keep layout intentionally simple:
+Generic message-level DOCX export is already implemented as the current
+extension path. Add a specialized processed-result-only DOCX export only if the
+product needs a stricter artifact contract around `PostProcessingResultV1`.
+Keep layout intentionally simple:
 
 ```text
 title
@@ -324,9 +329,14 @@ text format before invoking templates.
 
 Current status:
 
-- no DOCX export route found in `services/stage2-stt`;
-- no DOCX dependency found in `services/stage2-stt/pyproject.toml`;
-- customer scope includes only a simple DOCX draft for manual editing.
+- generic message-level DOCX export exists through
+  `POST /stage2-api/message-docx/exports`;
+- `python-docx` is declared in `services/stage2-stt/pyproject.toml`;
+- markdown-first `semantic_chat_v1` preserves headings, lists, tables,
+  blockquotes, links and code blocks when canonical message markdown or
+  sanitized selected-message HTML is available;
+- browser save/open proof was confirmed by operator on the deployed runtime;
+- customer scope still includes only a simple DOCX draft for manual editing.
 
 Recommended scope:
 
@@ -338,7 +348,8 @@ Recommended scope:
 - do not include internal logs, provider payloads, tokens, sidecar URLs or
   hidden prompt/config values.
 
-Potential implementation paths to compare after native runtime audit:
+Potential implementation paths to compare only for future specialized
+processed-result artifacts:
 
 - native OpenWebUI artifact/download mechanism, if available;
 - small sidecar endpoint that accepts processed text and returns DOCX;

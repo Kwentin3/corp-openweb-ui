@@ -483,8 +483,8 @@ Comment:
 - Do not re-plan STT from zero and do not introduce a separate user-facing STT
   sidecar GUI for the MVP.
 - Message-level DOCX export is a separate Gate 8 extension path. The implemented
-  fallback profile is `simple_mvp`; semantic chat formatting is implemented as
-  `semantic_chat_v1` in the message-level DOCX contract.
+  fallback profile is `simple_mvp`; markdown-first semantic chat formatting is
+  implemented as `semantic_chat_v1` in the message-level DOCX contract.
 
 ## Брокерские отчеты / 3-НДФЛ
 

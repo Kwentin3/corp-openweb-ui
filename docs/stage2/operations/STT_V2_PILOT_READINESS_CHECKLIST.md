@@ -17,7 +17,8 @@ Use this checklist immediately before a controlled pilot run.
 [ ] `Краткий пересказ` работает
 [ ] `Протокол встречи` работает
 [ ] long transcript получает safe refusal
-[ ] DOCX отсутствует by design
+[ ] message-level DOCX export доступен для completed assistant message
+[ ] DOCX сохраняет markdown/table formatting через `semantic_chat_v1`
 [ ] chunking отсутствует by design
 [ ] SQLite PromptCatalogAdapter accepted as MVP/default
 [ ] OpenWebUI API Adapter отложен
@@ -37,11 +38,13 @@ Pilot blocker conditions:
 - Both quick actions unavailable.
 - Post-processing executor unavailable.
 - Raw provider payload, prompt body or secrets visible to users.
-- Closing the issue requires DOCX, chunking, API adapter or OpenWebUI core patch.
+- Message-level DOCX export is unavailable or fails browser save/open proof.
+- Closing the issue requires chunking, API adapter or OpenWebUI core patch.
 
 Known non-blocking MVP limitations:
 
-- DOCX is deferred.
+- Specialized processed-result-only DOCX artifact path remains deferred; the
+  generic message-level DOCX exporter is implemented.
 - Chunking is deferred.
 - OpenWebUI Prompt API Adapter is deferred.
 - SQLite PromptCatalogAdapter remains accepted MVP/default.

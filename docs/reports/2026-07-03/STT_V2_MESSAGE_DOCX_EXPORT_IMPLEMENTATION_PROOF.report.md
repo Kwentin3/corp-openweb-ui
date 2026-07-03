@@ -1,6 +1,7 @@
 # STT v2 Message-Level DOCX Export Implementation Proof
 
-Status: implemented, pushed and deployed to PRD-0; manual authenticated browser click proof pending.
+Status: implemented, pushed and deployed to PRD-0; authenticated browser click
+proof confirmed by operator.
 
 Date: 2026-07-03.
 
@@ -754,4 +755,31 @@ Follow-up verdict:
 
 ```text
 MARKDOWN_FIRST_DOCX_SERVER_SIDE_PASS_BROWSER_MANUAL_RECOMMENDED
+```
+
+## 13. Operator Browser Proof Closeout
+
+Operator result reported after the markdown-first deployment:
+
+```text
+browser_docx_export_ok=True
+save_dialog_ok=True
+downloaded_docx_opens=True
+message_level_export_ok=True
+markdown_table_formatting_ok=True
+```
+
+Interpretation:
+
+- the remaining browser-authenticated proof gap from section 12 is closed by
+  operator manual testing;
+- the canonical runtime status is now markdown-first semantic DOCX export for
+  selected completed assistant messages;
+- specialized processed-result-only DOCX artifact delivery remains future work,
+  separate from the implemented generic message-level exporter.
+
+Current verdict:
+
+```text
+MARKDOWN_FIRST_DOCX_FEATURE_CLOSED_FOR_CURRENT_SCOPE
 ```
