@@ -121,6 +121,8 @@ class SttConfig:
     postprocessing_openai_api_key: str | None = field(repr=False)
     postprocessing_openai_model: str | None
     postprocessing_max_transcript_chars: int
+    message_docx_max_message_chars: int
+    message_docx_max_docx_mb: int
     allow_stub_transcript: bool
     cancel_provider_if_supported: bool
     cancel_local_on_provider_no_cancel: bool
@@ -247,6 +249,10 @@ def load_stt_config(env: Mapping[str, str | None] | None = None) -> SttConfig:
         postprocessing_max_transcript_chars=_int(
             source, "STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS", 60000
         ),
+        message_docx_max_message_chars=_int(
+            source, "STAGE2_STT_MESSAGE_DOCX_MAX_MESSAGE_CHARS", 100000
+        ),
+        message_docx_max_docx_mb=_int(source, "STAGE2_STT_MESSAGE_DOCX_MAX_DOCX_MB", 5),
         internal_api_key=_optional_str(source, "STAGE2_STT_INTERNAL_API_KEY"),
         allow_stub_transcript=_bool(source, "STAGE2_STT_ALLOW_STUB_TRANSCRIPT", False),
         cancel_provider_if_supported=_bool(
@@ -333,6 +339,10 @@ def _validate_config(config: SttConfig) -> None:
         )
     if config.postprocessing_max_transcript_chars <= 0:
         raise SttConfigError("STAGE2_STT_POSTPROCESSING_MAX_TRANSCRIPT_CHARS must be positive")
+    if config.message_docx_max_message_chars <= 0:
+        raise SttConfigError("STAGE2_STT_MESSAGE_DOCX_MAX_MESSAGE_CHARS must be positive")
+    if config.message_docx_max_docx_mb <= 0:
+        raise SttConfigError("STAGE2_STT_MESSAGE_DOCX_MAX_DOCX_MB must be positive")
     if config.postprocessing_executor_mode is PostProcessingExecutorMode.OPENAI_COMPATIBLE:
         if not config.postprocessing_openai_base_url:
             raise SttConfigError(

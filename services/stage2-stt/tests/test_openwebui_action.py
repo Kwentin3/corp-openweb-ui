@@ -1,5 +1,7 @@
 import asyncio
 
+import httpx
+
 from openwebui_actions.stage2_media_transcription_action import Action
 
 
@@ -225,3 +227,106 @@ def test_action_executes_postprocessing_with_artifact_context(monkeypatch):
     assert captured["transcript_ref"] == "art_transcript_reference"
     assert captured["template_id"] == "stage2.stt.summary.v1"
     assert captured["user"]["id"] == "user-1"
+
+
+def test_action_exports_message_docx_without_chat_content(monkeypatch):
+    action = Action()
+    action.valves.internal_api_key = "unit-token"
+    captured = {}
+
+    async def fake_docx(**kwargs):
+        captured.update(kwargs)
+        return {
+            "schema_version": "MessageDocxExportResultV1",
+            "export_id": "docx-1",
+            "filename": "message.docx",
+            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "size_bytes": 12,
+            "checksum_sha256": "a" * 64,
+            "delivery": "base64",
+            "download_payload_base64": "ZmFrZQ==",
+            "download_url": None,
+            "file_id": None,
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(action, "_call_sidecar_message_docx", fake_docx)
+
+    response = asyncio.run(
+        action.action(
+            {
+                "stage2_message_docx": {
+                    "operation": "export_message_docx",
+                    "request": {
+                        "schema_version": "MessageDocxExportRequestV1",
+                        "request_id": "req-1",
+                        "chat_id": "chat-1",
+                        "message_id": "msg-1",
+                        "message_role": "assistant",
+                        "message_text": "Selected assistant message.",
+                        "message_markdown": "Selected assistant message.",
+                        "message_html": None,
+                        "source": "dom",
+                        "safe_metadata": {
+                            "chat_title": "Unit Chat",
+                            "model_name": "unit-model",
+                            "message_timestamp": None,
+                            "source_url_path": "/c/chat-1",
+                            "result_ref": None,
+                        },
+                        "options": {
+                            "include_chat_title": True,
+                            "include_model_name": True,
+                            "include_timestamp": True,
+                            "formatting_profile": "simple_mvp",
+                        },
+                    },
+                }
+            },
+            __user__={"id": "user-1", "role": "user"},
+            __metadata__={"chat_id": "chat-1"},
+        )
+    )
+
+    assert response["content"] == ""
+    assert response["stage2_message_docx_export"]["delivery"] == "base64"
+    assert captured["token"] == "unit-token"
+    assert captured["request"]["message_id"] == "msg-1"
+    assert "stage2-stt:8080" not in str(response)
+
+
+def test_action_maps_message_docx_sidecar_error_without_internal_url(monkeypatch):
+    action = Action()
+    action.valves.internal_api_key = "unit-token"
+
+    async def fake_docx(**kwargs):
+        request = httpx.Request("POST", "http://stage2-stt:8080/stage2-api/message-docx/exports")
+        response = httpx.Response(
+            413,
+            request=request,
+            json={
+                "detail": {
+                    "code": "message_docx_message_too_large",
+                    "message": "Selected assistant message exceeds the configured DOCX export limit",
+                }
+            },
+        )
+        raise httpx.HTTPStatusError("failed", request=request, response=response)
+
+    monkeypatch.setattr(action, "_call_sidecar_message_docx", fake_docx)
+
+    response = asyncio.run(
+        action.action(
+            {
+                "stage2_message_docx": {
+                    "operation": "export_message_docx",
+                    "request": {"schema_version": "MessageDocxExportRequestV1"},
+                }
+            },
+            __user__={"id": "user-1", "role": "user"},
+        )
+    )
+
+    assert response["content"] == ""
+    assert response["stage2_message_docx_error"]["code"] == "message_docx_message_too_large"
+    assert "stage2-stt:8080" not in str(response)

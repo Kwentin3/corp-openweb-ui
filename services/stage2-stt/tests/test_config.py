@@ -46,6 +46,8 @@ def test_config_loads_defaults_without_lemonfox_key():
     assert config.prompt_catalog_mode is PromptCatalogMode.DISABLED
     assert config.postprocessing_executor_mode is PostProcessingExecutorMode.DISABLED
     assert config.postprocessing_max_transcript_chars == 60000
+    assert config.message_docx_max_message_chars == 100000
+    assert config.message_docx_max_docx_mb == 5
 
 
 def test_invalid_config_fails_fast():
@@ -107,3 +109,15 @@ def test_gate_1_2_rejects_diagnostic_provider_payload_storage():
         load_stt_config({"STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED": "true"})
 
     assert "STAGE2_STT_DIAGNOSTIC_PROVIDER_PAYLOAD_ENABLED" in str(exc_info.value)
+
+
+def test_message_docx_limits_must_be_positive():
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_MESSAGE_DOCX_MAX_MESSAGE_CHARS": "0"})
+
+    assert "STAGE2_STT_MESSAGE_DOCX_MAX_MESSAGE_CHARS" in str(exc_info.value)
+
+    with pytest.raises(SttConfigError) as exc_info:
+        load_stt_config({"STAGE2_STT_MESSAGE_DOCX_MAX_DOCX_MB": "0"})
+
+    assert "STAGE2_STT_MESSAGE_DOCX_MAX_DOCX_MB" in str(exc_info.value)

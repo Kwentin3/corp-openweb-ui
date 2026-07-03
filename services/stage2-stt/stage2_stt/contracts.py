@@ -322,3 +322,53 @@ class PostProcessingResultV1(Stage2Model):
     text: str
     warnings: list[str] = Field(default_factory=list)
     artifact_scope: ArtifactScopeV1 | None = None
+
+
+MessageDocxSourceV1 = Literal["openwebui_chat_api", "dom", "action_body", "artifact"]
+MessageDocxDeliveryV1 = Literal["base64", "download_url", "openwebui_file_id"]
+MessageDocxFormattingProfileV1 = Literal["simple_mvp"]
+
+
+class MessageDocxSafeMetadataV1(Stage2Model):
+    chat_title: str | None = None
+    model_name: str | None = None
+    message_timestamp: str | None = None
+    source_url_path: str | None = None
+    result_ref: str | None = None
+
+
+class MessageDocxExportOptionsV1(Stage2Model):
+    include_chat_title: bool = True
+    include_model_name: bool = True
+    include_timestamp: bool = True
+    formatting_profile: MessageDocxFormattingProfileV1 = "simple_mvp"
+
+
+class MessageDocxExportRequestV1(Stage2Model):
+    schema_version: Literal["MessageDocxExportRequestV1"] = "MessageDocxExportRequestV1"
+    request_id: str
+    chat_id: str | None = None
+    message_id: str | None = None
+    message_role: Literal["assistant", "user", "system", "unknown"]
+    message_text: str
+    message_markdown: str | None = None
+    message_html: str | None = None
+    source: MessageDocxSourceV1
+    safe_metadata: MessageDocxSafeMetadataV1 = Field(default_factory=MessageDocxSafeMetadataV1)
+    options: MessageDocxExportOptionsV1 = Field(default_factory=MessageDocxExportOptionsV1)
+
+
+class MessageDocxExportResultV1(Stage2Model):
+    schema_version: Literal["MessageDocxExportResultV1"] = "MessageDocxExportResultV1"
+    export_id: str
+    filename: str
+    content_type: Literal[
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ]
+    size_bytes: int = Field(ge=0)
+    checksum_sha256: str
+    delivery: MessageDocxDeliveryV1
+    download_payload_base64: str | None = None
+    download_url: str | None = None
+    file_id: str | None = None
+    warnings: list[str] = Field(default_factory=list)

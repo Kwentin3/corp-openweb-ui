@@ -61,6 +61,13 @@ class Action:
                 metadata=__metadata__ or {},
                 emitter=__event_emitter__,
             )
+        if operation == "export_message_docx":
+            return await self._export_message_docx(
+                body=body,
+                user=__user__ or {},
+                metadata=__metadata__ or {},
+                emitter=__event_emitter__,
+            )
 
         await self._emit(__event_emitter__, "Checking media attachment...", done=False)
 
@@ -120,10 +127,15 @@ class Action:
         return {"content": f"Transcript:\n\n{transcript}{ref_text}{warning_text}"}
 
     def _stage2_operation(self, body: dict) -> str | None:
-        stage2 = body.get("stage2_stt") if isinstance(body, dict) else None
-        if not isinstance(stage2, dict):
+        if not isinstance(body, dict):
             return None
-        operation = stage2.get("operation")
+        stage2 = body.get("stage2_stt")
+        if isinstance(stage2, dict) and stage2.get("operation"):
+            return str(stage2["operation"])
+        message_docx = body.get("stage2_message_docx")
+        if not isinstance(message_docx, dict):
+            return None
+        operation = message_docx.get("operation")
         return str(operation) if operation else None
 
     async def _list_postprocessing_templates(
@@ -195,6 +207,66 @@ class Action:
             return {"content": f"STT post-processing request failed: {exc}"}
         await self._emit(emitter, "Transcript action complete.", done=True)
         return {"content": self._format_postprocessing_result(result)}
+
+    async def _export_message_docx(
+        self,
+        *,
+        body: dict,
+        user: dict,
+        metadata: dict,
+        emitter,
+    ) -> dict:
+        stage2 = body.get("stage2_message_docx") if isinstance(body, dict) else {}
+        if not isinstance(stage2, dict):
+            stage2 = {}
+        request = stage2.get("request")
+        if not isinstance(request, dict):
+            return {
+                "content": "",
+                "stage2_message_docx_error": {
+                    "code": "message_docx_no_safe_source",
+                    "message": "DOCX export request is invalid.",
+                },
+            }
+
+        token = self.valves.internal_api_key or os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
+        if not token:
+            await self._emit(emitter, "DOCX export is not configured.", done=True)
+            return {
+                "content": "",
+                "stage2_message_docx_error": {
+                    "code": "message_docx_access_denied",
+                    "message": "DOCX export is not configured.",
+                },
+            }
+
+        user_id = user.get("id") or user.get("user_id")
+        if user_id:
+            request = dict(request)
+            metadata_payload = request.get("safe_metadata")
+            if not isinstance(metadata_payload, dict):
+                metadata_payload = {}
+            if not metadata_payload.get("source_url_path") and metadata.get("chat_id"):
+                metadata_payload["source_url_path"] = f"/c/{metadata.get('chat_id')}"
+            request["safe_metadata"] = metadata_payload
+
+        await self._emit(emitter, "Preparing DOCX export...", done=False)
+        try:
+            result = await self._call_sidecar_message_docx(token=token, request=request)
+        except httpx.HTTPStatusError as exc:
+            await self._emit(emitter, "DOCX export failed.", done=True)
+            return {"content": "", "stage2_message_docx_error": self._format_docx_http_error(exc)}
+        except httpx.HTTPError:
+            await self._emit(emitter, "DOCX export failed.", done=True)
+            return {
+                "content": "",
+                "stage2_message_docx_error": {
+                    "code": "message_docx_generation_failed",
+                    "message": "DOCX export request failed.",
+                },
+            }
+        await self._emit(emitter, "DOCX export ready.", done=True)
+        return {"content": "", "stage2_message_docx_export": result}
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:
@@ -403,6 +475,25 @@ class Action:
             return f"STT post-processing failed: {message} [{code}]"
         return f"STT post-processing failed with HTTP {exc.response.status_code}."
 
+    def _format_docx_http_error(self, exc: httpx.HTTPStatusError) -> dict:
+        try:
+            payload = exc.response.json()
+        except ValueError:
+            return {
+                "code": "message_docx_generation_failed",
+                "message": f"DOCX export failed with HTTP {exc.response.status_code}.",
+            }
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if isinstance(detail, dict):
+            return {
+                "code": str(detail.get("code") or "message_docx_generation_failed"),
+                "message": str(detail.get("message") or "DOCX export failed."),
+            }
+        return {
+            "code": "message_docx_generation_failed",
+            "message": f"DOCX export failed with HTTP {exc.response.status_code}.",
+        }
+
     def _warning_aliases(self) -> dict[str, str]:
         aliases = dict(DEFAULT_WARNING_ALIASES)
         try:
@@ -534,6 +625,16 @@ class Action:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
             response = await client.post(
                 f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/post-processing/execute",
+                headers={"Authorization": f"Bearer {token}"},
+                json=request,
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def _call_sidecar_message_docx(self, *, token: str, request: dict) -> dict:
+        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/message-docx/exports",
                 headers={"Authorization": f"Bearer {token}"},
                 json=request,
             )

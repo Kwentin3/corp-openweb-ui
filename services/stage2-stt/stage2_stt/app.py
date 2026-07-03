@@ -10,6 +10,8 @@ from pydantic import ValidationError
 from stage2_stt.config import OutputProfile, SttConfigError, load_stt_config
 from stage2_stt.contracts import (
     ArtifactAccessContextV1,
+    MessageDocxExportRequestV1,
+    MessageDocxExportResultV1,
     OpenWebUITranscriptionEnvelopeV1,
     PostProcessingRequestV1,
     PostProcessingResultV1,
@@ -26,6 +28,7 @@ from stage2_stt.artifact_store import ArtifactStoreError, ArtifactStoreFactory
 from stage2_stt.job_store import InMemoryTranscriptionJobStore, StoredTranscriptionJob
 from stage2_stt.jobs import JobContext, create_transcription_job, request_cancel
 from stage2_stt.lemonfox import LemonfoxProviderError
+from stage2_stt.message_docx import MessageDocxExportError, MessageDocxExportService
 from stage2_stt.post_processing import PostProcessingError, PostProcessingService
 from stage2_stt.prompt_catalog import PromptCatalogError, PromptCatalogFactory
 from stage2_stt.provider import SttProviderAdapterFactory
@@ -380,6 +383,26 @@ def create_app() -> FastAPI:
             _raise_post_processing_http_error(exc)
 
     @app.post(
+        "/stage2-api/message-docx/exports",
+        response_model=MessageDocxExportResultV1,
+    )
+    def export_message_docx_route(
+        request: MessageDocxExportRequestV1,
+        authorization: str | None = Header(default=None),
+        x_stage2_internal_token: str | None = Header(default=None),
+    ) -> MessageDocxExportResultV1:
+        config = _load_config_or_500()
+        _require_internal_auth(
+            internal_api_key=config.internal_api_key,
+            authorization=authorization,
+            x_stage2_internal_token=x_stage2_internal_token,
+        )
+        try:
+            return MessageDocxExportService(config=config).export(request)
+        except MessageDocxExportError as exc:
+            _raise_message_docx_http_error(exc)
+
+    @app.post(
         "/stage2-api/transcription/jobs/{job_id}/cancel",
         response_model=TranscriptionJobV1,
     )
@@ -528,6 +551,23 @@ def _raise_post_processing_http_error(exc: PostProcessingError) -> None:
         "transcript_too_long_single_pass": 413,
         "speakers_required": 422,
         "artifact_scope_unverified": 403,
+    }
+    raise HTTPException(
+        status_code=status_by_code.get(exc.code, 500),
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _raise_message_docx_http_error(exc: MessageDocxExportError) -> None:
+    status_by_code = {
+        "message_docx_unsupported_role": 422,
+        "message_docx_empty_message": 422,
+        "message_docx_streaming_message": 409,
+        "message_docx_message_too_large": 413,
+        "message_docx_generation_failed": 500,
+        "message_docx_no_safe_source": 422,
+        "message_docx_access_denied": 403,
+        "message_docx_no_leak_check_failed": 422,
     }
     raise HTTPException(
         status_code=status_by_code.get(exc.code, 500),

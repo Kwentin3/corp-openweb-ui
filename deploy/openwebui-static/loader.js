@@ -8,6 +8,10 @@
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
 	const RUNNING_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435...';
 	const DONE_LABEL = '\u0413\u043e\u0442\u043e\u0432\u043e';
+	const DOCX_LABEL = '\u0421\u043a\u0430\u0447\u0430\u0442\u044c DOCX';
+	const DOCX_RUNNING_LABEL = '...';
+	const DOCX_DONE_LABEL = '\u2713';
+	const DOCX_ERROR_LABEL = '!';
 	const MP3_MIME = 'audio/mpeg';
 	const DEFAULT_CONFIG = Object.freeze({
 		input_accept_mode: 'broad_ffmpeg_probe',
@@ -72,7 +76,15 @@
 		ffmpeg_assets_unavailable: 'FFmpeg assets are not available',
 		source_file_unavailable: '\u0418\u0441\u0445\u043e\u0434\u043d\u044b\u0439 \u0444\u0430\u0439\u043b \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0432 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438. \u041f\u0440\u0438\u043a\u0440\u0435\u043f\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0437\u0430\u043d\u043e\u0432\u043e.',
 		stt_action_failed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043a STT \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d.',
-		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.'
+		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.',
+		message_docx_unsupported_role: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u043e\u0432 \u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442\u0430.',
+		message_docx_empty_message: '\u0412 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438 \u043d\u0435\u0442 \u0442\u0435\u043a\u0441\u0442\u0430 \u0434\u043b\u044f DOCX.',
+		message_docx_streaming_message: '\u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430.',
+		message_docx_message_too_large: '\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435 \u0441\u043b\u0438\u0448\u043a\u043e\u043c \u0431\u043e\u043b\u044c\u0448\u043e\u0435 \u0434\u043b\u044f DOCX.',
+		message_docx_generation_failed: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0437\u0434\u0430\u0442\u044c DOCX.',
+		message_docx_no_safe_source: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e \u0438\u0437\u0432\u043b\u0435\u0447\u044c \u044d\u0442\u043e \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435.',
+		message_docx_access_denied: '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a DOCX-\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0443.',
+		message_docx_no_leak_check_failed: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u043e\u0442\u043a\u043b\u043e\u043d\u0451\u043d \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.'
 	});
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -339,6 +351,7 @@
 		window.requestAnimationFrame(() => {
 			state.scanQueued = false;
 			scanAttachmentCards();
+			scanMessageDocxButtons();
 		});
 	}
 
@@ -450,6 +463,294 @@
 			status.dataset.stage2SttReason = code;
 			status.textContent = `${message} [${code}]`;
 		}
+	}
+
+	function scanMessageDocxButtons() {
+		const roots = document.querySelectorAll('div[id^="message-"]');
+		for (const root of roots) {
+			if (root.querySelector('[data-stage2-docx-export="1"]')) {
+				continue;
+			}
+			const content = root.querySelector('.chat-assistant.markdown-prose');
+			const toolbar = root.querySelector('.buttons');
+			if (!content || !toolbar) {
+				continue;
+			}
+			if (!root.querySelector('.copy-response-button')) {
+				continue;
+			}
+			const text = extractScopedMessageText(content);
+			if (!text) {
+				continue;
+			}
+			installMessageDocxButton(root, toolbar, content);
+		}
+	}
+
+	function installMessageDocxButton(root, toolbar, content) {
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.dataset.stage2DocxExport = '1';
+		button.dataset.stage2DocxState = 'ready';
+		button.title = DOCX_LABEL;
+		button.setAttribute('aria-label', DOCX_LABEL);
+		button.textContent = 'DOCX';
+		button.style.alignSelf = 'center';
+		button.style.minWidth = '2.4rem';
+		button.style.padding = '0.35rem 0.45rem';
+		button.style.fontSize = '0.7rem';
+		button.style.lineHeight = '1rem';
+		button.style.borderRadius = '0.5rem';
+		button.style.border = '1px solid rgba(75, 85, 99, 0.25)';
+		button.style.background = 'transparent';
+		button.style.color = 'inherit';
+		button.style.cursor = 'pointer';
+		button.addEventListener('focus', () => {
+			button.style.outline = '2px solid rgba(14, 165, 233, 0.75)';
+			button.style.outlineOffset = '2px';
+		});
+		button.addEventListener('blur', () => {
+			button.style.outline = 'none';
+			button.style.outlineOffset = '0';
+		});
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			runMessageDocxExport(root, content, button);
+		});
+		const anchor = toolbar.querySelector('.copy-response-button');
+		if (anchor && anchor.parentElement === toolbar) {
+			toolbar.insertBefore(button, anchor.nextSibling);
+		} else {
+			toolbar.appendChild(button);
+		}
+	}
+
+	function setDocxButtonState(button, stateName, error) {
+		if (!button) {
+			return;
+		}
+		button.dataset.stage2DocxState = stateName;
+		if (stateName === 'loading') {
+			button.disabled = true;
+			button.textContent = DOCX_RUNNING_LABEL;
+			button.title = '\u0413\u043e\u0442\u043e\u0432\u0438\u043c DOCX...';
+			button.setAttribute('aria-label', button.title);
+			button.style.opacity = '0.65';
+			button.style.cursor = 'wait';
+			button.style.background = 'rgba(14, 165, 233, 0.10)';
+			return;
+		}
+		if (stateName === 'success') {
+			button.disabled = false;
+			button.textContent = DOCX_DONE_LABEL;
+			button.title = '\u0424\u0430\u0439\u043b DOCX \u0433\u043e\u0442\u043e\u0432.';
+			button.setAttribute('aria-label', button.title);
+			button.style.opacity = '1';
+			button.style.cursor = 'pointer';
+			button.style.background = 'rgba(34, 197, 94, 0.12)';
+			window.setTimeout(() => setDocxButtonState(button, 'ready'), 2500);
+			return;
+		}
+		if (stateName === 'error') {
+			const code = (error && error.code) || 'message_docx_generation_failed';
+			const message = (error && error.message) || ERROR_MESSAGES[code] || ERROR_MESSAGES.message_docx_generation_failed;
+			button.disabled = false;
+			button.textContent = DOCX_ERROR_LABEL;
+			button.title = `${message} [${code}]`;
+			button.setAttribute('aria-label', button.title);
+			button.style.opacity = '1';
+			button.style.cursor = 'pointer';
+			button.style.background = 'rgba(239, 68, 68, 0.12)';
+			window.setTimeout(() => setDocxButtonState(button, 'ready'), 5000);
+			return;
+		}
+		button.disabled = false;
+		button.textContent = 'DOCX';
+		button.title = DOCX_LABEL;
+		button.setAttribute('aria-label', DOCX_LABEL);
+		button.style.opacity = '1';
+		button.style.cursor = 'pointer';
+		button.style.background = 'transparent';
+	}
+
+	async function runMessageDocxExport(root, content, button) {
+		if (button.disabled) {
+			return;
+		}
+		setDocxButtonState(button, 'loading');
+		try {
+			const request = buildMessageDocxRequest(root, content);
+			const result = await callMessageDocxAction(request);
+			const saved = await saveMessageDocxResult(result);
+			setDocxButtonState(button, saved === false ? 'ready' : 'success');
+		} catch (error) {
+			setDocxButtonState(button, 'error', error && error.code ? error : stageError('message_docx_generation_failed', error && error.message));
+		}
+	}
+
+	function buildMessageDocxRequest(root, content) {
+		const text = extractScopedMessageText(content);
+		if (!text) {
+			throw stageError('message_docx_empty_message');
+		}
+		const messageId = messageIdFromRoot(root);
+		return {
+			schema_version: 'MessageDocxExportRequestV1',
+			request_id: `docx-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+			chat_id: currentChatId(),
+			message_id: messageId,
+			message_role: 'assistant',
+			message_text: text,
+			message_markdown: text,
+			message_html: null,
+			source: 'dom',
+			safe_metadata: {
+				chat_title: safeDocumentTitle(),
+				model_name: scopedText(root, '#response-message-model-name'),
+				message_timestamp: null,
+				source_url_path: window.location.pathname || null,
+				result_ref: resultRefFromText(text)
+			},
+			options: {
+				include_chat_title: true,
+				include_model_name: true,
+				include_timestamp: true,
+				formatting_profile: 'simple_mvp'
+			}
+		};
+	}
+
+	function extractScopedMessageText(content) {
+		const clone = content.cloneNode(true);
+		clone.querySelectorAll('button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status]').forEach((node) => node.remove());
+		const blocks = clone.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, pre, blockquote, td, th');
+		const parts = [];
+		for (const block of blocks) {
+			const value = normalizeDocxText(block.textContent || '');
+			if (value) {
+				parts.push(value);
+			}
+		}
+		const text = parts.length ? parts.join('\n') : normalizeDocxText(clone.textContent || '');
+		return text.replace(/\n{3,}/g, '\n\n').trim();
+	}
+
+	function normalizeDocxText(text) {
+		return String(text || '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').trim();
+	}
+
+	function messageIdFromRoot(root) {
+		const id = root && root.id ? String(root.id) : '';
+		return id.startsWith('message-') ? id.slice('message-'.length) : null;
+	}
+
+	function currentChatId() {
+		const path = window.location.pathname || '';
+		const match = path.match(/\/(?:c|chat)\/([^/?#]+)/);
+		return match ? decodeURIComponent(match[1]) : null;
+	}
+
+	function safeDocumentTitle() {
+		const title = normalizeDocxText(document.title || '');
+		return title || null;
+	}
+
+	function scopedText(root, selector) {
+		const node = root.querySelector(selector);
+		const value = node ? normalizeDocxText(node.textContent || '') : '';
+		return value || null;
+	}
+
+	function resultRefFromText(text) {
+		const match = String(text || '').match(/\b(art_[A-Za-z0-9_-]+)\b/);
+		return match ? match[1] : null;
+	}
+
+	async function callMessageDocxAction(request) {
+		const response = await fetch(ACTION_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				stage2_message_docx: {
+					operation: 'export_message_docx',
+					request
+				}
+			})
+		});
+		let payload = {};
+		try {
+			payload = await response.json();
+		} catch (_) {}
+		if (!response.ok) {
+			const detail = payload && payload.detail && typeof payload.detail === 'object' ? payload.detail : {};
+			throw stageError(detail.code || 'message_docx_generation_failed', detail.message || `DOCX export failed with HTTP ${response.status}.`);
+		}
+		if (payload && payload.stage2_message_docx_error) {
+			const error = payload.stage2_message_docx_error;
+			throw stageError(error.code || 'message_docx_generation_failed', error.message);
+		}
+		const result = payload && (payload.stage2_message_docx_export || payload);
+		if (!result || result.delivery !== 'base64' || !result.download_payload_base64) {
+			throw stageError('message_docx_generation_failed', 'DOCX export response is invalid.');
+		}
+		return result;
+	}
+
+	async function saveMessageDocxResult(result) {
+		const bytes = base64ToUint8Array(result.download_payload_base64);
+		const blob = new Blob([bytes], { type: result.content_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+		const filename = safeDownloadFilename(result.filename);
+		if (window.showSaveFilePicker && window.isSecureContext) {
+			try {
+				const handle = await window.showSaveFilePicker({
+					suggestedName: filename,
+					types: [
+						{
+							description: 'DOCX',
+							accept: {
+								'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+							}
+						}
+					]
+				});
+				const writable = await handle.createWritable();
+				await writable.write(blob);
+				await writable.close();
+				return true;
+			} catch (error) {
+				if (error && error.name === 'AbortError') {
+					return false;
+				}
+			}
+		}
+		const url = URL.createObjectURL(blob);
+		const anchor = document.createElement('a');
+		anchor.href = url;
+		anchor.download = filename;
+		anchor.style.display = 'none';
+		document.body.appendChild(anchor);
+		anchor.click();
+		anchor.remove();
+		window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+		return true;
+	}
+
+	function safeDownloadFilename(filename) {
+		const value = String(filename || '').replace(/[<>:"/\\|?*\x00-\x1f]+/g, ' ').replace(/\s+/g, ' ').trim();
+		if (value.toLowerCase().endsWith('.docx')) {
+			return value;
+		}
+		return `message-export-${Date.now()}.docx`;
+	}
+
+	function base64ToUint8Array(base64) {
+		const binary = window.atob(base64);
+		const bytes = new Uint8Array(binary.length);
+		for (let index = 0; index < binary.length; index += 1) {
+			bytes[index] = binary.charCodeAt(index);
+		}
+		return bytes;
 	}
 
 	function loadScript(url) {
