@@ -669,3 +669,89 @@ Local verdict:
 ```text
 MARKDOWN_FIRST_DOCX_LOCAL_PASS_SERVER_DEPLOY_PENDING
 ```
+
+Deployment commit:
+
+```text
+5341b78 feat: render docx from canonical markdown
+```
+
+Server deployment:
+
+```text
+target=/opt/openwebui-prd0
+git pull --ff-only origin main
+HEAD=5341b78
+docker compose --env-file .env -f compose/openwebui.compose.yml config --quiet
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d --build stage2-stt
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d --force-recreate --no-deps openwebui
+openwebui_status=Up healthy
+stage2_stt_status=Up
+```
+
+Runtime image proof:
+
+```text
+stage2_image_id=sha256:73db807e05756cade3caa547e9ed6975bc68c4f725d1bf3d39f10b2c079c0073
+openwebui_image_id=sha256:8dbfafc61b79cfdf6bbe7c08da6b65ad6d91ca249c801175f77092ccf0210175
+```
+
+Public loader proof:
+
+```text
+host_loader_sha256=3abc19eab98e6a26db39543c93a9b40930e019f58d48174d48fa44f85d6c4db5
+container_backend_loader_sha256=3abc19eab98e6a26db39543c93a9b40930e019f58d48174d48fa44f85d6c4db5
+public_loader_sha256=3abc19eab98e6a26db39543c93a9b40930e019f58d48174d48fa44f85d6c4db5
+public_loader_has_fetchCanonicalMessageMarkdown=True
+public_loader_has_api_v1_chats=True
+public_loader_has_message_markdown_markdown=True
+public_loader_has_openwebui_chat_api_source=True
+public_loader_has_message_markdown_null=False
+https://gpt.alpha-soft.ru/ -> HTTP 200
+```
+
+Runtime markdown-first sidecar proof:
+
+```text
+POST /stage2-api/message-docx/exports semantic_chat_v1
+payload: message_markdown includes heading, horizontal rule, markdown table and tail paragraph
+payload: message_html is intentionally truncated and contains DOM-only marker
+
+status_code=200
+schema_ok=True
+delivery_ok=True
+warnings=[]
+action_heading_present=True
+tail_present=True
+truncated_marker_absent=True
+table_header_present=True
+table_row_present=True
+no_internal_token=True
+size_bytes=37143
+```
+
+Recent log scan:
+
+```text
+stage2-stt logs since deploy:
+startup OK; runtime markdown-first DOCX proof returned 200
+
+openwebui logs since recreate:
+service healthy; startup emitted the known read-only static loader filesystem
+warnings because loader.js is bind-mounted read-only.
+```
+
+Remaining manual proof:
+
+- an authenticated browser export should be repeated on a real assistant message
+  with a markdown table after `---`;
+- automated proof verifies that the public loader ships markdown-first code and
+  that the sidecar renders markdown before truncated HTML, but it does not hold
+  an authenticated OpenWebUI browser session to prove the live `/api/v1/chats`
+  response shape for a real user chat.
+
+Follow-up verdict:
+
+```text
+MARKDOWN_FIRST_DOCX_SERVER_SIDE_PASS_BROWSER_MANUAL_RECOMMENDED
+```
