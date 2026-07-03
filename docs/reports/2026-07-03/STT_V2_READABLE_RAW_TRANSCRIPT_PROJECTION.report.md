@@ -75,11 +75,12 @@ c3ce6d1 feat: render diarized stt transcripts
 Server git/deploy state:
 
 ```text
-server_head=c3ce6d1
-git status: ## main...origin/main
+implementation_deploy_head=c3ce6d1
+git status at implementation deploy: ## main...origin/main
 stage2-stt: rebuilt and recreated from compose-stage2-stt image
 openwebui: restarted and healthy after Action DB update
 public HTTPS: https://gpt.alpha-soft.ru returned HTTP 200
+final report was synced to the server by a later docs-only fast-forward
 ```
 
 OpenWebUI Action deployment proof:
