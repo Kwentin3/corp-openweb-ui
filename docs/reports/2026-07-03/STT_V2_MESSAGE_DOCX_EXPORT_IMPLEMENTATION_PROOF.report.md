@@ -495,3 +495,92 @@ Follow-up verdict:
 ```text
 SEMANTIC_DOCX_LOCAL_PASS_SERVER_DEPLOY_PENDING
 ```
+
+## 11. Follow-Up: Semantic Chat Formatting Deployment
+
+Implementation commit:
+
+```text
+c6826df feat: preserve chat formatting in docx export
+```
+
+Server deployment:
+
+```text
+target=/opt/openwebui-prd0
+git pull --ff-only origin main
+HEAD=c6826df
+docker compose --env-file .env -f compose/openwebui.compose.yml config --quiet
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d --build stage2-stt
+docker compose --env-file .env -f compose/openwebui.compose.yml up -d --force-recreate --no-deps openwebui
+openwebui_health=healthy
+```
+
+Runtime image proof:
+
+```text
+stage2_image_id=sha256:ac3f2187266109cfcc585fb02fde16388684b76b05fe3575c5957f42c4edfe2e
+openwebui_image_id=sha256:8dbfafc61b79cfdf6bbe7c08da6b65ad6d91ca249c801175f77092ccf0210175
+```
+
+Runtime semantic sidecar proof:
+
+```text
+POST /stage2-api/message-docx/exports semantic_chat_v1
+semantic_status_code=200
+schema_ok=True
+delivery_ok=True
+warnings_empty=True
+heading_present=True
+nested_list_present=True
+blockquote_present=True
+code_present=True
+table_header_present=True
+table_row_present=True
+hyperlink_present=True
+no_internal_token=True
+
+POST /stage2-api/message-docx/exports with javascript: link
+unsafe_status_code=422
+unsafe_code=message_docx_unsafe_html
+```
+
+Public loader proof:
+
+```text
+host_loader_sha256=17c15f71cb8ffc3b28b4df26b6e53350e8b57e341e5b002a48421def5da2f8b9
+container_backend_loader_sha256=17c15f71cb8ffc3b28b4df26b6e53350e8b57e341e5b002a48421def5da2f8b9
+public_loader_sha256=17c15f71cb8ffc3b28b4df26b6e53350e8b57e341e5b002a48421def5da2f8b9
+public_loader_has_semantic_chat_v1=True
+public_loader_has_message_markdown_null=True
+```
+
+`/app/build/static/loader.js` in the OpenWebUI container is an empty non-served
+artifact. The served public file matches
+`/app/backend/open_webui/static/loader.js` and the host bind-mounted loader.
+
+Public HTTPS proof:
+
+```text
+https://gpt.alpha-soft.ru/ -> HTTP 200
+```
+
+Recent log scan:
+
+```text
+stage2-stt logs since deploy:
+startup OK, semantic DOCX probe returned 200, unsafe HTML probe returned 422
+
+openwebui logs since recreate:
+service healthy; startup emitted the known read-only static loader filesystem
+warnings because loader.js is bind-mounted read-only.
+```
+
+Browser-authenticated save-dialog proof is still a manual UX check. Server-side
+generation, public loader delivery and typed unsafe-HTML refusal are proven.
+
+Follow-up verdict:
+
+```text
+SEMANTIC_DOCX_SERVER_SIDE_PASS_BROWSER_MANUAL_RECOMMENDED
+```
