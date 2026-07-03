@@ -335,3 +335,69 @@ Regression proof added:
 ```text
 test_loader_docx_action_payload_includes_openwebui_action_envelope
 ```
+
+Local verification after fix:
+
+```text
+python -m pytest -q services/stage2-stt/tests
+86 passed in 3.05s
+
+python -m compileall -q services/stage2-stt
+pass
+
+node --check deploy/openwebui-static/loader.js
+pass
+
+git diff --check
+pass
+```
+
+Follow-up implementation commit:
+
+```text
+b834cc2 fix: include action envelope for docx export
+```
+
+Server deployment:
+
+```text
+target=/opt/openwebui-prd0
+git pull --ff-only origin main
+HEAD=b834cc2
+```
+
+Static loader remount note:
+
+After `git pull`, the host file changed but the OpenWebUI container still saw
+the old bind-mounted file inode:
+
+```text
+host_loader_sha256=ea92e94d68daf3571991b644a769d137d6f97ea2763d9f29860fc386d331898c
+container_loader_sha256=33d32b94edbb13aab331bd0cf4edb5d5a98792fddfb0c0cfce73c80be5c2f56b
+public_loader_sha256=33d32b94edbb13aab331bd0cf4edb5d5a98792fddfb0c0cfce73c80be5c2f56b
+```
+
+To make the static loader update effective, only the OpenWebUI container was
+recreated with `--force-recreate --no-deps openwebui`. The sidecar was not
+rebuilt because the runtime sidecar code did not change.
+
+Post-remount runtime proof:
+
+```text
+host_loader_sha256=ea92e94d68daf3571991b644a769d137d6f97ea2763d9f29860fc386d331898c
+container_loader_sha256=ea92e94d68daf3571991b644a769d137d6f97ea2763d9f29860fc386d331898c
+public_loader_sha256=ea92e94d68daf3571991b644a769d137d6f97ea2763d9f29860fc386d331898c
+public_loader_has_docx_id_fallback=True
+public_loader_has_messages_envelope=True
+public_loader_has_chat_id_envelope=True
+public_loader_has_model_envelope=True
+openwebui: Up / healthy
+stage2-stt: Up
+https://gpt.alpha-soft.ru/ -> HTTP 200
+```
+
+Follow-up verdict:
+
+```text
+SERVER_LOADER_ENVELOPE_FIX_DEPLOYED_BROWSER_RETRY_PENDING
+```
