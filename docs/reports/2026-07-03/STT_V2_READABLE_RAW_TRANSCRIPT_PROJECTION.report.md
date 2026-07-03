@@ -2,8 +2,7 @@
 
 Date: 2026-07-03
 
-Status: implemented locally; server deployment proof to be appended after
-deployment.
+Status: implemented, pushed and deployed to PRD-0.
 
 ## Scope
 
@@ -67,7 +66,56 @@ pass
 
 ## Server Deployment Proof
 
-Pending.
+Implementation commit:
+
+```text
+c3ce6d1 feat: render diarized stt transcripts
+```
+
+Server git/deploy state:
+
+```text
+server_head=c3ce6d1
+git status: ## main...origin/main
+stage2-stt: rebuilt and recreated from compose-stage2-stt image
+openwebui: restarted and healthy after Action DB update
+public HTTPS: https://gpt.alpha-soft.ru returned HTTP 200
+```
+
+OpenWebUI Action deployment proof:
+
+```text
+function.id=stage2_media_transcription_action
+rows_updated=1
+db_sha256=6cbaba58ed566140185e46fe47d959b3453c8f7471698e0bd1e5ad4c3900be89
+file_sha256=6cbaba58ed566140185e46fe47d959b3453c8f7471698e0bd1e5ad4c3900be89
+has_formatter=True
+has_generic_speaker_label=True
+backup_dir=/opt/openwebui-prd0/backups/codex-stt-v2/20260703T084211Z-readable-raw-transcript
+```
+
+Runtime capability proof:
+
+```text
+supports_speaker_labels=True
+provider_id=lemonfox
+adapter_id=lemonfox
+artifact_store_mode=sqlite
+```
+
+DB-executed formatter proof:
+
+```text
+[00:00-00:08] Спикер 1:
+first fragment. continued.
+
+[00:08-00:12] Спикер 2:
+reply.
+raw_provider_label_leaked=False
+flat_fallback_leaked=False
+
+flat_fallback=plain transcript
+```
 
 ## Residual Notes
 
