@@ -291,3 +291,47 @@ repeat on STT transcript and STT post-processing result
 ```text
 SERVER_SIDE_PASS_BROWSER_MANUAL_PENDING
 ```
+
+## 8. Follow-Up: DOCX Action HTTP 400
+
+Observed browser symptom after initial deploy:
+
+```text
+DOCX export failed with HTTP 400. [message_docx_generation_failed]
+```
+
+Runtime log boundary:
+
+```text
+POST /api/chat/actions/stage2_media_transcription_action -> HTTP 400
+no corresponding sidecar /stage2-api/message-docx/exports call
+```
+
+Root cause:
+
+The message-level DOCX loader called the native OpenWebUI Action endpoint with
+only `stage2_message_docx`. OpenWebUI's Action wrapper validates and reads the
+standard chat action envelope before calling the custom Action code, including
+`id`, `chat_id`, `session_id`, `model`, and `messages`. Because these fields
+were absent, the request failed at the OpenWebUI Action boundary and never
+reached the sidecar DOCX generator.
+
+Fix:
+
+`callMessageDocxAction(request)` now sends the same native Action envelope shape
+used by the STT and post-processing loader calls:
+
+```text
+id
+chat_id
+session_id
+model
+messages
+stage2_message_docx.operation=export_message_docx
+```
+
+Regression proof added:
+
+```text
+test_loader_docx_action_payload_includes_openwebui_action_envelope
+```

@@ -42,6 +42,22 @@ def test_loader_docx_button_is_assistant_scoped_and_deduplicated():
     assert "operation: 'export_message_docx'" in docx_block
 
 
+def test_loader_docx_action_payload_includes_openwebui_action_envelope():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function callMessageDocxAction")
+    end = source.index("async function saveMessageDocxResult", start)
+    action_block = source[start:end]
+
+    assert "const model = await selectedModelId();" in action_block
+    assert "id: request.message_id || `stage2-docx-${Date.now()}`" in action_block
+    assert "chat_id: request.chat_id || currentChatId()" in action_block
+    assert "session_id: currentSessionId()" in action_block
+    assert "model," in action_block
+    assert "messages: []" in action_block
+    assert "stage2_message_docx" in action_block
+    assert "operation: 'export_message_docx'" in action_block
+
+
 def test_loader_docx_extraction_avoids_global_response_content_container():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function extractScopedMessageText")

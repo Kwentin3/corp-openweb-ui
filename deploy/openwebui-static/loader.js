@@ -668,10 +668,16 @@
 	}
 
 	async function callMessageDocxAction(request) {
+		const model = await selectedModelId();
 		const response = await fetch(ACTION_URL, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
+				id: request.message_id || `stage2-docx-${Date.now()}`,
+				chat_id: request.chat_id || currentChatId(),
+				session_id: currentSessionId(),
+				model,
+				messages: [],
 				stage2_message_docx: {
 					operation: 'export_message_docx',
 					request
