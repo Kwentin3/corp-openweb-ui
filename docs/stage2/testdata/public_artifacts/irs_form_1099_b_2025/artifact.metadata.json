@@ -1,0 +1,22 @@
+{
+  "artifact_id": "irs_form_1099_b_2025",
+  "source_url": "https://www.irs.gov/pub/irs-prior/f1099b--2025.pdf",
+  "retrieved_at": "2026-07-04",
+  "source_domain": "irs.gov",
+  "source_type": "official_blank_form",
+  "license_or_usage_note": "Official IRS public form. Use for tax-form layout and extraction tests only; not Russian NDFL methodology.",
+  "jurisdiction": "US",
+  "language": "en",
+  "container_format": "pdf",
+  "content_representation": "text_layer",
+  "document_type": "tax_form",
+  "pii_risk": "none",
+  "collection_status": "collected",
+  "reason": "Official blank/prior-year tax form with no filled personal data.",
+  "recommended_tests": [
+    "tax_form_classification",
+    "text_layer_extraction",
+    "field_label_detection",
+    "negative_ru_methodology_boundary"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "artifact_id": "fns_form_3_ndfl_2025",
+  "source_url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_1.pdf",
+  "retrieved_at": "2026-07-04",
+  "source_domain": "nalog.gov.ru",
+  "source_type": "official_blank_form",
+  "license_or_usage_note": "Official FNS public blank form. Use as Russian tax-form layout/source registry item; not as a filled broker-report sample.",
+  "jurisdiction": "RU",
+  "language": "ru",
+  "container_format": "pdf",
+  "content_representation": "text_layer",
+  "document_type": "tax_form",
+  "pii_risk": "none",
+  "collection_status": "collected",
+  "reason": "Official blank 3-NDFL form with no filled personal data.",
+  "recommended_tests": [
+    "ru_tax_form_classification",
+    "text_layer_extraction",
+    "unrelated_to_broker_report_classification",
+    "readiness_boundary_no_filing_claim"
+  ]
+}

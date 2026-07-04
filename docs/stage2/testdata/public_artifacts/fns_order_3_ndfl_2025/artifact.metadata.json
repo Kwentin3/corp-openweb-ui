@@ -1,0 +1,32 @@
+{
+  "artifact_id": "fns_order_3_ndfl_2025",
+  "source_url": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+  "retrieved_at": "2026-07-04",
+  "source_domain": "nalog.gov.ru",
+  "source_type": "official_order_attachments",
+  "license_or_usage_note": "Official FNS public attachments for 3-NDFL 2025 order. Use for declaration-oriented model authority and source registry; not customer data.",
+  "jurisdiction": "RU",
+  "language": "ru",
+  "container_format": "docx",
+  "content_representation": "text_layer",
+  "document_type": "instructions",
+  "pii_risk": "none",
+  "collection_status": "collected",
+  "reason": "Official filling procedure and electronic format attachments are required to refine declaration-oriented data model.",
+  "files": [
+    {
+      "filename": "16589324_2.docx",
+      "title": "Appendix 2: 3-NDFL filling procedure"
+    },
+    {
+      "filename": "16589324_3.docx",
+      "title": "Appendix 3: 3-NDFL electronic format"
+    }
+  ],
+  "recommended_tests": [
+    "official_source_registry",
+    "declaration_model_field_authority",
+    "income_code_review",
+    "electronic_format_structure_review"
+  ]
+}
