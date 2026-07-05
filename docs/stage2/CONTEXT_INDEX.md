@@ -52,6 +52,8 @@ Current documentation split:
 
 - Customer-facing source of truth:
   [STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS](../commercial/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md)
+  Current note, 2026-07-05: STT v2 current-scope items are closed there;
+  broker reports / 3-НДФЛ remains the next active functional epic candidate.
 
 - Internal contract/evidence handoff:
   [STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK](../commercial/STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md)
@@ -459,8 +461,13 @@ Comment:
 - Private sidecar job routes, the OpenWebUI media attachment `Transcribe`
   action and browser ffmpeg.wasm normalization are implemented/proven for the
   MVP path.
-- Stage 2 STT MVP is current-stage closed and ready for broader testing.
-  Remaining STT work is testing/hardening, not architectural discovery.
+- Stage 2 STT MVP and STT v2 current-scope post-processing are closed and ready
+  for broader testing.
+- Current-scope STT v2 closure includes two native-prompt quick actions, prompt
+  catalog/access/version proof, speaker-aware transcript projection when labels
+  exist, ArtifactStore-backed `transcript_ref`, and message-level DOCX export.
+  Remaining STT work is hardening or future extension, not architectural
+  discovery.
 - Prepared-MP3 frontend MVP passed through a static OpenWebUI loader patch.
 - MP4-with-audio and WebM generated proof media passed through browser
   normalization into the existing Action/sidecar path.
@@ -485,8 +492,16 @@ Comment:
 - Message-level DOCX export is a separate Gate 8 extension path. The implemented
   fallback profile is `simple_mvp`; markdown-first semantic chat formatting is
   implemented as `semantic_chat_v1` in the message-level DOCX contract.
+- Future STT items: chunking/map-reduce for long transcripts, OpenWebUI Prompt
+  API Adapter, full additional template set, processed-result-only DOCX artifact
+  path, Meetings/history UI, PDF and branded Word templates.
 
 ## Брокерские отчеты / 3-НДФЛ
+
+Current routing note, 2026-07-05: this is the recommended next active Stage 2
+functional epic after STT v2 closure. It is still not implemented; keep it as a
+limited pilot that depends on customer methodology, examples and accepted input
+formats.
 
 Read first:
 

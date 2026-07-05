@@ -36,6 +36,11 @@ Stage 2 STT MVP implementation is current-stage closed and ready for broader
 testing. Remaining STT gate work is production hardening and owner/ADR policy
 review, not architectural discovery or a reason to restart the MVP design.
 
+STT v2 current-scope post-processing, prompt catalog bridge, speaker-aware
+projection and message-level DOCX export are also closed in the current Stage 2
+scope as of 2026-07-05. Future STT extensions need their own gates instead of
+reopening the closed MVP route.
+
 ## 2. Gates
 
 ### Gate 1. Data Policy approved
@@ -155,6 +160,9 @@ Status:
   path, storage mode/config, prepared-audio retention and production dependency
   decisions are complete.
 - STT MVP current-stage acceptance passed. Production hardening remains pending.
+- STT v2 current-scope post-processing and message-level DOCX acceptance passed;
+  chunking/map-reduce, processed-result-only DOCX artifact path, PDF/branded
+  Word templates and Meetings/history UI remain future.
 
 Owner:
 

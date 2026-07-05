@@ -166,6 +166,38 @@ Status: implemented/proven/current-stage closed; ready for broader testing.
 Sticky instruction: do not re-plan STT from zero, do not fork OpenWebUI without
 proven necessity, and do not treat the sidecar as a user-facing GUI.
 
+### STT v2 transcript post-processing and DOCX export
+
+Domain: Transcription / STT / post-processing / export
+Source: Gate 3-5 proof reports, readable raw transcript projection report,
+native prompt quick-action proof and message-level DOCX proof from 2026-07-02
+and 2026-07-03
+Why: The current Stage 2 STT v2 scope is accepted as closed; remaining items are
+future extensions or hardening, not active backlog for this closed slice.
+
+Completed/proven:
+
+- ArtifactStore-backed `TranscriptResultV1` and opaque `transcript_ref`;
+- fail-closed transcript access by full artifact context;
+- two starter transcript actions: `Краткий пересказ` and `Протокол встречи`;
+- native OpenWebUI Prompts catalog/access/version path for the MVP;
+- quick actions after transcription that return work to the same chat flow;
+- speaker-aware raw transcript projection when provider labels are present;
+- safe refusal for too-long single-pass transcript processing;
+- generic selected assistant-message DOCX export with markdown-first
+  `semantic_chat_v1` formatting.
+
+Status: done / closed in current scope.
+
+Future STT items kept out of active closed-slice backlog:
+
+- chunking/map-reduce for long transcripts;
+- OpenWebUI Prompt API Adapter;
+- full additional transcript template set;
+- specialized processed-result-only DOCX artifact path;
+- separate Meetings app / transcript history UI;
+- PDF export and branded Word templates.
+
 ### Native mobile microphone dictation issue
 
 Domain: Transcription / STT / OpenWebUI native microphone UX
@@ -689,6 +721,19 @@ Source: PRD-1
 Why: Controlled generation requires templates, validation and versioned output.
 Output: future template/export architecture.
 Depends on: separate approval
+Status: deferred
+
+### STT long transcript and specialized export extensions
+
+Domain: Transcription / STT / post-processing / export
+Source: STT v2 closeout and DOCX proof reports
+Why: The current STT v2 MVP intentionally stays single-pass and generic
+selected-message DOCX. Larger transcript processing and stricter artifact
+delivery need separate contracts and tests.
+Output: future architecture for chunking/map-reduce, full template library,
+Prompt API Adapter, processed-result-only DOCX artifacts, Meetings/history UI,
+PDF and branded Word templates.
+Depends on: separate approval and acceptance data.
 Status: deferred
 
 ### Immutable audit archive

@@ -203,6 +203,13 @@ Test data needed:
 Status:
 
 - Current-stage acceptance: passed.
+- STT v2 post-processing: passed/closed for the two-template MVP quick-action
+  path.
+- Speaker-aware transcript projection: passed/closed when provider speaker
+  labels are returned; exact participant-name identification remains out of
+  scope.
+- Message-level DOCX export: passed/closed for selected completed assistant
+  messages.
 - Production hardening: pending.
 - Prepared-MP3 OpenWebUI frontend MVP passed.
 - OpenWebUI media attachment `Transcribe` Action path passed for the static
@@ -220,6 +227,10 @@ Status:
   support.
 - This closes the current Stage 2 STT MVP implementation stage. Remaining STT
   work is testing/hardening, not architectural discovery.
+- Future STT acceptance remains separate: long transcript chunking/map-reduce,
+  OpenWebUI Prompt API Adapter, full additional template set,
+  processed-result-only DOCX artifact path, Meetings/history UI, PDF and
+  branded Word templates.
 - Remaining acceptance data: mobile, low-memory browser, large/customer files,
   cancel during ffmpeg, duration-limit policy, Opus provider/default proof if
   selected, production storage/retention, transcript history/export/workflow
@@ -380,7 +391,11 @@ Scope marker:
   canonical message markdown or sanitized selected-message HTML is available.
 - `semantic_chat_v1` preserves visible chat document semantics such as headings,
   lists, tables, links, blockquotes and code blocks.
+- Current-stage acceptance: passed/closed for message-level DOCX export of one
+  selected completed assistant message; not whole-chat export.
 - `BROAD_PRD` / `FUTURE_SCOPE` for full PDF/DOCX/XLSX handling and OCR pilot.
+- `FUTURE_SCOPE` for PDF export, branded Word templates and specialized
+  processed-result-only DOCX artifact delivery.
 
 Domain:
 

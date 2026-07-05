@@ -1,7 +1,7 @@
 ﻿# Stage 2 Documentation Representation Model
 
-Status: proposal for documentation hygiene.
-Date: 2026-06-30.
+Status: documentation hygiene model, updated after STT v2 closure.
+Date: 2026-07-05.
 
 This document fixes how Stage 2 documentation should be represented after the
 customer-facing scope work and internal handoff work. It does not change the
@@ -98,11 +98,11 @@ cleanup step.
 | Hour map | Customer-facing scope doc | Handoff rough effort section | Hours can be repeated only as a short pointer elsewhere. |
 | Future scope | Customer-facing scope doc for customer exclusions; PRD-1 and backlog for product roadmap | Acceptance matrix | OCR/VL OCR, broker reports, full document workflows and full governance stay outside current contract scope unless separately agreed. |
 | STT base evidence | STT reports and `docs/stage2/CONTEXT_INDEX.md` | Acceptance matrix, gates | Base STT is implemented; remaining base work is hardening. |
-| STT v2 scope | Customer-facing scope doc and handoff pack | PRD/customer summary | Current/to-implement scope: template post-processing, starter templates, cautious speaker-aware handling and simple DOCX export. |
+| STT v2 scope | Customer-facing scope doc and handoff pack | STT v2 proof reports and code paths | Current scope is closed: two starter transcript actions, native OpenWebUI Prompts path, speaker-aware output when labels exist and generic selected-message DOCX export. Future STT items are chunking/map-reduce, Prompt API Adapter, full template library, processed-result-only DOCX artifact path, Meetings/history UI, PDF and branded Word templates. |
 | Web Search baseline evidence | `docs/stage2/WEB_SEARCH_CONTEXT_INDEX.md` | Brave/Yandex/SearXNG reports | Baseline is implemented; full governance is not closed. |
 | Web Search scenarios | Customer-facing scope doc and Web Search docs | Source attribution/privacy contracts | Scenario pack is prompt/content work, not full governance. |
 | OCR/VL OCR research | V2 shortlist research and OCR/VL OCR context pack | 2026-06-25 reports | Research/future only for current contract scope. |
-| Broker reports future scope | PRD-1 and broker blueprint | Customer-facing exclusions | Future scope, not current implementation. |
+| Broker reports future scope | PRD-1, broker blueprint and customer-facing scope doc | Customer-facing exclusions | Next active functional epic candidate, but still not implemented and still limited to a pilot after customer data/methodology inputs. |
 | Acceptance criteria | `docs/stage2/acceptance/ACCEPTANCE_MATRIX.md` | Customer-facing scope doc for customer acceptance frame | Keep internal acceptance broad but label current-scope boundaries. |
 | Engineering backlog | `docs/stage2/ENGINEERING_BACKLOG.md` | Gates, context index | Backlog owns engineering next actions. |
 

@@ -1,8 +1,8 @@
 ﻿# Stage 2 Contract Handoff Context Pack
 
-Status: contract-handoff evidence pack.
-Date: 2026-06-30.
-Final verdict: `stage2_contract_handoff_context_ready`.
+Status: contract-handoff evidence pack, updated after STT v2 closure.
+Date: 2026-07-05.
+Final verdict: `stage2_contract_handoff_context_updated_after_stt_v2_closure`.
 
 This document is not a contract, act, invoice or legal appendix. It is the
 evidence base for preparing those external documents later.
@@ -18,7 +18,8 @@ Recommended scope framing:
 First functional and architectural Stage 2 slice for corporate OpenWebUI:
 implemented base audio/video transcription inside OpenWebUI, implemented base
 Web Search provider baseline, Stage 2 architecture and acceptance materials,
-and the next bounded STT v2 slice for transcript post-processing by templates.
+implemented STT v2 transcript post-processing in current-scope MVP form, and
+implemented message-level DOCX export for selected completed assistant messages.
 ```
 
 Already done and safe to describe as implemented:
@@ -27,25 +28,25 @@ Already done and safe to describe as implemented:
 - browser ffmpeg.wasm media normalization path;
 - OpenWebUI Action/static-loader/private STT sidecar integration;
 - Lemonfox first-provider adapter path behind a provider boundary;
+- STT v2 transcript post-processing quick actions;
+- starter STT v2 template set: short summary and meeting protocol;
+- native OpenWebUI Prompt catalog path for the STT v2 MVP templates;
+- speaker-aware raw transcript projection when provider labels are available;
+- message-level DOCX export for selected completed assistant messages;
 - base Web Search provider baseline for Brave, Yandex and private SearXNG;
 - Stage 2 architecture, extension-first pattern, gates, backlog and acceptance
   matrix.
 
 Current contract-scope candidates still to implement:
 
-- STT v2 transcript post-processing by templates;
-- starter transcript-processing template set;
-- template management through native OpenWebUI mechanisms where possible;
-- speaker-aware transcript post-processing when provider data is available;
-- simple DOCX export of processed result for later manual editing;
 - ready Web Search usage scenarios;
 - general corporate prompt pack;
 - short user onboarding pack;
 - basic pilot access matrix.
+- broker reports / 3-НДФЛ limited pilot, if approved as the next active epic.
 
 Future scope must stay outside this contract slice:
 
-- broker reports / 3-НДФЛ;
 - OCR / VL OCR as production or accepted pilot;
 - full PDF/DOCX/XLSX workflow;
 - CRM/task tracker integration;
@@ -70,8 +71,11 @@ Future scope must stay outside this contract slice:
    architecture, extension-first routing, acceptance, gates and backlog.
 5. The customer wants to gradually move functionality from an existing separate
    audio transcription web app into OpenWebUI.
-6. The main new direction for this contract slice is STT v2: transcript
-   post-processing by templates.
+6. STT v2 transcript post-processing and message-level DOCX export are now
+   closed in the current Stage 2 scope.
+7. The next active functional direction is the broker reports / 3-НДФЛ limited
+   pilot, while Web Search scenarios, general prompt pack, onboarding and access
+   matrix remain packaging/readiness work.
 
 ## 3. Sources Reviewed
 
@@ -145,17 +149,17 @@ No code, compose, env or runtime configuration was changed for this handoff.
 | Browser ffmpeg.wasm normalization | Browser-side probe/normalization is part of closed MVP path. | `deploy/openwebui-static/loader.js`, `stage2-stt-normalization.json`, mounted static assets in compose. | `OPENWEBUI_STT_FFMPEG_BROWSER_NORMALIZATION_IMPLEMENTATION.report.md`, ffmpeg proof evidence. | DONE | Use "attempts normalization on supported media", not universal media guarantee. |
 | OpenWebUI Action/function integration | Explicit Transcribe action on media attachment. | `stage2_media_transcription_action.py`, loader calls `/api/chat/actions/stage2_media_transcription_action`. | STT runtime and UI proof reports. | DONE | No separate STT GUI and no separate "Meetings" section. |
 | Lemonfox provider path | Lemonfox is first provider behind adapter boundary. | `lemonfox.py`, `provider.py`, config defaults, tests. | Lemonfox capability/runtime reports. | DONE | Not hardwired architecture; other providers can be added by adapter. |
-| Speaker-aware transcript support / provider JSON support | Provider can return speaker labels and verbose JSON; normalized transcript models preserve speaker fields. | `TranscriptSegmentV1.speaker`, `TranscriptWordV1.speaker`, Lemonfox `speaker_labels` request flag and segment/word normalization. | Lemonfox research and ADR reports. | PARTIAL | Data model supports it; end-user STT v2 speaker-role post-processing is not implemented. |
-| STT v2 post-processing | Customer direction: process transcripts by templates. | No STT v2 post-processing route/action found in code. | Scenario/user-story docs mention meeting summaries, decisions and action items. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Main new scope candidate. |
-| Template/prompt management | Native OpenWebUI Workspace Prompts are the preferred path. | No new code needed yet; native capability audit proves synthetic shared prompt visibility. | `OPENWEBUI_NATIVE_CAPABILITY_RUNTIME_AUDIT.report.md`, `OPENWEBUI_ADMIN_TEST_USER_RUNTIME_PROOF.report.md`. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Native path exists; production admin/user sharing behavior must be manually verified on the target runtime. |
-| DOCX export | PRD-1 contains document/export ambitions, but production document generation is future. | No DOCX export code found in STT service or loader. | PRD/customer summary and backlog place production DOCX/XLSX generation outside base scope. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Only simple DOCX export of processed text should be included. |
+| Speaker-aware transcript support / provider JSON support | Provider can return speaker labels and verbose JSON; normalized transcript models preserve speaker fields. | `TranscriptSegmentV1.speaker`, `TranscriptWordV1.speaker`, Lemonfox `speaker_labels` request flag, Action speaker-turn formatter. | Gate 1-2 proof and readable raw transcript projection report. | DONE / CLOSED_IN_CURRENT_SCOPE | Uses generic speaker labels when available; exact real participant names remain out of scope. |
+| STT v2 post-processing | Current scope: process transcripts by approved templates and return result in the same chat. | `post_processing.py`, post-processing routes in `app.py`, Action operations `list_postprocessing_templates`, `execute_postprocessing`, `draft_postprocessing_prompt`, loader quick actions. | Gate 3, Gate 4, Gate 5 and native prompt quick-action reports. | DONE / CLOSED_IN_CURRENT_SCOPE | Closed for two MVP templates; chunking/map-reduce and larger template library remain future. |
+| Template/prompt management | Native OpenWebUI Prompts are the current MVP path. | `prompt_catalog.py`, post-processing prompt draft route, Action prompt-draft operation. | Prompt catalog, prompt access/version proof and native quick-action reports. | DONE / CLOSED_IN_CURRENT_SCOPE | Separate complex template editor and Prompt API adapter remain future. |
+| DOCX export | Generic message-level DOCX export is implemented for selected completed assistant messages. | `message_docx.py`, `POST /stage2-api/message-docx/exports`, Action `export_message_docx`, loader DOCX toolbar button. | Message-level DOCX export proof report; operator save/open proof. | DONE / CLOSED_IN_CURRENT_SCOPE | Specialized processed-result-only DOCX artifact path, PDF and branded Word templates remain future. |
 | Web Search baseline | Base Web Search provider baseline exists for Brave, Yandex and private SearXNG. | `compose/searxng.private.compose.yml`, `deploy/searxng/`, `.env.example`, native OpenWebUI provider config fields. | Brave/Yandex/SearXNG baseline reports and provider closeout. | DONE | Baseline only, not full governance. |
 | Brave provider path | Brave direct-context native baseline. | Native OpenWebUI Web Search config path; no custom sidecar required. | Brave runtime baseline and Web Search context index. | DONE | Primary direct-context baseline. |
 | Yandex provider path | Yandex Search API path works by owner/operator Admin UI/native smoke. | `.env.example` and compose expose Yandex Web Search config names. | Yandex runtime baseline report. | DONE | Proof level is operator-confirmed; privacy/data-egress review remains. |
 | Private SearXNG path | Private SearXNG comparison path. | `compose/searxng.private.compose.yml`, `deploy/searxng/settings.yml`, `limiter.toml`. | SearXNG private instance and runtime smoke reports. | DONE | Comparison track, not primary provider and not privacy guarantee. |
 | Corporate prompt pack | PRD-1 requires shared prompts/templates and native capability audit supports Workspace Prompts. | No final prompt pack code/config artifact found for this slice. | Native capability audit and scenario/user-story docs. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Should be configuration/content work, not fork work. |
 | Web Search usage scenarios | PRD/docs require user-ready scenarios for search with sources. | Base provider paths exist; scenario templates are not finalized as user pack. | Web Search context, source attribution contract and selected stories docs. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Include scenario pack, not full governance. |
-| Onboarding/user instruction | Docs exist for pilot/user onboarding, but not a short current-scope pack tied to STT v2/Web Search. | No code evidence required. | `docs/pilot/USER_ONBOARDING.md`, Stage 2 docs. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Create a concise user instruction in current scope. |
+| Onboarding/user instruction | Docs exist for pilot/user onboarding, but not a short current-scope pack for the closed Stage 2 capabilities. | No code evidence required. | `docs/pilot/USER_ONBOARDING.md`, Stage 2 docs. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Create a concise user instruction in current scope. |
 | Pilot access matrix | Native groups/RBAC synthetic proof exists; production customer matrix is open. | Native capability audit shows groups/resource proof; no production matrix config. | Admin test-user runtime proof and native capability audit. | TO_IMPLEMENT_IN_CURRENT_SCOPE | Basic pilot matrix only; no AD/SSO/SCIM. |
 | Architecture/acceptance/backlog | Stage 2 architecture, gates, backlog and acceptance are documented. | Code follows sidecar/adapter/static-loader boundaries. | Stage 2 reports, gates and acceptance matrix. | DONE | May be included as architectural and acceptance documentation result. |
 | OCR/VL OCR | Research and infrastructure epic exist. | No production OCR/VL OCR implementation audited for this contract slice. | OCR/VL OCR research V1/V2 and context pack. | RESEARCH_ONLY | Future/research context only. |
@@ -166,11 +170,11 @@ No code, compose, env or runtime configuration was changed for this handoff.
 | Result | Status | Contract-scope candidate | Evidence | Notes |
 | --- | --- | --- | --- | --- |
 | R1. Base audio/video transcription in OpenWebUI | DONE | Yes, implemented result. | STT sidecar/action/loader code, STT runtime reports. | User uploads media, starts transcription, result is returned inside OpenWebUI chat UX. No separate "Meetings" section. |
-| R2. STT v2 transcript post-processing by templates | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, new work. | PRD/customer summary/scenario docs; no code route yet. | Result should return to the same OpenWebUI chat. |
-| R3. Starter transcript-processing template set | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, new work. | Native prompt capability and scenario docs. | Templates: short summary, detailed summary, meeting protocol, tasks, decisions, open questions, manager summary, follow-up email. |
-| R4. Template management through native OpenWebUI | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, with verification gate. | Native capability audit proves Workspace Prompts on synthetic actors. | Avoid heavy separate template editor unless native path is insufficient. |
-| R5. Speaker-aware transcript post-processing | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, bounded. | STT contracts and Lemonfox adapter preserve speaker fields. | Do not promise exact participant identity. |
-| R6. Simple DOCX export of processed result | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, bounded. | No code yet; PRD distinguishes simple documents from production generation. | DOCX only, no PDF, no branded formatting guarantee. |
+| R2. STT v2 transcript post-processing by templates | DONE / CLOSED_IN_CURRENT_SCOPE | Yes, implemented result. | Post-processing service/routes, Action quick actions, native prompt quick-action proof. | Result returns to the same OpenWebUI chat flow. |
+| R3. Starter transcript-processing template set | DONE / CLOSED_IN_CURRENT_SCOPE | Yes, implemented result. | Prompt catalog proof and OpenWebUI prompt records. | Closed starter set: short summary and meeting protocol. Additional templates remain future. |
+| R4. Template management through native OpenWebUI | DONE / CLOSED_IN_CURRENT_SCOPE | Yes, implemented result. | Prompt catalog/access/version proof. | Native OpenWebUI Prompts path; no heavy separate template editor. |
+| R5. Speaker-aware transcript post-processing | DONE / CLOSED_IN_CURRENT_SCOPE | Yes, bounded implemented result. | STT contracts, Lemonfox adapter, Action speaker-turn projection, tests. | Do not promise exact participant identity. |
+| R6. Simple DOCX export of processed result | DONE / CLOSED_IN_CURRENT_SCOPE | Yes, implemented result. | Message-level DOCX endpoint, renderer, Action/loader, proof report. | Generic selected-message export; no PDF, no branded formatting guarantee. |
 | R7. Web Search baseline | DONE | Yes, implemented baseline. | Web Search context, Brave/Yandex/SearXNG reports, SearXNG config. | Do not include full governance as done. |
 | R8. Ready Web Search scenarios | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, new content/config work. | Source attribution/privacy contracts and selected stories. | Search current info, compare options, verify claims, find official sources, answer with sources. |
 | R9. General corporate prompt pack | TO_IMPLEMENT_IN_CURRENT_SCOPE | Yes, new content/config work. | Native prompt proof and scenario docs. | Rewrite, summary, business memo, client email, clarity check, task list, manager brief, client answer. |
@@ -189,17 +193,19 @@ Recommended current contract scope:
    - Lemonfox first-provider adapter path;
    - base Web Search provider baseline;
    - Stage 2 architecture, acceptance and backlog.
-2. Add STT v2:
+2. Preserve closed STT v2 current-scope results:
    - template-based transcript post-processing;
    - starter transcript-processing templates;
    - speaker-aware use of provider speaker data where available;
-   - simple DOCX export of processed text;
+   - message-level DOCX export for selected completed assistant messages;
    - result returned in the same OpenWebUI chat.
 3. Add user-facing readiness:
    - ready Web Search usage scenarios;
    - corporate prompt pack;
    - short onboarding/user instruction;
    - basic pilot access matrix.
+4. Prepare broker reports / 3-НДФЛ limited pilot as the next active functional
+   epic only after customer test data and methodology inputs are available.
 
 ## 8. Future Scope Boundaries
 
@@ -228,11 +234,11 @@ These are rough labor ranges, not financial terms.
 | Result | Status | Rough effort, hours | Notes |
 | --- | --- | --- | --- |
 | R1. Base audio/video transcription in OpenWebUI | DONE | Completed | Evidence exists in code and reports. |
-| R2. STT v2 transcript post-processing by templates | TO_IMPLEMENT_IN_CURRENT_SCOPE | 16-32 h | Depends on native prompt/action path selected. |
-| R3. Starter transcript-processing template set | TO_IMPLEMENT_IN_CURRENT_SCOPE | 8-16 h | Includes initial template text and smoke examples. |
-| R4. Template management through native OpenWebUI | TO_IMPLEMENT_IN_CURRENT_SCOPE | 8-16 h | Requires runtime verification for admin/shared/personal behavior. |
-| R5. Speaker-aware transcript post-processing | TO_IMPLEMENT_IN_CURRENT_SCOPE | 8-16 h | Data model exists; UX/post-processing path remains. |
-| R6. Simple DOCX export of processed result | TO_IMPLEMENT_IN_CURRENT_SCOPE | 8-16 h | Simple export only. |
+| R2. STT v2 transcript post-processing by templates | DONE / CLOSED_IN_CURRENT_SCOPE | Completed | Two MVP quick actions are implemented and deployed. |
+| R3. Starter transcript-processing template set | DONE / CLOSED_IN_CURRENT_SCOPE | Completed | Short summary and meeting protocol are implemented. |
+| R4. Template management through native OpenWebUI | DONE / CLOSED_IN_CURRENT_SCOPE | Completed | Native OpenWebUI Prompts path is used for the MVP. |
+| R5. Speaker-aware transcript post-processing | DONE / CLOSED_IN_CURRENT_SCOPE | Completed | Speaker labels are used when provider data is available. |
+| R6. Simple DOCX export of processed result | DONE / CLOSED_IN_CURRENT_SCOPE | Completed | Generic selected assistant-message DOCX export is implemented. |
 | R7. Web Search baseline | DONE | Completed | Evidence exists in docs/reports/config. |
 | R8. Ready Web Search scenarios | TO_IMPLEMENT_IN_CURRENT_SCOPE | 4-8 h | Prompt/scenario packaging. |
 | R9. General corporate prompt pack | TO_IMPLEMENT_IN_CURRENT_SCOPE | 8-16 h | Configuration/content work. |
@@ -303,20 +309,23 @@ on the target runtime:
 - the current global Web Search permission model is acceptable or can be
   narrowed for the pilot group.
 
-Current repo evidence supports the native-first path, but production group
-behavior still needs manual runtime verification before wording it as a
-closed operational control.
+Current repo evidence supports the native-first path and closes the two-template
+MVP path. Production group behavior still needs manual runtime verification
+before wording it as a broader closed operational control.
 
 ## 12. Key Discrepancies And Limits
 
 - Documentation describes broad PRD-1; code and runtime evidence close only the
   limited implemented slice.
-- STT v2 post-processing is not implemented in code yet.
-- Template/prompt management is native-proven on synthetic actors, not finalized
-  for the customer production group.
-- DOCX export is not implemented yet and should be scoped as simple export only.
-- Speaker fields are preserved in transcript models, but end-user speaker-role
-  processing is future work.
+- STT v2 post-processing is implemented for the current MVP scope, but long
+  transcript chunking/map-reduce and the full template library are future work.
+- Template/prompt management is implemented through native OpenWebUI Prompts for
+  the MVP; broader customer production group policy remains to verify.
+- DOCX export is implemented as generic selected-message export; specialized
+  processed-result-only artifact export, PDF and branded Word templates are
+  future work.
+- Speaker-aware output is implemented when labels exist; exact real participant
+  identity remains outside the guarantee.
 - Web Search baseline is implemented, but group rollout, forbidden-query policy,
   extended logs and hard governance are not closed.
 - OCR/VL OCR and broker reports remain research/future scope, not completed

@@ -347,6 +347,8 @@ Next action:
 
 - STT MVP current stage is closed, but ADR-0004 is still `Proposed` and
   production hardening is pending.
+- STT v2 current-scope post-processing, speaker-aware projection and
+  message-level DOCX export are closed for the current Stage 2 scope.
 - Нет нового provider setup в документации.
 - Этот docs view не вносит новых compose/env/scripts changes.
 - Нет OpenWebUI fork.
@@ -390,6 +392,10 @@ dependencies.
 For STT, do not re-plan the MVP architecture. Review
 [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md) for
 production policy/hardening decisions and continue broader testing.
+
+Next active functional epic after STT v2 closure:
+[Broker reports / 3-НДФЛ](CONTEXT_INDEX.md#брокерские-отчеты--3-ндфл) limited
+pilot.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

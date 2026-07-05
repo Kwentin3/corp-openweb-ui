@@ -1,20 +1,30 @@
 ﻿# STT v2 Transcript Post-processing Context Pack
 
+Current status note, 2026-07-05: this file began as a pre-implementation
+context pack. STT v2 is now closed in the current Stage 2 scope: two starter
+transcript actions are available (`Краткий пересказ`, `Протокол встречи`),
+native OpenWebUI Prompts are used for the MVP path, speaker-aware transcript
+projection works when provider labels exist, `TranscriptResultV1` is stored
+behind an opaque `transcript_ref`, and generic selected-message DOCX export is
+implemented. Planning sections below are retained for traceability; current
+truth is the code plus the 2026-07-02/2026-07-03 proof reports.
+
 ## 1. Executive summary
 
-STT v2 is the next layer above the already implemented base transcription path.
-The goal is not to reopen STT ingestion, provider routing, browser media
-normalization or sidecar architecture. The next epic should turn a returned
-transcript into a practical OpenWebUI workflow: choose a processing template,
-apply it to the transcript, return the processed result to the same chat, and
-optionally export that processed result to a simple DOCX file.
+STT v2 is the closed current-scope layer above the already implemented base
+transcription path. Do not reopen STT ingestion, provider routing, browser media
+normalization or sidecar architecture. The implemented MVP turns a returned
+transcript into a practical OpenWebUI workflow: choose one of two processing
+actions, draft/use the native prompt path, return the result to the same chat
+flow, and export a selected completed assistant message to DOCX.
 
 Current code already has the STT sidecar, OpenWebUI Action, static loader,
 browser ffmpeg.wasm normalization config, Lemonfox adapter, transcript result
 contracts and speaker fields. Current code now also has a generic message-level
-DOCX export path. It still does not have a specialized processed-result-only
-DOCX artifact path or a separate native OpenWebUI runtime path for template
-management on the target stand.
+DOCX export path, post-processing service/routes, prompt-draft bridge and quick
+actions. It still does not have a specialized processed-result-only DOCX
+artifact path, chunking/map-reduce, a full template library or a separate
+Meetings/history UI.
 
 Recommended implementation posture: native-first, extension-first, no separate
 "Meetings" app, no separate transcript history store, no heavy OpenWebUI fork.
@@ -76,11 +86,14 @@ history surface. OpenWebUI chat is the durable user context.
 
 ## 5. In-scope features
 
-STT v2 post-processing actions:
+STT v2 post-processing actions implemented in the current MVP:
 
 - `Краткий пересказ`
-- `Подробный пересказ`
 - `Протокол встречи`
+
+Additional actions discussed for future expansion:
+
+- `Подробный пересказ`
 - `Список задач`
 - `Список решений`
 - `Открытые вопросы`
@@ -138,17 +151,17 @@ Simple DOCX export:
 
 | Area | File/path | What exists | Relevant for STT v2 | Gap |
 | --- | --- | --- | --- | --- |
-| STT FastAPI app | `services/stage2-stt/stage2_stt/app.py` | Capabilities endpoint, job create/result/cancel routes, internal auth, provider call, normalized response, and message-level DOCX export endpoint. | Can remain the base transcript source and, if needed, host export/post-processing support. | No STT v2 template execution; specialized processed-result-only DOCX artifact path remains future. |
+| STT FastAPI app | `services/stage2-stt/stage2_stt/app.py` | Capabilities endpoint, job create/result/cancel routes, internal auth, provider call, normalized response, transcript retrieval, post-processing routes and message-level DOCX export endpoint. | Base transcript source and current post-processing/export host. | Specialized processed-result-only DOCX artifact path remains future. |
 | Job creation/result routes | `app.py`, `jobs.py`, `job_store.py` | In-memory job store, typed status, result retrieval, local cancel semantics. | Result route can return `TranscriptResultV1` with segments if v2 needs structured transcript. | Current OpenWebUI Action consumes create response and only returns flat text to user. |
 | Provider adapter | `provider.py` | Adapter factory with Lemonfox implementation. | Keeps provider boundary clean; v2 should not depend on raw provider payloads. | Only Lemonfox adapter is registered. |
 | Lemonfox adapter | `lemonfox.py` | `verbose_json` request, optional speaker labels, timestamp flags, normalized transcript segments/words. | Speaker-aware processing can rely on normalized segment/word speaker fields. | Provider labels depend on runtime config and provider output quality. |
 | Transcript contracts | `contracts.py` | `TranscriptResultV1`, `TranscriptSegmentV1`, `TranscriptWordV1`, speaker fields, warnings. | Stable internal contract for templates, UI and export. | No v2 processed-result contract yet. |
 | Speaker fields | `contracts.py`, `lemonfox.py`, `runtime.py`, compose env defaults | Segment and word speaker fields exist; runtime capabilities report speaker-label support. | Enables bounded speaker-aware output. | Default speaker-label flag is off in compose; user-facing Action currently drops segment structure. |
-| OpenWebUI Action | `services/stage2-stt/openwebui_actions/stage2_media_transcription_action.py` | Collects uploaded files, calls sidecar, formats warnings, returns `Transcript:` content. | Existing bridge into OpenWebUI Action runtime. | No post-processing actions; no structured transcript returned to frontend beyond flat text. |
-| Static loader | `deploy/openwebui-static/loader.js` | Adds `Транскрибировать` button, prepares media, calls Action, appends returned content to composer. | Likely hook for showing post-processing buttons if native prompts are insufficient. | Loader DOM patching is brittle across OpenWebUI upgrades; no v2 UI yet. |
+| OpenWebUI Action | `services/stage2-stt/openwebui_actions/stage2_media_transcription_action.py` | Collects uploaded files, calls sidecar, formats warnings, returns `Transcript:` content, lists/drafts/executes post-processing, exports message DOCX and renders speaker turns. | Current bridge into OpenWebUI Action runtime. | Future work: broader template set and any stricter artifact-specific export path. |
+| Static loader | `deploy/openwebui-static/loader.js` | Adds `Транскрибировать` button, prepares media, calls Action, appends returned content to composer, exposes post-processing actions and DOCX button. | Current UI shim for STT v2 quick actions and message-level DOCX. | Loader DOM patching remains brittle across OpenWebUI upgrades. |
 | ffmpeg normalization | `loader.js`, `stage2-stt-normalization.json` | Browser probe/normalization config and profile definitions. | Keep as base media ingestion; v2 should not change it unless testing needs base STT. | Generated `stage2-assets/ffmpeg/` directory is ignored and absent in current checkout. |
 | Validation/storage | `validation.py`, `storage.py` | MIME/profile/size checks, storage decision warnings. | Do not bypass backend validation when v2 touches transcript source/result routes. | Storage/retention policy remains production hardening. |
-| Tests | `services/stage2-stt/tests/` | Capabilities, config, provider normalization, job routes, validation/storage/job behavior, Action warning tests, and message-level DOCX export tests. | Add focused v2 tests near any new code. | No template execution, speaker-aware output or specialized processed-result DOCX export tests. |
+| Tests | `services/stage2-stt/tests/` | Capabilities, config, provider normalization, job routes, validation/storage/job behavior, Action warning tests, post-processing tests, speaker projection tests, loader tests and message-level DOCX export tests. | Current MVP verification surface. | No chunking/map-reduce or specialized processed-result DOCX export tests. |
 | Compose/static mount | `compose/openwebui.compose.yml` | Mounts loader/config/assets, configures private `stage2-stt` service and STT env defaults. | Confirms extension-first deployment shape. | No v2 env/config; no code change should happen before runtime path is selected. |
 | Native prompts/templates docs | `docs/stage2/implementation/OPENWEBUI_NATIVE_CAPABILITY_AUDIT.md`, handoff docs | Native Workspace Prompts are the preferred path and synthetic proof exists. | First-choice template management route. | Target runtime admin/user sharing behavior still needs manual verification. |
 
@@ -186,10 +199,10 @@ Evidence summary:
 - browser ffmpeg.wasm normalization has historical runtime proof on synthetic
   media;
 - current UI path is an OpenWebUI media action plus a static loader patch;
-- speaker fields are modeled and normalized, but not yet used in end-user
-  post-processing;
-- native Workspace Prompts are preferred but still require target-runtime
-  verification for production sharing/visibility behavior;
+- speaker fields are modeled, normalized and rendered as speaker turns when
+  labels exist;
+- native Workspace Prompts are used for the two-template MVP path; broader
+  production group policy still requires customer/operator verification;
 - generic message-level DOCX export is implemented/proven; specialized
   processed-result-only DOCX export remains future work.
 
@@ -224,7 +237,11 @@ Native assumptions to verify:
 - chat/file storage behavior is acceptable for transcript and DOCX artifacts;
 - there is a native artifact/export mechanism worth reusing.
 
-## 10. Proposed implementation strategy
+## 10. Historical implementation strategy
+
+Historical note: the following strategy describes the pre-closeout planning
+shape. Current MVP implementation exists; use this section only for future
+extensions.
 
 ### Layer 1. Transcript action discovery
 
@@ -413,8 +430,9 @@ Risks:
 - static loader UI hooks are brittle across OpenWebUI upgrades;
 - Action result shape may not support buttons or structured UI;
 - speaker labels depend on provider output and runtime config;
-- the current Action drops structured segment data unless changed;
-- DOCX export may require a backend endpoint and a new dependency;
+- future extensions must preserve structured segment data and artifact context;
+- specialized processed-result-only DOCX export would require a separate
+  artifact contract;
 - long transcripts may exceed model context limits;
 - prompt outputs require human review and can omit or distort details;
 - generated ffmpeg assets are not present in Git and must be provisioned for
