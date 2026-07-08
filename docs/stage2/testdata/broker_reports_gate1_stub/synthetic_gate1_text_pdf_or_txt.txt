@@ -1,0 +1,8 @@
+Synthetic Person Alpha
+Synthetic Broker LLC
+SYNTH-ACCOUNT-001
+SYNTH-A
+SYNTH-FCY
+
+This is a synthetic Gate 1 text fixture.
+It is not a tax document and must not be used for tax calculation.
