@@ -34,6 +34,9 @@ temp/
 # Local proof media and customer samples
 audio/
 
+# Local clipboard/delivery buffer, never repository source of truth.
+docs/out/
+
 # Build/cache artifacts
 node_modules/
 dist/
