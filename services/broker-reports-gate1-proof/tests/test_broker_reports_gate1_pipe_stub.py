@@ -126,6 +126,68 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("SYNTH-A,1,SYNTH-FCY", content)
         self.assertNotIn(csv, content)
 
+    def test_pipe_live_artifactstore_smoke_proves_retention_without_private_leaks(self):
+        pipe = self._pipe()
+        txt = (
+            "Synthetic Person Alpha\n"
+            "Synthetic Broker LLC\n"
+            "SYNTH-ACCOUNT-001\n"
+            "SYNTH-A\n"
+            "SYNTH-FCY\n"
+        )
+        csv = (
+            "synthetic_symbol,synthetic_quantity,synthetic_currency,synthetic_note\n"
+            "SYNTH-A,1,SYNTH-FCY,synthetic operation row for Gate 1 only\n"
+        )
+
+        content = run_pipe(
+            pipe,
+            {
+                "metadata": {"case_id": "case-live-smoke"},
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 normalization\nartifactstore retention smoke",
+                        "files": [
+                            file_ref(
+                                "pipe-file-txt-1",
+                                "synthetic_gate1_text_pdf_or_txt.txt",
+                                "text/plain",
+                                content=txt,
+                            ),
+                            file_ref(
+                                "pipe-file-csv-1",
+                                "synthetic_gate1_operations.csv",
+                                "text/csv",
+                                content=csv,
+                            ),
+                        ],
+                    }
+                ],
+            },
+        )
+
+        self.assertIn("Проверка ArtifactStore:", content)
+        self.assertIn("хранилище доступно для записи: да", content)
+        self.assertIn("retention policy: mode=api_smoke, explicit=True, ttl_seconds=86400", content)
+        self.assertIn("normalization_run_v0", content)
+        self.assertIn("private_normalized_text_slice_v0", content)
+        self.assertIn("private_normalized_table_slice_v0", content)
+        self.assertIn("private slices в chat: нет", content)
+        self.assertIn("private slices в Knowledge: нет", content)
+        self.assertIn("customer_docs_loaded_to_knowledge=false", content)
+        self.assertIn("Gate 2 handoff использует opaque refs, не chat JSON", content)
+        self.assertIn("resolver same-context: allow", content)
+        self.assertIn("resolver denies wrong-user/wrong-case/expired/purged: ok", content)
+        self.assertIn("purge удалил private payloads и оставил tombstones", content)
+        self.assertIn("source facts/tax/declaration/xlsx/ocr flags=false", content)
+        self.assertNotIn("```json", content)
+        self.assertNotIn("pipe-file-csv-1", content)
+        self.assertNotIn("synthetic_gate1_operations.csv", content)
+        self.assertNotIn("SYNTH-ACCOUNT-001", content)
+        self.assertNotIn("SYNTH-A,1,SYNTH-FCY", content)
+        self.assertNotIn(csv, content)
+
     def test_pipe_fails_closed_without_files(self):
         pipe = self._pipe()
 

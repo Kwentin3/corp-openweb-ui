@@ -121,7 +121,7 @@ _install_bundled_package()
 
 
 # Begin maintainable source adapter: openwebui_actions/broker_reports_gate1_pipe.py
-{pipe_source}
+{pipe_source.rstrip()}
 '''
 
 

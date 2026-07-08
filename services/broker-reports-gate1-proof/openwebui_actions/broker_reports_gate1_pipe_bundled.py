@@ -74,6 +74,7 @@ _install_bundled_package()
 # Begin maintainable source adapter: openwebui_actions/broker_reports_gate1_pipe.py
 import base64
 import binascii
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +82,9 @@ from pydantic import BaseModel, Field
 
 from broker_reports_gate1 import (
     ArtifactAccessContext,
+    ArtifactResolver,
     ArtifactStoreConfig,
+    ArtifactStoreError,
     ArtifactStoreFactory,
     BytesUnavailable,
     FileInput,
@@ -89,6 +92,7 @@ from broker_reports_gate1 import (
     NORMALIZER_VERSION,
     SAFE_REPORT_SCHEMA,
     SAFETY_STATEMENT,
+    RetentionPolicyError,
     build_retention_policy,
     persist_gate1_result,
     render_chat_content,
@@ -114,7 +118,10 @@ class Pipe:
         artifact_payload_root: str = Field(default="/app/backend/data/broker_reports_gate1/payloads")
         artifact_retention_mode: str = Field(default="api_smoke")
         artifact_retention_ttl_seconds: int = Field(default=24 * 60 * 60)
-        artifact_retention_explicit: bool = Field(default=False)
+        artifact_retention_explicit: bool = Field(default=True)
+        live_smoke_trigger_phrases: str = Field(
+            default="artifactstore retention smoke,gate1 artifactstore smoke"
+        )
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -191,7 +198,27 @@ class Pipe:
             await self._emit(__event_emitter__, "No uploaded file refs were visible.", done=True)
         else:
             await self._emit(__event_emitter__, "Gate 1 artifacts persisted and compact report ready.", done=True)
-        return render_chat_content(result.safe_report)
+        chat_content = render_chat_content(result.safe_report)
+        if self._live_smoke_requested(safe_body, messages_arg):
+            smoke_lines = self._run_live_artifactstore_smoke(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                manifest=artifact_manifest,
+                file_inputs=file_inputs,
+                file_refs=file_refs,
+                chat_content=chat_content,
+            )
+            chat_content = "\n".join(
+                [
+                    chat_content,
+                    "",
+                    "Проверка ArtifactStore:",
+                    *[f"- {line}" for line in smoke_lines],
+                ]
+            )
+        return chat_content
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:
@@ -202,6 +229,214 @@ class Pipe:
                 "data": {"description": description, "done": done, "hidden": False},
             }
         )
+
+    def _live_smoke_requested(self, body: dict, messages_arg: Any) -> bool:
+        text_parts = []
+        for message in self._message_iter(body.get("messages")):
+            if isinstance(message, dict):
+                text_parts.append(str(message.get("content") or ""))
+        for message in self._message_iter(messages_arg):
+            if isinstance(message, dict):
+                text_parts.append(str(message.get("content") or ""))
+        text = "\n".join(text_parts).lower()
+        return any(
+            phrase.strip().lower() in text
+            for phrase in str(self.valves.live_smoke_trigger_phrases or "").split(",")
+            if phrase.strip()
+        )
+
+    def _run_live_artifactstore_smoke(
+        self,
+        *,
+        store,
+        result,
+        context: ArtifactAccessContext,
+        retention_policy,
+        manifest,
+        file_inputs: list[FileInput],
+        file_refs: list[dict[str, Any]],
+        chat_content: str,
+    ) -> list[str]:
+        if not context.case_id:
+            raise RuntimeError("case_context_missing_for_wrong_case_resolver_proof")
+        records = store.list_by_run(context.normalization_run_id)
+        type_counts = self._artifact_type_counts(records)
+        required_types = {
+            "normalization_run_v0",
+            "document_inventory_v0",
+            "technical_readability_profile_v0",
+            "taxonomy_candidates_v0",
+            "normalization_blockers_v0",
+            "validation_result_v0",
+            "chat_visible_normalization_report_v0",
+            "private_normalized_text_slice_v0",
+            "private_normalized_table_slice_v0",
+            "gate2_handoff_v0",
+            "source_file_ref_v0",
+        }
+        missing = sorted(required_types - set(type_counts))
+        if missing:
+            raise RuntimeError(f"artifact_type_missing:{missing[0]}")
+        private_records = [record for record in records if record.visibility == "private_case"]
+        if not private_records or not manifest.private_slice_refs:
+            raise RuntimeError("private_slice_artifacts_missing")
+        if not all(record.payload_ref and record.payload is None for record in private_records):
+            raise RuntimeError("private_payload_storage_invalid")
+        private_payload_paths = [
+            self._payload_path(record.payload_ref)
+            for record in private_records
+            if record.payload_ref
+        ]
+        if not all(path.exists() for path in private_payload_paths):
+            raise RuntimeError("private_payload_file_missing")
+
+        private_markers = self._private_markers(file_refs)
+        if any(marker and marker in chat_content for marker in private_markers):
+            raise RuntimeError("chat_private_marker_leak")
+        if "private_normalized_slices" in chat_content or "```json" in chat_content:
+            raise RuntimeError("chat_full_json_or_private_slice_leak")
+        if any(record.storage_backend == "openwebui_knowledge" for record in records):
+            raise RuntimeError("knowledge_storage_forbidden_bypassed")
+        if result.safe_report["safety_flags"]["customer_docs_loaded_to_knowledge"]:
+            raise RuntimeError("customer_docs_loaded_to_knowledge_true")
+
+        resolver = ArtifactResolver(store)
+        resolver.resolve(manifest.safe_refs[0], context)
+        resolver.resolve(manifest.private_slice_refs[0], context)
+        self._assert_resolver_denies(
+            resolver,
+            manifest.safe_refs[0],
+            ArtifactAccessContext(**{**context.__dict__, "user_id": "wrong-user"}),
+            "artifact_access_denied",
+        )
+        self._assert_resolver_denies(
+            resolver,
+            manifest.safe_refs[0],
+            ArtifactAccessContext(**{**context.__dict__, "case_id": "wrong-case"}),
+            "artifact_access_denied",
+        )
+
+        handoff = resolver.resolve(manifest.gate2_handoff_ref, context)["payload"]
+        if handoff.get("private_slice_refs") != manifest.private_slice_refs:
+            raise RuntimeError("gate2_handoff_private_refs_missing")
+        if "```json" in str(handoff) or any(marker and marker in str(handoff) for marker in private_markers):
+            raise RuntimeError("gate2_handoff_private_marker_leak")
+
+        probe_result = self._normalizer.normalize(
+            file_inputs,
+            entrypoint="broker_reports_gate1_live_retention_probe",
+            trigger_type="live_retention_smoke_probe",
+            input_context={"smoke_probe": "retention"},
+            extra_private_markers=private_markers,
+        )
+        probe_context = ArtifactAccessContext(
+            user_id=context.user_id,
+            normalization_run_id=probe_result.package["normalization_run"]["run_id"],
+            case_id=f"{context.case_id}-retention-probe",
+            chat_id=context.chat_id,
+            workspace_model_id=context.workspace_model_id,
+            allow_private=True,
+        )
+        probe_manifest = persist_gate1_result(
+            store=store,
+            result=probe_result,
+            context=probe_context,
+            retention_policy=build_retention_policy(
+                mode="expires_after_ttl",
+                explicit=True,
+                ttl_seconds=1,
+            ),
+            source_file_refs=self._source_file_refs(file_refs),
+        )
+        store.expire_artifacts(now=datetime.now(timezone.utc) + timedelta(seconds=2))
+        self._assert_resolver_denies(
+            resolver,
+            probe_manifest.safe_refs[0],
+            probe_context,
+            "artifact_expired",
+        )
+        purge_private_ref = probe_manifest.private_slice_refs[0]
+        purge_private_record = store.get_record_unchecked(purge_private_ref)
+        if purge_private_record is None or not purge_private_record.payload_ref:
+            raise RuntimeError("purge_probe_private_payload_missing")
+        purge_payload_path = self._payload_path(purge_private_record.payload_ref)
+        if not purge_payload_path.exists():
+            raise RuntimeError("purge_probe_payload_file_missing")
+        purged_ids = store.purge_run(probe_context.normalization_run_id)
+        purged_private_record = store.get_record_unchecked(purge_private_ref)
+        if not purged_ids or purge_payload_path.exists() or purged_private_record is None:
+            raise RuntimeError("purge_probe_failed")
+        if purged_private_record.storage_backend != "none_tombstone" or purged_private_record.payload_ref:
+            raise RuntimeError("purge_tombstone_invalid")
+        self._assert_resolver_denies(
+            resolver,
+            purge_private_ref,
+            probe_context,
+            "artifact_purged",
+        )
+
+        try:
+            build_retention_policy(mode="customer_approved_test", explicit=False)
+        except RetentionPolicyError as exc:
+            if exc.code != "retention_policy_missing":
+                raise
+        else:
+            raise RuntimeError("customer_approved_test_missing_policy_accepted")
+
+        flags = result.safe_report["safety_flags"]
+        if any(
+            flags[key]
+            for key in (
+                "source_fact_extraction_performed",
+                "tax_correctness_claimed",
+                "declaration_generated",
+                "xlsx_generated",
+                "ocr_performed",
+            )
+        ):
+            raise RuntimeError("forbidden_gate1_flag_true")
+
+        return [
+            "хранилище доступно для записи: да",
+            (
+                "retention policy: "
+                f"mode={retention_policy.mode}, explicit={retention_policy.explicit}, "
+                f"ttl_seconds={retention_policy.ttl_seconds}"
+            ),
+            "обязательные артефакты сохранены: " + ", ".join(sorted(required_types)),
+            "private slices в chat: нет",
+            "private slices в Knowledge: нет",
+            "customer_docs_loaded_to_knowledge=false",
+            "Gate 2 handoff использует opaque refs, не chat JSON",
+            "resolver same-context: allow",
+            "resolver denies wrong-user/wrong-case/expired/purged: ok",
+            "purge удалил private payloads и оставил tombstones",
+            "source facts/tax/declaration/xlsx/ocr flags=false",
+        ]
+
+    def _artifact_type_counts(self, records) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for record in records:
+            counts[record.artifact_type] = counts.get(record.artifact_type, 0) + 1
+        return counts
+
+    def _assert_resolver_denies(
+        self,
+        resolver: ArtifactResolver,
+        artifact_id: str,
+        context: ArtifactAccessContext,
+        expected_code: str,
+    ) -> None:
+        try:
+            resolver.resolve(artifact_id, context)
+        except ArtifactStoreError as exc:
+            if exc.code == expected_code:
+                return
+            raise
+        raise RuntimeError(f"resolver_expected_denial_missing:{expected_code}")
+
+    def _payload_path(self, payload_ref: str) -> Path:
+        return Path(self.valves.artifact_payload_root) / payload_ref
 
     def _has_trigger_phrase(self, body: dict, messages_arg: Any) -> bool:
         text_parts = []
@@ -402,9 +637,11 @@ class Pipe:
             metadata.get("chat_id")
             or kwargs.get("__chat_id__")
             or kwargs.get("chat_id")
+            or body.get("chat_id")
             or metadata.get("session_id")
         )
-        case_id = metadata.get("case_id")
+        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        case_id = metadata.get("case_id") or body_metadata.get("case_id") or body.get("case_id")
         workspace_model_id = metadata.get("model_id") or body.get("model") or body.get("model_id")
         return ArtifactAccessContext(
             user_id=user_id,
