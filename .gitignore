@@ -2,6 +2,8 @@
 .DS_Store
 Thumbs.db
 desktop.ini
+.agents/
+.codex/
 .idea/
 .vscode/
 *.swp
