@@ -1,0 +1,2642 @@
+{
+  "artifactstore": {
+    "artifact_boundary_public_label": "local/stage2/broker_reports_customer_approved_package_grouping_2026-07-08/artifactstore",
+    "customer_docs_loaded_to_knowledge": false,
+    "gate2_handoff_ref": "art_22Fqiyd6XvdYaVfVTBfevB4FwnzeSPqD",
+    "private_payload_paths_published": false,
+    "private_payloads_persisted": true,
+    "storage_boundary": "project_artifact_store"
+  },
+  "base_registry_ref": "docs/stage2/domain/BROKER_REPORTS_CUSTOMER_SOURCE_DOCUMENTS_INDEX.v0.safe.json",
+  "documents": [
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_SFEHeqxJnwFfs5n6pglFXyoYy6xREBRV"
+        ],
+        "source_file_ref": "art_EdWRO8T1jLzXHGj_KAIo3mQ-DUUnZGIt"
+      },
+      "can_move_to_next_gate": true,
+      "case_group_id": "case_group_002",
+      "container_format": "csv",
+      "document_id": "brdoc_001_b874d956e33a",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".csv",
+      "file_size_bytes": 212844,
+      "gate1_document_id": "brdoc_001_b874d956e33a",
+      "hash_prefix": "b874d956e33ad438",
+      "manual_review_required": false,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "currency_rate_table",
+        "source_broker_report",
+        "dividends_report",
+        "fees_report",
+        "withholding_report"
+      ],
+      "sha256": "b874d956e33ad4382e33eabe39b4e5405c2544e693cabc247826a3680932f2ae",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_Y7MkbIKOts_31nIFOP7_eJdsvUdgVyzd"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_002_1c6582477921",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 329193,
+      "gate1_document_id": "brdoc_002_1c6582477921",
+      "hash_prefix": "1c6582477921cc51",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "currency_rate_table",
+        "dividends_report",
+        "fees_report",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "1c6582477921cc5166bf76f721f1832e2aca6fcd3dcd28cc475eb855d827d9ff",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_NmW40EP-XfTxeGRDYVjiMc20YTB7k5aH"
+        ],
+        "source_file_ref": "art_OGnxqmwxAejy2SYnyk-VErGBfkXSH_fm"
+      },
+      "can_move_to_next_gate": true,
+      "case_group_id": "case_group_002",
+      "container_format": "csv",
+      "document_id": "brdoc_003_be6168a763cd",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".csv",
+      "file_size_bytes": 198734,
+      "gate1_document_id": "brdoc_003_be6168a763cd",
+      "hash_prefix": "be6168a763cd41ba",
+      "manual_review_required": false,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "currency_rate_table",
+        "source_broker_report",
+        "dividends_report",
+        "fees_report"
+      ],
+      "sha256": "be6168a763cd41babad9efed838ec1e4ac7a45dec3874c915670bcb8d211c39f",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_EaPSw5FjdrKNo-fxW8ySnxcqOjqCgdeC"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_004_66a3087cb242",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 307535,
+      "gate1_document_id": "brdoc_004_66a3087cb242",
+      "hash_prefix": "66a3087cb242ace4",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "currency_rate_table",
+        "dividends_report",
+        "fees_report",
+        "broker_help_article"
+      ],
+      "sha256": "66a3087cb242ace4943eda1710b91c9ae526c2e27b6630330270688995f108f1",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_oN0lOv_MBS61d3PdEegr_uj5ONfCj5hV"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_005_f68f7ac26a26",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 352035,
+      "gate1_document_id": "brdoc_005_f68f7ac26a26",
+      "hash_prefix": "f68f7ac26a268379",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "f68f7ac26a2683799e0d9a0a3f24cc839c6af55c99f2983235923e3d36f1e19d",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_Qymh8AlEn1iUR3CSRCrwF_UejDsnXdFQ"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_006_7cfd297786cc",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 479750,
+      "gate1_document_id": "brdoc_006_7cfd297786cc",
+      "hash_prefix": "7cfd297786cc91cb",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_yyWBDCF35p8GX0Pjma13WA814LqG-esK"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "pdf",
+      "document_id": "brdoc_007_bdc1038fdd93",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 440661,
+      "gate1_document_id": "brdoc_007_bdc1038fdd93",
+      "hash_prefix": "bdc1038fdd9334c1",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "bdc1038fdd9334c103403b0b4444118d82a03a7c8c8b6d1304f2a60084ed5bcb",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_QJEM03kJ1o_KI6WU4VvOP13WPrnMwrUP",
+          "art_MMVDOuR6-G4xhlLYBSdeaUOEKEbVV2EK",
+          "art_-Jmk4oHdVTCbdQ80Ne1qpSZuz26rTIL7",
+          "art_dLr9Qr19w-o1ETufRH5R9gAIm1n5T9C-",
+          "art_gEfNYBBX_DIjBbL-gAo4W8EFtTkiOg8A",
+          "art_HNJJH4q7KXIavIuEsAHlfktENMc3CbHV",
+          "art_nYakRAIA2yllrSFMAV5blyZvxtUnCfqh",
+          "art_u_0Tbkb8kO5Bd7a-gWildyhBZhedUYdj",
+          "art_G-EPA038-9vMgVPWFo7LSQRn2z6aLJhp",
+          "art_rzB97esdNMudQ9HjBByxrLU7ADbUxXpi",
+          "art_Ou395J3XeR7kFiqB7zFryyBIut818ylG",
+          "art_n7M-X64n3jcz-JuHfoJs5rzSc6Lgxsa9",
+          "art_nmZzmOkQaFZDSdGCz5TN1lV3n9wcveHk",
+          "art_cnHOUQX70ByCdxehMkG8PIope7Eo0CF5",
+          "art_ffX7EkNGjdilCb8ejBzFm9iYGGwam6RT",
+          "art_W-B17YMCeE1MXE8UV8fwINx6Xoz00wMX",
+          "art_IaBoebJDMSJN1eAy7ZNIGyZzfIZ4V78c",
+          "art_O4QV0yJEa59DDcsIUnT_Ec0XA7sipUbO",
+          "art_hHfM4BE8MP2LDLZisRv8deakEGdEIpRe"
+        ],
+        "source_file_ref": "art_l9sxQi8o4nheVCP9zMNU6wz38FzdnCE2"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "xlsx",
+      "document_id": "brdoc_008_4790d8487926",
+      "document_role_candidate": "calculation_template",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".xlsx",
+      "file_size_bytes": 912502,
+      "gate1_document_id": "brdoc_008_4790d8487926",
+      "hash_prefix": "4790d8487926c698",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "withholding_report",
+        "currency_rate_table",
+        "official_electronic_format",
+        "official_form",
+        "dividends_report"
+      ],
+      "sha256": "4790d8487926c698f660dbafa8128f9aaa8a469db9029619dad954dcba5b6915",
+      "source_evidence_candidate": "no",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_LnARfgN7r2cNnzDnNFuKfVhECnf__TZd",
+          "art__8yJU5QG54VCn3SdTM94i5Cq8SfUOVKo",
+          "art_ujlFzv_ozINAbBSJczOITURq9OSEwkKM",
+          "art_5AZP4XgvhLz4ZM_DbDMvpZ8KEG8arqaH",
+          "art_kDlaNws6W30avbTVzzm2r2ZEDCspPjTD",
+          "art_d1irrY-Uxx6Ocpt0kjvtP9trGx-0Bmaf",
+          "art_ug8ms6bywNYoXnzqktI2eYMSIJXrjUxu",
+          "art_OwiYyOhEHSv7N1iuYklPm1kCt1VIRMAA",
+          "art_qOCKKtCMQwdQa_PPAX_twykgDBJwwy2T",
+          "art_tfng3VkcRdSQ125-ArYTym5O5vXpPgIh",
+          "art_Zn6XxA9QTAwzP-LuoCwLle6cXqS4bgtJ",
+          "art__MVgD-3yD61sLZuZQ8TVa7_8P5ihrIpe",
+          "art_iT6Tw9_jbX_7WZ3NrQ39vPcmzJVW3kB3",
+          "art_Be8OP04scRzQ84sxKuFANyu7xGTCk50y",
+          "art_tpmmRGRZ2mLBfWiKDnFOrU4Nl2KuJtte",
+          "art_hq6drhgSgZ9EcXVxEePhna8fdfUy98Lv",
+          "art_ZPVaw_H6PiLsKeZvC3xToKn8Oe_9IWsk",
+          "art_YlooXfwvxILGrMKZdakGvubvyYXYG9gd",
+          "art_ZBxOHf8SANXa3wq9DWlOB3GGDwNXIWJ0"
+        ],
+        "source_file_ref": "art_VirMLXnrpTHXLPKUMquZPDAyhU1PGMi5"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "xlsx",
+      "document_id": "brdoc_009_0a261afe6f0e",
+      "document_role_candidate": "calculation_template",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".xlsx",
+      "file_size_bytes": 808421,
+      "gate1_document_id": "brdoc_009_0a261afe6f0e",
+      "hash_prefix": "0a261afe6f0ee388",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "withholding_report",
+        "currency_rate_table",
+        "official_form",
+        "dividends_report"
+      ],
+      "sha256": "0a261afe6f0ee38845adb29522a7be115be2836af8dbdafd40d0179ac8b9ae2c",
+      "source_evidence_candidate": "no",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_9ad6tUaSjRRSNZCPHl-U9FLb_CLlu920"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_010_665b45748e01",
+      "document_role_candidate": "fees_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 177994,
+      "gate1_document_id": "brdoc_010_665b45748e01",
+      "hash_prefix": "665b45748e01591b",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "source_broker_report",
+        "operations_table",
+        "currency_rate_table"
+      ],
+      "sha256": "665b45748e01591bf72f986bcd87098ad07aba2c676960f854600b90a1028286",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_0F-zM6BTaC2hPy7YmdfnCeOLKbIDviuQ"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "pdf",
+      "document_id": "brdoc_011_6f36b1030270",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 385629,
+      "gate1_document_id": "brdoc_011_6f36b1030270",
+      "hash_prefix": "6f36b10302703071",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "6f36b103027030714a80cd787f37a3e3dddf188a002c1ebee53087f1efe51236",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_TMZTl7Ek8OJZ3buhVtkX73iWJRoc__xl"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_012_7564b3bc1353",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 83655,
+      "gate1_document_id": "brdoc_012_7564b3bc1353",
+      "hash_prefix": "7564b3bc135313b4",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "7564b3bc135313b4ff128a22bd3d547909c8c4df8219717d4b7c2482c10fe43f",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_P0ci7IYYXTpYKrb3bXnsZoUNE5mO6hEP"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_013_c1721c84d107",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 91862,
+      "gate1_document_id": "brdoc_013_c1721c84d107",
+      "hash_prefix": "c1721c84d1079075",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "c1721c84d10790753b2e4f8de4a0c104972605ce14041b9c13bf873ae84c5ee1",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_nk34M3sTvnGCrzX41pFsinD6ld42A7ND"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_014_701797dcb627",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84307,
+      "gate1_document_id": "brdoc_014_701797dcb627",
+      "hash_prefix": "701797dcb6276866",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "701797dcb6276866e4e918e73403085f466a1005c8a55113284061e2a2de6ac0",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_6U-oLIjuz_2SVV3YLQ54bcSlV7I67UWG"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "zip",
+      "document_id": "brdoc_015_3a1b9214292c",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 89662,
+      "gate1_document_id": "brdoc_015_3a1b9214292c",
+      "hash_prefix": "3a1b9214292c6027",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "3a1b9214292c6027a34b22817fda36bb377faf9eb8d37fc4a6c93096fb354be7",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_F-y2Bq2zeGEiohC9NGw8Jt-yWbJm8pnV"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_016_573d9c44da70",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 83531,
+      "gate1_document_id": "brdoc_016_573d9c44da70",
+      "hash_prefix": "573d9c44da701f3d",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "573d9c44da701f3daea540178dfa384022688cee7943acdcb164a07c16ecd32a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_SCiFrD80GJ8iGJ_KOjdNQVidcWJTUSw-"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_017_8390e02699f1",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 83915,
+      "gate1_document_id": "brdoc_017_8390e02699f1",
+      "hash_prefix": "8390e02699f12084",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "8390e02699f120845a6ec5e4b3676f0a47f9a951eee040b4be73260cc5ce7844",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_UTQI3BEjAklwor8GlajeNjDW61QK0OGe"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_018_68c0f4c2e764",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 87316,
+      "gate1_document_id": "brdoc_018_68c0f4c2e764",
+      "hash_prefix": "68c0f4c2e764bcd3",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "68c0f4c2e764bcd3a23014514c15a07b3fa2c6e561fa4761b137a0b0da6b212a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_X6ZhaBNkNGfN2n6H7Q1Nmj4tv8RS2qQ4"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_019_e20f86bce4cb",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84508,
+      "gate1_document_id": "brdoc_019_e20f86bce4cb",
+      "hash_prefix": "e20f86bce4cbea59",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "e20f86bce4cbea59b2444cee7323610c5c64df8d9c3b642319228aff4759879e",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_sNakwTch1uOdKTw-SBCKhm9vnznTnQHn"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_020_acc1c591d660",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 83953,
+      "gate1_document_id": "brdoc_020_acc1c591d660",
+      "hash_prefix": "acc1c591d6606972",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "acc1c591d6606972e42f51eb32db11cf4a68be6d4cf373991b9cdb29d4249cbc",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_0zehgY50r2sQe9ISwbK9jQda9blI3reA"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_021_3d59bcf9fda4",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84129,
+      "gate1_document_id": "brdoc_021_3d59bcf9fda4",
+      "hash_prefix": "3d59bcf9fda4ce77",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "3d59bcf9fda4ce7775c89c6f34cf741cf5f4231e86c4a506852b42a6061a4d43",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_tmcAM6aY7dNjBhMA8nDZ8WewvScTMr-y"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_022_996b292d1408",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 85280,
+      "gate1_document_id": "brdoc_022_996b292d1408",
+      "hash_prefix": "996b292d1408dfc7",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "996b292d1408dfc71d59c254755b726bdcc34bb79f2cfef9669a0e55b9901352",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_cr1j_VYBImE9IBKnukOWnbp3aadVoSRX"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_023_e16dae9c454b",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 86394,
+      "gate1_document_id": "brdoc_023_e16dae9c454b",
+      "hash_prefix": "e16dae9c454be3f4",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "e16dae9c454be3f43c26a7666917c4f000c1a3d27a9f1b2e740844c834c078c2",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_k3TPZVBkU5lnRayNPwt8LJWo6q2W4gmN"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_024_eac67250999e",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84350,
+      "gate1_document_id": "brdoc_024_eac67250999e",
+      "hash_prefix": "eac67250999edfa4",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "eac67250999edfa4a415f6443fa44a7b4b06ac695bfb33c041b18bf159b98e5b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_yd1LwKSxpgzdOj6XKMDfETUcJWqp5cn3"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_025_0f617e48b33f",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84997,
+      "gate1_document_id": "brdoc_025_0f617e48b33f",
+      "hash_prefix": "0f617e48b33fdce1",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "0f617e48b33fdce1a8746ca2a8ea4ef11dfb216729bb1255ef7d8614c1f6d426",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_Ry_xH3sH1wfSqaU2jHUXKVRrp5X9ygM8"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_026_60865da0b67a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 86712,
+      "gate1_document_id": "brdoc_026_60865da0b67a",
+      "hash_prefix": "60865da0b67a0cbb",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "60865da0b67a0cbbd674edfa8b0ba4aa7df0981f30291177c2f62c09ac8d668a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_kpHm3HwEsF3tuZnk0TtiTW5XpiECDwIN"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_027_73b9943d9a8a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 85565,
+      "gate1_document_id": "brdoc_027_73b9943d9a8a",
+      "hash_prefix": "73b9943d9a8a6a96",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "73b9943d9a8a6a96a126de46b9c2107a5bbb57e088f1de2a625c474c39cc2b8b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_HpxDAw1-fQJs77xIa6v2jA7nDtxOf17-"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_028_703a6fd74179",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84556,
+      "gate1_document_id": "brdoc_028_703a6fd74179",
+      "hash_prefix": "703a6fd741795caa",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "703a6fd741795caa3800efffd5e35b74143997b42f0efe2300b6b3f34c73f77b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_6mEEh9QeFEvUoK0DEQmt1azC9clo736Q"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_029_355edae532a6",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 86232,
+      "gate1_document_id": "brdoc_029_355edae532a6",
+      "hash_prefix": "355edae532a612d8",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "355edae532a612d8612ea8f39182645c27a0e0879283f317b69c49c0145862a4",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_-f9Tz85eyxtHjVZxRnl17sTJ7lPyOo5s"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_030_e2ff5374db45",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 86986,
+      "gate1_document_id": "brdoc_030_e2ff5374db45",
+      "hash_prefix": "e2ff5374db45d52a",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "e2ff5374db45d52acc3104806dc0e962a13b2633647fed1121b93e2a8b59c68f",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_54mpjqrxOfUooSlkkFigbXxDGSTSyvfO"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_031_7f469bb3e17d",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 83933,
+      "gate1_document_id": "brdoc_031_7f469bb3e17d",
+      "hash_prefix": "7f469bb3e17dda2d",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "7f469bb3e17dda2dcb80a11edde5ae62d8aa879656012a7727b12b7a6440de03",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_HeinlhN4Ha9QAvOWOhtOgXODaEiGegb7"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_032_e0ac2210dba5",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84118,
+      "gate1_document_id": "brdoc_032_e0ac2210dba5",
+      "hash_prefix": "e0ac2210dba5165f",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "e0ac2210dba5165ff0fd196cffb8e81bf26bf75a386d0915f7558b220823277a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_jG7qy9-oJ3zzexeYunfWhegtGoakqSBi"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_033_3b540b094d7a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 85152,
+      "gate1_document_id": "brdoc_033_3b540b094d7a",
+      "hash_prefix": "3b540b094d7a13ac",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "3b540b094d7a13ac1af2c2d4d8174e3304438894aaf67339e7f517dfe4ba1d9b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_7a2jrfIB_8c5whhG16X3hXFberTNph3Y"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "zip",
+      "document_id": "brdoc_034_0d1652d9303e",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 84113,
+      "gate1_document_id": "brdoc_034_0d1652d9303e",
+      "hash_prefix": "0d1652d9303ec153",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "0d1652d9303ec153407c38057e8e6d2287c9fcf52405e27a627ace5e4a1af07a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_CI_-WOpQXGry7y417o34xKjAO71upQtD"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_035_9419913a504a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".zip",
+      "file_size_bytes": 90406,
+      "gate1_document_id": "brdoc_035_9419913a504a",
+      "hash_prefix": "9419913a504a8610",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "official_electronic_format"
+      ],
+      "sha256": "9419913a504a8610aa4dbf08e2c6f92efc6c20531c743972828eba682ef4d639",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_Axi11s9IV_FbD6KzYG8odCga8px727iu"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_036_f1995ee6a6fa",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 1125818,
+      "gate1_document_id": "brdoc_036_f1995ee6a6fa",
+      "hash_prefix": "f1995ee6a6fad51d",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "f1995ee6a6fad51d8ef20c1c3c983ad227f039e5844526e902fae9f329d6403a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_9AOKM_vNxYFGHI81--bMX8T4JvoCHT-3"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_037_8c0fea99b1db",
+      "document_role_candidate": "fees_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 1008713,
+      "gate1_document_id": "brdoc_037_8c0fea99b1db",
+      "hash_prefix": "8c0fea99b1dbc928",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "source_broker_report",
+        "operations_table",
+        "dividends_report",
+        "currency_rate_table"
+      ],
+      "sha256": "8c0fea99b1dbc92878f3c74dc3bde76c29ee7a3db92c08b9f9881eae2d50bbd8",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_6V6XIrXKTufvgAhtEHBpdesYTiNpA0Bs"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_038_d603a3988ee0",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 939322,
+      "gate1_document_id": "brdoc_038_d603a3988ee0",
+      "hash_prefix": "d603a3988ee0661c",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "d603a3988ee0661cf9052a683a48a19b4e571987af261361130ac7961df4c190",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_Lf0bSRlMmVOaXUmQ5h5nhM6flCRU-zTH"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_039_ca35351f1c5f",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 895433,
+      "gate1_document_id": "brdoc_039_ca35351f1c5f",
+      "hash_prefix": "ca35351f1c5fe0fd",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "source_broker_report",
+        "operations_table",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "ca35351f1c5fe0fd4bd713a5995d215b06aa62ab659ba8f2247290c050ea9f31",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_W2qfo-f5yAz9O4FlMDflXTuv4GE-2LtN"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_040_ce1cdfa4d4eb",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 564401,
+      "gate1_document_id": "brdoc_040_ce1cdfa4d4eb",
+      "hash_prefix": "ce1cdfa4d4eb09ec",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "fees_report",
+        "source_broker_report",
+        "dividends_report",
+        "currency_rate_table"
+      ],
+      "sha256": "ce1cdfa4d4eb09ec43e1e2aef83b43d57b328ff5f732e54ccd09d77eaf32ab01",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_X6yk7GnN0HoeqSd9ga-t2ADkNC4S472W"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_041_39227188fb1c",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 95979,
+      "gate1_document_id": "brdoc_041_39227188fb1c",
+      "hash_prefix": "39227188fb1c8e45",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "39227188fb1c8e45555d3c73247e5d8c002faacc207ddeee5878091da20f5454",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_wONgaYbhNC9Vg0z967d0H-eSWeHncziS"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_042_51ccbbd65039",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 145527,
+      "gate1_document_id": "brdoc_042_51ccbbd65039",
+      "hash_prefix": "51ccbbd650392772",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "51ccbbd650392772b36764f5e15cb738d8415f94fa1dc9562914a6b65615a397",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_ECG7n--vCD5j20-ED6sfb7oytGdVYJDy"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_043_4d8ee8777b23",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 117610,
+      "gate1_document_id": "brdoc_043_4d8ee8777b23",
+      "hash_prefix": "4d8ee8777b238820",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "4d8ee8777b238820b845218c5605aabe693d98964fbfac1256000be0a59c3070",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_nC0Ek4UdyeY6dDw0MxUccKjzn8RFQt_-"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_044_74e5de8408a8",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 745927,
+      "gate1_document_id": "brdoc_044_74e5de8408a8",
+      "hash_prefix": "74e5de8408a87508",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "currency_rate_table",
+        "fees_report"
+      ],
+      "sha256": "74e5de8408a87508bd19ddbefec4d6403548535473c8fd4a82e89850868d21f0",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_NeOr4-U9WJihxrwfEz87S74bdtR8uMli"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_045_0c44a95cc671",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": "dupgrp_0c44a95cc671",
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 805548,
+      "gate1_document_id": "brdoc_046_0c44a95cc671",
+      "hash_prefix": "0c44a95cc67129d0",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "official_form",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "0c44a95cc67129d09d6d51375ada59882fe76879edb919c77713491aae3cc231",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_NeOr4-U9WJihxrwfEz87S74bdtR8uMli"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_046_0c44a95cc671",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": "dupgrp_0c44a95cc671",
+      "duplicate_of_document_id": "brdoc_045_0c44a95cc671",
+      "extension": ".pdf",
+      "file_size_bytes": 805548,
+      "gate1_document_id": "brdoc_046_0c44a95cc671",
+      "hash_prefix": "0c44a95cc67129d0",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "duplicate_document",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "official_form",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "0c44a95cc67129d09d6d51375ada59882fe76879edb919c77713491aae3cc231",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_uPbNmdJbZEmqL88f7HkpP1XdPC-hwViN"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_047_6137e019ea76",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": "dupgrp_6137e019ea76",
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 475565,
+      "gate1_document_id": "brdoc_049_6137e019ea76",
+      "hash_prefix": "6137e019ea76c86f",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_m2m7BwZ_VK2fw6pYQHPGOdD7jcuJmksA"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_048_62db60cb2b17",
+      "document_role_candidate": "operations_table",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 588617,
+      "gate1_document_id": "brdoc_048_62db60cb2b17",
+      "hash_prefix": "62db60cb2b1719d5",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "official_form"
+      ],
+      "sha256": "62db60cb2b1719d52a8a161e893db19257f9f8029efdad7ccacd8dc41330811f",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_uPbNmdJbZEmqL88f7HkpP1XdPC-hwViN"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_049_6137e019ea76",
+      "document_role_candidate": "dividends_report",
+      "duplicate_group_id": "dupgrp_6137e019ea76",
+      "duplicate_of_document_id": "brdoc_047_6137e019ea76",
+      "extension": ".pdf",
+      "file_size_bytes": 475565,
+      "gate1_document_id": "brdoc_049_6137e019ea76",
+      "hash_prefix": "6137e019ea76c86f",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "duplicate_document",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report"
+      ],
+      "sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_FoCpnH9ymWCb-pjZRKJTHbVZq16VRNMz"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_050_00eefe9ce421",
+      "document_role_candidate": "tax_base_calculation",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 424711,
+      "gate1_document_id": "brdoc_050_00eefe9ce421",
+      "hash_prefix": "00eefe9ce4213181",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report"
+      ],
+      "sha256": "00eefe9ce421318181c86ad6c48540ea5a8fbfc16855967768562031580f474b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_lB1tvNuuuzfYd3rw5Nh9tS9uL3Scty8z"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_051_d33849e406b9",
+      "document_role_candidate": "tax_base_calculation",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 350046,
+      "gate1_document_id": "brdoc_051_d33849e406b9",
+      "hash_prefix": "d33849e406b9015c",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report"
+      ],
+      "sha256": "d33849e406b9015ca30fe33c224f206bbd00ebd98821f33e424cc2ff06aec48e",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_EzgRYziqoyk6BotrFDR_x2CW7753MMqd"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_052_41b5a29f3de2",
+      "document_role_candidate": "tax_base_calculation",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 362484,
+      "gate1_document_id": "brdoc_052_41b5a29f3de2",
+      "hash_prefix": "41b5a29f3de2a206",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "withholding_report"
+      ],
+      "sha256": "41b5a29f3de2a206ff4d43c36ab961bd9588824b50b2ca15d5bce4998b811a9b",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_-fFGDRcl-WabDPtJ8fomrZxe9LwHftPW"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_053_9ad0d7e43346",
+      "document_role_candidate": "tax_base_calculation",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 422267,
+      "gate1_document_id": "brdoc_053_9ad0d7e43346",
+      "hash_prefix": "9ad0d7e43346e301",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report"
+      ],
+      "sha256": "9ad0d7e43346e30187888614375355ec5fe24844cee4c7b9de661a6e3fa4ac5d",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_b-fri-iQD2VeyUmkU2jLUPrUsmYhCypS"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_054_79af73d5be78",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 176458,
+      "gate1_document_id": "brdoc_054_79af73d5be78",
+      "hash_prefix": "79af73d5be78df44",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_mz80YzVfVZp0jKaHVj0k7YMV9-AzisVn"
+        ],
+        "source_file_ref": "art_psB79LKzVwIevZXYhcCLbP9RYVnTJvmC"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_055_21c85fa3ff06",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".html",
+      "file_size_bytes": 51109,
+      "gate1_document_id": "brdoc_055_21c85fa3ff06",
+      "hash_prefix": "21c85fa3ff06b9ca",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "21c85fa3ff06b9ca83f5f5106b701f187df603993e55510531b7bd27cba62dde",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_fW9FM5dV360mr7cu56GaT1gTTAgb-gWj"
+        ],
+        "source_file_ref": "art_DxlI9w1PfJhQWHdsjs818q-56GVxhGBS"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_056_1fb1c0744eb0",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".html",
+      "file_size_bytes": 49219,
+      "gate1_document_id": "brdoc_056_1fb1c0744eb0",
+      "hash_prefix": "1fb1c0744eb0b84b",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "currency_rate_table",
+        "fees_report"
+      ],
+      "sha256": "1fb1c0744eb0b84b05c50f8bd01d2ca8f2a2075e29b5de88e0d1c4a9f7549e8d",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_crIbRoN2nuAnLvQX2vbNOHFiFRwOUUMk"
+        ],
+        "source_file_ref": "art_fcLZnlP_gEgB2zUFMrdI0SwUT5lDhsb0"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_057_8b29ff7a464f",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".html",
+      "file_size_bytes": 57949,
+      "gate1_document_id": "brdoc_057_8b29ff7a464f",
+      "hash_prefix": "8b29ff7a464f8e72",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "dividends_report",
+        "withholding_report"
+      ],
+      "sha256": "8b29ff7a464f8e72d9784a26873e0f95966cd80f834b57b99d9e904b02b602f2",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [
+          "art_kjOWKsSiDEn3WJunmiyQS44dWaC8Wdho"
+        ],
+        "source_file_ref": "art_5vj7HeZXYTfyPdAVkbfyXlL2u2A9d1rv"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_058_cee60e388015",
+      "document_role_candidate": "source_broker_report",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".html",
+      "file_size_bytes": 60755,
+      "gate1_document_id": "brdoc_058_cee60e388015",
+      "hash_prefix": "cee60e38801516af",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "no",
+      "readability_status": "yes",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "dividends_report",
+        "operations_table",
+        "withholding_report",
+        "currency_rate_table",
+        "official_filling_instruction"
+      ],
+      "sha256": "cee60e38801516af4ca4071e65376f042e17c2f6e82f667bd970a8760a15bfd7",
+      "source_evidence_candidate": "yes",
+      "source_vs_output": "source_evidence_candidate"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_zOGf64WG0TrbzfHUcnLSvzlY-cOJnxkq"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "pdf",
+      "document_id": "brdoc_059_b9bca7e6e44d",
+      "document_role_candidate": "tax_base_calculation",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 41214,
+      "gate1_document_id": "brdoc_059_b9bca7e6e44d",
+      "hash_prefix": "b9bca7e6e44dbf12",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table"
+      ],
+      "sha256": "b9bca7e6e44dbf12de49fe341a0289e2e8d349ac90483021f13ceee57a13f355",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "output_or_methodology_artifact"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_3vRZX4xgeB3dI4sAmgRW_MlT3FSRSHEX"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_060_e69ef2fa1cb2",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 864564,
+      "gate1_document_id": "brdoc_060_e69ef2fa1cb2",
+      "hash_prefix": "e69ef2fa1cb27a1f",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "e69ef2fa1cb27a1fa061b5971c9dfd0f7fef8119209b8c4ef26a4e4bf694e3fe",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_jJm_l6YEMUTYSxQk0DKFDYspvSjTL-LH"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_061_aeaff2e070aa",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 185528,
+      "gate1_document_id": "brdoc_061_aeaff2e070aa",
+      "hash_prefix": "aeaff2e070aa580e",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "aeaff2e070aa580e7b5817115d63d2fdede2ecf45aebdf7634d9c0453325b24a",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_QVRAM_FzRISwEFx5fOzC0PylSbLbVN9U"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_062_161065e246ac",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 185360,
+      "gate1_document_id": "brdoc_062_161065e246ac",
+      "hash_prefix": "161065e246ac2e1c",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "161065e246ac2e1c2717526049bedb2e79f30d7e1aa73b038ec7e10e102a4c27",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    },
+    {
+      "artifact_refs": {
+        "private_slice_refs": [],
+        "source_file_ref": "art_u8k6SbLkpQcuqRLPylFiKgoq6AVC5Z1y"
+      },
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_063_510b999b1914",
+      "document_role_candidate": "unknown_or_needs_review",
+      "duplicate_group_id": null,
+      "duplicate_of_document_id": null,
+      "extension": ".pdf",
+      "file_size_bytes": 190439,
+      "gate1_document_id": "brdoc_063_510b999b1914",
+      "hash_prefix": "510b999b19145116",
+      "manual_review_required": true,
+      "methodology_or_output_candidate": "conditional",
+      "readability_status": "yes",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ],
+      "safety": {
+        "customer_docs_loaded_to_knowledge": false,
+        "raw_filename_published": false,
+        "raw_path_published": false,
+        "raw_rows_or_text_published": false
+      },
+      "schema_version": "broker_reports_customer_source_document_vNEXT_safe",
+      "secondary_role_candidates": [],
+      "sha256": "510b999b1914511603354e806097f1dc6dcd404a8424907aeb06c3b385df5806",
+      "source_evidence_candidate": "conditional",
+      "source_vs_output": "review_or_unknown"
+    }
+  ],
+  "generated_at_msk": "2026-07-08T12:30:45+03:00",
+  "retention_policy": {
+    "chat_delete_cascades": true,
+    "expires_at": "2026-07-22T09:30:41.324962+00:00",
+    "explicit": true,
+    "keep_redacted_tombstone": true,
+    "mode": "customer_approved_test",
+    "requires_manual_purge": false,
+    "source_delete_cascades": true,
+    "ttl_seconds": 1209600
+  },
+  "safety_boundary": {
+    "customer_docs_loaded_to_knowledge": false,
+    "declaration_generated": false,
+    "full_local_paths_in_safe_registry": false,
+    "ocr_vlm_performed": false,
+    "raw_filenames_in_safe_registry": false,
+    "raw_relative_paths_in_safe_registry": false,
+    "raw_rows_or_text_in_safe_registry": false,
+    "source_documents_committed": false,
+    "source_documents_copied_to_repo": false,
+    "source_fact_extraction_performed": false,
+    "tax_calculation_performed": false,
+    "xls_xlsx_generated": false
+  },
+  "schema_version": "broker_reports_customer_source_documents_index_vNEXT_safe",
+  "source_root_path_included": false,
+  "source_root_public_label": "withheld_customer_local_folder",
+  "summary": {
+    "archive_review_count": 24,
+    "case_group_count": 6,
+    "container_counts": {
+      "csv": 2,
+      "html_text": 4,
+      "pdf": 31,
+      "xlsx": 2,
+      "zip": 24
+    },
+    "document_role_counts": {
+      "calculation_template": 2,
+      "dividends_report": 7,
+      "fees_report": 2,
+      "operations_table": 8,
+      "source_broker_report": 7,
+      "tax_base_calculation": 5,
+      "unknown_or_needs_review": 32
+    },
+    "duplicate_document_count": 2,
+    "duplicate_group_count": 2,
+    "files_total": 63,
+    "output_or_methodology_candidate_count": 7,
+    "review_queue_count": 61,
+    "source_evidence_candidate_count": 24
+  }
+}

@@ -1,0 +1,1428 @@
+{
+  "archive_zip_review_map": [
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_012_7564b3bc1353",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_001",
+      "document_id": "brdoc_013_c1721c84d107",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_014_701797dcb627",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_005",
+      "document_id": "brdoc_015_3a1b9214292c",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_016_573d9c44da70",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_017_8390e02699f1",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_004",
+      "document_id": "brdoc_018_68c0f4c2e764",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_004",
+      "document_id": "brdoc_019_e20f86bce4cb",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_020_acc1c591d660",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_021_3d59bcf9fda4",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_022_996b292d1408",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_001",
+      "document_id": "brdoc_023_e16dae9c454b",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_024_eac67250999e",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_001",
+      "document_id": "brdoc_025_0f617e48b33f",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_026_60865da0b67a",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_027_73b9943d9a8a",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_028_703a6fd74179",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_029_355edae532a6",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_004",
+      "document_id": "brdoc_030_e2ff5374db45",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_031_7f469bb3e17d",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_032_e0ac2210dba5",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_033_3b540b094d7a",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_003",
+      "document_id": "brdoc_034_0d1652d9303e",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    },
+    {
+      "archive_contents_promoted_to_source_evidence": false,
+      "case_group_id": "case_group_006",
+      "document_id": "brdoc_035_9419913a504a",
+      "extension_counts": {
+        ".p7s": 1,
+        ".pdf": 1,
+        ".xml": 1
+      },
+      "member_count": 3,
+      "review_required": true
+    }
+  ],
+  "artifactstore": {
+    "artifact_boundary_public_label": "local/stage2/broker_reports_customer_approved_package_grouping_2026-07-08/artifactstore",
+    "customer_docs_loaded_to_knowledge": false,
+    "gate2_handoff_ref": "art_22Fqiyd6XvdYaVfVTBfevB4FwnzeSPqD",
+    "private_payload_paths_published": false,
+    "private_payloads_persisted": true,
+    "storage_boundary": "project_artifact_store"
+  },
+  "case_groups": [
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 3
+      },
+      "broker_provider_candidate": "BCS",
+      "can_move_to_gate2_proof": false,
+      "case_group_id": "case_group_001",
+      "confidence": "low",
+      "document_family_counts": {
+        "dividends_report": 1,
+        "fees_report": 1,
+        "operations_table": 1,
+        "source_broker_report": 1,
+        "tax_base_calculation": 4,
+        "unknown_or_needs_review": 3
+      },
+      "document_ids": [
+        "brdoc_013_c1721c84d107",
+        "brdoc_023_e16dae9c454b",
+        "brdoc_025_0f617e48b33f",
+        "brdoc_037_8c0fea99b1db",
+        "brdoc_038_d603a3988ee0",
+        "brdoc_039_ca35351f1c5f",
+        "brdoc_040_ce1cdfa4d4eb",
+        "brdoc_050_00eefe9ce421",
+        "brdoc_051_d33849e406b9",
+        "brdoc_052_41b5a29f3de2",
+        "brdoc_053_9ad0d7e43346"
+      ],
+      "duplicate_relation_count": 0,
+      "manual_review_required": true,
+      "readiness": "needs_review",
+      "review_reason": [
+        "archive_package_requires_manual_review",
+        "currency/rate source or methodology",
+        "customer-approved methodology",
+        "unknown_or_review_documents_present",
+        "withholding/foreign tax source if in scope"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 4,
+        "review_or_unknown_documents": 3,
+        "source_evidence_candidates": 4
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    },
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 0
+      },
+      "broker_provider_candidate": "Interactive Brokers / IBKR",
+      "can_move_to_gate2_proof": true,
+      "case_group_id": "case_group_002",
+      "confidence": "high",
+      "document_family_counts": {
+        "calculation_template": 2,
+        "dividends_report": 2,
+        "operations_table": 6,
+        "source_broker_report": 6
+      },
+      "document_ids": [
+        "brdoc_001_b874d956e33a",
+        "brdoc_002_1c6582477921",
+        "brdoc_003_be6168a763cd",
+        "brdoc_004_66a3087cb242",
+        "brdoc_005_f68f7ac26a26",
+        "brdoc_006_7cfd297786cc",
+        "brdoc_008_4790d8487926",
+        "brdoc_009_0a261afe6f0e",
+        "brdoc_044_74e5de8408a8",
+        "brdoc_047_6137e019ea76",
+        "brdoc_049_6137e019ea76",
+        "brdoc_054_79af73d5be78",
+        "brdoc_055_21c85fa3ff06",
+        "brdoc_056_1fb1c0744eb0",
+        "brdoc_057_8b29ff7a464f",
+        "brdoc_058_cee60e388015"
+      ],
+      "duplicate_relation_count": 1,
+      "manual_review_required": true,
+      "readiness": "needs_review",
+      "review_reason": [
+        "currency/rate source or methodology",
+        "customer-approved methodology",
+        "duplicate_documents_present",
+        "fees/commissions source if in scope",
+        "withholding/foreign tax source if in scope"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 2,
+        "review_or_unknown_documents": 0,
+        "source_evidence_candidates": 14
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    },
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 1
+      },
+      "broker_provider_candidate": "Otkritie",
+      "can_move_to_gate2_proof": false,
+      "case_group_id": "case_group_003",
+      "confidence": "low",
+      "document_family_counts": {
+        "dividends_report": 2,
+        "unknown_or_needs_review": 1
+      },
+      "document_ids": [
+        "brdoc_007_bdc1038fdd93",
+        "brdoc_011_6f36b1030270",
+        "brdoc_034_0d1652d9303e"
+      ],
+      "duplicate_relation_count": 0,
+      "manual_review_required": true,
+      "readiness": "needs_review",
+      "review_reason": [
+        "archive_package_requires_manual_review",
+        "currency/rate source or methodology",
+        "customer-approved methodology",
+        "fees/commissions source if in scope",
+        "unknown_or_review_documents_present",
+        "withholding/foreign tax source if in scope"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 0,
+        "review_or_unknown_documents": 1,
+        "source_evidence_candidates": 2
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    },
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 3
+      },
+      "broker_provider_candidate": "Sber",
+      "can_move_to_gate2_proof": false,
+      "case_group_id": "case_group_004",
+      "confidence": "low",
+      "document_family_counts": {
+        "tax_base_calculation": 1,
+        "unknown_or_needs_review": 3
+      },
+      "document_ids": [
+        "brdoc_018_68c0f4c2e764",
+        "brdoc_019_e20f86bce4cb",
+        "brdoc_030_e2ff5374db45",
+        "brdoc_059_b9bca7e6e44d"
+      ],
+      "duplicate_relation_count": 0,
+      "manual_review_required": true,
+      "readiness": "partial",
+      "review_reason": [
+        "archive_package_requires_manual_review",
+        "unknown_or_review_documents_present"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 1,
+        "review_or_unknown_documents": 3,
+        "source_evidence_candidates": 0
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    },
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 1
+      },
+      "broker_provider_candidate": "VTB",
+      "can_move_to_gate2_proof": false,
+      "case_group_id": "case_group_005",
+      "confidence": "low",
+      "document_family_counts": {
+        "dividends_report": 2,
+        "operations_table": 1,
+        "unknown_or_needs_review": 1
+      },
+      "document_ids": [
+        "brdoc_015_3a1b9214292c",
+        "brdoc_045_0c44a95cc671",
+        "brdoc_046_0c44a95cc671",
+        "brdoc_048_62db60cb2b17"
+      ],
+      "duplicate_relation_count": 1,
+      "manual_review_required": true,
+      "readiness": "needs_review",
+      "review_reason": [
+        "archive_package_requires_manual_review",
+        "currency/rate source or methodology",
+        "customer-approved methodology",
+        "duplicate_documents_present",
+        "fees/commissions source if in scope",
+        "unknown_or_review_documents_present",
+        "withholding/foreign tax source if in scope"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 0,
+        "review_or_unknown_documents": 1,
+        "source_evidence_candidates": 3
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    },
+    {
+      "account_package_candidate": "unknown",
+      "archive_membership_relation": {
+        "archive_contents_not_promoted_to_source_evidence": true,
+        "archive_documents_count": 16
+      },
+      "broker_provider_candidate": "unknown",
+      "can_move_to_gate2_proof": false,
+      "case_group_id": "case_group_006",
+      "confidence": "low",
+      "document_family_counts": {
+        "fees_report": 1,
+        "unknown_or_needs_review": 24
+      },
+      "document_ids": [
+        "brdoc_010_665b45748e01",
+        "brdoc_012_7564b3bc1353",
+        "brdoc_014_701797dcb627",
+        "brdoc_016_573d9c44da70",
+        "brdoc_017_8390e02699f1",
+        "brdoc_020_acc1c591d660",
+        "brdoc_021_3d59bcf9fda4",
+        "brdoc_022_996b292d1408",
+        "brdoc_024_eac67250999e",
+        "brdoc_026_60865da0b67a",
+        "brdoc_027_73b9943d9a8a",
+        "brdoc_028_703a6fd74179",
+        "brdoc_029_355edae532a6",
+        "brdoc_031_7f469bb3e17d",
+        "brdoc_032_e0ac2210dba5",
+        "brdoc_033_3b540b094d7a",
+        "brdoc_035_9419913a504a",
+        "brdoc_036_f1995ee6a6fa",
+        "brdoc_041_39227188fb1c",
+        "brdoc_042_51ccbbd65039",
+        "brdoc_043_4d8ee8777b23",
+        "brdoc_060_e69ef2fa1cb2",
+        "brdoc_061_aeaff2e070aa",
+        "brdoc_062_161065e246ac",
+        "brdoc_063_510b999b1914"
+      ],
+      "duplicate_relation_count": 0,
+      "manual_review_required": true,
+      "readiness": "needs_review",
+      "review_reason": [
+        "archive_package_requires_manual_review",
+        "currency/rate source or methodology",
+        "customer-approved methodology",
+        "unknown_or_review_documents_present",
+        "withholding/foreign tax source if in scope"
+      ],
+      "source_vs_output": {
+        "output_or_methodology_artifacts": 0,
+        "review_or_unknown_documents": 24,
+        "source_evidence_candidates": 1
+      },
+      "tax_year_candidate": [
+        "unknown"
+      ]
+    }
+  ],
+  "duplicate_map": [
+    {
+      "all_document_ids": [
+        "brdoc_045_0c44a95cc671",
+        "brdoc_046_0c44a95cc671"
+      ],
+      "canonical_document_id": "brdoc_045_0c44a95cc671",
+      "content_sha256": "0c44a95cc67129d09d6d51375ada59882fe76879edb919c77713491aae3cc231",
+      "duplicate_document_ids": [
+        "brdoc_046_0c44a95cc671"
+      ],
+      "duplicate_group_id": "dupgrp_0c44a95cc671",
+      "relation": "same_content_sha256"
+    },
+    {
+      "all_document_ids": [
+        "brdoc_047_6137e019ea76",
+        "brdoc_049_6137e019ea76"
+      ],
+      "canonical_document_id": "brdoc_047_6137e019ea76",
+      "content_sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "duplicate_document_ids": [
+        "brdoc_049_6137e019ea76"
+      ],
+      "duplicate_group_id": "dupgrp_6137e019ea76",
+      "relation": "same_content_sha256"
+    }
+  ],
+  "gate2_handoff": {
+    "chat_json_used_as_handoff": false,
+    "gate2_handoff_ref": "art_22Fqiyd6XvdYaVfVTBfevB4FwnzeSPqD",
+    "normalization_run_id": "normrun_5a4d4c7b50cd360d",
+    "uses_opaque_refs": true
+  },
+  "generated_at_msk": "2026-07-08T12:30:45+03:00",
+  "recommended_first_package": {
+    "case_group_id": "case_group_002",
+    "gate2_scope": "selected_case_group_only",
+    "reason": "largest coherent source-evidence group with no archive dependency preferred for controlled Gate 2 proof",
+    "requires_before_gate2_execution": [
+      "operator confirms selected case_group_id",
+      "customer/specialist confirms methodology boundary",
+      "source-fact extraction approval is explicit"
+    ]
+  },
+  "retention_policy": {
+    "chat_delete_cascades": true,
+    "expires_at": "2026-07-22T09:30:41.324962+00:00",
+    "explicit": true,
+    "keep_redacted_tombstone": true,
+    "mode": "customer_approved_test",
+    "requires_manual_purge": false,
+    "source_delete_cascades": true,
+    "ttl_seconds": 1209600
+  },
+  "safety_boundary": {
+    "customer_docs_loaded_to_knowledge": false,
+    "declaration_generated": false,
+    "full_local_paths_in_safe_registry": false,
+    "ocr_vlm_performed": false,
+    "raw_filenames_in_safe_registry": false,
+    "raw_relative_paths_in_safe_registry": false,
+    "raw_rows_or_text_in_safe_registry": false,
+    "source_documents_committed": false,
+    "source_documents_copied_to_repo": false,
+    "source_fact_extraction_performed": false,
+    "tax_calculation_performed": false,
+    "xls_xlsx_generated": false
+  },
+  "schema_version": "broker_reports_customer_case_groups_v0_safe",
+  "source_registry_ref": "docs/stage2/domain/BROKER_REPORTS_CUSTOMER_SOURCE_DOCUMENTS_INDEX.vNEXT.safe.json",
+  "unknown_review_queue": [
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_002_1c6582477921",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_004_66a3087cb242",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_005_f68f7ac26a26",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_006_7cfd297786cc",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "pdf",
+      "document_id": "brdoc_007_bdc1038fdd93",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "xlsx",
+      "document_id": "brdoc_008_4790d8487926",
+      "document_role_candidate": "calculation_template",
+      "review_reasons": [
+        "conditional_methodology_or_output"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "xlsx",
+      "document_id": "brdoc_009_0a261afe6f0e",
+      "document_role_candidate": "calculation_template",
+      "review_reasons": [
+        "conditional_methodology_or_output"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_010_665b45748e01",
+      "document_role_candidate": "fees_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "pdf",
+      "document_id": "brdoc_011_6f36b1030270",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_012_7564b3bc1353",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_013_c1721c84d107",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_014_701797dcb627",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "zip",
+      "document_id": "brdoc_015_3a1b9214292c",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_016_573d9c44da70",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_017_8390e02699f1",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_018_68c0f4c2e764",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_019_e20f86bce4cb",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_020_acc1c591d660",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_021_3d59bcf9fda4",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_022_996b292d1408",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_023_e16dae9c454b",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_024_eac67250999e",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "zip",
+      "document_id": "brdoc_025_0f617e48b33f",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_026_60865da0b67a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_027_73b9943d9a8a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_028_703a6fd74179",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_029_355edae532a6",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "zip",
+      "document_id": "brdoc_030_e2ff5374db45",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_031_7f469bb3e17d",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_032_e0ac2210dba5",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_033_3b540b094d7a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_003",
+      "container_format": "zip",
+      "document_id": "brdoc_034_0d1652d9303e",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "zip",
+      "document_id": "brdoc_035_9419913a504a",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "archive_requires_manual_review",
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_036_f1995ee6a6fa",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_037_8c0fea99b1db",
+      "document_role_candidate": "fees_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_038_d603a3988ee0",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_039_ca35351f1c5f",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_040_ce1cdfa4d4eb",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_041_39227188fb1c",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_042_51ccbbd65039",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_043_4d8ee8777b23",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_044_74e5de8408a8",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_045_0c44a95cc671",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_046_0c44a95cc671",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "duplicate_document",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_047_6137e019ea76",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_005",
+      "container_format": "pdf",
+      "document_id": "brdoc_048_62db60cb2b17",
+      "document_role_candidate": "operations_table",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_049_6137e019ea76",
+      "document_role_candidate": "dividends_report",
+      "review_reasons": [
+        "duplicate_document",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_050_00eefe9ce421",
+      "document_role_candidate": "tax_base_calculation",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_051_d33849e406b9",
+      "document_role_candidate": "tax_base_calculation",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_052_41b5a29f3de2",
+      "document_role_candidate": "tax_base_calculation",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_001",
+      "container_format": "pdf",
+      "document_id": "brdoc_053_9ad0d7e43346",
+      "document_role_candidate": "tax_base_calculation",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "pdf",
+      "document_id": "brdoc_054_79af73d5be78",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_055_21c85fa3ff06",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_056_1fb1c0744eb0",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_057_8b29ff7a464f",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_002",
+      "container_format": "html_text",
+      "document_id": "brdoc_058_cee60e388015",
+      "document_role_candidate": "source_broker_report",
+      "review_reasons": [
+        "gate1_blockers_present"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_004",
+      "container_format": "pdf",
+      "document_id": "brdoc_059_b9bca7e6e44d",
+      "document_role_candidate": "tax_base_calculation",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_060_e69ef2fa1cb2",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_061_aeaff2e070aa",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_062_161065e246ac",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    },
+    {
+      "can_move_to_next_gate": false,
+      "case_group_id": "case_group_006",
+      "container_format": "pdf",
+      "document_id": "brdoc_063_510b999b1914",
+      "document_role_candidate": "unknown_or_needs_review",
+      "review_reasons": [
+        "conditional_methodology_or_output",
+        "conditional_source_evidence",
+        "gate1_blockers_present",
+        "scan_or_raster_requires_review_no_ocr_performed",
+        "unknown_or_needs_review"
+      ]
+    }
+  ]
+}
