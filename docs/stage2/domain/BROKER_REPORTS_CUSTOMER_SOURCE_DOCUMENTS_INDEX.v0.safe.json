@@ -1,0 +1,3679 @@
+{
+  "schema_version": "broker_reports_customer_source_documents_index_v0_safe",
+  "generated_at_msk": "2026-07-06T12:39:48+03:00",
+  "source_root_public_label": "withheld_customer_local_folder",
+  "source_root_path_included": false,
+  "hashing": {
+    "filename_and_path_hashing": "hmac_sha256_with_private_salt",
+    "private_salt_location": "private local registry only",
+    "content_sha256": "plain sha256 of file bytes"
+  },
+  "safety_boundary": {
+    "source_documents_copied_to_repo": false,
+    "source_documents_committed": false,
+    "raw_filenames_in_safe_registry": false,
+    "raw_relative_paths_in_safe_registry": false,
+    "full_local_paths_in_safe_registry": false,
+    "tax_calculation_performed": false,
+    "declaration_generated": false,
+    "xls_xlsx_generated": false,
+    "openwebui_upload_performed": false,
+    "mass_ocr_performed": false
+  },
+  "documents": [
+    {
+      "document_id": "brdoc_001_b874d956e33a",
+      "original_filename_hash": "8910f57547f53a14398a959b5434267a59e9f75fbc71fc49280b1131b42b15b7",
+      "relative_path_hash": "8df14420dae26f99e1c5fc74c2d3842510c2f6132246c6160c50c51f027678b2",
+      "extension": ".csv",
+      "detected_mime_type": "text/csv",
+      "file_size_bytes": 212844,
+      "modified_time_msk": "2026-04-27T17:47:10.077573+03:00",
+      "sha256": "b874d956e33ad4382e33eabe39b4e5405c2544e693cabc247826a3680932f2ae",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "csv",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "currency_rate_table",
+        "source_broker_report",
+        "dividends_report",
+        "fees_report",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "high",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 0.991,
+        "delimiter": ",",
+        "columns_summary": {
+          "columns_count": 4,
+          "safe_column_labels": [],
+          "redacted_or_hashed_column_labels_count": 4,
+          "column_label_hashes": [
+            "7427bccd6fff8eb881bcbf2db379ecfd075d70220d6b3e0b32402791ca330674",
+            "8683e692fe25abb5bf7c91b01b4dd1c474e4f90a5eb6260748d0d70ca32b9981",
+            "536c66309d5b9901f3284eda8d1f440a60b8dc489a7b1591fd698897087459a8",
+            "8f5b36cba91feed0647c6240009ee361502e611069546ea551cdba9b84af1450"
+          ]
+        },
+        "rows_count": 1342,
+        "machine_readable_table": "yes",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_002_1c6582477921",
+      "original_filename_hash": "dd1aff1eb0cbf24720e0d313709863a7f11e4044aca70d06a59bd8c1193a0d7e",
+      "relative_path_hash": "4bf85fb1152eb85de39d4072e0d8d90803e83214a8a558abbb396feaa3a0872b",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 329193,
+      "modified_time_msk": "2026-04-27T17:47:13.946143+03:00",
+      "sha256": "1c6582477921cc5166bf76f721f1832e2aca6fcd3dcd28cc475eb855d827d9ff",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "currency_rate_table",
+        "dividends_report",
+        "fees_report",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 33,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 63972,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_003_be6168a763cd",
+      "original_filename_hash": "b95421df8eaa7aa15672e4108f837ede92c7235a5ff2cf8a4b577f65741d6f88",
+      "relative_path_hash": "c8f325903a6d107e2c6e544eb8e5a46d1bf7a664829187120171ea12cc83b0da",
+      "extension": ".csv",
+      "detected_mime_type": "text/csv",
+      "file_size_bytes": 198734,
+      "modified_time_msk": "2026-04-27T17:47:13.581098+03:00",
+      "sha256": "be6168a763cd41babad9efed838ec1e4ac7a45dec3874c915670bcb8d211c39f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "csv",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "currency_rate_table",
+        "source_broker_report",
+        "dividends_report",
+        "fees_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "high",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 0.988,
+        "delimiter": ",",
+        "columns_summary": {
+          "columns_count": 4,
+          "safe_column_labels": [],
+          "redacted_or_hashed_column_labels_count": 4,
+          "column_label_hashes": [
+            "7427bccd6fff8eb881bcbf2db379ecfd075d70220d6b3e0b32402791ca330674",
+            "8683e692fe25abb5bf7c91b01b4dd1c474e4f90a5eb6260748d0d70ca32b9981",
+            "536c66309d5b9901f3284eda8d1f440a60b8dc489a7b1591fd698897087459a8",
+            "8f5b36cba91feed0647c6240009ee361502e611069546ea551cdba9b84af1450"
+          ]
+        },
+        "rows_count": 1255,
+        "machine_readable_table": "yes",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_004_66a3087cb242",
+      "original_filename_hash": "9020fa2f8798b6f9e92b98bb7b2876286d11478631ed1b64d4ae6185ec0d5fc8",
+      "relative_path_hash": "39f72cf7123349b5e4d627987e0438206fc0042bd278a67df846f7774654d19a",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 307535,
+      "modified_time_msk": "2026-04-27T17:47:13.762613+03:00",
+      "sha256": "66a3087cb242ace4943eda1710b91c9ae526c2e27b6630330270688995f108f1",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "currency_rate_table",
+        "dividends_report",
+        "fees_report",
+        "broker_help_article",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 32,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 61934,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_005_f68f7ac26a26",
+      "original_filename_hash": "f8af6420a7c6b4c003db861bf5bc950fbf22d238716c28438db7500479787742",
+      "relative_path_hash": "f78c6e8af2ff1656ee326e584273ec2dd8f975df8ec4a45309eb625c0777a263",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 352035,
+      "modified_time_msk": "2026-04-22T18:15:50.218192+03:00",
+      "sha256": "f68f7ac26a2683799e0d9a0a3f24cc839c6af55c99f2983235923e3d36f1e19d",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 39,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 70078,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_006_7cfd297786cc",
+      "original_filename_hash": "8313a99546333ea4c168521fad6ff7f14ce0526aab3801fd2eba0b7ed485cc0e",
+      "relative_path_hash": "d9b743928c8fd62a9d9e9866b266c01440c40590c66bba718ca0720fa050760e",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 479750,
+      "modified_time_msk": "2026-04-22T17:15:52.826458+03:00",
+      "sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 65,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 78747,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_007_bdc1038fdd93",
+      "original_filename_hash": "56730a98380f625f1a4359583ab0798d2c961c99ea9d63a3253ca95e3c584eac",
+      "relative_path_hash": "fd458fd8fdb5d6d43ce5a5fb84bd7e0e0bcd485c6f707fa374699ac0ef4c93d1",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 440661,
+      "modified_time_msk": "2026-04-22T17:16:05.713799+03:00",
+      "sha256": "bdc1038fdd9334c103403b0b4444118d82a03a7c8c8b6d1304f2a60084ed5bcb",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 60,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 42960,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Otkritie"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_008_4790d8487926",
+      "original_filename_hash": "07189531ff285f56be205f133ec4e91ca2e92d6634e9abb96b2d6ab54329798a",
+      "relative_path_hash": "3243e5e82c0dbd4a8ae5eb4dcf65f07840a170d8af1c333b6870dce6f2d3f9d6",
+      "extension": ".xlsx",
+      "detected_mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "file_size_bytes": 912502,
+      "modified_time_msk": "2026-04-22T18:36:36.612067+03:00",
+      "sha256": "4790d8487926c698f660dbafa8128f9aaa8a469db9029619dad954dcba5b6915",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "xlsx",
+      "document_taxonomy_class": "calculation_template",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "withholding_report",
+        "currency_rate_table",
+        "official_electronic_format",
+        "official_form",
+        "dividends_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "no",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "methodology",
+      "technical_profile": {
+        "sheets_count": 20,
+        "safe_sheet_names": [],
+        "sheet_name_hashes": [
+          "a5699d6dd1742440c7508620ce00698813e62a2217317610d23e621f01afccee",
+          "be9afa809f33801a475e5b9508d342dab975ba5e645626f7521aaa2233866921",
+          "8277a292b84c2b0580fcf47bfab5bcbd3bfd6f7a57ac08e20413132fbe99e42c",
+          "013a7c829dbcab6a123392cd01a71571e7388e5e6e5b79b94ac908616aebc517",
+          "68deb28606b74e23c403f8ca640983544ee36724bc12b892ff9082b9c07bac28",
+          "ca4215804fa64faec598121d34f71ec92281f08de6fdc416c2f0d2d79b41304f",
+          "f3544cfb15a4dc7cb01ca9c43decb185a5e07da1aaa2a2bf4582fce8c99322f8",
+          "3a66b5d56488f751593a25512ab2738307e401bd75ad36a1f3a3f5662f0a4808",
+          "31d1da682c10ccdbee81295af69680c53d65ffad2aa684f5948ed113cbc110d0",
+          "1e813b66630ab33e5882bc088fb330a5f96eb13e6ee7d6f2cca3912dbdc8e95c",
+          "efad00028e6c4f45e3286ba169c2c35e91913f6e55497874d5dcac7dcaabbcd7",
+          "879d558d58f1cbd53d49383c30fee5f8b16f91e1cf9a4619503e4b7b934615b4",
+          "e431c68f839ccf1c0bf387bbfea8d04a93f0d7c88f58dcb1796b7c5bda31dad7",
+          "0ae074e97eaa5ed579e7428f6067101ec3b7ba1818dd7eec7e1d604981d0325a",
+          "1cdc04f0a59b61c7eb0daeb6ae5ba5c56106c1730fbe8e67c949d24f6aa2f204",
+          "b14fa0f4b075990cb44cb26e3f61464b50ac26d9d29760bdf55fbe3f8150df4f",
+          "5d92ceb707679faeea9d7e10fcac6895869d27a1f2ef9101b26badc457acac62",
+          "f1c1ed54e4dcc24e2bf324c2b94f31a92272f42252c0a62b0c620b40374d38f3",
+          "703a97aa17ec617e83bc41bedc920d3c34d048f445e29a7e47ea2c577ac748a5",
+          "a50c9b130c08f95876491862497b365cbdb6010f707cc3a2277890f845c4b128"
+        ],
+        "redacted_sheet_names_count": 20,
+        "has_formulas": "yes",
+        "hidden_sheets_count": 0,
+        "workbook_role_candidate": "calculation_template_or_output_artifact",
+        "readable_by_openpyxl": "yes",
+        "confidence": "medium",
+        "sampled_non_empty_cells": 18521,
+        "sampled_non_empty_rows": 2976
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "Russia",
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_009_0a261afe6f0e",
+      "original_filename_hash": "305670cdf2e6f5360131df712ce922e10bbe09c87b56f316fd8240cf15c02e0d",
+      "relative_path_hash": "ab2daf8b7356495425d74137226bcb3a27354f945c2f1aab11793dde5360e28c",
+      "extension": ".xlsx",
+      "detected_mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "file_size_bytes": 808421,
+      "modified_time_msk": "2026-04-22T18:14:34.542687+03:00",
+      "sha256": "0a261afe6f0ee38845adb29522a7be115be2836af8dbdafd40d0179ac8b9ae2c",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "xlsx",
+      "document_taxonomy_class": "calculation_template",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "withholding_report",
+        "currency_rate_table",
+        "official_form",
+        "dividends_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "no",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "methodology",
+      "technical_profile": {
+        "sheets_count": 20,
+        "safe_sheet_names": [],
+        "sheet_name_hashes": [
+          "a5699d6dd1742440c7508620ce00698813e62a2217317610d23e621f01afccee",
+          "be9afa809f33801a475e5b9508d342dab975ba5e645626f7521aaa2233866921",
+          "8277a292b84c2b0580fcf47bfab5bcbd3bfd6f7a57ac08e20413132fbe99e42c",
+          "013a7c829dbcab6a123392cd01a71571e7388e5e6e5b79b94ac908616aebc517",
+          "68deb28606b74e23c403f8ca640983544ee36724bc12b892ff9082b9c07bac28",
+          "ca4215804fa64faec598121d34f71ec92281f08de6fdc416c2f0d2d79b41304f",
+          "f3544cfb15a4dc7cb01ca9c43decb185a5e07da1aaa2a2bf4582fce8c99322f8",
+          "3a66b5d56488f751593a25512ab2738307e401bd75ad36a1f3a3f5662f0a4808",
+          "31d1da682c10ccdbee81295af69680c53d65ffad2aa684f5948ed113cbc110d0",
+          "1e813b66630ab33e5882bc088fb330a5f96eb13e6ee7d6f2cca3912dbdc8e95c",
+          "efad00028e6c4f45e3286ba169c2c35e91913f6e55497874d5dcac7dcaabbcd7",
+          "879d558d58f1cbd53d49383c30fee5f8b16f91e1cf9a4619503e4b7b934615b4",
+          "e431c68f839ccf1c0bf387bbfea8d04a93f0d7c88f58dcb1796b7c5bda31dad7",
+          "0ae074e97eaa5ed579e7428f6067101ec3b7ba1818dd7eec7e1d604981d0325a",
+          "1cdc04f0a59b61c7eb0daeb6ae5ba5c56106c1730fbe8e67c949d24f6aa2f204",
+          "b14fa0f4b075990cb44cb26e3f61464b50ac26d9d29760bdf55fbe3f8150df4f",
+          "5d92ceb707679faeea9d7e10fcac6895869d27a1f2ef9101b26badc457acac62",
+          "f1c1ed54e4dcc24e2bf324c2b94f31a92272f42252c0a62b0c620b40374d38f3",
+          "703a97aa17ec617e83bc41bedc920d3c34d048f445e29a7e47ea2c577ac748a5",
+          "a50c9b130c08f95876491862497b365cbdb6010f707cc3a2277890f845c4b128"
+        ],
+        "redacted_sheet_names_count": 20,
+        "has_formulas": "yes",
+        "hidden_sheets_count": 0,
+        "workbook_role_candidate": "calculation_template_or_output_artifact",
+        "readable_by_openpyxl": "yes",
+        "confidence": "medium",
+        "sampled_non_empty_cells": 18474,
+        "sampled_non_empty_rows": 2968
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR"
+        ],
+        "probable_countries": [
+          "Russia",
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_010_665b45748e01",
+      "original_filename_hash": "025d5c861540947ecc37ad4c6772c75f1d434a98197fdee37f8dda6ecf3dab00",
+      "relative_path_hash": "efa8f251953cd5ac5250e2d7464c8c0d0dc5f3184ff4731d2e5cf38d8ec1d881",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 177994,
+      "modified_time_msk": "2026-04-28T19:04:27.938376+03:00",
+      "sha256": "665b45748e01591bf72f986bcd87098ad07aba2c676960f854600b90a1028286",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "fees_report",
+      "secondary_tags": [
+        "dividends_report",
+        "source_broker_report",
+        "operations_table",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "high",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 14,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 14,
+        "sampled_text_chars": 7061,
+        "text_layer_pages_sampled": 13
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_011_6f36b1030270",
+      "original_filename_hash": "dbd179f7fe96df173960ec6a361a1e450a66b501484629c1f4c63c8678d092cc",
+      "relative_path_hash": "61c8cfb7b230760f408579dfcb9a94a472f41c58ca2a0fb7085d0effc1951db8",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 385629,
+      "modified_time_msk": "2026-04-28T19:04:39.716307+03:00",
+      "sha256": "6f36b103027030714a80cd787f37a3e3dddf188a002c1ebee53087f1efe51236",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "high",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 49,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 40048,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Otkritie"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_012_7564b3bc1353",
+      "original_filename_hash": "df3171cf1615b5bedf5a3c375840c4147b94c7a098edf3eeac8fc0a32fd21e72",
+      "relative_path_hash": "7cf05c3591a56e7412b78ab7f7a857fc140ac51b335de67f8cbea4f29fa29f48",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 83655,
+      "modified_time_msk": "2026-03-27T16:48:39.672310+03:00",
+      "sha256": "7564b3bc135313b4ff128a22bd3d547909c8c4df8219717d4b7c2482c10fe43f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 106856,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "1e1b02e74f8e7576fc3b6761316752770e6ea80a1a30f8df6a8c3b5f9b787da2",
+          "d27c9d30fc9870e26d19229f9cd2b927f884703428471481d8fafc4a932f0017",
+          "2a47917a3e42429b348c1c9cedd250cca301c424fe0d109b6bb3bdbe28f6e976"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_013_c1721c84d107",
+      "original_filename_hash": "658791a7bd5a7c5a3e8a93302711baad8f2bcd3b999ed5a813ae572a21f87a8a",
+      "relative_path_hash": "6b2b163a25197ad57ee0a3192c8e7a27cb69be21badfd876104cba07f12f17ca",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 91862,
+      "modified_time_msk": "2026-03-27T16:48:21.785416+03:00",
+      "sha256": "c1721c84d10790753b2e4f8de4a0c104972605ce14041b9c13bf873ae84c5ee1",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 117981,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "db0fc448dcf59127fbb4d0782f1ec5586b3e4789a521c48dd41dd10db04b72bf",
+          "9aef225374e239e48743b33ff254629c530480bd30342b3f6fae873501ed0feb",
+          "d20d0462ab60960360259f5ed0e80489b4f559edc2cd60908043d8134945a3ea"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_014_701797dcb627",
+      "original_filename_hash": "48c080053bdbbec9a97958eaa98ead3544f2cfd17dae20a5d1495fa6c955aa20",
+      "relative_path_hash": "fe0de4cf40f63c5bfc1b6b2f75dbcaf893fc755c6343bab8582ff1337b89e24c",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84307,
+      "modified_time_msk": "2026-03-27T16:48:29.590948+03:00",
+      "sha256": "701797dcb6276866e4e918e73403085f466a1005c8a55113284061e2a2de6ac0",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107679,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "19994af9afb48a90bf7c4efdc1250a5457d97b118c6c7233900991d279801ddd",
+          "1d85b5f9b199326c7b28178c9887a76a6b54a23f4f4f14925815cf65be066c4e",
+          "42a384897635acc0f4e93b70f32b1a60f746f382300452d8001e9adba018fe01"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_015_3a1b9214292c",
+      "original_filename_hash": "e84f9ff0695fac75973d673b58465505a443c5f456ea631741df834c29f2b027",
+      "relative_path_hash": "357447cd3e985a1ac5bdbeed79efec862e5255daed9aed1da0d8f9d4a2efd6ca",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 89662,
+      "modified_time_msk": "2026-03-27T16:48:34.870610+03:00",
+      "sha256": "3a1b9214292c6027a34b22817fda36bb377faf9eb8d37fc4a6c93096fb354be7",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 114904,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "6b78ddb5f77fc4a97a7701f44ed95f441cb81857a1dad99301487f3745cdfb34",
+          "c8ee02b3b6074fc229e784fe3e572551a823651d1a594f02470980576cec3bea",
+          "2e128960affe14fd9e5747459a9edcbebe22f853d7ef7804af313f012db385e5"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "VTB"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_016_573d9c44da70",
+      "original_filename_hash": "abac2d5a30da86c004df3a2f89cf12e8efd2c4e9732c323126b40c03d904e891",
+      "relative_path_hash": "525bddad2d056fe56214922ee394d479214af5532c4b34ba59cdfb209da37b63",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 83531,
+      "modified_time_msk": "2026-03-27T16:48:26.194937+03:00",
+      "sha256": "573d9c44da701f3daea540178dfa384022688cee7943acdcb164a07c16ecd32a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 106673,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "faf31b07cd8dcb3e907b5d14ef137545c86cd77e15b8983e446a5d36ae6b8475",
+          "4fdeffd0decb6da0905859a090b00d1e2effa58b4f0e6e86492005ed1d89967e",
+          "2b121b52aa0c13dc21da035d242b7b7412de0e60b90a8b90b6823ada6f8a5eb1"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_017_8390e02699f1",
+      "original_filename_hash": "8e0accef5b7188dce4d38cd71ac4813db7867b8ae54cf07979bc49ffd502c0a7",
+      "relative_path_hash": "6a905b957034e89d01f033aa6c0d92a8c2d0216f09434e01ef1af3ffca78d1a4",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 83915,
+      "modified_time_msk": "2026-03-27T16:46:55.058611+03:00",
+      "sha256": "8390e02699f120845a6ec5e4b3676f0a47f9a951eee040b4be73260cc5ce7844",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107090,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "c28e36367fe29b2d71f32b07f30f228b4bfa127a51c8135ae222c521272b95c9",
+          "41b030bc960508ee11475d37b0a41ae7ac04bcea8b3962818dabf6d552f638b0",
+          "edeb216b6a43c72d2d8dc76e83bb010849692108d3b35437697c23fd692665d8"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_018_68c0f4c2e764",
+      "original_filename_hash": "2358c88b5301f0697a7f9de74ab654941d54896552a3ee17b5ac2fac4cd02dc7",
+      "relative_path_hash": "91a8623cf9e3b50ee315e14dc325ee62a691bded30efc30c048a7bf1bbfd2522",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 87316,
+      "modified_time_msk": "2026-03-27T16:47:01.658710+03:00",
+      "sha256": "68c0f4c2e764bcd3a23014514c15a07b3fa2c6e561fa4761b137a0b0da6b212a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 112094,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "cbb3111a90ecefa991ee446956191f88087aa7c9bae34cead66c6e9663e87b2a",
+          "d10da287a4d7ab83bd0170cbdcc1501e88b98046eb4baae8f85a7db4fc5975d6",
+          "d07d90140c56b19ddf70d20ee2b9feffd4c51dcfdb61c0afec4ad8ad06527473"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_019_e20f86bce4cb",
+      "original_filename_hash": "ded9f55758d72e578b83d12988ea53ac9f4bb92f2f04a1fd7e3bb02662632854",
+      "relative_path_hash": "ea1c59336121c537a0654e748e4cad740d9eae1c4930178b5b16c11cf5ffd3a2",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84508,
+      "modified_time_msk": "2026-03-27T16:46:50.696042+03:00",
+      "sha256": "e20f86bce4cbea59b2444cee7323610c5c64df8d9c3b642319228aff4759879e",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107919,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "d9ff45626c050aa8cf6ab6fc6fe049fccbaf7a30fc9919326c50e3ff5513a6b7",
+          "79b98602428c3eef1743f57b0f15b30fe71eb600b3358d992d7f537d5b090128",
+          "2325db2192a48eac228f2c6ed28e7667480e44e8d7db6487469bf767ba462d3a"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_020_acc1c591d660",
+      "original_filename_hash": "02d22dcdf3ec964c3531bf0f85e2757f94c0b33daf1fae6ec6cd217a204e5b9e",
+      "relative_path_hash": "46fc5cc610fda7f4b458f64d3f5eab0666aea97fa3158d89be0728e3d231f274",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 83953,
+      "modified_time_msk": "2026-03-27T16:46:46.215530+03:00",
+      "sha256": "acc1c591d6606972e42f51eb32db11cf4a68be6d4cf373991b9cdb29d4249cbc",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107096,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "c50ca5e32ada380d28315116c114d40adfec8ce03978d8e04dfa812da5315b01",
+          "d8364a31917100b7b7809eae7c47ae498bbdb5b7b9c3fabb4e8e80590333f6a7",
+          "df368999c84cd6240486e04719266969a772ce9772c328831703b1d103cc3111"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_021_3d59bcf9fda4",
+      "original_filename_hash": "c544b5199c9d413f24637b4854d02dbfde60694646b93801086bc5f78028f171",
+      "relative_path_hash": "593dff191b2f8698ee32481b96618acc451f98f2860612d32dcd7ee7e5b626f6",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84129,
+      "modified_time_msk": "2026-03-27T16:46:41.950521+03:00",
+      "sha256": "3d59bcf9fda4ce7775c89c6f34cf741cf5f4231e86c4a506852b42a6061a4d43",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107273,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "73c7bd50888430296b1b409851dcfb48a1d06af0acca6a6a93406b4a4a549e42",
+          "47bf98fd761e0c9a0d6900c07d9349b1eac500b896ec539ae41b4dd8782d67fc",
+          "78e46189ea108ff7a28882993ad0a6d46b75a8fca4fa8279b2444f4cf92060ea"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_022_996b292d1408",
+      "original_filename_hash": "186f6e2436fec8fa835412d05dbe34104a284042ab45bbdeb99c302710ebf904",
+      "relative_path_hash": "b39b68540fb3ab6d90f6ebdd056eaaf5227951f59da94c097732e2381cb11b9e",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 85280,
+      "modified_time_msk": "2026-03-27T16:46:34.707235+03:00",
+      "sha256": "996b292d1408dfc71d59c254755b726bdcc34bb79f2cfef9669a0e55b9901352",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 108843,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "6830a9baa12834e2c66a9f1bc38222f3cf3cf111005ee1653d86724c07ab9e9c",
+          "5ada1a89cfef4bd21657c45d72873953f2a04406305b0aab929b2d25bca6b9e9",
+          "33b9aeb8910856581f42cf0792ba195cdd5c49d0b2c267b181a5c1a03ff852ec"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_023_e16dae9c454b",
+      "original_filename_hash": "3e541be661c7bd1b2834d5872e79d2c5518d5da1efa4110bebc1f9f1088c758a",
+      "relative_path_hash": "1c5237cda633d182a010e4dee178dd528403658db62470daaa932a0c44a63326",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 86394,
+      "modified_time_msk": "2026-03-27T16:46:29.366433+03:00",
+      "sha256": "e16dae9c454be3f43c26a7666917c4f000c1a3d27a9f1b2e740844c834c078c2",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 111623,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "1516151181817a7cc7c986b267c89d8812b726dfa49a88f0f40aac5bdd370c86",
+          "a0d35209344943adb0da699a359483370f70bc317860bb518523d72dd5c71fff",
+          "9ed62182cf0c0da230e15dae6d7ea9356009a47ee2f0c742d65fc284b0a5acee"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_024_eac67250999e",
+      "original_filename_hash": "99fdfb62f502c2e9bbd47424735e9205b51a0d706228bd974a171e9dd2ec51f0",
+      "relative_path_hash": "193b6466c700847e3f09ffdc87adb342288b1cc408dd738dfa91e90879aedd70",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84350,
+      "modified_time_msk": "2026-03-27T16:46:23.602175+03:00",
+      "sha256": "eac67250999edfa4a415f6443fa44a7b4b06ac695bfb33c041b18bf159b98e5b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107578,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "7139dccb300dc95535f9f18c0acf83d0c1ce74db7259d17696d96c9ac73093e3",
+          "65ffcbdafb64a7b4bbb635721a3a0b36ad77492405d5f65fd4877c89418e33dc",
+          "eb5a5251b1336e1d742e3df86dd7c6f80e46649a797812b0154e5f5c94fd416b"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_025_0f617e48b33f",
+      "original_filename_hash": "ac6c7e048ad8c8a9dbd6a2cbab6859361f0e8bb051d4f6e999a613baa6ee7f77",
+      "relative_path_hash": "59dd1d33c0436a34bc0016d721393dcc659b96ddd72a26456380959c6f3fa498",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84997,
+      "modified_time_msk": "2026-03-27T17:58:08.445319+03:00",
+      "sha256": "0f617e48b33fdce1a8746ca2a8ea4ef11dfb216729bb1255ef7d8614c1f6d426",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 108630,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "276dec29ada21b603cca2849f7d140d862f9afd47e0521b499459e2f443a05c8",
+          "c7fad5544bbdd3d556bf3f7da3ae55382a13d5201237c70b2b59d88032e49e5a",
+          "d0cf03a55bebb6bec5d0362c5cc010e515ffa02ec0682937895ee68d352488d2"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_026_60865da0b67a",
+      "original_filename_hash": "1b873507e488a28f774b7bd0db45b6c75307ecd81ae5e840ab4067911f047a50",
+      "relative_path_hash": "bfc51431679fa20c872ab29bab1d12313f1b1f718c1f855537d013040959aebf",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 86712,
+      "modified_time_msk": "2026-03-27T17:59:07.292251+03:00",
+      "sha256": "60865da0b67a0cbbd674edfa8b0ba4aa7df0981f30291177c2f62c09ac8d668a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 111946,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "26c02b4b7d8378839cc7fe4ba625d35b62f2a8d5323474af740a9d88de76fc6e",
+          "ec0b92d852131d04aa3d1aca9b61a6fd6ab4074a9a0c793d823cb0ae0cca1312",
+          "6d4b58dc4cdd0a419ad3f45402376913eb559e071264e61a98ca5cb68fe6fccb"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_027_73b9943d9a8a",
+      "original_filename_hash": "62eab58d14b39e8fb943de8c8c664be2779c5e4699a695d707f5fa64bc841cdf",
+      "relative_path_hash": "9941c2ae7bff98b08f05de61dcaa82eb9a2c972206fc0283f586460f06d30fc1",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 85565,
+      "modified_time_msk": "2026-03-27T17:57:57.832624+03:00",
+      "sha256": "73b9943d9a8a6a96a126de46b9c2107a5bbb57e088f1de2a625c474c39cc2b8b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 109842,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "3b884cad29ab33290cf955b159cd5663eac236e9843af0bdad093fb8af300703",
+          "f1953fc9c855e2b3b038c2ce8d08a7480218d60f1907aa2a184be22c5651980f",
+          "fe6b9cf910e589e901c740c155369ae6119409b18861069a88b51230b63a9864"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_028_703a6fd74179",
+      "original_filename_hash": "12e7782d8884ba5bd86be3d0642202cd26ca14bf5fb7c48592c25e1e33dfd51c",
+      "relative_path_hash": "47c96297af67b0d1372e202f206a309a036df516a2f4c11d4dfaeb2c72ea49bf",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84556,
+      "modified_time_msk": "2026-03-27T17:58:03.495650+03:00",
+      "sha256": "703a6fd741795caa3800efffd5e35b74143997b42f0efe2300b6b3f34c73f77b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107879,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "fab06ef48009b6c4e917c03879602b74ad5b53fb7c38c90e812577db9dc0f7b2",
+          "73794376c8cf94b6420dfcdf1b4163fc1c30ad5280dc458d1ca0e6a086dee9ce",
+          "11e970578633772cb3ee528738d745b1770db4aef6cdca9387753d4207ccf066"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_029_355edae532a6",
+      "original_filename_hash": "6304c907103d2d31643182d9ac5a2de8181cd69904c452a7d01ec54b5734e3ce",
+      "relative_path_hash": "077b9b46ac4b768857c61284ba0686ec72ee71d91b2decb32e82296b4ce7fb88",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 86232,
+      "modified_time_msk": "2026-03-27T17:58:24.735866+03:00",
+      "sha256": "355edae532a612d8612ea8f39182645c27a0e0879283f317b69c49c0145862a4",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 110319,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "3e817dc5562023c43470368bd803fa109cb0a3c3886a430abfaea3f3b3d2ecfd",
+          "da0a9af6eb310c0a68f225d70d9529f4dc61265b7497a24e5ff1899f1eed2a03",
+          "43e7ad822e77b9060209fa015ce1a0d69e6534e3e57c41b74bc8948b460dd6b9"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_030_e2ff5374db45",
+      "original_filename_hash": "38048ebf9a7fbb6277751f2d14a2d7d0007961879fb73674d0add1d232b880af",
+      "relative_path_hash": "849f348818bfe926e3978cb3d1d237e2c0b5f2ebbf854cfe030eee37bc92ef74",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 86986,
+      "modified_time_msk": "2026-03-27T17:58:15.461270+03:00",
+      "sha256": "e2ff5374db45d52acc3104806dc0e962a13b2633647fed1121b93e2a8b59c68f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 111400,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "5e93095213f0873ba13c7467abb5feb1a4414341b4f871be660410c92da6a79e",
+          "61d37581ddff0378667515312d66c213ba1c149867b16d5927aeb1ff1bba9774",
+          "4246c7ec2f7258c2e5a521c16c01d8bf75fa5bc6122b0836d774ee5151661326"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_031_7f469bb3e17d",
+      "original_filename_hash": "4a3f9efccce98e9a274de8ebc71e7130f67c26b627746c5758a4b48d28ec81fd",
+      "relative_path_hash": "f4106d682d18f789b2957e84c0925b74ee739ab148afbfea61500a8cdaf27f79",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 83933,
+      "modified_time_msk": "2026-03-27T17:58:30.895293+03:00",
+      "sha256": "7f469bb3e17dda2dcb80a11edde5ae62d8aa879656012a7727b12b7a6440de03",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107094,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "545ffdae9ec54171e3672959ac896bc3c1e90235dedb5a838f50f3bd8a28312b",
+          "154c21a00d204d7950470590e4096a98fb01cc1a407a2372f01851a96ba683aa",
+          "c3a41c3c69ff6b9f20be28e67381685e4fc8d51dc3385fa2463d5873c61daf8d"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_032_e0ac2210dba5",
+      "original_filename_hash": "abf4b0c7197fc76d9c46b8bfd2695f873532b89054ef1f3518aaecffea6fe313",
+      "relative_path_hash": "b7d7a1863e0b1e0252c034ec31632efdc71c3c47b6025cc89783d19c97474b33",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84118,
+      "modified_time_msk": "2026-03-27T17:58:39.209577+03:00",
+      "sha256": "e0ac2210dba5165ff0fd196cffb8e81bf26bf75a386d0915f7558b220823277a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107278,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "605543e79149fbbcd6e784446db8b170566028e4574fe2c2622d35213f187d5e",
+          "77ea3ac2b7214b30190408198783525dfb85743bec8df789d2eddb31e1ddf035",
+          "bc0bee71c2f84ad6ade52fc80ea717612d357d9ed745e03e30da6303e929e13b"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_033_3b540b094d7a",
+      "original_filename_hash": "8d189b0cc6694bfc9a8e31e08fd954be8e5e5ce4d60c95d3e064f9e584e0bf45",
+      "relative_path_hash": "3ac1af986e86a57cc47105e46b14052349ac4bee65d30c944b236bb0c71397b8",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 85152,
+      "modified_time_msk": "2026-03-27T17:58:42.642055+03:00",
+      "sha256": "3b540b094d7a13ac1af2c2d4d8174e3304438894aaf67339e7f517dfe4ba1d9b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 108705,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "57f1d66f90c70bc6e59d39a15ca5bcd670a7de93f1627a8ceabe8f1560221443",
+          "7860761ac9e9671e74fae0225791b8fe2007d505f9685b92b49737d9a24b82bc",
+          "e4c52026ad17bfe9f0de208a3a7ee9806cfc5b64dd4b100d817f5bf46fdca84e"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_034_0d1652d9303e",
+      "original_filename_hash": "818c3e0f9fee8ef7b9bde413a73fc7a9706f1bf4bd4c2f3db2b56d80c54abeed",
+      "relative_path_hash": "5aed2189845da64a0ed6c1bb2b09bdaf86fbadd2523c5679a1080c8a2203f07a",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 84113,
+      "modified_time_msk": "2026-03-27T17:58:47.996792+03:00",
+      "sha256": "0d1652d9303ec153407c38057e8e6d2287c9fcf52405e27a627ace5e4a1af07a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 107318,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "9b5a91fc1ea41745c8e728688752a5826cadf64a94b8cb2261dcf8a6ccecf546",
+          "ce79efe7ce82418c7a77080b84500bb4e7f09a516f61f62d7a83f9bf4096bb1a",
+          "c044d4a34bb1f9a60ffb33d1713ce061aca9f0ce647bb792e23497c188065449"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Otkritie"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_035_9419913a504a",
+      "original_filename_hash": "792cb876d7f3d10449be2b2129dc9af5cd264b468ade81e1545e69a0861f2b0f",
+      "relative_path_hash": "be8941247c151ddb64feadf596f644b428b83d332edca18b15bb93d5d00f3f25",
+      "extension": ".zip",
+      "detected_mime_type": "application/zip",
+      "file_size_bytes": 90406,
+      "modified_time_msk": "2026-03-27T18:40:03.222990+03:00",
+      "sha256": "9419913a504a8610aa4dbf08e2c6f92efc6c20531c743972828eba682ef4d639",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "zip",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "official_electronic_format",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "archive_member_count": 3,
+        "archive_extension_summary": {
+          ".p7s": 1,
+          ".pdf": 1,
+          ".xml": 1
+        },
+        "encrypted_members_count": 0,
+        "total_uncompressed_size_bytes": 116430,
+        "needs_unpacking_for_source_docs": "conditional",
+        "confidence": "medium",
+        "archive_member_name_hashes": [
+          "8d1a4775c8e2a0b39b06f53dfdb06636e7572ec5c009174256a6fc9b330efbd3",
+          "230d5dd57d37d3742cbf258c1900fd95fd0b51f20ffd42584c555c561793e1b7",
+          "cf86e7d21db16ba430e16ebfc610588185acc44b6c2dd8be767a8c5ccc7ba9cc"
+        ]
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "archive contents were listed by metadata only; no extraction performed",
+        "zip archive was not unpacked during safe intake"
+      ]
+    },
+    {
+      "document_id": "brdoc_036_f1995ee6a6fa",
+      "original_filename_hash": "b68332fafdd36886b6abccbc08d22f73fa620a808fb9ce981cb5963958323d03",
+      "relative_path_hash": "b7178d53fe953d9b52828ece0181fb7b3b5ae0d7bf8c98355b86bcdf0ece1b89",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 1125818,
+      "modified_time_msk": "2026-03-03T14:54:35.864669+03:00",
+      "sha256": "f1995ee6a6fad51d8ef20c1c3c983ad227f039e5844526e902fae9f329d6403a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 6,
+        "has_text_layer": "no",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "low",
+        "parser": "pymupdf",
+        "sampled_pages": 6,
+        "sampled_text_chars": 0,
+        "text_layer_pages_sampled": 0
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_037_8c0fea99b1db",
+      "original_filename_hash": "f562bdd7e07b69e1cfd2dd9698b0c617e978503e849f5554cb74ccd03b35deba",
+      "relative_path_hash": "065dedd33b118e757de0a19057e8d5b90b1e8d04d554750a621876ef55ecb0e7",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 1008713,
+      "modified_time_msk": "2026-02-04T09:22:06.667666+03:00",
+      "sha256": "8c0fea99b1dbc92878f3c74dc3bde76c29ee7a3db92c08b9f9881eae2d50bbd8",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "fees_report",
+      "secondary_tags": [
+        "source_broker_report",
+        "operations_table",
+        "dividends_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 18,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 18,
+        "sampled_text_chars": 74396,
+        "text_layer_pages_sampled": 18
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_038_d603a3988ee0",
+      "original_filename_hash": "4f66b93aa85e8dc6d9b3fdce285ff5c62ce2e4bc528c4f9b6daf535515fa1e1d",
+      "relative_path_hash": "b3f489eaa942354abf7c9d897e134858c03e9c1562baeecd7a9ffefc216ab960",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 939322,
+      "modified_time_msk": "2026-02-04T09:21:21.082899+03:00",
+      "sha256": "d603a3988ee0661cf9052a683a48a19b4e571987af261361130ac7961df4c190",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 14,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 14,
+        "sampled_text_chars": 68714,
+        "text_layer_pages_sampled": 14
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_039_ca35351f1c5f",
+      "original_filename_hash": "83c8a9a396576ad11492dc7f7693a13a9aab492265421bd739e8b417e997dd8b",
+      "relative_path_hash": "1d7d36ff20f77de101bb30f44733226a38dadd138a41e5ac5854f433e2bc91bf",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 895433,
+      "modified_time_msk": "2026-02-04T09:23:30.350531+03:00",
+      "sha256": "ca35351f1c5fe0fd4bd713a5995d215b06aa62ab659ba8f2247290c050ea9f31",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "source_broker_report",
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 17,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 17,
+        "sampled_text_chars": 59172,
+        "text_layer_pages_sampled": 17
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_040_ce1cdfa4d4eb",
+      "original_filename_hash": "bba622db35153518e6abd05a0c52a8a0fd61e874dea492e9b4db0da10b0650e6",
+      "relative_path_hash": "fe586d8db6ddcd7bd59943b426ef5ec54320067b54fcea79ae7020db2ec6f706",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 564401,
+      "modified_time_msk": "2026-02-04T09:19:17.855814+03:00",
+      "sha256": "ce1cdfa4d4eb09ec43e1e2aef83b43d57b328ff5f732e54ccd09d77eaf32ab01",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "fees_report",
+        "source_broker_report",
+        "dividends_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 6,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 6,
+        "sampled_text_chars": 25369,
+        "text_layer_pages_sampled": 6
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_041_39227188fb1c",
+      "original_filename_hash": "d9ad36a007d0bc4510a30bbb3927c1f74167116d79122b42959fffbbcb906bf4",
+      "relative_path_hash": "e184614636a4c79934882c0538a4fa381c84265c826feba1cf939001dce23391",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 95979,
+      "modified_time_msk": "2026-04-09T16:38:15.827784+03:00",
+      "sha256": "39227188fb1c8e45555d3c73247e5d8c002faacc207ddeee5878091da20f5454",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 28,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 7180,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_042_51ccbbd65039",
+      "original_filename_hash": "c5e7038e79559a307d915180b3a61a4fb6b5d18c435a8ad97cc577a556c2e63b",
+      "relative_path_hash": "02841f337588135ebf3d9de1cab4f1b63376611f05f2e88472181f989c86ba4f",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 145527,
+      "modified_time_msk": "2026-04-09T16:39:24.092971+03:00",
+      "sha256": "51ccbbd650392772b36764f5e15cb738d8415f94fa1dc9562914a6b65615a397",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 33,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 7179,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_043_4d8ee8777b23",
+      "original_filename_hash": "e57e8601a522c726d41b9bcc43d93229974d86522e4fcd182d6a8f0113d82591",
+      "relative_path_hash": "afb1a5d24239a1b0caecc3c872e756c950fd0895f4f1572b789217544a3bd3ce",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 117610,
+      "modified_time_msk": "2026-04-09T16:43:35.388237+03:00",
+      "sha256": "4d8ee8777b238820b845218c5605aabe693d98964fbfac1256000be0a59c3070",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 33,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 20,
+        "sampled_text_chars": 10371,
+        "text_layer_pages_sampled": 20
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_044_74e5de8408a8",
+      "original_filename_hash": "2c21df646333ffadbe160c487945d69ed58e2b0d85faffdbbdad289ba028acb8",
+      "relative_path_hash": "6211f48736517f3935f76a876b6d30ea59d53cdc79a130ce0bcd947bed2c4b82",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 745927,
+      "modified_time_msk": "2026-01-30T15:44:41.890510+03:00",
+      "sha256": "74e5de8408a87508bd19ddbefec4d6403548535473c8fd4a82e89850868d21f0",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "dividends_report",
+        "currency_rate_table",
+        "fees_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 18,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 18,
+        "sampled_text_chars": 91782,
+        "text_layer_pages_sampled": 18
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "VTB"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_045_0c44a95cc671",
+      "original_filename_hash": "0a7f60d870acdf0fbd55ec3c13c10d566c85a28b3c609289b33a9a0f01d02941",
+      "relative_path_hash": "782db9b58107e0afee679fe6922bf481360ef6f65d6dfab530e9afb635c54494",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 805548,
+      "modified_time_msk": "2026-02-02T12:26:06.613078+03:00",
+      "sha256": "0c44a95cc67129d09d6d51375ada59882fe76879edb919c77713491aae3cc231",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "official_form",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 19,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 19,
+        "sampled_text_chars": 66432,
+        "text_layer_pages_sampled": 18
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "VTB"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_046_0c44a95cc671",
+      "original_filename_hash": "99dd719f1f677402e66c31b78722f951f56fba1addcd177ecc9ec30d384580a2",
+      "relative_path_hash": "248872c90c5c7ed715f220d494c687e673a50650244f5b3bc71c1ab2999b18a3",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 805548,
+      "modified_time_msk": "2026-02-02T12:26:06.613078+03:00",
+      "sha256": "0c44a95cc67129d09d6d51375ada59882fe76879edb919c77713491aae3cc231",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "official_form",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 19,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 19,
+        "sampled_text_chars": 66432,
+        "text_layer_pages_sampled": 18
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "VTB"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_047_6137e019ea76",
+      "original_filename_hash": "abce5bdafa77e997fd15c8854faefaa8108a06359b3e64840297dae30a3a5db1",
+      "relative_path_hash": "85d5319ab193e9f2ff4472bd43c94edef619dbba90728f1172f26ea90c3de4c0",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 475565,
+      "modified_time_msk": "2026-02-09T17:14:28.988789+03:00",
+      "sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 12,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 12,
+        "sampled_text_chars": 39911,
+        "text_layer_pages_sampled": 11
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber",
+          "VTB"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_048_62db60cb2b17",
+      "original_filename_hash": "fa64bdb95ed095612bc65379c68da641eb15bd9e701d19a472b9819223d42f9a",
+      "relative_path_hash": "9334f28ba72b2690c3349e8386e670ddad8b8571669bb118a4fb294a7deec5c6",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 588617,
+      "modified_time_msk": "2026-02-09T17:12:20.662308+03:00",
+      "sha256": "62db60cb2b1719d52a8a161e893db19257f9f8029efdad7ccacd8dc41330811f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "operations_table",
+      "secondary_tags": [
+        "dividends_report",
+        "fees_report",
+        "currency_rate_table",
+        "official_form",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 16,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 16,
+        "sampled_text_chars": 100459,
+        "text_layer_pages_sampled": 16
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "VTB"
+        ],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_049_6137e019ea76",
+      "original_filename_hash": "12e993ed210bc1e2c2a5489506612fa0cb73d61683ba46162f9bf3165e8a2e2d",
+      "relative_path_hash": "bed1ad229a0163007a1b04d43ea85730fe8aa6126e673c9b0ca359e0812e8ddd",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 475565,
+      "modified_time_msk": "2026-01-30T15:47:40.138226+03:00",
+      "sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "dividends_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "broker_help_article",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 12,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 12,
+        "sampled_text_chars": 39911,
+        "text_layer_pages_sampled": 11
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber",
+          "VTB"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_050_00eefe9ce421",
+      "original_filename_hash": "615702531bc6dc314ee7b561af5ef51c68f87321ab31b135af503e5d0b897f95",
+      "relative_path_hash": "d358cfb15a2a403eca5a302ab4260015bb8b79c586deb3e156ae5f269a4e4adc",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 424711,
+      "modified_time_msk": "2026-02-03T16:53:28.803727+03:00",
+      "sha256": "00eefe9ce421318181c86ad6c48540ea5a8fbfc16855967768562031580f474b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "tax_base_calculation",
+      "secondary_tags": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "review_output",
+      "technical_profile": {
+        "pages_count": 2,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 2,
+        "sampled_text_chars": 3301,
+        "text_layer_pages_sampled": 1
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_051_d33849e406b9",
+      "original_filename_hash": "b72b66a3c2e98cb595174ddddbc43ffcc6235fbb066fbd84e537099afd72af60",
+      "relative_path_hash": "f041eadc7c0488d81b563def74959d496402c36a4dafe7a77ef40717491b0e76",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 350046,
+      "modified_time_msk": "2026-02-03T16:54:02.451449+03:00",
+      "sha256": "d33849e406b9015ca30fe33c224f206bbd00ebd98821f33e424cc2ff06aec48e",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "tax_base_calculation",
+      "secondary_tags": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "review_output",
+      "technical_profile": {
+        "pages_count": 1,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 1,
+        "sampled_text_chars": 2531,
+        "text_layer_pages_sampled": 1
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_052_41b5a29f3de2",
+      "original_filename_hash": "31ab275c955946f207bd8ba5328849fa768d84df057a4f1f933b43bef08ca06e",
+      "relative_path_hash": "01d3dfa9fa8a9cc449fb8e6c0445e1195f9816f6c40070de1e95829e06598267",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 362484,
+      "modified_time_msk": "2026-02-03T16:54:40.783525+03:00",
+      "sha256": "41b5a29f3de2a206ff4d43c36ab961bd9588824b50b2ca15d5bce4998b811a9b",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "tax_base_calculation",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "fees_report",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "review_output",
+      "technical_profile": {
+        "pages_count": 2,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 2,
+        "sampled_text_chars": 3471,
+        "text_layer_pages_sampled": 1
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Cyprus",
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_053_9ad0d7e43346",
+      "original_filename_hash": "04862c81dcfb0fb93d08255fcc08d9f29272208d392c19f7fd94f191a1eca4e9",
+      "relative_path_hash": "5ba4968d17a85368894aa1fced456ccf1cd4d2097c5eb651d9f9541f309f4526",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 422267,
+      "modified_time_msk": "2026-02-03T16:57:26.971319+03:00",
+      "sha256": "9ad0d7e43346e30187888614375355ec5fe24844cee4c7b9de661a6e3fa4ac5d",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "tax_base_calculation",
+      "secondary_tags": [
+        "dividends_report",
+        "fees_report",
+        "operations_table",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "review_output",
+      "technical_profile": {
+        "pages_count": 3,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 3,
+        "sampled_text_chars": 3147,
+        "text_layer_pages_sampled": 1
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "BCS",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_054_79af73d5be78",
+      "original_filename_hash": "6ab7dd7584ac41d059cd807ab4db48ba722e3b13fa92387eebab58590a1cec14",
+      "relative_path_hash": "5a3f2f4b9d1317bd2e49ecfcf82ee8bf504e7b5d894f2b5a59bc0b22d0dd46c2",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 176458,
+      "modified_time_msk": "2026-03-18T12:25:25.249432+03:00",
+      "sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "pages_count": 6,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 6,
+        "sampled_text_chars": 21540,
+        "text_layer_pages_sampled": 6
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_055_21c85fa3ff06",
+      "original_filename_hash": "f72c2c7b8ce605e1d97a7d06882533a5701bc00bfca33ea7a1d53d36ff3b1e85",
+      "relative_path_hash": "50e194584f971a4987dd316869c9852bfc620eb62477852f1c54c75f8d9d38a1",
+      "extension": ".html",
+      "detected_mime_type": "text/html",
+      "file_size_bytes": 51109,
+      "modified_time_msk": "2026-02-11T12:37:11.237421+03:00",
+      "sha256": "21c85fa3ff06b9ca83f5f5106b701f187df603993e55510531b7bd27cba62dde",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "txt",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 0.999,
+        "delimiter": null,
+        "columns_summary": {
+          "html_tables_not_extracted": true
+        },
+        "rows_count": 316,
+        "machine_readable_table": "conditional",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia",
+          "US"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_056_1fb1c0744eb0",
+      "original_filename_hash": "65c2a70612d1d78b1ce84249dd3fd87de07dc5f863bb16f1cf2dffdeb713b05f",
+      "relative_path_hash": "6cbe0685f0ca0f688b6b26cdcfae8a80920837850a5fd3ec9c303a4c6b0ff6dd",
+      "extension": ".html",
+      "detected_mime_type": "text/html",
+      "file_size_bytes": 49219,
+      "modified_time_msk": "2026-02-11T12:35:40.738579+03:00",
+      "sha256": "1fb1c0744eb0b84b05c50f8bd01d2ca8f2a2075e29b5de88e0d1c4a9f7549e8d",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "txt",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "currency_rate_table",
+        "fees_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 1.0,
+        "delimiter": null,
+        "columns_summary": {
+          "html_tables_not_extracted": true
+        },
+        "rows_count": 330,
+        "machine_readable_table": "conditional",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_057_8b29ff7a464f",
+      "original_filename_hash": "087723ef2228334c9e40dfd08e3e2a8360f666ad8c8a48b1a8933ed72140290b",
+      "relative_path_hash": "fe3ed3e724458903df783592fb80a9111c7c2516b7bb01d5c88cae8494db3880",
+      "extension": ".html",
+      "detected_mime_type": "text/html",
+      "file_size_bytes": 57949,
+      "modified_time_msk": "2026-02-11T12:28:39.572095+03:00",
+      "sha256": "8b29ff7a464f8e72d9784a26873e0f95966cd80f834b57b99d9e904b02b602f2",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "txt",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "operations_table",
+        "fees_report",
+        "currency_rate_table",
+        "dividends_report",
+        "withholding_report",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 1.0,
+        "delimiter": null,
+        "columns_summary": {
+          "html_tables_not_extracted": true
+        },
+        "rows_count": 397,
+        "machine_readable_table": "conditional",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_058_cee60e388015",
+      "original_filename_hash": "8319391d271963c9325f5d976268ce29d69200ba21c961f80cace6fe102309e2",
+      "relative_path_hash": "1eef5b5d668f6a1d34943174aae635922a0b4107e36e52277c26e6176c3a941e",
+      "extension": ".html",
+      "detected_mime_type": "text/html",
+      "file_size_bytes": 60755,
+      "modified_time_msk": "2026-02-11T12:20:17.031653+03:00",
+      "sha256": "cee60e38801516af4ca4071e65376f042e17c2f6e82f667bd970a8760a15bfd7",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "txt",
+      "document_taxonomy_class": "source_broker_report",
+      "secondary_tags": [
+        "dividends_report",
+        "operations_table",
+        "withholding_report",
+        "currency_rate_table",
+        "official_filling_instruction",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "yes",
+      "can_be_methodology": "no",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "source_fact",
+      "technical_profile": {
+        "encoding": "utf_8",
+        "encoding_confidence": 1.0,
+        "delimiter": null,
+        "columns_summary": {
+          "html_tables_not_extracted": true
+        },
+        "rows_count": 543,
+        "machine_readable_table": "conditional",
+        "confidence": "medium"
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Interactive Brokers / IBKR",
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_059_b9bca7e6e44d",
+      "original_filename_hash": "dbcb25bd8b871a01666dc6a1e9dc07f19fcb578eaa5147222b1c26942a4ed14d",
+      "relative_path_hash": "aa6b13526a564f30d6f556d726c8e8527022297beb0384dda1e0ebe0a040546f",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 41214,
+      "modified_time_msk": "2026-03-03T14:55:05.114488+03:00",
+      "sha256": "b9bca7e6e44dbf12de49fe341a0289e2e8d349ac90483021f13ceee57a13f355",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "tax_base_calculation",
+      "secondary_tags": [
+        "operations_table",
+        "dividends_report",
+        "withholding_report",
+        "fees_report",
+        "currency_rate_table",
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "medium",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "review_output",
+      "technical_profile": {
+        "pages_count": 6,
+        "has_text_layer": "yes",
+        "probable_raster_or_scan": "no",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "no",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 6,
+        "sampled_text_chars": 20699,
+        "text_layer_pages_sampled": 6
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [
+          "Sber"
+        ],
+        "probable_countries": [
+          "Russia"
+        ],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported"
+      ]
+    },
+    {
+      "document_id": "brdoc_060_e69ef2fa1cb2",
+      "original_filename_hash": "49879bffad9f91894aec14362c6a59b2cf1e5f59f62ca8342e8c22ac9791c0ec",
+      "relative_path_hash": "2fe5383cecff9515704e538d561dbb77347c6e6f295eda7f794c91cfbb339712",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 864564,
+      "modified_time_msk": "2026-04-09T17:14:35.860706+03:00",
+      "sha256": "e69ef2fa1cb27a1fa061b5971c9dfd0f7fef8119209b8c4ef26a4e4bf694e3fe",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 1,
+        "has_text_layer": "no",
+        "probable_raster_or_scan": "yes",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "yes",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 1,
+        "sampled_text_chars": 0,
+        "text_layer_pages_sampled": 0
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_061_aeaff2e070aa",
+      "original_filename_hash": "0d3deddd54f78a01d3d9b90d15ada5ea068b4986272c1a8cead2e203d597ae11",
+      "relative_path_hash": "6c0c873ade35c74189724d639178cb8abb84c2d6257769080e59e9650efd3845",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 185528,
+      "modified_time_msk": "2026-03-23T14:47:38.829496+03:00",
+      "sha256": "aeaff2e070aa580e7b5817115d63d2fdede2ecf45aebdf7634d9c0453325b24a",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 1,
+        "has_text_layer": "no",
+        "probable_raster_or_scan": "yes",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "yes",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 1,
+        "sampled_text_chars": 0,
+        "text_layer_pages_sampled": 0
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_062_161065e246ac",
+      "original_filename_hash": "a24ace3503f3f4722b6a841b4abc54ef7da99204cd956d96b04b12ccd213c9d9",
+      "relative_path_hash": "729476a233656f415cb5a535d13b2e2f7f1d89061ddcafa638308aab6a10427a",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 185360,
+      "modified_time_msk": "2026-03-23T14:47:43.025643+03:00",
+      "sha256": "161065e246ac2e1c2717526049bedb2e79f30d7e1aa73b038ec7e10e102a4c27",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 1,
+        "has_text_layer": "no",
+        "probable_raster_or_scan": "yes",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "yes",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 1,
+        "sampled_text_chars": 0,
+        "text_layer_pages_sampled": 0
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    },
+    {
+      "document_id": "brdoc_063_510b999b1914",
+      "original_filename_hash": "611eca067cd5b7319ba570833be13a32c016a3846a60ecded1c1d791d4dd8bd9",
+      "relative_path_hash": "3ea0589f03a9317be0482fdaf95435e90ebb04747c147ebf1f2225d38139a9c0",
+      "extension": ".pdf",
+      "detected_mime_type": "application/pdf",
+      "file_size_bytes": 190439,
+      "modified_time_msk": "2026-03-23T14:47:40.350134+03:00",
+      "sha256": "510b999b1914511603354e806097f1dc6dcd404a8424907aeb06c3b385df5806",
+      "readable": "yes",
+      "read_error_class": null,
+      "container_format": "pdf",
+      "document_taxonomy_class": "unknown_or_needs_review",
+      "secondary_tags": [
+        "customer_sample_pending_review"
+      ],
+      "classification_confidence": "low",
+      "can_be_source_evidence": "conditional",
+      "can_be_methodology": "conditional",
+      "can_be_loaded_to_knowledge": "after_review",
+      "declaration_relevance": "none",
+      "technical_profile": {
+        "pages_count": 1,
+        "has_text_layer": "no",
+        "probable_raster_or_scan": "yes",
+        "has_tables": "unknown",
+        "ocr_or_vl_ocr_needed": "yes",
+        "confidence": "medium",
+        "parser": "pymupdf",
+        "sampled_pages": 1,
+        "sampled_text_chars": 0,
+        "text_layer_pages_sampled": 0
+      },
+      "case_grouping_signals": {
+        "probable_tax_years": [],
+        "probable_brokers": [],
+        "probable_countries": [],
+        "probable_currencies": [],
+        "account_marker_hashes": []
+      },
+      "safety_notes": [
+        "source package is customer-provided; do not commit source document",
+        "raw filename and relative path are stored only as HMAC hashes in safe registry",
+        "no full financial operation rows were exported",
+        "no strong taxonomy signal found"
+      ]
+    }
+  ],
+  "case_groups": [
+    {
+      "case_group_id": "case_group_001",
+      "probable_broker_or_role": "BCS",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_013_c1721c84d107",
+        "brdoc_023_e16dae9c454b",
+        "brdoc_025_0f617e48b33f",
+        "brdoc_037_8c0fea99b1db",
+        "brdoc_038_d603a3988ee0",
+        "brdoc_039_ca35351f1c5f",
+        "brdoc_040_ce1cdfa4d4eb",
+        "brdoc_050_00eefe9ce421",
+        "brdoc_051_d33849e406b9",
+        "brdoc_052_41b5a29f3de2",
+        "brdoc_053_9ad0d7e43346"
+      ],
+      "document_class_counts": {
+        "dividends_report": 1,
+        "fees_report": 1,
+        "operations_table": 1,
+        "source_broker_report": 1,
+        "tax_base_calculation": 4,
+        "unknown_or_needs_review": 3
+      },
+      "probable_currencies": [],
+      "probable_countries": [
+        "Cyprus",
+        "Russia"
+      ],
+      "readiness": "needs_review",
+      "missing_or_blocking_items": [
+        "currency/rate source or methodology",
+        "withholding/foreign tax source if in scope",
+        "customer-approved methodology"
+      ]
+    },
+    {
+      "case_group_id": "case_group_002",
+      "probable_broker_or_role": "Interactive Brokers / IBKR",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_001_b874d956e33a",
+        "brdoc_002_1c6582477921",
+        "brdoc_003_be6168a763cd",
+        "brdoc_004_66a3087cb242",
+        "brdoc_005_f68f7ac26a26",
+        "brdoc_006_7cfd297786cc",
+        "brdoc_008_4790d8487926",
+        "brdoc_009_0a261afe6f0e",
+        "brdoc_044_74e5de8408a8",
+        "brdoc_047_6137e019ea76",
+        "brdoc_049_6137e019ea76",
+        "brdoc_054_79af73d5be78",
+        "brdoc_055_21c85fa3ff06",
+        "brdoc_056_1fb1c0744eb0",
+        "brdoc_057_8b29ff7a464f",
+        "brdoc_058_cee60e388015"
+      ],
+      "document_class_counts": {
+        "calculation_template": 2,
+        "dividends_report": 2,
+        "operations_table": 6,
+        "source_broker_report": 6
+      },
+      "probable_currencies": [],
+      "probable_countries": [
+        "Russia",
+        "US"
+      ],
+      "readiness": "needs_review",
+      "missing_or_blocking_items": [
+        "currency/rate source or methodology",
+        "fees/commissions source if in scope",
+        "withholding/foreign tax source if in scope",
+        "customer-approved methodology"
+      ]
+    },
+    {
+      "case_group_id": "case_group_003",
+      "probable_broker_or_role": "Otkritie",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_007_bdc1038fdd93",
+        "brdoc_011_6f36b1030270",
+        "brdoc_034_0d1652d9303e"
+      ],
+      "document_class_counts": {
+        "dividends_report": 2,
+        "unknown_or_needs_review": 1
+      },
+      "probable_currencies": [],
+      "probable_countries": [],
+      "readiness": "needs_review",
+      "missing_or_blocking_items": [
+        "currency/rate source or methodology",
+        "fees/commissions source if in scope",
+        "withholding/foreign tax source if in scope",
+        "customer-approved methodology"
+      ]
+    },
+    {
+      "case_group_id": "case_group_004",
+      "probable_broker_or_role": "Sber",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_018_68c0f4c2e764",
+        "brdoc_019_e20f86bce4cb",
+        "brdoc_030_e2ff5374db45",
+        "brdoc_059_b9bca7e6e44d"
+      ],
+      "document_class_counts": {
+        "tax_base_calculation": 1,
+        "unknown_or_needs_review": 3
+      },
+      "probable_currencies": [],
+      "probable_countries": [
+        "Russia"
+      ],
+      "readiness": "partial",
+      "missing_or_blocking_items": []
+    },
+    {
+      "case_group_id": "case_group_005",
+      "probable_broker_or_role": "VTB",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_015_3a1b9214292c",
+        "brdoc_045_0c44a95cc671",
+        "brdoc_046_0c44a95cc671",
+        "brdoc_048_62db60cb2b17"
+      ],
+      "document_class_counts": {
+        "dividends_report": 2,
+        "operations_table": 1,
+        "unknown_or_needs_review": 1
+      },
+      "probable_currencies": [],
+      "probable_countries": [
+        "Russia"
+      ],
+      "readiness": "needs_review",
+      "missing_or_blocking_items": [
+        "currency/rate source or methodology",
+        "fees/commissions source if in scope",
+        "withholding/foreign tax source if in scope",
+        "customer-approved methodology"
+      ]
+    },
+    {
+      "case_group_id": "case_group_006",
+      "probable_broker_or_role": "unknown",
+      "probable_tax_years": [
+        "unknown"
+      ],
+      "account_marker_hash": "unknown",
+      "document_ids": [
+        "brdoc_010_665b45748e01",
+        "brdoc_012_7564b3bc1353",
+        "brdoc_014_701797dcb627",
+        "brdoc_016_573d9c44da70",
+        "brdoc_017_8390e02699f1",
+        "brdoc_020_acc1c591d660",
+        "brdoc_021_3d59bcf9fda4",
+        "brdoc_022_996b292d1408",
+        "brdoc_024_eac67250999e",
+        "brdoc_026_60865da0b67a",
+        "brdoc_027_73b9943d9a8a",
+        "brdoc_028_703a6fd74179",
+        "brdoc_029_355edae532a6",
+        "brdoc_031_7f469bb3e17d",
+        "brdoc_032_e0ac2210dba5",
+        "brdoc_033_3b540b094d7a",
+        "brdoc_035_9419913a504a",
+        "brdoc_036_f1995ee6a6fa",
+        "brdoc_041_39227188fb1c",
+        "brdoc_042_51ccbbd65039",
+        "brdoc_043_4d8ee8777b23",
+        "brdoc_060_e69ef2fa1cb2",
+        "brdoc_061_aeaff2e070aa",
+        "brdoc_062_161065e246ac",
+        "brdoc_063_510b999b1914"
+      ],
+      "document_class_counts": {
+        "fees_report": 1,
+        "unknown_or_needs_review": 24
+      },
+      "probable_currencies": [],
+      "probable_countries": [],
+      "readiness": "needs_review",
+      "missing_or_blocking_items": [
+        "currency/rate source or methodology",
+        "withholding/foreign tax source if in scope",
+        "customer-approved methodology"
+      ]
+    }
+  ]
+}
