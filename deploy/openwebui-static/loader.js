@@ -3,11 +3,15 @@
 
 	const ACTION_ID = 'stage2_media_transcription_action';
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
+	const BROKER_GATE1_ACTION_ID = 'broker_reports_gate1_normalizer_action';
+	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
 	const CONFIG_URL = '/static/stage2-stt-normalization.json';
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
 	const RUNNING_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435...';
 	const DONE_LABEL = '\u0413\u043e\u0442\u043e\u0432\u043e';
+	const BROKER_GATE1_LABEL = 'Gate 1';
+	const BROKER_GATE1_RUNNING_LABEL = 'Gate 1...';
 	const DOCX_LABEL = '\u0421\u043a\u0430\u0447\u0430\u0442\u044c DOCX';
 	const DOCX_RUNNING_LABEL = '...';
 	const DOCX_DONE_LABEL = '\u2713';
@@ -79,6 +83,7 @@
 		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.',
 		postprocessing_prompt_blocked: '\u0412 \u043f\u043e\u043b\u0435 \u0443\u0436\u0435 \u0435\u0441\u0442\u044c \u0434\u0440\u0443\u0433\u043e\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0438\u043b\u0438 \u043e\u0447\u0438\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043e \u043f\u0435\u0440\u0435\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043c.',
 		postprocessing_submit_unavailable: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0433\u043e\u0442\u043e\u0432, \u043d\u043e \u043a\u043d\u043e\u043f\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438 OpenWebUI \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430.',
+		broker_gate1_action_failed: 'Gate 1 normalization was not completed.',
 		message_docx_unsupported_role: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u043e\u0432 \u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442\u0430.',
 		message_docx_empty_message: '\u0412 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438 \u043d\u0435\u0442 \u0442\u0435\u043a\u0441\u0442\u0430 \u0434\u043b\u044f DOCX.',
 		message_docx_streaming_message: '\u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430.',
@@ -88,7 +93,7 @@
 		message_docx_access_denied: '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a DOCX-\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0443.',
 		message_docx_no_leak_check_failed: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u043e\u0442\u043a\u043b\u043e\u043d\u0451\u043d \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.'
 	});
-	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status]';
+	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status], [data-broker-gate1-panel], [data-broker-gate1-status]';
 	const DOCX_ALLOWED_HTML_TAGS = new Set(['a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -101,13 +106,18 @@
 		loading_actions: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439...',
 		action_running: '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0440\u043e\u0441\u0430...',
 		action_completed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d \u0432 LLM.',
-		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.'
+		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.',
+		broker_gate1_ready: 'Gate 1 ready for attached documents.',
+		broker_gate1_running: 'Building Gate 1 report...',
+		broker_gate1_completed: 'Gate 1 report added to the message.'
 	});
 	const state = {
 		filesById: new Map(),
 		filesByName: new Map(),
 		modelId: null,
 		scanQueued: false,
+		filesRefreshPromise: null,
+		filesRefreshedAt: 0,
 		config: null,
 		configPromise: null,
 		ffmpeg: null,
@@ -233,12 +243,34 @@
 		return baseMime(file.mime_type) === baseMime(definition.mime_type);
 	}
 
-	function uploadFormDataCandidate(body) {
+	function isBrokerGate1Document(filename, mimeType) {
+		const extension = extensionOf(filename);
+		const mime = baseMime(mimeType);
+		if (isCandidateMedia(filename, mimeType)) {
+			return false;
+		}
+		if (['pdf', 'xlsx', 'xls', 'csv', 'txt', 'docx', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
+			return true;
+		}
+		return (
+			mime === 'application/pdf' ||
+			mime === 'text/csv' ||
+			mime === 'text/plain' ||
+			mime === 'application/zip' ||
+			mime === 'application/x-zip-compressed' ||
+			mime.includes('spreadsheet') ||
+			mime.includes('excel') ||
+			mime.includes('wordprocessingml.document') ||
+			mime.startsWith('image/')
+		);
+	}
+
+	function uploadFormDataFile(body) {
 		if (!(body instanceof FormData)) {
 			return null;
 		}
 		for (const value of body.values()) {
-			if (value instanceof File && isCandidateMedia(value.name, value.type)) {
+			if (value instanceof File) {
 				return value;
 			}
 		}
@@ -311,6 +343,59 @@
 		};
 	}
 
+	function normalizeBrokerGate1UploadedFile(uploaded, fallbackFile) {
+		if (!uploaded || !uploaded.id) {
+			return null;
+		}
+		const meta = uploaded.meta || {};
+		const filename = uploaded.filename || uploaded.name || (fallbackFile && fallbackFile.name);
+		const mimeType = meta.content_type || uploaded.content_type || uploaded.type || (fallbackFile && fallbackFile.type);
+		if (!filename || !isBrokerGate1Document(filename, mimeType)) {
+			return null;
+		}
+		return {
+			id: String(uploaded.id),
+			filename: String(filename),
+			name: String(filename),
+			mime_type: String(mimeType || 'application/octet-stream'),
+			content_type: String(mimeType || 'application/octet-stream'),
+			size: meta.size || uploaded.size || (fallbackFile && fallbackFile.size) || null,
+			sourceFile: fallbackFile || null,
+			prepared: false
+		};
+	}
+
+	function normalizeBrokerGate1FileRecord(record) {
+		if (!record || !record.id) {
+			return null;
+		}
+		const meta = record.meta || {};
+		const data = record.data || {};
+		const filename = record.filename || record.name || meta.filename || data.filename;
+		const mimeType = meta.content_type || meta.mime_type || record.content_type || record.type || data.content_type || data.mime_type;
+		if (!filename || !isBrokerGate1Document(filename, mimeType)) {
+			return null;
+		}
+		return {
+			id: String(record.id),
+			filename: String(filename),
+			name: String(filename),
+			mime_type: String(mimeType || 'application/octet-stream'),
+			content_type: String(mimeType || 'application/octet-stream'),
+			size: meta.size || record.size || data.size || null,
+			sourceFile: null,
+			prepared: false
+		};
+	}
+
+	function rememberFilesFromListPayload(payload) {
+		const items = Array.isArray(payload) ? payload : payload && Array.isArray(payload.items) ? payload.items : [];
+		for (const item of items) {
+			rememberFile(normalizeBrokerGate1FileRecord(item));
+		}
+		return items.length;
+	}
+
 	function rememberFile(file) {
 		if (!file || !file.id) {
 			return;
@@ -327,21 +412,32 @@
 		window.__stage2SttFetchPatched = true;
 		state.originalFetch = window.fetch.bind(window);
 		window.fetch = async function patchedFetch(input, init) {
-			let fallbackFile = null;
+			let uploadFile = null;
+			let sttUploadFile = null;
+			let brokerGate1UploadFile = null;
 			let nextInput = input;
 			if (isFileUpload(input, init)) {
-				fallbackFile = uploadFormDataCandidate(requestBody(input, init));
-				if (fallbackFile) {
+				uploadFile = uploadFormDataFile(requestBody(input, init));
+				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
+				brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;
+				if (sttUploadFile) {
 					nextInput = withProcessFalse(input);
 				}
 			}
 
 			const response = await state.originalFetch(nextInput, init);
-			if (fallbackFile && response.ok) {
+			if ((sttUploadFile || brokerGate1UploadFile) && response.ok) {
 				response
 					.clone()
 					.json()
-					.then((uploaded) => rememberFile(normalizeUploadedFile(uploaded, fallbackFile)))
+					.then((uploaded) => {
+						if (sttUploadFile) {
+							rememberFile(normalizeUploadedFile(uploaded, sttUploadFile));
+						}
+						if (brokerGate1UploadFile) {
+							rememberFile(normalizeBrokerGate1UploadedFile(uploaded, brokerGate1UploadFile));
+						}
+					})
 					.catch(() => {});
 			}
 			return response;
@@ -356,18 +452,62 @@
 		window.requestAnimationFrame(() => {
 			state.scanQueued = false;
 			scanAttachmentCards();
+			scanBrokerGate1ComposerPanel();
 			scanMessageDocxButtons();
 		});
 	}
 
+	function elementSearchText(element) {
+		if (!element) {
+			return '';
+		}
+		const parts = [
+			element.innerText,
+			element.textContent,
+			element.getAttribute && element.getAttribute('title'),
+			element.getAttribute && element.getAttribute('aria-label')
+		];
+		for (const child of Array.from(element.querySelectorAll ? element.querySelectorAll('[title], [aria-label]') : [])) {
+			parts.push(child.getAttribute('title'), child.getAttribute('aria-label'));
+		}
+		return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+	}
+
+	function fileMatchesElementText(file, text) {
+		const haystack = String(text || '').toLowerCase();
+		const filename = String(file && file.filename ? file.filename : '').toLowerCase();
+		if (!filename || !haystack) {
+			return false;
+		}
+		if (haystack.includes(filename)) {
+			return true;
+		}
+		const base = filename.replace(/\.[^.]+$/, '');
+		const prefixLength = Math.min(18, Math.max(8, base.length));
+		const prefix = base.slice(0, prefixLength);
+		return prefix.length >= 8 && haystack.includes(prefix);
+	}
+
 	function findCardFile(card) {
-		const text = (card.innerText || '').trim();
+		const text = elementSearchText(card);
 		for (const file of state.filesByName.values()) {
-			if (text.includes(file.filename)) {
+			if (fileMatchesElementText(file, text)) {
 				return file;
 			}
 		}
 		return null;
+	}
+
+	function attachmentCardCandidates(root) {
+		const candidates = [];
+		for (const selector of ['button', '[role="button"]', 'a', '[title]', '[aria-label]']) {
+			for (const element of Array.from(root.querySelectorAll(selector))) {
+				if (!candidates.includes(element)) {
+					candidates.push(element);
+				}
+			}
+		}
+		return candidates;
 	}
 
 	function scanAttachmentCards() {
@@ -375,16 +515,26 @@
 		if (!root) {
 			return;
 		}
-		const cards = root.querySelectorAll('button');
+		const cards = attachmentCardCandidates(root);
+		let matchedGate1Document = false;
 		for (const card of cards) {
-			if (card.dataset.stage2SttCard === '1' || card.dataset.stage2SttAction === '1') {
+			if (card.dataset.stage2SttAction === '1' || card.dataset.brokerGate1Action === '1') {
 				continue;
 			}
 			const file = findCardFile(card);
 			if (!file) {
 				continue;
 			}
-			installCardAction(card, file);
+			if (isCandidateMedia(file.filename, file.mime_type) && card.dataset.stage2SttCard !== '1') {
+				installCardAction(card, file);
+			}
+			if (isBrokerGate1Document(file.filename, file.mime_type) && card.dataset.brokerGate1Card !== '1') {
+				matchedGate1Document = true;
+				installBrokerGate1CardAction(card, file);
+			}
+		}
+		if (!matchedGate1Document) {
+			scheduleBrokerGate1FileRefresh();
 		}
 	}
 
@@ -452,11 +602,162 @@
 		contentColumn.appendChild(panel);
 	}
 
+	function scanBrokerGate1ComposerPanel() {
+		const root = document.querySelector('#message-input-container');
+		if (!root) {
+			return;
+		}
+		const files = visibleBrokerGate1Files();
+		let panel = root.querySelector('[data-broker-gate1-composer-panel="1"]');
+		if (!files.length) {
+			if (panel) {
+				panel.remove();
+			}
+			scheduleBrokerGate1FileRefresh();
+			return;
+		}
+		if (!panel) {
+			panel = document.createElement('div');
+			panel.dataset.brokerGate1ComposerPanel = '1';
+			panel.style.display = 'flex';
+			panel.style.alignItems = 'center';
+			panel.style.gap = '0.5rem';
+			panel.style.margin = '0.35rem 0 0.15rem';
+			panel.style.width = '100%';
+
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.dataset.brokerGate1Action = '1';
+			button.title = 'Broker Reports Gate 1';
+			button.textContent = BROKER_GATE1_LABEL;
+			button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
+			button.style.borderRadius = '0.5rem';
+			button.style.padding = '0.2rem 0.45rem';
+			button.style.fontSize = '0.75rem';
+			button.style.lineHeight = '1rem';
+			button.style.background = 'rgba(245, 158, 11, 0.12)';
+			button.style.color = 'inherit';
+			button.style.cursor = 'pointer';
+			button.addEventListener('focus', () => {
+				button.style.outline = '2px solid rgba(245, 158, 11, 0.75)';
+				button.style.outlineOffset = '2px';
+			});
+			button.addEventListener('blur', () => {
+				button.style.outline = 'none';
+				button.style.outlineOffset = '0';
+			});
+
+			const status = document.createElement('div');
+			status.dataset.brokerGate1Status = 'ready';
+			status.style.minHeight = '1rem';
+			status.style.fontSize = '0.7rem';
+			status.style.lineHeight = '1rem';
+			status.style.color = 'rgb(107, 114, 128)';
+			status.style.whiteSpace = 'normal';
+
+			button.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				runBrokerGate1(files[0], button, status);
+			});
+
+			panel.append(button, status);
+			root.appendChild(panel);
+		}
+		const status = panel.querySelector('[data-broker-gate1-status]');
+		if (status && status.dataset.brokerGate1Status === 'ready') {
+			status.textContent = `${STATUS_TEXT.broker_gate1_ready} Files: ${files.length}.`;
+		}
+	}
+
+	function scheduleBrokerGate1FileRefresh() {
+		const now = Date.now();
+		if (state.filesRefreshPromise || now - state.filesRefreshedAt < 5000) {
+			return;
+		}
+		state.filesRefreshedAt = now;
+		state.filesRefreshPromise = refreshBrokerGate1Files()
+			.then(() => queueScan())
+			.catch(() => {})
+			.finally(() => {
+				state.filesRefreshPromise = null;
+			});
+	}
+
+	async function refreshBrokerGate1Files() {
+		const fetcher = state.originalFetch || window.fetch.bind(window);
+		const response = await fetcher('/api/v1/files/', { cache: 'no-store' });
+		if (!response.ok) {
+			return 0;
+		}
+		const payload = await response.json().catch(() => null);
+		return rememberFilesFromListPayload(payload);
+	}
+
+	function installBrokerGate1CardAction(card, file) {
+		card.dataset.brokerGate1Card = '1';
+		card.style.minHeight = '4.5rem';
+		card.style.alignItems = 'stretch';
+
+		const panel = document.createElement('div');
+		panel.dataset.brokerGate1Panel = '1';
+		panel.style.display = 'flex';
+		panel.style.flexDirection = 'column';
+		panel.style.gap = '0.25rem';
+		panel.style.marginTop = '0.35rem';
+		panel.style.width = '100%';
+
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.dataset.brokerGate1Action = '1';
+		button.title = 'Broker Reports Gate 1';
+		button.textContent = BROKER_GATE1_LABEL;
+		button.style.alignSelf = 'flex-start';
+		button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
+		button.style.borderRadius = '0.5rem';
+		button.style.padding = '0.2rem 0.45rem';
+		button.style.fontSize = '0.75rem';
+		button.style.lineHeight = '1rem';
+		button.style.background = 'rgba(245, 158, 11, 0.12)';
+		button.style.color = 'inherit';
+		button.style.cursor = 'pointer';
+		button.addEventListener('focus', () => {
+			button.style.outline = '2px solid rgba(245, 158, 11, 0.75)';
+			button.style.outlineOffset = '2px';
+		});
+		button.addEventListener('blur', () => {
+			button.style.outline = 'none';
+			button.style.outlineOffset = '0';
+		});
+
+		const status = document.createElement('div');
+		status.dataset.brokerGate1Status = 'ready';
+		status.textContent = STATUS_TEXT.broker_gate1_ready;
+		status.style.minHeight = '1rem';
+		status.style.fontSize = '0.7rem';
+		status.style.lineHeight = '1rem';
+		status.style.color = 'rgb(107, 114, 128)';
+		status.style.whiteSpace = 'normal';
+
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			runBrokerGate1(file, button, status);
+		});
+
+		panel.append(button, status);
+		const contentColumn = card.querySelector('.flex.flex-col.w-full') || card;
+		contentColumn.appendChild(panel);
+	}
+
 	function setStatus(status, key, text) {
 		if (!status) {
 			return;
 		}
 		status.dataset.stage2SttStatus = key;
+		if (status.dataset.brokerGate1Status !== undefined) {
+			status.dataset.brokerGate1Status = key;
+		}
 		status.textContent = text || STATUS_TEXT[key] || '';
 	}
 
@@ -1210,6 +1511,97 @@
 		}
 		if (!appendToComposer(content)) {
 			throw stageError('stt_action_failed', 'Composer is unavailable for transcript insertion.');
+		}
+		return content;
+	}
+
+	async function runBrokerGate1(anchorFile, button, status) {
+		if (button.disabled) {
+			return;
+		}
+		const files = visibleBrokerGate1Files(anchorFile);
+		if (!files.length) {
+			setErrorStatus(status, stageError('broker_gate1_action_failed', 'No supported Gate 1 documents are visible.'));
+			return;
+		}
+		button.disabled = true;
+		button.style.opacity = '0.65';
+		button.style.cursor = 'wait';
+		button.textContent = BROKER_GATE1_RUNNING_LABEL;
+		delete status.dataset.stage2SttReason;
+		try {
+			await callBrokerGate1Action(files, status);
+			button.textContent = DONE_LABEL;
+			button.style.cursor = 'default';
+			setStatus(status, 'broker_gate1_completed');
+		} catch (error) {
+			button.disabled = false;
+			button.style.opacity = '1';
+			button.style.cursor = 'pointer';
+			button.textContent = BROKER_GATE1_LABEL;
+			setErrorStatus(status, error && error.code ? error : stageError('broker_gate1_action_failed', error && error.message));
+		}
+	}
+
+	function visibleBrokerGate1Files(anchorFile) {
+		const root = document.querySelector('#message-input-container');
+		const files = [];
+		const seen = new Set();
+		function add(file) {
+			if (!file || !file.id || !isBrokerGate1Document(file.filename, file.mime_type) || seen.has(file.id)) {
+				return;
+			}
+			seen.add(file.id);
+			files.push(file);
+		}
+		if (root) {
+			for (const card of attachmentCardCandidates(root)) {
+				add(findCardFile(card));
+			}
+		}
+		add(anchorFile);
+		return files;
+	}
+
+	async function callBrokerGate1Action(files, status) {
+		setStatus(status, 'broker_gate1_running');
+		const model = await selectedModelId();
+		const payload = {
+			id: `broker-gate1-${Date.now()}`,
+			chat_id: currentChatId(),
+			session_id: currentSessionId(),
+			model,
+			messages: [],
+			files: files.map((file) => ({
+				type: 'file',
+				file: {
+					id: file.id,
+					filename: file.filename,
+					name: file.filename,
+					mime_type: file.mime_type,
+					content_type: file.content_type,
+					size: file.size
+				}
+			}))
+		};
+		const response = await fetch(BROKER_GATE1_ACTION_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+		const result = await response.json().catch(() => ({}));
+		if (!response.ok) {
+			throw stageError('broker_gate1_action_failed', result.detail || 'Gate 1 action failed.');
+		}
+		const content = String(result.content || '').trim();
+		if (!content) {
+			throw stageError('broker_gate1_action_failed', 'Gate 1 action returned an empty result.');
+		}
+		if (/No uploaded file refs were visible/i.test(content)) {
+			throw stageError('broker_gate1_action_failed', content);
+		}
+		if (!appendToComposer(content)) {
+			throw stageError('broker_gate1_action_failed', 'Composer is unavailable for Gate 1 report insertion.');
 		}
 		return content;
 	}

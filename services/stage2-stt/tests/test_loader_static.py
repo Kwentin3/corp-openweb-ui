@@ -61,6 +61,82 @@ def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
     assert "scanMessageDocxButtons();" in queue_scan
 
 
+def test_loader_tracks_broker_gate1_documents_without_disabling_native_processing():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function patchFetch")
+    end = source.index("function queueScan", start)
+    patch_block = source[start:end]
+
+    assert "brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;" in patch_block
+    assert "if (sttUploadFile) {" in patch_block
+    assert "nextInput = withProcessFalse(input);" in patch_block
+    assert "rememberFile(normalizeBrokerGate1UploadedFile(uploaded, brokerGate1UploadFile));" in patch_block
+
+
+def test_loader_installs_broker_gate1_action_on_document_cards():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function scanAttachmentCards")
+    end = source.index("function installCardAction", start)
+    scan_block = source[start:end]
+
+    assert "isCandidateMedia(file.filename, file.mime_type)" in scan_block
+    assert "isBrokerGate1Document(file.filename, file.mime_type)" in scan_block
+    assert "installBrokerGate1CardAction(card, file);" in scan_block
+    assert "card.dataset.brokerGate1Card !== '1'" in scan_block
+
+
+def test_loader_broker_gate1_recovers_file_refs_from_files_api():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function refreshBrokerGate1Files")
+    end = source.index("async function selectedModelId", start)
+    refresh_block = source[start:end]
+
+    assert "fetcher('/api/v1/files/', { cache: 'no-store' })" in refresh_block
+    assert "rememberFilesFromListPayload(payload)" in refresh_block
+    assert "normalizeBrokerGate1FileRecord(item)" in source
+    assert "payload && Array.isArray(payload.items)" in source
+
+
+def test_loader_broker_gate1_matches_truncated_visible_attachment_text():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function fileMatchesElementText")
+    end = source.index("function findCardFile", start)
+    match_block = source[start:end]
+
+    assert "haystack.includes(filename)" in match_block
+    assert "const base = filename.replace" in match_block
+    assert "const prefixLength = Math.min(18, Math.max(8, base.length));" in match_block
+    assert "haystack.includes(prefix)" in match_block
+
+
+def test_loader_broker_gate1_has_composer_panel_fallback():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function scanBrokerGate1ComposerPanel")
+    end = source.index("function scheduleBrokerGate1FileRefresh", start)
+    panel_block = source[start:end]
+
+    assert '[data-broker-gate1-composer-panel="1"]' in panel_block
+    assert "root.appendChild(panel)" in panel_block
+    assert "runBrokerGate1(files[0], button, status)" in panel_block
+    assert "Files: ${files.length}" in panel_block
+
+
+def test_loader_broker_gate1_action_posts_explicit_file_refs_to_action():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function callBrokerGate1Action")
+    end = source.index("function extractTranscriptRef", start)
+    action_block = source[start:end]
+
+    assert "fetch(BROKER_GATE1_ACTION_URL" in action_block
+    assert "files: files.map((file) => ({" in action_block
+    assert "id: file.id" in action_block
+    assert "filename: file.filename" in action_block
+    assert "mime_type: file.mime_type" in action_block
+    assert "appendToComposer(content)" in action_block
+    assert "submitComposer" not in action_block
+    assert "No uploaded file refs were visible" in action_block
+
+
 def test_loader_docx_button_is_assistant_scoped_and_deduplicated():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function scanMessageDocxButtons")
