@@ -4,6 +4,11 @@ Status: Intermediate ledgers contract proposal
 Date: 2026-07-06
 Scope: Stage 2 Broker Reports / XLS NDFL source-facts-to-declaration bridge
 
+> 2026-07-10 Gate boundary note: this proposal belongs to Gate 3 and later.
+> Gate 2 emits only validator-passed source-fact refs, provenance, issue
+> linkage, completeness, restrictions, and coverage. Gate 2 does not create
+> these ledgers, consolidate duplicates, or perform calculations.
+
 ## 1. Purpose
 
 Intermediate ledgers are the layer between source facts and the declaration-oriented model.

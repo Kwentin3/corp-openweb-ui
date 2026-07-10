@@ -1,0 +1,1159 @@
+from __future__ import annotations
+
+import asyncio
+import copy
+import json
+import sqlite3
+import sys
+import tempfile
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+REPO = ROOT.parents[1]
+sys.path.insert(0, str(ROOT))
+
+from broker_reports_gate1 import (
+    ArtifactAccessContext,
+    ArtifactResolver,
+    ArtifactStoreConfig,
+    ArtifactStoreError,
+    ArtifactStoreFactory,
+    FileInput,
+    Gate1Normalizer,
+    Gate2ManagedPrompt,
+    Gate2ManagedPromptResolverFactory,
+    Gate2DomainSourceFactRuntimeConfig,
+    Gate2DomainSourceFactRuntimeFactory,
+    Gate2PromptConfig,
+    Gate2PromptError,
+    Gate2PromptUserContext,
+    Gate2SourceFactRuntimeConfig,
+    Gate2SourceFactRuntimeFactory,
+    Gate2StructuredModelResult,
+    StaticGate2PromptResolver,
+    StaticGate2DomainPromptResolver,
+    build_retention_policy,
+    gate2_prompt_hash,
+    persist_gate1_result,
+    source_facts_json_schema,
+    source_facts_provider_schema_hash,
+    source_facts_response_format,
+    source_facts_schema_hash,
+)
+from broker_reports_gate1.gate2_source_fact_contracts import FACT_TYPES
+from broker_reports_gate1.gate2_source_fact_runtime import (
+    FACTORY_REQUIRED as RUNTIME_FACTORY_REQUIRED,
+    FORBIDDEN as RUNTIME_FORBIDDEN,
+)
+from broker_reports_gate1.gate2_source_fact_validation import (
+    FACTORY_REQUIRED as VALIDATOR_FACTORY_REQUIRED,
+    FORBIDDEN as VALIDATOR_FORBIDDEN,
+)
+
+
+FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
+
+
+class FullUnionBoundaryModel:
+    def __init__(self, *, mutation: str | None = None) -> None:
+        self.mutation = mutation
+        self.calls: list[dict[str, Any]] = []
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        self.calls.append(
+            {
+                "prompt_ref": prompt.prompt_ref,
+                "package_ref": package.get("package_artifact_ref"),
+                "model_id": model_id,
+                "response_format": copy.deepcopy(response_format),
+            }
+        )
+        candidate = _full_union_candidate(package)
+        if self.mutation == "foreign_ref":
+            candidate["facts"][0]["original_value_refs"]["amount"] = ["srcval_foreign"]
+        elif self.mutation == "gate3_field":
+            candidate["facts"][0]["tax_base"] = "100.00"
+        elif self.mutation == "duplicate_fact":
+            candidate["facts"].append(copy.deepcopy(candidate["facts"][0]))
+            candidate["issue_linkage_summary"]["fact_issue_links_total"] = sum(
+                len(item["linked_issue_refs"]) for item in candidate["facts"]
+            )
+        elif self.mutation == "raw_private":
+            candidate["facts"][0]["raw_text"] = "forbidden private source content"
+        elif self.mutation == "coverage_gap":
+            candidate["coverage"]["no_fact_results"].pop()
+        elif self.mutation == "normalized_value":
+            candidate["facts"][0]["normalized_values"]["amount"] = "999.00"
+            candidate["facts"][0]["amount"]["value_decimal"] = "999.00"
+        elif self.mutation == "extracted_foreign_ref":
+            candidate["facts"][0]["extracted_fields"][
+                "source_visible_direction_refs"
+            ] = ["srcval_foreign"]
+        elif self.mutation == "overcomplete_issue" and candidate["facts"][0]["linked_issue_refs"]:
+            candidate["facts"][0]["completeness"] = "complete"
+        if self.mutation == "fallback":
+            return Gate2StructuredModelResult(
+                content=candidate,
+                structured_output_mode="openwebui_response_format_json_object_fallback",
+                response_format_type="json_object",
+                response_format_schema_mode=None,
+                fallback_used=True,
+            )
+        return Gate2StructuredModelResult(content=candidate)
+
+
+class RepairingBoundaryModel:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        self.calls.append(
+            {
+                "repair_context": copy.deepcopy(package.get("repair_context")),
+                "expected_candidate_audit": copy.deepcopy(
+                    package.get("expected_candidate_audit")
+                ),
+                "response_format": copy.deepcopy(response_format),
+            }
+        )
+        candidate = _full_union_candidate(package)
+        if package.get("repair_context") is None:
+            candidate["coverage"]["no_fact_results"] = []
+        return Gate2StructuredModelResult(content=candidate)
+
+
+class NarrowDomainBoundaryModel:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        domain = str(package["extractor_domain"])
+        self.calls.append(
+            {
+                "domain": domain,
+                "candidate_source_refs": copy.deepcopy(
+                    package["candidate_source_refs"]
+                ),
+                "allowed_fact_types": copy.deepcopy(package["allowed_fact_types"]),
+                "provider_fact_types": sorted(
+                    item["properties"]["fact_type"]["const"]
+                    for item in response_format["json_schema"]["schema"][
+                        "properties"
+                    ]["facts"]["items"]["anyOf"]
+                ),
+            }
+        )
+        helper_package = copy.deepcopy(package)
+        helper_unit = helper_package["source_unit"]
+        ordinal_map = {
+            int(item["row_ordinal"]): index
+            for index, item in enumerate(helper_unit["row_provenance"], start=1)
+        }
+        for item in helper_unit["row_provenance"]:
+            item["row_ordinal"] = ordinal_map[int(item["row_ordinal"])]
+        for item in helper_unit["cell_provenance"]:
+            item["row_ordinal"] = ordinal_map[int(item["row_ordinal"])]
+        candidate = _full_union_candidate(helper_package)
+        candidate["facts"] = [
+            item for item in candidate["facts"] if item["fact_type"] == domain
+        ]
+        selected = package["coverage_expectation"]["selected_source_refs"]
+        candidate["coverage"]["fact_covered_refs"] = selected
+        candidate["coverage"]["no_fact_results"] = []
+        candidate["issue_linkage_summary"]["fact_issue_links_total"] = sum(
+            len(item["linked_issue_refs"]) for item in candidate["facts"]
+        )
+        return Gate2StructuredModelResult(content=candidate)
+
+
+class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=root / "artifacts.sqlite3",
+                payload_root=root / "payloads",
+            )
+        ).create()
+        self.context, self.dcp_ref = self._persist_gate1()
+        content = "Synthetic managed Gate 2 prompt with {{source_fact_package_json}}."
+        self.prompt = Gate2ManagedPrompt(
+            prompt_ref="prompt_gate2_test",
+            command="broker_gate2_source_facts_v0",
+            version="test-v1",
+            content=content,
+            hash=gate2_prompt_hash(content),
+            source="test_boundary",
+            template_id="broker_reports.source_fact_extraction.v0",
+            template_kind="broker_reports_source_fact_extraction",
+            prompt_contract_id="broker_reports_source_fact_prompt_v0",
+            input_schema_version="broker_reports_source_fact_package_v0",
+            output_schema_id="broker_reports.source_facts.schema.v0",
+            output_schema_version="broker_reports_source_facts_v0",
+            tags=("broker-reports-gate2", "structured-output"),
+            safe_metadata={"name": "synthetic"},
+        )
+
+    def test_strict_schema_covers_full_v0_discriminated_union(self):
+        schema = source_facts_json_schema()
+        response_format = source_facts_response_format()
+        variants = schema["properties"]["facts"]["items"]["oneOf"]
+        fact_types = {
+            variant["properties"]["fact_type"]["const"] for variant in variants
+        }
+
+        self.assertEqual(fact_types, FACT_TYPES)
+        self.assertFalse(schema["additionalProperties"])
+        self.assertTrue(response_format["json_schema"]["strict"])
+        self.assertEqual(response_format["type"], "json_schema")
+        provider_schema = response_format["json_schema"]["schema"]
+        provider_variants = provider_schema["properties"]["facts"]["items"]["anyOf"]
+        self.assertNotIn("oneOf", provider_schema["properties"]["facts"]["items"])
+        self.assertEqual(
+            {item["properties"]["fact_type"]["const"] for item in provider_variants},
+            FACT_TYPES,
+        )
+        self.assertFalse(provider_schema["additionalProperties"])
+        self.assertEqual(len(source_facts_schema_hash()), 64)
+        self.assertEqual(len(source_facts_provider_schema_hash()), 64)
+        self.assertNotEqual(source_facts_schema_hash(), source_facts_provider_schema_hash())
+
+    def test_domain_runtime_routes_narrows_validates_stitches_and_persists(self):
+        model = NarrowDomainBoundaryModel()
+        prompts = {
+            domain: self._domain_prompt(domain)
+            for domain in ("trade_operation", "income")
+        }
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(prompts),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-domain-model",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=False,
+                domain_allowlist=("trade_operation", "income"),
+                max_repair_attempts=0,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=self.context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(len(result.route_refs), 1)
+        self.assertEqual(len(result.domain_package_refs), 2)
+        self.assertEqual(len(result.source_facts_refs), 2)
+        self.assertEqual(len(result.domain_source_facts_refs), 2)
+        self.assertEqual(len(result.stitch_result_refs), 1)
+        self.assertEqual(
+            result.safe_summary["domain_packages"],
+            {
+                "total": 2,
+                "accepted": 2,
+                "rejected": 0,
+                "accepted_by_domain": {"income": 1, "trade_operation": 1},
+                "rejected_by_domain": {},
+            },
+        )
+        self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
+        self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
+        self.assertTrue(result.safe_summary["ready_for_primary_expansion"])
+        self.assertEqual({item["domain"] for item in model.calls}, {"income", "trade_operation"})
+        for call in model.calls:
+            self.assertTrue(
+                set(call["provider_fact_types"]) <= set(call["allowed_fact_types"])
+            )
+            self.assertIn(call["domain"], call["provider_fact_types"])
+            self.assertEqual(len(call["candidate_source_refs"]), 1)
+        for ref in result.domain_package_refs:
+            record = self.store.get_record_unchecked(ref)
+            self.assertEqual(record.artifact_type, "broker_reports_domain_extraction_package_v0")
+            self.assertEqual(record.storage_backend, "project_artifact_payload")
+        for ref in result.source_facts_refs:
+            self.assertEqual(
+                self.store.get_record_unchecked(ref).artifact_type,
+                "broker_reports_source_facts_v0",
+            )
+        self.assertEqual(
+            self.store.get_record_unchecked(result.stitch_result_refs[0]).artifact_type,
+            "broker_reports_source_fact_stitch_result_v0",
+        )
+
+    def test_domain_runtime_persists_selected_derived_unit_from_complete_parent(self):
+        context, dcp_ref = self._persist_gate1(
+            case_id="synthetic-segmented-domain-runtime-case",
+            truncate_source_slice=True,
+        )
+        model = NarrowDomainBoundaryModel()
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"trade_operation": self._domain_prompt("trade_operation")}
+            ),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-domain-model",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=True,
+                source_segment_start=1,
+                source_segment_limit=1,
+                domain_allowlist=("trade_operation",),
+                max_repair_attempts=0,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=dcp_ref,
+                context=context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(len(result.segmentation_plan_refs), 1)
+        self.assertEqual(len(result.derived_source_unit_refs), 1)
+        self.assertEqual(len(result.route_refs), 1)
+        self.assertEqual(len(result.domain_package_refs), 1)
+        self.assertEqual(result.safe_summary["typed_facts_total"], 1)
+        self.assertEqual(
+            result.safe_summary["facts_by_type"], {"trade_operation": 1}
+        )
+        self.assertEqual(result.safe_summary["coverage"]["selected_total"], 1)
+        self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
+        self.assertEqual(result.safe_summary["source_units"]["truncated_total"], 0)
+        self.assertEqual(
+            result.safe_summary["source_units"]["parent_truncated_total"], 0
+        )
+        self.assertEqual(
+            result.safe_summary["source_units"]["bounded_complete_total"], 1
+        )
+        self.assertTrue(result.safe_summary["ready_for_primary_expansion"])
+
+        plan_record = self.store.get_record_unchecked(
+            result.segmentation_plan_refs[0]
+        )
+        self.assertEqual(
+            plan_record.artifact_type,
+            "broker_reports_source_unit_segmentation_plan_v0",
+        )
+        self.assertEqual(plan_record.visibility, "safe_internal")
+        self.assertEqual(
+            plan_record.payload["coverage"]["selected_for_extraction_total"],
+            1,
+        )
+        self.assertEqual(
+            plan_record.payload["coverage"]["parent_remainder_status"],
+            "not_applicable_parent_complete",
+        )
+        derived_record = self.store.get_record_unchecked(
+            result.derived_source_unit_refs[0]
+        )
+        self.assertEqual(
+            derived_record.artifact_type, "broker_reports_derived_source_unit_v0"
+        )
+        self.assertEqual(derived_record.visibility, "private_case")
+        self.assertEqual(derived_record.storage_backend, "project_artifact_payload")
+        derived_payload = ArtifactResolver(self.store).resolve(
+            result.derived_source_unit_refs[0], context
+        )["payload"]
+        self.assertFalse(
+            derived_payload["source_unit"]["source_slice_truncated"]
+        )
+        self.assertFalse(
+            derived_payload["source_unit"][
+                "parent_source_slice_truncated"
+            ]
+        )
+        self.assertEqual(
+            derived_payload["source_unit"]["parent_remainder_status"],
+            "not_applicable_parent_complete",
+        )
+        self.assertEqual({item["domain"] for item in model.calls}, {"trade_operation"})
+
+    def test_managed_prompt_resolver_enforces_gate2_contract_access_and_hash(self):
+        db_path = Path(self._tmp.name) / "webui.db"
+        content = (
+            "Managed Gate 2 source facts prompt.\n"
+            "Input: {{source_fact_package_json}}"
+        )
+        meta = {
+            "template_kind": "broker_reports_source_fact_extraction",
+            "template_id": "broker_reports.source_fact_extraction.v0",
+            "prompt_contract_id": "broker_reports_source_fact_prompt_v0",
+            "input_contract": "broker_reports_source_fact_package_v0",
+            "output_schema_id": "broker_reports.source_facts.schema.v0",
+            "output_schema_version": "broker_reports_source_facts_v0",
+            "structured_output_required": True,
+            "gate": "gate2",
+        }
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                """
+                CREATE TABLE prompt(
+                    id TEXT PRIMARY KEY, command TEXT, user_id TEXT, name TEXT,
+                    content TEXT, data TEXT, meta TEXT, tags TEXT,
+                    version_id TEXT, is_active INTEGER
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO prompt(id, command, user_id, name, content, data, meta, tags, version_id, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    "prompt_gate2",
+                    "broker_gate2_source_facts_v0",
+                    "prompt-owner",
+                    "Gate 2",
+                    content,
+                    "{}",
+                    json.dumps(meta),
+                    json.dumps(["broker-reports-gate2", "structured-output"]),
+                    "v1",
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        resolver = Gate2ManagedPromptResolverFactory(
+            Gate2PromptConfig(db_path=db_path, prompt_id="prompt_gate2")
+        ).create()
+        resolved = resolver.resolve(
+            Gate2PromptUserContext(user_id="prompt-owner", user_role="user")
+        )
+        self.assertEqual(resolved.hash, gate2_prompt_hash(content))
+        self.assertEqual(resolved.output_schema_id, "broker_reports.source_facts.schema.v0")
+        self.assertEqual(resolved.command, "broker_gate2_source_facts_v0")
+        with self.assertRaises(Gate2PromptError) as denied:
+            resolver.resolve(Gate2PromptUserContext(user_id="foreign", user_role="user"))
+        self.assertEqual(denied.exception.code, "gate2_prompt_access_denied")
+
+    def test_runtime_persists_only_validator_accepted_full_union(self):
+        model = FullUnionBoundaryModel()
+        result = self._run(model)
+
+        self.assertIn("Gate2SourceFactRuntimeFactory.create", RUNTIME_FACTORY_REQUIRED)
+        self.assertIn("must not call models", RUNTIME_FORBIDDEN)
+        self.assertIn("Gate2SourceFactValidatorFactory.create", VALIDATOR_FACTORY_REQUIRED)
+        self.assertIn("must not promote model candidates", VALIDATOR_FORBIDDEN)
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(result.safe_summary["facts_total"], 9)
+        self.assertEqual(set(result.safe_summary["facts_by_type"]), FACT_TYPES)
+        self.assertEqual(result.safe_summary["packages"]["accepted"], 1)
+        self.assertEqual(result.safe_summary["packages"]["rejected"], 0)
+        self.assertTrue(result.safe_summary["gate3_handoff_ready"])
+        self.assertGreater(result.safe_summary["issue_linked_facts_total"], 0)
+        self.assertEqual(len(result.source_facts_refs), 1)
+        self.assertEqual(len(result.raw_output_refs), 1)
+        self.assertEqual(len(result.validation_refs), 1)
+        self.assertEqual(len(result.package_refs), 1)
+        self.assertEqual(model.calls[0]["response_format"]["type"], "json_schema")
+        self.assertTrue(model.calls[0]["response_format"]["json_schema"]["strict"])
+
+        resolver = ArtifactResolver(self.store)
+        facts = resolver.resolve(result.source_facts_refs[0], self.context)
+        validation = resolver.resolve(result.validation_refs[0], self.context)
+        raw = resolver.resolve(result.raw_output_refs[0], self.context)
+        package = resolver.resolve(result.package_refs[0], self.context)
+        self.assertEqual(facts["record"].visibility, "private_case")
+        self.assertEqual(raw["record"].visibility, "private_case")
+        self.assertEqual(package["record"].visibility, "private_case")
+        self.assertEqual(validation["record"].visibility, "safe_internal")
+        response_schema = model.calls[0]["response_format"]["json_schema"]["schema"]
+        const_without_type = [
+            path
+            for path, node in _walk_schema_nodes(response_schema)
+            if "const" in node and "type" not in node
+        ]
+        self.assertEqual(const_without_type, [])
+        enum_values_total = sum(
+            len(node.get("enum") or [])
+            for _, node in _walk_schema_nodes(response_schema)
+            if isinstance(node.get("enum"), list)
+        )
+        self.assertLess(enum_values_total, 1000)
+        self.assertEqual(
+            response_schema["properties"]["source_facts_set_id"]["const"],
+            package["payload"]["expected_source_facts_set_id"],
+        )
+        self.assertEqual(
+            response_schema["properties"]["package_refs"]["type"],
+            "array",
+        )
+        self.assertNotIn("const", response_schema["properties"]["package_refs"])
+        self.assertEqual(
+            raw["payload"]["package_response_schema_hash"],
+            package["payload"]["output_schema"]["package_response_schema_hash"],
+        )
+        self.assertEqual(
+            len(package["payload"]["output_schema"]["package_response_schema_hash"]),
+            64,
+        )
+        projection = package["payload"]["source_unit"]["model_source_projection"]
+        self.assertEqual(projection["schema_version"], "gate2_model_table_projection_v0")
+        self.assertTrue(projection["rows"])
+        self.assertTrue(
+            all(row["row_kind"] == "fact" for row in projection["rows"])
+        )
+        self.assertTrue(
+            package["payload"]["coverage_expectation"][
+                "mandatory_no_fact_results"
+            ]
+        )
+        self.assertTrue(
+            all(
+                cell["cell_ref"] and cell["source_value_ref"]
+                for row in projection["rows"]
+                for cell in row["cells"]
+            )
+        )
+        self.assertEqual(facts["payload"]["validator_status"], "passed")
+        self.assertTrue(all(item["validator_status"] == "passed" for item in facts["payload"]["facts"]))
+        self.assertTrue(all(item["validation_ref"] == result.validation_refs[0] for item in facts["payload"]["facts"]))
+        self.assertTrue(all(item["fact_id"].startswith("sf_") for item in facts["payload"]["facts"]))
+        self.assertEqual(raw["payload"]["model_call_status"], "passed")
+        self.assertEqual(validation["payload"]["validator_status"], "passed")
+        self.assertNotIn("100.00", result.compact_russian_summary)
+        self.assertNotIn("synthetic_gate2_value_refs.csv", result.compact_russian_summary)
+        self.assertIn("Расчёт налогов, декларация и XLS/XLSX не выполнялись.", result.compact_russian_summary)
+        self.assertTrue(
+            all(
+                record.storage_backend != "openwebui_knowledge"
+                for record in self.store.list_by_run(self.context.normalization_run_id)
+            )
+        )
+
+    def test_foreign_value_ref_and_gate3_semantics_fail_closed_after_private_raw_persistence(self):
+        for mutation, expected_code in (
+            ("foreign_ref", "source_fact_unknown_value_ref"),
+            ("gate3_field", "source_fact_gate3_boundary_forbidden"),
+            ("duplicate_fact", "source_fact_duplicate_id"),
+            ("raw_private", "source_fact_private_field_forbidden"),
+            ("coverage_gap", "source_fact_coverage_gap"),
+            ("normalized_value", "source_fact_normalized_value_unreproducible"),
+            ("extracted_foreign_ref", "source_fact_unknown_value_ref"),
+            ("overcomplete_issue", "source_fact_completeness_overstated"),
+            ("fallback", "source_fact_structured_output_required"),
+        ):
+            with self.subTest(mutation=mutation):
+                context, dcp_ref = self._persist_gate1(case_id=f"case-{mutation}")
+                result = self._run(
+                    FullUnionBoundaryModel(mutation=mutation),
+                    context=context,
+                    dcp_ref=dcp_ref,
+                )
+                self.assertEqual(result.terminal_status, "completed_with_rejections")
+                self.assertEqual(result.source_facts_refs, [])
+                self.assertEqual(len(result.raw_output_refs), 1)
+                self.assertEqual(len(result.validation_refs), 1)
+                raw_record = self.store.get_record_unchecked(result.raw_output_refs[0])
+                validation_record = self.store.get_record_unchecked(result.validation_refs[0])
+                self.assertEqual(raw_record.visibility, "private_case")
+                self.assertEqual(validation_record.visibility, "safe_internal")
+                validation = self.store.read_payload(validation_record)
+                self.assertIn(expected_code, {item["code"] for item in validation["errors"]})
+                self.assertEqual(validation["accepted_fact_ids"], [])
+
+    def test_wrong_user_expiry_purge_and_source_delete_remain_fail_closed(self):
+        with self.assertRaises(ArtifactStoreError) as wrong_user:
+            self._run(
+                FullUnionBoundaryModel(),
+                context=ArtifactAccessContext(
+                    **{**self.context.__dict__, "user_id": "foreign-user"}
+                ),
+            )
+        self.assertEqual(wrong_user.exception.code, "artifact_access_denied")
+
+        result = self._run(FullUnionBoundaryModel())
+        facts_ref = result.source_facts_refs[0]
+        affected = self.store.mark_source_file_deleted(openwebui_file_id="synthetic-source-file")
+        self.assertIn(facts_ref, affected)
+        with self.assertRaises(ArtifactStoreError) as purged:
+            ArtifactResolver(self.store).resolve(facts_ref, self.context)
+        self.assertEqual(purged.exception.code, "artifact_purged")
+
+        context, dcp_ref = self._persist_gate1(case_id="case-expiry")
+        expiring = self._run(FullUnionBoundaryModel(), context=context, dcp_ref=dcp_ref)
+        self.store.expire_artifacts(datetime.now(timezone.utc) + timedelta(days=2))
+        with self.assertRaises(ArtifactStoreError) as expired:
+            ArtifactResolver(self.store).resolve(expiring.source_facts_refs[0], context)
+        self.assertEqual(expired.exception.code, "artifact_expired")
+
+    def test_truncated_legacy_preview_does_not_override_complete_full_source_unit(self):
+        context, dcp_ref = self._persist_gate1(
+            case_id="case-truncated-source-slice",
+            truncate_source_slice=True,
+        )
+        result = self._run(
+            FullUnionBoundaryModel(),
+            context=context,
+            dcp_ref=dcp_ref,
+        )
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(result.safe_summary["truncated_source_units_total"], 0)
+        self.assertTrue(result.safe_summary["gate3_handoff_ready"])
+        self.assertGreater(result.safe_summary["facts_total"], 0)
+
+    def test_one_repair_attempt_uses_safe_errors_and_persists_both_audits(self):
+        model = RepairingBoundaryModel()
+        result = self._run(model, max_repair_attempts=1)
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(len(model.calls), 2)
+        self.assertIsNone(model.calls[0]["repair_context"])
+        repair_context = model.calls[1]["repair_context"]
+        self.assertEqual(repair_context["repair_attempt_count"], 1)
+        self.assertTrue(repair_context["validation_errors"])
+        self.assertEqual(
+            set(repair_context["validation_errors"][0]),
+            {"code", "subject"},
+        )
+        self.assertEqual(len(result.raw_output_refs), 2)
+        self.assertEqual(len(result.validation_refs), 2)
+        resolver = ArtifactResolver(self.store)
+        raw_payloads = [
+            resolver.resolve(ref, self.context)["payload"]
+            for ref in result.raw_output_refs
+        ]
+        validations = [
+            resolver.resolve(ref, self.context)["payload"]
+            for ref in result.validation_refs
+        ]
+        facts = resolver.resolve(result.source_facts_refs[0], self.context)["payload"]
+        self.assertEqual(
+            [item["repair_attempt_count"] for item in raw_payloads],
+            [0, 1],
+        )
+        self.assertEqual(
+            [item["validator_status"] for item in validations],
+            ["failed", "passed"],
+        )
+        self.assertEqual(facts["extraction_audit"]["repair_attempt_count"], 1)
+        self.assertEqual(facts["extraction_audit"]["extraction_attempt_ordinal"], 2)
+
+    def test_document_batch_is_explicit_in_run_and_summary(self):
+        result = self._run(
+            FullUnionBoundaryModel(),
+            document_batch_start=0,
+            document_batch_limit=1,
+        )
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(
+            result.safe_summary["document_batch"],
+            {
+                "start": 0,
+                "limit": 1,
+                "wave_documents_total": 1,
+                "selected_documents_total": 1,
+                "has_more": False,
+            },
+        )
+
+    def _run(
+        self,
+        model,
+        *,
+        context=None,
+        dcp_ref=None,
+        max_repair_attempts: int = 0,
+        document_batch_start: int = 0,
+        document_batch_limit: int | None = None,
+    ):
+        context = context or self.context
+        runtime = Gate2SourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2PromptResolver(self.prompt),
+            model_client=model,
+            config=Gate2SourceFactRuntimeConfig(
+                model_id="synthetic-structured-model",
+                wave="primary",
+                run_mode="synthetic",
+                max_repair_attempts=max_repair_attempts,
+                enable_exact_fact_type_hints=False,
+                document_batch_start=document_batch_start,
+                document_batch_limit=document_batch_limit,
+            ),
+        ).create()
+        return asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=dcp_ref or self.dcp_ref,
+                context=context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+    def _domain_prompt(self, domain: str) -> Gate2ManagedPrompt:
+        content = f"Synthetic managed {domain} prompt with {{{{source_fact_package_json}}}}."
+        return Gate2ManagedPrompt(
+            prompt_ref=f"prompt_gate2_{domain}_test",
+            command=f"broker_gate2_{domain}_v0",
+            version="test-v1",
+            content=content,
+            hash=gate2_prompt_hash(content),
+            source="test_boundary",
+            template_id=f"broker_reports.{domain}_extraction.v0",
+            template_kind=f"broker_reports_{domain}_extraction",
+            prompt_contract_id="broker_reports_domain_source_fact_prompt_v0",
+            input_schema_version="broker_reports_domain_extraction_package_v0",
+            output_schema_id="broker_reports.source_facts.schema.v0",
+            output_schema_version="broker_reports_source_facts_v0",
+            tags=("broker-reports-gate2-domain", "structured-output"),
+            safe_metadata={"extractor_domain": domain, "name": "synthetic"},
+        )
+
+    def _persist_gate1(
+        self,
+        *,
+        case_id: str = "synthetic-gate2-runtime-case",
+        truncate_source_slice: bool = False,
+    ):
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="private-synthetic-gate2-runtime",
+                    filename="synthetic_gate2_value_refs.csv",
+                    content=(FIXTURES / "synthetic_gate2_value_refs.csv").read_bytes(),
+                    mime_type="text/csv",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        package = result.package
+        document_ref = package["domain_context_packet"]["next_stage_refs"][
+            "source_fact_ready_refs"
+        ][0]
+        slice_ref = next(
+            item["slice_id"]
+            for item in package["private_normalized_slices"]
+            if item["document_id"] == document_ref
+        )
+        if truncate_source_slice:
+            next(
+                item
+                for item in package["private_normalized_slices"]
+                if item["slice_id"] == slice_ref
+            )["truncated"] = True
+        issue_ref = f"issue_synthetic_{case_id}"
+        package["gate1_issue_ledger"]["entries"].append(
+            {
+                "issue_id": issue_ref,
+                "normalization_run_id": package["normalization_run"]["run_id"],
+                "issue_type": "metadata_gap",
+                "target_document_refs": [document_ref],
+                "criticality": "clarifying",
+                "affected_stage": "source_fact_extraction",
+                "blocked_stages": [],
+                "stages_that_may_continue": ["source_fact_extraction"],
+                "status": "unresolved",
+                "unresolved_reason": "synthetic_proof_issue",
+                "user_was_asked": False,
+                "answer_supplied": False,
+                "ask_policy": "do_not_ask",
+                "resolution_refs": [],
+                "evidence_refs": [slice_ref],
+                "blocker_refs": [],
+                "reason_codes": ["synthetic_confirmation_limit"],
+                "provenance": {"source_artifact_type": "synthetic_fixture", "source_ref": slice_ref},
+                "created_at": "2026-07-10T00:00:00Z",
+                "updated_at": "2026-07-10T00:00:00Z",
+                "safe_explanation": "Synthetic unresolved confirmation limit.",
+            }
+        )
+        usage_entry = next(
+            item
+            for item in package["document_usage_classification"]["entries"]
+            if item["document_ref"] == document_ref
+        )
+        usage_entry["issue_refs"] = sorted(set(usage_entry["issue_refs"] + [issue_ref]))
+        usage_entry["warning_issue_refs"] = sorted(
+            set(usage_entry["warning_issue_refs"] + [issue_ref])
+        )
+        usage_entry["issue_refs_by_stage"].setdefault("source_fact_extraction", []).append(
+            issue_ref
+        )
+        usage_entry["readiness_by_stage"]["source_fact_extraction"] = "ready_with_issues"
+        dcp = package["domain_context_packet"]
+        dcp["unresolved_issue_refs"] = sorted(set(dcp["unresolved_issue_refs"] + [issue_ref]))
+        dcp["document_issue_refs"].setdefault(document_ref, []).append(issue_ref)
+        dcp["stage_readiness"]["source_fact_extraction"] = "ready_with_issue_context"
+        package["gate2_handoff"].setdefault("document_issue_refs", {}).setdefault(
+            document_ref, []
+        ).append(issue_ref)
+        run_id = result.package["normalization_run"]["run_id"]
+        context = ArtifactAccessContext(
+            user_id="gate2-runtime-user",
+            normalization_run_id=run_id,
+            case_id=case_id,
+            chat_id=f"chat-{case_id}",
+            workspace_model_id="broker-reports-gate2-runtime-test",
+            allow_private=True,
+            require_source_available=True,
+        )
+        manifest = persist_gate1_result(
+            store=self.store,
+            result=result,
+            context=context,
+            retention_policy=build_retention_policy(mode="api_smoke"),
+            source_file_refs=[
+                {
+                    "provider": "openwebui",
+                    "openwebui_file_id": "synthetic-source-file",
+                    "source_deleted": False,
+                }
+            ],
+        )
+        return context, manifest.artifact_refs_by_type["domain_context_packet_v0"][0]
+
+
+def _walk_schema_nodes(value: Any, path: str = "$"):
+    if isinstance(value, dict):
+        yield path, value
+        for key, child in value.items():
+            yield from _walk_schema_nodes(child, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _walk_schema_nodes(child, f"{path}[{index}]")
+
+
+def _full_union_candidate(package: dict[str, Any]) -> dict[str, Any]:
+    unit = package["source_unit"]
+    projection = unit["normalized_source_projection"]
+    if unit["unit_kind"] != "table_row_window":
+        return _no_fact_candidate(package)
+    cells = projection["cells"]
+    row_provenance = unit["row_provenance"]
+    cell_provenance = unit["cell_provenance"]
+    fact_rows = [item for item in row_provenance if item["row_kind"] == "fact"]
+    first_row = fact_rows[0]
+    second_row = fact_rows[-1]
+
+    def source_ref(row_ordinal: int, column_ordinal: int) -> str:
+        return next(
+            item["source_value_ref"]
+            for item in cell_provenance
+            if item["row_ordinal"] == row_ordinal and item["column_ordinal"] == column_ordinal
+        )
+
+    def cell_ref(row_ordinal: int, column_ordinal: int) -> str:
+        return next(
+            item["cell_ref"]
+            for item in cell_provenance
+            if item["row_ordinal"] == row_ordinal and item["column_ordinal"] == column_ordinal
+        )
+
+    issue_policy = _issue_policy(package)
+    facts = []
+    fact_types = [
+        "trade_operation",
+        "income",
+        "withholding_tax",
+        "fee_commission",
+        "cash_movement",
+        "currency_fx",
+        "position_snapshot",
+        "document_summary_evidence",
+        "unknown_source_row",
+    ]
+    for index, fact_type in enumerate(fact_types):
+        row = first_row if index % 2 == 0 else second_row
+        row_ordinal = int(row["row_ordinal"])
+        row_index = row_ordinal - 1
+        row_values = cells[row_index]
+        date_ref = source_ref(row_ordinal, 1)
+        identifier_ref = source_ref(row_ordinal, 2)
+        amount_ref = source_ref(row_ordinal, 3)
+        currency_ref = source_ref(row_ordinal, 4)
+        refs = {
+            "date": [date_ref],
+            "amount": [amount_ref],
+            "currency": [currency_ref],
+            "quantity": [],
+            "rate": [],
+            "converted_amount": [],
+            "identifier": [identifier_ref],
+            "label": [],
+        }
+        normalized = {
+            "date": str(row_values[0]).strip(),
+            "amount": str(row_values[2]).strip(),
+            "currency": str(row_values[3]).strip().upper(),
+            "quantity": None,
+            "rate": None,
+            "converted_amount": None,
+            "identifier": str(row_values[1]).strip(),
+            "label": None,
+        }
+        current_cell_refs = [
+            cell_ref(row_ordinal, column) for column in (1, 2, 3, 4)
+        ]
+        evidence_refs = sorted(
+            {
+                row["row_ref"],
+                row["row_range_ref"],
+                unit["table_ref"],
+                unit["parser_ref"],
+                unit["source_checksum_ref"],
+                *current_cell_refs,
+            }
+        )
+        facts.append(
+            {
+                "fact_id": "pending",
+                "fact_type": fact_type,
+                "fact_subtype": None,
+                "document_ref": package["document_ref"],
+                "extraction_package_ref": package["package_artifact_ref"],
+                "source_unit_ref": unit["unit_id"],
+                "source_location": {
+                    "private_slice_artifact_ref": unit["private_slice_artifact_ref"],
+                    "slice_ref": unit["slice_ref"],
+                    "source_granularity": "table_row",
+                    "page_ref": None,
+                    "section_ref": None,
+                    "table_ref": unit["table_ref"],
+                    "row_ref": row["row_ref"],
+                    "row_range_ref": row["row_range_ref"],
+                    "cell_refs": current_cell_refs,
+                    "text_segment_refs": [],
+                    "parser_ref": unit["parser_ref"],
+                    "source_checksum_ref": unit["source_checksum_ref"],
+                },
+                "extracted_fields": _extracted_fields(fact_type, identifier_ref),
+                "normalized_values": normalized,
+                "original_value_refs": refs,
+                "date": {
+                    "value": normalized["date"],
+                    "role": "source_unspecified_date",
+                    "precision": "day",
+                    "original_value_refs": [date_ref],
+                },
+                "amount": {
+                    "value_decimal": normalized["amount"],
+                    "amount_role": "source_visible_amount",
+                    "currency": normalized["currency"],
+                    "original_value_refs": [amount_ref],
+                },
+                "currency": {
+                    "code": normalized["currency"],
+                    "code_kind": "iso_4217_visible",
+                    "original_value_refs": [currency_ref],
+                },
+                "quantity": None,
+                "instrument": {
+                    "safe_label": None,
+                    "safe_label_ref": None,
+                    "identifiers": [
+                        {
+                            "identifier_type": "ticker",
+                            "identifier_value": normalized["identifier"],
+                            "original_value_refs": [identifier_ref],
+                        }
+                    ],
+                },
+                "confidence": "low" if fact_type == "unknown_source_row" else "medium",
+                "completeness": "uncertain" if fact_type == "unknown_source_row" else (
+                    "partial" if issue_policy["linked_issue_refs"] else "complete"
+                ),
+                "evidence_refs": evidence_refs,
+                "linked_issue_refs": issue_policy["linked_issue_refs"],
+                "issue_impact": issue_policy["issue_impact"],
+                "extraction_warnings": [],
+                "downstream_use": {
+                    "downstream_usable": True,
+                    "gate3_ledger_candidate": True,
+                    "cross_document_consolidation_allowed": False,
+                    "tax_calculation_allowed": False,
+                    "declaration_mapping_allowed": False,
+                    "restriction_codes": [],
+                },
+                "extraction_audit": copy.deepcopy(package["expected_candidate_audit"]),
+                "validator_status": "pending",
+                "validation_ref": None,
+            }
+        )
+
+    covered_refs = sorted({first_row["row_ref"], second_row["row_ref"]})
+    expectation = package["coverage_expectation"]
+    no_fact_results = [
+        *[
+            {"source_ref": ref, "reason_code": "header_row"}
+            for ref in expectation["ignorable_header_refs"]
+        ],
+        *[
+            {"source_ref": ref, "reason_code": "blank_row"}
+            for ref in expectation["ignorable_blank_refs"]
+        ],
+        *[
+            {"source_ref": ref, "reason_code": "layout_only"}
+            for ref in expectation["layout_candidate_refs"]
+        ],
+    ]
+    return {
+        "schema_version": "broker_reports_source_facts_v0",
+        "source_facts_set_id": package["expected_source_facts_set_id"],
+        "extraction_run_id": package["extraction_run_id"],
+        "normalization_run_id": package["normalization_run_id"],
+        "case_id": package["case_id"],
+        "package_refs": [package["package_artifact_ref"]],
+        "document_refs": [package["document_ref"]],
+        "facts": facts,
+        "coverage": {
+            "unit_coverage_ref": expectation["coverage_ref"],
+            "selected_source_refs": expectation["selected_source_refs"],
+            "fact_covered_refs": covered_refs,
+            "no_fact_results": no_fact_results,
+            "rejected_refs": [],
+            "pending_refs": [],
+            "coverage_status": "complete",
+        },
+        "issue_linkage_summary": {
+            "package_issue_refs": package["allowed_issue_refs"],
+            "fact_issue_links_total": sum(len(item["linked_issue_refs"]) for item in facts),
+            "unresolved_issue_refs": sorted(
+                item["issue_ref"]
+                for item in package["issue_context"]
+                if item.get("status") == "unresolved"
+            ),
+        },
+        "extraction_audit": copy.deepcopy(package["expected_candidate_audit"]),
+        "validation_ref": None,
+        "validator_status": "pending",
+        "created_at": package["created_at"],
+    }
+
+
+def _no_fact_candidate(package: dict[str, Any]) -> dict[str, Any]:
+    expectation = package["coverage_expectation"]
+    return {
+        "schema_version": "broker_reports_source_facts_v0",
+        "source_facts_set_id": package["expected_source_facts_set_id"],
+        "extraction_run_id": package["extraction_run_id"],
+        "normalization_run_id": package["normalization_run_id"],
+        "case_id": package["case_id"],
+        "package_refs": [package["package_artifact_ref"]],
+        "document_refs": [package["document_ref"]],
+        "facts": [],
+        "coverage": {
+            "unit_coverage_ref": expectation["coverage_ref"],
+            "selected_source_refs": expectation["selected_source_refs"],
+            "fact_covered_refs": [],
+            "no_fact_results": [
+                {"source_ref": ref, "reason_code": "non_fact_annotation"}
+                for ref in expectation["selected_source_refs"]
+            ],
+            "rejected_refs": [],
+            "pending_refs": [],
+            "coverage_status": "complete",
+        },
+        "issue_linkage_summary": {
+            "package_issue_refs": package["allowed_issue_refs"],
+            "fact_issue_links_total": 0,
+            "unresolved_issue_refs": sorted(
+                item["issue_ref"]
+                for item in package["issue_context"]
+                if item.get("status") == "unresolved"
+            ),
+        },
+        "extraction_audit": copy.deepcopy(package["expected_candidate_audit"]),
+        "validation_ref": None,
+        "validator_status": "pending",
+        "created_at": package["created_at"],
+    }
+
+
+def _extracted_fields(fact_type: str, identifier_ref: str) -> dict[str, Any]:
+    values = {
+        "trade_operation": {
+            "operation_type_candidate": "unknown",
+            "source_visible_direction_refs": [identifier_ref],
+        },
+        "income": {
+            "income_type_candidate": "other",
+            "source_country_candidate": None,
+            "source_country_value_refs": [],
+        },
+        "withholding_tax": {
+            "withholding_type_candidate": "unknown",
+            "source_country_candidate": None,
+            "related_income_source_refs": [],
+        },
+        "fee_commission": {
+            "fee_type_candidate": "other",
+            "related_operation_source_refs": [],
+        },
+        "cash_movement": {
+            "movement_type_candidate": "unknown",
+            "description_safe_label": None,
+            "description_value_refs": [],
+        },
+        "currency_fx": {"fx_fact_kind": "currency_amount"},
+        "position_snapshot": {"position_kind_candidate": "security_position"},
+        "document_summary_evidence": {
+            "summary_kind_candidate": "source_total",
+            "source_provided": True,
+        },
+        "unknown_source_row": {"unknown_reason_codes": ["synthetic_unknown_shape"]},
+    }
+    return values[fact_type]
+
+
+def _issue_policy(package: dict[str, Any]) -> dict[str, Any]:
+    impact = {
+        "warning_issue_refs": [],
+        "limits_confirmation_issue_refs": [],
+        "blocks_fact_issue_refs": [],
+        "blocks_consolidation_issue_refs": [],
+        "blocks_declaration_issue_refs": [],
+        "forbidden_assumption_codes": sorted(package["forbidden_assumptions"]),
+    }
+    mapping = {
+        "warning": "warning_issue_refs",
+        "limits_confirmation": "limits_confirmation_issue_refs",
+        "blocks_fact": "blocks_fact_issue_refs",
+        "blocks_consolidation": "blocks_consolidation_issue_refs",
+        "blocks_declaration": "blocks_declaration_issue_refs",
+    }
+    for item in package["issue_context"]:
+        key = mapping[item["impact"]]
+        impact[key].append(item["issue_ref"])
+    for key in mapping.values():
+        impact[key] = sorted(set(impact[key]))
+    return {
+        "linked_issue_refs": sorted(package["allowed_issue_refs"]),
+        "issue_impact": impact,
+    }
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -174,6 +174,21 @@ class SqliteArtifactStoreAdapter:
             ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def list_by_case(self, case_id: str) -> list[ArtifactRecord]:
+        if not case_id:
+            raise ArtifactStoreError("artifact_scope_unverified", "Artifact case context is required")
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM artifact_records
+                WHERE case_id = ?
+                ORDER BY created_at ASC, artifact_type ASC
+                """,
+                (case_id,),
+            ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def list_by_type(self, normalization_run_id: str, artifact_type: str) -> list[ArtifactRecord]:
         return [
             record

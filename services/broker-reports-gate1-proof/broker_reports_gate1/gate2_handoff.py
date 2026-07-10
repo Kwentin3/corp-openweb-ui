@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +15,8 @@ class Gate1ArtifactManifest:
     gate2_handoff_ref: str
     safe_refs: list[str]
     private_slice_refs: list[str]
+    private_source_payload_refs: list[str]
+    private_source_unit_refs: list[str]
     blocker_refs: list[str]
     artifact_refs_by_type: dict[str, list[str]]
 
@@ -23,6 +26,8 @@ class Gate1ArtifactManifest:
             "gate2_handoff_ref": self.gate2_handoff_ref,
             "safe_refs": list(self.safe_refs),
             "private_slice_refs": list(self.private_slice_refs),
+            "private_source_payload_refs": list(self.private_source_payload_refs),
+            "private_source_unit_refs": list(self.private_source_unit_refs),
             "blocker_refs": list(self.blocker_refs),
             "artifact_refs_by_type": {key: list(value) for key, value in self.artifact_refs_by_type.items()},
         }
@@ -45,6 +50,12 @@ def persist_gate1_result(
     refs_by_type: dict[str, list[str]] = {}
     safe_refs: list[str] = []
     private_refs: list[str] = []
+    private_refs_by_doc: dict[str, list[str]] = {}
+    private_source_payload_refs: list[str] = []
+    private_source_unit_refs: list[str] = []
+    private_source_unit_refs_by_doc: dict[str, list[str]] = {}
+    clarification_resolution_refs: list[str] = []
+    passport_refs_by_doc: dict[str, str] = {}
     blocker_refs: list[str] = []
 
     def put(record: ArtifactRecord) -> ArtifactRecord:
@@ -59,6 +70,7 @@ def persist_gate1_result(
     }
 
     source_records_by_doc: dict[str, dict[str, Any]] = {}
+    source_artifact_ids_by_doc: dict[str, str] = {}
     for document, source_ref in zip(documents, source_refs):
         source_record = put(
             _record(
@@ -79,6 +91,7 @@ def persist_gate1_result(
             )
         )
         source_records_by_doc[str(document.get("document_id"))] = source_record.source_file_ref or source_ref
+        source_artifact_ids_by_doc[str(document.get("document_id"))] = source_record.artifact_id
         safe_refs.append(source_record.artifact_id)
 
     safe_payloads = [
@@ -87,10 +100,16 @@ def persist_gate1_result(
         ("technical_readability_profile_v0", package["technical_readability_profiles"], None),
         ("taxonomy_candidates_v0", package["taxonomy_candidates"], None),
         ("normalization_blockers_v0", package["normalization_blockers"], None),
+        ("document_source_eligibility_v0", package["document_source_eligibility"], None),
+        ("gate1_issue_ledger_v0", package.get("gate1_issue_ledger"), None),
+        ("document_usage_classification_v0", package.get("document_usage_classification"), None),
+        ("domain_context_packet_v0", package.get("domain_context_packet"), None),
         ("validation_result_v0", package["validation_result"], None),
         ("chat_visible_normalization_report_v0", safe_report, "openwebui_chat"),
     ]
     for artifact_type, payload, backend_override in safe_payloads:
+        if payload is None:
+            continue
         record = put(
             _record(
                 artifact_type=artifact_type,
@@ -132,14 +151,494 @@ def persist_gate1_result(
                 payload=private_slice,
                 safe_metadata={
                     "slice_type": private_slice.get("slice_type"),
+                    "schema_version": private_slice.get("schema_version"),
+                    "source_unit_schema_version": private_slice.get("source_unit_schema_version"),
                     "document_id": document_id,
                     "profile_id": private_slice.get("profile_id"),
+                    "table_ref": private_slice.get("table_ref"),
+                    "row_range_ref": private_slice.get("row_range_ref"),
+                    "row_refs_count": len(private_slice.get("row_refs") or []),
+                    "cell_refs_count": len(private_slice.get("cell_refs") or []),
+                    "source_value_refs_count": len(private_slice.get("source_value_refs") or []),
+                    "text_segment_refs_count": len(private_slice.get("text_segment_refs") or []),
+                    "source_checksum_ref": private_slice.get("source_checksum_ref"),
+                    "parser_ref": private_slice.get("parser_ref"),
+                    "coverage_ref": (private_slice.get("coverage") or {}).get("coverage_ref"),
+                    "coverage_complete": (private_slice.get("coverage") or {}).get(
+                        "all_selected_refs_accounted"
+                    ),
                 },
                 access_policy={**access_policy, "requires_gate2_resolver": True},
             )
         )
         private_refs.append(record.artifact_id)
+        private_refs_by_doc.setdefault(str(document_id), []).append(record.artifact_id)
 
+    for source_payload in package.get("private_normalized_source_payloads", []):
+        document_id = source_payload.get("document_ref")
+        record = put(
+            _record(
+                artifact_type="private_normalized_source_payload_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status,
+                payload=source_payload,
+                safe_metadata={
+                    "schema_version": source_payload.get("schema_version"),
+                    "document_ref": document_id,
+                    "container_format": source_payload.get("container_format"),
+                    "logical_identity": source_payload.get("logical_identity"),
+                    "parser_ref": source_payload.get("parser_ref"),
+                    "source_checksum_ref": source_payload.get("source_checksum_ref"),
+                    "payload_checksum_ref": source_payload.get("payload_checksum_ref"),
+                    "parser_completeness_status": source_payload.get(
+                        "parser_completeness_status"
+                    ),
+                    "parser_completeness_reason_codes": list(
+                        source_payload.get("parser_completeness_reason_codes") or []
+                    ),
+                    "rows_total": int(source_payload.get("rows_total") or 0),
+                    "cells_total": int(source_payload.get("cells_total") or 0),
+                    "text_characters_total": int(
+                        source_payload.get("text_characters_total") or 0
+                    ),
+                    "extraction_units_total": len(
+                        source_payload.get("extraction_unit_refs") or []
+                    ),
+                    "full_source_coverage_available": (
+                        source_payload.get("coverage_index") or {}
+                    ).get("full_source_coverage_available")
+                    is True,
+                    "pdf_text_layer_projection_status": source_payload.get(
+                        "text_layer_projection_status"
+                    ),
+                    "pdf_visible_content_coverage_status": source_payload.get(
+                        "visible_content_coverage_status"
+                    ),
+                    "ocr_vlm_used": source_payload.get("ocr_vlm_used"),
+                    "page_rendering_used_for_extraction": source_payload.get(
+                        "page_rendering_used_for_extraction"
+                    ),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+        private_source_payload_refs.append(record.artifact_id)
+
+    for source_unit in package.get("private_normalized_source_units", []):
+        document_id = source_unit.get("document_id")
+        record = put(
+            _record(
+                artifact_type="private_normalized_source_unit_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status,
+                payload=source_unit,
+                safe_metadata={
+                    "schema_version": source_unit.get("schema_version"),
+                    "document_ref": document_id,
+                    "unit_ref": source_unit.get("unit_ref"),
+                    "parent_payload_ref": source_unit.get("parent_payload_ref"),
+                    "parser_ref": source_unit.get("parser_ref"),
+                    "source_checksum_ref": source_unit.get("source_checksum_ref"),
+                    "payload_checksum_ref": source_unit.get("payload_checksum_ref"),
+                    "source_unit_checksum_ref": source_unit.get(
+                        "source_unit_checksum_ref"
+                    ),
+                    "coverage_ref": (source_unit.get("coverage") or {}).get(
+                        "coverage_ref"
+                    ),
+                    "coverage_selected_total": (source_unit.get("coverage") or {}).get(
+                        "selected_total"
+                    ),
+                    "source_slice_truncated": source_unit.get(
+                        "source_slice_truncated"
+                    ),
+                    "parent_remainder_status": source_unit.get(
+                        "parent_remainder_status"
+                    ),
+                    "parser_completeness_status": source_unit.get(
+                        "parser_completeness_status"
+                    ),
+                    "pdf_unit_type": source_unit.get("pdf_unit_type"),
+                    "pdf_text_layer_projection_status": source_unit.get(
+                        "text_layer_projection_status"
+                    ),
+                    "ocr_vlm_used": source_unit.get("ocr_vlm_used"),
+                    "page_rendering_used_for_extraction": source_unit.get(
+                        "page_rendering_used_for_extraction"
+                    ),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+        private_source_unit_refs.append(record.artifact_id)
+        private_source_unit_refs_by_doc.setdefault(str(document_id), []).append(
+            record.artifact_id
+        )
+
+    prompt_snapshot = package.get("llm_prompt_snapshot")
+    if isinstance(prompt_snapshot, dict):
+        record = put(
+            _record(
+                artifact_type="llm_prompt_snapshot_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status,
+                payload=prompt_snapshot,
+                safe_metadata={
+                    "llm_prompt_ref": prompt_snapshot.get("llm_prompt_ref"),
+                    "llm_prompt_version": prompt_snapshot.get("llm_prompt_version"),
+                    "llm_prompt_hash": prompt_snapshot.get("llm_prompt_hash"),
+                    "output_schema_id": prompt_snapshot.get("output_schema_id"),
+                    "output_schema_version": prompt_snapshot.get("output_schema_version"),
+                    "output_schema_hash": prompt_snapshot.get("output_schema_hash"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+
+    for llm_package in package.get("llm_document_packages", []):
+        document_id = llm_package.get("document_id")
+        output_schema = llm_package.get("output_schema") if isinstance(llm_package.get("output_schema"), dict) else {}
+        record = put(
+            _record(
+                artifact_type="llm_document_package_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status,
+                payload=llm_package,
+                safe_metadata={
+                    "document_id": document_id,
+                    "llm_input_package_id": llm_package.get("llm_input_package_id"),
+                    "schema_version": llm_package.get("schema_version"),
+                    "output_schema_id": output_schema.get("output_schema_id"),
+                    "output_schema_version": output_schema.get("output_schema_version"),
+                    "output_schema_hash": output_schema.get("output_schema_hash"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+                warning_codes=_warning_codes(package),
+            )
+        )
+
+    for raw_output in package.get("llm_passport_raw_outputs", []):
+        document_id = raw_output.get("document_id")
+        record = put(
+            _record(
+                artifact_type="llm_passport_raw_output_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status,
+                payload=raw_output,
+                safe_metadata={
+                    "document_id": document_id,
+                    "model_call_status": raw_output.get("model_call_status"),
+                    "schema_version": raw_output.get("schema_version"),
+                    "structured_output_mode": raw_output.get("structured_output_mode"),
+                    "response_format_type": raw_output.get("response_format_type"),
+                    "response_format_schema_mode": raw_output.get("response_format_schema_mode"),
+                    "schema_attempted": raw_output.get("schema_attempted"),
+                    "fallback_used": raw_output.get("fallback_used"),
+                    "native_structured_output_error_code": raw_output.get("native_structured_output_error_code"),
+                    "repair_attempted": raw_output.get("repair_attempted"),
+                    "repair_attempt_count": raw_output.get("repair_attempt_count"),
+                    "validator_guided_repair_applied": raw_output.get("validator_guided_repair_applied"),
+                    "validator_error_summary": raw_output.get("validator_error_summary"),
+                    "output_schema_id": raw_output.get("output_schema_id"),
+                    "output_schema_version": raw_output.get("output_schema_version"),
+                    "output_schema_hash": raw_output.get("output_schema_hash"),
+                    "llm_model_id": raw_output.get("llm_model_id"),
+                    "llm_prompt_ref": raw_output.get("llm_prompt_ref"),
+                    "llm_prompt_version": raw_output.get("llm_prompt_version"),
+                    "llm_prompt_hash": raw_output.get("llm_prompt_hash"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+                warning_codes=_warning_codes(package),
+            )
+        )
+
+    passport_validation = package.get("document_metadata_passport_validation")
+    if isinstance(passport_validation, dict):
+        record = put(
+            _record(
+                artifact_type="document_metadata_passport_validation_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status,
+                payload=passport_validation,
+                safe_metadata={
+                    "validator_status": passport_validation.get("validator_status"),
+                    "passports_total": passport_validation.get("passports_total"),
+                    "passed": passport_validation.get("passed"),
+                    "failed": passport_validation.get("failed"),
+                    "error_code_summary": passport_validation.get("error_code_summary"),
+                    "structured_output_mode_counts": passport_validation.get("structured_output_mode_counts"),
+                    "response_format_type_counts": passport_validation.get("response_format_type_counts"),
+                    "repair_attempted_count": passport_validation.get("repair_attempted_count"),
+                    "validator_guided_repair_count": passport_validation.get("validator_guided_repair_count"),
+                    "fallback_used_count": passport_validation.get("fallback_used_count"),
+                    "output_schema_id": passport_validation.get("output_schema_id"),
+                    "output_schema_version": passport_validation.get("output_schema_version"),
+                    "output_schema_hash": passport_validation.get("output_schema_hash"),
+                    "llm_model_id": passport_validation.get("llm_model_id"),
+                    "llm_prompt_ref": passport_validation.get("llm_prompt_ref"),
+                    "llm_prompt_version": passport_validation.get("llm_prompt_version"),
+                    "llm_prompt_hash": passport_validation.get("llm_prompt_hash"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+
+    for passport in package.get("document_metadata_passports", []):
+        document_id = passport.get("document_id")
+        record = put(
+            _record(
+                artifact_type="document_metadata_passport_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status if passport.get("validator_status") == "passed" else "blocked",
+                payload=passport,
+                safe_metadata={
+                    "document_id": document_id,
+                    "passport_status": passport.get("passport_status"),
+                    "validator_status": passport.get("validator_status"),
+                    "source_candidate_confidence": passport.get("source_candidate_confidence"),
+                    "metadata_confidence": passport.get("metadata_confidence"),
+                    "llm_prompt_hash": passport.get("llm_prompt_hash"),
+                    "llm_prompt_ref": passport.get("llm_prompt_ref"),
+                    "llm_prompt_version": passport.get("llm_prompt_version"),
+                    "llm_model_id": passport.get("llm_model_id"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+        passport_refs_by_doc[str(document_id)] = record.artifact_id
+
+    gap_report = package.get("gate1_metadata_gap_report")
+    if isinstance(gap_report, dict):
+        record = put(
+            _record(
+                artifact_type="gate1_metadata_gap_report_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status,
+                payload=gap_report,
+                safe_metadata={
+                    "gap_report_id": gap_report.get("gap_report_id"),
+                    "gaps_total": (gap_report.get("summary") or {}).get("gaps_total"),
+                    "blocking_gaps_total": (gap_report.get("summary") or {}).get("blocking_gaps_total"),
+                    "gap_type_counts": (gap_report.get("summary") or {}).get("gap_type_counts"),
+                    "criticality_counts": (gap_report.get("summary") or {}).get("criticality_counts"),
+                    "critical_gaps_total": (gap_report.get("summary") or {}).get("critical_gaps_total"),
+                    "clarifying_gaps_total": (gap_report.get("summary") or {}).get("clarifying_gaps_total"),
+                    "non_critical_gaps_total": (gap_report.get("summary") or {}).get("non_critical_gaps_total"),
+                    "handoff_mode": gap_report.get("handoff_mode"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+
+    clarification_prompt_snapshot = package.get("gate1_clarification_prompt_snapshot")
+    if isinstance(clarification_prompt_snapshot, dict):
+        record = put(
+            _record(
+                artifact_type="llm_clarification_prompt_snapshot_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status,
+                payload=clarification_prompt_snapshot,
+                safe_metadata={
+                    "llm_prompt_ref": clarification_prompt_snapshot.get("llm_prompt_ref"),
+                    "llm_prompt_version": clarification_prompt_snapshot.get("llm_prompt_version"),
+                    "llm_prompt_hash": clarification_prompt_snapshot.get("llm_prompt_hash"),
+                    "output_schema_id": clarification_prompt_snapshot.get("output_schema_id"),
+                    "output_schema_version": clarification_prompt_snapshot.get("output_schema_version"),
+                    "output_schema_hash": clarification_prompt_snapshot.get("output_schema_hash"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+
+    clarification_raw_output = package.get("llm_clarification_raw_output")
+    if isinstance(clarification_raw_output, dict):
+        record = put(
+            _record(
+                artifact_type="llm_clarification_raw_output_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status
+                if clarification_raw_output.get("model_call_status") == "passed"
+                else "blocked",
+                payload=clarification_raw_output,
+                safe_metadata={
+                    "model_call_status": clarification_raw_output.get("model_call_status"),
+                    "structured_output_mode": clarification_raw_output.get("structured_output_mode"),
+                    "response_format_type": clarification_raw_output.get("response_format_type"),
+                    "fallback_used": clarification_raw_output.get("fallback_used"),
+                    "error_code": clarification_raw_output.get("error_code"),
+                    "output_schema_id": clarification_raw_output.get("output_schema_id"),
+                    "output_schema_version": clarification_raw_output.get("output_schema_version"),
+                    "output_schema_hash": clarification_raw_output.get("output_schema_hash"),
+                    "llm_model_id": clarification_raw_output.get("llm_model_id"),
+                    "llm_prompt_ref": clarification_raw_output.get("llm_prompt_ref"),
+                    "llm_prompt_version": clarification_raw_output.get("llm_prompt_version"),
+                    "llm_prompt_hash": clarification_raw_output.get("llm_prompt_hash"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+                warning_codes=_warning_codes(package),
+            )
+        )
+        private_refs.append(record.artifact_id)
+
+    clarification_request = package.get("gate1_clarification_request")
+    if isinstance(clarification_request, dict):
+        validation = package.get("gate1_clarification_request_validation")
+        request_validated = isinstance(validation, dict) and validation.get("validator_status") == "passed"
+        record = put(
+            _record(
+                artifact_type="gate1_clarification_request_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=None,
+                source_file_ref=None,
+                visibility="safe_internal",
+                storage_backend="project_artifact_store",
+                validation_status=validation_status if request_validated else "blocked",
+                payload=clarification_request,
+                safe_metadata={
+                    "clarification_request_id": clarification_request.get("clarification_request_id"),
+                    "gap_report_id": clarification_request.get("gap_report_id"),
+                    "questions_total": (clarification_request.get("summary") or {}).get("questions_total"),
+                    "required_questions_total": (clarification_request.get("summary") or {}).get("required_questions_total"),
+                    "gap_type_counts": (clarification_request.get("summary") or {}).get("gap_type_counts"),
+                    "criticality_counts": (clarification_request.get("summary") or {}).get("criticality_counts"),
+                    "critical_questions_total": (clarification_request.get("summary") or {}).get("critical_questions_total"),
+                    "clarifying_questions_total": (clarification_request.get("summary") or {}).get("clarifying_questions_total"),
+                    "non_critical_questions_total": (clarification_request.get("summary") or {}).get("non_critical_questions_total"),
+                    "validator_status": validation.get("validator_status") if isinstance(validation, dict) else None,
+                    "output_schema_hash": clarification_request.get("output_schema_hash"),
+                    "llm_model_id": clarification_request.get("llm_model_id"),
+                    "llm_prompt_hash": clarification_request.get("llm_prompt_hash"),
+                },
+                access_policy=access_policy,
+                warning_codes=_warning_codes(package),
+            )
+        )
+        safe_refs.append(record.artifact_id)
+
+    for resolution in package.get("gate1_clarification_resolutions", []):
+        if not isinstance(resolution, dict):
+            continue
+        document_id = resolution.get("target_document_ref")
+        record = put(
+            _record(
+                artifact_type="gate1_clarification_resolution_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=validation_status if resolution.get("validation_status") == "passed" else "blocked",
+                payload=resolution,
+                safe_metadata={
+                    "resolution_id": resolution.get("resolution_id"),
+                    "question_id": resolution.get("question_id"),
+                    "gap_type": resolution.get("gap_type"),
+                    "resolved_field": resolution.get("resolved_field"),
+                    "answer_type": resolution.get("answer_type"),
+                    "source": resolution.get("source"),
+                    "validation_status": resolution.get("validation_status"),
+                    "usable_by_source_eligibility_v2": resolution.get("usable_by_source_eligibility_v2"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+                warning_codes=_warning_codes(package),
+            )
+        )
+        private_refs.append(record.artifact_id)
+        if (
+            resolution.get("validation_status") == "passed"
+            and resolution.get("usable_by_source_eligibility_v2") is True
+        ):
+            clarification_resolution_refs.append(record.artifact_id)
+
+    handoff_decision = package.get("gate2_handoff", {})
+    included_document_ids = [str(item) for item in handoff_decision.get("included_document_ids", [])]
+    included_private_refs = [
+        private_ref
+        for document_id in included_document_ids
+        for private_ref in private_refs_by_doc.get(document_id, [])
+    ]
+    handoff_status = package["normalization_run"]["gate2_handoff_status"]
+    if handoff_status == "blocked":
+        included_private_refs = []
+    included_source_unit_refs = [
+        private_ref
+        for document_id in included_document_ids
+        for private_ref in private_source_unit_refs_by_doc.get(document_id, [])
+    ]
+    if handoff_status == "blocked":
+        included_source_unit_refs = []
+    eligibility_refs = refs_by_type.get("document_source_eligibility_v0", [])
+    issue_ledger_refs = refs_by_type.get("gate1_issue_ledger_v0", [])
+    usage_classification_refs = refs_by_type.get("document_usage_classification_v0", [])
+    domain_context_packet_refs = refs_by_type.get("domain_context_packet_v0", [])
+    domain_context_packet = package.get("domain_context_packet") if isinstance(package.get("domain_context_packet"), dict) else {}
+    next_stage_refs = (
+        domain_context_packet.get("next_stage_refs")
+        if isinstance(domain_context_packet.get("next_stage_refs"), dict)
+        else {}
+    )
     handoff_payload = {
         "artifact_type": "gate2_handoff_v0",
         "normalization_run_id": run_id,
@@ -147,12 +646,83 @@ def persist_gate1_result(
         "chat_id": context.chat_id,
         "user_id": context.user_id,
         "validation_status": validation_status,
-        "handoff_status": package["normalization_run"]["gate2_handoff_status"],
+        "handoff_status": handoff_status,
+        "handoff_mode": package["normalization_run"].get("gate2_handoff_mode"),
+        "reduced_subset_validated": handoff_decision.get("reduced_subset_validated") is True,
+        "eligibility_ref": eligibility_refs[-1] if eligibility_refs else None,
+        "issue_ledger_ref": issue_ledger_refs[-1] if issue_ledger_refs else None,
+        "document_usage_classification_ref": usage_classification_refs[-1] if usage_classification_refs else None,
+        "domain_context_packet_ref": domain_context_packet_refs[-1] if domain_context_packet_refs else None,
+        "unresolved_issue_refs": list(domain_context_packet.get("unresolved_issue_refs") or []),
+        "domain_stage_readiness": dict(domain_context_packet.get("stage_readiness") or {}),
+        "next_stage_refs": copy.deepcopy(next_stage_refs),
+        "next_stage_ref_summary": copy.deepcopy(domain_context_packet.get("next_stage_ref_summary") or {}),
+        "document_issue_refs": copy.deepcopy(domain_context_packet.get("document_issue_refs") or {}),
+        "source_unit_contract": copy.deepcopy(domain_context_packet.get("private_slice_access") or {}),
+        "included_document_refs": _document_artifact_refs(
+            included_document_ids,
+            source_artifact_ids_by_doc,
+        ),
+        "accepted_source_candidate_refs": _document_artifact_refs(
+            handoff_decision.get("accepted_source_candidate_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "excluded_document_refs": _document_artifact_refs(
+            handoff_decision.get("excluded_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "pending_review_refs": _document_artifact_refs(
+            handoff_decision.get("pending_review_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "source_policy_review_refs": _document_artifact_refs(
+            handoff_decision.get("source_policy_review_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "metadata_review_refs": _document_artifact_refs(
+            handoff_decision.get("metadata_review_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "ocr_required_refs": _document_artifact_refs(
+            handoff_decision.get("ocr_required_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "duplicate_review_refs": _document_artifact_refs(
+            handoff_decision.get("duplicate_review_document_ids", []),
+            source_artifact_ids_by_doc,
+        ),
+        "auto_resolved_duplicate_document_ids": list(
+            handoff_decision.get("auto_resolved_duplicate_document_ids") or []
+        ),
+        "auto_canonical_duplicate_groups": list(
+            handoff_decision.get("auto_canonical_duplicate_groups") or []
+        ),
+        "metadata_passport_refs": _document_artifact_refs(
+            handoff_decision.get("included_document_ids", []),
+            passport_refs_by_doc,
+        ),
+        "clarification_resolution_refs": clarification_resolution_refs,
+        "reason_codes": list(handoff_decision.get("reason_codes", [])),
+        "decision_status_counts": dict(handoff_decision.get("decision_status_counts") or {}),
+        "handoff_blocker_counts": dict(handoff_decision.get("handoff_blocker_counts") or {}),
         "safe_refs": safe_refs,
-        "private_slice_refs": private_refs,
+        "private_slice_refs": included_private_refs,
+        "private_source_unit_refs": included_source_unit_refs,
+        "private_source_unit_refs_by_next_stage_bucket": _private_slice_refs_by_next_stage_bucket(
+            next_stage_refs,
+            private_source_unit_refs_by_doc,
+        ),
+        "private_slice_refs_by_next_stage_bucket": _private_slice_refs_by_next_stage_bucket(
+            next_stage_refs,
+            private_refs_by_doc,
+        ),
         "blocker_refs": blocker_refs,
         "created_at": utc_now_iso(),
     }
+    handoff_record_validation_status = _handoff_record_validation_status(
+        package=package,
+        gate1_validation_status=validation_status,
+    )
     handoff_record = put(
         _record(
             artifact_type="gate2_handoff_v0",
@@ -162,9 +732,25 @@ def persist_gate1_result(
             source_file_ref=None,
             visibility="safe_internal",
             storage_backend="project_artifact_store",
-            validation_status=validation_status if handoff_payload["handoff_status"] != "blocked" else "blocked",
+            validation_status=handoff_record_validation_status,
             payload=handoff_payload,
-            safe_metadata={"handoff_status": handoff_payload["handoff_status"]},
+            safe_metadata={
+                "handoff_status": handoff_payload["handoff_status"],
+                "handoff_mode": handoff_payload["handoff_mode"],
+                "decision_status_counts": handoff_payload["decision_status_counts"],
+                "handoff_blocker_counts": handoff_payload["handoff_blocker_counts"],
+                "next_stage_ref_summary": handoff_payload["next_stage_ref_summary"],
+                "source_unit_schema_version": handoff_payload["source_unit_contract"].get(
+                    "source_unit_schema_version"
+                ),
+                "source_fact_input_manifest_status": (
+                    "resolver_ready"
+                    if handoff_record_validation_status == "validated"
+                    else "blocked"
+                ),
+                "auto_resolved_duplicate_document_ids": handoff_payload["auto_resolved_duplicate_document_ids"],
+                "auto_canonical_duplicate_groups": handoff_payload["auto_canonical_duplicate_groups"],
+            },
             access_policy={**access_policy, "requires_validated_gate1": True},
             warning_codes=_warning_codes(package),
         )
@@ -175,6 +761,8 @@ def persist_gate1_result(
         gate2_handoff_ref=handoff_record.artifact_id,
         safe_refs=safe_refs,
         private_slice_refs=private_refs,
+        private_source_payload_refs=private_source_payload_refs,
+        private_source_unit_refs=private_source_unit_refs,
         blocker_refs=blocker_refs,
         artifact_refs_by_type=refs_by_type,
     )
@@ -240,6 +828,38 @@ def _source_refs_for_documents(
     return refs
 
 
+def _document_artifact_refs(
+    document_ids: list[Any],
+    source_artifact_ids_by_doc: dict[str, str],
+) -> list[str]:
+    refs = []
+    for document_id in document_ids:
+        artifact_id = source_artifact_ids_by_doc.get(str(document_id))
+        if artifact_id:
+            refs.append(artifact_id)
+    return refs
+
+
+def _private_slice_refs_by_next_stage_bucket(
+    next_stage_refs: dict[str, Any],
+    private_refs_by_doc: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    bucket_refs = {}
+    for bucket in (
+        "primary_source_extraction_refs",
+        "secondary_source_extraction_refs",
+        "cross_check_refs",
+        "declaration_support_refs",
+        "audit_reference_refs",
+        "duplicate_or_non_primary_refs",
+    ):
+        refs = []
+        for document_ref in next_stage_refs.get(bucket) or []:
+            refs.extend(private_refs_by_doc.get(str(document_ref), []))
+        bucket_refs[bucket] = refs
+    return bucket_refs
+
+
 def _validation_status(package: dict) -> str:
     status = package.get("validation_result", {}).get("status")
     if status == "passed":
@@ -249,15 +869,77 @@ def _validation_status(package: dict) -> str:
     return "blocked"
 
 
+def _handoff_record_validation_status(
+    *,
+    package: dict[str, Any],
+    gate1_validation_status: str,
+) -> str:
+    if gate1_validation_status != "validated":
+        return gate1_validation_status
+    domain_context_packet = (
+        package.get("domain_context_packet")
+        if isinstance(package.get("domain_context_packet"), dict)
+        else {}
+    )
+    source_fact_readiness = (
+        domain_context_packet.get("stage_readiness", {}).get("source_fact_extraction")
+        if isinstance(domain_context_packet.get("stage_readiness"), dict)
+        else None
+    )
+    if source_fact_readiness in {"ready", "ready_with_issue_context"}:
+        # Full/reduced compatibility handoff may still be blocked by metadata,
+        # while the DCP explicitly permits source-fact extraction with issue
+        # context. Keep the resolver manifest readable without changing the
+        # compatibility status carried in its payload.
+        return "validated"
+    if package.get("normalization_run", {}).get("gate2_handoff_status") == "blocked":
+        return "blocked"
+    return gate1_validation_status
+
+
 def _safe_metadata_for_payload(package: dict, artifact_type: str) -> dict[str, Any]:
     run = package["normalization_run"]
-    return {
+    metadata = {
         "artifact_type": artifact_type,
         "normalizer_version": package["normalizer_version"],
         "run_status": run["run_status"],
         "gate2_handoff_status": run["gate2_handoff_status"],
+        "gate2_handoff_mode": run.get("gate2_handoff_mode"),
         "files_total": package["summary_counts"]["files_total"],
     }
+    if artifact_type == "gate1_issue_ledger_v0":
+        summary = (package.get("gate1_issue_ledger") or {}).get("summary") or {}
+        metadata.update(
+            {
+                "issues_total": summary.get("issues_total"),
+                "unresolved_issues_total": summary.get("unresolved_issues_total"),
+                "skipped_unresolved_issues_total": summary.get("skipped_unresolved_issues_total"),
+                "awaiting_answer_unresolved_issues_total": summary.get(
+                    "awaiting_answer_unresolved_issues_total"
+                ),
+            }
+        )
+    elif artifact_type == "document_usage_classification_v0":
+        summary = (package.get("document_usage_classification") or {}).get("summary") or {}
+        metadata.update(
+            {
+                "documents_total": summary.get("documents_total"),
+                "source_fact_extraction_ready_total": summary.get("source_fact_extraction_ready_total"),
+                "source_fact_extraction_blocked_total": summary.get("source_fact_extraction_blocked_total"),
+            }
+        )
+    elif artifact_type == "domain_context_packet_v0":
+        packet = package.get("domain_context_packet") or {}
+        metadata.update(
+            {
+                "domain_ingestion_status": packet.get("domain_ingestion_status"),
+                "unresolved_issue_summary": packet.get("unresolved_issue_summary"),
+                "stage_readiness": packet.get("stage_readiness"),
+                "next_stage_ref_summary": packet.get("next_stage_ref_summary"),
+                "vector_knowledge_guard": packet.get("vector_knowledge_guard"),
+            }
+        )
+    return metadata
 
 
 def _warning_codes(package: dict) -> list[str]:

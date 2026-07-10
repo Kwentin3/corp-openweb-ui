@@ -97,12 +97,18 @@ def profile_txt(
         return _blocked_profile(document_id, container_format, [blocker["blocker_id"]]), [], [blocker]
 
     table_candidate = False
+    table_rows: list[list[str]] = []
+    html_table_count = 0
+    html_table_columns_max = 0
     clean_text = decoded
     if text_subtype == "html_text":
         extractor = _HtmlTextExtractor()
         extractor.feed(decoded)
         clean_text = extractor.clean_text()
         table_candidate = extractor.table_candidate
+        table_rows = extractor.table_rows
+        html_table_count = extractor.table_count
+        html_table_columns_max = extractor.max_cells_in_row
 
     lines = clean_text.splitlines()
     nonblank_sections = 0
@@ -142,6 +148,40 @@ def profile_txt(
         "created_for_gate": "gate1",
         "text": snippet,
     }
+    private_slices = [private_slice]
+    normalized_slice_refs = [private_slice["slice_id"]]
+    if table_rows:
+        slice_rows = table_rows[:10]
+        table_slice = {
+            "slice_id": slice_id(document_id, "html_table_001"),
+            "document_id": document_id,
+            "profile_id": current_profile_id,
+            "slice_type": "table_rows",
+            "source_location": {
+                "kind": "html_table_rows",
+                "start_row": 1,
+                "end_row": len(slice_rows),
+            },
+            "location": {
+                "kind": "html_table_rows",
+                "start_row": 1,
+                "end_row": len(slice_rows),
+            },
+            "bounded": True,
+            "rows_in_slice": len(slice_rows),
+            "rows_count": len(slice_rows),
+            "columns_count": max((len(row) for row in slice_rows), default=0),
+            "row_range": [1, len(slice_rows)],
+            "column_policy": "html_first_detected_table_cells",
+            "cells": slice_rows,
+            "rows": slice_rows,
+            "truncated": len(table_rows) > len(slice_rows),
+            "parser": "python_html_table_decode",
+            "created_for_gate": "gate1",
+        }
+        private_slices.append(table_slice)
+        normalized_slice_refs.append(table_slice["slice_id"])
+
     profile = {
         "profile_id": current_profile_id,
         "document_id": document_id,
@@ -150,19 +190,22 @@ def profile_txt(
         "parser_version": "1",
         "profile_status": "profiled",
         "machine_readable": "conditional",
-        "machine_readable_table": False,
+        "machine_readable_table": bool(table_rows),
         "text_subtype": text_subtype,
         "encoding": encoding,
         "line_count": len(lines),
         "section_count": nonblank_sections,
         "clean_text_available": bool(clean_text.strip()),
         "table_candidate": table_candidate,
-        "slice_truncated": private_slice["truncated"],
-        "normalized_slice_refs": [private_slice["slice_id"]],
+        "html_table_count": html_table_count,
+        "html_table_rows_count": len(table_rows),
+        "html_table_columns_max": html_table_columns_max,
+        "slice_truncated": any(item.get("truncated") for item in private_slices),
+        "normalized_slice_refs": normalized_slice_refs,
         "warnings": [] if clean_text else ["empty_text"],
         "blocker_refs": [],
     }
-    return profile, [private_slice], []
+    return profile, private_slices, []
 
 
 def _detect_delimiter(decoded: str) -> str:
@@ -199,24 +242,48 @@ class _HtmlTextExtractor(HTMLParser):
         super().__init__()
         self._parts: list[str] = []
         self._skip_depth = 0
-        self._in_table = False
+        self._table_depth = 0
+        self._in_row = False
+        self._current_row: list[str] = []
+        self._current_cell: list[str] | None = None
         self.table_candidate = False
+        self.table_count = 0
+        self.table_rows: list[list[str]] = []
+        self.max_cells_in_row = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
         if tag in {"script", "style"}:
             self._skip_depth += 1
         if tag == "table":
-            self._in_table = True
+            self._table_depth += 1
+            self.table_count += 1
             self.table_candidate = True
-        if tag in {"br", "p", "div", "tr", "li", "section", "h1", "h2", "h3"}:
+        if tag == "tr" and self._table_depth:
+            self._in_row = True
+            self._current_row = []
+        if tag in {"td", "th"} and self._in_row:
+            self._current_cell = []
+        if tag in {"br", "p", "div", "tr", "td", "th", "li", "section", "h1", "h2", "h3"}:
             self._parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style"} and self._skip_depth:
             self._skip_depth -= 1
         if tag == "table":
-            self._in_table = False
-        if tag in {"p", "div", "tr", "li", "section", "h1", "h2", "h3"}:
+            self._table_depth = max(0, self._table_depth - 1)
+        if tag in {"td", "th"} and self._current_cell is not None:
+            cell = " ".join(" ".join(self._current_cell).split())
+            self._current_row.append(cell)
+            self._current_cell = None
+        if tag == "tr" and self._in_row:
+            row = [cell for cell in self._current_row if cell]
+            if row:
+                self.table_rows.append(row)
+                self.max_cells_in_row = max(self.max_cells_in_row, len(row))
+            self._current_row = []
+            self._current_cell = None
+            self._in_row = False
+        if tag in {"p", "div", "tr", "td", "th", "li", "section", "h1", "h2", "h3"}:
             self._parts.append("\n")
 
     def handle_data(self, data: str) -> None:
@@ -225,8 +292,10 @@ class _HtmlTextExtractor(HTMLParser):
         text = data.strip()
         if text:
             self._parts.append(text)
-            if self._in_table:
+            if self._table_depth:
                 self.table_candidate = True
+            if self._current_cell is not None:
+                self._current_cell.append(text)
 
     def clean_text(self) -> str:
         lines = []

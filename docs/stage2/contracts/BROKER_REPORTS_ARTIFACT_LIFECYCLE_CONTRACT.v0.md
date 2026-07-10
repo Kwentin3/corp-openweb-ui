@@ -17,6 +17,18 @@ The contract must support:
 - purge and tombstone behavior;
 - Gate 2 handoff by opaque refs.
 
+The contract also requires a source-intake precondition: raw customer case uploads must not be accepted for customer-approved Gate 1 until OpenWebUI native extraction/vectorization is blocked or bypassed for the Broker Reports route. Empty Knowledge is not enough proof.
+
+Required source-intake precondition:
+
+```text
+customer_docs_loaded_to_knowledge=false
+raw_customer_case_uploads_vectorized_by_openwebui=false
+raw_customer_case_uploads_used_as_native_rag_sources=false
+raw_customer_case_uploads_not_extracted_into_openwebui_chat_context=true
+gate1_pipe_receives_only_opaque_source_refs=true
+```
+
 ## 2. Required Record Fields
 
 Every artifact record must include:
@@ -124,6 +136,14 @@ Allowed Gate 1 artifact types:
 
 `debug_diagnostic_v0` is disabled in production unless an explicit operator policy enables it.
 
+Every new private normalized slice must validate as
+`source_unit_provenance_v0`. Table slices carry stable table, row, range, cell,
+cell-value and source-value refs. Text slices carry stable segment, section,
+page/range where available, character-span and source-value refs. Both carry
+parser/source/payload checksum refs and `source_unit_coverage_v0` accounting.
+Only `NormalizedSliceProvenanceFactory.create` may mint these refs; consumers
+resolve and recompute them through the private payload and checksum policy.
+
 ## 6. Storage Backends
 
 Allowed storage backend values:
@@ -154,6 +174,8 @@ Allowed storage backend values:
 ```
 
 Do not put raw filenames, local paths, ZIP member names, sheet names or extracted customer text into chat-visible source refs.
+
+For customer-approved cases, a `source_file_ref_v0` is valid only if the intake report proves that the corresponding OpenWebUI source upload did not create native RAG/vector state and did not store extracted source text in OpenWebUI file data. If that proof fails, the source ref may be kept only as a synthetic/debug tombstone or blocker evidence, not as customer-ready intake.
 
 ## 8. Access Rules
 
@@ -221,6 +243,9 @@ Resolver and persistence code should use typed failure codes:
 - `source_file_unavailable`;
 - `retention_policy_missing`;
 - `knowledge_storage_forbidden`.
+- `source_upload_vectorized_by_openwebui`;
+- `source_upload_extracted_into_openwebui_file_data`;
+- `source_upload_cleanup_vector_residue`.
 
 All failure modes are fail-closed.
 
@@ -267,3 +292,42 @@ Gate 2 handoff record:
 ```
 
 Gate 2 must resolve `private_slice_refs` through ArtifactStore. It must not parse private data from the chat message.
+
+2026-07-10 handoff clarification: the JSON above is a legacy-minimal example.
+The canonical Gate 2 semantic authority is a validated
+`domain_context_packet_v0`; `gate2_handoff_v0` is its ArtifactStore resolver
+manifest. Source-fact extraction must consume `next_stage_refs`,
+`document_issue_refs`, and `private_slice_refs_by_next_stage_bucket`.
+`included_document_refs` / the reduced subset is primary compatibility only and
+must not be treated as the complete source-ready input. The proposed Gate 2
+artifact placement is defined in
+`BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.v0.md`.
+
+## 13. Customer-Approved Readiness Gate
+
+Before any customer-approved package is uploaded, the latest Gate 1 source-intake smoke must prove:
+
+- explicit `customer_approved_test` retention policy is configured;
+- Knowledge delta is zero;
+- document table delta is zero;
+- vector DB collection/file delta for the case is zero;
+- uploaded source file data does not contain extracted customer text;
+- OpenWebUI file cleanup and ArtifactStore purge behavior are understood and documented;
+- Gate 2 receives opaque refs only.
+
+The 2026-07-08 synthetic no-RAG smoke rejected the native per-model candidate:
+`file_context=false` did not stop default upload processing/vectorization on the
+target route. The follow-up process-false smoke proved the project-owned private
+intake fallback with zero vector/Knowledge/document deltas, ArtifactStore
+persistence, resolver checks and purge/tombstones. Customer-approved upload is
+allowed only through that `process=false` private intake path.
+
+## Full-source private artifacts (2026-07-10)
+
+`private_normalized_source_payload_v0` and
+`private_normalized_source_unit_v0` inherit the same source/chat deletion
+cascade, TTL/manual purge rules and redacted tombstone policy as other
+`private_case` payload artifacts. They are persisted to
+`project_artifact_payload`, require Gate 2 resolver access, and are forbidden in
+OpenWebUI Knowledge, document extraction and vector storage. Partial parser or
+budget status does not relax lifecycle or access checks.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -16,6 +17,9 @@ from .contracts import (
     taxonomy_candidate_id,
 )
 from .detectors import detect_container, extension_from_name, machine_readable_baseline
+from .domain_ingestion import apply_domain_ingestion_artifacts
+from .eligibility import build_document_source_eligibility
+from .full_source import FullSourceArtifactFactory
 from .inputs import FileInput
 from .profilers_csv_txt import profile_csv, profile_txt
 from .profilers_docx import profile_docx
@@ -24,6 +28,7 @@ from .profilers_pdf import profile_pdf
 from .profilers_xlsx import profile_xlsx
 from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
+from .source_provenance import NormalizedSliceProvenanceFactory
 from .taxonomy import classify_document
 from .validators import merge_validation_results, validate_artifacts, validate_safe_report
 
@@ -56,11 +61,16 @@ class Gate1Normalizer:
         documents: list[dict] = []
         profiles: list[dict] = []
         private_slices: list[dict] = []
+        private_source_payloads: list[dict] = []
+        private_source_units: list[dict] = []
+        full_source_document_summaries: list[dict] = []
         taxonomy_candidates: list[dict] = []
         blockers: list[dict] = []
         sha_to_first_doc: dict[str, str] = {}
         sha_counts: Counter[str] = Counter()
         doc_private_slices: dict[str, list[dict]] = defaultdict(list)
+        slice_provenance = NormalizedSliceProvenanceFactory().create()
+        full_source_builder = FullSourceArtifactFactory().create()
 
         if not file_inputs:
             blockers.append(blocker_factory.no_files(run_id))
@@ -135,6 +145,13 @@ class Gate1Normalizer:
 
             doc_blockers.extend(profile_blockers)
             blockers.extend(doc_blockers)
+            if new_slices:
+                new_slices = slice_provenance.enrich_slices(
+                    normalization_run_id=run_id,
+                    document_id=doc_id,
+                    source_checksum_sha256=str(content_sha256 or ""),
+                    slices=new_slices,
+                )
             if profile is not None:
                 profile["blocker_refs"] = sorted(
                     set(profile.get("blocker_refs", []))
@@ -143,6 +160,19 @@ class Gate1Normalizer:
                 profiles.append(profile)
             private_slices.extend(new_slices)
             doc_private_slices[doc_id].extend(new_slices)
+
+            if content_bytes is not None and content_sha256:
+                full_source_result = full_source_builder.build(
+                    normalization_run_id=run_id,
+                    document_id=doc_id,
+                    profile_id=profile["profile_id"] if profile else profile_id(doc_id),
+                    container_format=container,
+                    content_bytes=content_bytes,
+                    source_checksum_sha256=content_sha256,
+                )
+                private_source_payloads.extend(full_source_result.payloads)
+                private_source_units.extend(full_source_result.units)
+                full_source_document_summaries.append(full_source_result.summary)
 
             declared_size = file_input.declared_size_bytes
             size_bytes = len(content_bytes) if content_bytes is not None else declared_size
@@ -174,6 +204,7 @@ class Gate1Normalizer:
             if doc_id:
                 blockers_by_doc[doc_id].append(blocker)
 
+        source_policy_context = self._source_policy_context(input_context or {})
         for document in documents:
             profile = next(
                 (item for item in profiles if item.get("document_id") == document["document_id"]),
@@ -185,6 +216,8 @@ class Gate1Normalizer:
                 profile=profile,
                 private_slices=doc_private_slices.get(document["document_id"], []),
                 blocker_codes=doc_blocker_codes,
+                source_policy_context=source_policy_context,
+                source_policy_hint=self._source_policy_hint_for_document(document, source_policy_context),
             )
             if (
                 taxonomy_candidate["document_class_candidate"] == "unknown_or_needs_review"
@@ -205,9 +238,32 @@ class Gate1Normalizer:
         for document in documents:
             document["blocker_refs"] = sorted(set(blocker_ids_by_doc.get(document["document_id"], [])))
 
+        document_source_eligibility, source_eligibility_summary, gate2_handoff = (
+            build_document_source_eligibility(
+                run_id=run_id,
+                documents=documents,
+                taxonomy_candidates=taxonomy_candidates,
+                blockers=blockers,
+                ocr_policy_status=self._ocr_policy_status(input_context or {}),
+                input_context=input_context or {},
+                criticality_refinement_enabled=self._criticality_refinement_enabled(input_context or {}),
+            )
+        )
         summary_counts = self._summary_counts(documents, taxonomy_candidates, blockers, sha_counts)
+        full_source_coverage_summary = self._full_source_coverage_summary(
+            documents=full_source_document_summaries,
+            payloads=private_source_payloads,
+            units=private_source_units,
+        )
+        summary_counts["full_source_coverage_counts"] = copy.deepcopy(
+            full_source_coverage_summary["status_counts"]
+        )
+        summary_counts["source_eligibility_counts"] = dict(
+            source_eligibility_summary.get("status_counts", {})
+        )
         run_status = self._run_status(file_inputs, blockers)
-        gate2_handoff_status = "blocked" if any(item.get("blocks_gate2") for item in blockers) else "ready_with_safe_refs"
+        gate2_handoff_status = gate2_handoff["gate2_handoff_status"]
+        gate2_handoff_mode = gate2_handoff["handoff_mode"]
         normalization_run = {
             "schema_version": "normalization_run_v0",
             "run_id": run_id,
@@ -219,6 +275,7 @@ class Gate1Normalizer:
             "artifacts_created": list(artifact_refs.keys()),
             "privacy_validation_status": "pending",
             "gate2_handoff_status": gate2_handoff_status,
+            "gate2_handoff_mode": gate2_handoff_mode,
             "safety_flags": safety_flags(),
         }
         package = {
@@ -237,11 +294,18 @@ class Gate1Normalizer:
             },
             "technical_readability_profiles": profiles,
             "private_normalized_slices": private_slices,
+            "private_normalized_source_payloads": private_source_payloads,
+            "private_normalized_source_units": private_source_units,
+            "full_source_coverage_summary": full_source_coverage_summary,
             "taxonomy_candidates": taxonomy_candidates,
             "normalization_blockers": blockers,
+            "document_source_eligibility": document_source_eligibility,
+            "source_eligibility_summary": source_eligibility_summary,
+            "gate2_handoff": gate2_handoff,
             "summary_counts": summary_counts,
-            "recommended_next_step": self._recommended_next_step(file_inputs, blockers),
+            "recommended_next_step": self._recommended_next_step(file_inputs, blockers, gate2_handoff),
         }
+        package = apply_domain_ingestion_artifacts(package)
         artifact_validation = validate_artifacts(package)
         package["validation_result"] = artifact_validation
         safe_report = render_safe_report(package)
@@ -257,6 +321,9 @@ class Gate1Normalizer:
             package["normalization_run"]["run_status"] = "privacy_failed"
             package["normalization_run"]["privacy_validation_status"] = "failed"
             package["normalization_run"]["gate2_handoff_status"] = "blocked"
+            package["normalization_run"]["gate2_handoff_mode"] = "gate2_blocked_no_eligible_sources"
+            package["gate2_handoff"]["handoff_mode"] = "gate2_blocked_no_eligible_sources"
+            package["gate2_handoff"]["gate2_handoff_status"] = "blocked"
             package["summary_counts"]["blockers_total"] = len(package["normalization_blockers"])
             package["validation_result"] = validation
             safe_report = render_privacy_failed_report(
@@ -270,6 +337,44 @@ class Gate1Normalizer:
             safe_report = render_safe_report(package)
         return NormalizationResult(package=package, safe_report=safe_report, private_markers=private_markers)
 
+    def _full_source_coverage_summary(
+        self,
+        *,
+        documents: list[dict],
+        payloads: list[dict],
+        units: list[dict],
+    ) -> dict:
+        status_counts = Counter(
+            str(item.get("parser_completeness_status") or "blocked") for item in documents
+        )
+        format_status_counts: dict[str, Counter] = defaultdict(Counter)
+        for item in documents:
+            format_status_counts[str(item.get("container_format") or "unknown")][
+                str(item.get("parser_completeness_status") or "blocked")
+            ] += 1
+        return {
+            "schema_version": "full_source_coverage_summary_v0",
+            "documents_total": len(documents),
+            "status_counts": dict(sorted(status_counts.items())),
+            "format_status_counts": {
+                key: dict(sorted(value.items()))
+                for key, value in sorted(format_status_counts.items())
+            },
+            "payloads_total": len(payloads),
+            "extraction_units_total": len(units),
+            "rows_total": sum(int(item.get("rows_total") or 0) for item in payloads),
+            "text_characters_total": sum(
+                int(item.get("text_characters_total") or 0) for item in payloads
+            ),
+            "full_coverage_documents_total": sum(
+                1 for item in documents if item.get("full_coverage_available") is True
+            ),
+            "documents": copy.deepcopy(documents),
+            "preview_artifacts_are_coverage_authority": False,
+            "customer_docs_loaded_to_knowledge": False,
+            "vectorization_performed": False,
+        }
+
     def _input_summary(self, file_input: FileInput) -> dict:
         extension = extension_from_name(file_input.original_filename_private, file_input.mime_type)
         return {
@@ -277,6 +382,28 @@ class Gate1Normalizer:
             "extension": extension,
             "mime_type": file_input.mime_type,
         }
+
+    def _source_policy_context(self, input_context: dict) -> dict:
+        value = input_context.get("source_policy")
+        return value if isinstance(value, dict) else {}
+
+    def _source_policy_hint_for_document(self, document: dict, source_policy_context: dict) -> dict:
+        hints = source_policy_context.get("safe_registry_role_hints")
+        if not isinstance(hints, list):
+            return {}
+        sha256 = str(document.get("sha256") or "")
+        if not sha256:
+            return {}
+        for hint in hints:
+            if not isinstance(hint, dict):
+                continue
+            full_sha = str(hint.get("sha256") or "")
+            prefix = str(hint.get("sha256_prefix") or hint.get("hash_prefix") or "")
+            if full_sha and full_sha == sha256:
+                return hint
+            if prefix and sha256.startswith(prefix):
+                return hint
+        return {}
 
     def _summary_counts(
         self,
@@ -306,12 +433,49 @@ class Gate1Normalizer:
         blocking = any(blocker.get("blocks_gate2") for blocker in blockers)
         return "completed_with_blockers" if blocking or blockers else "completed"
 
-    def _recommended_next_step(self, file_inputs: list[FileInput], blockers: list[dict]) -> str:
+    def _recommended_next_step(
+        self,
+        file_inputs: list[FileInput],
+        blockers: list[dict],
+        gate2_handoff: dict,
+    ) -> str:
         codes = {blocker["code"] for blocker in blockers}
         if not file_inputs:
             return "attach_synthetic_files_and_retry"
         if "bytes_unavailable" in codes:
             return "verify_pipe_byte_access_boundary"
+        mode = gate2_handoff.get("handoff_mode")
+        if mode == "reduced_subset_ready_for_gate2":
+            return "continue_with_reduced_gate2_subset_after_specialist_confirmation"
+        if mode == "gate2_blocked_requires_ocr":
+            return "route_ocr_candidates_to_future_ocr_gate_or_manual_review"
+        if mode == "gate2_blocked_requires_metadata_review":
+            return "review_document_metadata_passports"
+        if mode == "gate2_blocked_requires_policy_review":
+            return "confirm_source_policy_for_candidate_documents"
+        if mode == "gate2_blocked_requires_duplicate_resolution":
+            return "choose_canonical_duplicate_documents"
+        if mode == "gate2_blocked_no_eligible_sources":
+            return "attach_supported_source_documents_or_review_package"
         if blockers:
             return "review_gate1_blockers"
         return "ready_for_gui_smoke"
+
+    def _ocr_policy_status(self, input_context: dict) -> str:
+        value = (
+            input_context.get("ocr_policy_status")
+            or input_context.get("ocr_policy")
+            or input_context.get("ocr_gate1_policy")
+        )
+        if value in {"enabled", "ocr_enabled"}:
+            return "enabled-not-executed"
+        if value in {"required-before-gate2", "manual-review-only", "enabled-not-executed", "disabled"}:
+            return str(value)
+        return "disabled"
+
+    def _criticality_refinement_enabled(self, input_context: dict) -> bool:
+        return bool(
+            input_context.get("clarification_criticality_refinement_enabled") is True
+            or input_context.get("criticality_refinement_enabled") is True
+            or input_context.get("metadata_criticality_refinement_enabled") is True
+        )

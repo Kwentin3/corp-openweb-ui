@@ -1,0 +1,7 @@
+Synthetic Broker LLC activity statement candidate.
+
+This synthetic document is for Gate 1 metadata clarification proof only.
+It describes a broker report candidate with operation sections present.
+The report period is intentionally omitted.
+The account or contract identifier is intentionally omitted.
+No tax calculation, declaration, XLS export, OCR or source-fact extraction is requested here.

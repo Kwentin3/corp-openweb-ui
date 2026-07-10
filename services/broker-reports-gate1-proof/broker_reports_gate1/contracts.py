@@ -5,7 +5,7 @@ from typing import Iterable
 
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
-NORMALIZER_VERSION = "gate1_backend_profiling_completion_v1"
+NORMALIZER_VERSION = "gate1_pdf_text_layer_slice1_v0"
 SAFETY_STATEMENT = (
     "Gate 1 did not calculate tax, extract source facts through LLM, generate "
     "declaration, generate XLS/XLSX or file with FNS."
@@ -26,11 +26,95 @@ SUPPORTED_CONTRACTS = [
     "document_inventory_v0",
     "technical_readability_profile_v0",
     "private_normalized_slices_v0",
+    "private_normalized_table_slice_v0",
+    "private_normalized_text_slice_v0",
+    "private_normalized_source_payload_v0",
+    "private_normalized_source_unit_v0",
+    "full_source_coverage_summary_v0",
+    "source_unit_provenance_v0",
+    "source_unit_coverage_v0",
     "taxonomy_candidates_v0",
     "normalization_blockers_v0",
+    "llm_document_package_v0",
+    "llm_prompt_snapshot_v0",
+    "llm_passport_raw_output_v0",
+    "llm_clarification_prompt_snapshot_v0",
+    "llm_clarification_raw_output_v0",
+    "document_metadata_passport_v0",
+    "document_metadata_passport_validation_v0",
+    "document_source_eligibility_v0",
+    "gate1_metadata_gap_report_v0",
+    "gate1_clarification_request_v0",
+    "gate1_clarification_resolution_v0",
+    "gate1_issue_ledger_v0",
+    "document_usage_classification_v0",
+    "domain_context_packet_v0",
     SAFE_REPORT_SCHEMA,
     "validation_result_v0",
 ]
+
+SOURCE_ELIGIBILITY_STATUSES = {
+    "accepted_for_gate2",
+    "accepted_as_source_candidate_for_gate2",
+    "excluded_from_gate2",
+    "requires_ocr_before_gate2",
+    "duplicate_needs_canonical_choice",
+    "unsupported_format",
+    "methodology_or_output_artifact",
+    "outside_case_scope",
+    "metadata_review_required",
+    "source_policy_review_required",
+    # Legacy status values are accepted for stored older artifacts only. New
+    # eligibility v2 decisions should use the explicit values above.
+    "requires_manual_review",
+    "not_source_document",
+    "unknown_role_requires_review",
+    "source_role_policy_review_required",
+}
+
+GATE2_HANDOFF_MODES = {
+    "full_package_ready_for_gate2",
+    "reduced_subset_ready_for_gate2",
+    "gate2_blocked_requires_metadata_review",
+    "gate2_blocked_requires_policy_review",
+    "gate2_blocked_requires_duplicate_resolution",
+    "gate2_blocked_requires_ocr",
+    "gate2_blocked_no_eligible_sources",
+    # Legacy mode accepted for stored older artifacts only. New handoff v2
+    # decisions should use a specific blocker mode above.
+    "gate2_blocked_requires_review",
+}
+
+OCR_POLICY_STATUSES = {
+    "disabled",
+    "enabled-not-executed",
+    "required-before-gate2",
+    "manual-review-only",
+}
+
+SOURCE_DOCUMENT_CLASSES = {
+    "operations_table",
+    "source_broker_report",
+    "dividends_report",
+    "fees_report",
+    "withholding_report",
+    "currency_rate_table",
+}
+
+METHODOLOGY_OR_OUTPUT_CLASSES = {
+    "calculation_template",
+    "tax_base_calculation",
+    "explanation_template",
+    "official_form",
+}
+
+TERMINAL_GATE2_BLOCKER_CODES = {
+    "bytes_unavailable",
+    "unsupported_format",
+    "encrypted_file",
+    "corrupt_file",
+    "parser_failed",
+}
 
 BLOCKER_CODES = {
     "no_files",
@@ -42,6 +126,9 @@ BLOCKER_CODES = {
     "raster_requires_ocr_or_review",
     "zip_requires_review",
     "unknown_role",
+    "llm_passport_prompt_unavailable",
+    "llm_passport_model_failed",
+    "llm_passport_validation_failed",
     "privacy_violation",
     "duplicate_review",
 }
@@ -67,8 +154,15 @@ def safe_artifact_refs(run_id: str) -> dict[str, str]:
         "document_inventory_ref": f"docinv_{suffix}",
         "technical_readability_profile_ref": f"techprofiles_{suffix}",
         "private_normalized_slices_ref": f"privslices_{suffix}",
+        "private_normalized_source_payloads_ref": f"privsrcpayloads_{suffix}",
+        "private_normalized_source_units_ref": f"privsrcunits_{suffix}",
         "taxonomy_candidates_ref": f"taxcands_{suffix}",
         "normalization_blockers_ref": f"blockers_{suffix}",
+        "document_source_eligibility_ref": f"docelig_{suffix}",
+        "document_metadata_passport_ref": f"docpass_{suffix}",
+        "gate1_issue_ledger_ref": f"issueledger_{suffix}",
+        "document_usage_classification_ref": f"docusage_{suffix}",
+        "domain_context_packet_ref": f"domainctx_{suffix}",
         "chat_visible_report_ref": f"normreport_{suffix}",
         "validation_result_ref": f"validation_{suffix}",
     }

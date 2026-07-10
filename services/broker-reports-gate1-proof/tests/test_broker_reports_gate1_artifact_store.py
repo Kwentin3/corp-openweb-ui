@@ -55,13 +55,23 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
     def test_gate1_run_persists_safe_private_and_handoff_artifacts(self):
         result, context, manifest = self._persist_clean_run()
         records = self.store.list_by_run(context.normalization_run_id)
+        case_records = self.store.list_by_case(str(context.case_id))
         types = {record.artifact_type for record in records}
+
+        self.assertEqual(
+            {record.artifact_id for record in records},
+            {record.artifact_id for record in case_records},
+        )
 
         self.assertIn("normalization_run_v0", types)
         self.assertIn("document_inventory_v0", types)
         self.assertIn("technical_readability_profile_v0", types)
         self.assertIn("taxonomy_candidates_v0", types)
         self.assertIn("normalization_blockers_v0", types)
+        self.assertIn("document_source_eligibility_v0", types)
+        self.assertIn("gate1_issue_ledger_v0", types)
+        self.assertIn("document_usage_classification_v0", types)
+        self.assertIn("domain_context_packet_v0", types)
         self.assertIn("validation_result_v0", types)
         self.assertIn("chat_visible_normalization_report_v0", types)
         self.assertIn("private_normalized_text_slice_v0", types)
@@ -83,6 +93,23 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             self.assertEqual(record.storage_backend, "project_artifact_payload")
             self.assertTrue(record.payload_ref)
             self.assertIsNone(record.payload)
+            if record.artifact_type in {
+                "private_normalized_text_slice_v0",
+                "private_normalized_table_slice_v0",
+            }:
+                self.assertEqual(
+                    record.safe_metadata["source_unit_schema_version"],
+                    "source_unit_provenance_v0",
+                )
+                self.assertTrue(record.safe_metadata["source_checksum_ref"])
+                self.assertTrue(record.safe_metadata["parser_ref"])
+                self.assertTrue(record.safe_metadata["coverage_ref"])
+                self.assertTrue(record.safe_metadata["coverage_complete"])
+        handoff_record = next(record for record in records if record.artifact_type == "gate2_handoff_v0")
+        self.assertEqual(
+            handoff_record.safe_metadata["source_fact_input_manifest_status"],
+            "resolver_ready",
+        )
         self.assertFalse(result.safe_report["safety_flags"]["customer_docs_loaded_to_knowledge"])
 
     def test_compact_chat_report_is_not_full_json_and_has_safe_run_ref(self):
@@ -91,7 +118,9 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         content = render_chat_content(result.safe_report)
 
         self.assertIn("Нормализация завершена.", content)
-        self.assertIn("Обработано файлов: 2", content)
+        self.assertIn("Получено документов: 2", content)
+        self.assertIn("Итог Gate 1: пакет поглощен", content)
+        self.assertIn("Контекст домена:", content)
         self.assertIn("Техническая ссылка: run normrun_", content)
         self.assertNotIn("```json", content)
         self.assertNotIn("private_normalized_slices", content)
@@ -249,9 +278,154 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertEqual(payload["artifact_type"], "gate2_handoff_v0")
         self.assertEqual(payload["validation_status"], "validated")
         self.assertEqual(payload["handoff_status"], "ready_with_safe_refs")
+        self.assertEqual(payload["handoff_mode"], "full_package_ready_for_gate2")
+        self.assertTrue(payload["eligibility_ref"])
+        self.assertTrue(payload["issue_ledger_ref"])
+        self.assertTrue(payload["document_usage_classification_ref"])
+        self.assertTrue(payload["domain_context_packet_ref"])
+        self.assertEqual(payload["domain_stage_readiness"]["source_fact_extraction"], "ready")
+        self.assertEqual(len(payload["included_document_refs"]), 2)
+        self.assertEqual(payload["excluded_document_refs"], [])
+        self.assertEqual(payload["pending_review_refs"], [])
+        self.assertEqual(payload["source_policy_review_refs"], [])
+        self.assertEqual(payload["ocr_required_refs"], [])
         self.assertEqual(payload["private_slice_refs"], manifest.private_slice_refs)
         self.assertNotIn("```json", rendered)
         self.assertNotIn("SYNTH-ACCOUNT-001", rendered)
+        self.assertNotIn("synthetic_operations.csv", rendered)
+
+    def test_gate2_handoff_carries_next_stage_refs_for_source_ready_non_primary_docs(self):
+        csv_content = fixture_bytes("synthetic_operations.csv")
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="handoff-primary-csv",
+                    filename="synthetic_operations.csv",
+                    content=csv_content,
+                    mime_type="text/csv",
+                    source_kind="openwebui_pipe",
+                ),
+                FileInput.from_bytes(
+                    private_ref="handoff-duplicate-csv",
+                    filename="synthetic_operations_duplicate.csv",
+                    content=csv_content,
+                    mime_type="text/csv",
+                    source_kind="openwebui_pipe",
+                ),
+            ],
+            input_context={"test_case": "artifact_store_next_stage_refs"},
+        )
+        context = ArtifactAccessContext(
+            user_id="user-next-stage",
+            case_id="case-next-stage",
+            chat_id="chat-next-stage",
+            workspace_model_id="broker_reports_gate1_pipe",
+            normalization_run_id=result.package["normalization_run"]["run_id"],
+            allow_private=True,
+        )
+        manifest = persist_gate1_result(
+            store=self.store,
+            result=result,
+            context=context,
+            retention_policy=build_retention_policy(mode="api_smoke"),
+        )
+
+        handoff = ArtifactResolver(self.store).resolve(manifest.gate2_handoff_ref, context)["payload"]
+        next_stage_refs = handoff["next_stage_refs"]
+
+        self.assertEqual(handoff["next_stage_ref_summary"]["dropped_source_ready_total"], 0)
+        self.assertEqual(len(next_stage_refs["source_fact_ready_refs"]), 2)
+        self.assertEqual(len(next_stage_refs["primary_source_extraction_refs"]), 1)
+        self.assertEqual(len(next_stage_refs["duplicate_or_non_primary_refs"]), 1)
+        self.assertEqual(set(next_stage_refs["source_ready_not_primary_refs"]), set(next_stage_refs["duplicate_or_non_primary_refs"]))
+        self.assertTrue(handoff["private_slice_refs_by_next_stage_bucket"]["primary_source_extraction_refs"])
+        self.assertTrue(handoff["private_slice_refs_by_next_stage_bucket"]["duplicate_or_non_primary_refs"])
+        self.assertNotEqual(
+            set(handoff["private_slice_refs_by_next_stage_bucket"]["primary_source_extraction_refs"]),
+            set(handoff["private_slice_refs_by_next_stage_bucket"]["duplicate_or_non_primary_refs"]),
+        )
+
+    def test_reduced_handoff_contains_eligibility_refs_and_only_included_private_refs(self):
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="reduced-csv-1",
+                    filename="synthetic_operations.csv",
+                    content=fixture_bytes("synthetic_operations.csv"),
+                    mime_type="text/csv",
+                    source_kind="openwebui_pipe",
+                ),
+                FileInput.from_bytes(
+                    private_ref="reduced-unknown-role-1",
+                    filename="synthetic_note.txt",
+                    content=b"Just a synthetic note without document role signals.",
+                    mime_type="text/plain",
+                    source_kind="openwebui_pipe",
+                ),
+                FileInput.from_bytes(
+                    private_ref="reduced-raster-1",
+                    filename="synthetic_raster.pdf",
+                    content=self._synthetic_raster_pdf_bytes(),
+                    mime_type="application/pdf",
+                    source_kind="openwebui_pipe",
+                ),
+                FileInput.from_bytes(
+                    private_ref="reduced-unsupported-1",
+                    filename="synthetic_unknown.bin",
+                    content=fixture_bytes("synthetic_unknown.bin"),
+                    mime_type="application/octet-stream",
+                    source_kind="openwebui_pipe",
+                ),
+            ],
+            input_context={"test_case": "artifact_store_reduced_handoff"},
+        )
+        context = ArtifactAccessContext(
+            user_id="user-reduced",
+            case_id="case-reduced",
+            chat_id="chat-reduced",
+            workspace_model_id="broker_reports_gate1_pipe",
+            normalization_run_id=result.package["normalization_run"]["run_id"],
+            allow_private=True,
+        )
+        manifest = persist_gate1_result(
+            store=self.store,
+            result=result,
+            context=context,
+            retention_policy=build_retention_policy(mode="api_smoke"),
+        )
+        resolver = ArtifactResolver(self.store)
+        handoff = resolver.resolve(manifest.gate2_handoff_ref, context)["payload"]
+        eligibility = resolver.resolve(handoff["eligibility_ref"], context)["payload"]
+        records = self.store.list_by_run(context.normalization_run_id)
+        types = {record.artifact_type for record in records}
+
+        self.assertIn("document_source_eligibility_v0", types)
+        self.assertIn("gate1_issue_ledger_v0", types)
+        self.assertIn("document_usage_classification_v0", types)
+        self.assertIn("domain_context_packet_v0", types)
+        self.assertEqual(handoff["handoff_status"], "ready_with_reduced_subset")
+        self.assertEqual(handoff["handoff_mode"], "reduced_subset_ready_for_gate2")
+        self.assertTrue(handoff["reduced_subset_validated"])
+        self.assertEqual(len(handoff["included_document_refs"]), 1)
+        self.assertEqual(len(handoff["pending_review_refs"]), 1)
+        self.assertEqual(len(handoff["source_policy_review_refs"]), 0)
+        self.assertEqual(len(handoff["ocr_required_refs"]), 1)
+        self.assertEqual(len(handoff["excluded_document_refs"]), 1)
+        self.assertEqual(eligibility["schema_version"], "document_source_eligibility_v0")
+        self.assertEqual(len(eligibility["entries"]), 4)
+        self.assertTrue(handoff["issue_ledger_ref"])
+        self.assertTrue(handoff["document_usage_classification_ref"])
+        self.assertTrue(handoff["domain_context_packet_ref"])
+        self.assertIn("source_fact_extraction", handoff["domain_stage_readiness"])
+        self.assertTrue(handoff["unresolved_issue_refs"])
+        self.assertLess(len(handoff["private_slice_refs"]), len(manifest.private_slice_refs))
+        included_doc_ids = set(result.safe_report["gate2_handoff"]["included_document_ids"])
+        for private_ref in handoff["private_slice_refs"]:
+            private_record = self.store.get_record_unchecked(private_ref)
+            self.assertIsNotNone(private_record)
+            self.assertIn(private_record.document_id, included_doc_ids)
+        rendered = json.dumps(handoff, ensure_ascii=False, sort_keys=True)
+        self.assertNotIn("```json", rendered)
         self.assertNotIn("synthetic_operations.csv", rendered)
 
     def _persist_clean_run(self, *, case_id: str | None = "case-1", chat_id: str = "chat-1"):
@@ -374,6 +548,17 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             retention_policy=build_retention_policy(mode="api_smoke"),
         )
         return result, context, manifest
+
+    def _synthetic_raster_pdf_bytes(self) -> bytes:
+        return (
+            b"%PDF-1.4\n"
+            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
+            b"2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n"
+            b"3 0 obj << /Type /Page /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >> endobj\n"
+            b"4 0 obj << /Length 0 >> stream\nendstream endobj\n"
+            b"5 0 obj << /Type /XObject /Subtype /Image /Width 10 /Height 10 >> endobj\n"
+            b"%%EOF"
+        )
 
     def _assert_resolve_error(self, resolver: ArtifactResolver, artifact_id: str, context: ArtifactAccessContext, code: str) -> None:
         with self.assertRaises(ArtifactStoreError) as raised:

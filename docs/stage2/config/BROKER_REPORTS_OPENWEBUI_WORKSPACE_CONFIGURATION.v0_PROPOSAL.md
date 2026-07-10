@@ -186,7 +186,7 @@ Recommended initial settings for proof:
 | Capability | Recommendation | Reason |
 | --- | --- | --- |
 | File upload | Enabled for approved group | Required for customer/source file upload. |
-| File Context | Proof-gated | Useful for chat context, but not authoritative normalization. |
+| File Context | Disabled for Broker Reports source intake unless a separate proof says otherwise | `file_context=false` is required but not sufficient; the 2026-07-08 synthetic smoke showed default upload processing/vectorization can still run. |
 | Knowledge | Enabled with approved KB only | Needed for official/methodology references. |
 | Tools | Enabled only for approved normalizer path | Needed for deterministic helper trigger. |
 | Actions | Enabled only for approved Gate 1 action | Preferred explicit UX if file refs are accessible. |
@@ -251,8 +251,15 @@ Customer-approved files can be used only after:
 - transfer method approved;
 - provider/data policy approved;
 - retention/access policy accepted;
+- no-RAG/no-vector source-intake proof accepted;
+- vector DB delta for the case proven zero;
+- uploaded file data proven not to contain extracted customer text;
 - raw filenames/private paths safety checks pass;
 - Knowledge boundary accepted.
+
+Normal OpenWebUI bulk chat upload remains blocked for Broker Reports customer packages.
+The no-RAG/no-vector source-intake guard is passed only for the project-owned
+`process=false` private intake path. `Knowledge count = 0` is not enough.
 
 ## 14. Status
 
@@ -261,6 +268,7 @@ WORKSPACE_CONFIGURATION_PROPOSAL_READY
 WORKSPACE_MODEL_RECOMMENDED_AS_SCENARIO_ENTRYPOINT
 KNOWLEDGE_FOR_APPROVED_METHODOLOGY_ONLY
 RAW_CUSTOMER_DOCS_NOT_KNOWLEDGE
+RAW_CUSTOMER_DOCS_NOT_NATIVE_RAG_VIA_PROCESS_FALSE_PRIVATE_INTAKE
 GATE1_TRIGGER_ACTION_OR_TOOL_TO_BE_PROVEN
-READY_FOR_WORKSPACE_RUNTIME_PROOF_REVIEW
+CUSTOMER_APPROVED_UPLOAD_ALLOWED_ONLY_VIA_PROCESS_FALSE_PRIVATE_INTAKE
 ```

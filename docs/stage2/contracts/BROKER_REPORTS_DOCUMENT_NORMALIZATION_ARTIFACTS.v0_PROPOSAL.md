@@ -305,7 +305,7 @@ Shape:
 
 Relation: feeds taxonomy candidates, blockers and proof readiness.
 
-## 8. Artifact: `broker_reports_normalized_text_slice_v0`
+## 8. Artifact: `private_normalized_text_slice_v0`
 
 Purpose: store bounded parser-produced text slices for the next gate.
 
@@ -314,19 +314,34 @@ Visibility: private by default.
 Required fields:
 
 - `schema_version`
+- `source_unit_schema_version=source_unit_provenance_v0`
 - `slice_id`
 - `normalization_run_id`
 - `document_id`
 - `source_location`
 - `text`
-- `redaction_state`
+- `text_segment_refs`
+- `section_refs`
+- `page_refs` and `page_range_ref` where the parser provides page location
+- `character_span_refs`
+- `segment_provenance`
+- `source_value_refs`
+- `source_value_index`
+- `source_value_projection_policy=private_payload_path_plus_checksum_v0`
+- `parser_ref`
+- `source_checksum_ref`
+- `slice_payload_checksum_ref`
+- `safe_section_labels`
+- `safe_coverage_refs`
+- `coverage`
 
 Allowed fields:
 
 - `language_hint`
 - `char_count`
-- `parser_engine`
-- `safe_projection_ref`
+- `parser`
+- parser-produced profile and extraction metadata already allowed by the Gate 1
+  private-slice payload
 
 Forbidden fields in chat-visible output:
 
@@ -339,7 +354,8 @@ Shape:
 
 ```json
 {
-  "schema_version": "broker_reports_normalized_text_slice_v0",
+  "schema_version": "private_normalized_text_slice_v0",
+  "source_unit_schema_version": "source_unit_provenance_v0",
   "slice_id": null,
   "normalization_run_id": null,
   "document_id": null,
@@ -349,16 +365,55 @@ Shape:
     "paragraph_index": null
   },
   "text": null,
-  "char_count": null,
-  "parser_engine": null,
-  "redaction_state": "private_raw | redacted_safe | rejected_for_safety",
-  "safe_projection_ref": null
+  "text_segment_refs": [],
+  "section_refs": [],
+  "page_refs": [],
+  "page_range_ref": null,
+  "character_span_refs": [],
+  "segment_provenance": [
+    {
+      "text_segment_ref": null,
+      "section_ref": null,
+      "safe_section_label": "section_001",
+      "page_ref": null,
+      "page_range_ref": null,
+      "character_span_ref": null,
+      "character_start": 0,
+      "character_end": 0,
+      "segment_kind": "blank | text_candidate",
+      "source_value_ref": null,
+      "value_checksum_ref": null
+    }
+  ],
+  "source_value_refs": [],
+  "source_value_index": [],
+  "source_value_projection_policy": "private_payload_path_plus_checksum_v0",
+  "parser_ref": null,
+  "source_checksum_ref": null,
+  "slice_payload_checksum_ref": null,
+  "safe_section_labels": [],
+  "safe_coverage_refs": [],
+  "coverage": {
+    "schema_version": "source_unit_coverage_v0",
+    "coverage_ref": null,
+    "unit_kind": "text_slice",
+    "selected_source_refs": [],
+    "blank_refs": [],
+    "text_candidate_refs": [],
+    "selected_total": 0,
+    "accounted_total": 0,
+    "all_selected_refs_accounted": true
+  }
 }
 ```
 
-Relation: can become input to source-fact extraction only through approved private access. It is not a source fact.
+Relation: can become input to source-fact extraction only through approved
+private access. It is not a source fact. Every selected segment is represented
+exactly once in `blank_refs` or `text_candidate_refs`. Original values are
+resolved by the indexed character span plus checksum; raw text is never copied
+into a safe projection.
 
-## 9. Artifact: `broker_reports_normalized_table_slice_v0`
+## 9. Artifact: `private_normalized_table_slice_v0`
 
 Purpose: store bounded parser-produced table slices for the next gate.
 
@@ -367,21 +422,36 @@ Visibility: private by default.
 Required fields:
 
 - `schema_version`
-- `table_slice_id`
+- `source_unit_schema_version=source_unit_provenance_v0`
+- `slice_id`
 - `normalization_run_id`
 - `document_id`
 - `source_location`
-- `rows_count`
-- `columns_count`
-- `table_payload_private`
-- `redaction_state`
+- bounded private `cells` payload
+- `table_ref`
+- `row_refs`
+- `row_range_ref`
+- `cell_refs`
+- `cell_value_refs`
+- `source_value_refs`
+- `normalized_header_descriptors`
+- `row_provenance`
+- `cell_provenance`
+- `source_value_index`
+- `source_value_projection_policy=private_payload_path_plus_checksum_v0`
+- `parser_ref`
+- `source_checksum_ref`
+- `slice_payload_checksum_ref`
+- `safe_coverage_refs`
+- `coverage`
 
 Allowed fields:
 
 - `columns_summary_safe`
 - `header_confidence`
-- `parser_engine`
-- `safe_projection_ref`
+- `parser`
+- parser-produced profile and extraction metadata already allowed by the Gate 1
+  private-slice payload
 
 Forbidden fields in chat-visible output:
 
@@ -394,8 +464,9 @@ Shape:
 
 ```json
 {
-  "schema_version": "broker_reports_normalized_table_slice_v0",
-  "table_slice_id": null,
+  "schema_version": "private_normalized_table_slice_v0",
+  "source_unit_schema_version": "source_unit_provenance_v0",
+  "slice_id": null,
   "normalization_run_id": null,
   "document_id": null,
   "source_location": {
@@ -404,18 +475,68 @@ Shape:
     "table_index": null,
     "row_range": null
   },
-  "rows_count": null,
-  "columns_count": null,
-  "columns_summary_safe": [],
-  "table_payload_private": null,
-  "header_confidence": "high | medium | low | unknown",
-  "parser_engine": null,
-  "redaction_state": "private_raw | redacted_safe | rejected_for_safety",
-  "safe_projection_ref": null
+  "cells": [],
+  "table_ref": null,
+  "row_refs": [],
+  "row_range_ref": null,
+  "cell_refs": [],
+  "cell_value_refs": [],
+  "source_value_refs": [],
+  "normalized_header_descriptors": [],
+  "row_provenance": [
+    {
+      "row_ref": null,
+      "row_range_ref": null,
+      "row_ordinal": 1,
+      "row_kind": "header | blank | layout | fact",
+      "row_checksum_ref": null,
+      "cell_refs": [],
+      "source_value_refs": []
+    }
+  ],
+  "cell_provenance": [
+    {
+      "cell_ref": null,
+      "cell_value_ref": null,
+      "source_value_ref": null,
+      "row_ref": null,
+      "row_ordinal": 1,
+      "column_ordinal": 1,
+      "value_checksum_ref": null
+    }
+  ],
+  "source_value_index": [],
+  "source_value_projection_policy": "private_payload_path_plus_checksum_v0",
+  "parser_ref": null,
+  "source_checksum_ref": null,
+  "slice_payload_checksum_ref": null,
+  "safe_coverage_refs": [],
+  "coverage": {
+    "schema_version": "source_unit_coverage_v0",
+    "coverage_ref": null,
+    "unit_kind": "table_row_window",
+    "selected_source_refs": [],
+    "header_candidate_refs": [],
+    "blank_refs": [],
+    "layout_candidate_refs": [],
+    "fact_candidate_refs": [],
+    "selected_total": 0,
+    "accounted_total": 0,
+    "all_selected_refs_accounted": true
+  }
 }
 ```
 
-Relation: source-fact extraction may reference table slice ids, but extracted source facts must still carry evidence wrappers and validation.
+Relation: source-fact extraction may reference table source-unit refs, but
+extracted source facts must still carry evidence wrappers, original-value refs
+and deterministic validation. Each selected row is accounted exactly once as a
+header, blank, layout or fact candidate. Original values resolve through a
+private row/column payload path and checksum.
+
+`NormalizedSliceProvenanceFactory.create` is the only production entrypoint
+that may mint these table/text provenance refs. Profilers, Gate 2 builders and
+smoke scripts consume or validate them; they must not independently construct
+row, cell, segment or source-value refs.
 
 ## 10. Artifact: `broker_reports_zip_member_inventory_v0`
 
@@ -694,7 +815,26 @@ Gate 1 artifact validation extends existing validation rules:
 
 Any privacy violation is blocking.
 
-## 15. Status
+## 15. Gate 2 derived segmentation of legacy bounded slices
+
+Gate 1 private slices remain immutable source artifacts. Gate 2 may create a
+new resolver-gated derived projection without modifying a legacy slice.
+
+The derived projection must preserve:
+
+- parent private-slice artifact ref;
+- source checksum and parent slice-payload checksum refs;
+- original row/cell/segment/source-value refs;
+- parser/table/section/page refs when present;
+- relevant issue refs and parent coverage ref.
+
+It may rebase only the private payload row or character indices needed to make
+the selected projection physically narrow. A segmentation plan must partition
+all refs visible in the parent projection. When the parent profiler bounded
+the original source, the unseen remainder is explicit as
+`pending_gate1_reslice`; it is never silently treated as covered.
+
+## 16. Status
 
 ```text
 GATE1_ARTIFACT_CONTRACTS_READY
@@ -702,4 +842,58 @@ DOCUMENT_NORMALIZATION_ARTIFACTS_V0_PROPOSAL
 NORMALIZED_SLICES_PRIVATE_BY_DEFAULT
 CHAT_VISIBLE_REPORT_SAFE_ONLY
 READY_FOR_GATE1_PROOF_PLAN
+```
+
+## 17. Full-source reslice refinement (2026-07-10)
+
+Preview slices remain valid artifacts but are not extraction coverage authority.
+
+Gate 1 additionally persists:
+
+- `private_normalized_source_payload_v0` for one parser logical unit;
+- `private_normalized_source_unit_v0` only when that payload is complete;
+- `full_source_coverage_summary_v0` as safe counts/statuses only.
+
+Both new private artifacts use `project_artifact_payload`, resolver-only access,
+the owning retention/purge policy, and no Knowledge/RAG/vector backend. A
+truncated preview never becomes complete merely because a downstream segment
+is bounded. Gate 2 prefers complete source units and labels preview use as
+`legacy_bounded_preview_fallback` with expansion readiness false.
+
+Normative details:
+
+- `BROKER_REPORTS_GATE1_FULL_SOURCE_NORMALIZED_PAYLOAD.v0.md`;
+- `BROKER_REPORTS_GATE1_EXTRACTION_SOURCE_UNITS.v0.md`.
+
+## 18. PDF text-layer normalization Slice 1 (2026-07-10)
+
+The existing heuristic PDF preview remains unchanged and partial. The
+implemented extraction-grade page-text path reuses:
+
+- `private_normalized_source_payload_v0` with nested
+  `pdf_text_layer_projection_v0`;
+- `private_normalized_source_unit_v0` with PDF-specific page/section/line/table
+  candidate unit metadata;
+- `full_source_coverage_summary_v0` for safe aggregate counts and reason codes.
+
+The private PDF projection carries page inventory, parser fragments, optional
+block/line/word geometry, source-value paths, page/payload checksums and exact
+coverage. Complete text-layer coverage is independent from visible-content and
+semantic-reconstruction status. Mixed text/image content therefore cannot be
+misreported as complete visible-document coverage.
+
+The same ArtifactStore, resolver, retention, expiry and purge boundaries apply.
+No raw PDF text, filenames, file ids, paths or values enter chat/reports. OCR,
+VLM, page rendering for extraction, ordinary processed upload, Knowledge/RAG
+and vectorization remain forbidden.
+
+Normative contracts:
+
+- `BROKER_REPORTS_PDF_TEXT_LAYER_PAYLOAD.v0.md`;
+- `BROKER_REPORTS_PDF_TEXT_LAYER_SOURCE_UNITS.v0.md`.
+
+```text
+PDF_TEXT_LAYER_CONTRACTS_READY
+PDF_TEXT_LAYER_PAGE_TEXT_RUNTIME_IMPLEMENTED
+PDF_TEXT_LAYER_LAYOUT_TABLE_RUNTIME_DEFERRED
 ```

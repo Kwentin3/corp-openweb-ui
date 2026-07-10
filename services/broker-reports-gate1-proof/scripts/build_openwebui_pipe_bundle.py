@@ -9,9 +9,22 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 PIPE_SOURCE = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe.py"
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
+GATE2_PIPE_SOURCE = (
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
+)
+GATE2_BUNDLE_PATH = (
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe_bundled.py"
+)
+GATE2_DOMAIN_PIPE_SOURCE = (
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe.py"
+)
+GATE2_DOMAIN_BUNDLE_PATH = (
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
+)
 
 MODULE_ORDER = [
     "contracts",
+    "source_provenance",
     "blockers",
     "inputs",
     "detectors",
@@ -21,16 +34,34 @@ MODULE_ORDER = [
     "profilers_pdf",
     "profilers_xlsx",
     "profilers_zip",
+    "pdf_text_layer",
+    "full_source",
     "taxonomy",
+    "criticality",
+    "eligibility",
+    "domain_ingestion",
     "validators",
+    "clarification",
     "artifact_models",
     "artifact_lifecycle",
     "artifact_retention",
     "artifact_store",
     "artifact_resolver",
+    "gate2_input_readiness",
+    "gate2_source_fact_contracts",
+    "gate2_domain_routing",
+    "gate2_domain_packages",
+    "gate2_source_unit_segmentation",
+    "gate2_domain_contracts",
+    "gate2_domain_finalization",
+    "gate2_source_fact_validation",
+    "gate2_source_fact_runtime",
+    "gate2_source_fact_stitching",
+    "gate2_domain_runtime",
     "gate2_handoff",
     "compact_report",
     "safe_report",
+    "document_passport",
     "normalizer",
     "__init__",
 ]
@@ -42,9 +73,47 @@ def main() -> None:
         for name in MODULE_ORDER
     }
     pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
-    bundle = _render_bundle(modules=modules, pipe_source=pipe_source)
+    bundle = _render_bundle(
+        modules=modules,
+        pipe_source=pipe_source,
+        title="Broker Reports Gate 1 Pipe Backend Normalizer",
+        version="0.5.0-pdf-text-layer-slice1-bundled",
+        package_version="gate1_pdf_text_layer_slice1_v0",
+        source_label="openwebui_actions/broker_reports_gate1_pipe.py",
+        requirements="pydantic,pypdf==6.7.5",
+    )
     BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
     print(str(BUNDLE_PATH))
+    gate2_pipe_source = _strip_openwebui_metadata(
+        GATE2_PIPE_SOURCE.read_text(encoding="utf-8")
+    )
+    gate2_bundle = _render_bundle(
+        modules=modules,
+        pipe_source=gate2_pipe_source,
+        title="Broker Reports Gate 2 Source Fact Extraction",
+        version="0.1.0-source-fact-runtime-bundled",
+        package_version="gate2_source_fact_runtime_v0",
+        source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
+        requirements="pydantic",
+    )
+    GATE2_BUNDLE_PATH.write_text(gate2_bundle, encoding="utf-8", newline="\n")
+    print(str(GATE2_BUNDLE_PATH))
+    gate2_domain_pipe_source = _strip_openwebui_metadata(
+        GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
+    )
+    gate2_domain_bundle = _render_bundle(
+        modules=modules,
+        pipe_source=gate2_domain_pipe_source,
+        title="Broker Reports Gate 2 Domain Source Fact Extraction",
+        version="0.3.0-domain-source-fact-segmentation-runtime-bundled",
+        package_version="gate2_domain_source_fact_segmentation_runtime_v0",
+        source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
+        requirements="pydantic",
+    )
+    GATE2_DOMAIN_BUNDLE_PATH.write_text(
+        gate2_domain_bundle, encoding="utf-8", newline="\n"
+    )
+    print(str(GATE2_DOMAIN_BUNDLE_PATH))
 
 
 def _strip_openwebui_metadata(source: str) -> str:
@@ -67,15 +136,24 @@ def _strip_openwebui_metadata(source: str) -> str:
     return "\n".join(kept).lstrip() + "\n"
 
 
-def _render_bundle(*, modules: dict[str, str], pipe_source: str) -> str:
+def _render_bundle(
+    *,
+    modules: dict[str, str],
+    pipe_source: str,
+    title: str,
+    version: str,
+    package_version: str,
+    source_label: str,
+    requirements: str,
+) -> str:
     modules_literal = json.dumps(modules, ensure_ascii=False, indent=2, sort_keys=True)
     order_literal = json.dumps(MODULE_ORDER, ensure_ascii=True)
     return f'''"""
-title: Broker Reports Gate 1 Pipe Backend Normalizer
+title: {title}
 author: Alpha Soft
-version: 0.4.0-backend-normalizer-bundled
+version: {version}
 required_open_webui_version: 0.9.6
-requirements: pydantic
+requirements: {requirements}
 """
 
 from __future__ import annotations
@@ -85,7 +163,7 @@ import types
 
 
 _BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
-_BUNDLED_PACKAGE_VERSION = "gate1_backend_profiling_completion_v1"
+_BUNDLED_PACKAGE_VERSION = "{package_version}"
 _BUNDLED_MODULE_ORDER = {order_literal}
 _BUNDLED_MODULES = {modules_literal}
 
@@ -120,7 +198,7 @@ def _install_bundled_package() -> None:
 _install_bundled_package()
 
 
-# Begin maintainable source adapter: openwebui_actions/broker_reports_gate1_pipe.py
+# Begin maintainable source adapter: {source_label}
 {pipe_source.rstrip()}
 '''
 

@@ -28,7 +28,7 @@ SYNTHETIC_FILES = [
 ]
 REQUIRED_CHAT_MARKERS = [
     "Нормализация завершена.",
-    "Обработано файлов: 2",
+    "Получено документов: 2",
     "Проверка ArtifactStore:",
     "хранилище доступно для записи: да",
     "retention policy: mode=api_smoke, explicit=True, ttl_seconds=86400",

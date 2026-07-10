@@ -122,6 +122,48 @@ def unknown_role(run_id: str, document_id: str) -> dict:
     )
 
 
+def llm_passport_prompt_unavailable(run_id: str, document_id: str | None, reason: str | None) -> dict:
+    return make_blocker(
+        run_id=run_id,
+        document_id=document_id,
+        code="llm_passport_prompt_unavailable",
+        severity="warning",
+        blocks_next_gate=False,
+        created_by_step="document_metadata_passport_prompt_resolver",
+        safe_message="Document metadata passport prompt was unavailable or failed contract checks.",
+        review_action="fix_managed_prompt_or_continue_without_passport",
+        reason=reason,
+    )
+
+
+def llm_passport_model_failed(run_id: str, document_id: str, reason: str | None) -> dict:
+    return make_blocker(
+        run_id=run_id,
+        document_id=document_id,
+        code="llm_passport_model_failed",
+        severity="warning",
+        blocks_next_gate=False,
+        created_by_step="document_metadata_passport_model_call",
+        safe_message="Document metadata passport model call failed.",
+        review_action="retry_passport_stage_or_route_metadata_review",
+        reason=reason,
+    )
+
+
+def llm_passport_validation_failed(run_id: str, document_id: str, reason: str | None) -> dict:
+    return make_blocker(
+        run_id=run_id,
+        document_id=document_id,
+        code="llm_passport_validation_failed",
+        severity="warning",
+        blocks_next_gate=False,
+        created_by_step="document_metadata_passport_validator",
+        safe_message="Document metadata passport output did not pass validation.",
+        review_action="route_document_to_metadata_review",
+        reason=reason,
+    )
+
+
 def privacy_violation(run_id: str, reason: str | None = None) -> dict:
     return make_blocker(
         run_id=run_id,

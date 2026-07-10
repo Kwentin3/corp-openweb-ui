@@ -7,6 +7,13 @@ Related contracts:
 - `BROKER_REPORTS_JSON_EXTRACTION_CONTRACT.v0_1_PROPOSAL.md`
 - `BROKER_REPORTS_NDFL_DECLARATION_DATA_MODEL.v0_1_PROPOSAL.md`
 
+> 2026-07-10 status note: retained as historical domain input. The canonical
+> Gate 2 execution and system-of-record design is now
+> `BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.v0.md` plus
+> `BROKER_REPORTS_GATE2_SOURCE_FACTS.v0.md`. This older proposal must not be
+> used as the Gate 2 run/package, issue carry-forward, validator, persistence,
+> or prompt contract.
+
 ## 1. Purpose
 
 This schema extracts event-level facts from source documents without turning the extraction contract into a broad declaration model.
