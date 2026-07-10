@@ -11,6 +11,7 @@ from .artifact_store import ArtifactStoreError, SqliteArtifactStoreAdapter
 from .contracts import stable_digest
 from .full_source import SOURCE_UNIT_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_text_layer import validate_pdf_source_unit
+from .pdf_layout_units import resolve_pdf_layout_unit_source_value
 from .source_provenance import (
     NormalizedSliceProvenanceFactory,
     resolve_source_value,
@@ -607,13 +608,19 @@ def validate_dry_run_source_fact_package(
     unit_refs = _source_unit_refs(private_slice)
     allowed_evidence_refs = set(_string_list(package.get("allowed_evidence_refs")))
     allowed_source_value_refs = set(_string_list(package.get("allowed_source_value_refs")))
-    expected_source_value_refs = set(_string_list(private_slice.get("source_value_refs")))
+    generic_source_value_refs = set(_string_list(private_slice.get("source_value_refs")))
+    layout_source_value_refs = set(
+        _string_list(private_slice.get("pdf_layout_source_value_refs"))
+    )
+    expected_source_value_refs = generic_source_value_refs | layout_source_value_refs
     if not allowed_evidence_refs or not allowed_evidence_refs <= unit_refs:
         errors.append(_error("gate2_package_evidence_ref_out_of_scope", package_id))
     if allowed_source_value_refs != expected_source_value_refs:
         errors.append(_error("gate2_package_source_value_refs_mismatch", package_id))
     try:
-        resolve_source_values(private_slice, sorted(allowed_source_value_refs))
+        resolve_source_values(private_slice, sorted(generic_source_value_refs))
+        for source_value_ref in sorted(layout_source_value_refs):
+            resolve_pdf_layout_unit_source_value(private_slice, source_value_ref)
     except ValueError as exc:
         errors.append(_error(str(exc), package_id))
 
@@ -628,7 +635,15 @@ def validate_dry_run_source_fact_package(
         errors.append(_error("gate2_package_issue_ref_out_of_scope", package_id))
 
     coverage_expectation = _object(package.get("coverage_expectation"))
-    coverage = _object(private_slice.get("coverage"))
+    layout_unit = private_slice.get("pdf_unit_type") in {
+        "pdf_line_cluster_unit",
+        "pdf_table_candidate_unit",
+    }
+    coverage = _object(
+        private_slice.get("pdf_layout_coverage")
+        if layout_unit
+        else private_slice.get("coverage")
+    )
     if coverage_expectation.get("selected_source_refs") != coverage.get("selected_source_refs"):
         errors.append(_error("gate2_package_coverage_refs_mismatch", package_id))
     if coverage.get("all_selected_refs_accounted") is not True:
@@ -649,6 +664,36 @@ def validate_dry_run_source_fact_package(
                 errors.append(_error("gate2_pdf_ocr_guard_failed", package_id))
             if source_unit.get("page_rendering_used_for_extraction") is not False:
                 errors.append(_error("gate2_pdf_rendering_guard_failed", package_id))
+            if layout_unit:
+                if source_unit.get("layout_projection_status") != "complete":
+                    errors.append(_error("gate2_pdf_layout_projection_not_complete", package_id))
+                if source_unit.get("pdf_layout_coverage") != private_slice.get(
+                    "pdf_layout_coverage"
+                ):
+                    errors.append(_error("gate2_pdf_layout_coverage_not_preserved", package_id))
+                if source_unit.get("pdf_layout_source_value_refs") != _string_list(
+                    private_slice.get("pdf_layout_source_value_refs")
+                ):
+                    errors.append(_error("gate2_pdf_layout_value_refs_not_preserved", package_id))
+                if private_slice.get("pdf_unit_type") == "pdf_table_candidate_unit":
+                    for field in (
+                        "table_candidate_ref",
+                        "table_strategy_ref",
+                        "geometry_confidence",
+                        "table_bbox_ref",
+                        "table_row_refs",
+                        "table_cell_refs",
+                        "table_contributing_word_refs",
+                        "table_fallback_text_refs",
+                        "table_fallback_source_value_refs",
+                        "table_reconstruction_reason_codes",
+                    ):
+                        if source_unit.get(field) != private_slice.get(field):
+                            errors.append(
+                                _error("gate2_pdf_table_candidate_metadata_not_preserved", field)
+                            )
+                    if source_unit.get("table_reconstruction_status") != "candidate":
+                        errors.append(_error("gate2_pdf_table_candidate_status_invalid", package_id))
     elif source_input_mode == "legacy_bounded_preview_fallback":
         if expansion_readiness.get("limited_primary_expansion_ready") is not False:
             errors.append(_error("gate2_legacy_preview_claims_expansion_readiness", package_id))
@@ -695,8 +740,28 @@ def _build_dry_run_package(
     slice_ref = str(private_slice.get("slice_id") or "")
     full_source_input = private_slice.get("schema_version") == SOURCE_UNIT_SCHEMA_VERSION
     package_id = f"sfpkg_{stable_digest([context.normalization_run_id, document_ref, slice_ref], length=20)}"
-    coverage = _object(private_slice.get("coverage"))
-    unit_kind = "table_row_window" if private_slice.get("slice_type") == "table_rows" else "text_slice"
+    pdf_unit_type = private_slice.get("pdf_unit_type")
+    layout_unit = pdf_unit_type in {
+        "pdf_line_cluster_unit",
+        "pdf_table_candidate_unit",
+    }
+    coverage = _object(
+        private_slice.get("pdf_layout_coverage")
+        if layout_unit
+        else private_slice.get("coverage")
+    )
+    if pdf_unit_type == "pdf_line_cluster_unit":
+        unit_kind = "pdf_line_cluster"
+    elif pdf_unit_type == "pdf_table_candidate_unit":
+        unit_kind = "pdf_table_candidate"
+    elif pdf_unit_type == "pdf_page_text_unit":
+        unit_kind = "pdf_page_text"
+    else:
+        unit_kind = (
+            "table_row_window"
+            if private_slice.get("slice_type") == "table_rows"
+            else "text_slice"
+        )
     unit_payload = {
         "cells": copy.deepcopy(private_slice.get("cells") or [])
     } if unit_kind == "table_row_window" else {
@@ -777,6 +842,46 @@ def _build_dry_run_package(
         "pdf_text_fragment_refs": _string_list(
             private_slice.get("pdf_text_fragment_refs")
         ),
+        "layout_word_refs": _string_list(private_slice.get("layout_word_refs")),
+        "layout_line_refs": _string_list(private_slice.get("layout_line_refs")),
+        "layout_bbox_refs": _string_list(private_slice.get("layout_bbox_refs")),
+        "layout_parser_ref": private_slice.get("layout_parser_ref"),
+        "layout_parser_config_ref": private_slice.get("layout_parser_config_ref"),
+        "layout_projection_status": private_slice.get("layout_projection_status"),
+        "pdf_layout_coverage": copy.deepcopy(
+            private_slice.get("pdf_layout_coverage") or {}
+        ),
+        "pdf_layout_source_value_refs": _string_list(
+            private_slice.get("pdf_layout_source_value_refs")
+        ),
+        "pdf_layout_source_value_index": copy.deepcopy(
+            private_slice.get("pdf_layout_source_value_index") or []
+        ),
+        "table_reconstruction_status": private_slice.get(
+            "table_reconstruction_status"
+        ),
+        "table_candidate_ref": private_slice.get("table_candidate_ref"),
+        "table_strategy_ref": private_slice.get("table_strategy_ref"),
+        "geometry_confidence": private_slice.get("geometry_confidence"),
+        "confidence_bucket": private_slice.get("confidence_bucket"),
+        "table_bbox_ref": private_slice.get("table_bbox_ref"),
+        "table_row_refs": _string_list(private_slice.get("table_row_refs")),
+        "table_cell_refs": _string_list(private_slice.get("table_cell_refs")),
+        "table_contributing_word_refs": _string_list(
+            private_slice.get("table_contributing_word_refs")
+        ),
+        "table_fallback_text_refs": _string_list(
+            private_slice.get("table_fallback_text_refs")
+        ),
+        "table_fallback_source_value_refs": _string_list(
+            private_slice.get("table_fallback_source_value_refs")
+        ),
+        "table_reconstruction_reason_codes": _string_list(
+            private_slice.get("table_reconstruction_reason_codes")
+        ),
+        "semantic_table_truth_claimed": private_slice.get(
+            "semantic_table_truth_claimed", False
+        ),
         "text_layer_projection_status": private_slice.get(
             "text_layer_projection_status"
         ),
@@ -822,7 +927,10 @@ def _build_dry_run_package(
         },
         "source_unit": source_unit,
         "allowed_evidence_refs": sorted(_source_unit_refs(private_slice)),
-        "allowed_source_value_refs": _string_list(private_slice.get("source_value_refs")),
+        "allowed_source_value_refs": [
+            *_string_list(private_slice.get("source_value_refs")),
+            *_string_list(private_slice.get("pdf_layout_source_value_refs")),
+        ],
         "issue_context": issue_context,
         "allowed_issue_refs": sorted(
             str(item.get("issue_ref"))
@@ -853,12 +961,18 @@ def _build_dry_run_package(
             "fact_candidate_refs": copy.deepcopy(
                 coverage.get("fact_candidate_refs")
                 or coverage.get("text_candidate_refs")
+                or coverage.get("owned_word_refs")
                 or []
             ),
             "required_accounting_total": int(coverage.get("selected_total") or 0),
             "coverage_policy_id": "gate2_source_unit_coverage_v0",
             "source_input_mode": source_unit["source_input_mode"],
-            "whole_parent_source_coverage_claimed": full_source_input,
+            "whole_parent_source_coverage_claimed": (
+                full_source_input and not layout_unit
+            ),
+            "collective_parent_layout_coverage_ref": (
+                coverage.get("coverage_ref") if layout_unit else None
+            ),
         },
         "expansion_readiness": {
             "limited_primary_expansion_ready": (
@@ -868,7 +982,9 @@ def _build_dry_run_package(
                 == "not_applicable_parent_complete"
             ),
             "reason_code": (
-                "complete_full_source_unit"
+                "complete_bounded_pdf_layout_unit"
+                if layout_unit
+                else "complete_full_source_unit"
                 if full_source_input
                 else "legacy_bounded_preview_fallback"
             ),
@@ -900,6 +1016,46 @@ def _build_model_source_projection(
     private_slice: dict[str, Any],
     unit_kind: str,
 ) -> dict[str, Any]:
+    if unit_kind in {"pdf_line_cluster", "pdf_table_candidate"}:
+        selected_refs = set(
+            _string_list(
+                _object(private_slice.get("pdf_layout_coverage")).get(
+                    "selected_source_refs"
+                )
+            )
+        )
+        segments = []
+        for item in _dict_list(private_slice.get("pdf_layout_source_value_index")):
+            source_ref = str(item.get("source_object_ref") or "")
+            source_value_ref = str(item.get("source_value_ref") or "")
+            if source_ref not in selected_refs or not source_value_ref:
+                continue
+            segments.append(
+                {
+                    "text_segment_ref": source_ref,
+                    "segment_kind": (
+                        "pdf_layout_word"
+                        if source_ref.startswith("pdfword_")
+                        else "pdf_layout_line"
+                    ),
+                    "page_ref": (_string_list(private_slice.get("page_refs")) or [None])[0],
+                    "source_value_ref": source_value_ref,
+                    "value": resolve_pdf_layout_unit_source_value(
+                        private_slice, source_value_ref
+                    ),
+                    "table_candidate_ref": private_slice.get("table_candidate_ref"),
+                    "semantic_role": "not_claimed",
+                }
+            )
+        return {
+            "schema_version": "gate2_model_pdf_layout_projection_v0",
+            "projection_kind": unit_kind,
+            "segments": segments,
+            "table_reconstruction_status": private_slice.get(
+                "table_reconstruction_status"
+            ),
+            "semantic_table_truth_claimed": False,
+        }
     if unit_kind == "table_row_window":
         cells = private_slice.get("cells")
         cells = cells if isinstance(cells, list) else []
@@ -1232,8 +1388,28 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
         "page_refs",
         "character_span_refs",
         "safe_coverage_refs",
+        "layout_word_refs",
+        "layout_line_refs",
+        "layout_bbox_refs",
+        "pdf_layout_source_value_refs",
+        "table_row_refs",
+        "table_cell_refs",
+        "table_contributing_word_refs",
+        "table_fallback_text_refs",
+        "table_fallback_source_value_refs",
     ):
         refs.update(_string_list(private_slice.get(key)))
+    refs.update(
+        {
+            str(private_slice.get("layout_parser_ref") or ""),
+            str(private_slice.get("layout_parser_config_ref") or ""),
+            str(private_slice.get("pdf_layout_unit_checksum_ref") or ""),
+            str(private_slice.get("table_candidate_ref") or ""),
+            str(private_slice.get("table_strategy_ref") or ""),
+            str(private_slice.get("table_bbox_ref") or ""),
+            str(_object(private_slice.get("pdf_layout_coverage")).get("coverage_ref") or ""),
+        }
+    )
     return {ref for ref in refs if ref}
 
 
@@ -1292,6 +1468,10 @@ def _entries(value: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _object(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _dict_list(value: Any) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
 
 
 def _string_list(value: Any) -> list[str]:

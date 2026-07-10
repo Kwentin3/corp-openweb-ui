@@ -260,6 +260,15 @@ def narrow_source_unit_projection(
         "segment_provenance",
         "section_refs",
         "character_span_refs",
+        "layout_word_refs",
+        "layout_line_refs",
+        "layout_bbox_refs",
+        "pdf_layout_source_value_refs",
+        "pdf_layout_source_value_index",
+        "pdf_layout_coverage",
+        "table_contributing_word_refs",
+        "table_fallback_text_refs",
+        "table_fallback_source_value_refs",
     }
     narrowed = {
         key: copy.deepcopy(value)
@@ -278,7 +287,124 @@ def narrow_source_unit_projection(
         for item in _dict_list(model_projection.get("segments"))
         if str(item.get("text_segment_ref") or "") in candidate_set
     ]
-    if unit.get("unit_kind") == "table_row_window":
+    if unit.get("unit_kind") in {"pdf_line_cluster", "pdf_table_candidate"}:
+        narrowed["model_source_projection"] = {
+            "schema_version": model_projection.get("schema_version"),
+            "projection_kind": unit.get("unit_kind"),
+            "segments": segments,
+            "table_reconstruction_status": model_projection.get(
+                "table_reconstruction_status"
+            ),
+            "semantic_table_truth_claimed": False,
+        }
+        layout_index_by_ref = {
+            str(item.get("source_object_ref") or ""): item
+            for item in _dict_list(unit.get("pdf_layout_source_value_index"))
+            if item.get("source_object_ref")
+        }
+        text_parts: list[str] = []
+        generic_index: list[dict[str, Any]] = []
+        layout_index: list[dict[str, Any]] = []
+        provenance: list[dict[str, Any]] = []
+        offset = 0
+        for segment in segments:
+            source_ref = str(segment.get("text_segment_ref") or "")
+            value = str(segment.get("value") or "")
+            source_value_ref = str(segment.get("source_value_ref") or "")
+            if source_ref not in candidate_set or not source_value_ref:
+                continue
+            start = offset
+            text_parts.append(value)
+            offset += len(value)
+            original_index = copy.deepcopy(
+                _object(layout_index_by_ref.get(source_ref))
+            )
+            rebased_path = {
+                "kind": "text_span",
+                "character_start": start,
+                "character_end": offset,
+            }
+            generic_index.append(
+                {
+                    "source_value_ref": source_value_ref,
+                    "text_segment_ref": source_ref,
+                    "value_path": rebased_path,
+                    "value_checksum_ref": original_index.get("value_checksum_ref"),
+                }
+            )
+            original_index["value_path"] = {
+                "kind": "pdf_unit_text_span",
+                "character_start": start,
+                "character_end": offset,
+            }
+            layout_index.append(original_index)
+            provenance.append(
+                {
+                    "text_segment_ref": source_ref,
+                    "page_ref": segment.get("page_ref"),
+                    "segment_kind": segment.get("segment_kind"),
+                    "source_value_ref": source_value_ref,
+                    "character_start": start,
+                    "character_end": offset,
+                }
+            )
+        narrowed["normalized_source_projection"] = {"text": "".join(text_parts)}
+        narrowed["source_value_index"] = generic_index
+        narrowed["source_value_refs"] = [
+            str(item.get("source_value_ref") or "") for item in generic_index
+        ]
+        narrowed["pdf_layout_source_value_index"] = layout_index
+        narrowed["pdf_layout_source_value_refs"] = [
+            str(item.get("source_value_ref") or "") for item in layout_index
+        ]
+        narrowed["segment_provenance"] = provenance
+        narrowed["text_segment_refs"] = [
+            str(item.get("text_segment_ref") or "") for item in segments
+        ]
+        narrowed["layout_word_refs"] = sorted(
+            ref for ref in candidate_set if ref.startswith("pdfword_")
+        )
+        narrowed["layout_line_refs"] = sorted(
+            ref for ref in candidate_set if ref.startswith("pdfline_")
+        )
+        parent_layout_coverage = _object(unit.get("pdf_layout_coverage"))
+        narrowed["pdf_layout_coverage"] = {
+            **copy.deepcopy(parent_layout_coverage),
+            "selected_source_refs": list(selected_refs),
+            "accounted_source_refs": list(selected_refs),
+            "owned_word_refs": copy.deepcopy(narrowed["layout_word_refs"]),
+            "owned_line_refs": copy.deepcopy(narrowed["layout_line_refs"]),
+            "selected_total": len(selected_refs),
+            "accounted_total": len(selected_refs),
+            "duplicate_accounted_refs": [],
+            "unaccounted_refs": [],
+            "all_selected_refs_accounted": len(selected_refs)
+            == len(set(selected_refs)),
+        }
+        narrowed["table_contributing_word_refs"] = sorted(
+            set(_string_list(unit.get("table_contributing_word_refs")))
+            & candidate_set
+        )
+        narrowed["table_fallback_text_refs"] = sorted(
+            set(_string_list(unit.get("table_fallback_text_refs")))
+            & candidate_set
+        )
+        narrowed["table_fallback_source_value_refs"] = sorted(
+            {
+                str(item.get("source_value_ref") or "")
+                for item in layout_index
+                if str(item.get("source_object_ref") or "")
+                in set(narrowed["table_fallback_text_refs"])
+            }
+        )
+        narrowed["row_provenance"] = []
+        narrowed["row_refs"] = []
+        narrowed["cell_provenance"] = []
+        narrowed["cell_refs"] = []
+        narrowed["cell_value_refs"] = []
+        narrowed["section_refs"] = []
+        narrowed["character_span_refs"] = []
+    elif unit.get("unit_kind") == "table_row_window":
         narrowed["model_source_projection"] = {
             "schema_version": model_projection.get("schema_version"),
             "rows": rows,
@@ -461,6 +587,12 @@ def narrow_evidence_refs(
         "private_slice_artifact_ref",
         "parser_ref",
         "source_checksum_ref",
+        "layout_parser_ref",
+        "layout_parser_config_ref",
+        "pdf_layout_unit_checksum_ref",
+        "table_candidate_ref",
+        "table_strategy_ref",
+        "table_bbox_ref",
     ):
         if narrowed_unit.get(field):
             refs.add(str(narrowed_unit[field]))
@@ -471,6 +603,15 @@ def narrow_evidence_refs(
         "section_refs",
         "page_refs",
         "character_span_refs",
+        "layout_word_refs",
+        "layout_line_refs",
+        "layout_bbox_refs",
+        "pdf_layout_source_value_refs",
+        "table_row_refs",
+        "table_cell_refs",
+        "table_contributing_word_refs",
+        "table_fallback_text_refs",
+        "table_fallback_source_value_refs",
     ):
         refs.update(_string_list(narrowed_unit.get(field)))
     return sorted(refs)

@@ -123,10 +123,14 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertIn("must not instantiate PypdfParserAdapter directly", FORBIDDEN)
         parser = PdfTextLayerParserFactory().create()
         self.assertEqual(parser.config.expected_pypdf_version, PYPDF_PINNED_VERSION)
+        layout_parser = PdfTextLayerParserFactory().create(
+            PdfParserCapabilityRequest(capability="table_candidates")
+        )
+        self.assertEqual(layout_parser.requested_capability, "table_candidates")
 
         with self.assertRaises(PdfTextLayerParserError) as capability_error:
             PdfTextLayerParserFactory().create(
-                PdfParserCapabilityRequest(capability="table_candidates")
+                PdfParserCapabilityRequest(capability="semantic_tables")
             )
         self.assertEqual(
             capability_error.exception.code,
@@ -281,7 +285,10 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
                     mime_type="application/pdf",
                 )
             ],
-            input_context={"clarification_criticality_refinement_enabled": True},
+            input_context={
+                "clarification_criticality_refinement_enabled": True,
+                "pdf_layout_slice2_enabled": False,
+            },
         )
         self.assertEqual(result.package["validation_result"]["status"], "passed")
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -350,7 +357,9 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
 
     @staticmethod
     def _build(content: bytes):
-        return FullSourceArtifactFactory().create().build(
+        return FullSourceArtifactFactory(
+            FullSourceArtifactConfig(enable_pdf_layout_slice2=False)
+        ).create().build(
             normalization_run_id="normrun_pdf_slice1",
             document_id="brdoc_pdf_slice1",
             profile_id="techprof_pdf_slice1",

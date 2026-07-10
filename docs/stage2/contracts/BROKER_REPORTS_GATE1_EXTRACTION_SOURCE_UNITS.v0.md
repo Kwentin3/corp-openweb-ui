@@ -110,3 +110,17 @@ PDF_TEXT_LAYER_SOURCE_UNITS_RUNTIME_IMPLEMENTED
 PDF_PAGE_TEXT_UNIT_RUNTIME_READY
 PDF_LINE_CLUSTER_AND_TABLE_RUNTIME_DEFERRED
 ```
+
+## PDF layout unit Slice 2 runtime (2026-07-10)
+
+`pdf_line_cluster_unit` and `pdf_table_candidate_unit` are now implemented.
+Their selected/accounted layout refs form an exact duplicate-free partition;
+supplemental source-value refs resolve to bounded unit text. Conflicting table
+geometry is rejected to line fallback, and partial parent layout never mints a
+layout unit.
+
+```text
+PDF_LINE_CLUSTER_UNITS_READY
+PDF_TABLE_CANDIDATE_UNITS_READY
+PDF_LAYOUT_UNIT_COVERAGE_EXACT
+```

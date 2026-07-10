@@ -1,9 +1,9 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.5.0-pdf-text-layer-slice1
+version: 0.6.0-pdf-layout-rich-slice2
 required_open_webui_version: 0.9.6
-requirements: pydantic,pypdf==6.7.5
+requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107
 """
 
 from __future__ import annotations

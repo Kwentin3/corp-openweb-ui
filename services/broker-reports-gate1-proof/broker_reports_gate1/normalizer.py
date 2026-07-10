@@ -19,7 +19,7 @@ from .contracts import (
 from .detectors import detect_container, extension_from_name, machine_readable_baseline
 from .domain_ingestion import apply_domain_ingestion_artifacts
 from .eligibility import build_document_source_eligibility
-from .full_source import FullSourceArtifactFactory
+from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory
 from .inputs import FileInput
 from .profilers_csv_txt import profile_csv, profile_txt
 from .profilers_docx import profile_docx
@@ -70,7 +70,13 @@ class Gate1Normalizer:
         sha_counts: Counter[str] = Counter()
         doc_private_slices: dict[str, list[dict]] = defaultdict(list)
         slice_provenance = NormalizedSliceProvenanceFactory().create()
-        full_source_builder = FullSourceArtifactFactory().create()
+        full_source_builder = FullSourceArtifactFactory(
+            FullSourceArtifactConfig(
+                enable_pdf_layout_slice2=(
+                    (input_context or {}).get("pdf_layout_slice2_enabled") is not False
+                )
+            )
+        ).create()
 
         if not file_inputs:
             blockers.append(blocker_factory.no_files(run_id))

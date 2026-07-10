@@ -104,3 +104,17 @@ PDF_TEXT_LAYER_PAYLOAD_CONTRACT_READY
 PDF_TEXT_LAYER_PAYLOAD_RUNTIME_IMPLEMENTED
 PDF_TEXT_LAYER_LAYOUT_TABLE_RUNTIME_DEFERRED
 ```
+
+## PDF layout-rich Slice 2 runtime (2026-07-10)
+
+The full-source builder now requests page text and layout independently. A
+complete layout projection produces layout source units; partial or blocked
+layout preserves the Slice 1 page-text payload and bounded page fallback units.
+Parser versions, config ref, page-text checksum and layout checksum are
+separate authority fields. No silent downgrade can retain layout-complete
+status.
+
+```text
+PDF_LAYOUT_RICH_FULL_SOURCE_RUNTIME_READY
+PDF_PAGE_TEXT_STATUS_NOT_WEAKENED_BY_LAYOUT_FAILURE
+```

@@ -1,7 +1,7 @@
 # Broker Reports PDF text-layer source units v0
 
 Date: 2026-07-10
-Status: Slice 1 page-text units implemented; line-cluster/table units deferred
+Status: Slice 2 line-cluster and non-semantic table-candidate units implemented
 Parent schema: `private_normalized_source_unit_v0`
 
 ## Purpose
@@ -195,3 +195,18 @@ page units are minted for that document.
 fixtures/customer PDFs because no complete page exceeded the configured
 page-text budget. Budget overflow fails partial without truncation.
 `pdf_table_candidate_unit` and semantic summary units remain unimplemented.
+
+## Slice 2 layout source-unit runtime (2026-07-10)
+
+Complete layout pages now partition selected word/line refs into bounded
+`pdf_line_cluster_unit` and `pdf_table_candidate_unit` artifacts. Candidate
+ownership requires complete contributing lines; overlap or ambiguity falls
+back to line clusters. Unit text, bbox, page, source-value and checksum refs
+resolve through the private parent payload. A table candidate asserts geometry
+only, never semantic table truth.
+
+```text
+PDF_LINE_CLUSTER_UNITS_READY
+PDF_TABLE_CANDIDATE_UNITS_READY
+PDF_TABLE_CANDIDATES_REMAIN_NON_SEMANTIC
+```

@@ -629,3 +629,16 @@ PDF_TEXT_LAYER_GATE2_INPUT_CONTRACT_READY
 PDF_TEXT_LAYER_GATE2_INPUT_READINESS_NO_MODEL_PASSED
 PDF_TEXT_LAYER_SOURCE_FACT_MODEL_RUNTIME_NOT_EXECUTED
 ```
+
+## 16. PDF layout unit input readiness (2026-07-10)
+
+The no-model readiness builder now validates and copies only bounded layout
+refs, values, exact unit coverage and non-semantic candidate metadata from
+ArtifactStore. It accepts `pdf_line_cluster_unit` and
+`pdf_table_candidate_unit`, sets whole-parent coverage false and leaves the
+store unchanged. This proves input readiness, not source-fact model output.
+
+```text
+PDF_GATE2_LAYOUT_INPUT_READINESS_DRY_RUN_PASSED
+PDF_LAYOUT_SOURCE_FACT_MODEL_RUNTIME_NOT_EXECUTED
+```

@@ -219,3 +219,17 @@ not run and remain a later bounded slice.
 PDF_TEXT_LAYER_INPUT_READINESS_ROUTING_BOUNDARY_READY
 PDF_DOMAIN_ROUTER_AND_MODEL_EXECUTION_DEFERRED
 ```
+
+## 12. PDF layout-unit routing runtime (2026-07-10)
+
+The no-model router and segmenter now accept validated line-cluster and
+table-candidate packages. Narrowing rebases only selected layout values into
+bounded spans, preserves exact parent-ref partition and carries candidate
+strategy/confidence without promoting semantic truth. Model execution remains
+deferred.
+
+```text
+PDF_LAYOUT_UNIT_ROUTER_READY
+PDF_LAYOUT_UNIT_SEGMENTER_READY
+PDF_LAYOUT_MODEL_EXECUTION_DEFERRED
+```

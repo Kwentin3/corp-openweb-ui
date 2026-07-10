@@ -24,10 +24,18 @@ from .pdf_text_layer import (
     PdfTextLayerParserError,
     PdfTextLayerParserFactory,
     pdf_page_checksum_ref,
+    pdf_layout_page_checksum_ref,
     pdf_payload_checksum_ref,
     validate_pdf_source_unit,
     validate_pdf_text_layer_payload,
 )
+from .pdf_layout import (
+    PDF_LAYOUT_POLICY_VERSION,
+    PDFMINER_PINNED_VERSION,
+    PDFPLUMBER_PINNED_VERSION,
+    PdfLayoutParserConfig,
+)
+from .pdf_layout_units import PdfLayoutUnitBuilder, PdfLayoutUnitConfig
 from .profilers_csv_txt import decode_text_bytes
 from .source_provenance import NormalizedSliceProvenanceFactory
 
@@ -54,6 +62,23 @@ class FullSourceArtifactConfig:
     max_pdf_pages: int = 2_000
     max_pdf_page_content_stream_bytes: int = 10_000_000
     expected_pypdf_version: str = PYPDF_PINNED_VERSION
+    enable_pdf_layout_slice2: bool = True
+    expected_pdfplumber_version: str = PDFPLUMBER_PINNED_VERSION
+    expected_pdfminer_version: str = PDFMINER_PINNED_VERSION
+    max_pdf_layout_chars_per_page: int = 50_000
+    max_pdf_layout_words_per_page: int = 10_000
+    max_pdf_layout_lines_per_page: int = 2_000
+    max_pdf_layout_vector_objects_per_page: int = 5_000
+    max_pdf_layout_inventory_objects_per_document: int = 75_000
+    max_pdf_layout_table_candidates_per_page: int = 20
+    max_pdf_layout_table_detection_words_per_page: int = 5_000
+    max_pdf_layout_table_detection_vector_objects_per_page: int = 5_000
+    max_pdf_layout_seconds_per_page: float = 30.0
+    max_pdf_layout_lines_per_cluster: int = 24
+    max_pdf_layout_words_per_cluster: int = 400
+    max_pdf_layout_characters_per_cluster: int = 6_000
+    max_pdf_layout_words_per_table_unit: int = 1_000
+    max_pdf_layout_units_per_document: int = 5_000
 
 
 @dataclass(frozen=True)
@@ -84,6 +109,71 @@ class FullSourceArtifactFactory:
             raise ValueError("full_source_pdf_page_stream_budget_invalid")
         if not self.config.expected_pypdf_version:
             raise ValueError("full_source_pypdf_version_required")
+        if self.config.enable_pdf_layout_slice2:
+            for value, code in (
+                (
+                    self.config.max_pdf_layout_chars_per_page,
+                    "full_source_pdf_layout_char_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_words_per_page,
+                    "full_source_pdf_layout_word_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_lines_per_page,
+                    "full_source_pdf_layout_line_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_vector_objects_per_page,
+                    "full_source_pdf_layout_vector_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_inventory_objects_per_document,
+                    "full_source_pdf_layout_document_inventory_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_table_candidates_per_page,
+                    "full_source_pdf_layout_table_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_table_detection_words_per_page,
+                    "full_source_pdf_layout_table_detection_word_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_table_detection_vector_objects_per_page,
+                    "full_source_pdf_layout_table_detection_vector_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_seconds_per_page,
+                    "full_source_pdf_layout_time_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_lines_per_cluster,
+                    "full_source_pdf_layout_cluster_line_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_words_per_cluster,
+                    "full_source_pdf_layout_cluster_word_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_characters_per_cluster,
+                    "full_source_pdf_layout_cluster_char_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_words_per_table_unit,
+                    "full_source_pdf_layout_table_unit_budget_invalid",
+                ),
+                (
+                    self.config.max_pdf_layout_units_per_document,
+                    "full_source_pdf_layout_document_unit_budget_invalid",
+                ),
+            ):
+                if value <= 0:
+                    raise ValueError(code)
+            if not self.config.expected_pdfplumber_version:
+                raise ValueError("full_source_pdfplumber_version_required")
+            if not self.config.expected_pdfminer_version:
+                raise ValueError("full_source_pdfminer_version_required")
         return FullSourceArtifactBuilder(self.config)
 
 
@@ -98,6 +188,30 @@ class FullSourceArtifactBuilder:
                 max_pages=config.max_pdf_pages,
                 max_page_content_stream_bytes=config.max_pdf_page_content_stream_bytes,
                 max_page_text_characters=config.max_text_characters_per_logical_unit,
+                layout=PdfLayoutParserConfig(
+                    expected_pdfplumber_version=config.expected_pdfplumber_version,
+                    expected_pdfminer_version=config.expected_pdfminer_version,
+                    max_document_bytes=config.max_pdf_document_bytes,
+                    max_pages=config.max_pdf_pages,
+                    max_chars_per_page=config.max_pdf_layout_chars_per_page,
+                    max_words_per_page=config.max_pdf_layout_words_per_page,
+                    max_lines_per_page=config.max_pdf_layout_lines_per_page,
+                    max_vector_objects_per_page=config.max_pdf_layout_vector_objects_per_page,
+                    max_inventory_objects_per_document=config.max_pdf_layout_inventory_objects_per_document,
+                    max_table_candidates_per_page=config.max_pdf_layout_table_candidates_per_page,
+                    max_table_detection_words_per_page=config.max_pdf_layout_table_detection_words_per_page,
+                    max_table_detection_vector_objects_per_page=config.max_pdf_layout_table_detection_vector_objects_per_page,
+                    max_seconds_per_page=config.max_pdf_layout_seconds_per_page,
+                ),
+            )
+        )
+        self.pdf_layout_unit_builder = PdfLayoutUnitBuilder(
+            PdfLayoutUnitConfig(
+                max_lines_per_cluster=config.max_pdf_layout_lines_per_cluster,
+                max_words_per_cluster=config.max_pdf_layout_words_per_cluster,
+                max_characters_per_cluster=config.max_pdf_layout_characters_per_cluster,
+                max_words_per_table_candidate_unit=config.max_pdf_layout_words_per_table_unit,
+                max_units_per_document=config.max_pdf_layout_units_per_document,
             )
         )
 
@@ -481,6 +595,8 @@ class FullSourceArtifactBuilder:
         source_checksum_ref = (
             f"srcsum_{stable_digest([document_id, source_checksum_sha256], length=24)}"
         )
+        page_parser_config_ref = self.pdf_parser_factory.config.config_ref
+        layout_parser_config_ref = self.pdf_parser_factory.config.layout.config_ref
         payload_ref = (
             "srcpayload_"
             + stable_digest(
@@ -489,6 +605,12 @@ class FullSourceArtifactBuilder:
                     document_id,
                     logical_identity,
                     source_checksum_sha256,
+                    page_parser_config_ref,
+                    (
+                        layout_parser_config_ref
+                        if self.config.enable_pdf_layout_slice2
+                        else "layout_not_requested"
+                    ),
                 ],
                 length=24,
             )
@@ -533,8 +655,75 @@ class FullSourceArtifactBuilder:
                 "unknown_font_fragments_total": 0,
             }
 
-        parser_label = f"pypdf_page_text_{parser_version.replace('.', '_')}"
-        parser_ref = f"parser_{stable_digest([parser_label, profile_id], length=20)}"
+        layout_requested_capability = (
+            "table_candidates" if self.config.enable_pdf_layout_slice2 else None
+        )
+        layout_pages: list[dict[str, Any]] = []
+        layout_parser_engine = None
+        layout_parser_version = None
+        layout_underlying_engine = None
+        layout_underlying_version = None
+        layout_status = "not_requested"
+        layout_reasons: list[str] = []
+        table_candidate_status = "not_claimed"
+        layout_semantic_status = "not_claimed"
+        layout_diagnostics: dict[str, Any] = {}
+        if self.config.enable_pdf_layout_slice2 and parsed_pages:
+            try:
+                layout_parser = self.pdf_parser_factory.create(
+                    PdfParserCapabilityRequest(capability="table_candidates")
+                )
+                layout_parsed = layout_parser.parse(content_bytes)
+                layout_parser_engine = layout_parsed.parser_engine
+                layout_parser_version = layout_parsed.parser_engine_version
+                layout_underlying_engine = layout_parsed.underlying_engine
+                layout_underlying_version = layout_parsed.underlying_engine_version
+                layout_parser_config_ref = layout_parsed.parser_config_ref
+                layout_status = layout_parsed.layout_projection_status
+                layout_reasons = list(layout_parsed.layout_reason_codes)
+                table_candidate_status = layout_parsed.table_candidate_status
+                layout_semantic_status = layout_parsed.semantic_reconstruction_status
+                layout_pages = copy.deepcopy(layout_parsed.pages)
+                layout_diagnostics = copy.deepcopy(layout_parsed.diagnostics)
+            except PdfTextLayerParserError as exc:
+                layout_parser_engine = "pdfplumber"
+                layout_parser_version = self.config.expected_pdfplumber_version
+                layout_underlying_engine = "pdfminer.six"
+                layout_underlying_version = self.config.expected_pdfminer_version
+                layout_status = exc.status
+                layout_reasons = [exc.code]
+                table_candidate_status = "blocked"
+                layout_semantic_status = "not_claimed"
+                layout_diagnostics = {
+                    "pages_total": 0,
+                    "layout_complete_pages": 0,
+                    "layout_partial_pages": len(parsed_pages),
+                    "chars_total": 0,
+                    "words_total": 0,
+                    "lines_total": 0,
+                    "blocks_total": 0,
+                    "table_candidates_total": 0,
+                    "duplicate_chars_total": 0,
+                    "rotated_chars_total": 0,
+                    "elapsed_milliseconds_total": 0.0,
+                }
+
+        page_parser_label = f"pypdf_page_text_{parser_version.replace('.', '_')}"
+        page_parser_ref = f"parser_{stable_digest([page_parser_label, profile_id, page_parser_config_ref], length=20)}"
+        layout_parser_label = (
+            f"pdfplumber_layout_{str(layout_parser_version or self.config.expected_pdfplumber_version).replace('.', '_')}"
+        )
+        layout_parser_ref = (
+            f"parser_{stable_digest([layout_parser_label, profile_id, layout_parser_config_ref], length=20)}"
+            if self.config.enable_pdf_layout_slice2
+            else None
+        )
+        parser_label = (
+            f"{page_parser_label}__{layout_parser_label}"
+            if self.config.enable_pdf_layout_slice2
+            else page_parser_label
+        )
+        parser_ref = f"parser_{stable_digest([page_parser_ref, layout_parser_ref or 'layout_not_requested'], length=20)}"
         page_inventory: list[dict[str, Any]] = []
         provisional_units: list[dict[str, Any]] = []
         text_segment_inventory: list[dict[str, Any]] = []
@@ -651,7 +840,10 @@ class FullSourceArtifactBuilder:
                 page["character_span_refs"] = []
                 page["source_value_refs"] = []
                 page["segment_provenance"] = []
-            page["page_text_checksum_ref"] = pdf_page_checksum_ref(page, parser_ref)
+            page["visible_content_coverage_status"] = visible_content_status
+            page["page_text_checksum_ref"] = pdf_page_checksum_ref(
+                page, page_parser_ref
+            )
             page_inventory.append(page)
 
         selected_refs: list[str] = []
@@ -707,12 +899,114 @@ class FullSourceArtifactBuilder:
             ),
             "unaccounted_refs": sorted(set(selected_refs) - set(accounted_refs)),
         }
+
+        layout_char_inventory: list[dict[str, Any]] = []
+        layout_word_inventory: list[dict[str, Any]] = []
+        layout_line_inventory: list[dict[str, Any]] = []
+        layout_block_inventory: list[dict[str, Any]] = []
+        layout_bbox_inventory: list[dict[str, Any]] = []
+        layout_vector_line_inventory: list[dict[str, Any]] = []
+        layout_rect_inventory: list[dict[str, Any]] = []
+        layout_table_candidate_inventory: list[dict[str, Any]] = []
+        layout_units: list[dict[str, Any]] = []
+        layout_coverage: dict[str, Any] = {
+            "schema_version": "pdf_layout_document_coverage_v0",
+            "coverage_ref": f"pdflayoutcoverage_{stable_digest([source_checksum_ref, layout_parser_ref or 'not_requested'], length=24)}",
+            "selected_source_refs": [],
+            "accounted_source_refs": [],
+            "selected_total": 0,
+            "accounted_total": 0,
+            "duplicate_accounted_refs": [],
+            "unaccounted_refs": [],
+            "unexpected_accounted_refs": [],
+            "all_selected_refs_accounted": layout_status == "not_requested",
+            "unit_refs": [],
+            "line_cluster_unit_refs": [],
+            "table_candidate_unit_refs": [],
+            "blank_page_refs": [],
+        }
+        layout_unit_diagnostics: dict[str, Any] = {}
+        if self.config.enable_pdf_layout_slice2:
+            layout_parser_engine = layout_parser_engine or "pdfplumber"
+            layout_parser_version = (
+                layout_parser_version or self.config.expected_pdfplumber_version
+            )
+            layout_underlying_engine = layout_underlying_engine or "pdfminer.six"
+            layout_underlying_version = (
+                layout_underlying_version or self.config.expected_pdfminer_version
+            )
+            if not page_inventory:
+                layout_status = "blocked"
+                layout_reasons = sorted(
+                    {*layout_reasons, "pdf_layout_not_run_page_text_unavailable"}
+                )
+                table_candidate_status = "blocked"
+            else:
+                layout_build = self.pdf_layout_unit_builder.build(
+                    normalization_run_id=normalization_run_id,
+                    document_id=document_id,
+                    profile_id=profile_id,
+                    source_checksum_sha256=source_checksum_sha256,
+                    source_checksum_ref=source_checksum_ref,
+                    payload_ref=payload_ref,
+                    layout_parser_ref=str(layout_parser_ref or ""),
+                    layout_parser_label=layout_parser_label,
+                    layout_parser_config_ref=layout_parser_config_ref,
+                    layout_pages=layout_pages,
+                    page_inventory=page_inventory,
+                )
+                page_inventory = layout_build.pages
+                layout_char_inventory = layout_build.char_inventory
+                layout_word_inventory = layout_build.word_inventory
+                layout_line_inventory = layout_build.line_inventory
+                layout_block_inventory = layout_build.block_inventory
+                layout_bbox_inventory = layout_build.bbox_inventory
+                layout_vector_line_inventory = layout_build.vector_line_inventory
+                layout_rect_inventory = layout_build.rect_inventory
+                layout_table_candidate_inventory = (
+                    layout_build.table_candidate_inventory
+                )
+                layout_units = layout_build.units
+                payload_source_value_refs.extend(layout_build.source_value_refs)
+                payload_source_value_index.extend(layout_build.source_value_index)
+                layout_reasons = sorted(
+                    {*layout_reasons, *layout_build.layout_reason_codes}
+                )
+                layout_status = (
+                    "complete"
+                    if layout_status == "complete"
+                    and layout_build.layout_projection_status == "complete"
+                    else "partial"
+                )
+                table_candidate_status = layout_build.table_candidate_status
+                layout_semantic_status = layout_build.semantic_reconstruction_status
+                layout_coverage = layout_build.coverage
+                layout_unit_diagnostics = layout_build.diagnostics
+            for page in page_inventory:
+                page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
+                    page, str(layout_parser_ref or "")
+                )
+            coverage["table_candidate_refs"] = [
+                str(item.get("table_candidate_ref") or "")
+                for item in layout_table_candidate_inventory
+            ]
+            coverage["table_fallback_text_refs"] = sorted(
+                {
+                    str(ref)
+                    for item in layout_table_candidate_inventory
+                    for ref in item.get("fallback_text_refs") or []
+                    if ref
+                }
+            )
         if status == "complete" and not provisional_units:
             status = "partial"
             text_layer_status = "partial"
             reasons.append("pdf_no_text_layer")
         reasons = sorted(set(reasons))
-        extraction_units = provisional_units if status == "complete" else []
+        if status == "complete" and layout_status == "complete":
+            extraction_units = layout_units
+        else:
+            extraction_units = provisional_units if status == "complete" else []
         projection = {
             "schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
             "projection_policy_ref": PDF_PARSER_POLICY_VERSION,
@@ -720,7 +1014,14 @@ class FullSourceArtifactBuilder:
             "parser_engine_version": parser_version,
             "parser_config_ref": parser_config_ref,
             "requested_capability": "page_text",
-            "provided_capabilities": ["page_text"] if page_inventory else [],
+            "provided_capabilities": [
+                *(["page_text"] if page_inventory else []),
+                *(
+                    ["layout_words", "layout_lines", "table_candidates"]
+                    if layout_status == "complete"
+                    else []
+                ),
+            ],
             "pdf_content_kind": pdf_content_kind,
             "declared_page_range": {
                 "page_start": 1 if page_inventory else 0,
@@ -729,24 +1030,81 @@ class FullSourceArtifactBuilder:
             },
             "page_inventory": page_inventory,
             "text_fragment_inventory": text_fragment_inventory,
-            "block_inventory": [],
-            "line_inventory": copy.deepcopy(text_segment_inventory),
-            "word_inventory": [],
-            "table_candidate_inventory": [],
+            "char_inventory": layout_char_inventory,
+            "bbox_inventory": layout_bbox_inventory,
+            "block_inventory": (
+                layout_block_inventory
+                if self.config.enable_pdf_layout_slice2
+                else []
+            ),
+            "line_inventory": (
+                layout_line_inventory
+                if self.config.enable_pdf_layout_slice2
+                else copy.deepcopy(text_segment_inventory)
+            ),
+            "word_inventory": layout_word_inventory,
+            "vector_line_inventory": layout_vector_line_inventory,
+            "rect_inventory": layout_rect_inventory,
+            "table_candidate_inventory": layout_table_candidate_inventory,
             "page_checksum_refs": [
                 str(page.get("page_text_checksum_ref") or "") for page in page_inventory
             ],
+            "page_text_parser_ref": page_parser_ref,
+            "layout_requested_capability": layout_requested_capability,
+            "layout_parser_ref": layout_parser_ref,
+            "layout_projection_policy_ref": (
+                PDF_LAYOUT_POLICY_VERSION
+                if self.config.enable_pdf_layout_slice2
+                else None
+            ),
+            "layout_parser_engine": layout_parser_engine,
+            "layout_parser_engine_version": layout_parser_version,
+            "layout_underlying_engine": layout_underlying_engine,
+            "layout_underlying_engine_version": layout_underlying_version,
+            "layout_parser_config_ref": (
+                layout_parser_config_ref
+                if self.config.enable_pdf_layout_slice2
+                else None
+            ),
+            "layout_unit_config_ref": (
+                self.pdf_layout_unit_builder.config.config_ref
+                if self.config.enable_pdf_layout_slice2
+                else None
+            ),
+            "layout_projection_status": layout_status,
+            "layout_reason_codes": layout_reasons,
+            "table_candidate_status": table_candidate_status,
+            "layout_page_checksum_refs": [
+                str(page.get("page_layout_checksum_ref") or "")
+                for page in page_inventory
+            ]
+            if self.config.enable_pdf_layout_slice2
+            else [],
+            "layout_coverage": layout_coverage,
             "coverage": coverage,
             "completeness": {
                 "text_layer_projection_status": text_layer_status,
                 "visible_content_coverage_status": visible_content_status,
-                "semantic_reconstruction_status": semantic_status,
+                "semantic_reconstruction_status": (
+                    layout_semantic_status
+                    if self.config.enable_pdf_layout_slice2
+                    else semantic_status
+                ),
+                "layout_projection_status": layout_status,
+                "table_candidate_status": table_candidate_status,
                 "reason_codes": reasons,
+                "layout_reason_codes": layout_reasons,
             },
             "text_layer_projection_status": text_layer_status,
             "visible_content_coverage_status": visible_content_status,
-            "semantic_reconstruction_status": semantic_status,
+            "semantic_reconstruction_status": (
+                layout_semantic_status
+                if self.config.enable_pdf_layout_slice2
+                else semantic_status
+            ),
             "parser_diagnostics": parser_diagnostics,
+            "layout_parser_diagnostics": layout_diagnostics,
+            "layout_unit_diagnostics": layout_unit_diagnostics,
             "ocr_vlm_used": False,
             "page_rendering_used_for_extraction": False,
         }
@@ -811,8 +1169,14 @@ class FullSourceArtifactBuilder:
             ],
             "pdf_text_layer_projection": projection,
             "text_layer_projection_status": text_layer_status,
+            "layout_projection_status": layout_status,
+            "table_candidate_status": table_candidate_status,
             "visible_content_coverage_status": visible_content_status,
-            "semantic_reconstruction_status": semantic_status,
+            "semantic_reconstruction_status": (
+                layout_semantic_status
+                if self.config.enable_pdf_layout_slice2
+                else semantic_status
+            ),
             "ocr_vlm_used": False,
             "page_rendering_used_for_extraction": False,
             "visibility": "private_case",
@@ -832,6 +1196,15 @@ class FullSourceArtifactBuilder:
                         "slice_payload_checksum_ref"
                     ),
                     "coverage_ref": (unit.get("coverage") or {}).get("coverage_ref"),
+                    **(
+                        {
+                            "pdf_layout_unit_checksum_ref": unit.get(
+                                "pdf_layout_unit_checksum_ref"
+                            )
+                        }
+                        if unit.get("pdf_layout_unit_checksum_ref")
+                        else {}
+                    ),
                 },
             )
             unit["remaining_unit_refs"] = unit_refs[index + 1 :]
@@ -888,8 +1261,37 @@ class FullSourceArtifactBuilder:
             ),
             "pdf_source_value_refs_total": len(payload_source_value_refs),
             "pdf_text_layer_projection_status": text_layer_status,
+            "pdf_layout_projection_status": layout_status,
+            "pdf_layout_complete_pages": sum(
+                1
+                for page in page_inventory
+                if page.get("layout_projection_status") == "complete"
+            ),
+            "pdf_layout_partial_pages": sum(
+                1
+                for page in page_inventory
+                if page.get("layout_projection_status") not in {None, "complete"}
+            ),
+            "pdf_layout_words_total": len(layout_word_inventory),
+            "pdf_layout_lines_total": len(layout_line_inventory),
+            "pdf_table_candidates_total": len(layout_table_candidate_inventory),
+            "pdf_line_cluster_units_total": sum(
+                1
+                for unit in extraction_units
+                if unit.get("pdf_unit_type") == "pdf_line_cluster_unit"
+            ),
+            "pdf_table_candidate_units_total": sum(
+                1
+                for unit in extraction_units
+                if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+            ),
+            "pdf_table_candidate_status": table_candidate_status,
             "pdf_visible_content_coverage_status": visible_content_status,
-            "pdf_semantic_reconstruction_status": semantic_status,
+            "pdf_semantic_reconstruction_status": (
+                layout_semantic_status
+                if self.config.enable_pdf_layout_slice2
+                else semantic_status
+            ),
             "ocr_vlm_used": False,
             "page_rendering_used_for_extraction": False,
             "knowledge_rag_used": False,
@@ -1148,6 +1550,15 @@ def validate_full_source_unit(
             "payload_checksum_ref": unit.get("payload_checksum_ref"),
             "slice_payload_checksum_ref": unit.get("slice_payload_checksum_ref"),
             "coverage_ref": (unit.get("coverage") or {}).get("coverage_ref"),
+            **(
+                {
+                    "pdf_layout_unit_checksum_ref": unit.get(
+                        "pdf_layout_unit_checksum_ref"
+                    )
+                }
+                if unit.get("pdf_layout_unit_checksum_ref")
+                else {}
+            ),
         },
     )
     if unit.get("source_unit_checksum_ref") != expected_unit_checksum:

@@ -897,3 +897,17 @@ PDF_TEXT_LAYER_CONTRACTS_READY
 PDF_TEXT_LAYER_PAGE_TEXT_RUNTIME_IMPLEMENTED
 PDF_TEXT_LAYER_LAYOUT_TABLE_RUNTIME_DEFERRED
 ```
+
+## 19. PDF layout-rich normalization Slice 2 (2026-07-10)
+
+The same two private artifact types now carry deterministic layout inventories
+and bounded line/table-candidate units. `pypdf==6.7.5` remains page-text
+authority; the exact layout pair is `pdfplumber==0.11.10` plus
+`pdfminer.six==20260107`. Independent statuses and checksums prevent layout
+failure from changing the Slice 1 baseline. ArtifactStore scope, retention and
+privacy rules are unchanged; no new Knowledge or vector artifact exists.
+
+```text
+PDF_LAYOUT_NORMALIZATION_ARTIFACTS_RUNTIME_READY
+PDF_LAYOUT_ARTIFACTSTORE_BOUNDARY_UNCHANGED
+```

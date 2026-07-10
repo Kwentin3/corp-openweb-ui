@@ -68,8 +68,13 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         source = BUNDLE.read_text(encoding="utf-8")
         self.assertIn("_BUNDLED_MODULES", source)
         self.assertNotIn("pipe_stub", source)
-        self.assertIn("requirements: pydantic,pypdf==6.7.5", source)
+        self.assertIn(
+            "requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107",
+            source,
+        )
         module = load_bundle_module()
+        self.assertIn("pdf_layout", module._BUNDLED_MODULES)
+        self.assertIn("pdf_layout_units", module._BUNDLED_MODULES)
         self.assertIn("pdf_text_layer", module._BUNDLED_MODULES)
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
@@ -81,6 +86,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
+        self.assertEqual(bundled_package.PDFPLUMBER_PINNED_VERSION, "0.11.10")
+        self.assertEqual(bundled_package.PDFMINER_PINNED_VERSION, "20260107")
         pipe = module.Pipe()
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "artifacts.sqlite3")

@@ -5,7 +5,7 @@ from typing import Iterable
 
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
-NORMALIZER_VERSION = "gate1_pdf_text_layer_slice1_v0"
+NORMALIZER_VERSION = "gate1_pdf_layout_rich_slice2_v0"
 SAFETY_STATEMENT = (
     "Gate 1 did not calculate tax, extract source facts through LLM, generate "
     "declaration, generate XLS/XLSX or file with FNS."

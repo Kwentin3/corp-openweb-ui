@@ -1,7 +1,7 @@
 # Broker Reports PDF text-layer payload v0
 
 Date: 2026-07-10
-Status: Slice 1 page-text runtime implemented; layout/table extensions deferred
+Status: Slice 2 layout-rich runtime implemented; tables remain non-semantic candidates
 Projection schema: `pdf_text_layer_projection_v0`
 
 ## Purpose
@@ -263,3 +263,21 @@ content is `partial_out_of_scope`. Image-only pages produce
 `block_inventory`, `word_inventory` and `table_candidate_inventory` remain
 empty in Slice 1. They require the later layout-rich backend and do not affect
 the proven page-text projection contract.
+
+## Slice 2 layout-rich runtime profile (2026-07-10)
+
+Layout requests require exactly `pdfplumber==0.11.10` and
+`pdfminer.six==20260107`, while `pypdf==6.7.5` remains the independent page-text
+baseline. The factory fails closed on import/version/capability drift.
+
+Private char, word, line, block, bbox, vector and table-candidate inventories
+carry stable refs and checksums. Page-local reconciliation and exact selected,
+accounted and unaccounted ref sets control `complete|partial`; layout failure
+never weakens page-text status. OCR/VLM and page rendering remain false.
+
+```text
+PDF_LAYOUT_BACKEND_RUNTIME_READY
+PDF_LAYOUT_WORD_LINE_REFS_READY
+PDF_LAYOUT_CHECKSUMS_READY
+PDF_TABLE_CANDIDATES_REMAIN_NON_SEMANTIC
+```

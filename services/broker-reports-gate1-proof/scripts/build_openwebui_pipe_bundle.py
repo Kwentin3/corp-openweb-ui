@@ -34,6 +34,8 @@ MODULE_ORDER = [
     "profilers_pdf",
     "profilers_xlsx",
     "profilers_zip",
+    "pdf_layout",
+    "pdf_layout_units",
     "pdf_text_layer",
     "full_source",
     "taxonomy",
@@ -77,10 +79,10 @@ def main() -> None:
         modules=modules,
         pipe_source=pipe_source,
         title="Broker Reports Gate 1 Pipe Backend Normalizer",
-        version="0.5.0-pdf-text-layer-slice1-bundled",
-        package_version="gate1_pdf_text_layer_slice1_v0",
+        version="0.6.0-pdf-layout-rich-slice2-bundled",
+        package_version="gate1_pdf_layout_rich_slice2_v0",
         source_label="openwebui_actions/broker_reports_gate1_pipe.py",
-        requirements="pydantic,pypdf==6.7.5",
+        requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107",
     )
     BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
     print(str(BUNDLE_PATH))

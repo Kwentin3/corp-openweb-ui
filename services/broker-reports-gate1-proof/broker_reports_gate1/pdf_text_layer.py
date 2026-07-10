@@ -3,18 +3,31 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
 
 from .contracts import stable_digest
+from .pdf_layout import (
+    PDF_LAYOUT_CAPABILITIES,
+    PDF_LAYOUT_POLICY_VERSION,
+    PDFMINER_PINNED_VERSION,
+    PDFPLUMBER_PINNED_VERSION,
+    PdfLayoutParserConfig,
+    PdfPlumberLayoutAdapter,
+)
+from .pdf_layout_units import (
+    PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION,
+    PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION,
+    resolve_pdf_layout_unit_source_value,
+)
 
 
 FACTORY_REQUIRED = (
     "PdfTextLayerParserFactory.create is the only production PDF text-layer parser entrypoint"
 )
 FORBIDDEN = (
-    "Full-source builders, profilers, Gate 2 callers and smoke scripts must not instantiate PypdfParserAdapter directly"
+    "Full-source builders, profilers, Gate 2 callers and smoke scripts must not instantiate PypdfParserAdapter directly or PdfPlumberLayoutAdapter directly"
 )
 
 PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION = "pdf_text_layer_projection_v0"
@@ -22,7 +35,14 @@ PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION = "pdf_text_layer_coverage_v0"
 PDF_PARSER_POLICY_VERSION = "pypdf_page_text_policy_v0"
 PYPDF_PINNED_VERSION = "6.7.5"
 SUPPORTED_PDF_CAPABILITY = "page_text"
-PDF_SOURCE_UNIT_TYPES = {"pdf_page_text_unit", "pdf_line_cluster_unit"}
+SUPPORTED_PDF_CAPABILITIES = frozenset(
+    {SUPPORTED_PDF_CAPABILITY, *PDF_LAYOUT_CAPABILITIES}
+)
+PDF_SOURCE_UNIT_TYPES = {
+    "pdf_page_text_unit",
+    "pdf_line_cluster_unit",
+    "pdf_table_candidate_unit",
+}
 
 
 class PdfTextLayerParserError(RuntimeError):
@@ -44,6 +64,7 @@ class PdfTextLayerParserConfig:
     max_pages: int = 2_000
     max_page_content_stream_bytes: int = 10_000_000
     max_page_text_characters: int = 200_000
+    layout: PdfLayoutParserConfig = field(default_factory=PdfLayoutParserConfig)
 
     @property
     def config_ref(self) -> str:
@@ -81,13 +102,15 @@ class PdfTextLayerParserFactory:
     def create(
         self,
         request: PdfParserCapabilityRequest | None = None,
-    ) -> "PypdfParserAdapter":
+    ) -> "PypdfParserAdapter | PdfPlumberLayoutAdapter":
         request = request or PdfParserCapabilityRequest()
-        if request.capability != SUPPORTED_PDF_CAPABILITY:
+        if request.capability not in SUPPORTED_PDF_CAPABILITIES:
             raise PdfTextLayerParserError(
                 "pdf_parser_capability_unsupported",
-                "Slice 1 supports page_text only and does not silently downgrade layout/table requests",
+                "Requested PDF parser capability is unsupported and will not be downgraded",
             )
+        if request.capability in PDF_LAYOUT_CAPABILITIES:
+            return self._create_layout_adapter(request)
         for value, code in (
             (self.config.max_document_bytes, "pdf_document_budget_invalid"),
             (self.config.max_pages, "pdf_page_budget_invalid"),
@@ -116,6 +139,70 @@ class PdfTextLayerParserFactory:
             pypdf_module=pypdf,
             config=self.config,
             request=request,
+        )
+
+    def _create_layout_adapter(
+        self,
+        request: PdfParserCapabilityRequest,
+    ) -> PdfPlumberLayoutAdapter:
+        layout = self.config.layout
+        for value, code in (
+            (layout.max_document_bytes, "pdf_layout_document_budget_invalid"),
+            (layout.max_pages, "pdf_layout_page_budget_invalid"),
+            (layout.max_chars_per_page, "pdf_layout_char_budget_invalid"),
+            (layout.max_words_per_page, "pdf_layout_word_budget_invalid"),
+            (layout.max_lines_per_page, "pdf_layout_line_budget_invalid"),
+            (
+                layout.max_vector_objects_per_page,
+                "pdf_layout_vector_object_budget_invalid",
+            ),
+            (
+                layout.max_inventory_objects_per_document,
+                "pdf_layout_document_inventory_budget_invalid",
+            ),
+            (
+                layout.max_table_candidates_per_page,
+                "pdf_layout_table_candidate_budget_invalid",
+            ),
+            (
+                layout.max_table_detection_words_per_page,
+                "pdf_layout_table_detection_word_budget_invalid",
+            ),
+            (
+                layout.max_table_detection_vector_objects_per_page,
+                "pdf_layout_table_detection_vector_budget_invalid",
+            ),
+            (layout.max_seconds_per_page, "pdf_layout_time_budget_invalid"),
+        ):
+            if value <= 0:
+                raise PdfTextLayerParserError(
+                    code, "PDF layout parser budgets must be positive"
+                )
+        try:
+            pdfplumber = importlib.import_module("pdfplumber")
+            pdfminer = importlib.import_module("pdfminer")
+        except ModuleNotFoundError as exc:
+            raise PdfTextLayerParserError(
+                "pdf_layout_runtime_unavailable",
+                "Pinned pdfplumber/pdfminer runtime is unavailable",
+            ) from exc
+        pdfplumber_version = str(getattr(pdfplumber, "__version__", "") or "")
+        pdfminer_version = str(getattr(pdfminer, "__version__", "") or "")
+        if pdfplumber_version != layout.expected_pdfplumber_version:
+            raise PdfTextLayerParserError(
+                "pdf_layout_pdfplumber_version_mismatch",
+                "Pinned pdfplumber runtime version does not match",
+            )
+        if pdfminer_version != layout.expected_pdfminer_version:
+            raise PdfTextLayerParserError(
+                "pdf_layout_pdfminer_version_mismatch",
+                "Pinned pdfminer.six runtime version does not match",
+            )
+        return PdfPlumberLayoutAdapter(
+            pdfplumber_module=pdfplumber,
+            pdfminer_module=pdfminer,
+            config=layout,
+            requested_capability=request.capability,
         )
 
 
@@ -388,6 +475,33 @@ def pdf_page_checksum_ref(page: dict[str, Any], parser_ref: str) -> str:
     )
 
 
+def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -> str:
+    return _checksum_ref(
+        "pdflayoutpagechk",
+        {
+            "layout_parser_ref": layout_parser_ref,
+            "page_ref": page.get("page_ref"),
+            "page_number": page.get("page_number"),
+            "layout_projection_status": page.get("layout_projection_status"),
+            "layout_reason_codes": list(page.get("layout_reason_codes") or []),
+            "layout_char_refs": list(page.get("layout_char_refs") or []),
+            "layout_word_refs": list(page.get("layout_word_refs") or []),
+            "layout_line_refs": list(page.get("layout_line_refs") or []),
+            "layout_block_refs": list(page.get("layout_block_refs") or []),
+            "table_candidate_refs": list(page.get("table_candidate_refs") or []),
+            "parser_order_word_refs": list(page.get("parser_order_word_refs") or []),
+            "geometry_reading_order_refs": list(
+                page.get("geometry_reading_order_refs") or []
+            ),
+            "duplicate_chars_total": int(page.get("duplicate_chars_total") or 0),
+            "rotated_chars_total": int(page.get("rotated_chars_total") or 0),
+            "layout_page_width": page.get("layout_page_width"),
+            "layout_page_height": page.get("layout_page_height"),
+            "layout_page_rotation": page.get("layout_page_rotation"),
+        },
+    )
+
+
 def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
     projection = _object(payload.get("pdf_text_layer_projection"))
     return _checksum_ref(
@@ -416,6 +530,25 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
             "declared_page_range": projection.get("declared_page_range"),
             "page_checksum_refs": list(projection.get("page_checksum_refs") or []),
             "coverage_ref": _object(projection.get("coverage")).get("coverage_ref"),
+            "layout_parser_ref": projection.get("layout_parser_ref"),
+            "layout_parser_engine": projection.get("layout_parser_engine"),
+            "layout_parser_engine_version": projection.get(
+                "layout_parser_engine_version"
+            ),
+            "layout_underlying_engine": projection.get("layout_underlying_engine"),
+            "layout_underlying_engine_version": projection.get(
+                "layout_underlying_engine_version"
+            ),
+            "layout_parser_config_ref": projection.get("layout_parser_config_ref"),
+            "layout_projection_status": projection.get("layout_projection_status"),
+            "table_candidate_status": projection.get("table_candidate_status"),
+            "layout_page_checksum_refs": list(
+                projection.get("layout_page_checksum_refs") or []
+            ),
+            "layout_coverage_ref": _object(
+                projection.get("layout_coverage")
+            ).get("coverage_ref"),
+            "layout_unit_config_ref": projection.get("layout_unit_config_ref"),
         },
     )
 
@@ -453,13 +586,138 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not all(page_refs) or len(page_refs) != len(set(page_refs)):
         errors.append(_error("pdf_projection_page_ref_invalid", payload_ref))
     expected_page_checksums = [
-        pdf_page_checksum_ref(page, str(payload.get("parser_ref") or "")) for page in pages
+        pdf_page_checksum_ref(
+            page,
+            str(
+                projection.get("page_text_parser_ref")
+                or payload.get("parser_ref")
+                or ""
+            ),
+        )
+        for page in pages
     ]
     actual_page_checksums = [str(page.get("page_text_checksum_ref") or "") for page in pages]
     if actual_page_checksums != expected_page_checksums:
         errors.append(_error("pdf_projection_page_checksum_mismatch", payload_ref))
     if list(projection.get("page_checksum_refs") or []) != actual_page_checksums:
         errors.append(_error("pdf_projection_page_checksum_inventory_mismatch", payload_ref))
+
+    layout_requested = projection.get("layout_requested_capability")
+    if layout_requested is not None:
+        if layout_requested not in PDF_LAYOUT_CAPABILITIES:
+            errors.append(_error("pdf_layout_capability_mismatch", payload_ref))
+        if projection.get("layout_parser_engine") != "pdfplumber":
+            errors.append(_error("pdf_layout_engine_mismatch", payload_ref))
+        if projection.get("layout_parser_engine_version") != PDFPLUMBER_PINNED_VERSION:
+            errors.append(_error("pdf_layout_engine_version_mismatch", payload_ref))
+        if projection.get("layout_underlying_engine") != "pdfminer.six":
+            errors.append(_error("pdf_layout_underlying_engine_mismatch", payload_ref))
+        if (
+            projection.get("layout_underlying_engine_version")
+            != PDFMINER_PINNED_VERSION
+        ):
+            errors.append(
+                _error("pdf_layout_underlying_engine_version_mismatch", payload_ref)
+            )
+        layout_parser_ref = str(projection.get("layout_parser_ref") or "")
+        if not layout_parser_ref or not projection.get("layout_parser_config_ref"):
+            errors.append(_error("pdf_layout_parser_ref_missing", payload_ref))
+        expected_layout_checksums = [
+            pdf_layout_page_checksum_ref(page, layout_parser_ref) for page in pages
+        ]
+        actual_layout_checksums = [
+            str(page.get("page_layout_checksum_ref") or "") for page in pages
+        ]
+        if actual_layout_checksums != expected_layout_checksums:
+            errors.append(_error("pdf_layout_page_checksum_mismatch", payload_ref))
+        if (
+            list(projection.get("layout_page_checksum_refs") or [])
+            != actual_layout_checksums
+        ):
+            errors.append(
+                _error("pdf_layout_page_checksum_inventory_mismatch", payload_ref)
+            )
+        word_inventory = _dict_list(projection.get("word_inventory"))
+        line_inventory = _dict_list(projection.get("line_inventory"))
+        char_inventory = _dict_list(projection.get("char_inventory"))
+        block_inventory = _dict_list(projection.get("block_inventory"))
+        table_inventory = _dict_list(projection.get("table_candidate_inventory"))
+        for inventory, ref_name, code in (
+            (char_inventory, "char_ref", "pdf_layout_char_ref_invalid"),
+            (word_inventory, "word_ref", "pdf_layout_word_ref_invalid"),
+            (line_inventory, "line_ref", "pdf_layout_line_ref_invalid"),
+            (block_inventory, "block_ref", "pdf_layout_block_ref_invalid"),
+            (
+                table_inventory,
+                "table_candidate_ref",
+                "pdf_layout_table_candidate_ref_invalid",
+            ),
+        ):
+            refs = [str(item.get(ref_name) or "") for item in inventory]
+            if not all(refs) or len(refs) != len(set(refs)):
+                errors.append(_error(code, payload_ref))
+            if any(str(item.get("page_ref") or "") not in set(page_refs) for item in inventory):
+                errors.append(_error(f"{code}_page_scope", payload_ref))
+        word_refs = {str(item.get("word_ref") or "") for item in word_inventory}
+        line_refs = {str(item.get("line_ref") or "") for item in line_inventory}
+        for line in line_inventory:
+            if not set(str(ref) for ref in line.get("word_refs") or []) <= word_refs:
+                errors.append(_error("pdf_layout_line_word_ref_out_of_scope", payload_ref))
+        for candidate in table_inventory:
+            if candidate.get("table_reconstruction_status") != "candidate":
+                errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))
+            if candidate.get("semantic_table_truth_claimed") is not False:
+                errors.append(_error("pdf_table_candidate_semantic_truth_claimed", payload_ref))
+            if not set(
+                str(ref) for ref in candidate.get("contributing_word_refs") or []
+            ) <= word_refs:
+                errors.append(
+                    _error("pdf_table_candidate_word_ref_out_of_scope", payload_ref)
+                )
+            if not set(
+                str(ref) for ref in candidate.get("fallback_text_refs") or []
+            ) <= line_refs:
+                errors.append(
+                    _error("pdf_table_candidate_fallback_ref_out_of_scope", payload_ref)
+                )
+        layout_coverage = _object(projection.get("layout_coverage"))
+        if (
+            layout_coverage.get("schema_version")
+            != PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION
+        ):
+            errors.append(_error("pdf_layout_coverage_schema_mismatch", payload_ref))
+        layout_selected = list(layout_coverage.get("selected_source_refs") or [])
+        layout_accounted = list(layout_coverage.get("accounted_source_refs") or [])
+        expected_layout_selected = [
+            *[str(item.get("word_ref") or "") for item in word_inventory],
+            *[str(item.get("line_ref") or "") for item in line_inventory],
+        ]
+        if layout_selected != expected_layout_selected:
+            errors.append(_error("pdf_layout_selected_refs_mismatch", payload_ref))
+        layout_status = projection.get("layout_projection_status")
+        if len(layout_accounted) != len(set(layout_accounted)):
+            errors.append(_error("pdf_layout_coverage_duplicate_ref", payload_ref))
+        if layout_status == "complete":
+            if sorted(layout_selected) != sorted(layout_accounted):
+                errors.append(_error("pdf_layout_selected_accounted_mismatch", payload_ref))
+            if layout_coverage.get("all_selected_refs_accounted") is not True:
+                errors.append(_error("pdf_layout_coverage_incomplete", payload_ref))
+            if any(
+                page.get("layout_projection_status") != "complete" for page in pages
+            ):
+                errors.append(_error("pdf_layout_complete_page_status_mismatch", payload_ref))
+        else:
+            if not set(layout_accounted) <= set(layout_selected):
+                errors.append(_error("pdf_layout_partial_accounted_ref_out_of_scope", payload_ref))
+            if sorted(layout_coverage.get("unaccounted_refs") or []) != sorted(
+                set(layout_selected) - set(layout_accounted)
+            ):
+                errors.append(_error("pdf_layout_partial_unaccounted_refs_mismatch", payload_ref))
+        if projection.get("table_candidate_status") == "candidate":
+            if not table_inventory:
+                errors.append(_error("pdf_table_candidate_inventory_empty", payload_ref))
+            if projection.get("semantic_reconstruction_status") != "candidate":
+                errors.append(_error("pdf_table_semantic_candidate_status_mismatch", payload_ref))
 
     coverage = _object(projection.get("coverage"))
     if coverage.get("schema_version") != PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION:
@@ -551,6 +809,51 @@ def validate_pdf_source_unit(
         errors.append(_error("pdf_source_unit_coverage_count_mismatch", unit_ref))
     if coverage.get("all_selected_refs_accounted") is not True:
         errors.append(_error("pdf_source_unit_coverage_incomplete", unit_ref))
+    unit_type = unit.get("pdf_unit_type")
+    if unit_type in {"pdf_line_cluster_unit", "pdf_table_candidate_unit"}:
+        if unit.get("layout_projection_status") != "complete":
+            errors.append(_error("pdf_layout_source_unit_projection_not_complete", unit_ref))
+        layout_coverage = _object(unit.get("pdf_layout_coverage"))
+        if (
+            layout_coverage.get("schema_version")
+            != PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION
+        ):
+            errors.append(_error("pdf_layout_source_unit_coverage_schema_mismatch", unit_ref))
+        selected = list(layout_coverage.get("selected_source_refs") or [])
+        accounted = list(layout_coverage.get("accounted_source_refs") or [])
+        if not selected or sorted(selected) != sorted(accounted):
+            errors.append(_error("pdf_layout_source_unit_coverage_refs_mismatch", unit_ref))
+        if len(accounted) != len(set(accounted)):
+            errors.append(_error("pdf_layout_source_unit_coverage_duplicate_ref", unit_ref))
+        if layout_coverage.get("all_selected_refs_accounted") is not True:
+            errors.append(_error("pdf_layout_source_unit_coverage_incomplete", unit_ref))
+        supplemental_refs = list(unit.get("pdf_layout_source_value_refs") or [])
+        if not supplemental_refs or len(supplemental_refs) != len(set(supplemental_refs)):
+            errors.append(_error("pdf_layout_source_unit_value_refs_invalid", unit_ref))
+        for source_value_ref in supplemental_refs:
+            try:
+                resolve_pdf_layout_unit_source_value(unit, str(source_value_ref))
+            except ValueError as exc:
+                errors.append(_error(str(exc), source_value_ref))
+        if unit.get("semantic_table_truth_claimed") is not False:
+            errors.append(_error("pdf_layout_source_unit_semantic_truth_claimed", unit_ref))
+        if unit_type == "pdf_table_candidate_unit":
+            if unit.get("table_reconstruction_status") != "candidate":
+                errors.append(_error("pdf_table_source_unit_status_invalid", unit_ref))
+            for field in (
+                "table_candidate_ref",
+                "table_strategy_ref",
+                "geometry_confidence",
+                "table_bbox_ref",
+            ):
+                if unit.get(field) in {None, ""}:
+                    errors.append(_error("pdf_table_source_unit_field_missing", f"{unit_ref}:{field}"))
+            if not list(unit.get("table_contributing_word_refs") or []):
+                errors.append(_error("pdf_table_source_unit_words_missing", unit_ref))
+            if not list(unit.get("table_fallback_text_refs") or []):
+                errors.append(_error("pdf_table_source_unit_fallback_missing", unit_ref))
+        elif unit.get("table_reconstruction_status") != "not_claimed":
+            errors.append(_error("pdf_line_cluster_claims_table_reconstruction", unit_ref))
     if require_parent_payload and parent_payload is None:
         errors.append(_error("pdf_source_unit_parent_payload_missing", unit_ref))
     if parent_payload is not None:
@@ -563,6 +866,41 @@ def validate_pdf_source_unit(
             errors.append(_error("pdf_source_unit_parent_ref_mismatch", unit_ref))
         if unit.get("payload_checksum_ref") != parent_payload.get("payload_checksum_ref"):
             errors.append(_error("pdf_source_unit_payload_checksum_mismatch", unit_ref))
+        if unit_type in {"pdf_line_cluster_unit", "pdf_table_candidate_unit"}:
+            parent_projection = _object(parent_payload.get("pdf_text_layer_projection"))
+            if parent_projection.get("layout_projection_status") != "complete":
+                errors.append(_error("pdf_layout_source_unit_parent_not_complete", unit_ref))
+            parent_layout_refs = set(parent_payload.get("source_value_refs") or [])
+            for source_value_ref in unit.get("pdf_layout_source_value_refs") or []:
+                if source_value_ref not in parent_layout_refs:
+                    errors.append(
+                        _error("pdf_layout_source_unit_value_ref_out_of_parent", source_value_ref)
+                    )
+                    continue
+                unit_value = resolve_pdf_layout_unit_source_value(
+                    unit, str(source_value_ref)
+                )
+                parent_entries = [
+                    item
+                    for item in _dict_list(parent_payload.get("source_value_index"))
+                    if item.get("source_value_ref") == source_value_ref
+                ]
+                if len(parent_entries) != 1:
+                    errors.append(
+                        _error("pdf_layout_parent_value_ref_not_unique", source_value_ref)
+                    )
+                    continue
+                try:
+                    parent_value = resolve_pdf_payload_source_value(
+                        parent_payload, parent_entries[0]
+                    )
+                except ValueError as exc:
+                    errors.append(_error(str(exc), source_value_ref))
+                    continue
+                if unit_value != parent_value:
+                    errors.append(
+                        _error("pdf_layout_source_unit_parent_value_mismatch", source_value_ref)
+                    )
     return errors
 
 
@@ -571,19 +909,48 @@ def resolve_pdf_payload_source_value(
     entry: dict[str, Any],
 ) -> str:
     path = _object(entry.get("value_path"))
-    if path.get("kind") != "pdf_page_text_span":
-        raise ValueError("pdf_source_value_path_kind_invalid")
-    page_number = int(path.get("page_number") or 0)
-    pages = _dict_list(_object(payload.get("pdf_text_layer_projection")).get("page_inventory"))
-    page = next((item for item in pages if int(item.get("page_number") or 0) == page_number), None)
-    if page is None:
-        raise ValueError("pdf_source_value_page_path_invalid")
-    text = str(page.get("text") or "")
-    start = int(path.get("character_start") or 0)
-    end = int(path.get("character_end") or 0)
-    if start < 0 or end < start or end > len(text):
-        raise ValueError("pdf_source_value_span_path_invalid")
-    return text[start:end]
+    kind = path.get("kind")
+    projection = _object(payload.get("pdf_text_layer_projection"))
+    if kind == "pdf_page_text_span":
+        page_number = int(path.get("page_number") or 0)
+        pages = _dict_list(projection.get("page_inventory"))
+        page = next(
+            (
+                item
+                for item in pages
+                if int(item.get("page_number") or 0) == page_number
+            ),
+            None,
+        )
+        if page is None:
+            raise ValueError("pdf_source_value_page_path_invalid")
+        text = str(page.get("text") or "")
+        start = int(path.get("character_start") or 0)
+        end = int(path.get("character_end") or 0)
+        if start < 0 or end < start or end > len(text):
+            raise ValueError("pdf_source_value_span_path_invalid")
+        return text[start:end]
+    if kind == "pdf_layout_word_text":
+        ref = str(path.get("word_ref") or "")
+        matches = [
+            item
+            for item in _dict_list(projection.get("word_inventory"))
+            if item.get("word_ref") == ref
+        ]
+        if len(matches) != 1:
+            raise ValueError("pdf_layout_word_value_path_invalid")
+        return str(matches[0].get("text") or "")
+    if kind == "pdf_layout_line_text":
+        ref = str(path.get("line_ref") or "")
+        matches = [
+            item
+            for item in _dict_list(projection.get("line_inventory"))
+            if item.get("line_ref") == ref
+        ]
+        if len(matches) != 1:
+            raise ValueError("pdf_layout_line_value_path_invalid")
+        return str(matches[0].get("text") or "")
+    raise ValueError("pdf_source_value_path_kind_invalid")
 
 
 def _text_showing_operator_count(contents: Any) -> int:
