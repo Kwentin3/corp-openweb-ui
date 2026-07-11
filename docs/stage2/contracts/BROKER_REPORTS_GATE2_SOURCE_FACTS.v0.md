@@ -389,7 +389,7 @@ Every fact records:
 - managed prompt ref/command/version/hash;
 - prompt contract id;
 - output schema id/version/hash;
-- model id;
+- requested model id;
 - structured-output mode;
 - raw output artifact ref;
 - extraction attempt ordinal;
@@ -397,6 +397,11 @@ Every fact records:
 - created timestamp.
 
 The audit fields must match run/package/raw-output records exactly.
+The fact-level `model_id` is the requested model binding. The resolved provider
+model, provider profile/adapter revision, response-id hash, usage, latency and
+canonical/adapted provider-schema audit are runtime facts available through
+`raw_output_artifact_ref` and `validation_ref`;
+they are not copied into each source fact and cannot be authored by the LLM.
 `raw_output_artifact_ref` is null in the pending model candidate because the
 raw-output record does not yet exist. The runner persists the raw output first,
 then the deterministic finalizer inserts that ref and the validation ref. It

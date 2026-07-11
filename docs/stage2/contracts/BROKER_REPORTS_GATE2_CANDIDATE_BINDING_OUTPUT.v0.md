@@ -39,6 +39,12 @@ live proof result. A provider availability failure such as
 `gate2_model_provider_error` is a transport/provider incident, not a contract
 rejection.
 
+Provider/profile/adapter/model/usage/latency/response-id and schema-adaptation
+metadata is not part of this model output. The adapter and runtime attach
+`gate2_provider_execution_metadata_v1` to the private raw attempt and its safe
+projection to validation/run audit. A model-supplied field with that meaning
+has no authority.
+
 ## 3. Output envelope
 
 ```json
@@ -277,6 +283,11 @@ Raw initial/repair outputs, candidate values, source refs, and materialized
 pre-validation facts are private case artifacts in project-owned artifact
 payload storage. Safe reports may expose only ids, counts, domain names,
 selected role names, statuses, and reason/error codes.
+
+The exact provider response id and raw provider exception remain private. Safe
+validation/run metadata may expose only allowlisted execution fields and a
+response-id presence flag/hash plus canonical/adapted schema hashes and the
+transform count.
 
 The route performs no Knowledge/RAG/vector writes, ordinary processed upload,
 OCR/VLM, page rendering, tax calculation, declaration generation, spreadsheet

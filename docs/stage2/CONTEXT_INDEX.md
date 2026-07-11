@@ -499,12 +499,11 @@ Comment:
 ## Брокерские отчеты / 3-НДФЛ
 
 Current routing note, 2026-07-11: the bounded Gate 1/Gate 2 technical contour is
-implemented in the repository and locally verified. One narrow native/PDF
-text-layer vertical was proven on the preceding live bundle. The current
-candidate-binding/provider-factory bundle is deployed with repo/live parity,
-but did not pass semantic acceptance: the approved GPT canary stopped on
-provider quota with zero accepted facts. Keep the full
-customer workflow as a limited pilot that depends on methodology,
+implemented in the repository and locally verified. The current
+candidate-binding/provider-factory bundle is deployed with repo/live parity.
+Bounded synthetic semantic acceptance passed for OpenAI `gpt-5.6-sol` and
+Gemini `models/gemini-3.5-flash`. Keep the full customer workflow as a limited
+pilot that depends on methodology,
 representative examples, accepted input formats and data policy.
 
 Read first:
@@ -535,11 +534,11 @@ Comment:
 - Text-layer PDFs do not use OCR. Image-only/scanned pages remain outside this
   contour and require a separately approved OCR path.
 - A raw PDF or an unbounded raw-text dump is not a Gate 2 model input.
-- Deployment parity is not semantic acceptance. The current GPT canary was
-  provider-quota-blocked, the unsupported DeepSeek profile failed closed before
-  a provider call, and no real native/PDF rerun was possible without an active
-  DCP. The full customer pilot remains gated by methodology, representative
-  data, expected outputs and provider/data policy.
+- Deployment parity and bounded synthetic semantic acceptance are proven only
+  for `gpt-5.6-sol` and `models/gemini-3.5-flash`. The current native/PDF
+  customer rerun was not performed because the controlled case had no active
+  source records or DCP. The full customer pilot remains gated by methodology,
+  representative data, expected outputs and provider/data policy.
 
 ## Web-search
 

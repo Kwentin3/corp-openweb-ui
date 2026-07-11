@@ -3,8 +3,8 @@
 Date: 2026-07-11
 
 Status: bounded technical contour implemented and deployed with repo/live
-parity; current-bundle semantic acceptance is provider-blocked and the full
-customer pilot remains a separate gate.
+parity; synthetic semantic acceptance passed for `gpt-5.6-sol` and
+`models/gemini-3.5-flash`; the full customer pilot remains a separate gate.
 
 ## 1. Purpose
 
@@ -101,12 +101,11 @@ policy. Manual anonymization may be required until future masking subsystem exis
 ## 13. Implementation readiness
 
 The bounded normalization, candidate-binding, strict-validation and provider
-factory contour is implemented and locally verified. One narrow native/PDF
-text-layer vertical passed on the preceding live bundle. Acceptance of the
-exact current bundle did not pass: the GPT canary stopped on provider quota with
-zero accepted facts and no fallback; DeepSeek correctly failed closed before a
-provider call. Deployment/Prompt parity, zero storage deltas and cleanup are
-proven, but no real native/PDF rerun was possible without an active DCP.
+factory contour is implemented and locally verified. The current bundle passed
+bounded synthetic semantic acceptance for `gpt-5.6-sol` and
+`models/gemini-3.5-flash`. Deployment/Prompt parity, zero storage deltas and
+cleanup are proven. The current native/PDF customer rerun was not performed
+because the controlled case had no active source records or DCP.
 
 Customer test documents, methodology, expected output and approved data policy
 still gate broad customer-pilot acceptance. They do not retroactively block the

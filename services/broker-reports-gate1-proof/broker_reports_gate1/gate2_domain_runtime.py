@@ -45,6 +45,9 @@ from .gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClient,
     Gate2StructuredModelResult,
+    gate2_model_execution_contract,
+    gate2_provider_execution_safe_metadata,
+    gate2_provider_execution_summary,
 )
 from .gate2_source_fact_contracts import (
     RAW_OUTPUT_SCHEMA_VERSION,
@@ -553,6 +556,14 @@ class Gate2DomainSourceFactRuntimeService:
                 "source_facts_refs": refs["source_facts_refs"],
                 "domain_source_facts_refs": refs["domain_source_facts_refs"],
                 "stitch_result_refs": refs["stitch_result_refs"],
+                "provider_execution_summary": gate2_provider_execution_summary(
+                    [
+                        attempt
+                        for outcome in all_outcomes
+                        for attempt in outcome.get("provider_attempts", [])
+                        if isinstance(attempt, dict)
+                    ]
+                ),
                 "summary_ref": summary_ref,
                 "finished_at": utc_now_iso(),
             }
@@ -707,6 +718,7 @@ class Gate2DomainSourceFactRuntimeService:
             warning_codes=[budget_error] if budget_error else [],
         )
         refs: defaultdict[str, list[str]] = defaultdict(list)
+        provider_attempts: list[dict[str, Any]] = []
         refs["domain_package_refs"].append(package_ref)
         for key, values in binding_contract_refs.items():
             refs[key].extend(values)
@@ -716,6 +728,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "extractor_domain": domain,
                 "fact_counts": {},
                 "refs": refs,
+                "provider_attempts": provider_attempts,
                 "stitch_input": {
                     "extractor_domain": domain,
                     "domain_package_ref": package_ref,
@@ -766,6 +779,7 @@ class Gate2DomainSourceFactRuntimeService:
                 retention_policy=retention_policy,
             )
             refs["raw_output_refs"].append(raw_output_ref)
+            provider_attempts.append(copy.deepcopy(raw_payload))
             validation_ref = new_artifact_id()
             if raw_payload["model_call_status"] == "passed":
                 try:
@@ -842,6 +856,10 @@ class Gate2DomainSourceFactRuntimeService:
                 validation = _failed_validation(
                     package, package_ref, str(raw_payload.get("error_code") or "gate2_model_call_failed")
                 )
+            validation["raw_output_artifact_ref"] = raw_output_ref
+            validation["provider_execution"] = copy.deepcopy(
+                raw_payload["provider_execution_safe"]
+            )
             self._persist_validation(
                 validation_ref=validation_ref,
                 validation=validation,
@@ -867,6 +885,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "extractor_domain": domain,
                 "fact_counts": {},
                 "refs": refs,
+                "provider_attempts": provider_attempts,
                 "stitch_input": {
                     "extractor_domain": domain,
                     "domain_package_ref": package_ref,
@@ -940,6 +959,7 @@ class Gate2DomainSourceFactRuntimeService:
             "extractor_domain": domain,
             "fact_counts": dict(counts),
             "refs": refs,
+            "provider_attempts": provider_attempts,
             "stitch_input": {
                 "wrapper_schema_version": DOMAIN_SOURCE_FACTS_SCHEMA_VERSION,
                 "validator_status": "passed",
@@ -963,6 +983,9 @@ class Gate2DomainSourceFactRuntimeService:
         retention_policy,
     ) -> tuple[str, dict[str, Any]]:
         raw_ref = new_artifact_id()
+        execution_metadata = gate2_model_execution_contract(
+            self.model_client, self.config.model_id
+        )
         try:
             result = self.model_client.extract(
                 prompt=prompt,
@@ -976,6 +999,7 @@ class Gate2DomainSourceFactRuntimeService:
                 raise Gate2SourceFactRuntimeError(
                     "gate2_model_invalid_response", "Invalid domain model result"
                 )
+            execution_metadata = result.execution_metadata or execution_metadata
             raw_payload = {
                 "schema_version": RAW_OUTPUT_SCHEMA_VERSION,
                 "extraction_run_id": package.get("extraction_run_id"),
@@ -984,6 +1008,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "source_unit_ref": _object(package.get("source_unit")).get("unit_id"),
                 "model_call_status": "passed",
                 "error_code": None,
+                "failure_class": None,
                 "raw_output": result.content,
                 "structured_output_mode": result.structured_output_mode,
                 "response_format_type": result.response_format_type,
@@ -998,10 +1023,17 @@ class Gate2DomainSourceFactRuntimeService:
                 "model_id": self.config.model_id,
                 "provider_profile_id": self.config.provider_profile_id,
                 "provider_capability_probe": self.config.provider_capability_probe,
+                "provider_execution": execution_metadata.snapshot(),
+                "provider_execution_safe": gate2_provider_execution_safe_metadata(
+                    execution_metadata
+                ),
                 "extractor_domain": package.get("extractor_domain"),
                 "created_at": utc_now_iso(),
             }
         except Exception as exc:
+            execution_metadata = (
+                getattr(exc, "execution_metadata", None) or execution_metadata
+            )
             raw_payload = {
                 "schema_version": RAW_OUTPUT_SCHEMA_VERSION,
                 "extraction_run_id": package.get("extraction_run_id"),
@@ -1010,6 +1042,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "source_unit_ref": _object(package.get("source_unit")).get("unit_id"),
                 "model_call_status": "failed",
                 "error_code": str(getattr(exc, "code", f"gate2_model_call_failed_{exc.__class__.__name__}")),
+                "failure_class": getattr(exc, "failure_class", None),
                 "raw_output": copy.deepcopy(getattr(exc, "raw_output", None)),
                 "structured_output_mode": "openwebui_response_format_json_schema",
                 "response_format_type": "json_schema",
@@ -1024,6 +1057,10 @@ class Gate2DomainSourceFactRuntimeService:
                 "model_id": self.config.model_id,
                 "provider_profile_id": self.config.provider_profile_id,
                 "provider_capability_probe": self.config.provider_capability_probe,
+                "provider_execution": execution_metadata.snapshot(),
+                "provider_execution_safe": gate2_provider_execution_safe_metadata(
+                    execution_metadata
+                ),
                 "extractor_domain": package.get("extractor_domain"),
                 "created_at": utc_now_iso(),
             }
@@ -1041,6 +1078,7 @@ class Gate2DomainSourceFactRuntimeService:
             safe_metadata={
                 "model_call_status": raw_payload["model_call_status"],
                 "error_code": raw_payload["error_code"],
+                "failure_class": raw_payload["failure_class"],
                 "extractor_domain": package.get("extractor_domain"),
                 "repair_attempt_count": repair_attempt_count,
                 "fallback_used": raw_payload["fallback_used"],
@@ -1056,6 +1094,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "prompt_hash": _object(raw_payload["prompt_snapshot"]).get(
                     "prompt_hash"
                 ),
+                "provider_execution": raw_payload["provider_execution_safe"],
             },
         )
         return raw_ref, raw_payload
@@ -1307,6 +1346,12 @@ class Gate2DomainSourceFactRuntimeService:
                     )
                 ),
                 "repair_attempt_count": repair_attempt_count,
+                "raw_output_artifact_ref": validation.get(
+                    "raw_output_artifact_ref"
+                ),
+                "provider_execution": copy.deepcopy(
+                    validation.get("provider_execution") or {}
+                ),
             },
         )
 

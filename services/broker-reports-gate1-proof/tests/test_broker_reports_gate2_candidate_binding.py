@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,12 +43,21 @@ from broker_reports_gate1.gate2_candidate_binding import (
 from broker_reports_gate1.gate2_candidate_binding_runtime import (
     FACTORY_REQUIRED as RUNTIME_FACTORY_REQUIRED,
     FORBIDDEN as RUNTIME_FORBIDDEN,
+    candidate_binding_response_format,
+)
+from broker_reports_gate1.gate2_domain_contracts import (
+    domain_source_facts_response_format,
+)
+from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
+from broker_reports_gate1.gate2_provider_adapters import (
+    Gate2ProviderAdapterFactory,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import (
     Gate2ManagedPrompt,
     gate2_prompt_hash,
     model_call_audit_metadata,
     source_facts_provider_schema_hash,
+    source_facts_response_format,
     source_facts_schema_hash,
 )
 from broker_reports_gate1.gate2_source_fact_stitching import (
@@ -165,6 +175,58 @@ class BrokerReportsGate2CandidateBindingTest(unittest.TestCase):
         self.assertTrue(all(relation_id in rendered for relation_id in relation_ids))
         self.assertNotIn("100.00", rendered)
         self.assertNotIn("SYNTH", rendered)
+
+    def test_gemini_projection_characterizes_real_gate2_schema_family(self):
+        package = _domain_package("cash_movement")
+        adapter = Gate2ProviderAdapterFactory(
+            profile=gate2_provider_profile("google_gemini"),
+        ).create()
+        response_formats = {
+            "source": source_facts_response_format(package),
+            "domain": domain_source_facts_response_format(package),
+            "candidate_binding": candidate_binding_response_format(package),
+        }
+        dynamic_values = (
+            package["source_value_candidate_set"]["candidate_ids"]
+            + package["candidate_relation_set"]["relation_ids"]
+            + package["allowed_source_value_refs"]
+        )
+
+        for name, response_format in response_formats.items():
+            with self.subTest(name=name):
+                canonical = copy.deepcopy(response_format)
+                prepared = adapter.prepare_form_data(
+                    form_data={
+                        "model": "models/gemini-3.5-flash",
+                        "messages": [],
+                        "response_format": copy.deepcopy(response_format),
+                    },
+                    response_format=response_format,
+                )
+                adapted = prepared.form_data["response_format"]
+                canonical_schema = canonical["json_schema"]["schema"]
+                adapted_schema = adapted["json_schema"]["schema"]
+
+                self.assertEqual(response_format, canonical)
+                self.assertTrue(adapted["json_schema"]["strict"])
+                self.assertGreater(prepared.schema_transform_count, 0)
+                self.assertNotEqual(
+                    prepared.canonical_schema_hash,
+                    prepared.adapted_schema_hash,
+                )
+                self.assertEqual(
+                    _structural_schema_signature(canonical_schema),
+                    _structural_schema_signature(adapted_schema),
+                )
+                rendered_adapted = json.dumps(
+                    adapted_schema,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+                self.assertNotIn('"const"', rendered_adapted)
+                self.assertTrue(
+                    all(value not in rendered_adapted for value in dynamic_values)
+                )
 
     def test_negative_case_matrix_fails_with_typed_codes(self):
         cases = []
@@ -1070,6 +1132,38 @@ def _value_kind_hints(value: str) -> list[str]:
     if len(value) == 10 and value[4:5] == "-" and value[7:8] == "-":
         return ["iso_date_like"]
     return ["text"]
+
+
+def _structural_schema_signature(schema: dict[str, Any]) -> dict[str, Any]:
+    signature: dict[str, Any] = {}
+    for field in ("type", "required", "additionalProperties"):
+        if field in schema:
+            signature[field] = copy.deepcopy(schema[field])
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        signature["properties"] = {
+            str(name): _structural_schema_signature(child)
+            for name, child in properties.items()
+            if isinstance(child, dict)
+        }
+    items = schema.get("items")
+    if isinstance(items, dict):
+        signature["items"] = _structural_schema_signature(items)
+    elif isinstance(items, list):
+        signature["items"] = [
+            _structural_schema_signature(item)
+            for item in items
+            if isinstance(item, dict)
+        ]
+    for field in ("allOf", "anyOf", "oneOf", "prefixItems"):
+        children = schema.get(field)
+        if isinstance(children, list):
+            signature[field] = [
+                _structural_schema_signature(child)
+                for child in children
+                if isinstance(child, dict)
+            ]
+    return signature
 
 
 if __name__ == "__main__":

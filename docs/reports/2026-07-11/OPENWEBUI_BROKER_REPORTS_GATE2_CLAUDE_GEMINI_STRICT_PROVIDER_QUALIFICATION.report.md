@@ -1,5 +1,9 @@
 # Broker Reports Gate 2: проверка Claude и Gemini через provider factory
 
+> Исторический snapshot ранней проверки. Актуальный итог после появления
+> Gemini-моделей, adapter refactor и live qualification:
+> [OPENWEBUI_BROKER_REPORTS_GATE2_PROVIDER_ADAPTERS_EXECUTION_METADATA_FINAL.report.md](./OPENWEBUI_BROKER_REPORTS_GATE2_PROVIDER_ADAPTERS_EXECUTION_METADATA_FINAL.report.md).
+
 Дата: 2026-07-11
 
 Среда: live OpenWebUI

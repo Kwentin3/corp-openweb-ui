@@ -5,6 +5,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,7 @@ from live_case_group_gate2_table_typed_vertical_proof import (
     _run_chat as run_table_proof_chat,
     _safe_target,
 )
+import live_gate2_domain_synthetic_smoke as domain_smoke
 from live_gate2_domain_synthetic_smoke import (
     FUNCTION_ID as DOMAIN_SMOKE_FUNCTION_ID,
     _run_domain_chat as run_domain_smoke_chat,
@@ -78,6 +80,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_source_fact_contracts", source)
         self.assertIn("gate2_model_contracts", source)
         self.assertIn("gate2_model_requests", source)
+        self.assertIn("gate2_provider_adapters", source)
         self.assertIn("gate2_model_clients", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
@@ -90,6 +93,12 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "Gate2ManagedPromptResolverFactory"))
         self.assertTrue(
             hasattr(bundled_package, "Gate2StructuredModelClientFactory")
+        )
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2ProviderAdapterFactory")
+        )
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2ProviderExecutionMetadata")
         )
         self.assertEqual(len(bundled_package.GATE2_PROVIDER_PROFILES), 6)
         pipe = module.Pipe()
@@ -120,6 +129,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         for module_name in (
             "gate2_model_contracts",
             "gate2_model_requests",
+            "gate2_provider_adapters",
             "gate2_model_clients",
             "gate2_candidate_binding",
             "gate2_candidate_binding_runtime",
@@ -155,6 +165,9 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(
             hasattr(bundled_package, "Gate2StructuredModelClientFactory")
+        )
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2ProviderAdapterFactory")
         )
         self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
         self.assertEqual(pipe.valves.default_source_segment_limit, 1)
@@ -192,6 +205,10 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertLess(
             order.index("gate2_model_requests"),
+            order.index("gate2_provider_adapters"),
+        )
+        self.assertLess(
+            order.index("gate2_provider_adapters"),
             order.index("gate2_model_clients"),
         )
         self.assertLess(
@@ -204,6 +221,14 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             clients_module.FACTORY_REQUIRED,
         )
         self.assertIn("must not call OpenWebUI", clients_module.FORBIDDEN)
+        adapters_module = sys.modules[
+            "broker_reports_gate1.gate2_provider_adapters"
+        ]
+        self.assertIn(
+            "Gate2ProviderAdapterFactory.create",
+            adapters_module.FACTORY_REQUIRED,
+        )
+        self.assertIn("execution remains inside OpenWebUI", adapters_module.FORBIDDEN)
 
     def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
         self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-11-provider-factory-v0")
@@ -414,6 +439,75 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         bounded_documents = _synthetic_documents("cash_movement")
         self.assertEqual(len(bounded_documents), 1)
         self.assertIn(b"cash_deposit", bounded_documents[0][1])
+
+    def test_domain_smoke_purges_seeded_case_when_chat_raises(self):
+        case_id = "synthetic_gate2_domain_20260712010101"
+        events = []
+
+        def seed_case(**_kwargs):
+            events.append("seed")
+            return {"domain_context_packet_ref": "dcp_safe_test"}
+
+        def fail_chat(**_kwargs):
+            events.append("chat")
+            raise RuntimeError("synthetic_chat_failure")
+
+        def purge_case(**_kwargs):
+            events.append("purge")
+            return {"performed": True, "purged_records_total": 1}
+
+        argv = [
+            "live_gate2_domain_synthetic_smoke.py",
+            "--env-file",
+            "ignored.env",
+            "--base-url",
+            "https://example.invalid",
+            "--ssh-target",
+            "synthetic-host",
+            "--model-id",
+            "provider-model-test",
+        ]
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(domain_smoke, "_read_env", return_value={}),
+            mock.patch.object(domain_smoke, "_signin", return_value="token"),
+            mock.patch.object(
+                domain_smoke,
+                "_current_user",
+                return_value={"id": "synthetic-user"},
+            ),
+            mock.patch.object(
+                domain_smoke.time,
+                "strftime",
+                return_value="20260712010101",
+            ),
+            mock.patch.object(domain_smoke, "_runtime_snapshot", return_value={}),
+            mock.patch.object(
+                domain_smoke,
+                "_seed_synthetic_gate1",
+                side_effect=seed_case,
+            ),
+            mock.patch.object(
+                domain_smoke,
+                "_run_domain_chat",
+                side_effect=fail_chat,
+            ),
+            mock.patch.object(
+                domain_smoke,
+                "_purge_case",
+                side_effect=purge_case,
+            ) as purge,
+            mock.patch.object(domain_smoke, "_audit_case") as audit,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "synthetic_chat_failure"):
+                domain_smoke.main()
+
+        self.assertEqual(events, ["seed", "chat", "purge"])
+        purge.assert_called_once_with(
+            ssh_target="synthetic-host",
+            case_id=case_id,
+        )
+        audit.assert_not_called()
 
 
 if __name__ == "__main__":

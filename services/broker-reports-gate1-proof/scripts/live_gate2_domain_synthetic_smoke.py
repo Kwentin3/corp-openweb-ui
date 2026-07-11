@@ -128,22 +128,38 @@ def main() -> int:
         user_id=str(current_user["id"]),
         domain=args.domain,
     )
-    chat_content = _run_domain_chat(
-        session=session,
-        base_url=base_url,
-        dcp_ref=str(seeded["domain_context_packet_ref"]),
-        model_id=model_id,
-        candidate_binding_enabled=args.candidate_binding,
-        provider_capability_probe=args.capability_probe,
-        provider_profile_id=args.provider_profile_id,
-        domain=args.domain,
-        timeout=args.timeout,
-    )
     cleanup = {"performed": False, "purged_records_total": 0}
     try:
+        chat_content = _run_domain_chat(
+            session=session,
+            base_url=base_url,
+            dcp_ref=str(seeded["domain_context_packet_ref"]),
+            model_id=model_id,
+            candidate_binding_enabled=args.candidate_binding,
+            provider_capability_probe=args.capability_probe,
+            provider_profile_id=args.provider_profile_id,
+            domain=args.domain,
+            timeout=args.timeout,
+        )
         after = _runtime_snapshot(ssh_target)
         delta = _counter_delta(before, after)
         audit = _audit_case(ssh_target=ssh_target, case_id=case_id)
+        safe_attempt_audit = _audit_safe_validation_metadata(
+            ssh_target=ssh_target,
+            case_id=case_id,
+        )
+        audit["provider_execution"] = safe_attempt_audit.get(
+            "provider_execution",
+            {},
+        )
+        audit["validator_status_counts"] = safe_attempt_audit.get(
+            "validator_status_counts",
+            {},
+        )
+        audit["validation_error_code_counts"] = safe_attempt_audit.get(
+            "error_code_counts",
+            {},
+        )
     finally:
         if not args.retain:
             cleanup = _purge_case(ssh_target=ssh_target, case_id=case_id)
@@ -191,6 +207,11 @@ def main() -> int:
         }
         status = "blocked" if all(checks.values()) else "failed"
     else:
+        provider_execution = (
+            audit.get("provider_execution")
+            if isinstance(audit.get("provider_execution"), dict)
+            else {}
+        )
         checks = {
             "domain_runtime_factory_path_used": audit.get("domain_runtime_factory_path")
             is True,
@@ -200,6 +221,17 @@ def main() -> int:
             == audit.get("raw_outputs_total")
             and int(audit.get("raw_outputs_total") or 0) > 0,
             "fallback_not_used": audit.get("fallback_raw_outputs_total") == 0,
+            "provider_schema_audit_present": (
+                provider_execution.get("canonical_schema_hash_present_attempts")
+                == provider_execution.get("metadata_total")
+                and provider_execution.get("adapted_schema_hash_present_attempts")
+                == provider_execution.get("metadata_total")
+            ),
+            "provider_schema_adapter_expected": (
+                int(provider_execution.get("schema_transform_total") or 0) > 0
+                if args.provider_profile_id == "google_gemini"
+                else int(provider_execution.get("schema_transform_total") or 0) == 0
+            ),
             "routes_persisted": audit.get("route_total")
             == (1 if args.domain else 3),
             "narrow_packages_persisted": int(packages.get("total") or 0)
@@ -386,6 +418,16 @@ validations = [
     for row in rows
     if row["artifact_type"] == "broker_reports_source_fact_validation_v0"
 ]
+raw_attempts = [
+    json.loads(row["safe_metadata_json"])
+    for row in rows
+    if row["artifact_type"] == "broker_reports_source_fact_raw_output_v0"
+]
+provider_executions = [
+    item.get("provider_execution")
+    for item in raw_attempts
+    if isinstance(item.get("provider_execution"), dict)
+]
 errors = Counter()
 by_domain = {{}}
 for item in validations:
@@ -402,6 +444,91 @@ print(json.dumps({{
     "error_code_counts": dict(sorted(errors.items())),
     "error_code_counts_by_domain": {{
         key: dict(sorted(value.items())) for key, value in sorted(by_domain.items())
+    }},
+    "provider_execution": {{
+        "attempts_total": len(raw_attempts),
+        "metadata_total": len(provider_executions),
+        "failure_class_counts": dict(sorted(Counter(
+            str(item.get("failure_class"))
+            for item in raw_attempts
+            if item.get("failure_class")
+        ).items())),
+        "provider_profile_counts": dict(sorted(Counter(
+            str(item.get("provider_profile_id"))
+            for item in provider_executions
+            if item.get("provider_profile_id")
+        ).items())),
+        "adapter_counts": dict(sorted(Counter(
+            str(item.get("adapter_id"))
+            for item in provider_executions
+            if item.get("adapter_id")
+        ).items())),
+        "requested_model_counts": dict(sorted(Counter(
+            str(item.get("requested_model_id"))
+            for item in provider_executions
+            if item.get("requested_model_id")
+        ).items())),
+        "resolved_model_counts": dict(sorted(Counter(
+            str(item.get("resolved_model_id"))
+            for item in provider_executions
+            if item.get("resolved_model_id")
+        ).items())),
+        "response_id_present_attempts": sum(
+            1 for item in provider_executions
+            if item.get("provider_response_id_present") is True
+        ),
+        "response_id_hash_present_attempts": sum(
+            1 for item in provider_executions
+            if item.get("provider_response_id_sha256")
+        ),
+        "canonical_schema_hash_present_attempts": sum(
+            1 for item in provider_executions
+            if item.get("canonical_request_schema_hash")
+        ),
+        "adapted_schema_hash_present_attempts": sum(
+            1 for item in provider_executions
+            if item.get("adapted_request_schema_hash")
+        ),
+        "canonical_schema_hash_counts": dict(sorted(Counter(
+            str(item.get("canonical_request_schema_hash"))
+            for item in provider_executions
+            if item.get("canonical_request_schema_hash")
+        ).items())),
+        "adapted_schema_hash_counts": dict(sorted(Counter(
+            str(item.get("adapted_request_schema_hash"))
+            for item in provider_executions
+            if item.get("adapted_request_schema_hash")
+        ).items())),
+        "schema_transform_total": sum(
+            item.get("schema_transform_count") or 0 for item in provider_executions
+            if isinstance(item.get("schema_transform_count"), int)
+        ),
+        "usage_reported_attempts": sum(
+            1 for item in provider_executions
+            if any(isinstance(item.get(field), int) for field in (
+                "input_tokens", "output_tokens", "total_tokens"
+            ))
+        ),
+        "input_tokens_total": sum(
+            item.get("input_tokens") or 0 for item in provider_executions
+            if isinstance(item.get("input_tokens"), int)
+        ),
+        "output_tokens_total": sum(
+            item.get("output_tokens") or 0 for item in provider_executions
+            if isinstance(item.get("output_tokens"), int)
+        ),
+        "total_tokens_total": sum(
+            item.get("total_tokens") or 0 for item in provider_executions
+            if isinstance(item.get("total_tokens"), int)
+        ),
+        "duration_observed_attempts": sum(
+            1 for item in provider_executions
+            if isinstance(item.get("duration_ms"), int)
+        ),
+        "duration_total_ms": sum(
+            item.get("duration_ms") or 0 for item in provider_executions
+            if isinstance(item.get("duration_ms"), int)
+        ),
     }},
 }}, ensure_ascii=False, sort_keys=True))
 '''

@@ -33,6 +33,7 @@ from broker_reports_gate1 import (
     Gate2PromptConfig,
     Gate2PromptError,
     Gate2PromptUserContext,
+    Gate2ProviderExecutionMetadata,
     Gate2SourceFactRuntimeConfig,
     Gate2SourceFactRuntimeFactory,
     Gate2StructuredModelResult,
@@ -60,7 +61,23 @@ from broker_reports_gate1.gate2_source_fact_validation import (
 FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
 
 
-class FullUnionBoundaryModel:
+class RuntimeBoundaryModel:
+    @staticmethod
+    def execution_contract(model_id: str) -> Gate2ProviderExecutionMetadata:
+        return Gate2ProviderExecutionMetadata(
+            provider_id="test",
+            provider_profile_id="test_boundary",
+            provider_profile_revision="test-boundary-revision",
+            adapter_id="test_boundary",
+            adapter_version="1.0.0",
+            requested_model_id=model_id,
+            structured_output_mode="openwebui_response_format_json_schema",
+            response_format_type="json_schema",
+            response_format_schema_mode="strict_json_schema",
+        )
+
+
+class FullUnionBoundaryModel(RuntimeBoundaryModel):
     def __init__(self, *, mutation: str | None = None) -> None:
         self.mutation = mutation
         self.calls: list[dict[str, Any]] = []
@@ -108,7 +125,52 @@ class FullUnionBoundaryModel:
         return Gate2StructuredModelResult(content=candidate)
 
 
-class RepairingBoundaryModel:
+class InstrumentedFullUnionBoundaryModel(FullUnionBoundaryModel):
+    def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
+        return self._execution_metadata(model_id=model_id)
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        result = await super().extract(
+            prompt=prompt,
+            package=package,
+            model_id=model_id,
+            response_format=response_format,
+        )
+        return Gate2StructuredModelResult(
+            content=result.content,
+            execution_metadata=self._execution_metadata(
+                model_id=model_id,
+                resolved=True,
+            ),
+        )
+
+    @staticmethod
+    def _execution_metadata(
+        *,
+        model_id: str,
+        resolved: bool = False,
+    ) -> Gate2ProviderExecutionMetadata:
+        return Gate2ProviderExecutionMetadata(
+            provider_id="openai",
+            provider_profile_id="openai_gpt",
+            provider_profile_revision="test-source-profile-revision",
+            adapter_id="openai_response_format",
+            adapter_version="1.0.0",
+            requested_model_id=model_id,
+            resolved_model_id="resolved-source-model" if resolved else None,
+            provider_response_id="private-source-response-id" if resolved else None,
+            structured_output_mode="openwebui_response_format_json_schema",
+            response_format_type="json_schema",
+            response_format_schema_mode="strict_json_schema",
+            duration_ms=11 if resolved else None,
+            input_tokens=70 if resolved else None,
+            output_tokens=30 if resolved else None,
+            total_tokens=100 if resolved else None,
+            finish_reason="stop" if resolved else None,
+        )
+
+
+class RepairingBoundaryModel(RuntimeBoundaryModel):
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
@@ -128,7 +190,7 @@ class RepairingBoundaryModel:
         return Gate2StructuredModelResult(content=candidate)
 
 
-class NarrowDomainBoundaryModel:
+class NarrowDomainBoundaryModel(RuntimeBoundaryModel):
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
@@ -194,6 +256,9 @@ class NarrowDomainBoundaryModel:
 class CandidateBindingBoundaryModel:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+
+    def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
+        return self._execution_metadata(model_id=model_id)
 
     async def extract(self, *, prompt, package, model_id, response_format):
         candidate_set = package["source_value_candidate_set"]
@@ -303,7 +368,40 @@ class CandidateBindingBoundaryModel:
                 "selected_candidates": selected_candidates,
             }
         )
-        return Gate2StructuredModelResult(content=selection)
+        return Gate2StructuredModelResult(
+            content=selection,
+            execution_metadata=self._execution_metadata(
+                model_id=model_id,
+                resolved=True,
+            ),
+        )
+
+    @staticmethod
+    def _execution_metadata(
+        *,
+        model_id: str,
+        resolved: bool = False,
+    ) -> Gate2ProviderExecutionMetadata:
+        return Gate2ProviderExecutionMetadata(
+            provider_id="openai",
+            provider_profile_id="openai_gpt",
+            provider_profile_revision="test-profile-revision",
+            adapter_id="openai_response_format",
+            adapter_version="1.0.0",
+            requested_model_id=model_id,
+            resolved_model_id=model_id if resolved else None,
+            provider_response_id=(
+                "private-provider-response-id" if resolved else None
+            ),
+            structured_output_mode="openwebui_response_format_json_schema",
+            response_format_type="json_schema",
+            response_format_schema_mode="strict_json_schema",
+            duration_ms=7 if resolved else None,
+            input_tokens=41 if resolved else None,
+            output_tokens=13 if resolved else None,
+            total_tokens=54 if resolved else None,
+            finish_reason="stop" if resolved else None,
+        )
 
 
 class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
@@ -703,6 +801,27 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(raw["provider_profile_id"], "openai_gpt")
         self.assertFalse(raw["provider_capability_probe"])
         raw_record = self.store.get_record_unchecked(result.raw_output_refs[0])
+        self.assertEqual(
+            raw["provider_execution"]["provider_response_id"],
+            "private-provider-response-id",
+        )
+        self.assertEqual(
+            raw["provider_execution"]["resolved_model_id"],
+            "synthetic-candidate-binding-model",
+        )
+        self.assertEqual(raw["provider_execution"]["total_tokens"], 54)
+        self.assertEqual(raw["provider_execution"]["duration_ms"], 7)
+        self.assertNotIn(
+            "provider_response_id",
+            raw["provider_execution_safe"],
+        )
+        self.assertTrue(
+            raw["provider_execution_safe"]["provider_response_id_present"]
+        )
+        self.assertNotIn(
+            "private-provider-response-id",
+            json.dumps(raw_record.safe_metadata, sort_keys=True),
+        )
         self.assertEqual(raw_record.safe_metadata["model_id"], raw["model_id"])
         self.assertEqual(
             raw_record.safe_metadata["package_response_schema_hash"],
@@ -718,6 +837,25 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
 
         self.assertEqual(validation["validator_status"], "passed", validation)
+        self.assertEqual(
+            validation["raw_output_artifact_ref"],
+            result.raw_output_refs[0],
+        )
+        self.assertEqual(
+            validation["provider_execution"],
+            raw["provider_execution_safe"],
+        )
+        validation_record = self.store.get_record_unchecked(
+            result.validation_refs[0]
+        )
+        self.assertEqual(
+            validation_record.safe_metadata["provider_execution"],
+            raw["provider_execution_safe"],
+        )
+        self.assertNotIn(
+            "private-provider-response-id",
+            json.dumps(validation_record.safe_metadata, sort_keys=True),
+        )
         self.assertEqual(validation["errors"], [])
         self.assertEqual(validation["privacy_status"], "passed")
         self.assertEqual(validation["boundary_status"], "passed")
@@ -743,6 +881,26 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             fact["extraction_package_ref"], result.domain_package_refs[0]
         )
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
+        run_payload = resolver.resolve(
+            result.extraction_run_ref,
+            self.context,
+        )["payload"]
+        execution_summary = run_payload["provider_execution_summary"]
+        self.assertEqual(execution_summary["attempts_total"], 1)
+        self.assertEqual(
+            execution_summary["provider_profile_counts"],
+            {"openai_gpt": 1},
+        )
+        self.assertEqual(
+            execution_summary["resolved_model_counts"],
+            {"synthetic-candidate-binding-model": 1},
+        )
+        self.assertEqual(execution_summary["total_tokens_total"], 54)
+        self.assertEqual(execution_summary["latency_total_ms"], 7)
+        self.assertNotIn(
+            "private-provider-response-id",
+            json.dumps(execution_summary, sort_keys=True),
+        )
         self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
         self.assertTrue(
             all(
@@ -831,7 +989,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(denied.exception.code, "gate2_prompt_access_denied")
 
     def test_runtime_persists_only_validator_accepted_full_union(self):
-        model = FullUnionBoundaryModel()
+        model = InstrumentedFullUnionBoundaryModel()
         result = self._run(model)
 
         self.assertIn("Gate2SourceFactRuntimeFactory.create", RUNTIME_FACTORY_REQUIRED)
@@ -914,7 +1072,50 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertTrue(all(item["validation_ref"] == result.validation_refs[0] for item in facts["payload"]["facts"]))
         self.assertTrue(all(item["fact_id"].startswith("sf_") for item in facts["payload"]["facts"]))
         self.assertEqual(raw["payload"]["model_call_status"], "passed")
+        self.assertEqual(
+            raw["payload"]["provider_execution"]["provider_response_id"],
+            "private-source-response-id",
+        )
+        self.assertEqual(
+            raw["payload"]["provider_execution"]["resolved_model_id"],
+            "resolved-source-model",
+        )
+        self.assertNotIn(
+            "provider_response_id",
+            raw["payload"]["provider_execution_safe"],
+        )
+        self.assertEqual(
+            validation["payload"]["raw_output_artifact_ref"],
+            result.raw_output_refs[0],
+        )
+        self.assertEqual(
+            validation["payload"]["provider_execution"],
+            raw["payload"]["provider_execution_safe"],
+        )
+        self.assertNotIn(
+            "private-source-response-id",
+            json.dumps(validation["record"].safe_metadata, sort_keys=True),
+        )
         self.assertEqual(validation["payload"]["validator_status"], "passed")
+        run_payload = resolver.resolve(
+            result.extraction_run_ref,
+            self.context,
+        )["payload"]
+        self.assertEqual(
+            run_payload["provider_execution_summary"]["total_tokens_total"],
+            100,
+        )
+        self.assertEqual(
+            run_payload["provider_execution_summary"]["latency_total_ms"],
+            11,
+        )
+        self.assertNotIn(
+            "private-source-response-id",
+            json.dumps(
+                run_payload["provider_execution_summary"],
+                sort_keys=True,
+            ),
+        )
         self.assertNotIn("100.00", result.compact_russian_summary)
         self.assertNotIn("synthetic_gate2_value_refs.csv", result.compact_russian_summary)
         self.assertIn("Расчёт налогов, декларация и XLS/XLSX не выполнялись.", result.compact_russian_summary)

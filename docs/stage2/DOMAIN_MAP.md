@@ -198,13 +198,13 @@ Open questions:
 
 Status:
 
-- Technical normalization and bounded Gate 2 contour are implemented and
-  locally verified. One narrow vertical passed on the preceding live bundle;
-  the current candidate-binding/provider-factory bundle is deployed with
-  repo/live parity, but semantic acceptance did not pass: the approved-provider
-  canary stopped on quota with zero accepted facts, and no active DCP existed
-  for a real native/PDF rerun. Full customer-pilot acceptance remains blocked
-  by methodology, representative data, expected outputs and data policy.
+- Technical normalization and the bounded Gate 2 contour are implemented. The
+  current candidate-binding/provider-factory bundle is deployed with repo/live
+  parity, and bounded synthetic semantic acceptance passed for `gpt-5.6-sol`
+  and `models/gemini-3.5-flash`. The current native/PDF customer rerun was not
+  performed because the controlled case had no active source records or DCP.
+  Full customer-pilot acceptance remains gated by methodology, representative
+  data, expected outputs and data policy.
 
 ## Web-search
 

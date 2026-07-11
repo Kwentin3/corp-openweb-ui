@@ -362,10 +362,83 @@ Required fields:
 - exact model output;
 - structured-output mode and response-format type;
 - prompt/schema/model snapshots;
+- provider/profile/adapter execution metadata;
 - fallback and repair metadata;
 - created timestamp.
 
 It is persisted before validation so failed outputs remain traceable under retention. Any copied private/raw content stays `private_case` and is never projected to safe/chat surfaces.
+
+### 7.1 Provider execution metadata
+
+Every attempted model call carries runtime-authored
+`gate2_provider_execution_metadata_v1`:
+
+```json
+{
+  "schema_version": "gate2_provider_execution_metadata_v1",
+  "provider_id": "google",
+  "provider_profile_id": "google_gemini",
+  "provider_profile_revision": "sha256_hex",
+  "adapter_id": "gemini_response_format",
+  "adapter_version": "1.5.0",
+  "requested_model_id": "models/gemini-3.5-flash",
+  "resolved_model_id": "models/gemini-3.5-flash",
+  "provider_response_id": "private_exact_or_null",
+  "structured_output_mode": "openwebui_response_format_json_schema",
+  "response_format_type": "json_schema",
+  "response_format_schema_mode": "strict_json_schema",
+  "canonical_request_schema_hash": "sha256_hex",
+  "adapted_request_schema_hash": "sha256_hex",
+  "schema_transform_count": 7,
+  "duration_ms": 13208,
+  "input_tokens": 16693,
+  "output_tokens": 773,
+  "total_tokens": 19057,
+  "finish_reason": "stop"
+}
+```
+
+Rules:
+
+- `requested_model_id` is the model sent by the pipeline;
+- `resolved_model_id` is populated only from the provider/OpenWebUI response and
+  remains `null` when unreported;
+- when `resolved_model_id` is reported, it must equal the requested exact model
+  id or its version-suffixed alias; any other value terminates the attempt with
+  `gate2_provider_resolved_model_mismatch` before validation/acceptance;
+- token fields remain `null`, not zero, when usage is unreported;
+- zero is retained when the provider explicitly reports zero;
+- `duration_ms` uses a monotonic clock around the one completion call;
+- `failure_class` may record a safe exception class on failed calls, while the
+  exact provider exception/error stays only in the private raw payload;
+- `provider_response_id` is the provider/OpenWebUI response body `id`, not an
+  HTTP request-header id;
+- the exact response id is private; safe metadata contains only
+  `provider_response_id_present` and its SHA-256 digest;
+- `canonical_request_schema_hash` identifies the contract schema before any
+  provider adaptation; `adapted_request_schema_hash` identifies the schema
+  actually sent through OpenWebUI;
+- `schema_transform_count` is zero for pass-through adapters and counts
+  adapter-owned schema rewrites. Gemini v1.3 keeps the structural JSON shape
+  strict but removes provider-side dynamic constraints (`const`, source-value
+  and ref enums, ranges, formats and descriptive annotations) that exceed
+  Gemini's schema complexity budget. Small static semantic enums such as
+  `completeness`, `confidence` and domain subtype candidates remain in the
+  provider schema. The unchanged
+  canonical deterministic validator enforces every removed constraint before
+  any fact can persist. A conflicting `const`/`enum` pair fails before the
+  completion call;
+- Prompt bodies, package rows, source values, filenames, API keys, endpoints,
+  and arbitrary provider response metadata are forbidden in safe projections.
+
+This metadata is produced by the adapter/runtime. The LLM cannot supply or
+override it.
+
+Before a model result can enter the private raw artifact, the client enforces a
+deterministic response budget: at most `524288` UTF-8 bytes, `20000` parsed
+nodes, depth `64`, and `131072` UTF-8 bytes per string/key. An overflow stores
+only a bounded length/hash diagnostic and terminates with
+`gate2_model_response_budget_exceeded`; oversized model content is not persisted.
 
 ## 8. `broker_reports_source_fact_validation_v0`
 
@@ -379,6 +452,8 @@ It is persisted before validation so failed outputs remain traceable under reten
   "package_ref": "art_opaque",
   "document_ref": "brdoc_opaque",
   "source_unit_ref": "unit_opaque",
+  "raw_output_artifact_ref": "art_opaque",
+  "provider_execution": {},
   "validator_status": "passed",
   "accepted_fact_ids": [],
   "rejected_fact_ids": [],
@@ -404,6 +479,10 @@ blocked
 ```
 
 Only `passed` and `passed_with_warnings` facts may enter the validated source-facts artifact. Warnings cannot waive schema, scope, provenance, value, privacy, issue, coverage, or boundary failures.
+
+`provider_execution` in validation is the safe projection copied from the
+linked raw-output attempt. It must not contain the exact provider response id or
+raw provider response.
 
 ### 8.2 Required validator families
 
@@ -498,6 +577,13 @@ hardcoding.
 | validation result | `safe_internal` | `project_artifact_store` | deterministic validator output |
 | issue/fact linkage | `safe_internal` | `project_artifact_store` | opaque refs only |
 | compact summary | `chat_visible` | `openwebui_chat` and/or safe store | whitelist and privacy validation |
+
+The terminal extraction-run payload also contains
+`gate2_provider_execution_summary_v1`: attempt/error/failure-class counts,
+provider-profile/adapter/requested/resolved-model counts, reported/unreported
+usage counts, provider-reported token totals, observed latency totals/max,
+adapted-schema hash counts and total schema-transform count. It contains no
+provider response ids and no raw model/provider content.
 
 Source-fact payloads default to `private_case` because amounts, dates, instruments, and transactions are sensitive. A safe-internal projection may contain ids, types, counts, statuses, and issue linkage only unless a separate field sensitivity policy proves more is safe.
 

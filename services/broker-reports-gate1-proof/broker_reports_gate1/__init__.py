@@ -107,12 +107,18 @@ from .gate2_model_contracts import (
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
     PROVIDER_STATUS_UNSUPPORTED,
+    Gate2ProviderExecutionMetadata,
     Gate2ProviderProfile,
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClient,
     Gate2StructuredModelClientConfig,
     Gate2StructuredModelResult,
+    gate2_model_execution_contract,
+    gate2_model_qualification_status,
+    gate2_provider_execution_safe_metadata,
+    gate2_provider_execution_summary,
     gate2_provider_profile,
+    gate2_provider_profile_revision,
 )
 from .gate2_model_requests import (
     DOMAIN_REQUEST_PROFILE,
@@ -123,6 +129,12 @@ from .gate2_model_requests import (
 from .gate2_model_clients import (
     Gate2OpenWebUIStructuredModelClient,
     Gate2StructuredModelClientFactory,
+)
+from .gate2_provider_adapters import (
+    Gate2GeminiResponseFormatAdapter,
+    Gate2OpenAIResponseFormatAdapter,
+    Gate2ProviderAdapter,
+    Gate2ProviderAdapterFactory,
 )
 from .gate2_source_fact_runtime import (
     Gate2SourceFactRuntimeConfig,

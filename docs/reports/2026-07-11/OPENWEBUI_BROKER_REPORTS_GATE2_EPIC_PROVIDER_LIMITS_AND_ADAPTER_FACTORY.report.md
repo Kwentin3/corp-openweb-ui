@@ -1,5 +1,9 @@
 ﻿# OpenWebUI Broker Reports Gate 2: итог эпопеи, лимиты LLM API и provider factory
 
+> Исторический snapshot до финального provider-adapter refactor. Актуальные
+> статусы, metadata contract и live OpenAI/Gemini/Claude results:
+> [OPENWEBUI_BROKER_REPORTS_GATE2_PROVIDER_ADAPTERS_EXECUTION_METADATA_FINAL.report.md](./OPENWEBUI_BROKER_REPORTS_GATE2_PROVIDER_ADAPTERS_EXECUTION_METADATA_FINAL.report.md).
+
 Актуализация после live delivery: provider-factory/candidate-binding bundles и
 managed Prompts развёрнуты с repository/live parity. Текущий terminal status и
 post-deploy canary зафиксированы в

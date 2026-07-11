@@ -2,9 +2,10 @@
 
 Date: 2026-07-11
 
-Status: `GATE2_CURRENT_BUNDLE_DEPLOYED_PROVIDER_BLOCKED`; repo/live SHA and
-managed-Prompt parity are proven, but semantic acceptance did not pass because
-the approved-provider canary stopped on quota before accepting facts.
+Status: `GATE2_PROVIDER_ADAPTERS_AND_EXECUTION_METADATA_DEPLOYED`; repo/live
+SHA and managed-Prompt parity are proven, and bounded OpenAI/Gemini semantic
+acceptance passed. Claude remains fail-closed until a native strict transport is
+available.
 
 ## 1. Problem and Risk
 
@@ -245,9 +246,11 @@ bounded source/domain package
   -> managed Prompt and strict package-bound schema
   -> Gate2StructuredModelClientFactory.create
   -> provider capability/profile check
-  -> provider-specific request builder behind the shared client protocol
+  -> Gate2ProviderAdapterFactory.create
+  -> profile-selected OpenAI/Gemini response-format adapter
   -> OpenWebUI completion transport
-  -> private raw output
+  -> response content + runtime-authored provider execution metadata
+  -> private raw output + safe validation/run projection
   -> deterministic materializer and validators
 ```
 
@@ -257,7 +260,8 @@ Reusable behavior:
 - prompt/schema snapshots and hashes;
 - native structured-output call;
 - provider capability resolution and fail-closed rejection;
-- typed model-call audit;
+- typed model-call audit with requested/resolved model, adapter/profile revision,
+  latency, provider-reported usage and private response id;
 - optional single bounded repair policy;
 - raw-output persistence before acceptance;
 - validator-controlled acceptance;
@@ -281,12 +285,27 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
 - Production/customer fallback: none; fail closed when schema mode is unavailable.
 - Provider selection is configurable through one factory; it is not permanently
   tied to a provider-specific call site.
-- Current policy approves the OpenAI profile. The deployed Anthropic connection
-  is `unsupported` after `claude-sonnet-5` rejected the exact strict dynamic
-  `response_format=json_schema` contract on 2026-07-11. Google remains
-  `probe_required` because no Gemini model is exposed by the live OpenWebUI
-  catalog. DeepSeek, Z.AI and Alibaba profiles are `unsupported` for this strict
-  Gate 2 contract.
+- Current production policy approves only the exact live-proven pairs
+  `openai_gpt` / `gpt-5.6-sol` and `google_gemini` /
+  `models/gemini-3.5-flash`. A capability probe may test an unapproved model
+  only inside its provider namespace (`gpt-` or `models/gemini-`); a
+  cross-provider profile/model mismatch fails before the completion call.
+- The Gemini adapter sends a structural projection of the canonical schema:
+  object/array/type/required/additional-properties and union shape stay strict,
+  while dynamic provider-side constraints such as package-bound `const`,
+  source/ref enums, ranges and formats are removed to stay under Gemini's
+  schema-complexity limit. Small static semantic enums remain. The
+  unchanged canonical schema remains authoritative in the deterministic
+  validator, so a wrong constant, enum, ref or value still cannot be persisted.
+  Canonical/adapted schema hashes plus the transform count are recorded per
+  attempt.
+- The deployed Anthropic OpenAI-compatibility connection remains `unsupported`.
+  That compatibility layer ignores `response_format` and does not guarantee
+  strict tool schemas; native Claude strict output requires the Messages API
+  `output_config.format`, which the current OpenWebUI `/chat/completions` route
+  does not translate. No direct vendor HTTP/SDK bypass is allowed.
+- DeepSeek, Z.AI and Alibaba profiles remain `unsupported` for this strict Gate
+  2 contract.
 - `probe_required` is not production approval. There is no automatic provider
   failover, and the factory fails closed when no approved strict-output route is
   available.
@@ -302,15 +321,16 @@ Validation executes in this order:
 1. JSON parse and JSON Schema validation.
 2. Contract/version and required-field validation.
 3. run/case/document/package/unit scope validation.
-4. prompt/schema/model/structured-output audit validation.
-5. resolver and ref-ownership validation.
-6. forbidden-key/content and privacy scan.
-7. type-specific field validation.
-8. source-value reproduction and no-invention validation.
-9. issue carry-forward/completeness validation.
-10. row/segment coverage and duplicate-id validation.
-11. Gate 2/Gate 3 boundary validation.
-12. persistence eligibility decision.
+4. requested/resolved provider-model identity and bounded-response validation.
+5. prompt/schema/model/structured-output audit validation.
+6. resolver and ref-ownership validation.
+7. forbidden-key/content and privacy scan.
+8. type-specific field validation.
+9. source-value reproduction and no-invention validation.
+10. issue carry-forward/completeness validation.
+11. row/segment coverage and duplicate-id validation.
+12. Gate 2/Gate 3 boundary validation.
+13. persistence eligibility decision.
 
 Any failure prevents the affected output from entering `broker_reports_source_facts_v0`. Failed raw output remains private for audit/retention. Privacy failure also blocks compact report publication.
 
@@ -325,6 +345,13 @@ Any failure prevents the affected output from entering `broker_reports_source_fa
 | `broker_reports_source_fact_validation_v0` | `safe_internal` | error codes, coverage, accepted/rejected ids |
 | `broker_reports_issue_fact_linkage_v0` | `safe_internal` | opaque fact/issue refs only |
 | `broker_reports_source_fact_extraction_summary_v0` | `chat_visible` | aggregate whitelist projection |
+
+`gate2_provider_execution_metadata_v1` is nested in the private raw attempt.
+Its safe projection is nested in validation, while
+`gate2_provider_execution_summary_v1` is nested in the safe extraction-run
+payload. It includes canonical/adapted schema hashes and transform counts so a
+provider-specific schema rewrite remains observable. Facts retain their
+existing raw/validation refs instead of duplicating transport telemetry.
 
 `safe_internal` source-fact payload is allowed only after an explicit sensitivity projection; v0 defaults the canonical facts to `private_case`.
 
@@ -496,15 +523,16 @@ Checkpoint: 2026-07-11.
 
 | Surface | Current evidence | What it does not prove |
 | --- | --- | --- |
-| Repository implementation | Normalized table projection, candidate/relation contracts, narrow domain profiles, binding materialization, shared structured-model factory and bundled-Pipe parity are implemented and pass local checks. | By itself, deployed-runtime parity or customer-corpus quality. |
+| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters, model execution metadata, narrow domain materialization and validators pass 202 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
 | Earlier bounded live vertical | One `cash_movement` vertical passed on native and text-layer PDF input on the preceding deployed bundle. | The current provider-factory bundle, all domains, all PDF layouts or every provider. |
-| Deployment parity | All three Functions and 12 managed Prompts are deployed with repo/live SHA parity; provider factory and candidate binding are present live. | Accepted source facts or all-domain behavior. |
-| Approved-provider canary | One-domain GPT `cash_movement` candidate-binding run reached a terminal `gate2_model_provider_quota_exceeded` outcome; accepted facts were `0` and no fallback was used. | Semantic acceptance; retry is required after provider capacity is restored. |
-| Unsupported-provider denial | DeepSeek failed closed before a provider call with `gate2_no_strict_structured_provider_available`; raw outputs and facts were `0`. | DeepSeek support or automatic failover. |
+| Deployment parity | All three Functions and 12 managed Prompts pass repo/live SHA parity; provider adapter factory and execution metadata markers are present live. | Customer-corpus or all-domain quality. |
+| OpenAI production canary | `gpt-5.6-sol` completed one `cash_movement` candidate-binding run with one validator-accepted fact, complete stitch and no fallback. | All models/domains or future provider availability. |
+| Gemini qualification and production canary | `models/gemini-3.5-flash` passed the adapter capability probe and then the normal approved-profile path; one fact was accepted in one call on both runs. Execution metadata recorded actual model, canonical/adapted schema hashes, transform count, response-id hash, usage and latency. | All Gemini models/domains or permanent catalog availability. |
+| Claude policy denial | `claude-sonnet-5` was stopped before runtime/provider call with `gate2_no_strict_structured_provider_available`; raw outputs and facts were `0`. | Native Claude Messages transport support. |
 | Real native/PDF rerun | Not performed because the controlled case had `0` active source records and no DCP. | Current-bundle native/PDF acceptance. |
 
 The current contour does not claim full-corpus coverage, automatic failover,
-support for every provider, OCR/scanned-PDF support, all-domain live acceptance,
+strict Claude support, OCR/scanned-PDF support, all-domain live acceptance,
 or Gate 3 tax/declaration readiness. Logos, signatures or other embedded images
 do not by themselves trigger OCR; an image-only page remains outside this
 text-layer path.
@@ -512,11 +540,12 @@ text-layer path.
 ## 17. Readiness
 
 The pre-implementation `Slice 1 only` status is obsolete. The bounded
-candidate-binding and provider-factory contour is implemented locally and
-deployed with exact Function/Prompt parity. Live policy denial and cleanup were
-proven, with zero Knowledge/vector/document/file deltas. Semantic acceptance
-was not proven: the approved-provider canary stopped on quota with no accepted
-facts, and the real native/PDF case could not be rerun without an active DCP.
+candidate-binding, provider adapter factory and execution-metadata contour is
+implemented and deployed with exact Function/Prompt parity. OpenAI and Gemini
+both produced validator-accepted synthetic facts through the same normal
+OpenWebUI Function route. Claude policy denial and cleanup were proven, with
+zero Knowledge/vector/document/file deltas. Real customer corpus and all-domain
+quality remain outside this checkpoint.
 
 ```text
 GATE2_SOURCE_FACT_BLUEPRINT_READY
@@ -526,7 +555,8 @@ GATE2_STRUCTURED_OUTPUT_INVARIANT_READY
 GATE2_ISSUE_CONTEXT_CARRY_FORWARD_READY
 GATE2_ARTIFACTSTORE_PLAN_READY
 GATE2_CANDIDATE_BINDING_IMPLEMENTED_LOCAL
-GATE2_PROVIDER_FACTORY_IMPLEMENTED_LOCAL
-GATE2_CURRENT_BUNDLE_DEPLOYED_PROVIDER_BLOCKED
-GATE2_CURRENT_BUNDLE_SEMANTIC_ACCEPTANCE_NOT_PROVEN
+GATE2_PROVIDER_ADAPTER_FACTORY_DEPLOYED
+GATE2_PROVIDER_EXECUTION_METADATA_DEPLOYED
+GATE2_OPENAI_AND_GEMINI_BOUNDED_ACCEPTANCE_PROVEN
+GATE2_CLAUDE_NATIVE_STRICT_TRANSPORT_NOT_AVAILABLE
 ```

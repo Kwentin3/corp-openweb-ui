@@ -49,6 +49,8 @@ FUNCTION_CONTRACTS = (
         required_markers=(
             "NormalizedTableProjectionFactory",
             "Gate2StructuredModelClientFactory",
+            "Gate2ProviderAdapterFactory",
+            "gate2_provider_execution_metadata_v1",
         ),
     ),
     FunctionContract(
@@ -58,6 +60,8 @@ FUNCTION_CONTRACTS = (
             "Gate2SourceFactRuntimeFactory",
             "Gate2StructuredModelClientFactory",
             "Gate2OpenWebUIStructuredModelClient",
+            "Gate2ProviderAdapterFactory",
+            "gate2_provider_execution_metadata_v1",
         ),
     ),
     FunctionContract(
@@ -67,6 +71,8 @@ FUNCTION_CONTRACTS = (
             "Gate2DomainSourceFactRuntimeFactory",
             "Gate2CandidateBindingRuntimeFactory",
             "Gate2StructuredModelClientFactory",
+            "Gate2ProviderAdapterFactory",
+            "gate2_provider_execution_metadata_v1",
         ),
     ),
 )
@@ -111,6 +117,19 @@ def main() -> int:
     provider_profile_ids = sorted(
         profile.profile_id for profile in GATE2_PROVIDER_PROFILES
     )
+    provider_profile_statuses = {
+        profile.profile_id: profile.gate2_status
+        for profile in GATE2_PROVIDER_PROFILES
+    }
+    provider_approved_model_ids = {
+        profile.profile_id: list(profile.approved_model_ids)
+        for profile in GATE2_PROVIDER_PROFILES
+        if profile.approved_model_ids
+    }
+    provider_model_id_prefixes = {
+        profile.profile_id: list(profile.model_id_prefixes)
+        for profile in GATE2_PROVIDER_PROFILES
+    }
     checks = {
         "all_function_bundles_match": all(item["passed"] for item in function_checks),
         "all_managed_prompts_match": all(item["passed"] for item in prompt_checks),
@@ -123,6 +142,29 @@ def main() -> int:
             "openai_gpt",
             "zai_glm",
         ],
+        "provider_profile_statuses_match": provider_profile_statuses
+        == {
+            "alibaba_qwen": "unsupported",
+            "anthropic_claude": "unsupported",
+            "deepseek": "unsupported",
+            "google_gemini": "approved",
+            "openai_gpt": "approved",
+            "zai_glm": "unsupported",
+        },
+        "provider_approved_models_match": provider_approved_model_ids
+        == {
+            "openai_gpt": ["gpt-5.6-sol"],
+            "google_gemini": ["models/gemini-3.5-flash"],
+        },
+        "provider_model_namespaces_match": provider_model_id_prefixes
+        == {
+            "alibaba_qwen": ["qwen-"],
+            "anthropic_claude": ["claude-"],
+            "deepseek": ["deepseek-"],
+            "google_gemini": ["models/gemini-"],
+            "openai_gpt": ["gpt-"],
+            "zai_glm": ["glm-"],
+        },
         "repository_factory_boundary_passed": all(repository_boundary.values()),
     }
     output = {
@@ -133,6 +175,9 @@ def main() -> int:
         "managed_prompts": prompt_checks,
         "managed_prompts_total": len(prompt_checks),
         "provider_profiles": provider_profile_ids,
+        "provider_profile_statuses": provider_profile_statuses,
+        "provider_approved_model_ids": provider_approved_model_ids,
+        "provider_model_id_prefixes": provider_model_id_prefixes,
         "repository_factory_boundary": repository_boundary,
     }
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
@@ -278,6 +323,18 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
     model_clients = (
         SERVICE_ROOT / "broker_reports_gate1/gate2_model_clients.py"
     ).read_text(encoding="utf-8")
+    provider_adapters = (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_provider_adapters.py"
+    ).read_text(encoding="utf-8")
+    model_contracts = (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_model_contracts.py"
+    ).read_text(encoding="utf-8")
+    source_runtime = (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_source_fact_runtime.py"
+    ).read_text(encoding="utf-8")
+    domain_runtime = (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_domain_runtime.py"
+    ).read_text(encoding="utf-8")
     smoke_paths = (
         SERVICE_ROOT / "scripts/live_gate2_domain_synthetic_smoke.py",
         SERVICE_ROOT / "scripts/live_case_group_gate2_table_typed_vertical_proof.py",
@@ -291,6 +348,34 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
             for marker in ("generate_chat_completion", "generate_chat_completions")
         ),
         "model_client_forbids_bypass": "control checks and smoke scripts must not call" in model_clients,
+        "model_client_uses_provider_adapter_factory": (
+            "Gate2ProviderAdapterFactory(" in model_clients
+        ),
+        "provider_adapter_factory_is_explicit": (
+            "Gate2ProviderAdapterFactory.create is the only production"
+            in provider_adapters
+        ),
+        "provider_adapters_stay_inside_openwebui": all(
+            marker not in provider_adapters
+            for marker in (
+                "import requests",
+                "from requests",
+                "import httpx",
+                "from httpx",
+                "api.openai.com",
+                "api.anthropic.com",
+                "generativelanguage.googleapis.com",
+            )
+        ),
+        "provider_execution_contract_present": (
+            "gate2_provider_execution_metadata_v1" in model_contracts
+        ),
+        "source_runtime_persists_provider_execution": (
+            "provider_execution_summary" in source_runtime
+        ),
+        "domain_runtime_persists_provider_execution": (
+            "provider_execution_summary" in domain_runtime
+        ),
         "model_client_has_no_json_object_downgrade": "json_object" not in model_clients,
         "candidate_binding_default_is_false": "candidate_binding_enabled: bool = Field(default=False)" in domain_pipe,
         "live_smokes_use_function_boundary": all(

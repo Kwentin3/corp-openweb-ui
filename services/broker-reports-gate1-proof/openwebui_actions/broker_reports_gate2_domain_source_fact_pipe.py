@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.4.0
+version: 0.5.0
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """

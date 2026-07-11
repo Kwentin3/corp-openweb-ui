@@ -16,6 +16,9 @@ from .gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClient,
     Gate2StructuredModelResult,
+    gate2_model_execution_contract,
+    gate2_provider_execution_safe_metadata,
+    gate2_provider_execution_summary,
 )
 from .gate2_source_fact_contracts import (
     EXTRACTION_RUN_SCHEMA_VERSION,
@@ -291,6 +294,7 @@ class Gate2SourceFactRuntimeService:
         completeness_counts: Counter[str] = Counter()
         coverage_totals: Counter[str] = Counter()
         issue_linked_facts_total = 0
+        provider_attempts: list[dict[str, Any]] = []
 
         for package in selected_packages:
             package_artifact_ref = new_artifact_id()
@@ -406,6 +410,7 @@ class Gate2SourceFactRuntimeService:
                     retention_policy=retention_policy,
                 )
                 refs["raw_output_refs"].append(raw_output_ref)
+                provider_attempts.append(copy.deepcopy(raw_payload))
                 attempt_raw_refs.append(raw_output_ref)
 
                 validation_ref = new_artifact_id()
@@ -446,6 +451,10 @@ class Gate2SourceFactRuntimeService:
                     )
                     finalized = None
 
+                validation["raw_output_artifact_ref"] = raw_output_ref
+                validation["provider_execution"] = copy.deepcopy(
+                    raw_payload["provider_execution_safe"]
+                )
                 self._persist_validation_attempt(
                     validation_ref=validation_ref,
                     validation=validation,
@@ -599,6 +608,9 @@ class Gate2SourceFactRuntimeService:
                 "issue_fact_linkage_ref": linkage_ref,
                 "summary_ref": summary_ref,
                 "coverage_summary": dict(coverage_totals),
+                "provider_execution_summary": gate2_provider_execution_summary(
+                    provider_attempts
+                ),
                 "finished_at": utc_now_iso(),
             }
         )
@@ -756,6 +768,9 @@ class Gate2SourceFactRuntimeService:
         retention_policy: RetentionPolicy,
     ) -> tuple[str, dict[str, Any]]:
         raw_output_ref = new_artifact_id()
+        execution_metadata = gate2_model_execution_contract(
+            self.model_client, self.config.model_id
+        )
         try:
             model_result = await self.model_client.extract(
                 prompt=prompt,
@@ -770,6 +785,9 @@ class Gate2SourceFactRuntimeService:
                     "gate2_model_invalid_response",
                     "Structured model client returned an invalid result",
                 )
+            execution_metadata = (
+                model_result.execution_metadata or execution_metadata
+            )
             raw_payload = {
                 "schema_version": RAW_OUTPUT_SCHEMA_VERSION,
                 "extraction_run_id": extraction_run_id,
@@ -778,6 +796,7 @@ class Gate2SourceFactRuntimeService:
                 "source_unit_ref": source_unit.get("unit_id"),
                 "model_call_status": "passed",
                 "error_code": None,
+                "failure_class": None,
                 "raw_output": model_result.content,
                 "structured_output_mode": model_result.structured_output_mode,
                 "response_format_type": model_result.response_format_type,
@@ -790,9 +809,17 @@ class Gate2SourceFactRuntimeService:
                 "provider_union_keyword": "anyOf",
                 "prompt_snapshot": prompt.snapshot(),
                 "model_id": self.config.model_id,
+                "provider_profile_id": execution_metadata.provider_profile_id,
+                "provider_execution": execution_metadata.snapshot(),
+                "provider_execution_safe": gate2_provider_execution_safe_metadata(
+                    execution_metadata
+                ),
                 "created_at": utc_now_iso(),
             }
         except Exception as exc:
+            execution_metadata = (
+                getattr(exc, "execution_metadata", None) or execution_metadata
+            )
             error_code = getattr(
                 exc,
                 "code",
@@ -806,6 +833,7 @@ class Gate2SourceFactRuntimeService:
                 "source_unit_ref": source_unit.get("unit_id"),
                 "model_call_status": "failed",
                 "error_code": str(error_code),
+                "failure_class": getattr(exc, "failure_class", None),
                 "raw_output": copy.deepcopy(getattr(exc, "raw_output", None)),
                 "structured_output_mode": "openwebui_response_format_json_schema",
                 "response_format_type": "json_schema",
@@ -818,6 +846,11 @@ class Gate2SourceFactRuntimeService:
                 "provider_union_keyword": "anyOf",
                 "prompt_snapshot": prompt.snapshot(),
                 "model_id": self.config.model_id,
+                "provider_profile_id": execution_metadata.provider_profile_id,
+                "provider_execution": execution_metadata.snapshot(),
+                "provider_execution_safe": gate2_provider_execution_safe_metadata(
+                    execution_metadata
+                ),
                 "created_at": utc_now_iso(),
             }
         self._put_record(
@@ -834,6 +867,7 @@ class Gate2SourceFactRuntimeService:
             safe_metadata={
                 "model_call_status": raw_payload["model_call_status"],
                 "error_code": raw_payload["error_code"],
+                "failure_class": raw_payload["failure_class"],
                 "structured_output_mode": raw_payload["structured_output_mode"],
                 "response_format_type": raw_payload["response_format_type"],
                 "fallback_used": raw_payload["fallback_used"],
@@ -846,6 +880,7 @@ class Gate2SourceFactRuntimeService:
                 "provider_response_schema_hash": source_facts_provider_schema_hash(),
                 "package_response_schema_hash": package_response_schema_hash,
                 "provider_union_keyword": "anyOf",
+                "provider_execution": raw_payload["provider_execution_safe"],
             },
         )
         return raw_output_ref, raw_payload
@@ -890,6 +925,12 @@ class Gate2SourceFactRuntimeService:
                 "boundary_status": validation.get("boundary_status"),
                 "repair_attempt_count": repair_attempt_count,
                 "extraction_attempt_ordinal": repair_attempt_count + 1,
+                "raw_output_artifact_ref": validation.get(
+                    "raw_output_artifact_ref"
+                ),
+                "provider_execution": copy.deepcopy(
+                    validation.get("provider_execution") or {}
+                ),
             },
         )
 

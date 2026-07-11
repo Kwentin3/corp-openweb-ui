@@ -56,6 +56,7 @@ MODULE_ORDER = [
     "gate2_source_fact_contracts",
     "gate2_model_contracts",
     "gate2_model_requests",
+    "gate2_provider_adapters",
     "gate2_model_clients",
     "gate2_domain_routing",
     "gate2_candidate_binding",
@@ -101,8 +102,8 @@ def main() -> None:
         modules=modules,
         pipe_source=gate2_pipe_source,
         title="Broker Reports Gate 2 Source Fact Extraction",
-        version="0.2.0-provider-factory-runtime-bundled",
-        package_version="gate2_provider_factory_runtime_v0",
+        version="0.3.0-provider-adapters-metadata-runtime-bundled",
+        package_version="gate2_provider_adapters_metadata_runtime_v1",
         source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
         requirements="pydantic",
     )
@@ -115,8 +116,8 @@ def main() -> None:
         modules=modules,
         pipe_source=gate2_domain_pipe_source,
         title="Broker Reports Gate 2 Domain Source Fact Extraction",
-        version="0.4.0-domain-provider-factory-runtime-bundled",
-        package_version="gate2_domain_provider_factory_runtime_v0",
+        version="0.5.0-domain-provider-adapters-metadata-runtime-bundled",
+        package_version="gate2_domain_provider_adapters_metadata_runtime_v1",
         source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
         requirements="pydantic",
     )
@@ -155,7 +156,13 @@ def assert_gate2_bundle_contract(
         "bundled_modules": "_BUNDLED_MODULES",
         "model_contracts_module": '"gate2_model_contracts"',
         "model_requests_module": '"gate2_model_requests"',
+        "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
+        "provider_adapter_factory": "Gate2ProviderAdapterFactory(",
+        "provider_adapter_factory_anchor": (
+            "Gate2ProviderAdapterFactory.create is the only production Gate 2 "
+            "provider adapter entrypoint"
+        ),
         "model_client_factory": "Gate2StructuredModelClientFactory(",
         "model_client_config": "Gate2StructuredModelClientConfig(",
         "model_client_factory_anchor": (

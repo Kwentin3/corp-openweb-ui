@@ -26,13 +26,14 @@ Current baseline:
 - PRD-1 / Stage 2 positions regular employee tasks as managed work scenarios with prompts, templates, rules, access and constraints.
 - STT v2 is current-stage closed: audio/video transcription runs inside the OpenWebUI UX through browser/WASM normalization, OpenWebUI Action/static loader integration, a private `stage2-stt` sidecar, LemonFox provider path, structured transcript artifact, speaker labels where enabled, post-processing prompt draft flow and quick actions.
 - Generic message-level DOCX export is implemented through the existing OpenWebUI Action bridge, `stage2-stt` sidecar endpoint and `python-docx` renderer.
-- The bounded broker-report normalization and Gate 2 extraction contour is implemented and locally verified. One narrow native/PDF text-layer vertical passed on the preceding live bundle. The current candidate-binding/provider-factory bundle is deployed with repo/live parity, but semantic acceptance did not pass: the GPT canary stopped on provider quota with zero accepted facts, and no active DCP existed for a real native/PDF rerun. Customer methodology, representative samples, expected XLS/XLSX examples and data-policy decisions still gate the full pilot.
+- The bounded broker-report normalization and Gate 2 extraction contour is implemented and deployed with repo/live parity. Bounded synthetic semantic acceptance passed for `gpt-5.6-sol` and `models/gemini-3.5-flash`. The current native/PDF customer rerun was not performed because the controlled case had no active source records or DCP. Customer methodology, representative samples, expected XLS/XLSX examples and data-policy decisions still gate the full pilot.
 - The existing Stage 2 rule is extension-first: use native OpenWebUI configuration, Workspace Models, Prompts, Knowledge, Skills where supported, Tools/Functions/Actions and minimal extension points before considering any fork.
 
 The broker reports pilot inherits that pattern: OpenWebUI remains the product
 shell, while deterministic normalization, bounded model input and validation
-use narrow backend/Pipe extension points. The next gate is proof of the exact
-deployed bundle before expansion.
+use narrow backend/Pipe extension points. The next product gate is a
+representative native/PDF customer rerun plus methodology and expected-output
+acceptance.
 
 ## 3. Product Scope
 
@@ -231,7 +232,7 @@ Likely native or configuration-first:
 - initial structured draft in assistant response;
 - customer-facing questions in chat.
 
-### Implemented And Deployed; Semantic Live Acceptance Provider-Blocked
+### Implemented, Deployed, And Bounded Synthetic Acceptance Proven
 
 - deterministic normalized-table projection for supported native and PDF
   text-layer inputs;
@@ -241,10 +242,10 @@ Likely native or configuration-first:
 - shared provider factory with fail-closed capability policy.
 
 These points are not full-corpus or production-rollout claims. The exact bundle
-and managed Prompts are deployed with parity, but the approved-provider canary
-stopped on quota before accepting facts. The unsupported DeepSeek profile
-failed closed before a provider call, as required. A successful semantic run is
-still required after provider capacity and an active bounded case are available.
+and managed Prompts have parity, and bounded synthetic runs on `gpt-5.6-sol`
+and `models/gemini-3.5-flash` produced validator-accepted facts. The current
+native/PDF customer rerun was not performed because no active source records or
+DCP were available.
 
 ### Still Requires Product Proof Or Samples
 
@@ -463,13 +464,13 @@ A16. Data policy, provider class and retention boundaries are documented before 
 
 ## 13. Recommended Next Step
 
-The next engineering checkpoint is a bounded retry after approved-provider
-capacity is restored and an active DCP is available, not another prompt-only
-feasibility exercise.
+The next engineering checkpoint is a representative native/PDF customer rerun
+when approved active source records or DCP are available, not another
+prompt-only feasibility exercise.
 
 It should test only the product-critical uncertainties that remain:
 
-- a successful strict structured-output run through the deployed provider factory;
+- current native/PDF input through the deployed provider factory;
 - one bounded native table and one bounded text-layer PDF table path;
 - exact linkage from every accepted value back to an original row/cell value;
 - fail-closed behavior for an unapproved provider profile and unsupported image-only input;

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import copy
+import hashlib
 import json
 import sys
 import unittest
@@ -16,12 +17,14 @@ sys.path.insert(0, str(ROOT))
 MODEL_MODULE_PATHS = (
     ROOT / "broker_reports_gate1" / "gate2_model_contracts.py",
     ROOT / "broker_reports_gate1" / "gate2_model_requests.py",
+    ROOT / "broker_reports_gate1" / "gate2_provider_adapters.py",
     ROOT / "broker_reports_gate1" / "gate2_model_clients.py",
 )
 
 from broker_reports_gate1.gate2_model_clients import (  # noqa: E402
     FACTORY_REQUIRED,
     FORBIDDEN,
+    MAX_MODEL_CONTENT_BYTES,
     Gate2StructuredModelClientFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
@@ -36,6 +39,12 @@ from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
     GATE2_REQUEST_PROFILES,
     SOURCE_REQUEST_PROFILE,
 )
+from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
+    FACTORY_REQUIRED as PROVIDER_FACTORY_REQUIRED,
+    FORBIDDEN as PROVIDER_FORBIDDEN,
+    Gate2GeminiResponseFormatAdapter,
+    Gate2OpenAIResponseFormatAdapter,
+)
 from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
     Gate2ManagedPrompt,
     Gate2PromptError,
@@ -46,11 +55,13 @@ from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
 EXPECTED_PROVIDER_STATUSES = {
     "openai_gpt": "approved",
     "anthropic_claude": "unsupported",
-    "google_gemini": "probe_required",
+    "google_gemini": "approved",
     "deepseek": "unsupported",
     "zai_glm": "unsupported",
     "alibaba_qwen": "unsupported",
 }
+
+DEFAULT_MODEL_ID = "gpt-5.6-sol"
 
 _DEFAULT_RESPONSE_FORMAT = object()
 
@@ -97,8 +108,16 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE),
         )
         self.assertEqual(gate2_provider_profile("gpt").profile_id, "openai_gpt")
+        self.assertEqual(
+            gate2_provider_profile("gpt").approved_model_ids,
+            ("gpt-5.6-sol",),
+        )
         self.assertEqual(gate2_provider_profile("anthropic").profile_id, "anthropic_claude")
         self.assertEqual(gate2_provider_profile("google").profile_id, "google_gemini")
+        self.assertEqual(
+            gate2_provider_profile("google").approved_model_ids,
+            ("models/gemini-3.5-flash",),
+        )
         self.assertEqual(gate2_provider_profile("z.ai").profile_id, "zai_glm")
         self.assertEqual(gate2_provider_profile("alibaba").profile_id, "alibaba_qwen")
 
@@ -166,6 +185,11 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         client,
                         prompt=self._prompt(request_profile),
                         package=self._package(request_profile),
+                        model_id=(
+                            "models/gemini-3.5-flash"
+                            if provider_profile_id == "google_gemini"
+                            else DEFAULT_MODEL_ID
+                        ),
                     )
 
                     self.assertIsInstance(result, Gate2StructuredModelResult)
@@ -186,7 +210,21 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         prompt = self._prompt(SOURCE_REQUEST_PROFILE)
         package = self._package(SOURCE_REQUEST_PROFILE)
         boundary = CompletionBoundary(
-            {"choices": [{"message": {"content": {"accepted": True}}}]}
+            {
+                "id": "provider-request-1",
+                "model": DEFAULT_MODEL_ID,
+                "usage": {
+                    "prompt_tokens": 101,
+                    "completion_tokens": 17,
+                    "total_tokens": 118,
+                },
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"accepted": True}},
+                    }
+                ],
+            }
         )
         client = self._factory(
             request_profile=SOURCE_REQUEST_PROFILE,
@@ -202,6 +240,23 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
 
         self.assertEqual(result.content, {"accepted": True})
         self.assertFalse(result.fallback_used)
+        self.assertIsNotNone(result.execution_metadata)
+        self.assertEqual(result.execution_metadata.provider_id, "openai")
+        self.assertEqual(result.execution_metadata.provider_profile_id, "openai_gpt")
+        self.assertEqual(result.execution_metadata.adapter_id, "openai_response_format")
+        self.assertEqual(result.execution_metadata.requested_model_id, DEFAULT_MODEL_ID)
+        self.assertEqual(result.execution_metadata.resolved_model_id, DEFAULT_MODEL_ID)
+        self.assertEqual(result.execution_metadata.provider_response_id, "provider-request-1")
+        self.assertEqual(result.execution_metadata.input_tokens, 101)
+        self.assertEqual(result.execution_metadata.output_tokens, 17)
+        self.assertEqual(result.execution_metadata.total_tokens, 118)
+        self.assertEqual(result.execution_metadata.finish_reason, "stop")
+        self.assertEqual(result.execution_metadata.schema_transform_count, 0)
+        self.assertEqual(
+            result.execution_metadata.canonical_request_schema_hash,
+            result.execution_metadata.adapted_request_schema_hash,
+        )
+        self.assertGreaterEqual(result.execution_metadata.duration_ms, 0)
         self.assertEqual(response_format, original_response_format)
         self.assertEqual(boundary.resolved_user_ids, ["model-client-user"])
         self.assertEqual(len(boundary.calls), 1)
@@ -210,7 +265,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertTrue(call["bypass_filter"])
         self.assertTrue(call["bypass_system_prompt"])
         form_data = call["form_data"]
-        self.assertEqual(form_data["model"], "model-under-test")
+        self.assertEqual(form_data["model"], DEFAULT_MODEL_ID)
         self.assertFalse(form_data["stream"])
         self.assertEqual(form_data["response_format"], original_response_format)
         self.assertEqual([item["role"] for item in form_data["messages"]], ["system", "user"])
@@ -235,6 +290,9 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                     "output_schema_version": prompt.output_schema_version,
                     "output_schema_hash": package["output_schema"]["output_schema_hash"],
                     "package_ref": package["package_artifact_ref"],
+                    "provider_profile_id": "openai_gpt",
+                    "provider_adapter_id": "openai_response_format",
+                    "provider_adapter_version": "1.0.0",
                 }
             },
         )
@@ -283,8 +341,347 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         "package_ref": "pkg_domain",
                         "knowledge_rag_used": False,
                         "vectorization_performed": False,
+                        "provider_profile_id": "openai_gpt",
+                        "provider_adapter_id": "openai_response_format",
+                        "provider_adapter_version": "1.0.0",
                     },
                 )
+
+    def test_gemini_approved_live_model_uses_its_profile_adapter_without_probe(self):
+        response_format = self._response_format()
+        response_format["json_schema"]["schema"]["properties"] = {
+            "schema_version": {
+                "type": "string",
+                "const": "broker_reports_source_facts_v0",
+                "default": {"const": "annotation-not-schema"},
+                "description": "canonical guidance",
+            },
+            "completeness": {
+                "type": "string",
+                "enum": ["complete", "partial"],
+            },
+            "amount": {
+                "type": "string",
+                "enum": ["25.00"],
+            },
+            "movement_type_candidate": {
+                "type": "string",
+                "enum": ["deposit", "withdrawal"],
+            },
+        }
+        response_format["json_schema"]["schema"]["required"] = [
+            "schema_version",
+            "completeness",
+            "amount",
+            "movement_type_candidate",
+        ]
+        canonical_response_format = copy.deepcopy(response_format)
+        boundary = CompletionBoundary(
+            {
+                "id": "gemini-request-1",
+                "model": "models/gemini-3.5-flash",
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 5,
+                    "total_tokens": 25,
+                },
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"accepted": True}},
+                    }
+                ],
+            }
+        )
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="google_gemini",
+            boundary=boundary,
+        ).create()
+
+        result = self._extract(
+            client,
+            prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+            package=self._package(DOMAIN_REQUEST_PROFILE),
+            model_id="models/gemini-3.5-flash",
+            response_format=response_format,
+        )
+
+        self.assertIsInstance(client.provider_adapter, Gate2GeminiResponseFormatAdapter)
+        self.assertEqual(len(boundary.calls), 1)
+        sent_response_format = boundary.calls[0]["form_data"]["response_format"]
+        sent_schema_version = sent_response_format["json_schema"]["schema"][
+            "properties"
+        ]["schema_version"]
+        self.assertNotIn("const", sent_schema_version)
+        self.assertNotIn("enum", sent_schema_version)
+        self.assertNotIn("default", sent_schema_version)
+        self.assertNotIn("description", sent_schema_version)
+        sent_properties = sent_response_format["json_schema"]["schema"][
+            "properties"
+        ]
+        self.assertEqual(
+            sent_properties["completeness"]["enum"],
+            ["complete", "partial"],
+        )
+        self.assertNotIn("enum", sent_properties["amount"])
+        self.assertEqual(
+            sent_properties["movement_type_candidate"]["enum"],
+            ["deposit", "withdrawal"],
+        )
+        self.assertEqual(response_format, canonical_response_format)
+        self.assertEqual(result.execution_metadata.provider_id, "google")
+        self.assertEqual(result.execution_metadata.provider_profile_id, "google_gemini")
+        self.assertEqual(result.execution_metadata.adapter_id, "gemini_response_format")
+        self.assertEqual(result.execution_metadata.adapter_version, "1.5.0")
+        self.assertEqual(result.execution_metadata.schema_transform_count, 4)
+        self.assertEqual(
+            len(result.execution_metadata.canonical_request_schema_hash),
+            64,
+        )
+        self.assertEqual(
+            len(result.execution_metadata.adapted_request_schema_hash),
+            64,
+        )
+        self.assertNotEqual(
+            result.execution_metadata.canonical_request_schema_hash,
+            result.execution_metadata.adapted_request_schema_hash,
+        )
+        self.assertEqual(
+            result.execution_metadata.resolved_model_id,
+            "models/gemini-3.5-flash",
+        )
+
+        unqualified = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="google_gemini",
+            boundary=boundary,
+        ).create()
+        unqualified_contract = unqualified.execution_contract(
+            "models/gemini-unproven"
+        )
+        self.assertEqual(
+            unqualified_contract.provider_profile_id,
+            "google_gemini",
+        )
+        self.assertEqual(
+            unqualified_contract.requested_model_id,
+            "models/gemini-unproven",
+        )
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                unqualified,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+                model_id="models/gemini-unproven",
+            )
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_no_strict_structured_provider_available",
+        )
+        self.assertEqual(len(boundary.calls), 1)
+
+    def test_gemini_schema_adaptation_conflict_fails_before_provider_call(self):
+        response_format = self._response_format()
+        response_format["json_schema"]["schema"]["properties"] = {
+            "schema_version": {
+                "type": "string",
+                "const": "v0",
+                "enum": ["v1"],
+            }
+        }
+        boundary = CompletionBoundary({"content": {"unexpected": True}})
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="google_gemini",
+            boundary=boundary,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+                model_id="models/gemini-3.5-flash",
+                response_format=response_format,
+            )
+
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_provider_schema_adaptation_conflict",
+        )
+        self.assertEqual(boundary.resolved_user_ids, [])
+        self.assertEqual(boundary.calls, [])
+
+    def test_provider_profile_cannot_be_mismatched_with_another_vendor_model(self):
+        boundary = CompletionBoundary({"content": {"unexpected": True}})
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="openai_gpt",
+            boundary=boundary,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+                model_id="claude-sonnet-5",
+            )
+
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_no_strict_structured_provider_available",
+        )
+        self.assertEqual(boundary.resolved_user_ids, [])
+        self.assertEqual(boundary.calls, [])
+
+        probe_client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="openai_gpt",
+            boundary=boundary,
+            capability_probe=True,
+        ).create()
+        with self.assertRaises(Gate2SourceFactRuntimeError) as probe_rejected:
+            self._extract(
+                probe_client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+                model_id="models/gemini-3.5-flash",
+            )
+        self.assertEqual(
+            probe_rejected.exception.code,
+            "gate2_no_strict_structured_provider_available",
+        )
+        self.assertEqual(boundary.resolved_user_ids, [])
+        self.assertEqual(boundary.calls, [])
+
+    def test_provider_reported_model_mismatch_fails_after_one_call(self):
+        boundary = CompletionBoundary(
+            {
+                "id": "provider-response-mismatch",
+                "model": "gpt-5.6-terra",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"unexpected": True}},
+                    }
+                ],
+            }
+        )
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="openai_gpt",
+            boundary=boundary,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+            )
+
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_provider_resolved_model_mismatch",
+        )
+        self.assertEqual(
+            rejected.exception.failure_class,
+            "provider_model_mismatch",
+        )
+        self.assertEqual(
+            rejected.exception.execution_metadata.requested_model_id,
+            DEFAULT_MODEL_ID,
+        )
+        self.assertEqual(
+            rejected.exception.execution_metadata.resolved_model_id,
+            "gpt-5.6-terra",
+        )
+        self.assertEqual(len(boundary.calls), 1)
+
+    def test_oversized_model_content_fails_before_runtime_persistence(self):
+        oversized = "x" * (MAX_MODEL_CONTENT_BYTES + 1)
+        boundary = CompletionBoundary(
+            {
+                "id": "provider-response-oversized",
+                "model": DEFAULT_MODEL_ID,
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": oversized},
+                    }
+                ],
+            }
+        )
+        client = self._factory(
+            request_profile=SOURCE_REQUEST_PROFILE,
+            boundary=boundary,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                package=self._package(SOURCE_REQUEST_PROFILE),
+            )
+
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_model_response_budget_exceeded",
+        )
+        self.assertEqual(rejected.exception.failure_class, "response_budget")
+        budget = rejected.exception.raw_output["response_budget"]
+        self.assertEqual(budget["reason"], "bytes")
+        self.assertEqual(budget["allowed"], MAX_MODEL_CONTENT_BYTES)
+        self.assertEqual(budget["observed"], len(oversized))
+        self.assertEqual(len(budget["content_sha256"]), 64)
+        self.assertNotIn(oversized[:1024], str(rejected.exception.raw_output))
+        self.assertEqual(len(boundary.calls), 1)
+
+    def test_oversized_provider_error_fails_with_bounded_diagnostic(self):
+        oversized = "provider-private-error-" + (
+            "x" * (MAX_MODEL_CONTENT_BYTES + 1)
+        )
+        boundary = CompletionBoundary(
+            {
+                "id": "provider-response-oversized-error",
+                "model": DEFAULT_MODEL_ID,
+                "error": {"message": oversized},
+            }
+        )
+        client = self._factory(
+            request_profile=SOURCE_REQUEST_PROFILE,
+            boundary=boundary,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                package=self._package(SOURCE_REQUEST_PROFILE),
+            )
+
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_model_response_budget_exceeded",
+        )
+        self.assertEqual(rejected.exception.failure_class, "response_budget")
+        budget = rejected.exception.raw_output["response_budget"]
+        self.assertEqual(budget["reason"], "bytes")
+        self.assertGreater(budget["observed"], MAX_MODEL_CONTENT_BYTES)
+        self.assertEqual(budget["allowed"], MAX_MODEL_CONTENT_BYTES)
+        self.assertEqual(len(budget["content_sha256"]), 64)
+        self.assertNotIn(oversized[:1024], str(rejected.exception.raw_output))
+        self.assertEqual(
+            rejected.exception.execution_metadata.requested_model_id,
+            DEFAULT_MODEL_ID,
+        )
+        self.assertIsNone(
+            rejected.exception.execution_metadata.provider_response_id
+        )
+        self.assertIsNone(rejected.exception.execution_metadata.resolved_model_id)
+        self.assertEqual(len(boundary.calls), 1)
 
     def test_completion_signature_selection_calls_external_boundary_exactly_once(self):
         signatures: list[tuple[str, Any, list[dict[str, Any]]]] = []
@@ -371,7 +768,43 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             )
         self.assertEqual(failed.exception.code, "gate2_model_call_failed")
         self.assertEqual(failed.exception.message, "TypeError")
+        self.assertEqual(failed.exception.failure_class, "TypeError")
+        self.assertEqual(
+            failed.exception.raw_output,
+            {
+                "error": {
+                    "type": "TypeError",
+                    "message_length": len("provider failed after invocation"),
+                    "message_sha256": hashlib.sha256(
+                        b"provider failed after invocation"
+                    ).hexdigest(),
+                }
+            },
+        )
         self.assertEqual(len(provider_calls), 1)
+
+        unavailable_calls: list[dict[str, Any]] = []
+
+        def unavailable_provider(*, request, form_data, user):
+            unavailable_calls.append({"form_data": form_data})
+            raise Exception("model not found")
+
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            completion_resolver=lambda user_id: (
+                unavailable_provider,
+                SimpleNamespace(id=user_id),
+            ),
+        ).create()
+        with self.assertRaises(Gate2SourceFactRuntimeError) as unavailable:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+            )
+        self.assertEqual(unavailable.exception.code, "gate2_model_call_failed")
+        self.assertEqual(unavailable.exception.failure_class, "Exception")
+        self.assertEqual(len(unavailable_calls), 1)
 
     def test_async_dependencies_user_and_completion_are_supported_once(self):
         calls: list[dict[str, Any]] = []
@@ -445,6 +878,11 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                 "gate2_model_invalid_response",
             ),
             ("unsupported_shape", object(), "gate2_model_invalid_response"),
+            (
+                "json_list_body",
+                SimpleNamespace(body=b'[{"type":"schema"}]'),
+                "gate2_model_invalid_response",
+            ),
         )
         for name, response, expected_code in invalid_cases:
             with self.subTest(name=name):
@@ -460,7 +898,51 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         package=self._package(SOURCE_REQUEST_PROFILE),
                     )
                 self.assertEqual(rejected.exception.code, expected_code)
+                if name == "invalid_body":
+                    self.assertEqual(
+                        rejected.exception.raw_output,
+                        {
+                            "response_type": "SimpleNamespace",
+                            "body_length": len(b"not-json"),
+                            "body_sha256": hashlib.sha256(b"not-json").hexdigest(),
+                        },
+                    )
+                elif name == "unsupported_shape":
+                    self.assertEqual(
+                        rejected.exception.raw_output,
+                        {"response_type": "object"},
+                    )
+                elif name == "json_list_body":
+                    self.assertEqual(
+                        rejected.exception.raw_output,
+                        [{"type": "schema"}],
+                    )
                 self.assertEqual(len(boundary.calls), 1)
+
+        list_error = SimpleNamespace(
+            body=json.dumps(
+                [{"error": {"code": 400, "message": "schema too complex"}}]
+            ).encode("utf-8")
+        )
+        boundary = CompletionBoundary(list_error)
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            boundary=boundary,
+        ).create()
+        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+            )
+        self.assertEqual(
+            rejected.exception.code,
+            "gate2_model_schema_response_format_rejected",
+        )
+        self.assertEqual(
+            rejected.exception.raw_output,
+            {"error": {"code": 400, "message": "schema too complex"}},
+        )
 
     def test_provider_error_taxonomy_is_typed_private_and_never_retried(self):
         common_cases = (
@@ -689,13 +1171,26 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertIn("Gate2StructuredModelClientFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not call OpenWebUI completion functions", FORBIDDEN)
         self.assertIn("provider SDKs directly", FORBIDDEN)
+        self.assertIn("Gate2ProviderAdapterFactory.create", PROVIDER_FACTORY_REQUIRED)
+        self.assertIn("must not call provider SDKs", PROVIDER_FORBIDDEN)
+        self.assertIsInstance(
+            self._factory(
+                request_profile=SOURCE_REQUEST_PROFILE,
+                boundary=CompletionBoundary({"content": {"ok": True}}),
+            ).create().provider_adapter,
+            Gate2OpenAIResponseFormatAdapter,
+        )
 
     def test_model_factory_modules_are_closed_world_safe(self):
         allowed_top_level_modules = {
             "__future__",
+            "collections",
+            "copy",
             "dataclasses",
+            "hashlib",
             "inspect",
             "json",
+            "time",
             "typing",
         }
         for path in MODEL_MODULE_PATHS:
@@ -757,6 +1252,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         prompt: Gate2ManagedPrompt,
         package: dict[str, Any],
         response_format: Any = _DEFAULT_RESPONSE_FORMAT,
+        model_id: str = DEFAULT_MODEL_ID,
     ) -> Gate2StructuredModelResult:
         actual_response_format = (
             self._response_format()
@@ -767,7 +1263,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             client.extract(
                 prompt=prompt,
                 package=package,
-                model_id="model-under-test",
+                model_id=model_id,
                 response_format=actual_response_format,
             )
         )
