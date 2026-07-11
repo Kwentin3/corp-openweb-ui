@@ -78,7 +78,7 @@ GATE2_PROVIDER_PROFILES = (
         supports_any_of=True,
         supports_const=True,
         supports_additional_properties_false=True,
-        gate2_status=PROVIDER_STATUS_PROBE_REQUIRED,
+        gate2_status=PROVIDER_STATUS_UNSUPPORTED,
     ),
     Gate2ProviderProfile(
         profile_id="google_gemini",

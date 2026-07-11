@@ -68,6 +68,7 @@ def main() -> int:
     parser.add_argument("--domain", choices=sorted(EXPECTED_DOMAINS), default=None)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--candidate-binding", action="store_true")
+    parser.add_argument("--capability-probe", action="store_true")
     parser.add_argument("--retain", action="store_true")
     parser.add_argument("--audit-case", default=None)
     parser.add_argument("--cleanup-case", default=None)
@@ -133,6 +134,7 @@ def main() -> int:
         dcp_ref=str(seeded["domain_context_packet_ref"]),
         model_id=model_id,
         candidate_binding_enabled=args.candidate_binding,
+        provider_capability_probe=args.capability_probe,
         provider_profile_id=args.provider_profile_id,
         domain=args.domain,
         timeout=args.timeout,
@@ -244,6 +246,7 @@ def main() -> int:
         "case_id": case_id,
         "model_id": model_id,
         "candidate_binding_enabled": args.candidate_binding,
+        "provider_capability_probe": args.capability_probe,
         "provider_profile_id": args.provider_profile_id,
         "requested_domain": args.domain,
         "checks": checks,
@@ -265,6 +268,7 @@ def _run_domain_chat(
     dcp_ref,
     model_id,
     candidate_binding_enabled,
+    provider_capability_probe,
     provider_profile_id,
     domain,
     timeout,
@@ -284,12 +288,17 @@ def _run_domain_chat(
                 "domain_context_packet_ref": dcp_ref,
                 "model_id": model_id,
                 "wave": "primary",
-                "run_mode": "synthetic",
+                "run_mode": (
+                    "provider_qualification"
+                    if provider_capability_probe
+                    else "synthetic"
+                ),
                 "document_batch_limit": 3,
                 "source_unit_limit": 3,
                 "segmentation_enabled": False,
                 "candidate_binding_enabled": candidate_binding_enabled,
                 "provider_profile_id": provider_profile_id,
+                "provider_capability_probe": provider_capability_probe,
                 "domain_allowlist": [domain] if domain else [],
                 "max_repair_attempts": 1,
             },

@@ -384,6 +384,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             dcp_ref="dcp_safe_test",
             model_id="provider-model-test",
             candidate_binding_enabled=True,
+            provider_capability_probe=True,
             provider_profile_id="anthropic_claude",
             domain="cash_movement",
             timeout=30,
@@ -398,6 +399,13 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(
             domain_body["broker_reports_gate2_domain"]["candidate_binding_enabled"]
+        )
+        self.assertTrue(
+            domain_body["broker_reports_gate2_domain"]["provider_capability_probe"]
+        )
+        self.assertEqual(
+            domain_body["broker_reports_gate2_domain"]["run_mode"],
+            "provider_qualification",
         )
         self.assertEqual(
             domain_body["broker_reports_gate2_domain"]["domain_allowlist"],

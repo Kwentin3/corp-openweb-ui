@@ -281,9 +281,12 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
 - Production/customer fallback: none; fail closed when schema mode is unavailable.
 - Provider selection is configurable through one factory; it is not permanently
   tied to a provider-specific call site.
-- Current policy approves the OpenAI profile. Anthropic and Google profiles are
-  `probe_required`; DeepSeek, Z.AI and Alibaba profiles are `unsupported` for
-  this strict Gate 2 contract.
+- Current policy approves the OpenAI profile. The deployed Anthropic connection
+  is `unsupported` after `claude-sonnet-5` rejected the exact strict dynamic
+  `response_format=json_schema` contract on 2026-07-11. Google remains
+  `probe_required` because no Gemini model is exposed by the live OpenWebUI
+  catalog. DeepSeek, Z.AI and Alibaba profiles are `unsupported` for this strict
+  Gate 2 contract.
 - `probe_required` is not production approval. There is no automatic provider
   failover, and the factory fails closed when no approved strict-output route is
   available.

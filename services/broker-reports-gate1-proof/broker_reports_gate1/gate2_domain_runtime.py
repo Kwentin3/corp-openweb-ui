@@ -94,6 +94,8 @@ class Gate2DomainPromptResolver(Protocol):
 @dataclass(frozen=True)
 class Gate2DomainSourceFactRuntimeConfig:
     model_id: str
+    provider_profile_id: str = "openai_gpt"
+    provider_capability_probe: bool = False
     wave: str = "primary"
     run_mode: str = "customer"
     document_batch_start: int = 0
@@ -158,7 +160,11 @@ class Gate2DomainSourceFactRuntimeFactory:
             raise Gate2SourceFactRuntimeError(
                 "gate2_wave_invalid", "Unsupported Gate 2 domain wave"
             )
-        if self.config.run_mode not in {"customer", "synthetic"}:
+        if self.config.run_mode not in {
+            "customer",
+            "synthetic",
+            "provider_qualification",
+        }:
             raise Gate2SourceFactRuntimeError(
                 "gate2_run_mode_invalid", "Unsupported Gate 2 domain run mode"
             )
@@ -990,6 +996,8 @@ class Gate2DomainSourceFactRuntimeService:
                 "provider_union_keyword": "anyOf",
                 "prompt_snapshot": prompt.snapshot(),
                 "model_id": self.config.model_id,
+                "provider_profile_id": self.config.provider_profile_id,
+                "provider_capability_probe": self.config.provider_capability_probe,
                 "extractor_domain": package.get("extractor_domain"),
                 "created_at": utc_now_iso(),
             }
@@ -1014,6 +1022,8 @@ class Gate2DomainSourceFactRuntimeService:
                 "provider_union_keyword": "anyOf",
                 "prompt_snapshot": prompt.snapshot(),
                 "model_id": self.config.model_id,
+                "provider_profile_id": self.config.provider_profile_id,
+                "provider_capability_probe": self.config.provider_capability_probe,
                 "extractor_domain": package.get("extractor_domain"),
                 "created_at": utc_now_iso(),
             }
@@ -1034,6 +1044,18 @@ class Gate2DomainSourceFactRuntimeService:
                 "extractor_domain": package.get("extractor_domain"),
                 "repair_attempt_count": repair_attempt_count,
                 "fallback_used": raw_payload["fallback_used"],
+                "provider_profile_id": self.config.provider_profile_id,
+                "provider_capability_probe": self.config.provider_capability_probe,
+                "model_id": self.config.model_id,
+                "provider_response_schema_hash": raw_payload[
+                    "provider_response_schema_hash"
+                ],
+                "package_response_schema_hash": raw_payload[
+                    "package_response_schema_hash"
+                ],
+                "prompt_hash": _object(raw_payload["prompt_snapshot"]).get(
+                    "prompt_hash"
+                ),
             },
         )
         return raw_ref, raw_payload
@@ -1320,6 +1342,8 @@ class Gate2DomainSourceFactRuntimeService:
             "package_policy": "gate2_domain_package_projection_v0",
             "stitch_policy": "gate2_source_fact_stitching_v0",
             "model_id": self.config.model_id,
+            "provider_profile_id": self.config.provider_profile_id,
+            "provider_capability_probe": self.config.provider_capability_probe,
             "structured_output_policy": {
                 "required_mode": "json_schema",
                 "strict": True,

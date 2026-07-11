@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from .gate2_model_contracts import (
     PROVIDER_STATUS_APPROVED,
+    PROVIDER_STATUS_PROBE_REQUIRED,
     Gate2ProviderProfile,
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClientConfig,
@@ -53,10 +54,11 @@ class Gate2StructuredModelClientFactory:
             request_profile=self.config.request_profile
         )
         provider_profile = gate2_provider_profile(self.config.provider_profile_id)
-        if (
-            not self.config.capability_probe
-            and provider_profile.gate2_status != PROVIDER_STATUS_APPROVED
-        ):
+        probe_allowed = (
+            self.config.capability_probe
+            and provider_profile.gate2_status == PROVIDER_STATUS_PROBE_REQUIRED
+        )
+        if provider_profile.gate2_status != PROVIDER_STATUS_APPROVED and not probe_allowed:
             raise Gate2SourceFactRuntimeError(
                 "gate2_no_strict_structured_provider_available",
                 "Selected provider is not approved for strict Gate 2 structured output",

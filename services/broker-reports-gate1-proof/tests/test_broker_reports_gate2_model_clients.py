@@ -45,7 +45,7 @@ from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
 
 EXPECTED_PROVIDER_STATUSES = {
     "openai_gpt": "approved",
-    "anthropic_claude": "probe_required",
+    "anthropic_claude": "unsupported",
     "google_gemini": "probe_required",
     "deepseek": "unsupported",
     "zai_glm": "unsupported",
@@ -132,8 +132,8 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             gate2_provider_profile("unknown-provider")
         self.assertEqual(unknown.exception.code, "gate2_provider_profile_unknown")
 
-    def test_capability_probe_runs_one_controlled_strict_call_for_every_matrix_entry(self):
-        for provider_profile_id in EXPECTED_PROVIDER_STATUSES:
+    def test_capability_probe_runs_one_controlled_strict_call_only_for_qualifiable_profiles(self):
+        for provider_profile_id, provider_status in EXPECTED_PROVIDER_STATUSES.items():
             for request_profile in GATE2_REQUEST_PROFILES:
                 with self.subTest(
                     provider_profile_id=provider_profile_id,
@@ -144,12 +144,23 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         "request_profile": request_profile,
                     }
                     boundary = CompletionBoundary({"content": expected_content})
-                    client = self._factory(
+                    factory = self._factory(
                         request_profile=request_profile,
                         provider_profile_id=provider_profile_id,
                         boundary=boundary,
                         capability_probe=True,
-                    ).create()
+                    )
+                    if provider_status == "unsupported":
+                        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                            factory.create()
+                        self.assertEqual(
+                            rejected.exception.code,
+                            "gate2_no_strict_structured_provider_available",
+                        )
+                        self.assertEqual(boundary.resolved_user_ids, [])
+                        self.assertEqual(boundary.calls, [])
+                        continue
+                    client = factory.create()
 
                     result = self._extract(
                         client,

@@ -113,6 +113,15 @@ class Pipe:
         )
         model_id = str(config.get("model_id") or self.valves.model_id or "").strip()
         try:
+            run_mode = str(config.get("run_mode") or "customer")
+            provider_capability_probe = self._config_bool(
+                config.get("provider_capability_probe"), default=False
+            )
+            if provider_capability_probe and run_mode != "provider_qualification":
+                raise ValueError("gate2_provider_capability_probe_mode_invalid")
+            provider_profile_id = str(
+                config.get("provider_profile_id") or self.valves.provider_profile_id
+            )
             prompt_ids = config.get("prompt_ids")
             prompt_commands = config.get("prompt_commands")
             prompt_resolver = Gate2DomainPromptResolverFactory(
@@ -134,18 +143,18 @@ class Pipe:
                 model_client=Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
                         request_profile=DOMAIN_REQUEST_PROFILE,
-                        provider_profile_id=str(
-                            config.get("provider_profile_id")
-                            or self.valves.provider_profile_id
-                        ),
+                        provider_profile_id=provider_profile_id,
+                        capability_probe=provider_capability_probe,
                     ),
                     user=__user__,
                     request=__request__,
                 ).create(),
                 config=Gate2DomainSourceFactRuntimeConfig(
                     model_id=model_id,
+                    provider_profile_id=provider_profile_id,
+                    provider_capability_probe=provider_capability_probe,
                     wave=str(config.get("wave") or self.valves.default_wave),
-                    run_mode=str(config.get("run_mode") or "customer"),
+                    run_mode=run_mode,
                     document_batch_start=int(config.get("document_batch_start") or 0),
                     document_batch_limit=(
                         int(config["document_batch_limit"])
@@ -229,16 +238,22 @@ class Pipe:
             )
             return result.compact_russian_summary
         except (Gate2SourceFactRuntimeError, Gate2PromptError, ArtifactStoreError, ValueError) as exc:
+            error_code = str(
+                getattr(exc, "code", None) or str(exc) or "gate2_domain_failed_safe"
+            )
             await self._emit(
                 __event_emitter__,
-                f"Gate 2 domain extraction blocked: {getattr(exc, 'code', 'gate2_domain_failed_safe')}",
+                f"Gate 2 domain extraction blocked: {error_code}",
                 done=True,
             )
-            return (
+            safe_message = (
                 "Gate 2 завершён безопасной блокировкой. "
                 "Подтверждённые доменные исходные факты не созданы. "
                 "Расчёт налогов, декларация и XLS/XLSX не выполнялись."
             )
+            if run_mode == "provider_qualification":
+                return f"{safe_message} Blocker code: {error_code}."
+            return safe_message
 
     def _runtime_config(self, body: dict[str, Any], metadata: dict[str, Any]) -> dict[str, Any]:
         result: dict[str, Any] = {}

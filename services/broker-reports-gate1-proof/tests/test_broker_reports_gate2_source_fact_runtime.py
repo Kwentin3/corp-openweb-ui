@@ -688,6 +688,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(package["candidate_binding_profile"]["domain"], "income")
         self.assertTrue(package["source_value_candidate_set"]["candidates"])
         self.assertEqual(call["candidate_binding_mode"], package["candidate_binding_mode"])
+
         self.assertEqual(call["profile_domain"], "income")
         self.assertEqual(
             call["response_format"]["json_schema"]["name"],
@@ -699,6 +700,22 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             "broker_reports_candidate_binding_output_v0",
         )
         self.assertEqual(raw["model_call_status"], "passed")
+        self.assertEqual(raw["provider_profile_id"], "openai_gpt")
+        self.assertFalse(raw["provider_capability_probe"])
+        raw_record = self.store.get_record_unchecked(result.raw_output_refs[0])
+        self.assertEqual(raw_record.safe_metadata["model_id"], raw["model_id"])
+        self.assertEqual(
+            raw_record.safe_metadata["package_response_schema_hash"],
+            raw["package_response_schema_hash"],
+        )
+        self.assertEqual(
+            raw_record.safe_metadata["provider_response_schema_hash"],
+            raw["provider_response_schema_hash"],
+        )
+        self.assertEqual(
+            raw_record.safe_metadata["prompt_hash"],
+            raw["prompt_snapshot"]["prompt_hash"],
+        )
 
         self.assertEqual(validation["validator_status"], "passed", validation)
         self.assertEqual(validation["errors"], [])
@@ -733,6 +750,25 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 for record in self.store.list_by_run(self.context.normalization_run_id)
             )
         )
+
+    def test_domain_runtime_accepts_explicit_provider_qualification_mode(self):
+        config = Gate2DomainSourceFactRuntimeConfig(
+            model_id="qualification-model",
+            run_mode="provider_qualification",
+            provider_profile_id="anthropic_claude",
+            provider_capability_probe=True,
+        )
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"income": self._domain_prompt("income")}
+            ),
+            model_client=CandidateBindingBoundaryModel(),
+            config=config,
+        ).create()
+        self.assertEqual(runtime.config.run_mode, "provider_qualification")
+        self.assertEqual(runtime.config.provider_profile_id, "anthropic_claude")
+        self.assertTrue(runtime.config.provider_capability_probe)
 
     def test_managed_prompt_resolver_enforces_gate2_contract_access_and_hash(self):
         db_path = Path(self._tmp.name) / "webui.db"
