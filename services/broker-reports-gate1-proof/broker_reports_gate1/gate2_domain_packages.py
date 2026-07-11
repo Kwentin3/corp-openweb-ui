@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
+from .gate2_candidate_binding import Gate2CandidateBindingKernelFactory
 from .gate2_domain_routing import (
     DOMAIN_ALLOWED_FACT_TYPES,
     DOMAIN_EXTRACTOR_IDS,
@@ -29,6 +30,7 @@ FORBIDDEN = (
 @dataclass(frozen=True)
 class Gate2DomainPackageBuilderConfig:
     include_secondary_candidates: bool = True
+    candidate_binding_enabled: bool = False
 
 
 class Gate2DomainPackageBuilderFactory:
@@ -86,7 +88,8 @@ class Gate2DomainPackageBuilder:
                 }
             )
             deterministic_value_candidates = _deterministic_value_candidates(
-                narrowed_unit
+                narrowed_unit,
+                domain=domain,
             )
             package_id = f"sfdpkg_{stable_digest([base_package.get('extraction_run_id'), base_package.get('package_id'), route.get('route_id'), domain, candidate_refs], length=24)}"
             coverage_ref = f"dcoverage_{stable_digest([route.get('route_id'), domain, candidate_refs], length=24)}"
@@ -190,6 +193,22 @@ class Gate2DomainPackageBuilder:
                 ),
                 "created_at": base_package.get("created_at"),
             }
+            if self.config.candidate_binding_enabled:
+                binding = Gate2CandidateBindingKernelFactory().create().build(package)
+                package.update(
+                    {
+                        "candidate_binding_mode": "candidate_ids_and_semantic_roles_v0",
+                        "source_value_candidate_set": binding["candidate_set"],
+                        "candidate_relation_set": binding["relation_set"],
+                        "candidate_binding_profile": binding["profile"],
+                    }
+                )
+                package["output_schema"].update(
+                    {
+                        "model_output_schema_id": "broker_reports.candidate_binding_output.schema.v0",
+                        "model_output_schema_version": "broker_reports_candidate_binding_output_v0",
+                    }
+                )
             validate_domain_extraction_package(package)
             packages.append(package)
         return packages
@@ -234,6 +253,16 @@ def validate_domain_extraction_package(package: dict[str, Any]) -> None:
     }
     if allowed_values != indexed_values:
         raise ValueError("gate2_domain_package_value_ref_scope_mismatch")
+    if package.get("candidate_binding_mode"):
+        candidate_set = _object(package.get("source_value_candidate_set"))
+        relation_set = _object(package.get("candidate_relation_set"))
+        profile = _object(package.get("candidate_binding_profile"))
+        if candidate_set.get("package_id") != package.get("package_id"):
+            raise ValueError("candidate_binding_package_scope_mismatch")
+        if relation_set.get("package_id") != package.get("package_id"):
+            raise ValueError("candidate_binding_relation_package_scope_mismatch")
+        if profile.get("domain") != domain:
+            raise ValueError("candidate_binding_profile_domain_mismatch")
 
 
 def narrow_source_unit_projection(
@@ -256,6 +285,7 @@ def narrow_source_unit_projection(
         "cell_provenance",
         "source_value_refs",
         "source_value_index",
+        "private_values",
         "text_segment_refs",
         "segment_provenance",
         "section_refs",
@@ -415,73 +445,88 @@ def narrow_source_unit_projection(
             for item in _dict_list(unit.get("row_provenance"))
             if str(item.get("row_ref") or "") in selected_row_refs
         ]
-        selected_ordinals = [int(item.get("row_ordinal") or 0) for item in row_provenance]
-        ordinal_to_new_index = {
-            ordinal: index for index, ordinal in enumerate(selected_ordinals)
+        selected_cell_refs = {
+            str(cell.get("cell_ref") or "")
+            for row in rows
+            for cell in _dict_list(row.get("cells"))
+            if cell.get("cell_ref")
         }
         cell_provenance = [
             copy.deepcopy(item)
             for item in _dict_list(unit.get("cell_provenance"))
-            if int(item.get("row_ordinal") or 0) in ordinal_to_new_index
+            if str(item.get("cell_ref") or "") in selected_cell_refs
         ]
-        selected_cell_refs = {
-            str(item.get("cell_ref"))
-            for item in cell_provenance
-            if item.get("cell_ref")
-        }
         selected_cell_value_refs = {
             str(item.get("cell_value_ref") or item.get("source_value_ref"))
             for item in cell_provenance
             if item.get("cell_value_ref") or item.get("source_value_ref")
         }
-        ordinal_by_cell_ref = {
-            str(item.get("cell_ref") or ""): int(item.get("row_ordinal") or 0)
-            for item in _dict_list(unit.get("cell_provenance"))
-            if item.get("cell_ref") and item.get("row_ordinal")
+        selected_source_value_refs = {
+            ref
+            for item in cell_provenance
+            for ref in (
+                _string_list(item.get("source_value_refs"))
+                or _string_list([item.get("source_value_ref")])
+            )
         }
-        current_row_index_by_ordinal: dict[int, int] = {}
-        for item in _dict_list(unit.get("source_value_index")):
-            value_path = _object(item.get("value_path"))
-            cell_ref = str(item.get("cell_ref") or "")
-            ordinal = ordinal_by_cell_ref.get(cell_ref)
-            if ordinal and value_path.get("kind") == "table_cell":
-                current_row_index_by_ordinal.setdefault(
-                    ordinal, int(value_path.get("row_index") or 0)
-                )
-        for current_index, item in enumerate(
-            _dict_list(unit.get("row_provenance"))
-        ):
-            ordinal = int(item.get("row_ordinal") or 0)
-            if ordinal:
-                current_row_index_by_ordinal.setdefault(ordinal, current_index)
-        ordinal_by_current_row_index = {
-            current_index: ordinal
-            for ordinal, current_index in current_row_index_by_ordinal.items()
+        selected_source_value_refs.update(
+            ref
+            for row in rows
+            for cell in _dict_list(row.get("cells"))
+            for ref in (
+                _string_list(cell.get("source_value_refs"))
+                or _string_list([cell.get("source_value_ref")])
+            )
+        )
+        row_index_by_ref = {
+            str(row.get("row_ref") or ""): row_index
+            for row_index, row in enumerate(rows)
+        }
+        column_index_by_cell_ref = {
+            str(cell.get("cell_ref") or ""): column_index
+            for row in rows
+            for column_index, cell in enumerate(_dict_list(row.get("cells")))
+        }
+        row_ref_by_cell_ref = {
+            str(cell.get("cell_ref") or ""): str(row.get("row_ref") or "")
+            for row in rows
+            for cell in _dict_list(row.get("cells"))
         }
         source_value_index = []
         for item in _dict_list(unit.get("source_value_index")):
-            value_path = _object(item.get("value_path"))
-            current_row_index = int(value_path.get("row_index") or 0)
-            original_ordinal = ordinal_by_current_row_index.get(current_row_index)
-            if original_ordinal not in ordinal_to_new_index:
+            if str(item.get("source_value_ref") or "") not in selected_source_value_refs:
                 continue
             copied = copy.deepcopy(item)
-            copied["value_path"]["row_index"] = ordinal_to_new_index[
-                original_ordinal
-            ]
+            value_path = _object(copied.get("value_path"))
+            cell_ref = str(copied.get("cell_ref") or "")
+            if value_path.get("kind") == "table_cell" and cell_ref:
+                copied["value_path"] = {
+                    "kind": "table_cell",
+                    "row_index": row_index_by_ref[row_ref_by_cell_ref[cell_ref]],
+                    "column_index": column_index_by_cell_ref[cell_ref],
+                }
             source_value_index.append(copied)
-        original_cells = _object(unit.get("normalized_source_projection")).get("cells")
-        original_cells = original_cells if isinstance(original_cells, list) else []
         narrowed["normalized_source_projection"] = {
             "cells": [
-                copy.deepcopy(original_cells[current_row_index_by_ordinal[ordinal]])
-                for ordinal in selected_ordinals
-                if ordinal in current_row_index_by_ordinal
-                and 0
-                <= current_row_index_by_ordinal[ordinal]
-                < len(original_cells)
+                [cell.get("value") for cell in _dict_list(row.get("cells"))]
+                for row in rows
             ]
         }
+        selected_private_paths = {
+            str(_object(item.get("value_path")).get("value_path_ref") or "")
+            for item in source_value_index
+            if _object(item.get("value_path")).get("value_path_ref")
+        }
+        selected_private_paths.update(
+            str(item.get("normalized_private_value_path") or "")
+            for item in cell_provenance
+            if item.get("normalized_private_value_path")
+        )
+        narrowed["private_values"] = [
+            copy.deepcopy(item)
+            for item in _dict_list(unit.get("private_values"))
+            if str(item.get("value_path_ref") or "") in selected_private_paths
+        ]
         narrowed["row_refs"] = [str(item["row_ref"]) for item in row_provenance]
         narrowed["row_provenance"] = row_provenance
         narrowed["cell_provenance"] = cell_provenance
@@ -585,6 +630,8 @@ def narrow_evidence_refs(
         "page_range_ref",
         "coverage_ref",
         "private_slice_artifact_ref",
+        "table_projection_id",
+        "table_projection_artifact_ref",
         "parser_ref",
         "source_checksum_ref",
         "layout_parser_ref",
@@ -617,7 +664,9 @@ def narrow_evidence_refs(
     return sorted(refs)
 
 
-def _deterministic_value_candidates(unit: dict[str, Any]) -> list[dict[str, str]]:
+def _deterministic_value_candidates(
+    unit: dict[str, Any], *, domain: str
+) -> list[dict[str, str]]:
     projection = _object(unit.get("model_source_projection"))
     if not _dict_list(projection.get("rows")):
         return []
@@ -656,7 +705,39 @@ def _deterministic_value_candidates(unit: dict[str, Any]) -> list[dict[str, str]
                     "policy_id": "exact_header_mechanical_value_candidate_v0",
                 }
             )
-    return result
+    if domain == "cash_movement":
+        for row in _dict_list(projection.get("rows")):
+            row_ref = str(row.get("row_ref") or "")
+            for cell in _dict_list(row.get("cells")):
+                if (
+                    str(cell.get("header_label") or "") != "unknown"
+                    or "decimal_like" not in _string_list(cell.get("value_kind_hints"))
+                ):
+                    continue
+                source_value_ref = str(cell.get("source_value_ref") or "")
+                if not row_ref or not source_value_ref:
+                    continue
+                try:
+                    value = reproduce_normalized_value(
+                        pseudo_slice, source_value_ref, "decimal_dot"
+                    )
+                except ValueError:
+                    continue
+                result.append(
+                    {
+                        "source_ref": row_ref,
+                        "field": "amount",
+                        "source_value_ref": source_value_ref,
+                        "normalized_value": value,
+                        "normalization_kind": "decimal_dot",
+                        "policy_id": "cash_movement_unknown_decimal_candidate_v0",
+                    }
+                )
+    deduplicated = {
+        (item["source_ref"], item["field"], item["source_value_ref"]): item
+        for item in result
+    }
+    return [deduplicated[key] for key in sorted(deduplicated)]
 
 
 def _object(value: Any) -> dict[str, Any]:

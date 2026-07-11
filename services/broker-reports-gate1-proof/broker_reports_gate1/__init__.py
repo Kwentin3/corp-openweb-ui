@@ -102,12 +102,32 @@ from .gate2_source_fact_contracts import (
     source_facts_response_format,
     source_facts_schema_hash,
 )
+from .gate2_model_contracts import (
+    GATE2_PROVIDER_PROFILES,
+    PROVIDER_STATUS_APPROVED,
+    PROVIDER_STATUS_PROBE_REQUIRED,
+    PROVIDER_STATUS_UNSUPPORTED,
+    Gate2ProviderProfile,
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClient,
+    Gate2StructuredModelClientConfig,
+    Gate2StructuredModelResult,
+    gate2_provider_profile,
+)
+from .gate2_model_requests import (
+    DOMAIN_REQUEST_PROFILE,
+    GATE2_REQUEST_PROFILES,
+    SOURCE_REQUEST_PROFILE,
+    Gate2OpenWebUIRequestBuilder,
+)
+from .gate2_model_clients import (
+    Gate2OpenWebUIStructuredModelClient,
+    Gate2StructuredModelClientFactory,
+)
 from .gate2_source_fact_runtime import (
     Gate2SourceFactRuntimeConfig,
-    Gate2SourceFactRuntimeError,
     Gate2SourceFactRuntimeFactory,
     Gate2SourceFactRuntimeResult,
-    Gate2StructuredModelResult,
     render_compact_russian_summary as render_gate2_compact_russian_summary,
 )
 from .gate2_source_fact_validation import (
@@ -159,6 +179,25 @@ from .gate2_domain_runtime import (
     Gate2DomainSourceFactRuntimeFactory,
     Gate2DomainSourceFactRuntimeResult,
 )
+from .gate2_candidate_binding import (
+    BINDING_OUTPUT_SCHEMA_VERSION,
+    BINDING_PROFILE_SCHEMA_VERSION,
+    CANDIDATE_SET_SCHEMA_VERSION,
+    RELATION_SET_SCHEMA_VERSION,
+    Gate2CandidateBindingConfig,
+    Gate2CandidateBindingKernelFactory,
+    candidate_binding_profile,
+)
+from .gate2_candidate_binding_runtime import (
+    Gate2CandidateBindingOutcome,
+    Gate2CandidateBindingRuntimeFactory,
+    candidate_binding_provider_json_schema,
+    candidate_binding_response_format,
+    candidate_binding_schema_hash,
+    materialize_candidate_binding_selection,
+    parse_candidate_binding_model_output,
+    validate_candidate_binding_selection,
+)
 from .inputs import BytesUnavailable, FileInput
 from .normalizer import Gate1Normalizer
 from .safe_report import render_chat_content
@@ -169,6 +208,22 @@ from .source_provenance import (
     resolve_source_value,
     resolve_source_values,
     validate_normalized_slice_provenance,
+)
+from .table_projection import (
+    TABLE_COVERAGE_SCHEMA_VERSION,
+    TABLE_PROJECTION_SCHEMA_VERSION,
+    TABLE_QUALITY_SCHEMA_VERSION,
+    CsvTableProjectionBuilder,
+    Gate2TablePackageConfig,
+    Gate2TablePackageFactory,
+    HtmlTableProjectionBuilder,
+    NormalizedTableProjectionConfig,
+    NormalizedTableProjectionFactory,
+    PdfTableCandidateProjectionBuilder,
+    TableProjectionBuildResult,
+    TableProjectionValidator,
+    XlsxTableProjectionBuilder,
+    validate_gate2_table_package,
 )
 
 __all__ = [
@@ -272,8 +327,22 @@ __all__ = [
     "Gate2SourceFactRuntimeResult",
     "Gate2SourceFactValidationOutcome",
     "Gate2SourceFactValidatorFactory",
+    "GATE2_PROVIDER_PROFILES",
+    "PROVIDER_STATUS_APPROVED",
+    "PROVIDER_STATUS_PROBE_REQUIRED",
+    "PROVIDER_STATUS_UNSUPPORTED",
+    "Gate2ProviderProfile",
+    "Gate2StructuredModelClient",
+    "Gate2StructuredModelClientConfig",
     "Gate2StructuredModelResult",
+    "Gate2OpenWebUIStructuredModelClient",
+    "Gate2StructuredModelClientFactory",
+    "SOURCE_REQUEST_PROFILE",
+    "DOMAIN_REQUEST_PROFILE",
+    "GATE2_REQUEST_PROFILES",
+    "Gate2OpenWebUIRequestBuilder",
     "StaticGate2PromptResolver",
+    "gate2_provider_profile",
     "gate2_prompt_hash",
     "parse_source_facts_model_output",
     "render_gate2_compact_russian_summary",
@@ -302,6 +371,21 @@ __all__ = [
     "Gate2DomainSourceFactRuntimeConfig",
     "Gate2DomainSourceFactRuntimeFactory",
     "Gate2DomainSourceFactRuntimeResult",
+    "BINDING_OUTPUT_SCHEMA_VERSION",
+    "BINDING_PROFILE_SCHEMA_VERSION",
+    "CANDIDATE_SET_SCHEMA_VERSION",
+    "RELATION_SET_SCHEMA_VERSION",
+    "Gate2CandidateBindingConfig",
+    "Gate2CandidateBindingKernelFactory",
+    "Gate2CandidateBindingOutcome",
+    "Gate2CandidateBindingRuntimeFactory",
+    "candidate_binding_profile",
+    "candidate_binding_provider_json_schema",
+    "candidate_binding_response_format",
+    "candidate_binding_schema_hash",
+    "materialize_candidate_binding_selection",
+    "parse_candidate_binding_model_output",
+    "validate_candidate_binding_selection",
     "build_domain_source_facts_wrapper",
     "domain_source_facts_response_format",
     "render_domain_compact_russian_summary",
@@ -313,4 +397,18 @@ __all__ = [
     "validate_source_fact_stitch_result",
     "validate_source_unit_domain_route",
     "validate_source_unit_segmentation",
+    "TABLE_PROJECTION_SCHEMA_VERSION",
+    "TABLE_COVERAGE_SCHEMA_VERSION",
+    "TABLE_QUALITY_SCHEMA_VERSION",
+    "NormalizedTableProjectionConfig",
+    "NormalizedTableProjectionFactory",
+    "TableProjectionBuildResult",
+    "CsvTableProjectionBuilder",
+    "HtmlTableProjectionBuilder",
+    "XlsxTableProjectionBuilder",
+    "PdfTableCandidateProjectionBuilder",
+    "TableProjectionValidator",
+    "Gate2TablePackageConfig",
+    "Gate2TablePackageFactory",
+    "validate_gate2_table_package",
 ]

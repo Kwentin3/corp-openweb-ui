@@ -141,7 +141,9 @@ provider setup, usage analytics and web-search.
 - Lemonfox - приоритетный STT candidate.
 - Web-search нужен всем пользователям, но с rules, limits, result count, concurrency и cost
   visibility.
-- OCR/layout-aware PDF включается как pilot/research, production-grade pipeline не обещается.
+- Для брокерских PDF с текстовым слоем реализован отдельный deterministic
+  normalization/table path; OCR для сканов и страниц без текстового слоя
+  остаётся отдельным pilot/research и не включается по умолчанию.
 - Доступ руководителей к рабочим чатам включен как requirement/check, но не как просмотр всех личных
   чатов.
 - Запрет удаления чатов пользователями требует technical check.
@@ -285,7 +287,11 @@ Next action:
 Finding:
 
 - OpenWebUI has extraction engines.
-- OCR/layout-aware broker reports must stay pilot until customer samples are tested.
+- Broker-report PDFs with a text layer now have a bounded deterministic
+  normalization/table path; corpus-wide acceptance still waits for customer
+  samples.
+- OCR remains a separate unproven path for scanned/image-only pages and is not
+  the default PDF route.
 - VL OCR is promising but unproven.
 - Corrected VL OCR API provider shortlist V2 now recommends first synthetic
   benchmark candidates: Alibaba Qwen-OCR/Qwen-VL, Datalab Chandra and a
@@ -393,9 +399,11 @@ For STT, do not re-plan the MVP architecture. Review
 [ADR-0004 STT Proxy Boundary](decisions/ADR-0004-stt-proxy-boundary.md) for
 production policy/hardening decisions and continue broader testing.
 
-Next active functional epic after STT v2 closure:
-[Broker reports / 3-НДФЛ](CONTEXT_INDEX.md#брокерские-отчеты--3-ндфл) limited
-pilot.
+The bounded technical contour for
+[Broker reports / 3-НДФЛ](CONTEXT_INDEX.md#брокерские-отчеты--3-ндфл) is
+implemented and deployed with repository/live bundle and Prompt parity. The
+first post-deploy strict candidate-binding canary is quota-blocked, so accepted
+fact proof must close before the limited customer pilot expands.
 
 После ADR/gates можно готовить implementation slices and acceptance sequence.
 

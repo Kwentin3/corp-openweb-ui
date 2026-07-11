@@ -79,12 +79,18 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_contracts", module._BUNDLED_MODULES)
+        self.assertIn("gate2_model_contracts", module._BUNDLED_MODULES)
+        self.assertIn("gate2_model_requests", module._BUNDLED_MODULES)
+        self.assertIn("gate2_model_clients", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_validation", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_runtime", module._BUNDLED_MODULES)
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(hasattr(bundled_package, "NormalizedSliceProvenanceFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2StructuredModelClientFactory")
+        )
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
         self.assertEqual(bundled_package.PDFPLUMBER_PINNED_VERSION, "0.11.10")

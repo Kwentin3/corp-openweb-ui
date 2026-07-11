@@ -118,3 +118,7 @@ status.
 PDF_LAYOUT_RICH_FULL_SOURCE_RUNTIME_READY
 PDF_PAGE_TEXT_STATUS_NOT_WEAKENED_BY_LAYOUT_FAILURE
 ```
+
+## Normalized table projection refinement (2026-07-11)
+
+Complete CSV/HTML/XLSX table units and mechanically valid `pdf_table_candidate_unit` units may be projected into [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md). The full-source payload remains source authority: projections retain `parent_payload_ref`, payload checksum, source-unit checksum and existing source-value refs. Budget overflow or failed PDF geometry emits blocked/explicit fallback state, never truncated-complete.

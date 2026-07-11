@@ -22,9 +22,12 @@ GATE2_DOMAIN_BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
 )
 
+BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
+
 MODULE_ORDER = [
     "contracts",
     "source_provenance",
+    "table_projection",
     "blockers",
     "inputs",
     "detectors",
@@ -51,7 +54,12 @@ MODULE_ORDER = [
     "artifact_resolver",
     "gate2_input_readiness",
     "gate2_source_fact_contracts",
+    "gate2_model_contracts",
+    "gate2_model_requests",
+    "gate2_model_clients",
     "gate2_domain_routing",
+    "gate2_candidate_binding",
+    "gate2_candidate_binding_runtime",
     "gate2_domain_packages",
     "gate2_source_unit_segmentation",
     "gate2_domain_contracts",
@@ -93,8 +101,8 @@ def main() -> None:
         modules=modules,
         pipe_source=gate2_pipe_source,
         title="Broker Reports Gate 2 Source Fact Extraction",
-        version="0.1.0-source-fact-runtime-bundled",
-        package_version="gate2_source_fact_runtime_v0",
+        version="0.2.0-provider-factory-runtime-bundled",
+        package_version="gate2_provider_factory_runtime_v0",
         source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
         requirements="pydantic",
     )
@@ -107,8 +115,8 @@ def main() -> None:
         modules=modules,
         pipe_source=gate2_domain_pipe_source,
         title="Broker Reports Gate 2 Domain Source Fact Extraction",
-        version="0.3.0-domain-source-fact-segmentation-runtime-bundled",
-        package_version="gate2_domain_source_fact_segmentation_runtime_v0",
+        version="0.4.0-domain-provider-factory-runtime-bundled",
+        package_version="gate2_domain_provider_factory_runtime_v0",
         source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
         requirements="pydantic",
     )
@@ -136,6 +144,53 @@ def _strip_openwebui_metadata(source: str) -> str:
             continue
         kept.append(line)
     return "\n".join(kept).lstrip() + "\n"
+
+
+def assert_gate2_bundle_contract(
+    bundle_source: str,
+    *,
+    runtime_factory: str,
+) -> None:
+    required_markers = {
+        "bundled_modules": "_BUNDLED_MODULES",
+        "model_contracts_module": '"gate2_model_contracts"',
+        "model_requests_module": '"gate2_model_requests"',
+        "model_clients_module": '"gate2_model_clients"',
+        "model_client_factory": "Gate2StructuredModelClientFactory(",
+        "model_client_config": "Gate2StructuredModelClientConfig(",
+        "model_client_factory_anchor": (
+            "Gate2StructuredModelClientFactory.create is the only production "
+            "Gate 2 model client entrypoint"
+        ),
+        "runtime_factory": runtime_factory,
+        "source_adapter": BUNDLE_ADAPTER_MARKER,
+    }
+    missing = sorted(
+        label
+        for label, marker in required_markers.items()
+        if marker not in bundle_source
+    )
+    if missing:
+        raise RuntimeError(
+            "gate2_bundle_contract_missing:" + ",".join(missing)
+        )
+
+    source_adapter = bundle_source.split(BUNDLE_ADAPTER_MARKER, 1)[1]
+    forbidden_markers = {
+        "direct_openwebui_completion": "generate_chat_completion",
+        "duplicate_completion_parser": "_completion_dict_content",
+        "duplicate_provider_error_classifier": "_provider_error_code",
+        "legacy_pipe_model_client": "class OpenWebUIGate2",
+    }
+    present = sorted(
+        label
+        for label, marker in forbidden_markers.items()
+        if marker in source_adapter
+    )
+    if present:
+        raise RuntimeError(
+            "gate2_bundle_contract_forbidden:" + ",".join(present)
+        )
 
 
 def _render_bundle(

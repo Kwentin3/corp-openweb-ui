@@ -210,3 +210,7 @@ PDF_LINE_CLUSTER_UNITS_READY
 PDF_TABLE_CANDIDATE_UNITS_READY
 PDF_TABLE_CANDIDATES_REMAIN_NON_SEMANTIC
 ```
+
+## Table projection hardening (2026-07-11)
+
+`pdf_table_candidate_unit` remains a geometry candidate. [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md) adds the only promotion gate to `validated_geometry`: candidate inventory, confidence, row/column minimums, bbox presence, unique word-to-cell ownership and exact contributing-word coverage. `validated_geometry` is structural only. Failed candidates become `rejected_to_line_cluster`, preserve fallback/rejected refs and contain no rows/cells.

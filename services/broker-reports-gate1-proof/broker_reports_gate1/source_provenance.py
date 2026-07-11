@@ -588,6 +588,17 @@ def _resolve_source_value_entry(
         if start < 0 or end < start or end > len(text):
             raise ValueError("source_value_path_invalid")
         value = text[start:end]
+    elif path.get("kind") == "table_projection_private_value":
+        value_path_ref = str(path.get("value_path_ref") or "")
+        matches = [
+            item
+            for item in private_slice.get("private_values") or []
+            if isinstance(item, dict)
+            and str(item.get("value_path_ref") or "") == value_path_ref
+        ]
+        if not value_path_ref or len(matches) != 1:
+            raise ValueError("source_value_path_invalid")
+        value = matches[0].get("normalized_value")
     else:
         raise ValueError("source_value_path_kind_invalid")
     if entry.get("value_checksum_ref") != _checksum_ref("valuechk", value):

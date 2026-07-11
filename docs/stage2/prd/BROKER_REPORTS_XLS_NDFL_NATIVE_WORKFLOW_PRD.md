@@ -1,7 +1,8 @@
 ﻿# Broker Reports / XLS НДФЛ Native Workflow PRD
 
-Status: Product Discovery PRD
+Status: Product Discovery PRD; full customer pilot remains gated
 Date: 2026-07-04
+Technical status updated: 2026-07-11
 Stage: Stage 2
 Owner track: Product / discovery / native-first feasibility
 
@@ -25,10 +26,13 @@ Current baseline:
 - PRD-1 / Stage 2 positions regular employee tasks as managed work scenarios with prompts, templates, rules, access and constraints.
 - STT v2 is current-stage closed: audio/video transcription runs inside the OpenWebUI UX through browser/WASM normalization, OpenWebUI Action/static loader integration, a private `stage2-stt` sidecar, LemonFox provider path, structured transcript artifact, speaker labels where enabled, post-processing prompt draft flow and quick actions.
 - Generic message-level DOCX export is implemented through the existing OpenWebUI Action bridge, `stage2-stt` sidecar endpoint and `python-docx` renderer.
-- Broker reports / 3-НДФЛ remain broader PRD/future scope and are blocked by customer test data, expected XLS/XLSX examples and data policy decisions.
+- The bounded broker-report normalization and Gate 2 extraction contour is implemented and locally verified. One narrow native/PDF text-layer vertical passed on the preceding live bundle. The current candidate-binding/provider-factory bundle is deployed with repo/live parity, but semantic acceptance did not pass: the GPT canary stopped on provider quota with zero accepted facts, and no active DCP existed for a real native/PDF rerun. Customer methodology, representative samples, expected XLS/XLSX examples and data-policy decisions still gate the full pilot.
 - The existing Stage 2 rule is extension-first: use native OpenWebUI configuration, Workspace Models, Prompts, Knowledge, Skills where supported, Tools/Functions/Actions and minimal extension points before considering any fork.
 
-The broker reports pilot should inherit that pattern: first prove a native OpenWebUI workflow scenario, then document exact gaps before any helper or implementation blueprint.
+The broker reports pilot inherits that pattern: OpenWebUI remains the product
+shell, while deterministic normalization, bounded model input and validation
+use narrow backend/Pipe extension points. The next gate is proof of the exact
+deployed bundle before expansion.
 
 ## 3. Product Scope
 
@@ -227,24 +231,37 @@ Likely native or configuration-first:
 - initial structured draft in assistant response;
 - customer-facing questions in chat.
 
-### Doubtful Or Requires Proof
+### Implemented And Deployed; Semantic Live Acceptance Provider-Blocked
+
+- deterministic normalized-table projection for supported native and PDF
+  text-layer inputs;
+- bounded structured intermediate artifacts;
+- row/cell source mapping and original-value reproduction;
+- strict validator-controlled acceptance;
+- shared provider factory with fail-closed capability policy.
+
+These points are not full-corpus or production-rollout claims. The exact bundle
+and managed Prompts are deployed with parity, but the approved-provider canary
+stopped on quota before accepting facts. The unsupported DeepSeek profile
+failed closed before a provider call, as required. A successful semantic run is
+still required after provider capacity and an active bounded case are available.
+
+### Still Requires Product Proof Or Samples
 
 Requires target-runtime proof or samples:
 
-- reliable extraction of broker tables from PDFs;
+- reliable extraction across the agreed broker/PDF layout sample set;
 - reliable extraction of workbook semantics from XLS/XLSX;
-- strict validation of required fields;
-- structured intermediate result that stays stable across runs;
 - XLS/XLSX generation as a downloadable artifact;
-- row-level source mapping from result row to original report source;
 - resumable step-by-step workflow state beyond chat history;
 - repeatability of output for the same input and methodology;
 - native support for Skills in the deployed version;
 - native artifact/download behavior suitable for XLSX in the deployed version.
 
-### Likely Extension Point, Not Sidecar UI
+### Current Extension Boundary, Not Sidecar UI
 
-May require extension-first implementation after proof:
+The current bounded technical contour uses a narrow backend/Pipe path for table
+projection, candidate binding and validation. Remaining export work may use:
 
 - Tool/Function/Action for deterministic table parsing or XLSX creation.
 - OpenAPI Tool Server for a narrow internal generator/validator.
@@ -446,23 +463,25 @@ A16. Data policy, provider class and retention boundaries are documented before 
 
 ## 13. Recommended Next Step
 
-After this PRD, prepare a `Native Workflow Feasibility Proof Plan`.
+The next engineering checkpoint is a bounded retry after approved-provider
+capacity is restored and an active DCP is available, not another prompt-only
+feasibility exercise.
 
-That proof plan should test only the product-critical uncertainties:
+It should test only the product-critical uncertainties that remain:
 
-- target OpenWebUI version and Workspace Model setup;
-- group visibility for scenario/model/prompts/Knowledge;
-- Skills availability;
-- upload behavior for representative text PDF/XLSX files;
-- whether native extraction is enough for the agreed sample set;
-- whether a prompt-only flow can create stable structured intermediate output;
+- a successful strict structured-output run through the deployed provider factory;
+- one bounded native table and one bounded text-layer PDF table path;
+- exact linkage from every accepted value back to an original row/cell value;
+- fail-closed behavior for an unapproved provider profile and unsupported image-only input;
+- absence of raw document content from chat and Knowledge/RAG;
+- explicit separation of local evidence from live evidence;
 - whether an Action/Tool/Function is required for XLSX generation;
 - whether XLSX can be returned as a safe downloadable artifact;
 - whether existing DOCX export pattern can be adapted in principle;
-- failure behavior for scans/OCR inputs;
 - visible warning coverage.
 
-Implementation Blueprint should come only after:
+Expansion from the bounded technical contour to the customer pilot should come
+only after:
 
 - customer methodology and prompts are received;
 - anonymized samples are received through approved transfer;
@@ -477,9 +496,17 @@ OpenWebUI Workspace can be treated as the main native product shell for this fea
 
 Without sidecar UI, the MVP can cover scenario selection, upload, methodology-guided analysis, structured draft, missing/uncertain data, specialist questions, manual review flow and draft labeling.
 
-Native-first MVP likely ends at deterministic parsing, strict validation, source mapping and XLS/XLSX generation. Those parts require proof. If native OpenWebUI cannot safely generate/download XLSX, the next acceptable path is a minimal Tool/Function/Action or OpenAPI Tool Server/helper behind OpenWebUI, not a separate user-facing UI and not a deep fork.
+The current technical core already uses deterministic parsing, bounded table
+projection, candidate-bound model interpretation, strict validation and source
+mapping behind OpenWebUI. XLS/XLSX generation remains a separate product slice.
+If native OpenWebUI cannot safely generate/download XLSX, the next acceptable
+path is a minimal Tool/Function/Action or OpenAPI Tool Server/helper behind
+OpenWebUI, not a separate user-facing UI and not a deep fork.
 
-The project cannot move from PRD to proof/implementation until customer prompts, methodology, anonymized reports, expected XLS/XLSX outputs, required fields, review rules and provider/data policy are available.
+Synthetic and bounded technical proof may proceed without customer documents.
+The full customer pilot and its export cannot be accepted until customer
+prompts, methodology, approved representative reports, expected XLS/XLSX
+outputs, required fields, review rules and provider/data policy are available.
 
 ## Sources Reviewed
 

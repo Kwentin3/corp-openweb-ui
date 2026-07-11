@@ -265,10 +265,28 @@ Runtime-owned fields:
 8. For text input, use source_unit.model_source_projection.segments as the
    authoritative segment/value/ref join. Each fact evidence_refs must contain
    the selected text_segment_ref and its location refs.
-9. Copy a projected cell value mechanically: date uses exact YYYY-MM-DD;
-   decimal removes no significant digits and uses dot notation; currency is
-   the visible three-letter uppercase code; identifier and label are trimmed
-   visible text. Use the source_value_ref from that exact projected cell.
+9. Copy a projected cell value mechanically and only when the selected
+   source_value_ref already satisfies the field's exact reproducibility rule:
+   date must already be visible as `YYYY-MM-DD`; decimal must already be a
+   sign/number with optional spaces and dot decimal separator; currency must
+   already be a visible three-letter code; identifier and label are trimmed
+   visible text. Do not convert date formats, translate currency names, infer
+   decimals, strip punctuation that changes the value, or combine multiple
+   source_value_refs. If the exact rule is not met, set that normalized field
+   to null and its original_value_refs entry to an empty list. Use the
+   source_value_ref from that exact projected cell.
+   If package.deterministic_value_candidates contains an entry for the same
+   selected source ref and normalized field, copy that candidate's
+   normalized_value and source_value_ref exactly. Prefer these candidates over
+   your own parsing. Never populate converted_amount, label, date, amount,
+   currency, quantity, rate, or identifier from more than one source_value_ref.
+   During repair, if a field was reported as
+   source_fact_normalized_value_unreproducible, set it to null unless a matching
+   deterministic_value_candidates entry exists.
+   The provider schema may already restrict a normalized field to the exact
+   candidate values/refs and force fields without candidates to null/empty.
+   Treat that restriction as authoritative; never work around it with another
+   field or an invented ref.
 10. Map visible operation labels conservatively: buy/sell/redemption/transfer
     to trade_operation; dividend/coupon/interest to income; withholding to
     withholding_tax; broker/exchange/custody fee labels to fee_commission;
@@ -346,18 +364,42 @@ web search, files, tools, Knowledge/RAG, vector search, OCR, or VLM.
 
 Your narrow task:
 1. Inspect only candidate_source_refs and source_unit.model_source_projection.
-2. For each candidate ref, emit only the extractor domain fact type,
+2. If candidate_binding_mode is present, this is candidate-binding mode:
+   inspect source_value_candidate_set, candidate_relation_set, and
+   candidate_binding_profile; select only package candidate_ids, allowed
+   semantic roles/fact_field_paths, and required relation_ids. Return the
+   broker_reports_candidate_binding_output_v0 object required by the supplied
+   schema. Do not repeat, rewrite, normalize, or invent source values and do
+   not alter candidate/relation definitions. Use unknown_source_row with an
+   uncertainty code when the profile cannot be satisfied safely.
+3. If candidate_binding_mode is absent, use the compatibility source-facts
+   output: for each candidate ref, emit only the extractor domain fact type,
    unknown_source_row, or an allowed no-fact result.
-3. Select/copy only allowed_evidence_refs, allowed_source_value_refs, and
+4. In compatibility mode select/copy only allowed_evidence_refs,
+   allowed_source_value_refs, and
    allowed_issue_refs. Never construct or alter an opaque ref.
-4. Propose normalized values only when mechanically visible through one
-   selected source-value ref. Do not infer missing values.
-5. Copy package-bound audit, issue-impact, downstream-restriction, scope, and
-   coverage fields exactly as constrained by the schema.
-6. If an issue limits confirmation, do not claim complete. If it blocks the
+5. In compatibility mode propose normalized values only when mechanically visible through one
+   selected source-value ref and already exact-reproducible by field kind:
+   date requires a visible `YYYY-MM-DD`; decimal requires a visible dot-decimal
+   number with optional spaces only; currency requires a visible three-letter
+   code; identifier and label are trimmed visible text. Do not convert date
+   formats, infer decimals, translate currency names, or combine refs. If the
+   exact rule is not met, emit null plus an empty ref list for that field.
+   If package.deterministic_value_candidates contains a candidate for the same
+   selected source ref and field, copy its normalized_value and source_value_ref
+   exactly. Prefer deterministic_value_candidates over model parsing. During
+   repair, any field named by source_fact_normalized_value_unreproducible must
+   become null with empty refs unless such a deterministic candidate exists.
+6. Never change package-bound audit, issue-impact, downstream-restriction,
+   scope, or coverage policy. In compatibility mode copy the fields required
+   by the schema. In candidate-binding mode do not emit them; the deterministic
+   materializer inserts those package constants after binding validation.
+7. If an issue limits confirmation, do not claim complete. If it blocks the
    fact, use blocked completeness and downstream_usable=false.
-7. Account for every package-selected candidate ref. Leave rejected_refs and
-   pending_refs empty only when coverage is complete.
+8. Account for every package-selected candidate ref. In candidate-binding mode
+   return exactly one binding result or allowed no-fact result per selected
+   ref. In compatibility mode leave rejected_refs and pending_refs empty only
+   when coverage is complete.
 
 You do not own routing or final row/segment ownership. Do not change the domain
 route, resolve issues, choose a canonical duplicate, consolidate documents,
@@ -375,6 +417,12 @@ rule.
 Input package:
 {{source_fact_package_json}}
 <!-- DOMAIN_PROMPT_TEMPLATE_END -->
+
+Candidate-binding mode changes only the model-facing intermediate output. The
+same managed domain Prompt identity remains package-bound; the deterministic
+materializer then creates the pending source-facts candidate and the unchanged
+strict source-fact validator remains final authority. Absence of
+`candidate_binding_mode` keeps the prior compatibility output contract.
 
 Required Prompt identity for each domain:
 

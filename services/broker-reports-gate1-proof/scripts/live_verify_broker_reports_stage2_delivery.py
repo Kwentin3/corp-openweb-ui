@@ -1,0 +1,412 @@
+#!/usr/bin/env python3
+"""Read-only repository/live parity proof for Broker Reports Stage 2 delivery."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import requests
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parents[2]
+SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
+
+sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SERVICE_ROOT))
+
+import live_update_function_and_passport_prompt as gate1_update
+import live_update_gate2_domain_function_and_prompts as domain_update
+import live_update_gate2_function_and_prompt as source_update
+from broker_reports_gate1 import GATE2_PROVIDER_PROFILES
+from live_no_rag_source_intake_smoke import (
+    _base_url,
+    _default_ssh_target,
+    _read_env,
+    _signin,
+    _url,
+)
+
+
+@dataclass(frozen=True)
+class FunctionContract:
+    function_id: str
+    bundle_path: Path
+    required_markers: tuple[str, ...]
+
+
+FUNCTION_CONTRACTS = (
+    FunctionContract(
+        function_id=gate1_update.FUNCTION_ID,
+        bundle_path=gate1_update.BUNDLE_PATH,
+        required_markers=(
+            "NormalizedTableProjectionFactory",
+            "Gate2StructuredModelClientFactory",
+        ),
+    ),
+    FunctionContract(
+        function_id=source_update.FUNCTION_ID,
+        bundle_path=source_update.BUNDLE_PATH,
+        required_markers=(
+            "Gate2SourceFactRuntimeFactory",
+            "Gate2StructuredModelClientFactory",
+            "Gate2OpenWebUIStructuredModelClient",
+        ),
+    ),
+    FunctionContract(
+        function_id=domain_update.FUNCTION_ID,
+        bundle_path=domain_update.BUNDLE_PATH,
+        required_markers=(
+            "Gate2DomainSourceFactRuntimeFactory",
+            "Gate2CandidateBindingRuntimeFactory",
+            "Gate2StructuredModelClientFactory",
+        ),
+    ),
+)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--env-file", default=str(ROOT / ".env"))
+    parser.add_argument("--base-url", default=None)
+    parser.add_argument("--ssh-target", default=None)
+    args = parser.parse_args()
+
+    env = _read_env(Path(args.env_file))
+    base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
+    ssh_target = (
+        args.ssh_target
+        or env.get("OPENWEBUI_SSH_TARGET")
+        or _default_ssh_target(env)
+    )
+    session = requests.Session()
+    session.headers.update({"Accept": "application/json"})
+    token = _signin(session, base_url, env)
+    session.headers.update({"Authorization": f"Bearer {token}"})
+
+    expected_prompts = expected_prompt_contracts()
+    live_prompts = _read_live_prompt_state(
+        ssh_target=ssh_target,
+        prompt_ids=sorted(expected_prompts),
+    )
+    prompt_checks = [
+        evaluate_prompt_contract(expected_prompts[prompt_id], live_prompts.get(prompt_id))
+        for prompt_id in sorted(expected_prompts)
+    ]
+    function_checks = [
+        evaluate_function_contract(
+            contract,
+            _get_live_function(session, base_url, contract.function_id),
+        )
+        for contract in FUNCTION_CONTRACTS
+    ]
+    repository_boundary = repository_factory_boundary_checks()
+    provider_profile_ids = sorted(
+        profile.profile_id for profile in GATE2_PROVIDER_PROFILES
+    )
+    checks = {
+        "all_function_bundles_match": all(item["passed"] for item in function_checks),
+        "all_managed_prompts_match": all(item["passed"] for item in prompt_checks),
+        "provider_profiles_complete": provider_profile_ids
+        == [
+            "alibaba_qwen",
+            "anthropic_claude",
+            "deepseek",
+            "google_gemini",
+            "openai_gpt",
+            "zai_glm",
+        ],
+        "repository_factory_boundary_passed": all(repository_boundary.values()),
+    }
+    output = {
+        "status": "passed" if all(checks.values()) else "failed",
+        "schema_version": "broker_reports_stage2_live_delivery_parity_v0",
+        "checks": checks,
+        "functions": function_checks,
+        "managed_prompts": prompt_checks,
+        "managed_prompts_total": len(prompt_checks),
+        "provider_profiles": provider_profile_ids,
+        "repository_factory_boundary": repository_boundary,
+    }
+    print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if output["status"] == "passed" else 1
+
+
+def expected_prompt_contracts() -> dict[str, dict[str, Any]]:
+    passport_content = gate1_update._prompt_content_from_contract(
+        gate1_update.PASSPORT_CONTRACT_PATH,
+        "You are the Broker Reports Gate 1 document metadata passport classifier.",
+    )
+    clarification_content = gate1_update._prompt_content_from_contract(
+        gate1_update.CLARIFICATION_CONTRACT_PATH,
+        "You are the Broker Reports Gate 1 metadata clarification question writer.",
+    )
+    source_content = source_update._prompt_content_from_contract(
+        source_update.PROMPT_CONTRACT_PATH,
+        "You are the Broker Reports Gate 2 bounded source-fact extractor.",
+    )
+    rows: list[dict[str, Any]] = [
+        {
+            "prompt_id": gate1_update.PROMPT_ID,
+            "command": gate1_update.PROMPT_COMMAND,
+            "version": gate1_update.PROMPT_VERSION,
+            "content": passport_content,
+            "meta": {
+                "template_id": "broker_reports.document_metadata_passport.v0",
+                "output_schema_version": "document_metadata_passport_v0",
+            },
+        },
+        {
+            "prompt_id": gate1_update.CLARIFICATION_PROMPT_ID,
+            "command": gate1_update.CLARIFICATION_PROMPT_COMMAND,
+            "version": gate1_update.CLARIFICATION_PROMPT_VERSION,
+            "content": clarification_content,
+            "meta": {
+                "template_id": "broker_reports.gate1_clarification_request.v0",
+                "output_schema_version": "gate1_clarification_request_v0",
+            },
+        },
+        {
+            "prompt_id": source_update.PROMPT_ID,
+            "command": source_update.PROMPT_COMMAND,
+            "version": source_update.PROMPT_VERSION,
+            "content": source_content,
+            "meta": {
+                "template_id": "broker_reports.source_fact_extraction.v0",
+                "output_schema_version": "broker_reports_source_facts_v0",
+                "structured_output_required": True,
+            },
+        },
+    ]
+    template = domain_update._domain_prompt_template(domain_update.PROMPT_CONTRACT_PATH)
+    for item in domain_update._render_prompt_rows(template, domain_update.PROMPT_VERSION):
+        rows.append(
+            {
+                "prompt_id": item["prompt_id"],
+                "command": item["prompt_command"],
+                "version": item["prompt_version"],
+                "content": item["prompt_content"],
+                "meta": {
+                    "template_id": item["meta"]["template_id"],
+                    "output_schema_version": item["meta"]["output_schema_version"],
+                    "structured_output_required": True,
+                    "extractor_domain": item["meta"]["extractor_domain"],
+                    "knowledge_rag_allowed": False,
+                    "vectorization_allowed": False,
+                },
+            }
+        )
+    result: dict[str, dict[str, Any]] = {}
+    for item in rows:
+        content = str(item.pop("content"))
+        result[str(item["prompt_id"])] = {
+            **item,
+            "content_sha256": content_sha256(content),
+        }
+    return result
+
+
+def content_sha256(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def evaluate_function_contract(
+    contract: FunctionContract,
+    live_function: dict[str, Any] | None,
+) -> dict[str, Any]:
+    local_content = contract.bundle_path.read_text(encoding="utf-8")
+    live_content = str((live_function or {}).get("content") or "")
+    checks = {
+        "present": live_function is not None,
+        "active": (live_function or {}).get("is_active") is not False,
+        "bundle_sha256_match": bool(live_content)
+        and content_sha256(live_content) == content_sha256(local_content),
+        "required_modules_present": all(
+            marker in live_content for marker in contract.required_markers
+        ),
+    }
+    return {
+        "function_id": contract.function_id,
+        "passed": all(checks.values()),
+        "checks": checks,
+        "repository_bundle_sha256": content_sha256(local_content),
+        "live_bundle_sha256": content_sha256(live_content) if live_content else None,
+        "required_markers": list(contract.required_markers),
+    }
+
+
+def evaluate_prompt_contract(
+    expected: dict[str, Any],
+    live_prompt: dict[str, Any] | None,
+) -> dict[str, Any]:
+    live_meta = (live_prompt or {}).get("meta")
+    live_meta = live_meta if isinstance(live_meta, dict) else {}
+    expected_meta = expected.get("meta") if isinstance(expected.get("meta"), dict) else {}
+    checks = {
+        "present": live_prompt is not None,
+        "active": (live_prompt or {}).get("is_active") == 1,
+        "command_match": (live_prompt or {}).get("command") == expected["command"],
+        "version_match": (live_prompt or {}).get("version") == expected["version"],
+        "content_sha256_match": (live_prompt or {}).get("content_sha256")
+        == expected["content_sha256"],
+        "metadata_match": all(live_meta.get(key) == value for key, value in expected_meta.items()),
+    }
+    return {
+        "prompt_ref": expected["prompt_id"],
+        "passed": all(checks.values()),
+        "checks": checks,
+        "repository_content_sha256": expected["content_sha256"],
+        "live_content_sha256": (live_prompt or {}).get("content_sha256"),
+        "content_length": (live_prompt or {}).get("content_length"),
+    }
+
+
+def repository_factory_boundary_checks() -> dict[str, bool]:
+    source_pipe = (
+        SERVICE_ROOT / "openwebui_actions/broker_reports_gate2_source_fact_pipe.py"
+    ).read_text(encoding="utf-8")
+    domain_pipe = (
+        SERVICE_ROOT / "openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py"
+    ).read_text(encoding="utf-8")
+    model_clients = (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_model_clients.py"
+    ).read_text(encoding="utf-8")
+    smoke_paths = (
+        SERVICE_ROOT / "scripts/live_gate2_domain_synthetic_smoke.py",
+        SERVICE_ROOT / "scripts/live_case_group_gate2_table_typed_vertical_proof.py",
+    )
+    smoke_sources = [path.read_text(encoding="utf-8") for path in smoke_paths]
+    return {
+        "source_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in source_pipe,
+        "domain_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in domain_pipe,
+        "pipes_do_not_import_openwebui_completion": all(
+            marker not in source_pipe and marker not in domain_pipe
+            for marker in ("generate_chat_completion", "generate_chat_completions")
+        ),
+        "model_client_forbids_bypass": "control checks and smoke scripts must not call" in model_clients,
+        "model_client_has_no_json_object_downgrade": "json_object" not in model_clients,
+        "candidate_binding_default_is_false": "candidate_binding_enabled: bool = Field(default=False)" in domain_pipe,
+        "live_smokes_use_function_boundary": all(
+            '"model": FUNCTION_ID' in source for source in smoke_sources
+        ),
+        "live_smokes_select_provider_profile": all(
+            "provider_profile_id" in source for source in smoke_sources
+        ),
+        "live_smokes_do_not_import_provider_completion": all(
+            "generate_chat_completion" not in source
+            and "generate_chat_completions" not in source
+            for source in smoke_sources
+        ),
+    }
+
+
+def _get_live_function(
+    session: requests.Session,
+    base_url: str,
+    function_id: str,
+) -> dict[str, Any] | None:
+    response = session.get(
+        _url(base_url, f"/api/v1/functions/id/{function_id}"),
+        timeout=30,
+    )
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    value = response.json()
+    return value if isinstance(value, dict) else None
+
+
+def _read_live_prompt_state(
+    *,
+    ssh_target: str,
+    prompt_ids: list[str],
+) -> dict[str, dict[str, Any]]:
+    remote_code = r'''
+import hashlib
+import json
+import sqlite3
+
+prompt_ids = json.loads(__PROMPT_IDS_JSON__)
+conn = sqlite3.connect("/app/backend/data/webui.db")
+conn.row_factory = sqlite3.Row
+result = []
+try:
+    for prompt_id in prompt_ids:
+        row = conn.execute(
+            "select id, command, version_id, is_active, content, meta from prompt where id = ?",
+            (prompt_id,),
+        ).fetchone()
+        if row is None:
+            continue
+        content = str(row["content"] or "")
+        try:
+            meta = json.loads(row["meta"] or "{}")
+        except (TypeError, ValueError):
+            meta = {}
+        result.append({
+            "prompt_ref": str(row["id"]),
+            "command": str(row["command"] or ""),
+            "version": str(row["version_id"] or ""),
+            "is_active": int(row["is_active"] or 0),
+            "content_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "content_length": len(content),
+            "meta": {
+                key: meta.get(key)
+                for key in (
+                    "template_id", "output_schema_version",
+                    "structured_output_required", "extractor_domain",
+                    "knowledge_rag_allowed", "vectorization_allowed",
+                )
+            },
+        })
+finally:
+    conn.close()
+print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+'''
+    remote_code = remote_code.replace(
+        "__PROMPT_IDS_JSON__",
+        json.dumps(json.dumps(prompt_ids, ensure_ascii=False), ensure_ascii=False),
+    )
+    completed = subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            ssh_target,
+            "docker",
+            "exec",
+            "-i",
+            "openwebui",
+            "python",
+            "-",
+        ],
+        cwd=ROOT,
+        input=remote_code,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=90,
+    )
+    value = json.loads(completed.stdout)
+    rows = value if isinstance(value, list) else []
+    return {
+        str(item.get("prompt_ref")): item
+        for item in rows
+        if isinstance(item, dict) and item.get("prompt_ref")
+    }
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

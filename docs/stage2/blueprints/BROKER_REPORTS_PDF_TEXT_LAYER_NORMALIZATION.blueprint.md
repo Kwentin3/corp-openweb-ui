@@ -1,7 +1,8 @@
 # Broker Reports PDF text-layer normalization blueprint
 
-Date: 2026-07-10
-Status: implementation blueprint; runtime not implemented
+Date: 2026-07-11
+Status: Slices 1-4 implemented locally; current bundle deployed with SHA parity,
+but native/PDF live rerun was not performed because no active DCP was available
 
 ## 1. Problem and risk
 
@@ -388,14 +389,23 @@ Before production enablement:
 
 ## 15. Readiness
 
-The research, contracts and bounded implementation route are ready. Runtime
-PDF payloads/units are not implemented by this task.
+The earlier `runtime not implemented` statement is obsolete. The repository
+implements the pinned page-text and layout-rich paths, bounded line/table
+candidate units, format-neutral normalized table projections and Gate 2 input
+routing. Local contract, provenance, quality and bundle-parity checks pass.
+
+The current bundle is deployed with repo/live SHA parity, but the controlled
+case had no active source records or DCP, so the native/PDF vertical was not
+rerun. The GPT canary stopped on provider quota before accepting facts. This is
+not live semantic acceptance of the current PDF path, all layouts or a customer
+corpus. OCR/VLM, scans and image-only pages remain unsupported here.
 
 ```text
 PDF_TEXT_LAYER_NORMALIZATION_RESEARCH_READY
 PDF_TEXT_LAYER_PIPELINE_BLUEPRINT_READY
-PDF_TEXT_LAYER_CONTRACTS_PROPOSED
+PDF_TEXT_LAYER_CONTRACTS_IMPLEMENTED_LOCAL
 PDF_TEXT_LAYER_NO_OCR_BOUNDARY_READY
-PDF_TEXT_LAYER_GATE2_INPUT_PLAN_READY
-READY_FOR_PDF_TEXT_LAYER_NORMALIZATION_IMPLEMENTATION_SLICE
+PDF_TEXT_LAYER_GATE2_INPUT_IMPLEMENTED_LOCAL
+PDF_NORMALIZED_TABLE_PROJECTION_IMPLEMENTED_LOCAL
+PDF_CURRENT_BUNDLE_DEPLOYED_SEMANTIC_ACCEPTANCE_NOT_PROVEN
 ```

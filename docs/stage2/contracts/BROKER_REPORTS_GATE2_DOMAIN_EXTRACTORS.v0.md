@@ -74,7 +74,22 @@ values from the narrow projection.
 Every candidate ref must be in `allowed_evidence_refs`. Every allowed
 source-value ref must occur exactly once in the narrow source-value index.
 
-### 3.1 Deterministic candidate finalization
+### 3.1 Normalized table projection input
+
+When the base source unit has `source_input_mode=normalized_table_projection`,
+the domain package may carry table-projection metadata, including
+`table_projection_id`, `table_projection_artifact_ref`, `table_quality`,
+`row_provenance`, `cell_provenance`, `source_value_index` and private value
+paths. The package builder still narrows the projection to candidate rows and
+candidate cells before the model call.
+
+The extractor may classify the candidate row, but it must not reconstruct the
+table, widen rows/cells, change projection quality, or claim PDF semantic table
+truth. The final validator treats `broker_reports_normalized_table_projection_v0`
+as an allowed private source artifact only when the package and source-value
+refs remain inside the table projection whitelist.
+
+### 3.2 Deterministic candidate finalization
 
 Before the unchanged semantic validator, the factory-backed domain finalizer
 may fill only package-bound values:
@@ -87,9 +102,9 @@ may fill only package-bound values:
   restrictions;
 - common date/amount/currency/quantity/instrument objects derived from the
   candidate's normalized values and original refs;
-- missing normalized/common values only when one exact normalized header maps
-  to one source-value ref and the existing mechanical reproduction function
-  succeeds.
+- missing normalized/common values when exactly one package candidate exists;
+- a missing original-value ref when the model selected one unique exact
+  candidate value from a multi-candidate field.
 
 It must not create a fact, select/change a fact type, invent a value/ref,
 resolve an issue, add a no-fact reason, or hide incomplete coverage. The raw
@@ -113,6 +128,13 @@ the finalized candidate and rejects any remaining mismatch.
 The provider-native strict JSON Schema projection must remove all other union
 variants. An exact deterministic hint may further narrow the schema, but never
 widen it.
+
+For normalized-table input, each normalized field is also bound to its
+package-provided deterministic candidates. The schema permits only those exact
+normalized strings and their source-value refs. A field with no mechanically
+reproducible candidate is forced to `null` with an empty ref array. Multiple
+candidates remain explicit choices; deterministic code must not choose one for
+the model.
 
 The package-bound provider projection also sets fact `maxItems` to the number
 of candidate refs and constrains evidence, original-value, extracted-ref, and
@@ -149,7 +171,9 @@ The extractor may:
 - classify a candidate as its one domain fact type, unknown, or an allowed
   no-fact result;
 - select/copy only package evidence and source-value refs;
-- propose mechanically reproducible normalized values;
+- propose mechanically reproducible normalized values, preferring
+  package-provided `deterministic_value_candidates` when present and leaving
+  non-exact fields null rather than converting date/currency/decimal formats;
 - populate the domain-specific source-fact payload;
 - copy schema-bound issue/audit/restriction fields.
 
@@ -205,6 +229,11 @@ Provider-native `response_format=json_schema` with `strict=true` is required.
 Customer fallback is none. At most one repair call may use the unchanged narrow
 package, unchanged schema/whitelists, and safe validator code/path findings.
 Raw initial and repair outputs remain private even when rejected.
+
+For `cash_movement`, unknown-header decimal cells may be offered as multiple
+`amount` candidates when each cell is independently checksum-reproducible.
+This creates explicit choices, not an accepted fact; model selection and the
+unchanged validator remain mandatory.
 
 ## 9. Persistence
 
@@ -266,3 +295,21 @@ Limited primary expansion is allowed per selected document only after:
 - reconciled source-ready and issue refs.
 
 This does not authorize whole-case expansion, Gate 3, tax, declaration or XLS.
+
+## 13. Table input assumption refinement (2026-07-11)
+
+Domain extractors must not reconstruct tables from page text or loose PDF geometry. When the normalized-table path is enabled, they receive a bounded `table_row_window` from [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md), with repeated headers, stable cells/source values, issue refs, quality and fallback metadata already validated. This slice performs no domain model call; later extractors remain responsible for business row/fact classification and may not promote `validated_geometry` into semantic truth.
+
+## 14. Shared candidate kernel and domain profiles (2026-07-11)
+
+Candidate-binding mode uses one discovery/relation kernel for every domain.
+Nine profiles contain only domain role, field, cardinality, relation,
+ambiguity, null and downstream policy for `cash_movement`, `income`,
+`withholding_tax`, `fee_commission`, `position_snapshot`, `trade_operation`,
+`currency_fx`, `document_summary_evidence` and `unknown_source_row`.
+
+An extractor judges semantic role assignment only. It selects package ids and
+does not emit values or refs, reconstruct a table, change routing, decide final
+ownership, or perform Gate 3 work. Candidate-binding mode is opt-in; the
+existing `deterministic_value_candidates` source-facts path remains the
+compatibility route for packages without the new versioned contract.

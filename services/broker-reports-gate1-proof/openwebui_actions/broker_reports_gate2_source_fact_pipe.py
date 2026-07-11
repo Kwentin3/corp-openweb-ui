@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Source Fact Extraction
 author: Alpha Soft
-version: 0.1.0
+version: 0.2.0
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -9,7 +9,6 @@ requirements: pydantic
 from __future__ import annotations
 
 import inspect
-import json
 from pathlib import Path
 from typing import Any
 
@@ -26,108 +25,11 @@ from broker_reports_gate1 import (
     Gate2SourceFactRuntimeConfig,
     Gate2SourceFactRuntimeError,
     Gate2SourceFactRuntimeFactory,
-    Gate2StructuredModelResult,
+    Gate2StructuredModelClientConfig,
+    Gate2StructuredModelClientFactory,
+    SOURCE_REQUEST_PROFILE,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
-
-
-class OpenWebUIGate2StructuredModelClient:
-    def __init__(self, *, pipe: "Pipe", user: Any, request: Any) -> None:
-        self.pipe = pipe
-        self.user = user
-        self.request = request
-
-    async def extract(self, *, prompt, package, model_id, response_format):
-        if self.request is None:
-            raise Gate2SourceFactRuntimeError(
-                "gate2_model_unavailable",
-                "OpenWebUI request object is required",
-            )
-        user_id = self.pipe._user_id(self.user)
-        if not user_id:
-            raise Gate2SourceFactRuntimeError(
-                "gate2_model_unavailable",
-                "Authenticated OpenWebUI user is required",
-            )
-        marker = "{{source_fact_package_json}}"
-        if marker not in prompt.content:
-            raise Gate2PromptError(
-                "gate2_prompt_contract_mismatch",
-                "Managed Prompt input marker is missing",
-            )
-        package_json = json.dumps(package, ensure_ascii=False, sort_keys=True)
-        system_content = prompt.content.replace(marker, package_json)
-        user_content = json.dumps(
-            {
-                "task": "extract_broker_reports_source_facts_v0",
-                "package_ref": package.get("package_artifact_ref"),
-                "instruction": (
-                    "Return exactly one broker_reports_source_facts_v0 JSON object. "
-                    "Use only the package embedded in the managed Prompt and its allowed refs."
-                ),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-        form_data = {
-            "model": model_id,
-            "messages": [
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content},
-            ],
-            "stream": False,
-            "response_format": response_format,
-            "metadata": {
-                "broker_reports_gate2": {
-                    "source_fact_extraction": True,
-                    "structured_output_mode": "openwebui_response_format_json_schema",
-                    "prompt_ref": prompt.prompt_ref,
-                    "prompt_hash": prompt.hash,
-                    "output_schema_id": prompt.output_schema_id,
-                    "output_schema_version": prompt.output_schema_version,
-                    "output_schema_hash": package.get("output_schema", {}).get(
-                        "output_schema_hash"
-                    ),
-                    "package_ref": package.get("package_artifact_ref"),
-                }
-            },
-        }
-        try:
-            completion_fn, user_model = self.pipe._openwebui_completion_dependencies(user_id)
-            if inspect.isawaitable(user_model):
-                user_model = await user_model
-            if user_model is None:
-                raise Gate2SourceFactRuntimeError(
-                    "gate2_model_unavailable",
-                    "OpenWebUI user model is unavailable",
-                )
-            try:
-                response = completion_fn(
-                    request=self.request,
-                    form_data=form_data,
-                    user=user_model,
-                    bypass_filter=True,
-                    bypass_system_prompt=True,
-                )
-            except TypeError:
-                try:
-                    response = completion_fn(
-                        request=self.request,
-                        form_data=form_data,
-                        user=user_model,
-                    )
-                except TypeError:
-                    response = completion_fn(self.request, form_data, user_model)
-            if inspect.isawaitable(response):
-                response = await response
-        except Gate2SourceFactRuntimeError:
-            raise
-        except Exception as exc:
-            raise Gate2SourceFactRuntimeError(
-                "gate2_model_call_failed",
-                exc.__class__.__name__,
-            ) from exc
-        return Gate2StructuredModelResult(content=self.pipe._extract_completion_content(response))
 
 
 class Pipe:
@@ -143,6 +45,7 @@ class Pipe:
         prompt_id: str = Field(default="broker_reports_gate2_source_fact_prompt_v0")
         prompt_command: str = Field(default="broker_gate2_source_facts_v0")
         model_id: str = Field(default="")
+        provider_profile_id: str = Field(default="openai_gpt")
         default_wave: str = Field(default="primary")
         table_max_rows: int = Field(default=40)
         text_max_chars: int = Field(default=6000)
@@ -209,11 +112,17 @@ class Pipe:
             runtime = Gate2SourceFactRuntimeFactory(
                 store=store,
                 prompt_resolver=prompt,
-                model_client=OpenWebUIGate2StructuredModelClient(
-                    pipe=self,
+                model_client=Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=SOURCE_REQUEST_PROFILE,
+                        provider_profile_id=str(
+                            config.get("provider_profile_id")
+                            or self.valves.provider_profile_id
+                        ),
+                    ),
                     user=__user__,
                     request=__request__,
-                ),
+                ).create(),
                 config=Gate2SourceFactRuntimeConfig(
                     model_id=model_id,
                     wave=wave,
@@ -302,81 +211,6 @@ class Pipe:
             if value:
                 result.append(str(value))
         return result
-
-    def _openwebui_completion_dependencies(self, user_id: str):
-        try:
-            from open_webui.utils.chat import generate_chat_completion as completion_fn
-        except Exception:
-            from open_webui.main import generate_chat_completions as completion_fn
-        from open_webui.models.users import Users
-
-        return completion_fn, Users.get_user_by_id(user_id)
-
-    def _extract_completion_content(self, response: Any) -> Any:
-        if isinstance(response, dict):
-            return self._completion_dict_content(response)
-        body = getattr(response, "body", None)
-        if isinstance(body, bytes):
-            try:
-                return self._completion_dict_content(json.loads(body.decode("utf-8")))
-            except (UnicodeDecodeError, ValueError) as exc:
-                raise Gate2SourceFactRuntimeError(
-                    "gate2_model_invalid_response",
-                    "Completion response body is not JSON",
-                ) from exc
-        if isinstance(response, str):
-            return response
-        raise Gate2SourceFactRuntimeError(
-            "gate2_model_invalid_response",
-            "Unsupported completion response shape",
-        )
-
-    def _completion_dict_content(self, payload: dict[str, Any]) -> Any:
-        choices = payload.get("choices") if isinstance(payload, dict) else None
-        if isinstance(choices, list) and choices:
-            first = choices[0] if isinstance(choices[0], dict) else {}
-            message = first.get("message") if isinstance(first.get("message"), dict) else {}
-            content = message.get("content")
-            if isinstance(content, (str, dict)):
-                return content
-            if isinstance(first.get("text"), (str, dict)):
-                return first["text"]
-        if isinstance(payload.get("content"), (str, dict)):
-            return payload["content"]
-        if isinstance(payload.get("response"), (str, dict)):
-            return payload["response"]
-        if "detail" in payload or "error" in payload:
-            raise Gate2SourceFactRuntimeError(
-                self._provider_error_code(payload),
-                "Provider returned a typed error object",
-                raw_output=payload,
-            )
-        raise Gate2SourceFactRuntimeError(
-            "gate2_model_invalid_response",
-            "Completion response has no structured content",
-        )
-
-    def _provider_error_code(self, payload: dict[str, Any]) -> str:
-        rendered = json.dumps(payload, ensure_ascii=True, sort_keys=True).lower()
-        if "oneof" in rendered or "one_of" in rendered:
-            return "gate2_model_schema_oneof_unsupported"
-        if "required" in rendered and "properties" in rendered:
-            return "gate2_model_schema_required_properties_invalid"
-        if "additionalproperties" in rendered or "additional_properties" in rendered:
-            return "gate2_model_schema_additional_properties_invalid"
-        if "must have a 'type' key" in rendered or 'must have a \\"type\\" key' in rendered:
-            return "gate2_model_schema_type_key_missing"
-        if "nullable" in rendered or "invalid nullable" in rendered:
-            return "gate2_model_schema_nullable_type_invalid"
-        if "response_format" in rendered or "json_schema" in rendered or "schema" in rendered:
-            return "gate2_model_schema_response_format_rejected"
-        if "context_length" in rendered or "too many tokens" in rendered or "maximum context" in rendered:
-            return "gate2_model_context_budget_exceeded"
-        if "model" in rendered and ("not found" in rendered or "unavailable" in rendered):
-            return "gate2_model_unavailable"
-        if "unauthorized" in rendered or "authentication" in rendered or "api key" in rendered:
-            return "gate2_model_provider_auth_failed"
-        return "gate2_model_provider_error"
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:

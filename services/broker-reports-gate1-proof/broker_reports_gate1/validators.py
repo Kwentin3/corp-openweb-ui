@@ -9,6 +9,7 @@ from .contracts import BLOCKER_CODES, GATE2_HANDOFF_MODES, OCR_POLICY_STATUSES, 
 from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_text_layer import validate_pdf_text_layer_payload
+from .table_projection import TableProjectionValidator
 
 
 SAFE_REPORT_ALLOWED_KEYS = {
@@ -45,6 +46,7 @@ SAFE_REPORT_ALLOWED_KEYS = {
     "domain_context_packet_summary",
     "domain_ingestion_summary",
     "full_source_coverage_summary",
+    "table_projection_summary",
     "validation_result",
     "document_metadata_passport_summary",
     "gate1_metadata_gap_report_summary",
@@ -99,6 +101,7 @@ def validate_artifacts(package: dict) -> dict:
     slices = package.get("private_normalized_slices", [])
     source_payloads = package.get("private_normalized_source_payloads", [])
     source_units = package.get("private_normalized_source_units", [])
+    table_projections = package.get("private_normalized_table_projections", [])
     taxonomy_candidates = package.get("taxonomy_candidates", [])
     blockers = package.get("normalization_blockers", [])
     eligibility_payload = package.get("document_source_eligibility", {})
@@ -231,6 +234,24 @@ def validate_artifacts(package: dict) -> dict:
             source_checksum_sha256=str(document.get("sha256") or ""),
         )
         errors.extend(copy.deepcopy(unit_validation.get("errors") or []))
+
+    source_unit_refs = {
+        str(item.get("unit_ref") or "")
+        for item in source_units
+        if isinstance(item, dict)
+    }
+    table_validator = TableProjectionValidator()
+    for projection in table_projections:
+        if not isinstance(projection, dict):
+            errors.append(_error("table_projection_not_object", run_id))
+            continue
+        projection_ref = projection.get("table_projection_id")
+        if projection.get("source_document_ref") not in document_ids:
+            errors.append(_error("table_projection_unknown_document_ref", projection_ref))
+        if str(projection.get("source_unit_ref") or "") not in source_unit_refs:
+            errors.append(_error("table_projection_unknown_source_unit_ref", projection_ref))
+        projection_validation = table_validator.validate(projection)
+        errors.extend(copy.deepcopy(projection_validation.get("errors") or []))
 
     for taxonomy_candidate in taxonomy_candidates:
         if taxonomy_candidate.get("document_id") not in document_ids:

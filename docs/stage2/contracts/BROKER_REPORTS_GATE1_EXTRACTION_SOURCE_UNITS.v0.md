@@ -124,3 +124,7 @@ PDF_LINE_CLUSTER_UNITS_READY
 PDF_TABLE_CANDIDATE_UNITS_READY
 PDF_LAYOUT_UNIT_COVERAGE_EXACT
 ```
+
+## Unified table bridge (2026-07-11)
+
+Extraction source units are now inputs to, not replacements for, [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md). Native row/cell/source-value refs remain unchanged. A PDF candidate becomes a ready table only after deterministic geometry and ownership validation; rejection keeps line fallback coverage and emits no fake cells. Gate 2 table readiness is explicit opt-in through `prefer_table_projections=True` for the no-model slice.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import hashlib
 import json
 import sqlite3
 import tempfile
@@ -154,6 +155,89 @@ class BrokerReportsGate2DomainExtractorsTest(unittest.TestCase):
         )
         self.assertFalse(fact["downstream_use"]["tax_calculation_allowed"])
         self.assertEqual(finalized["coverage"]["coverage_status"], "partial")
+
+    def test_domain_finalizer_binds_one_of_multiple_candidates_from_exact_model_value(self):
+        package = {
+            "expected_candidate_audit": {},
+            "expected_source_facts_set_id": "sfset_expected",
+            "extraction_run_id": "run",
+            "normalization_run_id": "normalization",
+            "case_id": "case",
+            "document_ref": "document",
+            "package_artifact_ref": "art_package",
+            "created_at": "2026-07-11T00:00:00Z",
+            "source_unit": {
+                "unit_id": "unit",
+                "model_source_projection": {
+                    "rows": [{"row_ref": "row_cash", "cells": []}]
+                },
+            },
+            "coverage_expectation": {"selected_source_refs": ["row_cash"]},
+            "allowed_issue_refs": [],
+            "issue_context": [],
+            "forbidden_assumptions": [],
+            "allowed_evidence_refs": ["row_cash"],
+            "deterministic_value_candidates": [
+                {
+                    "source_ref": "row_cash",
+                    "field": "amount",
+                    "source_value_ref": "value_credit",
+                    "normalized_value": "0.00",
+                },
+                {
+                    "source_ref": "row_cash",
+                    "field": "amount",
+                    "source_value_ref": "value_debit",
+                    "normalized_value": "2400000.00",
+                },
+            ],
+        }
+        candidate = {
+            "facts": [
+                {
+                    "fact_type": "cash_movement",
+                    "source_location": {"row_ref": "row_cash"},
+                    "normalized_values": {
+                        field: "2400000.00" if field == "amount" else None
+                        for field in (
+                            "date",
+                            "amount",
+                            "currency",
+                            "quantity",
+                            "rate",
+                            "converted_amount",
+                            "identifier",
+                            "label",
+                        )
+                    },
+                    "original_value_refs": {
+                        field: []
+                        for field in (
+                            "date",
+                            "amount",
+                            "currency",
+                            "quantity",
+                            "rate",
+                            "converted_amount",
+                            "identifier",
+                            "label",
+                        )
+                    },
+                    "completeness": "complete",
+                    "downstream_use": {},
+                }
+            ],
+            "coverage": {"no_fact_results": []},
+        }
+
+        fact = Gate2DomainCandidateFinalizerFactory().create().finalize(
+            candidate=candidate, package=package
+        )["facts"][0]
+
+        self.assertEqual(fact["normalized_values"]["amount"], "2400000.00")
+        self.assertEqual(
+            fact["original_value_refs"]["amount"], ["value_debit"]
+        )
 
     def test_managed_domain_prompt_resolver_checks_domain_contract_and_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -323,15 +407,92 @@ class BrokerReportsGate2DomainExtractorsTest(unittest.TestCase):
             ),
             set(income["allowed_evidence_refs"]),
         )
+        amount_candidates = [
+            item
+            for item in income["deterministic_value_candidates"]
+            if item["field"] == "amount"
+        ]
         self.assertEqual(
             set(
                 income_variant["properties"]["original_value_refs"][
                     "properties"
                 ]["amount"]["items"]["enum"]
             ),
-            set(income["allowed_source_value_refs"]),
+            {item["source_value_ref"] for item in amount_candidates},
+        )
+        self.assertEqual(
+            set(
+                income_variant["properties"]["normalized_values"][
+                    "properties"
+                ]["amount"]["enum"]
+            ),
+            {None, *(item["normalized_value"] for item in amount_candidates)},
+        )
+        self.assertEqual(
+            income_variant["properties"]["normalized_values"]["properties"][
+                "date"
+            ],
+            {"type": "null"},
+        )
+        self.assertEqual(
+            income_variant["properties"]["original_value_refs"]["properties"][
+                "date"
+            ]["maxItems"],
+            0,
         )
         self.assertEqual(income["allowed_issue_refs"], ["issue_unresolved"])
+
+    def test_cash_movement_package_keeps_all_exact_unknown_decimal_candidates(self):
+        base = _base_package()
+        row = next(
+            item
+            for item in base["source_unit"]["model_source_projection"]["rows"]
+            if item["row_ref"] == "row_cash"
+        )
+        row["cells"][1].update(
+            {
+                "header_label": "unknown",
+                "value": "0.00",
+                "value_kind_hints": ["decimal_like"],
+            }
+        )
+        base["source_unit"]["normalized_source_projection"]["cells"][4][1] = (
+            "0.00"
+        )
+        next(
+            item
+            for item in base["source_unit"]["source_value_index"]
+            if item["source_value_ref"] == "value_5_2"
+        )["value_checksum_ref"] = _value_checksum_ref("0.00")
+        row["cells"][2].update(
+            {
+                "header_label": "unknown",
+                "value_kind_hints": ["decimal_like"],
+            }
+        )
+        route = Gate2SourceUnitRouterFactory().create().route(base)
+        package = next(
+            item
+            for item in Gate2DomainPackageBuilderFactory().create().build(
+                base_package=base, route=route
+            )
+            if item["extractor_domain"] == "cash_movement"
+        )
+
+        amount_candidates = [
+            item
+            for item in package["deterministic_value_candidates"]
+            if item["field"] == "amount"
+        ]
+        self.assertEqual(
+            {item["normalized_value"] for item in amount_candidates},
+            {"0.00", "50.00"},
+        )
+        self.assertEqual(
+            {item["policy_id"] for item in amount_candidates},
+            {"cash_movement_unknown_decimal_candidate_v0"},
+        )
+
 
     def test_truncated_parent_is_partitioned_into_complete_typed_derived_units(self):
         package = _base_package()
@@ -584,7 +745,7 @@ def _base_package():
                         "row_index": row_ordinal - 1,
                         "column_index": column_ordinal - 1,
                     },
-                    "value_checksum_ref": f"checksum_{row_ordinal}_{column_ordinal}",
+                    "value_checksum_ref": _value_checksum_ref(value),
                 }
             )
         projected_rows.append(
@@ -612,6 +773,7 @@ def _base_package():
         "source_unit": {
             "unit_id": "table_ref",
             "unit_kind": "table_row_window",
+            "source_input_mode": "normalized_table_projection",
             "private_slice_artifact_ref": "art_slice",
             "slice_ref": "slice_ref",
             "document_ref": "document_ref",
@@ -671,6 +833,16 @@ def _base_package():
         },
         "created_at": "2026-07-10T00:00:00Z",
     }
+
+
+def _value_checksum_ref(value):
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"valuechk_{hashlib.sha256(encoded).hexdigest()[:24]}"
 
 
 def _accepted_output(*, domain, source_ref, fact_id, fact_type):

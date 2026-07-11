@@ -498,14 +498,21 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
-Current routing note, 2026-07-05: this is the recommended next active Stage 2
-functional epic after STT v2 closure. It is still not implemented; keep it as a
-limited pilot that depends on customer methodology, examples and accepted input
-formats.
+Current routing note, 2026-07-11: the bounded Gate 1/Gate 2 technical contour is
+implemented in the repository and locally verified. One narrow native/PDF
+text-layer vertical was proven on the preceding live bundle. The current
+candidate-binding/provider-factory bundle is deployed with repo/live parity,
+but did not pass semantic acceptance: the approved GPT canary stopped on
+provider quota with zero accepted facts. Keep the full
+customer workflow as a limited pilot that depends on methodology,
+representative examples, accepted input formats and data policy.
 
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
+- [Gate 2 source-fact extraction blueprint](blueprints/BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
+- [Normalized table projection contract](contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)
+- [Cross-domain candidate-binding research](research/BROKER_REPORTS_GATE2_CROSS_DOMAIN_CANDIDATE_BINDING_RESEARCH.md)
 - [ADR-0001 Data Policy](decisions/ADR-0001-data-policy-by-provider-class.md)
 - [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
 
@@ -522,7 +529,17 @@ Skip unless needed:
 Comment:
 
 - AI output is draft/analysis only.
-- Scenario is blocked by customer test data.
+- Deterministic code restores supported table structure and reproducible source
+  values; the LLM selects business roles only inside a bounded candidate set;
+  validators decide whether the result can be accepted.
+- Text-layer PDFs do not use OCR. Image-only/scanned pages remain outside this
+  contour and require a separately approved OCR path.
+- A raw PDF or an unbounded raw-text dump is not a Gate 2 model input.
+- Deployment parity is not semantic acceptance. The current GPT canary was
+  provider-quota-blocked, the unsupported DeepSeek profile failed closed before
+  a provider call, and no real native/PDF rerun was possible without an active
+  DCP. The full customer pilot remains gated by methodology, representative
+  data, expected outputs and provider/data policy.
 
 ## Web-search
 

@@ -450,6 +450,41 @@ source_fact_privacy_failed
 
 Error subjects in safe artifacts use opaque refs or safe field paths only.
 
+### 8.4 Repair attempts and final acceptance
+
+A failed validation attempt may be retained as diagnostic evidence when the
+same bounded package is regenerated under `repair_context`. The run is accepted
+only when a later attempt persists validator-passed source facts and the domain
+package, stitch result, and coverage summary are terminal `completed`.
+
+Repair-attempt error counts do not by themselves prove final failure, but they
+must remain visible in safe audit output. A run with persisted validated facts
+must still prove:
+
+- provider-native `response_format=json_schema` with strict schema mode;
+- `fallback_used=false` for every raw output used in the accepted path;
+- final `domain_packages.rejected=0`;
+- `coverage.uncovered_total=0` and `coverage.conflict_total=0`;
+- private raw output and private validated source-fact persistence;
+- no Knowledge/RAG/vector/file/document-table delta.
+
+### 8.5 Table candidate-bound provider schema
+
+For `source_input_mode=normalized_table_projection`, the provider schema must
+be projected from `deterministic_value_candidates` before the live call:
+
+- a normalized field may contain only an exact candidate string or `null`;
+- its original-value ref array may contain only refs belonging to that field's
+  candidates and at most one selected ref;
+- a field without a candidate is schema-bound to `null` and an empty ref array;
+- multiple candidates remain model choices and are never resolved by the
+  package builder;
+- the post-validator still re-resolves the chosen ref and checksum and rejects
+  mismatched value/ref pairs.
+
+This is a pre-call narrowing control, not validator repair or semantic
+hardcoding.
+
 ## 9. Persistence Rules
 
 | Artifact | Default visibility | Storage backend | Validation requirement |
@@ -642,3 +677,32 @@ store unchanged. This proves input readiness, not source-fact model output.
 PDF_GATE2_LAYOUT_INPUT_READINESS_DRY_RUN_PASSED
 PDF_LAYOUT_SOURCE_FACT_MODEL_RUNTIME_NOT_EXECUTED
 ```
+
+## 17. Bounded normalized-table input (2026-07-11)
+
+The no-model readiness path may explicitly select `broker_reports_normalized_table_projection_v0` by setting `prefer_table_projections=True`. `Gate2TablePackageFactory` supplies bounded rows, repeated headers, cells, source-value refs, issues, structural quality and PDF fallback metadata; whole PDFs/pages are excluded. The router classifies later rows/facts, not table geometry. Default model-runtime selection remains the prior full-source path until the table-domain extraction slice is separately authorized.
+
+## 18. Cross-domain candidate-binding mode (2026-07-11)
+
+`candidate_binding_enabled=True` is an explicit package/runtime opt-in. It adds
+the private candidate set, relation set and domain profile contracts, then
+replaces only the model-facing source-facts proposal with
+`broker_reports_candidate_binding_output_v0`. Candidate ids, relation ids and
+role/path triples are exact package-bound provider-schema variants. Raw values
+are not model output.
+
+The generic binding validator first verifies set identity, candidate scope,
+source-value/checksum reproduction, domain/role/field policy, ambiguity,
+reuse, relations, issues and complete selected-ref accounting. Only a passed
+selection is materialized and sent through the existing domain finalizer,
+unchanged strict source-fact validator and stitcher. Repair receives the same
+set/profile/relation identities. Legacy packages without the mode stay on the
+compatibility source-facts path; no persisted artifact is reinterpreted or
+mutated.
+
+Normative intermediate contracts:
+
+- [source value candidates](./BROKER_REPORTS_GATE2_SOURCE_VALUE_CANDIDATES.v0.md);
+- [candidate relations](./BROKER_REPORTS_GATE2_CANDIDATE_RELATIONS.v0.md);
+- [domain binding profiles](./BROKER_REPORTS_GATE2_DOMAIN_BINDING_PROFILES.v0.md);
+- [candidate-binding output](./BROKER_REPORTS_GATE2_CANDIDATE_BINDING_OUTPUT.v0.md).

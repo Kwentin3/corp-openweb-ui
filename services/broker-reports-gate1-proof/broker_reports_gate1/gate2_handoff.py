@@ -285,6 +285,67 @@ def persist_gate1_result(
             record.artifact_id
         )
 
+    for table_projection in package.get(
+        "private_normalized_table_projections", []
+    ):
+        document_id = table_projection.get("source_document_ref")
+        put(
+            _record(
+                artifact_type="broker_reports_normalized_table_projection_v0",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=(
+                    "validated"
+                    if table_projection.get("validator_status") == "passed"
+                    and table_projection.get("projection_status") == "ready"
+                    else "blocked"
+                ),
+                payload=table_projection,
+                safe_metadata={
+                    "schema_version": table_projection.get("schema_version"),
+                    "table_projection_id": table_projection.get(
+                        "table_projection_id"
+                    ),
+                    "table_ref": table_projection.get("table_ref"),
+                    "source_document_ref": document_id,
+                    "source_unit_ref": table_projection.get("source_unit_ref"),
+                    "source_format": table_projection.get("source_format"),
+                    "table_origin": table_projection.get("table_origin"),
+                    "projection_status": table_projection.get("projection_status"),
+                    "table_candidate_status": table_projection.get(
+                        "table_candidate_status"
+                    ),
+                    "reconstruction_quality": table_projection.get(
+                        "reconstruction_quality"
+                    ),
+                    "row_count": int(table_projection.get("row_count") or 0),
+                    "column_count": int(
+                        table_projection.get("column_count") or 0
+                    ),
+                    "cell_count": int(table_projection.get("cell_count") or 0),
+                    "source_value_refs_count": len(
+                        table_projection.get("source_value_refs") or []
+                    ),
+                    "fallback_refs_count": len(
+                        (table_projection.get("coverage") or {}).get(
+                            "fallback_text_refs"
+                        )
+                        or []
+                    ),
+                    "coverage_status": (
+                        table_projection.get("coverage") or {}
+                    ).get("coverage_status"),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+
     prompt_snapshot = package.get("llm_prompt_snapshot")
     if isinstance(prompt_snapshot, dict):
         record = put(

@@ -20,6 +20,7 @@ from broker_reports_gate1 import (
     ArtifactStoreFactory,
     FileInput,
     Gate1Normalizer,
+    Gate2InputReadinessConfig,
     Gate2InputReadinessFactory,
     NormalizedSliceProvenanceFactory,
     apply_domain_ingestion_artifacts,
@@ -35,6 +36,7 @@ from broker_reports_gate1.gate2_input_readiness import (
     FORBIDDEN as GATE2_FORBIDDEN,
     _table_row_fact_type_hint,
 )
+from broker_reports_gate1.table_projection import _projection_checksum
 from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.safe_report import render_safe_report
 from broker_reports_gate1.source_provenance import (
@@ -213,6 +215,57 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
         self.assertNotIn("100.00", safe_rendered)
         self.assertTrue(
             all(record.storage_backend != "openwebui_knowledge" for record in self.store.list_by_run(context.normalization_run_id))
+        )
+
+    def test_table_projection_readiness_skips_ineligible_projection_candidates(self):
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="gate2-table-skip-ineligible",
+                    filename="table_skip_ineligible.csv",
+                    content=b"Date,Operation,Amount,Currency\n2026-01-01,dividend,10.00,USD\n",
+                    mime_type="text/csv",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        package = copy.deepcopy(result.package)
+        good = copy.deepcopy(package["private_normalized_table_projections"][0])
+        low = copy.deepcopy(good)
+        low["table_projection_id"] = f"{good['table_projection_id']}_low"
+        low["projection_id"] = f"{good.get('projection_id') or good['table_projection_id']}_low"
+        low["reconstruction_quality"] = "low"
+        low["quality"]["reconstruction_quality"] = "low"
+        low["table_projection_checksum_ref"] = _projection_checksum(low)
+        package["private_normalized_table_projections"] = [low, good]
+        package["validation_result"] = validate_artifacts(package)
+        self.assertEqual(package["validation_result"]["status"], "passed")
+        context, manifest = self._persist(
+            NormalizationResult(
+                package=package,
+                safe_report=render_safe_report(package),
+                private_markers=result.private_markers,
+            )
+        )
+
+        dry_run = Gate2InputReadinessFactory(
+            store=self.store,
+            config=Gate2InputReadinessConfig(prefer_table_projections=True),
+        ).create().audit_and_build(
+            domain_context_packet_ref=manifest.artifact_refs_by_type["domain_context_packet_v0"][0],
+            context=context,
+        )
+
+        table_packages = [
+            item
+            for item in dry_run.packages
+            if item["source_unit"].get("source_input_mode") == "normalized_table_projection"
+        ]
+        self.assertEqual(dry_run.validation["validator_status"], "passed")
+        self.assertEqual(len(table_packages), 1)
+        self.assertEqual(
+            table_packages[0]["source_unit"]["table_projection_id"],
+            good["table_projection_id"],
         )
 
     def test_dry_run_rejects_cross_scope_context_and_foreign_package_refs(self):

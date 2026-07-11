@@ -911,3 +911,26 @@ privacy rules are unchanged; no new Knowledge or vector artifact exists.
 PDF_LAYOUT_NORMALIZATION_ARTIFACTS_RUNTIME_READY
 PDF_LAYOUT_ARTIFACTSTORE_BOUNDARY_UNCHANGED
 ```
+
+## 20. Unified normalized table projection (2026-07-11)
+
+`broker_reports_normalized_table_projection_v0` is now the canonical structural table artifact above native table units and validated PDF geometry candidates. The authoritative contract is [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md); deterministic quality rules are in [BROKER_REPORTS_TABLE_RECONSTRUCTION_QUALITY.v0.md](./BROKER_REPORTS_TABLE_RECONSTRUCTION_QUALITY.v0.md).
+
+The projection is a new private immutable artifact; legacy slices and full-source units are not mutated. It reuses their provenance refs, persists through `project_artifact_payload`, remains resolver-gated/retention-controlled/purgeable, and is forbidden in Knowledge/RAG/vector storage. Safe output is limited to aggregate counts, statuses and reason codes.
+
+## 21. Gate 2 candidate-binding artifacts (2026-07-11)
+
+The ArtifactStore type allowlist includes three versioned private artifacts:
+
+- `broker_reports_source_value_candidate_set_v0`;
+- `broker_reports_candidate_relation_set_v0`;
+- `broker_reports_candidate_binding_validation_v0`.
+
+They use `visibility=private_case`,
+`storage_backend=project_artifact_payload`, the source package retention/access
+scope and ordinary purge lifecycle. The domain package stores their artifact
+refs. Candidate/relation payloads may contain private normalized values and
+source refs and therefore never enter chat-visible summaries, Knowledge/RAG,
+vector storage or the document store. Safe metadata is limited to opaque set
+ids, domain, kind/count/status and typed error-code aggregates. Initial and
+repair raw model outputs remain separate private raw-output artifacts.

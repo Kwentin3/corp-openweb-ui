@@ -73,6 +73,7 @@ ARTIFACT_TYPES = {
     "private_normalized_table_slice_v0",
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
+    "broker_reports_normalized_table_projection_v0",
     "chat_visible_normalization_report_v0",
     "validation_result_v0",
     "gate2_handoff_v0",
@@ -91,6 +92,9 @@ ARTIFACT_TYPES = {
     "broker_reports_source_fact_stitch_result_v0",
     "broker_reports_domain_source_fact_extraction_run_v0",
     "broker_reports_domain_source_fact_extraction_summary_v0",
+    "broker_reports_source_value_candidate_set_v0",
+    "broker_reports_candidate_relation_set_v0",
+    "broker_reports_candidate_binding_validation_v0",
     "debug_diagnostic_v0",
 }
 

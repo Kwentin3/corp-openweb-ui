@@ -608,6 +608,7 @@ def _bind_provider_schema_to_package(
     allowed_issues = sorted(_string_values(package.get("allowed_issue_refs")))
     allowed_evidence = sorted(_string_values(package.get("allowed_evidence_refs")))
     allowed_values = sorted(_string_values(package.get("allowed_source_value_refs")))
+    deterministic_candidates = _provider_value_candidates_by_field(package)
     issue_policy = _provider_issue_policy(package)
     unresolved_issues = [
         item
@@ -665,10 +666,44 @@ def _bind_provider_schema_to_package(
             original_properties = fact_properties["original_value_refs"][
                 "properties"
             ]
+            normalized_properties = fact_properties["normalized_values"][
+                "properties"
+            ]
             for field in NORMALIZED_VALUE_FIELDS:
-                original_properties[field] = _provider_restricted_ref_array(
-                    allowed_values
-                )
+                field_candidates = deterministic_candidates.get(field, [])
+                if unit.get("source_input_mode") == "normalized_table_projection":
+                    candidate_values = sorted(
+                        {
+                            str(item["normalized_value"])
+                            for item in field_candidates
+                        }
+                    )
+                    candidate_refs = sorted(
+                        {
+                            str(item["source_value_ref"])
+                            for item in field_candidates
+                        }
+                    )
+                    if candidate_values:
+                        normalized_properties[field] = {
+                            "type": ["string", "null"],
+                            "enum": [*candidate_values, None],
+                        }
+                        original_properties[field] = _provider_restricted_ref_array(
+                            candidate_refs
+                        )
+                        original_properties[field]["maxItems"] = 1
+                    else:
+                        normalized_properties[field] = {"type": "null"}
+                        original_properties[field] = {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "maxItems": 0,
+                        }
+                else:
+                    original_properties[field] = _provider_restricted_ref_array(
+                        allowed_values
+                    )
             extracted_properties = fact_properties["extracted_fields"][
                 "properties"
             ]
@@ -811,6 +846,31 @@ def _provider_issue_policy(package: dict[str, Any]) -> dict[str, Any]:
     for key in mapping.values():
         impact[key] = sorted(set(impact[key]))
     return {"issue_impact": impact}
+
+
+def _provider_value_candidates_by_field(
+    package: dict[str, Any],
+) -> dict[str, list[dict[str, str]]]:
+    result: dict[str, list[dict[str, str]]] = {}
+    for item in package.get("deterministic_value_candidates") or []:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or "")
+        source_value_ref = str(item.get("source_value_ref") or "")
+        normalized_value = item.get("normalized_value")
+        if (
+            field not in NORMALIZED_VALUE_FIELDS
+            or not source_value_ref
+            or normalized_value is None
+        ):
+            continue
+        result.setdefault(field, []).append(
+            {
+                "source_value_ref": source_value_ref,
+                "normalized_value": str(normalized_value),
+            }
+        )
+    return result
 
 
 def _string_values(value: Any) -> list[str]:

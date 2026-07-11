@@ -11,6 +11,11 @@ from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPol
 from .artifact_resolver import ArtifactResolver
 from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
 from .contracts import stable_digest
+from .gate2_candidate_binding import (
+    BINDING_VALIDATION_SCHEMA_VERSION,
+    CANDIDATE_SET_SCHEMA_VERSION,
+    RELATION_SET_SCHEMA_VERSION,
+)
 from .gate2_domain_contracts import (
     DOMAIN_SOURCE_FACTS_SCHEMA_VERSION,
     build_domain_source_facts_wrapper,
@@ -18,14 +23,29 @@ from .gate2_domain_contracts import (
 )
 from .gate2_domain_packages import (
     DOMAIN_PACKAGE_SCHEMA_VERSION,
+    Gate2DomainPackageBuilderConfig,
     Gate2DomainPackageBuilderFactory,
+)
+from .gate2_candidate_binding_runtime import (
+    Gate2CandidateBindingRuntimeFactory,
+    candidate_binding_response_format,
+    candidate_binding_schema_hash,
+    parse_candidate_binding_model_output,
 )
 from .gate2_domain_finalization import Gate2DomainCandidateFinalizerFactory
 from .gate2_domain_routing import (
     ROUTE_SCHEMA_VERSION,
     Gate2SourceUnitRouterFactory,
 )
-from .gate2_input_readiness import Gate2InputReadinessFactory
+from .gate2_input_readiness import (
+    Gate2InputReadinessConfig,
+    Gate2InputReadinessFactory,
+)
+from .gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClient,
+    Gate2StructuredModelResult,
+)
 from .gate2_source_fact_contracts import (
     RAW_OUTPUT_SCHEMA_VERSION,
     SOURCE_FACTS_SCHEMA_VERSION,
@@ -37,11 +57,6 @@ from .gate2_source_fact_contracts import (
     parse_source_facts_model_output,
     source_facts_provider_schema_hash,
     source_facts_schema_hash,
-)
-from .gate2_source_fact_runtime import (
-    Gate2SourceFactRuntimeError,
-    Gate2StructuredModelClient,
-    Gate2StructuredModelResult,
 )
 from .gate2_source_fact_stitching import (
     STITCH_RESULT_SCHEMA_VERSION,
@@ -94,6 +109,8 @@ class Gate2DomainSourceFactRuntimeConfig:
     max_repair_attempts: int = 1
     table_max_rows: int = 40
     text_max_chars: int = 6000
+    prefer_table_projections: bool = False
+    candidate_binding_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,6 +123,9 @@ class Gate2DomainSourceFactRuntimeResult:
     segmentation_plan_refs: list[str]
     derived_source_unit_refs: list[str]
     domain_package_refs: list[str]
+    source_value_candidate_set_refs: list[str]
+    candidate_relation_set_refs: list[str]
+    candidate_binding_validation_refs: list[str]
     source_facts_refs: list[str]
     domain_source_facts_refs: list[str]
     validation_refs: list[str]
@@ -234,7 +254,12 @@ class Gate2DomainSourceFactRuntimeService:
         )
 
         try:
-            readiness = Gate2InputReadinessFactory(store=self.store).create().audit_and_build(
+            readiness = Gate2InputReadinessFactory(
+                store=self.store,
+                config=Gate2InputReadinessConfig(
+                    prefer_table_projections=self.config.prefer_table_projections
+                ),
+            ).create().audit_and_build(
                 domain_context_packet_ref=domain_context_packet_ref,
                 context=context,
             )
@@ -376,7 +401,11 @@ class Gate2DomainSourceFactRuntimeService:
                 },
             )
             refs["route_refs"].append(route_ref)
-            domain_packages = Gate2DomainPackageBuilderFactory().create().build(
+            domain_packages = Gate2DomainPackageBuilderFactory(
+                Gate2DomainPackageBuilderConfig(
+                    candidate_binding_enabled=self.config.candidate_binding_enabled
+                )
+            ).create().build(
                 base_package=base_package,
                 route=route,
                 route_artifact_ref=route_ref,
@@ -506,6 +535,13 @@ class Gate2DomainSourceFactRuntimeService:
                 "derived_source_unit_refs": refs["derived_source_unit_refs"],
                 "route_refs": refs["route_refs"],
                 "domain_package_refs": refs["domain_package_refs"],
+                "source_value_candidate_set_refs": refs[
+                    "source_value_candidate_set_refs"
+                ],
+                "candidate_relation_set_refs": refs["candidate_relation_set_refs"],
+                "candidate_binding_validation_refs": refs[
+                    "candidate_binding_validation_refs"
+                ],
                 "raw_output_refs": refs["raw_output_refs"],
                 "validation_refs": refs["validation_refs"],
                 "source_facts_refs": refs["source_facts_refs"],
@@ -552,6 +588,13 @@ class Gate2DomainSourceFactRuntimeService:
             segmentation_plan_refs=list(refs["segmentation_plan_refs"]),
             derived_source_unit_refs=list(refs["derived_source_unit_refs"]),
             domain_package_refs=list(refs["domain_package_refs"]),
+            source_value_candidate_set_refs=list(
+                refs["source_value_candidate_set_refs"]
+            ),
+            candidate_relation_set_refs=list(refs["candidate_relation_set_refs"]),
+            candidate_binding_validation_refs=list(
+                refs["candidate_binding_validation_refs"]
+            ),
             source_facts_refs=list(refs["source_facts_refs"]),
             domain_source_facts_refs=list(refs["domain_source_facts_refs"]),
             validation_refs=list(refs["validation_refs"]),
@@ -573,6 +616,12 @@ class Gate2DomainSourceFactRuntimeService:
         package_ref = new_artifact_id()
         package["package_artifact_ref"] = package_ref
         package["expected_source_facts_set_id"] = f"sfset_{stable_digest([package.get('extraction_run_id'), package_ref], length=24)}"
+        binding_contract_refs = self._persist_candidate_binding_contracts(
+            package=package,
+            package_ref=package_ref,
+            context=context,
+            retention_policy=retention_policy,
+        )
         try:
             prompt = self.prompt_resolver.resolve(domain, prompt_user_context)
         except Gate2PromptError as exc:
@@ -589,7 +638,10 @@ class Gate2DomainSourceFactRuntimeService:
                 "status": "rejected",
                 "extractor_domain": domain,
                 "fact_counts": {},
-                "refs": {"domain_package_refs": [package_ref]},
+                "refs": {
+                    "domain_package_refs": [package_ref],
+                    **binding_contract_refs,
+                },
                 "stitch_input": {
                     "extractor_domain": domain,
                     "domain_package_ref": package_ref,
@@ -624,14 +676,20 @@ class Gate2DomainSourceFactRuntimeService:
                 "schema_validation_required": True,
             }
         )
-        package_response_schema_hash = source_facts_provider_schema_hash(package)
+        package_response_schema_hash = (
+            candidate_binding_schema_hash(package)
+            if package.get("candidate_binding_mode")
+            else source_facts_provider_schema_hash(package)
+        )
         package["output_schema"]["package_response_schema_hash"] = package_response_schema_hash
         repair_package = copy.deepcopy(package)
         repair_package["expected_candidate_audit"] = copy.deepcopy(
             package["expected_repair_candidate_audit"]
         )
         package["output_schema"]["repair_package_response_schema_hash"] = (
-            source_facts_provider_schema_hash(repair_package)
+            candidate_binding_schema_hash(repair_package)
+            if repair_package.get("candidate_binding_mode")
+            else source_facts_provider_schema_hash(repair_package)
         )
         budget_error = _package_budget_error(package, self.config)
         self._persist_domain_package(
@@ -644,6 +702,8 @@ class Gate2DomainSourceFactRuntimeService:
         )
         refs: defaultdict[str, list[str]] = defaultdict(list)
         refs["domain_package_refs"].append(package_ref)
+        for key, values in binding_contract_refs.items():
+            refs[key].extend(values)
         if budget_error:
             return {
                 "status": "rejected",
@@ -679,7 +739,11 @@ class Gate2DomainSourceFactRuntimeService:
                         "Use only allowed refs and do not change routing, issues or assumptions."
                     ),
                 }
-            response_format = domain_source_facts_response_format(attempt_package)
+            response_format = (
+                candidate_binding_response_format(attempt_package)
+                if attempt_package.get("candidate_binding_mode")
+                else domain_source_facts_response_format(attempt_package)
+            )
             schema_hash_field = (
                 "repair_package_response_schema_hash"
                 if attempt == 1
@@ -699,29 +763,75 @@ class Gate2DomainSourceFactRuntimeService:
             validation_ref = new_artifact_id()
             if raw_payload["model_call_status"] == "passed":
                 try:
-                    candidate = parse_source_facts_model_output(raw_payload["raw_output"])
-                    candidate = Gate2DomainCandidateFinalizerFactory().create().finalize(
-                        candidate=candidate,
-                        package=attempt_package,
+                    if attempt_package.get("candidate_binding_mode"):
+                        selection = parse_candidate_binding_model_output(
+                            raw_payload["raw_output"]
+                        )
+                        binding_outcome = (
+                            Gate2CandidateBindingRuntimeFactory()
+                            .create()
+                            .validate_and_materialize(
+                                selection=selection,
+                                package=attempt_package,
+                            )
+                        )
+                        binding_validation_ref = new_artifact_id()
+                        self._persist_candidate_binding_validation(
+                            binding_validation_ref=binding_validation_ref,
+                            binding_validation=binding_outcome.validation,
+                            package=package,
+                            package_ref=package_ref,
+                            raw_output_ref=raw_output_ref,
+                            repair_attempt_count=attempt,
+                            context=context,
+                            retention_policy=retention_policy,
+                        )
+                        refs["candidate_binding_validation_refs"].append(
+                            binding_validation_ref
+                        )
+                        if binding_outcome.legacy_candidate is None:
+                            validation = _binding_failed_validation(
+                                package=package,
+                                package_ref=package_ref,
+                                binding_validation=binding_outcome.validation,
+                            )
+                            candidate = None
+                        else:
+                            candidate = binding_outcome.legacy_candidate
+                    else:
+                        candidate = parse_source_facts_model_output(
+                            raw_payload["raw_output"]
+                        )
+                    if candidate is None:
+                        outcome = None
+                    else:
+                        candidate = Gate2DomainCandidateFinalizerFactory().create().finalize(
+                            candidate=candidate,
+                            package=attempt_package,
+                        )
+                        outcome = Gate2SourceFactValidatorFactory(
+                            resolver=self.resolver, context=context
+                        ).create().validate(
+                            candidate=candidate,
+                            package=package,
+                            package_artifact_ref=package_ref,
+                            raw_output_artifact_ref=raw_output_ref,
+                            validation_artifact_ref=validation_ref,
+                            prompt=prompt,
+                            model_id=self.config.model_id,
+                            expected_candidate_audit=_object(
+                                attempt_package.get("expected_candidate_audit")
+                            ),
+                        )
+                    if outcome is not None:
+                        validation = outcome.validation
+                        finalized = outcome.finalized_source_facts
+                except (Gate2PromptError, ValueError) as exc:
+                    validation = _failed_validation(
+                        package,
+                        package_ref,
+                        str(getattr(exc, "code", str(exc) or "candidate_binding_schema_mismatch")),
                     )
-                    outcome = Gate2SourceFactValidatorFactory(
-                        resolver=self.resolver, context=context
-                    ).create().validate(
-                        candidate=candidate,
-                        package=package,
-                        package_artifact_ref=package_ref,
-                        raw_output_artifact_ref=raw_output_ref,
-                        validation_artifact_ref=validation_ref,
-                        prompt=prompt,
-                        model_id=self.config.model_id,
-                        expected_candidate_audit=_object(
-                            attempt_package.get("expected_candidate_audit")
-                        ),
-                    )
-                    validation = outcome.validation
-                    finalized = outcome.finalized_source_facts
-                except Gate2PromptError as exc:
-                    validation = _failed_validation(package, package_ref, exc.code)
             else:
                 validation = _failed_validation(
                     package, package_ref, str(raw_payload.get("error_code") or "gate2_model_call_failed")
@@ -1001,6 +1111,129 @@ class Gate2DomainSourceFactRuntimeService:
             },
         )
 
+    def _persist_candidate_binding_contracts(
+        self, *, package, package_ref, context, retention_policy
+    ) -> dict[str, list[str]]:
+        if not package.get("candidate_binding_mode"):
+            return {}
+        candidate_set = copy.deepcopy(
+            _object(package.get("source_value_candidate_set"))
+        )
+        relation_set = copy.deepcopy(_object(package.get("candidate_relation_set")))
+        candidate_set_ref = new_artifact_id()
+        relation_set_ref = new_artifact_id()
+        package["source_value_candidate_set_artifact_ref"] = candidate_set_ref
+        package["candidate_relation_set_artifact_ref"] = relation_set_ref
+        candidate_set["package_artifact_ref"] = package_ref
+        relation_set["package_artifact_ref"] = package_ref
+        source_unit = _object(package.get("source_unit"))
+        slice_record = self.store.get_record_unchecked(
+            str(source_unit.get("private_slice_artifact_ref") or "")
+        )
+        source_file_ref = (
+            copy.deepcopy(slice_record.source_file_ref) if slice_record else None
+        )
+        candidate_kind_counts = dict(
+            sorted(
+                Counter(
+                    str(item.get("candidate_kind") or "unknown")
+                    for item in _dict_list(candidate_set.get("candidates"))
+                ).items()
+            )
+        )
+        relation_kind_counts = dict(
+            sorted(
+                Counter(
+                    str(item.get("relation_kind") or "unknown")
+                    for item in _dict_list(relation_set.get("relations"))
+                ).items()
+            )
+        )
+        self._put_record(
+            artifact_id=candidate_set_ref,
+            artifact_type=CANDIDATE_SET_SCHEMA_VERSION,
+            context=context,
+            retention_policy=retention_policy,
+            document_id=str(package.get("document_ref") or "") or None,
+            source_file_ref=source_file_ref,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="validated",
+            payload=candidate_set,
+            safe_metadata={
+                "candidate_set_id": candidate_set.get("candidate_set_id"),
+                "extractor_domain": package.get("extractor_domain"),
+                "candidates_total": len(_dict_list(candidate_set.get("candidates"))),
+                "candidate_kind_counts": candidate_kind_counts,
+                "validation_status": candidate_set.get("validation_status"),
+            },
+        )
+        self._put_record(
+            artifact_id=relation_set_ref,
+            artifact_type=RELATION_SET_SCHEMA_VERSION,
+            context=context,
+            retention_policy=retention_policy,
+            document_id=str(package.get("document_ref") or "") or None,
+            source_file_ref=source_file_ref,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="validated",
+            payload=relation_set,
+            safe_metadata={
+                "relation_set_id": relation_set.get("relation_set_id"),
+                "extractor_domain": package.get("extractor_domain"),
+                "relations_total": len(_dict_list(relation_set.get("relations"))),
+                "relation_kind_counts": relation_kind_counts,
+                "validation_status": relation_set.get("validation_status"),
+            },
+        )
+        return {
+            "source_value_candidate_set_refs": [candidate_set_ref],
+            "candidate_relation_set_refs": [relation_set_ref],
+        }
+
+    def _persist_candidate_binding_validation(
+        self,
+        *,
+        binding_validation_ref,
+        binding_validation,
+        package,
+        package_ref,
+        raw_output_ref,
+        repair_attempt_count,
+        context,
+        retention_policy,
+    ) -> None:
+        payload = copy.deepcopy(binding_validation)
+        payload.update(
+            {
+                "package_artifact_ref": package_ref,
+                "raw_output_artifact_ref": raw_output_ref,
+                "repair_attempt_count": repair_attempt_count,
+            }
+        )
+        self._put_record(
+            artifact_id=binding_validation_ref,
+            artifact_type=BINDING_VALIDATION_SCHEMA_VERSION,
+            context=context,
+            retention_policy=retention_policy,
+            document_id=str(package.get("document_ref") or "") or None,
+            source_file_ref=None,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="validated",
+            payload=payload,
+            safe_metadata={
+                "validator_status": binding_validation.get("validator_status"),
+                "extractor_domain": package.get("extractor_domain"),
+                "errors_count": binding_validation.get("errors_count"),
+                "error_code_counts": copy.deepcopy(
+                    binding_validation.get("error_code_counts") or {}
+                ),
+                "repair_attempt_count": repair_attempt_count,
+            },
+        )
+
     def _persist_domain_package(self, *, package_ref, package, context, retention_policy, validation_status, warning_codes):
         source_unit = _object(package.get("source_unit"))
         slice_record = self.store.get_record_unchecked(
@@ -1081,6 +1314,8 @@ class Gate2DomainSourceFactRuntimeService:
                 "policy": "gate2_source_unit_segmentation_v0",
             },
             "domain_allowlist": list(self.config.domain_allowlist),
+            "prefer_table_projections": self.config.prefer_table_projections,
+            "candidate_binding_enabled": self.config.candidate_binding_enabled,
             "router_policy": "gate2_source_unit_domain_routing_v1",
             "package_policy": "gate2_domain_package_projection_v0",
             "stitch_policy": "gate2_source_fact_stitching_v0",
@@ -1104,6 +1339,9 @@ class Gate2DomainSourceFactRuntimeService:
             "segmentation_plan_refs": [],
             "derived_source_unit_refs": [],
             "domain_package_refs": [],
+            "source_value_candidate_set_refs": [],
+            "candidate_relation_set_refs": [],
+            "candidate_binding_validation_refs": [],
             "raw_output_refs": [],
             "validation_refs": [],
             "source_facts_refs": [],
@@ -1173,6 +1411,7 @@ class Gate2DomainSourceFactRuntimeService:
             "extraction_run_id": extraction_run_id,
             "terminal_status": terminal_status,
             "wave": self.config.wave,
+            "candidate_binding_enabled": self.config.candidate_binding_enabled,
             "documents": {
                 "wave_total": len(document_refs),
                 "selected_total": len(selected_document_refs),
@@ -1220,6 +1459,7 @@ class Gate2DomainSourceFactRuntimeService:
             "extraction_run_id": extraction_run_id,
             "terminal_status": "blocked",
             "error_code": error_code,
+            "candidate_binding_enabled": self.config.candidate_binding_enabled,
             "domain_packages": {"total": 0, "accepted": 0, "rejected": 0},
             "facts_total": 0,
             "coverage": {},
@@ -1265,6 +1505,9 @@ class Gate2DomainSourceFactRuntimeService:
             segmentation_plan_refs=[],
             derived_source_unit_refs=[],
             domain_package_refs=[],
+            source_value_candidate_set_refs=[],
+            candidate_relation_set_refs=[],
+            candidate_binding_validation_refs=[],
             source_facts_refs=[],
             domain_source_facts_refs=[],
             validation_refs=[],
@@ -1341,6 +1584,31 @@ def _failed_validation(package: dict[str, Any], package_ref: str, code: str) -> 
         "prompt_schema_model_audit": {},
         "validated_at": utc_now_iso(),
     }
+
+
+def _binding_failed_validation(
+    *,
+    package: dict[str, Any],
+    package_ref: str,
+    binding_validation: dict[str, Any],
+) -> dict[str, Any]:
+    value = _failed_validation(
+        package,
+        package_ref,
+        "candidate_binding_validation_failed",
+    )
+    value["errors"] = copy.deepcopy(
+        _dict_list(binding_validation.get("errors"))
+    ) or value["errors"]
+    value["candidate_binding_validation"] = {
+        "schema_version": binding_validation.get("schema_version"),
+        "candidate_set_id": binding_validation.get("candidate_set_id"),
+        "relation_set_id": binding_validation.get("relation_set_id"),
+        "error_code_counts": copy.deepcopy(
+            binding_validation.get("error_code_counts") or {}
+        ),
+    }
+    return value
 
 
 def _package_selected(package: dict[str, Any], wave: str) -> bool:

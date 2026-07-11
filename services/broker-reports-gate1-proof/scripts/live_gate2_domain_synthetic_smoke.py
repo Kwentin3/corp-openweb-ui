@@ -17,6 +17,7 @@ import requests
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
+SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 FUNCTION_ID = "broker_reports_gate2_domain_source_fact_pipe"
 EXPECTED_DOMAINS = {
     "trade_operation",
@@ -31,6 +32,9 @@ EXPECTED_DOMAINS = {
 }
 
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SERVICE_ROOT))
+
+from broker_reports_gate1 import PROVIDER_STATUS_APPROVED, gate2_provider_profile
 
 from live_case_group_process_false_gate1_run import (
     _counter_delta,
@@ -60,20 +64,44 @@ def main() -> int:
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--ssh-target", default=None)
     parser.add_argument("--model-id", default=None)
+    parser.add_argument("--provider-profile-id", default="openai_gpt")
+    parser.add_argument("--domain", choices=sorted(EXPECTED_DOMAINS), default=None)
     parser.add_argument("--timeout", type=int, default=900)
+    parser.add_argument("--candidate-binding", action="store_true")
     parser.add_argument("--retain", action="store_true")
     parser.add_argument("--audit-case", default=None)
+    parser.add_argument("--cleanup-case", default=None)
     args = parser.parse_args()
+    expected_domains = {args.domain} if args.domain else EXPECTED_DOMAINS
 
     env = _read_env(Path(args.env_file))
     base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     ssh_target = args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
-    if args.audit_case:
+    if args.cleanup_case:
+        cleanup = _purge_case(ssh_target=ssh_target, case_id=args.cleanup_case)
         print(
             json.dumps(
-                _audit_safe_validation_metadata(
-                    ssh_target=ssh_target, case_id=args.audit_case
-                ),
+                {"status": "passed", "case_id": args.cleanup_case, "cleanup": cleanup},
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args.audit_case:
+        audit_case = (
+            _latest_active_domain_case(ssh_target)
+            if args.audit_case == "latest"
+            else args.audit_case
+        )
+        audit = _audit_safe_validation_metadata(
+            ssh_target=ssh_target, case_id=audit_case
+        )
+        audit["candidate_binding_enabled"] = args.candidate_binding
+        audit["provider_profile_id"] = args.provider_profile_id
+        print(
+            json.dumps(
+                audit,
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
@@ -97,50 +125,127 @@ def main() -> int:
         ssh_target=ssh_target,
         case_id=case_id,
         user_id=str(current_user["id"]),
+        domain=args.domain,
     )
     chat_content = _run_domain_chat(
         session=session,
         base_url=base_url,
         dcp_ref=str(seeded["domain_context_packet_ref"]),
         model_id=model_id,
+        candidate_binding_enabled=args.candidate_binding,
+        provider_profile_id=args.provider_profile_id,
+        domain=args.domain,
         timeout=args.timeout,
     )
-    after = _runtime_snapshot(ssh_target)
-    delta = _counter_delta(before, after)
-    audit = _audit_case(ssh_target=ssh_target, case_id=case_id)
+    cleanup = {"performed": False, "purged_records_total": 0}
+    try:
+        after = _runtime_snapshot(ssh_target)
+        delta = _counter_delta(before, after)
+        audit = _audit_case(ssh_target=ssh_target, case_id=case_id)
+    finally:
+        if not args.retain:
+            cleanup = _purge_case(ssh_target=ssh_target, case_id=case_id)
     summary = audit.get("summary") if isinstance(audit.get("summary"), dict) else {}
     packages = summary.get("domain_packages") if isinstance(summary.get("domain_packages"), dict) else {}
     coverage = summary.get("coverage") if isinstance(summary.get("coverage"), dict) else {}
-    checks = {
-        "domain_runtime_factory_path_used": audit.get("domain_runtime_factory_path") is True,
-        "all_managed_domain_prompts_used": set(audit.get("prompt_domains") or []) == EXPECTED_DOMAINS,
-        "strict_json_schema_only": audit.get("strict_raw_outputs_total") == audit.get("raw_outputs_total") and int(audit.get("raw_outputs_total") or 0) > 0,
-        "fallback_not_used": audit.get("fallback_raw_outputs_total") == 0,
-        "routes_persisted": audit.get("route_total") == 3,
-        "narrow_packages_persisted": int(packages.get("total") or 0) == 9 and packages.get("accepted") == 9 and packages.get("rejected") == 0,
-        "all_domains_accepted": set((packages.get("accepted_by_domain") or {}).keys()) == EXPECTED_DOMAINS,
-        "all_fact_types_present": set((summary.get("facts_by_type") or {}).keys()) == EXPECTED_DOMAINS,
-        "stitch_complete": coverage.get("uncovered_total") == 0 and coverage.get("conflict_total") == 0 and audit.get("complete_stitch_total") == 3,
-        "issue_links_present": int(audit.get("issue_fact_links_total") or 0) > 0,
-        "raw_outputs_private": audit.get("raw_output_private_total") == audit.get("raw_outputs_total"),
-        "source_facts_private": audit.get("source_facts_private_total") == audit.get("source_facts_total"),
-        "only_validator_passed_persisted": audit.get("source_facts_validated_total") == audit.get("source_facts_total"),
-        "safe_russian_summary": "Gate 2" in chat_content and "Расчёт налогов, декларация и XLS/XLSX не выполнялись." in chat_content,
-        "chat_has_no_private_markers": not any(marker in chat_content for marker in ("2025-01-01", "SYNTH-INSTRUMENT", "source_value_index", "private_slice_artifact_ref")),
-        "document_rows_zero_delta": delta.get("document_rows") == 0,
-        "file_rows_zero_delta": delta.get("file_rows") == 0,
-        "knowledge_rows_zero_delta": delta.get("knowledge_rows") == 0,
-        "vector_delta_zero": _vector_delta_zero(delta),
-        "artifactstore_no_knowledge": audit.get("knowledge_backend_records") == 0,
-        "no_tax_declaration_xlsx": summary.get("no_tax_declaration_xlsx_work") is True,
-    }
-    cleanup = {"performed": False, "purged_records_total": 0}
-    if not args.retain:
-        cleanup = _purge_case(ssh_target=ssh_target, case_id=case_id)
+    safe_terminal = (
+        "Gate 2" in chat_content
+        and "Подтверждённые доменные исходные факты не созданы." in chat_content
+        and "Расчёт налогов, декларация и XLS/XLSX не выполнялись." in chat_content
+    )
+    chat_has_no_private_markers = not any(
+        marker in chat_content
+        for marker in (
+            "2025-01-",
+            "SYNTH-",
+            "source_value_index",
+            "private_slice_artifact_ref",
+        )
+    )
+    profile = gate2_provider_profile(args.provider_profile_id)
+    blocker = None
+    if int(audit.get("summary_total") or 0) == 0:
+        blocker = (
+            "gate2_no_strict_structured_provider_available"
+            if profile.gate2_status != PROVIDER_STATUS_APPROVED
+            else "gate2_domain_runtime_summary_missing"
+        )
+        checks = {
+            "capability_rejected_before_runtime": profile.gate2_status
+            != PROVIDER_STATUS_APPROVED
+            and audit.get("domain_runtime_factory_path") is False,
+            "safe_terminal_without_facts": safe_terminal,
+            "no_domain_packages_created": int(audit.get("domain_package_total") or 0)
+            == 0,
+            "no_raw_outputs_created": int(audit.get("raw_outputs_total") or 0) == 0,
+            "no_source_facts_created": int(audit.get("source_facts_total") or 0)
+            == 0,
+            "chat_has_no_private_markers": chat_has_no_private_markers,
+            "document_rows_zero_delta": delta.get("document_rows") == 0,
+            "file_rows_zero_delta": delta.get("file_rows") == 0,
+            "knowledge_rows_zero_delta": delta.get("knowledge_rows") == 0,
+            "vector_delta_zero": _vector_delta_zero(delta),
+            "artifactstore_no_knowledge": audit.get("knowledge_backend_records") == 0,
+        }
+        status = "blocked" if all(checks.values()) else "failed"
+    else:
+        checks = {
+            "domain_runtime_factory_path_used": audit.get("domain_runtime_factory_path")
+            is True,
+            "all_requested_domain_prompts_used": set(audit.get("prompt_domains") or [])
+            == expected_domains,
+            "strict_json_schema_only": audit.get("strict_raw_outputs_total")
+            == audit.get("raw_outputs_total")
+            and int(audit.get("raw_outputs_total") or 0) > 0,
+            "fallback_not_used": audit.get("fallback_raw_outputs_total") == 0,
+            "routes_persisted": audit.get("route_total")
+            == (1 if args.domain else 3),
+            "narrow_packages_persisted": int(packages.get("total") or 0)
+            == len(expected_domains)
+            and packages.get("accepted") == len(expected_domains)
+            and packages.get("rejected") == 0,
+            "all_requested_domains_accepted": set(
+                (packages.get("accepted_by_domain") or {}).keys()
+            )
+            == expected_domains,
+            "all_requested_fact_types_present": set(
+                (summary.get("facts_by_type") or {}).keys()
+            )
+            == expected_domains,
+            "stitch_complete": coverage.get("uncovered_total") == 0
+            and coverage.get("conflict_total") == 0
+            and audit.get("complete_stitch_total") == (1 if args.domain else 3),
+            "issue_links_present": int(audit.get("issue_fact_links_total") or 0)
+            > 0,
+            "raw_outputs_private": audit.get("raw_output_private_total")
+            == audit.get("raw_outputs_total"),
+            "source_facts_private": audit.get("source_facts_private_total")
+            == audit.get("source_facts_total"),
+            "only_validator_passed_persisted": audit.get(
+                "source_facts_validated_total"
+            )
+            == audit.get("source_facts_total"),
+            "safe_russian_summary": "Gate 2" in chat_content
+            and "Расчёт налогов, декларация и XLS/XLSX не выполнялись."
+            in chat_content,
+            "chat_has_no_private_markers": chat_has_no_private_markers,
+            "document_rows_zero_delta": delta.get("document_rows") == 0,
+            "file_rows_zero_delta": delta.get("file_rows") == 0,
+            "knowledge_rows_zero_delta": delta.get("knowledge_rows") == 0,
+            "vector_delta_zero": _vector_delta_zero(delta),
+            "artifactstore_no_knowledge": audit.get("knowledge_backend_records") == 0,
+            "no_tax_declaration_xlsx": summary.get("no_tax_declaration_xlsx_work")
+            is True,
+        }
+        status = "passed" if checks and all(checks.values()) else "failed"
     output = {
-        "status": "passed" if checks and all(checks.values()) else "failed",
+        "status": status,
+        "blocker": blocker,
         "case_id": case_id,
         "model_id": model_id,
+        "candidate_binding_enabled": args.candidate_binding,
+        "provider_profile_id": args.provider_profile_id,
+        "requested_domain": args.domain,
         "checks": checks,
         "summary": summary,
         "artifact_audit": audit,
@@ -150,10 +255,20 @@ def main() -> int:
         "cleanup": cleanup,
     }
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if output["status"] == "passed" else 1
+    return 0 if output["status"] in {"passed", "blocked"} else 1
 
 
-def _run_domain_chat(*, session, base_url, dcp_ref, model_id, timeout) -> str:
+def _run_domain_chat(
+    *,
+    session,
+    base_url,
+    dcp_ref,
+    model_id,
+    candidate_binding_enabled,
+    provider_profile_id,
+    domain,
+    timeout,
+) -> str:
     response = session.post(
         _url(base_url, "/api/chat/completions"),
         json={
@@ -173,6 +288,9 @@ def _run_domain_chat(*, session, base_url, dcp_ref, model_id, timeout) -> str:
                 "document_batch_limit": 3,
                 "source_unit_limit": 3,
                 "segmentation_enabled": False,
+                "candidate_binding_enabled": candidate_binding_enabled,
+                "provider_profile_id": provider_profile_id,
+                "domain_allowlist": [domain] if domain else [],
                 "max_repair_attempts": 1,
             },
         },
@@ -204,9 +322,7 @@ try:
             return json.loads(row["payload_inline_json"])
         return json.loads((root / row["payload_ref"]).read_text(encoding="utf-8"))
     summary_rows = [row for row in rows if row["artifact_type"] == "broker_reports_domain_source_fact_extraction_summary_v0"]
-    if len(summary_rows) != 1:
-        raise RuntimeError("gate2_domain_summary_count_invalid")
-    summary = payload(summary_rows[0])
+    summary = payload(summary_rows[0]) if len(summary_rows) == 1 else {{}}
     raw_rows = [row for row in rows if row["artifact_type"] == "broker_reports_source_fact_raw_output_v0"]
     fact_rows = [row for row in rows if row["artifact_type"] == "broker_reports_source_facts_v0"]
     stitch_rows = [row for row in rows if row["artifact_type"] == "broker_reports_source_fact_stitch_result_v0"]
@@ -215,6 +331,7 @@ try:
     prompt_domains = sorted({{str(item.get("extractor_domain")) for item in raw_payloads if item.get("extractor_domain")}})
     output = {{
         "case_records_total": len(rows),
+        "summary_total": len(summary_rows),
         "type_counts": dict(sorted(by_type.items())),
         "summary": summary,
         "domain_runtime_factory_path": by_type.get("broker_reports_domain_source_fact_extraction_run_v0", 0) == 1,
@@ -280,6 +397,33 @@ print(json.dumps({{
 }}, ensure_ascii=False, sort_keys=True))
 '''
     return _remote_json(ssh_target, code, timeout=60)
+
+
+def _latest_active_domain_case(ssh_target: str) -> str:
+    code = '''
+import json
+import sqlite3
+
+conn = sqlite3.connect("/app/backend/data/broker_reports_gate1/artifacts.sqlite3")
+try:
+    row = conn.execute(
+        """
+        select case_id, max(created_at) as latest_at
+        from artifact_records
+        where case_id like 'synthetic_gate2_domain_%'
+          and purge_status = 'active'
+        group by case_id
+        order by latest_at desc
+        limit 1
+        """
+    ).fetchone()
+finally:
+    conn.close()
+if row is None:
+    raise RuntimeError("active_synthetic_gate2_domain_case_not_found")
+print(json.dumps({"case_id": row[0]}))
+'''
+    return str(_remote_json(ssh_target, code, timeout=30)["case_id"])
 
 
 def _remote_json(ssh_target: str, code: str, *, timeout: int) -> dict[str, Any]:

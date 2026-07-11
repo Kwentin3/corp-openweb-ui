@@ -8,8 +8,32 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
 BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe_bundled.py"
 DOMAIN_BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
+SOURCE_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
+DOMAIN_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe.py"
+
+from build_openwebui_pipe_bundle import assert_gate2_bundle_contract
+from live_case_group_gate2_table_typed_vertical_proof import (
+    FUNCTION_ID as TABLE_PROOF_FUNCTION_ID,
+    _run_chat as run_table_proof_chat,
+    _safe_target,
+)
+from live_gate2_domain_synthetic_smoke import (
+    FUNCTION_ID as DOMAIN_SMOKE_FUNCTION_ID,
+    _run_domain_chat as run_domain_smoke_chat,
+)
+from live_gate2_synthetic_extraction_smoke import _synthetic_documents
+from live_update_gate2_domain_function_and_prompts import (
+    PROMPT_VERSION as DOMAIN_PROMPT_VERSION,
+    _assert_prompt_readbacks,
+)
+from live_update_gate2_function_and_prompt import (
+    PROMPT_VERSION as SOURCE_PROMPT_VERSION,
+    _assert_prompt_readback,
+)
 
 
 def load_bundle_module():
@@ -52,6 +76,9 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         source = BUNDLE.read_text(encoding="utf-8")
         self.assertIn("_BUNDLED_MODULES", source)
         self.assertIn("gate2_source_fact_contracts", source)
+        self.assertIn("gate2_model_contracts", source)
+        self.assertIn("gate2_model_requests", source)
+        self.assertIn("gate2_model_clients", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
         self.assertNotIn("sys.path.insert", source)
@@ -61,7 +88,12 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2ManagedPromptResolverFactory"))
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2StructuredModelClientFactory")
+        )
+        self.assertEqual(len(bundled_package.GATE2_PROVIDER_PROFILES), 6)
         pipe = module.Pipe()
+        self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
         events = []
 
         async def emitter(event):
@@ -86,6 +118,11 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
     def test_gate2_domain_bundle_is_closed_world_and_is_the_narrow_customer_path(self):
         source = DOMAIN_BUNDLE.read_text(encoding="utf-8")
         for module_name in (
+            "gate2_model_contracts",
+            "gate2_model_requests",
+            "gate2_model_clients",
+            "gate2_candidate_binding",
+            "gate2_candidate_binding_runtime",
             "gate2_domain_routing",
             "gate2_domain_packages",
             "gate2_source_unit_segmentation",
@@ -94,6 +131,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_domain_runtime",
         ):
             self.assertIn(module_name, source)
+        self.assertIn("prefer_table_projections", source)
         self.assertNotIn("sys.path.insert", source)
         module = load_domain_bundle_module()
         bundled_package = sys.modules["broker_reports_gate1"]
@@ -107,6 +145,18 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertEqual(pipe.valves.default_document_batch_limit, 1)
         self.assertEqual(pipe.valves.default_source_unit_limit, 1)
         self.assertTrue(pipe.valves.segmentation_enabled)
+        self.assertFalse(pipe.valves.prefer_table_projections)
+        self.assertFalse(pipe.valves.candidate_binding_enabled)
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2CandidateBindingKernelFactory")
+        )
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2CandidateBindingRuntimeFactory")
+        )
+        self.assertTrue(
+            hasattr(bundled_package, "Gate2StructuredModelClientFactory")
+        )
+        self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
         self.assertEqual(pipe.valves.default_source_segment_limit, 1)
         content = asyncio.run(
             pipe.pipe(
@@ -119,6 +169,243 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             content,
             "Gate 2 не запущен: нужен авторизованный пользователь и безопасный DCP ref.",
         )
+
+    def test_gate2_pipes_have_one_factory_backed_provider_route(self):
+        for pipe_path in (SOURCE_PIPE, DOMAIN_PIPE):
+            source = pipe_path.read_text(encoding="utf-8")
+            self.assertIn("Gate2StructuredModelClientFactory(", source)
+            self.assertIn(".create()", source)
+            self.assertNotIn("generate_chat_completion", source)
+            self.assertNotIn("_completion_dict_content", source)
+            self.assertNotIn("_provider_error_code", source)
+            self.assertNotIn("class OpenWebUIGate2", source)
+
+        module = load_domain_bundle_module()
+        order = module._BUNDLED_MODULE_ORDER
+        self.assertLess(
+            order.index("gate2_source_fact_contracts"),
+            order.index("gate2_model_contracts"),
+        )
+        self.assertLess(
+            order.index("gate2_model_contracts"),
+            order.index("gate2_model_requests"),
+        )
+        self.assertLess(
+            order.index("gate2_model_requests"),
+            order.index("gate2_model_clients"),
+        )
+        self.assertLess(
+            order.index("gate2_model_clients"),
+            order.index("gate2_source_fact_runtime"),
+        )
+        clients_module = sys.modules["broker_reports_gate1.gate2_model_clients"]
+        self.assertIn(
+            "Gate2StructuredModelClientFactory.create",
+            clients_module.FACTORY_REQUIRED,
+        )
+        self.assertIn("must not call OpenWebUI", clients_module.FORBIDDEN)
+
+    def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
+        self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-11-provider-factory-v0")
+        self.assertEqual(
+            DOMAIN_PROMPT_VERSION,
+            "2026-07-11-candidate-binding-provider-factory-v0",
+        )
+        source_bundle = BUNDLE.read_text(encoding="utf-8")
+        domain_bundle = DOMAIN_BUNDLE.read_text(encoding="utf-8")
+        assert_gate2_bundle_contract(
+            source_bundle,
+            runtime_factory="Gate2SourceFactRuntimeFactory",
+        )
+        assert_gate2_bundle_contract(
+            domain_bundle,
+            runtime_factory="Gate2DomainSourceFactRuntimeFactory",
+        )
+
+        missing_anchor = source_bundle.replace(
+            "Gate2StructuredModelClientFactory.create is the only production "
+            "Gate 2 model client entrypoint",
+            "missing model-client factory anchor",
+            1,
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_bundle_contract_missing:model_client_factory_anchor",
+        ):
+            assert_gate2_bundle_contract(
+                missing_anchor,
+                runtime_factory="Gate2SourceFactRuntimeFactory",
+            )
+
+        direct_bypass = domain_bundle + "\ngenerate_chat_completion()\n"
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_bundle_contract_forbidden:direct_openwebui_completion",
+        ):
+            assert_gate2_bundle_contract(
+                direct_bypass,
+                runtime_factory="Gate2DomainSourceFactRuntimeFactory",
+            )
+
+        prompt_hash = "a" * 64
+        content_hash = "e" * 64
+        schema_hash = "b" * 64
+        source_readback = {
+            "prompt_hash": prompt_hash,
+            "prompt_hash_matches_expected": True,
+            "content_sha256": content_hash,
+            "output_schema_hash": schema_hash,
+            "structured_output_required": True,
+        }
+        _assert_prompt_readback(
+            source_readback,
+            expected_prompt_hash=prompt_hash,
+            expected_content_hash=content_hash,
+            expected_schema_hash=schema_hash,
+        )
+        self_asserted = dict(source_readback)
+        self_asserted["prompt_hash_matches_expected"] = False
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_managed_prompt_readback_mismatch",
+        ):
+            _assert_prompt_readback(
+                self_asserted,
+                expected_prompt_hash=prompt_hash,
+                expected_content_hash=content_hash,
+                expected_schema_hash=schema_hash,
+            )
+        content_drift = dict(source_readback)
+        content_drift["content_sha256"] = "0" * 64
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_managed_prompt_content_readback_mismatch",
+        ):
+            _assert_prompt_readback(
+                content_drift,
+                expected_prompt_hash=prompt_hash,
+                expected_content_hash=content_hash,
+                expected_schema_hash=schema_hash,
+            )
+
+        expected_hashes = {"prompt_cash": prompt_hash, "prompt_income": "c" * 64}
+        expected_content_hashes = {
+            "prompt_cash": content_hash,
+            "prompt_income": "f" * 64,
+        }
+        domain_readbacks = [
+            {
+                "prompt_ref": prompt_ref,
+                "prompt_hash": expected,
+                "prompt_hash_matches_expected": True,
+                "content_sha256": expected_content_hashes[prompt_ref],
+                "output_schema_hash": schema_hash,
+                "structured_output_required": True,
+            }
+            for prompt_ref, expected in expected_hashes.items()
+        ]
+        _assert_prompt_readbacks(
+            domain_readbacks,
+            expected_hashes=expected_hashes,
+            expected_content_hashes=expected_content_hashes,
+            expected_schema_hash=schema_hash,
+        )
+        domain_readbacks[1]["prompt_hash"] = "d" * 64
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_domain_prompt_hash_mismatch",
+        ):
+            _assert_prompt_readbacks(
+                domain_readbacks,
+                expected_hashes=expected_hashes,
+                expected_content_hashes=expected_content_hashes,
+                expected_schema_hash=schema_hash,
+            )
+
+    def test_candidate_binding_live_proofs_forward_profile_through_function_route(self):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"content": "safe terminal content"}
+
+        class Session:
+            def __init__(self):
+                self.calls = []
+
+            def post(self, url, *, json, timeout):
+                self.calls.append({"url": url, "json": json, "timeout": timeout})
+                return Response()
+
+        table_session = Session()
+        table_content = run_table_proof_chat(
+            session=table_session,
+            base_url="https://example.invalid",
+            dcp_ref="dcp_safe_test",
+            model_id="provider-model-test",
+            target={
+                "document_batch_start": 0,
+                "source_unit_start": 0,
+                "source_segment_start": 0,
+                "domain": "cash_movement",
+            },
+            candidate_binding_enabled=True,
+            provider_profile_id="deepseek",
+            max_repair_attempts=0,
+            timeout=30,
+        )
+        self.assertEqual(table_content, "safe terminal content")
+        self.assertEqual(len(table_session.calls), 1)
+        table_body = table_session.calls[0]["json"]
+        self.assertEqual(table_body["model"], TABLE_PROOF_FUNCTION_ID)
+        self.assertEqual(
+            table_body["broker_reports_gate2_domain"]["provider_profile_id"],
+            "deepseek",
+        )
+        self.assertTrue(
+            table_body["broker_reports_gate2_domain"]["candidate_binding_enabled"]
+        )
+        self.assertEqual(
+            _safe_target(
+                {
+                    "domain": "cash_movement",
+                    "headers": ["private source header"],
+                    "selected_refs_total": 1,
+                }
+            ),
+            {"domain": "cash_movement", "selected_refs_total": 1},
+        )
+
+        domain_session = Session()
+        domain_content = run_domain_smoke_chat(
+            session=domain_session,
+            base_url="https://example.invalid",
+            dcp_ref="dcp_safe_test",
+            model_id="provider-model-test",
+            candidate_binding_enabled=True,
+            provider_profile_id="anthropic_claude",
+            domain="cash_movement",
+            timeout=30,
+        )
+        self.assertEqual(domain_content, "safe terminal content")
+        self.assertEqual(len(domain_session.calls), 1)
+        domain_body = domain_session.calls[0]["json"]
+        self.assertEqual(domain_body["model"], DOMAIN_SMOKE_FUNCTION_ID)
+        self.assertEqual(
+            domain_body["broker_reports_gate2_domain"]["provider_profile_id"],
+            "anthropic_claude",
+        )
+        self.assertTrue(
+            domain_body["broker_reports_gate2_domain"]["candidate_binding_enabled"]
+        )
+        self.assertEqual(
+            domain_body["broker_reports_gate2_domain"]["domain_allowlist"],
+            ["cash_movement"],
+        )
+        bounded_documents = _synthetic_documents("cash_movement")
+        self.assertEqual(len(bounded_documents), 1)
+        self.assertIn(b"cash_deposit", bounded_documents[0][1])
 
 
 if __name__ == "__main__":

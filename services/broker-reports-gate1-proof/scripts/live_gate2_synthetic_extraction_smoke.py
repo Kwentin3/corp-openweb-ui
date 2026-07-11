@@ -56,6 +56,18 @@ EXPECTED_FACT_TYPES = {
     "unknown_source_row",
 }
 
+SYNTHETIC_DOMAIN_ROWS = {
+    "trade_operation": b"2025-01-01,sell,100.00,USD,SYNTH-INSTRUMENT-A\n",
+    "income": b"2025-01-02,dividend,5.00,USD,SYNTH-INSTRUMENT-B\n",
+    "withholding_tax": b"2025-01-03,withholding,1.00,USD,SYNTH-INSTRUMENT-B\n",
+    "fee_commission": b"2025-01-04,broker_commission,0.50,USD,SYNTH-INSTRUMENT-A\n",
+    "cash_movement": b"2025-01-05,cash_deposit,25.00,USD,SYNTH-CASH\n",
+    "currency_fx": b"2025-01-06,explicit_fx_rate,1.25,USD,SYNTH-FX\n",
+    "position_snapshot": b"2025-01-07,position_snapshot,10.00,USD,SYNTH-INSTRUMENT-C\n",
+    "document_summary_evidence": b"2025-01-08,source_summary,141.75,USD,SYNTH-SUMMARY\n",
+    "unknown_source_row": b"2025-01-09,unclassified_source_row,3.00,USD,SYNTH-UNKNOWN\n",
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -202,8 +214,10 @@ def _seed_synthetic_gate1(
     ssh_target: str,
     case_id: str,
     user_id: str,
+    domain: str | None = None,
 ) -> dict[str, Any]:
     bundle_source = BUNDLE.read_text(encoding="utf-8")
+    selected_documents = _synthetic_documents(domain)
     code = f'''
 import json
 from pathlib import Path
@@ -222,29 +236,7 @@ from broker_reports_gate1 import (
     persist_gate1_result,
 )
 
-documents = [
-    (
-        "synthetic_gate2_types_a.csv",
-        b"Date,Operation,Amount,Currency,Identifier\\n"
-        b"2025-01-01,sell,100.00,USD,SYNTH-INSTRUMENT-A\\n"
-        b"2025-01-02,dividend,5.00,USD,SYNTH-INSTRUMENT-B\\n"
-        b"2025-01-03,withholding,1.00,USD,SYNTH-INSTRUMENT-B\\n"
-        b"2025-01-04,broker_commission,0.50,USD,SYNTH-INSTRUMENT-A\\n",
-    ),
-    (
-        "synthetic_gate2_types_b.csv",
-        b"Date,Operation,Amount,Currency,Identifier\\n"
-        b"2025-01-05,cash_deposit,25.00,USD,SYNTH-CASH\\n"
-        b"2025-01-06,explicit_fx_rate,1.25,USD,SYNTH-FX\\n"
-        b"2025-01-07,position_snapshot,10.00,USD,SYNTH-INSTRUMENT-C\\n"
-        b"2025-01-08,source_summary,141.75,USD,SYNTH-SUMMARY\\n",
-    ),
-    (
-        "synthetic_gate2_types_c.csv",
-        b"Date,Operation,Amount,Currency,Identifier\\n"
-        b"2025-01-09,unclassified_source_row,3.00,USD,SYNTH-UNKNOWN\\n",
-    ),
-]
+documents = {selected_documents!r}
 result = Gate1Normalizer().normalize(
     [
         FileInput.from_bytes(
@@ -259,7 +251,7 @@ result = Gate1Normalizer().normalize(
 )
 package = result.package
 source_ready = package["domain_context_packet"]["next_stage_refs"]["source_fact_ready_refs"]
-if len(source_ready) != 3:
+if len(source_ready) != len(documents):
     raise RuntimeError("synthetic_gate2_source_ready_count_invalid")
 document_ref = source_ready[0]
 slice_ref = next(
@@ -338,6 +330,41 @@ print(json.dumps({{
 }}, ensure_ascii=False, sort_keys=True))
 '''
     return _remote_json(ssh_target, code, timeout=90)
+
+
+def _synthetic_documents(domain: str | None) -> list[tuple[str, bytes]]:
+    header = b"Date,Operation,Amount,Currency,Identifier\n"
+    if domain is not None:
+        if domain not in SYNTHETIC_DOMAIN_ROWS:
+            raise ValueError("synthetic_gate2_domain_unsupported")
+        return [
+            (
+                f"synthetic_gate2_{domain}.csv",
+                header + SYNTHETIC_DOMAIN_ROWS[domain],
+            )
+        ]
+    return [
+        (
+            "synthetic_gate2_types_a.csv",
+            header
+            + SYNTHETIC_DOMAIN_ROWS["trade_operation"]
+            + SYNTHETIC_DOMAIN_ROWS["income"]
+            + SYNTHETIC_DOMAIN_ROWS["withholding_tax"]
+            + SYNTHETIC_DOMAIN_ROWS["fee_commission"],
+        ),
+        (
+            "synthetic_gate2_types_b.csv",
+            header
+            + SYNTHETIC_DOMAIN_ROWS["cash_movement"]
+            + SYNTHETIC_DOMAIN_ROWS["currency_fx"]
+            + SYNTHETIC_DOMAIN_ROWS["position_snapshot"]
+            + SYNTHETIC_DOMAIN_ROWS["document_summary_evidence"],
+        ),
+        (
+            "synthetic_gate2_types_c.csv",
+            header + SYNTHETIC_DOMAIN_ROWS["unknown_source_row"],
+        ),
+    ]
 
 
 def _run_gate2_chat(

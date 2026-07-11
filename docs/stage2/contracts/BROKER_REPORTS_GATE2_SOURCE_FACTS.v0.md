@@ -199,6 +199,12 @@ Only deterministic mechanical normalization is allowed:
 
 No calculation, aggregation, lookup, tax classification, or methodology decision is allowed.
 
+For normalized-table packages, provider-native structured output is narrowed
+to package-provided exact value candidates. Fields without a candidate are
+null. When several exact candidates exist for one field, the model selects the
+business-relevant candidate; deterministic code may bind its ref only when the
+selected normalized string identifies exactly one package candidate.
+
 ### 8.3 `original_value_refs`
 
 This object maps every extracted/normalized field to one or more source value refs:
@@ -614,10 +620,12 @@ after all existing checks pass. It may not repair model-selected evidence,
 source values, normalized values, issue linkage, completeness, or fact type.
 
 A separate pre-validator domain finalizer may bind scope, provenance,
-issue/audit/restriction fields and exact-header mechanically reproducible value
-candidates under `BROKER_REPORTS_GATE2_DOMAIN_EXTRACTORS.v0.md`. It does not
-weaken this validator rule: raw output remains private/auditable, no fact/type
-is created, and the finalized candidate must pass the same validator.
+issue/audit/restriction fields and package-bound mechanically reproducible value
+candidates under `BROKER_REPORTS_GATE2_DOMAIN_EXTRACTORS.v0.md`. It may bind a
+missing ref when one exact model-selected value identifies one candidate, but
+it may not choose among candidates or change a non-null mismatched value. It
+does not weaken this validator rule: raw output remains private/auditable, no
+fact/type is created, and the finalized candidate must pass the same validator.
 
 The safe `broker_reports_domain_source_facts_v0` wrapper references a validated
 private source-facts set and lists domain, allowed/actual fact types, fact ids,
@@ -671,3 +679,17 @@ Facts retain original row/cell/text/source-value refs from the Gate 1 complete
 unit. Segmentation may rebase private payload indices but MUST NOT replace or
 mint those source refs. A fact set derived from a legacy preview cannot be used
 as whole-source completion evidence.
+
+## 20. Candidate-bound materialization (2026-07-11)
+
+The final `broker_reports_source_facts_v0` shape and validator authority do not
+change in candidate-binding mode. A pending fact may be created only after the
+binding validator passes an exact package candidate/role/relation selection.
+The materializer copies the selected candidate's mechanically normalized value
+and existing refs; it cannot choose a candidate, role, relation, fact type or
+ambiguity resolution.
+
+The strict source-fact validator still independently resolves source refs,
+reproduces normalized values, enforces issue/completeness and audit rules, and
+assigns deterministic fact ids. Candidate-binding validation is an additional
+fail-closed precondition, not a substitute for this contract.

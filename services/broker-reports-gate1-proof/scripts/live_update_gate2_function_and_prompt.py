@@ -29,7 +29,7 @@ PROMPT_CONTRACT_PATH = (
 FUNCTION_ID = "broker_reports_gate2_source_fact_pipe"
 PROMPT_ID = "broker_reports_gate2_source_fact_prompt_v0"
 PROMPT_COMMAND = "broker_gate2_source_facts_v0"
-PROMPT_VERSION = "gate2-source-facts-v0-2026-07-10-implementation"
+PROMPT_VERSION = "2026-07-11-provider-factory-v0"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -41,6 +41,7 @@ from live_no_rag_source_intake_smoke import (
     _signin,
     _url,
 )
+from build_openwebui_pipe_bundle import assert_gate2_bundle_contract
 from broker_reports_gate1 import gate2_prompt_hash, source_facts_schema_hash
 
 
@@ -53,10 +54,26 @@ def main() -> int:
     parser.add_argument("--prompt-version", default=PROMPT_VERSION)
     args = parser.parse_args()
 
+    subprocess.run(
+        [
+            sys.executable,
+            str(SERVICE_ROOT / "scripts" / "build_openwebui_pipe_bundle.py"),
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     env = _read_env(Path(args.env_file))
     base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     ssh_target = args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
     bundle_source = BUNDLE_PATH.read_text(encoding="utf-8")
+    assert_gate2_bundle_contract(
+        bundle_source,
+        runtime_factory="Gate2SourceFactRuntimeFactory",
+    )
     bundle_sha = hashlib.sha256(bundle_source.encode("utf-8")).hexdigest()
     prompt_content = _prompt_content_from_contract(
         PROMPT_CONTRACT_PATH,
@@ -92,10 +109,12 @@ def main() -> int:
         prompt_command=args.prompt_command,
         prompt_version=args.prompt_version,
     )
-    if prompt_summary.get("prompt_hash") != gate2_prompt_hash(prompt_content):
-        raise RuntimeError("gate2_managed_prompt_hash_mismatch")
-    if prompt_summary.get("output_schema_hash") != source_facts_schema_hash():
-        raise RuntimeError("gate2_managed_prompt_schema_hash_mismatch")
+    _assert_prompt_readback(
+        prompt_summary,
+        expected_prompt_hash=gate2_prompt_hash(prompt_content),
+        expected_content_hash=hashlib.sha256(prompt_content.encode("utf-8")).hexdigest(),
+        expected_schema_hash=source_facts_schema_hash(),
+    )
 
     output = {
         "status": "passed",
@@ -107,6 +126,8 @@ def main() -> int:
             "live_content_sha256": live_sha,
             "contains_runtime_factory": "Gate2SourceFactRuntimeFactory" in str(function_after.get("content") or ""),
             "contains_validator_factory": "Gate2SourceFactValidatorFactory" in str(function_after.get("content") or ""),
+            "contains_model_client_factory": "Gate2StructuredModelClientFactory" in str(function_after.get("content") or ""),
+            "bundle_contract_validated": True,
         },
         "managed_prompt": prompt_summary,
     }
@@ -119,6 +140,25 @@ def _prompt_content_from_contract(path: Path, marker: str) -> str:
     start = text.index(marker)
     fence_end = text.index("\n```", start)
     return text[start:fence_end].strip()
+
+
+def _assert_prompt_readback(
+    prompt_summary: dict[str, Any],
+    *,
+    expected_prompt_hash: str,
+    expected_content_hash: str,
+    expected_schema_hash: str,
+) -> None:
+    if prompt_summary.get("prompt_hash") != expected_prompt_hash:
+        raise RuntimeError("gate2_managed_prompt_hash_mismatch")
+    if prompt_summary.get("prompt_hash_matches_expected") is not True:
+        raise RuntimeError("gate2_managed_prompt_readback_mismatch")
+    if prompt_summary.get("content_sha256") != expected_content_hash:
+        raise RuntimeError("gate2_managed_prompt_content_readback_mismatch")
+    if prompt_summary.get("output_schema_hash") != expected_schema_hash:
+        raise RuntimeError("gate2_managed_prompt_schema_hash_mismatch")
+    if prompt_summary.get("structured_output_required") is not True:
+        raise RuntimeError("gate2_managed_prompt_strict_output_missing")
 
 
 def _get_function(session: requests.Session, base_url: str) -> dict[str, Any] | None:
@@ -225,6 +265,7 @@ def _seed_prompt(
     }
     prompt_sha = gate2_prompt_hash(prompt_content)
     remote_code = r'''
+import hashlib
 import json
 import sqlite3
 import time
@@ -237,7 +278,6 @@ meta_json = __META_JSON__
 tags_json = __TAGS_JSON__
 data_json = __DATA_JSON__
 prompt_hash_value = __PROMPT_HASH__
-output_schema_hash = __OUTPUT_SCHEMA_HASH__
 
 conn = sqlite3.connect("/app/backend/data/webui.db")
 conn.row_factory = sqlite3.Row
@@ -282,22 +322,34 @@ try:
         action = "created"
     conn.commit()
     row = conn.execute(
-        "select id, command, version_id, tags, meta, length(content) as content_length from prompt where id = ?",
+        "select id, command, version_id, tags, meta, content from prompt where id = ?",
         (prompt_id,),
     ).fetchone()
+    persisted_content = str(row["content"] or "")
+    persisted_meta = json.loads(row["meta"])
+    material = (
+        persisted_content.replace("\r\n", "\n").strip()
+        + "\nprompt_contract:broker_reports_source_fact_prompt_v0"
+        + "\ninput_schema:broker_reports_source_fact_package_v0"
+        + "\noutput_schema_id:broker_reports.source_facts.schema.v0"
+        + "\noutput_schema_version:broker_reports_source_facts_v0"
+    )
+    persisted_prompt_hash = hashlib.sha256(material.encode("utf-8")).hexdigest()
     print(json.dumps({
         "action": action,
         "prompt_ref": row["id"],
         "command": row["command"],
         "version": row["version_id"],
-        "prompt_hash": prompt_hash_value,
-        "content_length": row["content_length"],
+        "prompt_hash": persisted_prompt_hash,
+        "prompt_hash_matches_expected": persisted_prompt_hash == prompt_hash_value,
+        "content_sha256": hashlib.sha256(persisted_content.encode("utf-8")).hexdigest(),
+        "content_length": len(persisted_content),
         "tags": json.loads(row["tags"]),
-        "template_id": json.loads(row["meta"])["template_id"],
-        "output_schema_id": json.loads(row["meta"])["output_schema_id"],
-        "output_schema_version": json.loads(row["meta"])["output_schema_version"],
-        "output_schema_hash": output_schema_hash,
-        "structured_output_required": json.loads(row["meta"])["structured_output_required"],
+        "template_id": persisted_meta["template_id"],
+        "output_schema_id": persisted_meta["output_schema_id"],
+        "output_schema_version": persisted_meta["output_schema_version"],
+        "output_schema_hash": persisted_meta["output_schema_hash"],
+        "structured_output_required": persisted_meta["structured_output_required"],
     }, ensure_ascii=False, sort_keys=True))
 finally:
     conn.close()
@@ -311,7 +363,6 @@ finally:
         "__TAGS_JSON__": json.dumps(json.dumps(tags, ensure_ascii=False), ensure_ascii=False),
         "__DATA_JSON__": json.dumps(json.dumps(data, ensure_ascii=False), ensure_ascii=False),
         "__PROMPT_HASH__": json.dumps(prompt_sha, ensure_ascii=False),
-        "__OUTPUT_SCHEMA_HASH__": json.dumps(source_facts_schema_hash(), ensure_ascii=False),
     }
     for needle, replacement in replacements.items():
         remote_code = remote_code.replace(needle, replacement)

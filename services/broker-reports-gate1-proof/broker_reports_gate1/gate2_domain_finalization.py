@@ -316,17 +316,30 @@ def _fill_mechanical_values(
             item
         )
     for field, candidates in candidates_by_field.items():
-        if len(candidates) != 1 or field not in normalized:
+        if field not in normalized:
             continue
-        item = candidates[0]
         refs = _string_list(original.get(field))
         value = normalized.get(field)
-        if not refs and value is None:
+        referenced = [
+            item
+            for item in candidates
+            if refs == [str(item.get("source_value_ref") or "")]
+        ]
+        matching_value = [
+            item
+            for item in candidates
+            if value is not None
+            and str(value) == str(item.get("normalized_value"))
+        ]
+        if not refs and value is None and len(candidates) == 1:
+            item = candidates[0]
             original[field] = [str(item["source_value_ref"])]
             normalized[field] = str(item["normalized_value"])
-        elif not refs and str(value) == str(item["normalized_value"]):
+        elif not refs and len(matching_value) == 1:
+            item = matching_value[0]
             original[field] = [str(item["source_value_ref"])]
-        elif refs == [str(item["source_value_ref"])] and value is None:
+        elif len(referenced) == 1 and value is None:
+            item = referenced[0]
             normalized[field] = str(item["normalized_value"])
     fact["normalized_values"] = normalized
     fact["original_value_refs"] = original

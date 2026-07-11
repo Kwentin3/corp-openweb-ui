@@ -35,6 +35,11 @@ def render_safe_report(package: dict) -> dict:
         if isinstance(package.get("full_source_coverage_summary"), dict)
         else {}
     )
+    table_projection_summary = (
+        package.get("table_projection_summary")
+        if isinstance(package.get("table_projection_summary"), dict)
+        else {}
+    )
 
     report = {
         "schema_version": SAFE_REPORT_SCHEMA,
@@ -78,6 +83,7 @@ def render_safe_report(package: dict) -> dict:
         else None,
         "domain_ingestion_summary": copy.deepcopy(domain_ingestion_summary) if domain_ingestion_summary else None,
         "full_source_coverage_summary": copy.deepcopy(full_source_coverage_summary),
+        "table_projection_summary": copy.deepcopy(table_projection_summary),
         "validation_result": validation_result,
         "document_metadata_passport_summary": copy.deepcopy(passport_summary) if passport_summary else None,
         "gate1_metadata_gap_report_summary": copy.deepcopy(gap_report.get("summary")) if gap_report else None,
@@ -112,6 +118,9 @@ def render_safe_report(package: dict) -> dict:
             ),
             "private_normalized_source_units_ref": safe_artifact_refs.get(
                 "private_normalized_source_units_ref"
+            ),
+            "private_normalized_table_projections_count": len(
+                package.get("private_normalized_table_projections", [])
             ),
             "full_source_raw_content_chat_visible": False,
             "chat_visible_raw_slice_content": False,

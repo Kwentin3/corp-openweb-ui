@@ -1,0 +1,826 @@
+from __future__ import annotations
+
+import ast
+import asyncio
+import copy
+import json
+import sys
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+MODEL_MODULE_PATHS = (
+    ROOT / "broker_reports_gate1" / "gate2_model_contracts.py",
+    ROOT / "broker_reports_gate1" / "gate2_model_requests.py",
+    ROOT / "broker_reports_gate1" / "gate2_model_clients.py",
+)
+
+from broker_reports_gate1.gate2_model_clients import (  # noqa: E402
+    FACTORY_REQUIRED,
+    FORBIDDEN,
+    Gate2StructuredModelClientFactory,
+)
+from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
+    GATE2_PROVIDER_PROFILES,
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClientConfig,
+    Gate2StructuredModelResult,
+    gate2_provider_profile,
+)
+from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
+    DOMAIN_REQUEST_PROFILE,
+    GATE2_REQUEST_PROFILES,
+    SOURCE_REQUEST_PROFILE,
+)
+from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
+    Gate2ManagedPrompt,
+    Gate2PromptError,
+    gate2_prompt_hash,
+)
+
+
+EXPECTED_PROVIDER_STATUSES = {
+    "openai_gpt": "approved",
+    "anthropic_claude": "probe_required",
+    "google_gemini": "probe_required",
+    "deepseek": "unsupported",
+    "zai_glm": "unsupported",
+    "alibaba_qwen": "unsupported",
+}
+
+_DEFAULT_RESPONSE_FORMAT = object()
+
+
+class CompletionBoundary:
+    def __init__(self, response: Any) -> None:
+        self.response = response
+        self.resolved_user_ids: list[str] = []
+        self.calls: list[dict[str, Any]] = []
+
+    def resolve(self, user_id: str):
+        self.resolved_user_ids.append(user_id)
+        return self.complete, SimpleNamespace(id=user_id, role="admin")
+
+    def complete(
+        self,
+        *,
+        request,
+        form_data,
+        user,
+        bypass_filter=False,
+        bypass_system_prompt=False,
+    ):
+        self.calls.append(
+            {
+                "request": request,
+                "form_data": copy.deepcopy(form_data),
+                "user": user,
+                "bypass_filter": bypass_filter,
+                "bypass_system_prompt": bypass_system_prompt,
+            }
+        )
+        return copy.deepcopy(self.response)
+
+
+class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
+    def test_registry_and_default_capability_matrix_are_explicit_and_fail_closed(self):
+        self.assertEqual(
+            {profile.profile_id: profile.gate2_status for profile in GATE2_PROVIDER_PROFILES},
+            EXPECTED_PROVIDER_STATUSES,
+        )
+        self.assertEqual(
+            GATE2_REQUEST_PROFILES,
+            (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE),
+        )
+        self.assertEqual(gate2_provider_profile("gpt").profile_id, "openai_gpt")
+        self.assertEqual(gate2_provider_profile("anthropic").profile_id, "anthropic_claude")
+        self.assertEqual(gate2_provider_profile("google").profile_id, "google_gemini")
+        self.assertEqual(gate2_provider_profile("z.ai").profile_id, "zai_glm")
+        self.assertEqual(gate2_provider_profile("alibaba").profile_id, "alibaba_qwen")
+
+        for provider_profile_id, expected_status in EXPECTED_PROVIDER_STATUSES.items():
+            for request_profile in GATE2_REQUEST_PROFILES:
+                with self.subTest(
+                    provider_profile_id=provider_profile_id,
+                    request_profile=request_profile,
+                ):
+                    boundary = CompletionBoundary({"content": {"ok": True}})
+                    factory = self._factory(
+                        request_profile=request_profile,
+                        provider_profile_id=provider_profile_id,
+                        boundary=boundary,
+                    )
+                    if expected_status == "approved":
+                        client = factory.create()
+                        self.assertEqual(client.provider_profile.profile_id, provider_profile_id)
+                        self.assertEqual(client.request_profile, request_profile)
+                    else:
+                        with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                            factory.create()
+                        self.assertEqual(
+                            rejected.exception.code,
+                            "gate2_no_strict_structured_provider_available",
+                        )
+                    self.assertEqual(boundary.resolved_user_ids, [])
+                    self.assertEqual(boundary.calls, [])
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as unknown:
+            gate2_provider_profile("unknown-provider")
+        self.assertEqual(unknown.exception.code, "gate2_provider_profile_unknown")
+
+    def test_capability_probe_runs_one_controlled_strict_call_for_every_matrix_entry(self):
+        for provider_profile_id in EXPECTED_PROVIDER_STATUSES:
+            for request_profile in GATE2_REQUEST_PROFILES:
+                with self.subTest(
+                    provider_profile_id=provider_profile_id,
+                    request_profile=request_profile,
+                ):
+                    expected_content = {
+                        "provider_profile_id": provider_profile_id,
+                        "request_profile": request_profile,
+                    }
+                    boundary = CompletionBoundary({"content": expected_content})
+                    client = self._factory(
+                        request_profile=request_profile,
+                        provider_profile_id=provider_profile_id,
+                        boundary=boundary,
+                        capability_probe=True,
+                    ).create()
+
+                    result = self._extract(
+                        client,
+                        prompt=self._prompt(request_profile),
+                        package=self._package(request_profile),
+                    )
+
+                    self.assertIsInstance(result, Gate2StructuredModelResult)
+                    self.assertEqual(result.content, expected_content)
+                    self.assertEqual(result.response_format_type, "json_schema")
+                    self.assertEqual(result.response_format_schema_mode, "strict_json_schema")
+                    self.assertFalse(result.fallback_used)
+                    self.assertEqual(boundary.resolved_user_ids, ["model-client-user"])
+                    self.assertEqual(len(boundary.calls), 1)
+                    self.assertEqual(
+                        boundary.calls[0]["form_data"]["response_format"],
+                        self._response_format(),
+                    )
+
+    def test_source_v0_request_and_result_are_observable_without_schema_rewrite(self):
+        response_format = self._response_format()
+        original_response_format = copy.deepcopy(response_format)
+        prompt = self._prompt(SOURCE_REQUEST_PROFILE)
+        package = self._package(SOURCE_REQUEST_PROFILE)
+        boundary = CompletionBoundary(
+            {"choices": [{"message": {"content": {"accepted": True}}}]}
+        )
+        client = self._factory(
+            request_profile=SOURCE_REQUEST_PROFILE,
+            boundary=boundary,
+        ).create()
+
+        result = self._extract(
+            client,
+            prompt=prompt,
+            package=package,
+            response_format=response_format,
+        )
+
+        self.assertEqual(result.content, {"accepted": True})
+        self.assertFalse(result.fallback_used)
+        self.assertEqual(response_format, original_response_format)
+        self.assertEqual(boundary.resolved_user_ids, ["model-client-user"])
+        self.assertEqual(len(boundary.calls), 1)
+        call = boundary.calls[0]
+        self.assertIs(call["request"], self.request)
+        self.assertTrue(call["bypass_filter"])
+        self.assertTrue(call["bypass_system_prompt"])
+        form_data = call["form_data"]
+        self.assertEqual(form_data["model"], "model-under-test")
+        self.assertFalse(form_data["stream"])
+        self.assertEqual(form_data["response_format"], original_response_format)
+        self.assertEqual([item["role"] for item in form_data["messages"]], ["system", "user"])
+        self.assertNotIn("{{source_fact_package_json}}", form_data["messages"][0]["content"])
+        self.assertIn(
+            json.dumps(package, ensure_ascii=False, sort_keys=True),
+            form_data["messages"][0]["content"],
+        )
+        user_request = json.loads(form_data["messages"][1]["content"])
+        self.assertEqual(user_request["task"], "extract_broker_reports_source_facts_v0")
+        self.assertEqual(user_request["package_ref"], package["package_artifact_ref"])
+        self.assertNotIn("private_source_marker", form_data["messages"][1]["content"])
+        self.assertEqual(
+            form_data["metadata"],
+            {
+                "broker_reports_gate2": {
+                    "source_fact_extraction": True,
+                    "structured_output_mode": "openwebui_response_format_json_schema",
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "output_schema_id": prompt.output_schema_id,
+                    "output_schema_version": prompt.output_schema_version,
+                    "output_schema_hash": package["output_schema"]["output_schema_hash"],
+                    "package_ref": package["package_artifact_ref"],
+                }
+            },
+        )
+
+    def test_domain_v0_preserves_legacy_and_candidate_binding_semantics(self):
+        for candidate_binding, expected_task in (
+            (False, "extract_broker_reports_domain_source_facts_v0"),
+            (True, "select_broker_reports_candidate_bindings_v0"),
+        ):
+            with self.subTest(candidate_binding=candidate_binding):
+                package = self._package(
+                    DOMAIN_REQUEST_PROFILE,
+                    candidate_binding=candidate_binding,
+                )
+                prompt = self._prompt(DOMAIN_REQUEST_PROFILE)
+                boundary = CompletionBoundary({"response": {"accepted": True}})
+                client = self._factory(
+                    request_profile=DOMAIN_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+
+                result = self._extract(client, prompt=prompt, package=package)
+
+                self.assertEqual(result.content, {"accepted": True})
+                self.assertEqual(len(boundary.calls), 1)
+                form_data = boundary.calls[0]["form_data"]
+                user_request = json.loads(form_data["messages"][1]["content"])
+                self.assertEqual(user_request["task"], expected_task)
+                self.assertEqual(user_request["extractor_domain"], "income")
+                self.assertEqual(user_request["package_ref"], "pkg_domain")
+                self.assertEqual(user_request["allowed_fact_types"], ["income"])
+                if candidate_binding:
+                    self.assertIn("candidate ids", user_request["instruction"])
+                    self.assertIn("relation ids", user_request["instruction"])
+                else:
+                    self.assertIn("source_facts_v0", user_request["instruction"])
+                self.assertEqual(
+                    form_data["metadata"]["broker_reports_gate2"],
+                    {
+                        "domain_source_fact_extraction": True,
+                        "candidate_binding_enabled": candidate_binding,
+                        "extractor_domain": "income",
+                        "structured_output_mode": "openwebui_response_format_json_schema",
+                        "prompt_ref": prompt.prompt_ref,
+                        "prompt_hash": prompt.hash,
+                        "package_ref": "pkg_domain",
+                        "knowledge_rag_used": False,
+                        "vectorization_performed": False,
+                    },
+                )
+
+    def test_completion_signature_selection_calls_external_boundary_exactly_once(self):
+        signatures: list[tuple[str, Any, list[dict[str, Any]]]] = []
+
+        full_calls: list[dict[str, Any]] = []
+
+        def full(
+            *, request, form_data, user, bypass_filter, bypass_system_prompt
+        ):
+            full_calls.append(
+                {
+                    "request": request,
+                    "form_data": form_data,
+                    "user": user,
+                    "bypass_filter": bypass_filter,
+                    "bypass_system_prompt": bypass_system_prompt,
+                }
+            )
+            return {"content": "full"}
+
+        signatures.append(("full", full, full_calls))
+
+        keyword_calls: list[dict[str, Any]] = []
+
+        def keyword_only(*, request, form_data, user):
+            keyword_calls.append(
+                {"request": request, "form_data": form_data, "user": user}
+            )
+            return {"content": "keyword_only"}
+
+        signatures.append(("keyword_only", keyword_only, keyword_calls))
+
+        positional_calls: list[dict[str, Any]] = []
+
+        def positional_only(request, form_data, user, /):
+            positional_calls.append(
+                {"request": request, "form_data": form_data, "user": user}
+            )
+            return {"content": "positional_only"}
+
+        signatures.append(("positional_only", positional_only, positional_calls))
+
+        for expected, completion_fn, calls in signatures:
+            with self.subTest(signature=expected):
+                resolver_calls: list[str] = []
+
+                def resolver(user_id: str):
+                    resolver_calls.append(user_id)
+                    return completion_fn, SimpleNamespace(id=user_id)
+
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    completion_resolver=resolver,
+                ).create()
+                result = self._extract(
+                    client,
+                    prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                    package=self._package(SOURCE_REQUEST_PROFILE),
+                )
+                self.assertEqual(result.content, expected)
+                self.assertEqual(resolver_calls, ["model-client-user"])
+                self.assertEqual(len(calls), 1)
+
+        provider_calls: list[dict[str, Any]] = []
+
+        def provider_internal_type_error(
+            *, request, form_data, user, bypass_filter, bypass_system_prompt
+        ):
+            provider_calls.append({"form_data": form_data})
+            raise TypeError("provider failed after invocation")
+
+        def resolver(user_id: str):
+            return provider_internal_type_error, SimpleNamespace(id=user_id)
+
+        client = self._factory(
+            request_profile=SOURCE_REQUEST_PROFILE,
+            completion_resolver=resolver,
+        ).create()
+        with self.assertRaises(Gate2SourceFactRuntimeError) as failed:
+            self._extract(
+                client,
+                prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                package=self._package(SOURCE_REQUEST_PROFILE),
+            )
+        self.assertEqual(failed.exception.code, "gate2_model_call_failed")
+        self.assertEqual(failed.exception.message, "TypeError")
+        self.assertEqual(len(provider_calls), 1)
+
+    def test_async_dependencies_user_and_completion_are_supported_once(self):
+        calls: list[dict[str, Any]] = []
+
+        async def user_model(user_id: str):
+            return SimpleNamespace(id=user_id)
+
+        async def completion(
+            *, request, form_data, user, bypass_filter, bypass_system_prompt
+        ):
+            calls.append({"form_data": form_data, "user": user})
+            return {"content": {"async": True}}
+
+        async def resolver(user_id: str):
+            return completion, user_model(user_id)
+
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            completion_resolver=resolver,
+        ).create()
+        result = self._extract(
+            client,
+            prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+            package=self._package(DOMAIN_REQUEST_PROFILE),
+        )
+        self.assertEqual(result.content, {"async": True})
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["user"].id, "model-client-user")
+
+    def test_completion_response_shapes_have_terminal_observable_results(self):
+        body_response = SimpleNamespace(
+            body=json.dumps({"content": {"shape": "body"}}).encode("utf-8")
+        )
+        cases = (
+            (
+                "choices_message_string",
+                {"choices": [{"message": {"content": "message"}}]},
+                "message",
+            ),
+            (
+                "choices_message_object",
+                {"choices": [{"message": {"content": {"shape": "message"}}}]},
+                {"shape": "message"},
+            ),
+            ("choices_text", {"choices": [{"text": "text"}]}, "text"),
+            ("top_content", {"content": {"shape": "content"}}, {"shape": "content"}),
+            ("top_response", {"response": {"shape": "response"}}, {"shape": "response"}),
+            ("body", body_response, {"shape": "body"}),
+            ("plain_string", "plain", "plain"),
+        )
+        for name, response, expected in cases:
+            with self.subTest(name=name):
+                boundary = CompletionBoundary(response)
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                result = self._extract(
+                    client,
+                    prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                    package=self._package(SOURCE_REQUEST_PROFILE),
+                )
+                self.assertEqual(result.content, expected)
+                self.assertEqual(len(boundary.calls), 1)
+
+        invalid_cases = (
+            ("missing_content", {}, "gate2_model_invalid_response"),
+            (
+                "invalid_body",
+                SimpleNamespace(body=b"not-json"),
+                "gate2_model_invalid_response",
+            ),
+            ("unsupported_shape", object(), "gate2_model_invalid_response"),
+        )
+        for name, response, expected_code in invalid_cases:
+            with self.subTest(name=name):
+                boundary = CompletionBoundary(response)
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                        package=self._package(SOURCE_REQUEST_PROFILE),
+                    )
+                self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(len(boundary.calls), 1)
+
+    def test_provider_error_taxonomy_is_typed_private_and_never_retried(self):
+        common_cases = (
+            ("oneOf is unsupported", "gate2_model_schema_oneof_unsupported"),
+            ("response_format json_schema rejected", "gate2_model_schema_response_format_rejected"),
+            ("too many tokens", "gate2_model_context_budget_exceeded"),
+            (
+                "insufficient_quota exceeded your current quota",
+                "gate2_model_provider_quota_exceeded",
+            ),
+            ("rate limit exceeded", "gate2_model_provider_rate_limited"),
+            ("model not found", "gate2_model_unavailable"),
+            ("authentication api key failed", "gate2_model_provider_auth_failed"),
+            (
+                "provider service temporarily unavailable",
+                "gate2_model_provider_unavailable",
+            ),
+            ("upstream provider failed", "gate2_model_provider_error"),
+        )
+        for request_profile in GATE2_REQUEST_PROFILES:
+            for signal, expected_code in common_cases:
+                with self.subTest(request_profile=request_profile, signal=signal):
+                    payload = {"error": {"message": signal}}
+                    boundary = CompletionBoundary(payload)
+                    client = self._factory(
+                        request_profile=request_profile,
+                        boundary=boundary,
+                    ).create()
+                    with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                        self._extract(
+                            client,
+                            prompt=self._prompt(request_profile),
+                            package=self._package(request_profile),
+                        )
+                    self.assertEqual(rejected.exception.code, expected_code)
+                    self.assertEqual(rejected.exception.raw_output, payload)
+                    self.assertNotIn(signal, rejected.exception.message)
+                    self.assertEqual(len(boundary.calls), 1)
+
+        structured_status_cases = (
+            (
+                {"error": {"status": 429, "message": "request rejected"}},
+                "gate2_model_provider_rate_limited",
+            ),
+            (
+                {"error": {"code": "503", "message": "request rejected"}},
+                "gate2_model_provider_unavailable",
+            ),
+            (
+                {
+                    "error": {
+                        "status": 429,
+                        "code": "insufficient_quota",
+                        "message": "billing hard limit",
+                    }
+                },
+                "gate2_model_provider_quota_exceeded",
+            ),
+        )
+        for request_profile in GATE2_REQUEST_PROFILES:
+            for payload, expected_code in structured_status_cases:
+                with self.subTest(
+                    request_profile=request_profile,
+                    structured_status=payload,
+                ):
+                    boundary = CompletionBoundary(payload)
+                    client = self._factory(
+                        request_profile=request_profile,
+                        boundary=boundary,
+                    ).create()
+                    with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                        self._extract(
+                            client,
+                            prompt=self._prompt(request_profile),
+                            package=self._package(request_profile),
+                        )
+                    self.assertEqual(rejected.exception.code, expected_code)
+                    self.assertEqual(rejected.exception.raw_output, payload)
+                    self.assertEqual(len(boundary.calls), 1)
+
+        source_only_cases = (
+            (
+                "required must list all properties",
+                "gate2_model_schema_required_properties_invalid",
+            ),
+            (
+                "additionalProperties must be false",
+                "gate2_model_schema_additional_properties_invalid",
+            ),
+            (
+                "must have a 'type' key",
+                "gate2_model_schema_type_key_missing",
+            ),
+            ("invalid nullable", "gate2_model_schema_nullable_type_invalid"),
+            ("maximum context exceeded", "gate2_model_context_budget_exceeded"),
+        )
+        for signal, expected_code in source_only_cases:
+            with self.subTest(request_profile=SOURCE_REQUEST_PROFILE, signal=signal):
+                payload = {"detail": signal}
+                boundary = CompletionBoundary(payload)
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                        package=self._package(SOURCE_REQUEST_PROFILE),
+                    )
+                self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(rejected.exception.raw_output, payload)
+                self.assertEqual(len(boundary.calls), 1)
+
+    def test_invalid_context_prompt_schema_and_factory_config_stop_before_completion(self):
+        invalid_formats = (
+            None,
+            {},
+            {"type": "json_object"},
+            {"type": "json_schema", "json_schema": {"strict": False, "schema": {}}},
+            {"type": "json_schema", "json_schema": {"strict": True}},
+            {"type": "json_schema", "json_schema": {"strict": True, "schema": []}},
+        )
+        for invalid_format in invalid_formats:
+            with self.subTest(invalid_format=invalid_format):
+                boundary = CompletionBoundary({"content": {"unexpected": True}})
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                        package=self._package(SOURCE_REQUEST_PROFILE),
+                        response_format=invalid_format,
+                    )
+                self.assertEqual(
+                    rejected.exception.code,
+                    "gate2_strict_structured_output_required",
+                )
+                self.assertEqual(boundary.resolved_user_ids, [])
+                self.assertEqual(boundary.calls, [])
+
+        for request_profile in GATE2_REQUEST_PROFILES:
+            for user, request in (({}, self.request), (self.user, None)):
+                with self.subTest(
+                    request_profile=request_profile,
+                    user=user,
+                    request_present=request is not None,
+                ):
+                    boundary = CompletionBoundary({"content": {"unexpected": True}})
+                    client = Gate2StructuredModelClientFactory(
+                        config=Gate2StructuredModelClientConfig(
+                            request_profile=request_profile
+                        ),
+                        user=user,
+                        request=request,
+                        completion_resolver=boundary.resolve,
+                    ).create()
+                    with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                        self._extract(
+                            client,
+                            prompt=self._prompt(request_profile),
+                            package=self._package(request_profile),
+                        )
+                    self.assertEqual(rejected.exception.code, "gate2_model_unavailable")
+                    self.assertEqual(boundary.resolved_user_ids, [])
+                    self.assertEqual(boundary.calls, [])
+
+        for request_profile, expected_code in (
+            (SOURCE_REQUEST_PROFILE, "gate2_prompt_contract_mismatch"),
+            (DOMAIN_REQUEST_PROFILE, "gate2_domain_prompt_contract_mismatch"),
+        ):
+            with self.subTest(request_profile=request_profile, invalid_prompt=True):
+                boundary = CompletionBoundary({"content": {"unexpected": True}})
+                client = self._factory(
+                    request_profile=request_profile,
+                    boundary=boundary,
+                ).create()
+                with self.assertRaises(Gate2PromptError) as rejected:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(request_profile, marker=False),
+                        package=self._package(request_profile),
+                    )
+                self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(boundary.resolved_user_ids, [])
+                self.assertEqual(boundary.calls, [])
+
+        invalid_factory_cases = (
+            (
+                Gate2StructuredModelClientConfig(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    transport="provider_sdk",
+                ),
+                "gate2_model_transport_unsupported",
+            ),
+            (
+                Gate2StructuredModelClientConfig(request_profile="unknown_v0"),
+                "gate2_model_request_profile_unknown",
+            ),
+            (
+                Gate2StructuredModelClientConfig(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    provider_profile_id="unknown-provider",
+                ),
+                "gate2_provider_profile_unknown",
+            ),
+        )
+        for config, expected_code in invalid_factory_cases:
+            with self.subTest(config=config):
+                boundary = CompletionBoundary({"content": {"unexpected": True}})
+                with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
+                    Gate2StructuredModelClientFactory(
+                        config=config,
+                        user=self.user,
+                        request=self.request,
+                        completion_resolver=boundary.resolve,
+                    ).create()
+                self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(boundary.resolved_user_ids, [])
+                self.assertEqual(boundary.calls, [])
+
+    def test_factory_antidrift_contract_is_explicit(self):
+        self.assertIn("Gate2StructuredModelClientFactory.create", FACTORY_REQUIRED)
+        self.assertIn("must not call OpenWebUI completion functions", FORBIDDEN)
+        self.assertIn("provider SDKs directly", FORBIDDEN)
+
+    def test_model_factory_modules_are_closed_world_safe(self):
+        allowed_top_level_modules = {
+            "__future__",
+            "dataclasses",
+            "inspect",
+            "json",
+            "typing",
+        }
+        for path in MODEL_MODULE_PATHS:
+            with self.subTest(path=path.name):
+                source = path.read_text(encoding="utf-8")
+                tree = ast.parse(source)
+                for node in tree.body:
+                    if isinstance(node, ast.Import):
+                        self.assertTrue(
+                            all(
+                                alias.name.split(".", 1)[0]
+                                in allowed_top_level_modules
+                                for alias in node.names
+                            )
+                        )
+                    elif isinstance(node, ast.ImportFrom):
+                        if node.level == 0:
+                            self.assertIn(
+                                str(node.module or "").split(".", 1)[0],
+                                allowed_top_level_modules,
+                            )
+                self.assertNotIn("sys.path.insert", source)
+                self.assertNotIn("Path(__file__)", source)
+                self.assertNotIn("process.cwd", source)
+                self.assertNotIn("import requests", source)
+                self.assertNotIn("from requests", source)
+                self.assertNotIn("import httpx", source)
+                self.assertNotIn("from httpx", source)
+
+    def setUp(self) -> None:
+        self.user = {"id": "model-client-user", "role": "admin"}
+        self.request = object()
+
+    def _factory(
+        self,
+        *,
+        request_profile: str,
+        provider_profile_id: str = "openai_gpt",
+        boundary: CompletionBoundary | None = None,
+        completion_resolver=None,
+        capability_probe: bool = False,
+    ) -> Gate2StructuredModelClientFactory:
+        resolver = completion_resolver or (boundary.resolve if boundary else None)
+        return Gate2StructuredModelClientFactory(
+            config=Gate2StructuredModelClientConfig(
+                request_profile=request_profile,
+                provider_profile_id=provider_profile_id,
+                capability_probe=capability_probe,
+            ),
+            user=self.user,
+            request=self.request,
+            completion_resolver=resolver,
+        )
+
+    def _extract(
+        self,
+        client,
+        *,
+        prompt: Gate2ManagedPrompt,
+        package: dict[str, Any],
+        response_format: Any = _DEFAULT_RESPONSE_FORMAT,
+    ) -> Gate2StructuredModelResult:
+        actual_response_format = (
+            self._response_format()
+            if response_format is _DEFAULT_RESPONSE_FORMAT
+            else response_format
+        )
+        return asyncio.run(
+            client.extract(
+                prompt=prompt,
+                package=package,
+                model_id="model-under-test",
+                response_format=actual_response_format,
+            )
+        )
+
+    def _prompt(
+        self, request_profile: str, *, marker: bool = True
+    ) -> Gate2ManagedPrompt:
+        marker_text = "{{source_fact_package_json}}" if marker else "missing marker"
+        content = f"Managed {request_profile} prompt before {marker_text} after."
+        return Gate2ManagedPrompt(
+            prompt_ref=f"prompt_{request_profile}_test",
+            command=f"broker_gate2_{request_profile}_test",
+            version="test-v1",
+            content=content,
+            hash=gate2_prompt_hash(content),
+            source="test_boundary",
+            template_id=f"broker_reports.{request_profile}.test",
+            template_kind=f"broker_reports_{request_profile}",
+            prompt_contract_id="broker_reports_source_fact_prompt_v0",
+            input_schema_version="broker_reports_source_fact_package_v0",
+            output_schema_id="broker_reports.source_facts.schema.v0",
+            output_schema_version="broker_reports_source_facts_v0",
+            tags=("broker-reports-gate2", "structured-output"),
+            safe_metadata={"request_profile": request_profile},
+        )
+
+    def _package(
+        self,
+        request_profile: str,
+        *,
+        candidate_binding: bool = False,
+    ) -> dict[str, Any]:
+        if request_profile == SOURCE_REQUEST_PROFILE:
+            return {
+                "package_artifact_ref": "pkg_source",
+                "output_schema": {"output_schema_hash": "schema-hash-source"},
+                "private_source_marker": "private_source_marker",
+            }
+        package = {
+            "package_artifact_ref": "pkg_domain",
+            "extractor_domain": "income",
+            "allowed_fact_types": ["income"],
+            "output_schema": {"output_schema_hash": "schema-hash-domain"},
+        }
+        if candidate_binding:
+            package["candidate_binding_mode"] = "candidate_ids_and_semantic_roles_v0"
+        return package
+
+    @staticmethod
+    def _response_format() -> dict[str, Any]:
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "broker_reports_source_facts_v0",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+
+if __name__ == "__main__":
+    unittest.main()

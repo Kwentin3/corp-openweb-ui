@@ -352,6 +352,7 @@ class Gate2SourceFactValidator:
                 "private_normalized_table_slice_v0",
                 "private_normalized_text_slice_v0",
                 "private_normalized_source_unit_v0",
+                "broker_reports_normalized_table_projection_v0",
             }:
                 errors.append(_error("source_fact_scope_mismatch", artifact_ref))
 

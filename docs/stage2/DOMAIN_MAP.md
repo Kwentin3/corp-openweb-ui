@@ -167,14 +167,16 @@ Owner type:
 Inputs:
 
 - PRD-1.
-- Test data.
-- Claude example.
+- Supported native tables and PDF text-layer source units.
+- Customer methodology and representative data for pilot acceptance.
 
 Outputs:
 
 - Broker blueprint.
-- Prompts.
-- Acceptance cases.
+- Source-format-neutral table projection with original-value refs.
+- Bounded candidate-binding contracts, managed Prompts and strict validators.
+- Provider-capability factory with fail-closed policy.
+- Acceptance cases and compact safe summaries.
 
 Risks:
 
@@ -184,8 +186,9 @@ Risks:
 
 Dependencies:
 
-- Documents/OCR.
-- Providers.
+- Deterministic normalization for supported native and PDF text-layer inputs.
+- Separate OCR decision for scanned/image-only pages.
+- Approved strict structured-output provider profile.
 - Data policy.
 
 Open questions:
@@ -195,7 +198,13 @@ Open questions:
 
 Status:
 
-- Blocked by customer test data.
+- Technical normalization and bounded Gate 2 contour are implemented and
+  locally verified. One narrow vertical passed on the preceding live bundle;
+  the current candidate-binding/provider-factory bundle is deployed with
+  repo/live parity, but semantic acceptance did not pass: the approved-provider
+  canary stopped on quota with zero accepted facts, and no active DCP existed
+  for a real native/PDF rerun. Full customer-pilot acceptance remains blocked
+  by methodology, representative data, expected outputs and data policy.
 
 ## Web-search
 

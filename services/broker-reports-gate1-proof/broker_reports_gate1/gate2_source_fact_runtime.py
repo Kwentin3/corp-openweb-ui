@@ -4,7 +4,7 @@ import copy
 import inspect
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
 from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPolicy, utc_now_iso
@@ -12,6 +12,11 @@ from .artifact_resolver import ArtifactResolver
 from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
 from .contracts import stable_digest
 from .gate2_input_readiness import Gate2InputReadinessFactory
+from .gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClient,
+    Gate2StructuredModelResult,
+)
 from .gate2_source_fact_contracts import (
     EXTRACTION_RUN_SCHEMA_VERSION,
     ISSUE_LINKAGE_SCHEMA_VERSION,
@@ -42,36 +47,6 @@ FORBIDDEN = (
 )
 
 ALLOWED_WAVES = {"primary", "non_primary", "all"}
-
-
-class Gate2SourceFactRuntimeError(RuntimeError):
-    def __init__(self, code: str, message: str, *, raw_output: Any = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.raw_output = raw_output
-
-
-@dataclass(frozen=True)
-class Gate2StructuredModelResult:
-    content: Any
-    structured_output_mode: str = "openwebui_response_format_json_schema"
-    response_format_type: str = "json_schema"
-    response_format_schema_mode: str | None = "strict_json_schema"
-    fallback_used: bool = False
-    repair_attempt_count: int = 0
-
-
-class Gate2StructuredModelClient(Protocol):
-    async def extract(
-        self,
-        *,
-        prompt: Gate2ManagedPrompt,
-        package: dict[str, Any],
-        model_id: str,
-        response_format: dict[str, Any],
-    ) -> Gate2StructuredModelResult:
-        ...
 
 
 @dataclass(frozen=True)

@@ -5,7 +5,7 @@ from typing import Iterable
 
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
-NORMALIZER_VERSION = "gate1_pdf_layout_rich_slice2_v0"
+NORMALIZER_VERSION = "gate1_normalized_table_projection_v0"
 SAFETY_STATEMENT = (
     "Gate 1 did not calculate tax, extract source facts through LLM, generate "
     "declaration, generate XLS/XLSX or file with FNS."
@@ -31,6 +31,9 @@ SUPPORTED_CONTRACTS = [
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
     "full_source_coverage_summary_v0",
+    "broker_reports_normalized_table_projection_v0",
+    "broker_reports_table_projection_coverage_v0",
+    "broker_reports_table_reconstruction_quality_v0",
     "source_unit_provenance_v0",
     "source_unit_coverage_v0",
     "taxonomy_candidates_v0",

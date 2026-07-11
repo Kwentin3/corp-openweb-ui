@@ -25,6 +25,8 @@ from broker_reports_gate1 import (
     FileInput,
     Gate1Normalizer,
     Gate2ManagedPrompt,
+    Gate2InputReadinessConfig,
+    Gate2InputReadinessFactory,
     Gate2ManagedPromptResolverFactory,
     Gate2DomainSourceFactRuntimeConfig,
     Gate2DomainSourceFactRuntimeFactory,
@@ -149,6 +151,22 @@ class NarrowDomainBoundaryModel:
         )
         helper_package = copy.deepcopy(package)
         helper_unit = helper_package["source_unit"]
+        table_projection_mode = (
+            helper_unit.get("source_input_mode") == "normalized_table_projection"
+        )
+        if table_projection_mode:
+            for item in helper_unit["row_provenance"]:
+                item["row_kind"] = (
+                    "fact"
+                    if item.get("row_role")
+                    not in {"header_row", "repeated_header_row", "blank_row", "layout_row"}
+                    else "layout"
+                )
+                item["row_range_ref"] = helper_unit["table_ref"]
+            for item in helper_unit["cell_provenance"]:
+                item["source_value_ref"] = next(
+                    iter(item.get("source_value_refs") or []), None
+                )
         ordinal_map = {
             int(item["row_ordinal"]): index
             for index, item in enumerate(helper_unit["row_provenance"], start=1)
@@ -161,6 +179,9 @@ class NarrowDomainBoundaryModel:
         candidate["facts"] = [
             item for item in candidate["facts"] if item["fact_type"] == domain
         ]
+        if table_projection_mode:
+            for fact in candidate["facts"]:
+                fact["source_location"]["row_range_ref"] = None
         selected = package["coverage_expectation"]["selected_source_refs"]
         candidate["coverage"]["fact_covered_refs"] = selected
         candidate["coverage"]["no_fact_results"] = []
@@ -168,6 +189,121 @@ class NarrowDomainBoundaryModel:
             len(item["linked_issue_refs"]) for item in candidate["facts"]
         )
         return Gate2StructuredModelResult(content=candidate)
+
+
+class CandidateBindingBoundaryModel:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        candidate_set = package["source_value_candidate_set"]
+        relation_set = package["candidate_relation_set"]
+        profile = package["candidate_binding_profile"]
+        selected_refs = package["coverage_expectation"]["selected_source_refs"]
+        binding_results = []
+        selected_candidates: list[dict[str, Any]] = []
+        for source_ref in selected_refs:
+            row_candidates = [
+                item
+                for item in candidate_set["candidates"]
+                if item["row_ref"] == source_ref
+            ]
+            selected_bindings = []
+            used_candidate_ids: set[str] = set()
+            selected_roles: set[str] = set()
+
+            def select_role(role: str) -> None:
+                if role in selected_roles:
+                    return
+                spec = profile["roles"][role]
+                candidate = next(
+                    (
+                        item
+                        for item in row_candidates
+                        if item["candidate_id"] not in used_candidate_ids
+                        and role in item["allowed_semantic_roles"]
+                        and item["candidate_kind"] in spec["candidate_kinds"]
+                    ),
+                    None,
+                )
+                if candidate is None:
+                    raise AssertionError(
+                        f"synthetic boundary cannot satisfy required role {role}"
+                    )
+                selected_bindings.append(
+                    {
+                        "fact_field_path": spec["fact_field_path"],
+                        "candidate_id": candidate["candidate_id"],
+                        "semantic_role": role,
+                    }
+                )
+                selected_candidates.append(copy.deepcopy(candidate))
+                selected_roles.add(role)
+                used_candidate_ids.add(candidate["candidate_id"])
+
+            for role in profile["required_roles"]:
+                select_role(role)
+            for role_group in profile["required_role_groups"]:
+                if not set(role_group) & selected_roles:
+                    select_role(
+                        next(
+                            role
+                            for role in role_group
+                            if any(
+                                role in item["allowed_semantic_roles"]
+                                for item in row_candidates
+                            )
+                        )
+                    )
+            relation_ids = [
+                relation["relation_id"]
+                for kind in profile["required_relation_kinds"]
+                for relation in relation_set["relations"]
+                if relation["relation_kind"] == kind
+                and relation["row_refs"] == [source_ref]
+            ][: len(profile["required_relation_kinds"])]
+            binding_results.append(
+                {
+                    "source_ref": source_ref,
+                    "fact_type": profile["domain"],
+                    "selected_bindings": selected_bindings,
+                    "selected_relation_ids": relation_ids,
+                    "subtype_candidate": "unknown",
+                    "confidence": "high",
+                    "completeness": (
+                        "partial" if package["allowed_issue_refs"] else "complete"
+                    ),
+                    "uncertainty_codes": [],
+                    "resolved_ambiguity_group_refs": sorted(
+                        {
+                            item["ambiguity_group_ref"]
+                            for item in selected_candidates
+                            if item.get("ambiguity_group_ref")
+                            and item["row_ref"] == source_ref
+                        }
+                    ),
+                }
+            )
+        selection = {
+            "schema_version": "broker_reports_candidate_binding_output_v0",
+            "package_id": package["package_id"],
+            "candidate_set_id": candidate_set["candidate_set_id"],
+            "candidate_set_hash": candidate_set["candidate_set_hash"],
+            "relation_set_id": relation_set["relation_set_id"],
+            "relation_set_hash": relation_set["relation_set_hash"],
+            "binding_results": binding_results,
+            "no_fact_results": [],
+        }
+        self.calls.append(
+            {
+                "candidate_binding_mode": package["candidate_binding_mode"],
+                "profile_domain": profile["domain"],
+                "response_format": copy.deepcopy(response_format),
+                "selection": copy.deepcopy(selection),
+                "selected_candidates": selected_candidates,
+            }
+        )
+        return Gate2StructuredModelResult(content=selection)
 
 
 class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
@@ -393,6 +529,210 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             "not_applicable_parent_complete",
         )
         self.assertEqual({item["domain"] for item in model.calls}, {"trade_operation"})
+
+    def test_domain_runtime_opt_in_consumes_validated_table_projection(self):
+        readiness = Gate2InputReadinessFactory(
+            store=self.store,
+            config=Gate2InputReadinessConfig(prefer_table_projections=True),
+        ).create().audit_and_build(
+            domain_context_packet_ref=self.dcp_ref,
+            context=self.context,
+        )
+        self.assertEqual(
+            readiness.validation["validator_status"],
+            "passed",
+            readiness.validation,
+        )
+        model = NarrowDomainBoundaryModel()
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"income": self._domain_prompt("income")}
+            ),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-domain-model",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=True,
+                source_segment_start=4,
+                source_segment_limit=1,
+                table_segment_max_refs=1,
+                domain_allowlist=("income",),
+                max_repair_attempts=0,
+                prefer_table_projections=True,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=self.context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        self.assertEqual(
+            result.terminal_status,
+            "completed",
+            [
+                self.store.get_record_unchecked(ref).payload
+                for ref in result.validation_refs
+            ],
+        )
+        self.assertEqual(len(result.source_facts_refs), 1)
+        package = ArtifactResolver(self.store).resolve(
+            result.domain_package_refs[0], self.context
+        )["payload"]
+        unit = package["source_unit"]
+        self.assertEqual(unit["source_input_mode"], "normalized_table_projection")
+        self.assertEqual(
+            unit["private_slice_artifact_ref"],
+            unit["table_projection_artifact_ref"],
+        )
+        self.assertIn(unit["table_projection_id"], package["allowed_evidence_refs"])
+        self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
+        self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
+
+    def test_domain_runtime_candidate_binding_opt_in_reaches_strict_validation_and_stitch(self):
+        model = CandidateBindingBoundaryModel()
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"income": self._domain_prompt("income")}
+            ),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-candidate-binding-model",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=True,
+                source_segment_start=4,
+                source_segment_limit=1,
+                table_segment_max_refs=1,
+                domain_allowlist=("income",),
+                max_repair_attempts=0,
+                prefer_table_projections=True,
+                candidate_binding_enabled=True,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=self.context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        resolver = ArtifactResolver(self.store)
+        validations = [
+            resolver.resolve(ref, self.context)["payload"]
+            for ref in result.validation_refs
+        ]
+        self.assertEqual(result.terminal_status, "completed", validations)
+        self.assertEqual(len(model.calls), 1)
+        self.assertEqual(len(result.domain_package_refs), 1)
+        self.assertEqual(len(result.source_value_candidate_set_refs), 1)
+        self.assertEqual(len(result.candidate_relation_set_refs), 1)
+        self.assertEqual(len(result.candidate_binding_validation_refs), 1)
+        self.assertEqual(len(result.source_facts_refs), 1)
+        self.assertEqual(len(result.raw_output_refs), 1)
+        self.assertEqual(len(result.validation_refs), 1)
+
+        package = resolver.resolve(
+            result.domain_package_refs[0], self.context
+        )["payload"]
+        raw = resolver.resolve(result.raw_output_refs[0], self.context)["payload"]
+        facts = resolver.resolve(result.source_facts_refs[0], self.context)["payload"]
+        validation = validations[0]
+        call = model.calls[0]
+        selected_candidate = call["selected_candidates"][0]
+        fact = facts["facts"][0]
+
+        self.assertEqual(
+            package["candidate_binding_mode"],
+            "candidate_ids_and_semantic_roles_v0",
+        )
+        persisted_binding_artifacts = [
+            self.store.get_record_unchecked(ref)
+            for ref in (
+                result.source_value_candidate_set_refs
+                + result.candidate_relation_set_refs
+                + result.candidate_binding_validation_refs
+            )
+        ]
+        self.assertEqual(
+            [item.artifact_type for item in persisted_binding_artifacts],
+            [
+                "broker_reports_source_value_candidate_set_v0",
+                "broker_reports_candidate_relation_set_v0",
+                "broker_reports_candidate_binding_validation_v0",
+            ],
+        )
+        self.assertTrue(
+            all(
+                item.visibility == "private_case"
+                and item.storage_backend == "project_artifact_payload"
+                for item in persisted_binding_artifacts
+            )
+        )
+        self.assertEqual(package["candidate_binding_profile"]["domain"], "income")
+        self.assertTrue(package["source_value_candidate_set"]["candidates"])
+        self.assertEqual(call["candidate_binding_mode"], package["candidate_binding_mode"])
+        self.assertEqual(call["profile_domain"], "income")
+        self.assertEqual(
+            call["response_format"]["json_schema"]["name"],
+            "broker_reports_candidate_binding_output_v0",
+        )
+        self.assertTrue(call["response_format"]["json_schema"]["strict"])
+        self.assertEqual(
+            raw["raw_output"]["schema_version"],
+            "broker_reports_candidate_binding_output_v0",
+        )
+        self.assertEqual(raw["model_call_status"], "passed")
+
+        self.assertEqual(validation["validator_status"], "passed", validation)
+        self.assertEqual(validation["errors"], [])
+        self.assertEqual(validation["privacy_status"], "passed")
+        self.assertEqual(validation["boundary_status"], "passed")
+        self.assertEqual(facts["validator_status"], "passed")
+        self.assertEqual(facts["coverage"]["coverage_status"], "complete")
+        self.assertEqual(
+            facts["coverage"]["fact_covered_refs"],
+            package["coverage_expectation"]["selected_source_refs"],
+        )
+        self.assertEqual(fact["validator_status"], "passed")
+        self.assertEqual(fact["validation_ref"], result.validation_refs[0])
+        self.assertTrue(fact["fact_id"].startswith("sf_"))
+        self.assertEqual(fact["fact_type"], "income")
+        self.assertEqual(
+            fact["normalized_values"]["amount"],
+            selected_candidate["normalized_value"],
+        )
+        self.assertEqual(
+            fact["original_value_refs"]["amount"],
+            selected_candidate["source_value_refs"],
+        )
+        self.assertEqual(
+            fact["extraction_package_ref"], result.domain_package_refs[0]
+        )
+        self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
+        self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
+        self.assertTrue(
+            all(
+                record.storage_backend != "openwebui_knowledge"
+                for record in self.store.list_by_run(self.context.normalization_run_id)
+            )
+        )
 
     def test_managed_prompt_resolver_enforces_gate2_contract_access_and_hash(self):
         db_path = Path(self._tmp.name) / "webui.db"

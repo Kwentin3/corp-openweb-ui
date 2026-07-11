@@ -166,6 +166,13 @@ signal only when it was deterministically produced from a contiguous parent
 route cluster and its candidate domain set contains exactly that one typed
 domain. The model cannot create or alter this signal.
 
+For normalized table projections, a separate semantic router is not required
+when the deterministic route yields one selected row, one model candidate, and
+exactly one typed candidate domain. In that case the domain runtime may call the
+single matching extractor directly under a domain allowlist. If multiple typed
+domains remain, the row is not silently promoted; the route must stay bounded
+and the stitcher/validator must surface ambiguity or conflict.
+
 ## 9. Status
 
 `GATE2_SOURCE_UNIT_ROUTER_READY` requires passing deterministic coverage,
@@ -233,3 +240,16 @@ PDF_LAYOUT_UNIT_ROUTER_READY
 PDF_LAYOUT_UNIT_SEGMENTER_READY
 PDF_LAYOUT_MODEL_EXECUTION_DEFERRED
 ```
+
+## 13. Normalized table row routing (2026-07-11)
+
+A validated table package presents `unit_kind=table_row_window`. Header, repeated-header, blank and layout rows route as deterministic no-fact coverage. Data, summary, subtotal, footer and unknown structural rows remain model candidates; the router may use safe header/value-kind hints but must not treat structural roles or PDF geometry as final business ownership. Segmenter partitions selected row refs without minting replacement provenance.
+
+## 14. Candidate-binding separation (2026-07-11)
+
+Routing remains upstream and unchanged. It selects bounded source refs and
+candidate domains; it does not discover semantic bindings. Each resulting
+domain package may opt into a package-local candidate set, relation set and
+profile. Candidate ids and relations cannot widen the route, cross rows or
+change selected-ref coverage. The stitcher, not the model or materializer,
+retains final row ownership authority across accepted domain outputs.

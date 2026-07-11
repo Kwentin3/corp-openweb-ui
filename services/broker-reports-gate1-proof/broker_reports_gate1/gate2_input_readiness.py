@@ -18,6 +18,12 @@ from .source_provenance import (
     resolve_source_values,
     validate_normalized_slice_provenance,
 )
+from .table_projection import (
+    TABLE_PROJECTION_SCHEMA_VERSION,
+    Gate2TablePackageFactory,
+    TableProjectionValidator,
+    validate_gate2_table_package,
+)
 
 
 FACTORY_REQUIRED = (
@@ -68,6 +74,7 @@ class Gate2InputReadinessError(RuntimeError):
 class Gate2InputReadinessConfig:
     allow_legacy_slice_provenance_upgrade: bool = True
     prefer_full_source_units: bool = True
+    prefer_table_projections: bool = False
 
 
 @dataclass(frozen=True)
@@ -107,6 +114,7 @@ class Gate2InputReadinessService:
         self.resolver = resolver
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
+        self.table_package_builder = Gate2TablePackageFactory().create()
 
     def audit_and_build(
         self,
@@ -240,26 +248,81 @@ class Gate2InputReadinessService:
                     errors=errors,
                 )
                 issue_scope_counts.update(item["scope"] for item in issue_context)
-                package = _build_dry_run_package(
-                    dcp=dcp,
-                    context=context,
-                    document_ref=document_ref,
-                    bucket_roles=bucket_roles,
-                    usage_entry=usage_by_document.get(document_ref) or {},
-                    passport=passports_by_document.get(document_ref),
-                    slice_record=slice_record,
-                    private_slice=private_slice,
-                    issue_context=issue_context,
-                )
-                validation = validate_dry_run_source_fact_package(
-                    package=package,
-                    private_slice=private_slice,
-                    allowed_document_issue_refs=_string_list(document_issue_refs.get(document_ref)),
-                )
+                if private_slice.get("schema_version") == TABLE_PROJECTION_SCHEMA_VERSION:
+                    try:
+                        package = self.table_package_builder.build(
+                            projection=private_slice,
+                            case_id=context.case_id,
+                            issue_refs=[
+                                str(item.get("issue_ref") or "")
+                                for item in issue_context
+                                if item.get("issue_ref")
+                            ],
+                            table_projection_artifact_ref=slice_record.artifact_id,
+                        )
+                    except ValueError as exc:
+                        if str(exc) in {
+                            "gate2_table_package_row_budget_exceeded",
+                            "gate2_table_projection_not_ready",
+                            "gate2_table_projection_quality_not_eligible",
+                            "gate2_table_projection_coverage_not_eligible",
+                        }:
+                            document_package_validations.append(
+                                {
+                                    "validator_status": "skipped",
+                                    "warning_codes": [str(exc)],
+                                    "errors": [],
+                                }
+                            )
+                            continue
+                        raise
+                    package["source_bucket_roles"] = copy.deepcopy(bucket_roles)
+                    package["document_context"] = {
+                        "usage_modes": _string_list(
+                            _object(usage_by_document.get(document_ref)).get(
+                                "usage_modes"
+                            )
+                        ),
+                        "readiness_by_stage": copy.deepcopy(
+                            _object(usage_by_document.get(document_ref)).get(
+                                "readiness_by_stage"
+                            )
+                            or {}
+                        ),
+                    }
+                    package["issue_context"] = copy.deepcopy(issue_context)
+                    package["allowed_issue_refs"] = sorted(
+                        str(item.get("issue_ref") or "")
+                        for item in issue_context
+                        if item.get("issue_ref")
+                    )
+                    package["forbidden_assumptions"] = _string_list(
+                        dcp.get("forbidden_assumptions")
+                    )
+                    validation = validate_gate2_table_package(
+                        package, private_slice
+                    )
+                else:
+                    package = _build_dry_run_package(
+                        dcp=dcp,
+                        context=context,
+                        document_ref=document_ref,
+                        bucket_roles=bucket_roles,
+                        usage_entry=usage_by_document.get(document_ref) or {},
+                        passport=passports_by_document.get(document_ref),
+                        slice_record=slice_record,
+                        private_slice=private_slice,
+                        issue_context=issue_context,
+                    )
+                    validation = validate_dry_run_source_fact_package(
+                        package=package,
+                        private_slice=private_slice,
+                        allowed_document_issue_refs=_string_list(document_issue_refs.get(document_ref)),
+                    )
                 packages.append(package)
                 package_validations.append(validation)
                 document_package_validations.append(validation)
-            if document_package_validations and all(
+            if document_package_validations and any(
                 item.get("validator_status") == "passed"
                 for item in document_package_validations
             ):
@@ -400,10 +463,14 @@ class Gate2InputReadinessService:
         full_units_by_document: dict[
             str, list[tuple[ArtifactRecord, dict[str, Any], dict[str, Any]]]
         ] = defaultdict(list)
+        table_projections_by_document: dict[
+            str, list[tuple[ArtifactRecord, dict[str, Any], dict[str, Any]]]
+        ] = defaultdict(list)
         legacy_upgrade_total = 0
         table_total = 0
         text_total = 0
         full_source_units_total = 0
+        table_projections_total = 0
         parent_payloads_by_ref: dict[str, dict[str, Any]] = {}
         for record in records:
             if record.artifact_type != "private_normalized_source_payload_v0":
@@ -418,6 +485,39 @@ class Gate2InputReadinessService:
             if payload_ref:
                 parent_payloads_by_ref[payload_ref] = payload
                 resolved_scope_records.append(record.artifact_id)
+        table_validator = TableProjectionValidator()
+        for record in records:
+            if (
+                record.artifact_type
+                != "broker_reports_normalized_table_projection_v0"
+            ):
+                continue
+            if (
+                record.validation_status != "validated"
+                or record.safe_metadata.get("projection_status") != "ready"
+            ):
+                continue
+            try:
+                resolved = self.resolver.resolve(record.artifact_id, context)
+            except ArtifactStoreError as exc:
+                errors.append(_error(f"gate2_{exc.code}", record.artifact_id))
+                continue
+            payload = _object(resolved.get("payload"))
+            document_id = str(
+                record.document_id or payload.get("source_document_ref") or ""
+            )
+            if not document_id:
+                errors.append(
+                    _error("gate2_table_projection_document_scope_missing", record.artifact_id)
+                )
+                continue
+            projection_validation = table_validator.validate(payload)
+            table_projections_by_document[document_id].append(
+                (record, payload, projection_validation)
+            )
+            table_projections_total += 1
+            table_total += 1
+            resolved_scope_records.append(record.artifact_id)
         for record in records:
             if record.artifact_type not in {
                 "private_normalized_table_slice_v0",
@@ -501,10 +601,29 @@ class Gate2InputReadinessService:
         ] = {}
         full_source_documents_total = 0
         legacy_fallback_documents_total = 0
-        for document_id in sorted(set(legacy_by_document) | set(full_units_by_document)):
+        for document_id in sorted(
+            set(legacy_by_document)
+            | set(full_units_by_document)
+            | set(table_projections_by_document)
+        ):
             full_units = full_units_by_document.get(document_id, [])
             if self.config.prefer_full_source_units and full_units:
-                selected_by_document[document_id] = full_units
+                projections_by_unit = (
+                    {
+                        str(payload.get("source_unit_ref") or ""): item
+                        for item in table_projections_by_document.get(document_id, [])
+                        for _record, payload, _validation in [item]
+                        if payload.get("projection_status") == "ready"
+                        and _validation.get("validator_status") == "passed"
+                    }
+                    if self.config.prefer_table_projections
+                    else {}
+                )
+                selected = []
+                for item in full_units:
+                    source_unit_ref = str(item[1].get("unit_ref") or "")
+                    selected.append(projections_by_unit.get(source_unit_ref, item))
+                selected_by_document[document_id] = selected
                 full_source_documents_total += 1
             else:
                 selected_by_document[document_id] = legacy_by_document.get(document_id, [])
@@ -515,9 +634,14 @@ class Gate2InputReadinessService:
             "table_slices_total": table_total,
             "text_slices_total": text_total,
             "full_source_units_total": full_source_units_total,
+            "table_projections_total": table_projections_total,
             "full_source_documents_total": full_source_documents_total,
             "legacy_fallback_documents_total": legacy_fallback_documents_total,
-            "input_priority": "full_source_unit_then_legacy_preview",
+            "input_priority": (
+                "normalized_table_projection_then_full_source_unit_then_legacy_preview"
+                if self.config.prefer_table_projections
+                else "full_source_unit_then_legacy_preview"
+            ),
             "legacy_provenance_upgrade_total": legacy_upgrade_total,
         }
 
@@ -1370,6 +1494,7 @@ def _render_safe_report(
 def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
     refs = {
         str(private_slice.get("slice_id") or ""),
+        str(private_slice.get("table_projection_id") or ""),
         str(private_slice.get("table_ref") or ""),
         str(private_slice.get("row_range_ref") or ""),
         str(private_slice.get("parser_ref") or ""),
@@ -1380,6 +1505,7 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
     }
     for key in (
         "row_refs",
+        "column_refs",
         "cell_refs",
         "cell_value_refs",
         "source_value_refs",

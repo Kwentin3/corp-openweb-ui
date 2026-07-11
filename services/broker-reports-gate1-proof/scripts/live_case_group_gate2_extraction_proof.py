@@ -241,17 +241,22 @@ finally:
     conn.close()
 dcp_rows = [row for row in rows if row["artifact_type"] == "domain_context_packet_v0"]
 if len(dcp_rows) != 1:
-    raise RuntimeError("case_group_gate2_dcp_count_invalid")
-dcp = dcp_rows[0]
-print(json.dumps({{
-    "domain_context_packet_ref": dcp["artifact_id"],
-    "owner_matches_authenticated_user": dcp["user_id"] == authenticated_user_id,
-    "existing_gate2_run_refs": [
-        row["artifact_id"]
-        for row in rows
-        if row["artifact_type"] == "broker_reports_source_fact_extraction_run_v0"
-    ],
-}}, sort_keys=True))
+    print(json.dumps({{
+        "blocker": "case_group_gate2_dcp_count_invalid",
+        "active_records_total": len(rows),
+        "domain_context_packets_total": len(dcp_rows),
+    }}, sort_keys=True))
+else:
+    dcp = dcp_rows[0]
+    print(json.dumps({{
+        "domain_context_packet_ref": dcp["artifact_id"],
+        "owner_matches_authenticated_user": dcp["user_id"] == authenticated_user_id,
+        "existing_gate2_run_refs": [
+            row["artifact_id"]
+            for row in rows
+            if row["artifact_type"] == "broker_reports_source_fact_extraction_run_v0"
+        ],
+    }}, sort_keys=True))
 '''
     return _remote_json(ssh_target, code, timeout=60)
 

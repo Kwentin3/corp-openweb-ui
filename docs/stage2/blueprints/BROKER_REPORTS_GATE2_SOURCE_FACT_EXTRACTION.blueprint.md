@@ -1,8 +1,10 @@
 # Broker Reports Gate 2 Source-Fact Extraction Blueprint
 
-Date: 2026-07-10
+Date: 2026-07-11
 
-Status: `GATE2_SOURCE_FACT_BLUEPRINT_READY`
+Status: `GATE2_CURRENT_BUNDLE_DEPLOYED_PROVIDER_BLOCKED`; repo/live SHA and
+managed-Prompt parity are proven, but semantic acceptance did not pass because
+the approved-provider canary stopped on quota before accepting facts.
 
 ## 1. Problem and Risk
 
@@ -23,9 +25,12 @@ The active risks are:
 | Domain | Owns | Does not own |
 | --- | --- | --- |
 | Gate 1 domain context | Document identity, readiness, buckets, issue state, private slice refs | Source facts |
-| Gate 2 selection/package builder | Which source-ready refs run now, bounded units, evidence/issue whitelists, coverage plan | Document reclassification, fact interpretation |
+| Normalized table projection | Source-format-neutral rows, columns, cells, quality and original-value refs for native tables and mechanically accepted PDF text-layer candidates | Business meaning, OCR, source facts |
+| Gate 2 selection/package builder | Which source-ready refs run now, bounded units, evidence/issue whitelists, coverage plan | Document reclassification, table reconstruction in the model, fact interpretation |
+| Candidate-binding kernel | Reproducible source-value candidates and mechanically supported relations inside one bounded package | Semantic roles, invented values, cross-package joins |
 | Managed Prompt resolver | Prompt access, prompt contract/version/hash snapshot | Prompt body in Python, fact validation |
-| OpenWebUI model adapter | Routed structured-output call and audit metadata | System-of-record acceptance |
+| Structured model client factory | Approved provider profile, provider-native strict-schema request and routed OpenWebUI call | Automatic failover, provider approval, system-of-record acceptance |
+| LLM through the managed Prompt | Selection of package-bound candidate ids, roles and allowed relations | Rewriting source values/refs, reconstructing the source table, accepting its own output |
 | Gate 2 fact validator | Schema, scope, provenance, value, issue, privacy, coverage, boundary checks | Tax methodology or duplicate consolidation |
 | ArtifactStore | Durable records, visibility, retention, access, purge, resolver | Business interpretation |
 | Chat projection | Compact safe status/counts/next step | Facts, raw rows, private refs |
@@ -38,12 +43,17 @@ validated domain_context_packet_v0
   -> resolve classification + issue ledger + passports + gate2_handoff_v0
   -> reconcile all source-ready refs
   -> select bucket wave
-  -> resolve private normalized slices
-  -> build bounded broker_reports_source_fact_package_v0 records
+  -> resolve private normalized slices / normalized table projections
+  -> build one bounded domain package
+  -> discover reproducible source-value candidates and mechanical relations
+  -> apply one narrow domain binding profile
   -> resolve OpenWebUI managed Prompt
-  -> response_format=json_schema model call
+  -> Gate2StructuredModelClientFactory
+  -> provider-native response_format=json_schema, strict=true model call
+  -> select candidate ids, roles and relation ids only
   -> persist private raw output
-  -> strict source-fact validation
+  -> deterministic binding materialization
+  -> strict source-value and source-fact validation
   -> persist broker_reports_source_facts_v0 + validation
   -> render compact safe summary
   -> expose validated source-fact refs for Gate 3 preparation
@@ -125,7 +135,13 @@ Gate 2 never promotes a document whose DUC source-fact readiness is blocked or n
 
 ### 6.1 Table units
 
-The deterministic builder creates one unit per bounded, non-overlapping row window. The unit carries:
+The deterministic builder consumes a validated normalized table projection and
+creates one unit per bounded, non-overlapping row window. Native CSV/HTML/XLSX
+tables and mechanically accepted PDF text-layer table candidates use the same
+row/column/cell boundary. Table reconstruction is complete before the model
+call; the prompt does not receive a raw PDF or a whole raw-text dump.
+
+The unit carries:
 
 - table/slice ref;
 - safe page/section/table locator refs where available;
@@ -215,23 +231,24 @@ Validation rules:
 - consolidation/declaration blockers remain attached even when the visible source fact validates;
 - warning-only issues may coexist with a complete fact only when deterministic mapping proves they do not affect that fact.
 
-## 9. Structured Extraction Runner Boundary
+## 9. Structured Extraction and Provider Boundary
 
-A small internal runner is justified because the passport path already repeats stable mechanics that Gate 2 also needs.
+The implementation uses narrow factory-first seams. Both Gate 2 Pipes route
+through `Gate2StructuredModelClientFactory.create`; a Pipe, control check or
+smoke script must not call an OpenWebUI completion function or provider SDK
+directly.
 
-Proposed narrow protocol:
+Implemented request route:
 
 ```text
-StructuredExtractionRunner.run(
-  prompt_resolver,
-  package_builder,
-  schema_provider,
-  model_adapter,
-  validator,
-  persistence_sink,
-  report_projector,
-  run_context
-)
+bounded source/domain package
+  -> managed Prompt and strict package-bound schema
+  -> Gate2StructuredModelClientFactory.create
+  -> provider capability/profile check
+  -> provider-specific request builder behind the shared client protocol
+  -> OpenWebUI completion transport
+  -> private raw output
+  -> deterministic materializer and validators
 ```
 
 Reusable behavior:
@@ -239,6 +256,7 @@ Reusable behavior:
 - factory-first prompt resolution and access checks;
 - prompt/schema snapshots and hashes;
 - native structured-output call;
+- provider capability resolution and fail-closed rejection;
 - typed model-call audit;
 - optional single bounded repair policy;
 - raw-output persistence before acceptance;
@@ -261,6 +279,14 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
 - Prompt source: OpenWebUI managed Prompt only.
 - Primary mode: `response_format.type=json_schema`, `strict=true`.
 - Production/customer fallback: none; fail closed when schema mode is unavailable.
+- Provider selection is configurable through one factory; it is not permanently
+  tied to a provider-specific call site.
+- Current policy approves the OpenAI profile. Anthropic and Google profiles are
+  `probe_required`; DeepSeek, Z.AI and Alibaba profiles are `unsupported` for
+  this strict Gate 2 contract.
+- `probe_required` is not production approval. There is no automatic provider
+  failover, and the factory fails closed when no approved strict-output route is
+  available.
 - Synthetic compatibility fallback: optional `json_object`, explicitly non-production, with the same full validators.
 - Repair: at most one same-schema call using safe error codes and unchanged evidence/issue whitelists.
 - Free-form explanations: generated only from validated safe summary fields, never stored as facts.
@@ -421,7 +447,13 @@ validated DCP and source-unit package
   -> route artifact with one entry per selected ref
   -> Gate2DomainPackageBuilderFactory
   -> physically narrowed domain packages
-  -> managed Prompt registry, strict package-bound schema per domain
+  -> Gate2CandidateBindingKernelFactory
+  -> reproducible value candidates and mechanical relations
+  -> one domain binding profile
+  -> managed Prompt registry, strict package-bound candidate schema per domain
+  -> Gate2StructuredModelClientFactory
+  -> model selects candidate ids, roles and relation ids
+  -> deterministic binding materializer
   -> existing strict source-fact validator with allowed_fact_types
   -> validated private source-facts artifacts plus safe domain wrappers
   -> Gate2SourceFactStitcherFactory
@@ -455,9 +487,33 @@ to one document and one source unit until a real vertical passes.
 
 Non-primary and Gate 3 remain withheld before the real vertical passes.
 
+## 16B. Current Proof Boundary
+
+Checkpoint: 2026-07-11.
+
+| Surface | Current evidence | What it does not prove |
+| --- | --- | --- |
+| Repository implementation | Normalized table projection, candidate/relation contracts, narrow domain profiles, binding materialization, shared structured-model factory and bundled-Pipe parity are implemented and pass local checks. | By itself, deployed-runtime parity or customer-corpus quality. |
+| Earlier bounded live vertical | One `cash_movement` vertical passed on native and text-layer PDF input on the preceding deployed bundle. | The current provider-factory bundle, all domains, all PDF layouts or every provider. |
+| Deployment parity | All three Functions and 12 managed Prompts are deployed with repo/live SHA parity; provider factory and candidate binding are present live. | Accepted source facts or all-domain behavior. |
+| Approved-provider canary | One-domain GPT `cash_movement` candidate-binding run reached a terminal `gate2_model_provider_quota_exceeded` outcome; accepted facts were `0` and no fallback was used. | Semantic acceptance; retry is required after provider capacity is restored. |
+| Unsupported-provider denial | DeepSeek failed closed before a provider call with `gate2_no_strict_structured_provider_available`; raw outputs and facts were `0`. | DeepSeek support or automatic failover. |
+| Real native/PDF rerun | Not performed because the controlled case had `0` active source records and no DCP. | Current-bundle native/PDF acceptance. |
+
+The current contour does not claim full-corpus coverage, automatic failover,
+support for every provider, OCR/scanned-PDF support, all-domain live acceptance,
+or Gate 3 tax/declaration readiness. Logos, signatures or other embedded images
+do not by themselves trigger OCR; an image-only page remains outside this
+text-layer path.
+
 ## 17. Readiness
 
-The design is ready for Slice 1 only. It does not claim runtime Gate 2 proof.
+The pre-implementation `Slice 1 only` status is obsolete. The bounded
+candidate-binding and provider-factory contour is implemented locally and
+deployed with exact Function/Prompt parity. Live policy denial and cleanup were
+proven, with zero Knowledge/vector/document/file deltas. Semantic acceptance
+was not proven: the approved-provider canary stopped on quota with no accepted
+facts, and the real native/PDF case could not be rerun without an active DCP.
 
 ```text
 GATE2_SOURCE_FACT_BLUEPRINT_READY
@@ -466,5 +522,8 @@ GATE2_SOURCE_FACT_PROMPT_CONTRACT_READY
 GATE2_STRUCTURED_OUTPUT_INVARIANT_READY
 GATE2_ISSUE_CONTEXT_CARRY_FORWARD_READY
 GATE2_ARTIFACTSTORE_PLAN_READY
-READY_FOR_GATE2_SOURCE_FACT_IMPLEMENTATION_SLICE
+GATE2_CANDIDATE_BINDING_IMPLEMENTED_LOCAL
+GATE2_PROVIDER_FACTORY_IMPLEMENTED_LOCAL
+GATE2_CURRENT_BUNDLE_DEPLOYED_PROVIDER_BLOCKED
+GATE2_CURRENT_BUNDLE_SEMANTIC_ACCEPTANCE_NOT_PROVEN
 ```

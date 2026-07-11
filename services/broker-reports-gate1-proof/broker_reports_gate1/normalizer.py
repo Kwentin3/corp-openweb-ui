@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
@@ -29,6 +30,7 @@ from .profilers_xlsx import profile_xlsx
 from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
 from .source_provenance import NormalizedSliceProvenanceFactory
+from .table_projection import NormalizedTableProjectionFactory
 from .taxonomy import classify_document
 from .validators import merge_validation_results, validate_artifacts, validate_safe_report
 
@@ -63,6 +65,11 @@ class Gate1Normalizer:
         private_slices: list[dict] = []
         private_source_payloads: list[dict] = []
         private_source_units: list[dict] = []
+        private_table_projections: list[dict] = []
+        table_projection_decisions: list[dict] = []
+        table_projection_summaries: list[dict] = []
+        table_projection_runtime_seconds = 0.0
+        table_projection_runtime_seconds_max = 0.0
         full_source_document_summaries: list[dict] = []
         taxonomy_candidates: list[dict] = []
         blockers: list[dict] = []
@@ -77,6 +84,7 @@ class Gate1Normalizer:
                 )
             )
         ).create()
+        table_projection_builder = NormalizedTableProjectionFactory().create()
 
         if not file_inputs:
             blockers.append(blocker_factory.no_files(run_id))
@@ -179,6 +187,21 @@ class Gate1Normalizer:
                 private_source_payloads.extend(full_source_result.payloads)
                 private_source_units.extend(full_source_result.units)
                 full_source_document_summaries.append(full_source_result.summary)
+                table_projection_started = time.perf_counter()
+                table_projection_result = table_projection_builder.build_for_document(
+                    source_format=container,
+                    payloads=full_source_result.payloads,
+                    source_units=full_source_result.units,
+                )
+                table_projection_elapsed = time.perf_counter() - table_projection_started
+                table_projection_runtime_seconds += table_projection_elapsed
+                table_projection_runtime_seconds_max = max(
+                    table_projection_runtime_seconds_max,
+                    table_projection_elapsed,
+                )
+                private_table_projections.extend(table_projection_result.projections)
+                table_projection_decisions.extend(table_projection_result.decisions)
+                table_projection_summaries.append(table_projection_result.safe_summary)
 
             declared_size = file_input.declared_size_bytes
             size_bytes = len(content_bytes) if content_bytes is not None else declared_size
@@ -302,6 +325,11 @@ class Gate1Normalizer:
             "private_normalized_slices": private_slices,
             "private_normalized_source_payloads": private_source_payloads,
             "private_normalized_source_units": private_source_units,
+            "private_normalized_table_projections": private_table_projections,
+            "table_projection_decisions": table_projection_decisions,
+            "table_projection_summary": self._table_projection_summary(
+                table_projection_summaries
+            ),
             "full_source_coverage_summary": full_source_coverage_summary,
             "taxonomy_candidates": taxonomy_candidates,
             "normalization_blockers": blockers,
@@ -341,7 +369,36 @@ class Gate1Normalizer:
             package["normalization_run"]["privacy_validation_status"] = validation["status"]
             package["validation_result"] = validation
             safe_report = render_safe_report(package)
+        self.last_table_projection_runtime_seconds = round(
+            table_projection_runtime_seconds, 6
+        )
+        self.last_table_projection_runtime_seconds_max = round(
+            table_projection_runtime_seconds_max, 6
+        )
         return NormalizationResult(package=package, safe_report=safe_report, private_markers=private_markers)
+
+    @staticmethod
+    def _table_projection_summary(summaries: list[dict]) -> dict:
+        quality_counts: Counter[str] = Counter()
+        for summary in summaries:
+            quality_counts.update(summary.get("quality_counts") or {})
+        return {
+            "schema_version": "broker_reports_table_projection_safe_summary_v0",
+            "table_projections_total": sum(int(item.get("table_projections_total") or 0) for item in summaries),
+            "native_table_projections_total": sum(int(item.get("native_table_projections_total") or 0) for item in summaries),
+            "pdf_table_projections_total": sum(int(item.get("pdf_table_projections_total") or 0) for item in summaries),
+            "quality_counts": dict(sorted(quality_counts.items())),
+            "rows_total": sum(int(item.get("rows_total") or 0) for item in summaries),
+            "cells_total": sum(int(item.get("cells_total") or 0) for item in summaries),
+            "source_value_refs_total": sum(int(item.get("source_value_refs_total") or 0) for item in summaries),
+            "fallback_refs_total": sum(int(item.get("fallback_refs_total") or 0) for item in summaries),
+            "unaccounted_refs_total": sum(int(item.get("unaccounted_refs_total") or 0) for item in summaries),
+            "duplicate_refs_total": sum(int(item.get("duplicate_refs_total") or 0) for item in summaries),
+            "blocked_decisions_total": sum(int(item.get("blocked_decisions_total") or 0) for item in summaries),
+            "raw_values_in_summary": False,
+            "knowledge_rag_used": False,
+            "vectorization_performed": False,
+        }
 
     def _full_source_coverage_summary(
         self,
