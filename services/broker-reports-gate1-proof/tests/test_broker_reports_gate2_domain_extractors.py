@@ -586,6 +586,24 @@ class BrokerReportsGate2DomainExtractorsTest(unittest.TestCase):
             len(result.derived_packages) - 1,
         )
 
+    def test_text_segments_group_across_section_refs_inside_parent_unit_budget(self):
+        package = _text_package_with_section_refs()
+        parent_route = Gate2SourceUnitRouterFactory().create().route(package)
+        result = Gate2SourceUnitSegmenterFactory(
+            Gate2SourceUnitSegmenterConfig(text_max_selected_refs=10)
+        ).create().segment(base_package=package, parent_route=parent_route)
+        validate_source_unit_segmentation(result.plan, result.derived_packages)
+
+        self.assertEqual(len(result.derived_packages), 1)
+        self.assertEqual(
+            result.plan["segments"][0]["selected_source_refs"],
+            ["textseg_1", "textseg_2", "textseg_3"],
+        )
+        self.assertEqual(
+            result.plan["segments"][0]["primary_domain"],
+            "document_summary_evidence",
+        )
+
     def test_stitcher_detects_double_claim_preserves_unknown_and_accounts_no_fact(self):
         package = _base_package()
         route = Gate2SourceUnitRouterFactory().create().route(package)
@@ -826,6 +844,105 @@ def _base_package():
                 {"source_ref": "row_blank", "reason_code": "blank_row"},
                 {"source_ref": "row_layout", "reason_code": "layout_only"},
             ],
+        },
+        "privacy_policy": {
+            "knowledge_rag_used": False,
+            "vectorization_performed": False,
+        },
+        "created_at": "2026-07-10T00:00:00Z",
+    }
+
+
+def _text_package_with_section_refs():
+    segments = []
+    layout_index = []
+    segment_provenance = []
+    selected = []
+    value_refs = []
+    for index, section_ref in enumerate(("section_a", "section_b", "section_c"), start=1):
+        text_ref = f"textseg_{index}"
+        value_ref = f"textvalue_{index}"
+        selected.append(text_ref)
+        value_refs.append(value_ref)
+        segments.append(
+            {
+                "text_segment_ref": text_ref,
+                "value": "summary",
+                "source_value_ref": value_ref,
+                "page_ref": "page_1",
+                "segment_kind": "line",
+            }
+        )
+        layout_index.append(
+            {
+                "source_object_ref": text_ref,
+                "source_value_ref": value_ref,
+                "value_checksum_ref": _value_checksum_ref("summary"),
+                "value_path": {"kind": "pdf_layout_text_segment", "index": index - 1},
+            }
+        )
+        segment_provenance.append(
+            {
+                "text_segment_ref": text_ref,
+                "section_ref": section_ref,
+                "source_value_ref": value_ref,
+            }
+        )
+    return {
+        "schema_version": "broker_reports_source_fact_package_v0",
+        "package_id": "text_package",
+        "extraction_run_id": "domain_run",
+        "normalization_run_id": "normalization_run",
+        "case_id": "synthetic_domain_case",
+        "document_ref": "document_ref",
+        "source_bucket_roles": ["primary_source_refs"],
+        "document_context": {"usage_modes": ["source_fact"]},
+        "source_unit": {
+            "unit_id": "text_unit_ref",
+            "unit_kind": "pdf_line_cluster",
+            "source_input_mode": "full_source_unit",
+            "private_slice_artifact_ref": "art_text_slice",
+            "source_checksum_ref": "checksum_ref",
+            "slice_payload_checksum_ref": "payload_checksum",
+            "model_source_projection": {
+                "schema_version": "gate2_model_text_projection_v0",
+                "segments": segments,
+            },
+            "segment_provenance": segment_provenance,
+            "text_segment_refs": selected,
+            "source_value_refs": value_refs,
+            "source_value_index": [
+                {
+                    "source_value_ref": value_ref,
+                    "text_segment_ref": text_ref,
+                    "value_path": {"kind": "text_span", "index": index - 1},
+                    "value_checksum_ref": _value_checksum_ref("summary"),
+                }
+                for index, (value_ref, text_ref) in enumerate(zip(value_refs, selected), start=1)
+            ],
+            "pdf_layout_source_value_refs": value_refs,
+            "pdf_layout_source_value_index": layout_index,
+            "pdf_layout_coverage": {
+                "coverage_ref": "pdf_layout_coverage_ref",
+                "selected_source_refs": selected,
+                "accounted_source_refs": selected,
+                "selected_total": len(selected),
+                "accounted_total": len(selected),
+                "duplicate_accounted_refs": [],
+                "unaccounted_refs": [],
+                "all_selected_refs_accounted": True,
+            },
+            "normalized_source_projection": {"text": "summarysummarysummary"},
+        },
+        "allowed_evidence_refs": selected,
+        "allowed_source_value_refs": value_refs,
+        "issue_context": [],
+        "allowed_issue_refs": [],
+        "forbidden_assumptions": ["do_not_infer_missing_values"],
+        "coverage_expectation": {
+            "coverage_ref": "text_coverage_ref",
+            "selected_source_refs": selected,
+            "mandatory_no_fact_results": [],
         },
         "privacy_policy": {
             "knowledge_rag_used": False,

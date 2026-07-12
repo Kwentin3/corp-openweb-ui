@@ -52,6 +52,37 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertIn("ArtifactStoreFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not instantiate SqliteArtifactStoreAdapter directly", FORBIDDEN)
 
+    def test_document_extraction_packet_is_private_payload_artifact(self):
+        retention = build_retention_policy(mode="customer_approved_test", explicit=True)
+        record = ArtifactRecord(
+            artifact_id=new_artifact_id(),
+            artifact_type="broker_reports_document_extraction_packet_v0",
+            case_id="case_packet",
+            chat_id="chat_packet",
+            user_id="user_packet",
+            workspace_model_id="broker_reports_gate2_domain_source_fact_pipe",
+            normalization_run_id="norm_packet",
+            document_id="doc_packet",
+            source_file_ref=None,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            retention_policy=retention,
+            access_policy={"scope": "case_private"},
+            validation_status="validated",
+            lifecycle_status="private_ready",
+            payload={"schema_version": "broker_reports_document_extraction_packet_v0"},
+            safe_metadata={"coverage_uncovered_total": 0},
+        )
+
+        stored = self.store.put_record(record)
+        payload = self.store.read_payload(stored)
+
+        self.assertEqual(stored.artifact_type, "broker_reports_document_extraction_packet_v0")
+        self.assertEqual(stored.visibility, "private_case")
+        self.assertEqual(stored.storage_backend, "project_artifact_payload")
+        self.assertTrue(stored.payload_ref)
+        self.assertEqual(payload["schema_version"], "broker_reports_document_extraction_packet_v0")
+
     def test_gate1_run_persists_safe_private_and_handoff_artifacts(self):
         result, context, manifest = self._persist_clean_run()
         records = self.store.list_by_run(context.normalization_run_id)

@@ -503,16 +503,19 @@ implemented and deployed with repo/live parity. A bounded real `income` target
 passed the same candidate-binding contract through Gemini
 `models/gemini-3.1-flash-lite`, native Anthropic
 `claude-haiku-4-5-20251001` and OpenAI `gpt-5.6-luna`, with strict structured
-output, canonical validation and complete stitch. The cross-domain and
-multi-provider architecture gap is closed; full-corpus quality remains open.
-Keep the full customer workflow as a limited pilot that depends on methodology,
-representative examples, accepted input formats and data policy.
+output, canonical validation and complete stitch. A full single-PDF
+whole-document Gate 2 run now exists and produced a private document packet, but
+the result is partial: Gemini Flash-Lite rejected `document_summary_evidence`
+strict-schema calls and complete document coverage was not proven. The
+cross-domain and multi-provider architecture gap is closed; full-document
+quality remains open.
 
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [Gate 2 source-fact extraction blueprint](blueprints/BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
 - [Normalized table projection contract](contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)
+- [Single PDF whole-document Gate 2 E2E proof](proof/BROKER_REPORTS_SINGLE_PDF_WHOLE_DOCUMENT_GATE2_E2E.md)
 - [Cross-domain candidate-binding research](research/BROKER_REPORTS_GATE2_CROSS_DOMAIN_CANDIDATE_BINDING_RESEARCH.md)
 - [ADR-0001 Data Policy](decisions/ADR-0001-data-policy-by-provider-class.md)
 - [IMPLEMENTATION_GATES](IMPLEMENTATION_GATES.md)
@@ -522,6 +525,7 @@ Additional context:
 - [DOCUMENTS_OCR_EXCEL_RESEARCH](research/DOCUMENTS_OCR_EXCEL_RESEARCH.md)
 - [SECURITY_DATA_POLICY](blueprints/SECURITY_DATA_POLICY.blueprint.md)
 - [PROVIDERS_MODEL_CATALOG](blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md)
+- [Single PDF whole-document Gate 2 E2E report](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_SINGLE_PDF_WHOLE_DOCUMENT_GATE2_E2E.report.md)
 
 Skip unless needed:
 
@@ -536,11 +540,12 @@ Comment:
 - Text-layer PDFs do not use OCR. Image-only/scanned pages remain outside this
   contour and require a separately approved OCR path.
 - A raw PDF or an unbounded raw-text dump is not a Gate 2 model input.
-- Deployment parity and bounded synthetic semantic acceptance are proven only
-  for `gpt-5.6-sol` and `models/gemini-3.5-flash`. The current native/PDF
-  customer rerun was not performed because the controlled case had no active
-  source records or DCP. The full customer pilot remains gated by methodology,
-  representative data, expected outputs and provider/data policy.
+- Single-PDF whole-document orchestration, packet persistence, issue
+  carry-forward and no-Knowledge/no-vector guards are proven on one real PDF.
+  Complete source-fact validation and complete document coverage are not proven.
+  Do not start a multi-document proof until the `document_summary_evidence`
+  provider/schema blocker and candidate-binding provenance gaps are resolved or
+  explicitly accepted for another bounded diagnostic.
 
 ## Web-search
 

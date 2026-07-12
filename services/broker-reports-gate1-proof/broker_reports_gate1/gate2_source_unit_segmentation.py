@@ -410,17 +410,22 @@ def _build_derived_package(
 
 
 def _segment_key(
-    entry: dict[str, Any], segment_by_ref: dict[str, dict[str, Any]]
+    entry: dict[str, Any], _segment_by_ref: dict[str, dict[str, Any]]
 ) -> tuple[Any, ...]:
-    source_ref = str(entry.get("source_ref") or "")
     route_kind = str(entry.get("route_kind") or "")
     primary = str(entry.get("primary_suggested_domain") or "")
     confidence = str(entry.get("confidence") or "")
-    section_ref = str(
-        _object(segment_by_ref.get(source_ref)).get("section_ref") or ""
-    )
-    reason = tuple(_string_list(entry.get("reason_codes"))) if route_kind == "deterministic_no_fact" else ()
-    return route_kind, primary, confidence, section_ref, reason
+    # The parent source unit is already the hard structural boundary. Splitting
+    # again by section_ref turns whole-document PDF runs into hundreds of tiny
+    # model calls without adding ownership safety.
+    if route_kind == "deterministic_no_fact":
+        reason = tuple(_string_list(entry.get("reason_codes")))
+        return route_kind, reason
+    if primary == FALLBACK_DOMAIN:
+        return route_kind, FALLBACK_DOMAIN, confidence
+    if confidence == "high" and primary and primary != FALLBACK_DOMAIN:
+        return route_kind, primary, confidence
+    return route_kind, "mixed_or_low_confidence"
 
 
 def _describe_group(entries: list[dict[str, Any]]) -> dict[str, Any]:
