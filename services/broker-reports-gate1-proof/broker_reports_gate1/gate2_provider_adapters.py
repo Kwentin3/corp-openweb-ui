@@ -4,7 +4,7 @@ import asyncio
 import copy
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -32,9 +32,76 @@ MAX_NATIVE_PROVIDER_RESPONSE_BYTES = 1_048_576
 
 @dataclass(frozen=True)
 class Gate2NativeProviderTransportConfig:
-    anthropic_api_key: str = ""
     anthropic_api_version: str = "2023-06-01"
     timeout_seconds: int = 180
+
+
+@dataclass(frozen=True)
+class Gate2OpenWebUIProviderConnection:
+    base_url: str
+    api_key: str = dataclass_field(repr=False)
+
+
+class Gate2OpenWebUIProviderConnectionResolver:
+    def __init__(self, request: Any) -> None:
+        self.request = request
+
+    def resolve(
+        self,
+        profile: Gate2ProviderProfile,
+    ) -> Gate2OpenWebUIProviderConnection:
+        config = getattr(
+            getattr(getattr(self.request, "app", None), "state", None),
+            "config",
+            None,
+        )
+        urls = self._config_value(config, "OPENAI_API_BASE_URLS")
+        keys = self._config_value(config, "OPENAI_API_KEYS")
+        configs = self._config_value(config, "OPENAI_API_CONFIGS")
+        if not isinstance(urls, list) or not isinstance(keys, list):
+            raise self._blocked("OpenWebUI provider connection state is unavailable")
+        matches: list[Gate2OpenWebUIProviderConnection] = []
+        for index, raw_url in enumerate(urls):
+            base_url = str(raw_url or "").strip().rstrip("/")
+            if not self._matches_profile(profile, base_url):
+                continue
+            entry_config = configs.get(str(index), {}) if isinstance(configs, dict) else {}
+            if isinstance(entry_config, dict) and entry_config.get("enable") is False:
+                continue
+            api_key = str(keys[index] if index < len(keys) else "").strip()
+            if not api_key:
+                raise self._blocked("OpenWebUI provider connection has no API key")
+            matches.append(
+                Gate2OpenWebUIProviderConnection(
+                    base_url=base_url,
+                    api_key=api_key,
+                )
+            )
+        if len(matches) != 1:
+            reason = "not found" if not matches else "ambiguous"
+            raise self._blocked(f"OpenWebUI provider connection is {reason}")
+        return matches[0]
+
+    @staticmethod
+    def _config_value(config: Any, name: str) -> Any:
+        value = getattr(config, name, None)
+        return getattr(value, "value", value)
+
+    @staticmethod
+    def _matches_profile(profile: Gate2ProviderProfile, base_url: str) -> bool:
+        normalized = base_url.lower()
+        return any(
+            normalized.startswith(prefix.lower().rstrip("/"))
+            for prefix in profile.connection_base_url_prefixes
+        )
+
+    @staticmethod
+    def _blocked(message: str) -> Gate2SourceFactRuntimeError:
+        return Gate2SourceFactRuntimeError(
+            "gate2_provider_configuration_blocked",
+            message,
+            failure_class="provider_configuration",
+        )
 
 
 @dataclass(frozen=True)
@@ -97,6 +164,7 @@ class Gate2ProviderAdapterFactory:
         capability_probe: bool = False,
         native_transport_config: Gate2NativeProviderTransportConfig | None = None,
         native_transport_resolver=None,
+        provider_connection_resolver=None,
     ) -> None:
         self.profile = profile
         self.capability_probe = capability_probe
@@ -104,6 +172,7 @@ class Gate2ProviderAdapterFactory:
             native_transport_config or Gate2NativeProviderTransportConfig()
         )
         self.native_transport_resolver = native_transport_resolver
+        self.provider_connection_resolver = provider_connection_resolver
 
     def create(self) -> Gate2ProviderAdapter:
         adapter_type = _PROVIDER_ADAPTER_TYPES.get(self.profile.adapter_id)
@@ -117,6 +186,7 @@ class Gate2ProviderAdapterFactory:
             capability_probe=self.capability_probe,
             native_transport_config=self.native_transport_config,
             native_transport_resolver=self.native_transport_resolver,
+            provider_connection_resolver=self.provider_connection_resolver,
         )
 
 
@@ -130,11 +200,13 @@ class _Gate2OpenWebUIProviderAdapter:
         capability_probe: bool,
         native_transport_config: Gate2NativeProviderTransportConfig,
         native_transport_resolver,
+        provider_connection_resolver,
     ) -> None:
         self.profile = profile
         self.capability_probe = capability_probe
         self.native_transport_config = native_transport_config
         self.native_transport_resolver = native_transport_resolver
+        self.provider_connection_resolver = provider_connection_resolver
 
     def validate_transport_configuration(self) -> None:
         return None
@@ -330,6 +402,10 @@ class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
 class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
     uses_openwebui_completion = False
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._provider_connection: Gate2OpenWebUIProviderConnection | None = None
+
     def prepare_form_data(
         self,
         *,
@@ -439,12 +515,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         )
 
     def validate_transport_configuration(self) -> None:
-        if not self.native_transport_config.anthropic_api_key.strip():
-            raise Gate2SourceFactRuntimeError(
-                "gate2_provider_configuration_blocked",
-                "Anthropic native transport is not configured in the OpenWebUI Function valves",
-                failure_class="provider_configuration",
-            )
+        self._resolve_provider_connection()
         if self.native_transport_config.anthropic_api_version != "2023-06-01":
             raise Gate2SourceFactRuntimeError(
                 "gate2_provider_configuration_blocked",
@@ -465,18 +536,19 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         return asyncio.to_thread(self._post_messages, form_data)
 
     def _post_messages(self, form_data: dict[str, Any]) -> dict[str, Any]:
+        connection = self._resolve_provider_connection()
         encoded = json.dumps(
             form_data,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
         request = Request(
-            "https://api.anthropic.com/v1/messages",
+            f"{connection.base_url}/messages",
             data=encoded,
             method="POST",
             headers={
                 "content-type": "application/json",
-                "x-api-key": self.native_transport_config.anthropic_api_key,
+                "x-api-key": connection.api_key,
                 "anthropic-version": self.native_transport_config.anthropic_api_version,
             },
         )
@@ -511,6 +583,25 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
                 failure_class="response_budget",
             )
         return self._decode_payload(body)
+
+    def _resolve_provider_connection(self) -> Gate2OpenWebUIProviderConnection:
+        if self._provider_connection is not None:
+            return self._provider_connection
+        if self.provider_connection_resolver is None:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_configuration_blocked",
+                "OpenWebUI provider connection resolver is unavailable",
+                failure_class="provider_configuration",
+            )
+        connection = self.provider_connection_resolver(self.profile)
+        if not isinstance(connection, Gate2OpenWebUIProviderConnection):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_configuration_blocked",
+                "OpenWebUI provider connection resolver returned an invalid contract",
+                failure_class="provider_configuration",
+            )
+        self._provider_connection = connection
+        return connection
 
     @staticmethod
     def _decode_payload(body: bytes) -> dict[str, Any]:

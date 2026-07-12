@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.5.0
+version: 0.5.1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -45,11 +45,6 @@ class Pipe:
         prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         model_id: str = Field(default="")
         provider_profile_id: str = Field(default="openai_gpt")
-        anthropic_api_key: str = Field(
-            default="",
-            repr=False,
-            json_schema_extra={"input": {"type": "password"}},
-        )
         anthropic_api_version: str = Field(default="2023-06-01")
         native_provider_timeout_seconds: int = Field(default=180)
         default_wave: str = Field(default="primary")
@@ -157,7 +152,6 @@ class Pipe:
                     user=__user__,
                     request=__request__,
                     native_transport_config=Gate2NativeProviderTransportConfig(
-                        anthropic_api_key=self.valves.anthropic_api_key,
                         anthropic_api_version=self.valves.anthropic_api_version,
                         timeout_seconds=self.valves.native_provider_timeout_seconds,
                     ),

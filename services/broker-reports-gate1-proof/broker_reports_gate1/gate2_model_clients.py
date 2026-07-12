@@ -22,6 +22,7 @@ from .gate2_model_requests import (
 )
 from .gate2_provider_adapters import (
     Gate2NativeProviderTransportConfig,
+    Gate2OpenWebUIProviderConnectionResolver,
     Gate2ProviderAdapter,
     Gate2ProviderAdapterFactory,
     provider_error_code,
@@ -55,6 +56,7 @@ class Gate2StructuredModelClientFactory:
         completion_resolver: CompletionResolver | None = None,
         native_transport_resolver: NativeTransportResolver | None = None,
         native_transport_config: Gate2NativeProviderTransportConfig | None = None,
+        provider_connection_resolver=None,
     ) -> None:
         self.config = config
         self.user = user
@@ -64,6 +66,7 @@ class Gate2StructuredModelClientFactory:
         self.native_transport_config = (
             native_transport_config or Gate2NativeProviderTransportConfig()
         )
+        self.provider_connection_resolver = provider_connection_resolver
 
     def create(self) -> "Gate2OpenWebUIStructuredModelClient":
         if self.config.transport != "openwebui":
@@ -89,6 +92,10 @@ class Gate2StructuredModelClientFactory:
             capability_probe=self.config.capability_probe,
             native_transport_config=self.native_transport_config,
             native_transport_resolver=self.native_transport_resolver,
+            provider_connection_resolver=(
+                self.provider_connection_resolver
+                or Gate2OpenWebUIProviderConnectionResolver(self.request).resolve
+            ),
         ).create()
         return Gate2OpenWebUIStructuredModelClient(
             request_profile=self.config.request_profile,

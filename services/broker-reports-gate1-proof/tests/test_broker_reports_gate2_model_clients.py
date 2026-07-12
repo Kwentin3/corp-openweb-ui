@@ -45,6 +45,8 @@ from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
     Gate2GeminiResponseFormatAdapter,
     Gate2AnthropicNativeMessagesAdapter,
     Gate2NativeProviderTransportConfig,
+    Gate2OpenWebUIProviderConnection,
+    Gate2OpenWebUIProviderConnectionResolver,
     Gate2OpenAIResponseFormatAdapter,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
@@ -136,7 +138,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         )
         self.assertEqual(
             gate2_provider_profile("anthropic").availability_status,
-            "configuration_blocked",
+            "available",
         )
         self.assertEqual(
             gate2_provider_profile("anthropic").transport_type,
@@ -212,9 +214,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         boundary=boundary,
                         capability_probe=True,
                         native_transport_resolver=native_boundary.resolve,
-                        native_transport_config=Gate2NativeProviderTransportConfig(
-                            anthropic_api_key="x"
-                        ),
+                        native_transport_config=Gate2NativeProviderTransportConfig(),
                     )
                     if provider_status == "unsupported":
                         with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
@@ -278,6 +278,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         self.assertEqual(native_boundary.calls, [])
 
     def test_anthropic_native_transport_is_configuration_blocked_before_call(self):
+        self.request = object()
         native_boundary = NativeTransportBoundary({"unexpected": True})
         client = self._factory(
             request_profile=DOMAIN_REQUEST_PROFILE,
@@ -298,6 +299,29 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
         self.assertEqual(blocked.exception.failure_class, "provider_configuration")
         self.assertEqual(native_boundary.calls, [])
+
+    def test_openwebui_connection_resolver_uses_enabled_admin_connection_without_exposing_key(self):
+        connection = Gate2OpenWebUIProviderConnectionResolver(self.request).resolve(
+            gate2_provider_profile("anthropic")
+        )
+
+        self.assertEqual(connection.base_url, "https://api.anthropic.com/v1")
+        self.assertEqual(connection.api_key, "unit-anthropic-key")
+        self.assertNotIn("unit-anthropic-key", repr(connection))
+
+    def test_openwebui_connection_resolver_fails_closed_for_ambiguous_connections(self):
+        config = self.request.app.state.config
+        config.OPENAI_API_BASE_URLS.append("https://api.anthropic.com/v1")
+        config.OPENAI_API_KEYS.append("second-unit-key")
+        config.OPENAI_API_CONFIGS["1"] = {"enable": True}
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as blocked:
+            Gate2OpenWebUIProviderConnectionResolver(self.request).resolve(
+                gate2_provider_profile("anthropic")
+            )
+
+        self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
+        self.assertEqual(blocked.exception.failure_class, "provider_configuration")
 
     def test_source_v0_request_and_result_are_observable_without_schema_rewrite(self):
         response_format = self._response_format()
@@ -1329,7 +1353,17 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.user = {"id": "model-client-user", "role": "admin"}
-        self.request = object()
+        self.request = SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(
+                    config=SimpleNamespace(
+                        OPENAI_API_BASE_URLS=["https://api.anthropic.com/v1"],
+                        OPENAI_API_KEYS=["unit-anthropic-key"],
+                        OPENAI_API_CONFIGS={"0": {"enable": True}},
+                    )
+                )
+            )
+        )
 
     def _factory(
         self,
@@ -1341,6 +1375,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         capability_probe: bool = False,
         native_transport_resolver=None,
         native_transport_config: Gate2NativeProviderTransportConfig | None = None,
+        provider_connection_resolver=None,
     ) -> Gate2StructuredModelClientFactory:
         resolver = completion_resolver or (boundary.resolve if boundary else None)
         return Gate2StructuredModelClientFactory(
@@ -1354,6 +1389,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             completion_resolver=resolver,
             native_transport_resolver=native_transport_resolver,
             native_transport_config=native_transport_config,
+            provider_connection_resolver=provider_connection_resolver,
         )
 
     def _extract(

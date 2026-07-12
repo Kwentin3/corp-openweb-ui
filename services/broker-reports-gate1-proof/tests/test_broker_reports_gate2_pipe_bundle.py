@@ -188,6 +188,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             source = pipe_path.read_text(encoding="utf-8")
             self.assertIn("Gate2StructuredModelClientFactory(", source)
             self.assertIn(".create()", source)
+            self.assertNotIn("anthropic_api_key", source)
             self.assertNotIn("generate_chat_completion", source)
             self.assertNotIn("_completion_dict_content", source)
             self.assertNotIn("_provider_error_code", source)
@@ -238,6 +239,10 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         source_bundle = BUNDLE.read_text(encoding="utf-8")
         domain_bundle = DOMAIN_BUNDLE.read_text(encoding="utf-8")
+        self.assertNotIn("anthropic_api_key", source_bundle)
+        self.assertNotIn("anthropic_api_key", domain_bundle)
+        self.assertIn("OPENAI_API_KEYS", source_bundle)
+        self.assertIn("OPENAI_API_KEYS", domain_bundle)
         assert_gate2_bundle_contract(
             source_bundle,
             runtime_factory="Gate2SourceFactRuntimeFactory",

@@ -367,10 +367,14 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
             )
         ),
         "native_anthropic_transport_adapter_owned": (
-            "https://api.anthropic.com/v1/messages" in provider_adapters
+            "Gate2OpenWebUIProviderConnectionResolver" in provider_adapters
+            and 'f"{connection.base_url}/messages"' in provider_adapters
+            and "OPENAI_API_KEYS" in provider_adapters
             and "api.anthropic.com" not in model_clients
             and "api.anthropic.com" not in source_pipe
             and "api.anthropic.com" not in domain_pipe
+            and "anthropic_api_key" not in source_pipe
+            and "anthropic_api_key" not in domain_pipe
         ),
         "provider_execution_contract_present": (
             "gate2_provider_execution_metadata_v1" in model_contracts

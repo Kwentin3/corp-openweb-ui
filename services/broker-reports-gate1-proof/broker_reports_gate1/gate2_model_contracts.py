@@ -140,6 +140,7 @@ class Gate2ProviderProfile:
     complex_fallback_suitability: str = PROVIDER_SUITABILITY_NOT_RECOMMENDED
     recommended_extraction_model_ids: tuple[str, ...] = ()
     recommended_fallback_model_ids: tuple[str, ...] = ()
+    connection_base_url_prefixes: tuple[str, ...] = ()
 
 
 GATE2_PROVIDER_PROFILES = (
@@ -169,6 +170,7 @@ GATE2_PROVIDER_PROFILES = (
         complex_fallback_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
         recommended_extraction_model_ids=("gpt-5.6-luna",),
         recommended_fallback_model_ids=("gpt-5.6-sol",),
+        connection_base_url_prefixes=("https://api.openai.com",),
     ),
     Gate2ProviderProfile(
         profile_id="anthropic_claude",
@@ -182,19 +184,20 @@ GATE2_PROVIDER_PROFILES = (
         supports_additional_properties_false=True,
         gate2_status=PROVIDER_STATUS_PROBE_REQUIRED,
         adapter_id="anthropic_native_messages",
-        adapter_version="1.0.0",
+        adapter_version="1.1.0",
         structured_output_mode="openwebui_anthropic_output_config_json_schema",
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("claude-",),
         capability_status=PROVIDER_STATUS_PROBE_REQUIRED,
-        availability_status=PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED,
+        availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
         transport_type="anthropic_messages_native_via_openwebui_pipe",
-        transport_configuration="openwebui_function_anthropic_api_key_valve",
+        transport_configuration="openwebui_provider_connection",
         extraction_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
         complex_fallback_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
         recommended_extraction_model_ids=("claude-haiku-4-5-20251001",),
         recommended_fallback_model_ids=("claude-sonnet-5",),
+        connection_base_url_prefixes=("https://api.anthropic.com",),
     ),
     Gate2ProviderProfile(
         profile_id="google_gemini",
@@ -222,6 +225,9 @@ GATE2_PROVIDER_PROFILES = (
         complex_fallback_suitability=PROVIDER_SUITABILITY_ELIGIBLE,
         recommended_extraction_model_ids=("models/gemini-3.5-flash",),
         recommended_fallback_model_ids=("models/gemini-3.1-pro-preview",),
+        connection_base_url_prefixes=(
+            "https://generativelanguage.googleapis.com",
+        ),
     ),
     Gate2ProviderProfile(
         profile_id="deepseek",
@@ -339,6 +345,9 @@ def gate2_provider_profile_revision(profile: Gate2ProviderProfile) -> str:
         ),
         "recommended_fallback_model_ids": list(
             profile.recommended_fallback_model_ids
+        ),
+        "connection_base_url_prefixes": list(
+            profile.connection_base_url_prefixes
         ),
     }
     return hashlib.sha256(

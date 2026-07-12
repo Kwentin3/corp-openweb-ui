@@ -4,8 +4,9 @@ Date: 2026-07-12
 
 Status: `GATE2_NATIVE_PROVIDER_TRANSPORT_PARTIAL`; the factory/profile boundary,
 OpenAI and Gemini proven routes, and the native Anthropic Messages adapter are
-implemented. Anthropic remains configuration-blocked and qualification-only
-until a credentialed live strict-schema proof passes.
+implemented. Anthropic resolves its credential from the OpenWebUI admin
+Connections registry and reaches the native API, but remains qualification-only
+until the full candidate-binding schema passes.
 
 ## 1. Problem and Risk
 
@@ -304,11 +305,12 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
   Messages adapter maps the unchanged canonical schema to
   `output_config.format`, parses the native content/usage/stop fields and runs
   only inside the existing OpenWebUI Pipe Function behind both factories. The
-  OpenAI-compatibility connection is not reused for Gate 2 strict output.
-  Without the Function Secret Valve, the attempt terminates as
-  `gate2_provider_configuration_blocked` before network I/O. Until a live exact
-  candidate-binding schema passes, Claude stays `probe_required`, not production
-  approved.
+  OpenAI-compatibility transport is not reused for Gate 2 strict output. The
+  native adapter resolves endpoint and credential from the same enabled
+  OpenWebUI admin Connection used by the platform; no Function Secret Valve or
+  duplicate API key exists. Missing, disabled or ambiguous connections fail
+  closed. Until a live exact candidate-binding schema passes, Claude stays
+  `probe_required`, not production approved.
 - Profile state is three-dimensional: `capability_status` records strict schema
   support/qualification, `availability_status` records live/config/quota state,
   and extraction/fallback suitability records workload fit. Quota exhaustion or
@@ -538,12 +540,12 @@ Checkpoint: 2026-07-11.
 
 | Surface | Current evidence | What it does not prove |
 | --- | --- | --- |
-| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters including native Anthropic Messages, model execution metadata, narrow domain materialization and validators pass 212 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
+| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters including native Anthropic Messages, model execution metadata, narrow domain materialization and validators pass 214 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
 | Earlier bounded live vertical | One `cash_movement` vertical passed on native and text-layer PDF input on the preceding deployed bundle. | The current provider-factory bundle, all domains, all PDF layouts or every provider. |
 | Deployment parity | All three Functions and 12 managed Prompts pass repo/live SHA parity; provider adapter factory and execution metadata markers are present live. | Customer-corpus or all-domain quality. |
 | OpenAI production canary | `gpt-5.6-sol` completed one `cash_movement` candidate-binding run with one validator-accepted fact, complete stitch and no fallback. | All models/domains or future provider availability. |
 | Gemini qualification and production canary | `models/gemini-3.5-flash` passed the adapter capability probe and then the normal approved-profile path; one fact was accepted in one call on both runs. Execution metadata recorded actual model, canonical/adapted schema hashes, transform count, response-id hash, usage and latency. | All Gemini models/domains or permanent catalog availability. |
-| Claude native configuration proof | `claude-haiku-4-5-20251001` reached the native Messages adapter and stopped before network I/O with `gate2_provider_configuration_blocked`; facts were `0`, fallback was `0`, and the synthetic case was purged. | Credentialed Anthropic strict-schema capability. |
+| Claude native connection proof | `claude-sonnet-4-6` resolved the enabled Anthropic admin Connection, reached native Messages in 2,148 ms and returned a typed provider schema rejection; facts were `0`, fallback was `0`, and the synthetic case was purged. | Full candidate-binding schema compatibility or production approval. |
 | Real native/PDF rerun | Current-bundle Gemini passed one bounded native HTML and one bounded PDF `cash_movement` target with typed facts, complete stitch and no fallback. `position_snapshot` returned accepted `unknown_source_row`; no eligible `income` target existed. | Second-domain typed acceptance or all-document quality. |
 
 The current contour does not claim full-corpus coverage, automatic failover,

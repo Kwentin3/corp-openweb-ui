@@ -7,10 +7,12 @@
 Единый Gate 2 contract, candidate-binding validator, source-fact validator и
 deterministic stitcher сохранены. Native Anthropic Messages transport добавлен
 в существующий factory/adapter слой и развёрнут как штатная OpenWebUI Pipe
-Function. OpenAI и Gemini post-deploy synthetic proof прошёл. Claude live
-qualification остановлен typed configuration blocker до provider call, потому
-что native credential не настроен. Real Gemini proof прошёл для bounded native
-и PDF `cash_movement`, но второй typed domain не подтверждён.
+Function. Provider credentials теперь разрешаются из единого административного
+реестра Connections OpenWebUI; отдельных API-key Valve у Gate 2 нет. OpenAI и
+Gemini post-deploy synthetic proof прошёл. Claude native call доступен, но
+полный рабочий candidate-binding schema отклонён Anthropic. Real Gemini proof
+прошёл для bounded native и PDF `cash_movement`, но второй typed domain не
+подтверждён.
 
 ## 1. Архитектура
 
@@ -43,7 +45,7 @@ OpenWebUI документирует Pipe Functions как штатный спо
 | --- | --- | --- | --- | --- |
 | `openai_gpt` | approved | available | OpenAI Chat Completions через OpenWebUI | approved для `gpt-5.6-sol` |
 | `google_gemini` | approved | available | Gemini OpenAI compatibility через OpenWebUI, schema projection + canonical validation | approved для `models/gemini-3.5-flash` |
-| `anthropic_claude` | probe required | configuration blocked | native `/v1/messages` через OpenWebUI Pipe | qualification only |
+| `anthropic_claude` | probe required | available | native `/v1/messages` через OpenWebUI Pipe и admin Connection | qualification only: рабочий schema rejected |
 | `deepseek` | unsupported | отдельно не квалифицировалась | compatibility | blocked |
 | `zai_glm` | unsupported | отдельно не квалифицировалась | compatibility | blocked |
 | `alibaba_qwen` | unsupported | отдельно не квалифицировалась | compatibility | blocked |
@@ -91,7 +93,8 @@ Claude Sonnet 5:
 
 - extraction candidate: `claude-haiku-4-5-20251001`;
 - complex fallback candidate: `claude-sonnet-5`;
-- availability: `configuration_blocked` до заполнения password Function Valve;
+- availability: `available`; endpoint и API key берутся из включённого
+  Anthropic connection в административных настройках OpenWebUI;
 - production approval: отсутствует до live exact candidate-binding proof.
 
 ## 3. Native adapter changes
@@ -105,8 +108,11 @@ Claude Sonnet 5:
   payload.
 - Native content blocks, usage, stop reason, response id и model разбираются
   внутри adapter.
-- Credential не входит в execution metadata, safe report или request body Gate
-  2. Без credential network call не начинается.
+- `Gate2OpenWebUIProviderConnectionResolver` выбирает ровно одно включённое
+  admin Connection по profile URL prefix и fail-closed блокирует missing или
+  ambiguous configuration.
+- Credential не входит в Function Valve, execution metadata, safe report или
+  request body Gate 2 и скрыт из `repr` connection DTO.
 - Использована только Python standard library внутри bundled Function; новых
   runtime packages и OpenWebUI core patch нет.
 
@@ -151,13 +157,14 @@ success/failure class, latency, token usage и schema transforms. API providers
 
 | Provider/model | Result | Latency | Input/output tokens | Fallback |
 | --- | --- | ---: | ---: | --- |
-| OpenAI `gpt-5.6-sol` | 1 typed fact, validator passed, stitch complete | 17 396 ms | 14 205 / 845 | 0 |
-| Gemini `models/gemini-3.5-flash` | 1 typed fact, validator passed, stitch complete | 17 851 ms | 16 671 / 579 | 0 |
-| Anthropic `claude-haiku-4-5-20251001` | `gate2_provider_configuration_blocked`, facts 0 | not started | not reported | 0 |
+| OpenAI `gpt-5.6-sol` | 1 typed fact, validator passed, stitch complete | 15 891 ms | 14 181 / 866 | 0 |
+| Gemini `models/gemini-3.5-flash` | 1 typed fact, validator passed, stitch complete | 28 384 ms | 16 673 / 762 | 0 |
+| Anthropic `claude-sonnet-4-6` | admin Connection resolved; provider rejected full candidate schema, facts 0 | 2 148 ms | not reported | 0 |
 
 У всех запусков Knowledge, vector, document и file deltas равны нулю. Synthetic
-cases очищены. Claude result доказывает routing/configuration fail-closed, но не
-strict-schema success у провайдера.
+cases очищены. Claude result доказывает рабочие admin credential resolution,
+native routing и provider reachability, но не strict-schema success полного
+Gate 2 контракта.
 
 ## 6. Real bounded regression
 
@@ -179,13 +186,13 @@ customer values в этот отчёт не включены.
 
 ## 7. Verification and deployment
 
-- local: `python -m unittest discover -s tests -p "test_*.py"` -> 212 passed;
+- local: `python -m unittest discover -s tests -p "test_*.py"` -> 214 passed;
 - bundle closed-world/import/factory anti-drift tests passed;
 - `git diff --check` passed;
 - repository/live bundle SHA parity passed:
-  - Gate 1: `9452c3febbf1c99a8c5023a94683c1535b0adca6be8fe53f67c41decead0f764`;
-  - Gate 2 source: `de911d45bd0229d2ccfd30bff0879647fc5981ad2cfa6f6a784b4134a4e53453`;
-  - Gate 2 domain: `4bec46efaabf1a3e1156a73876ccd01704a8579de23ccd0f5054f1202c50b1c9`;
+  - Gate 1: `09fa2c6c785e20eb8d561c235596e88e336b4df917a00b9f83a4ad5daa689be9`;
+  - Gate 2 source: `ec8edf6df345761ba1e3f03d18e9eeaeeb20575388c075191c52aac226d392d4`;
+  - Gate 2 domain: `a52497523645a45d7585f437404b9e43106991a0db9d3995de2b899776b5f060`;
 - 12 managed Prompts passed content/version/metadata readback;
 - OpenWebUI core unchanged.
 
@@ -194,10 +201,11 @@ workflow или обещания продукта.
 
 ## 8. Remaining blockers
 
-1. Настроить Anthropic API key в password Valve обеих Gate 2 Functions.
+1. Исследовать, какой участок полного candidate-binding schema Anthropic
+   отклоняет, не ослабляя canonical validator и не вводя JSON fallback.
 2. Повторить exact synthetic candidate-binding qualification через native
-   Messages; только после validator pass добавить exact Claude model id в
-   `approved_model_ids`.
+   Messages после допустимой provider-specific schema projection; только после
+   validator pass добавить exact Claude model id в `approved_model_ids`.
 3. Подтвердить второй real typed domain (`position_snapshot` или `income`) на
    подходящем bounded target.
 4. Если требуется буквально raw Gemini native API, добавить отдельный native
@@ -218,7 +226,7 @@ GATE2_EXECUTION_METADATA_READY
 GATE2_PROVIDER_BENCHMARK_READY
 
 GATE2_NATIVE_PROVIDER_TRANSPORT_PARTIAL
-ANTHROPIC_NATIVE_TRANSPORT_CONFIGURATION_BLOCKED
+ANTHROPIC_NATIVE_CANDIDATE_SCHEMA_REJECTED
 GEMINI_RAW_NATIVE_TRANSPORT_NOT_IMPLEMENTED
 GATE2_REAL_SECOND_DOMAIN_TYPED_PROOF_BLOCKED
 ```
