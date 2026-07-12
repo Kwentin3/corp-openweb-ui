@@ -229,7 +229,7 @@ def main() -> int:
             ),
             "provider_schema_adapter_expected": (
                 int(provider_execution.get("schema_transform_total") or 0) > 0
-                if args.provider_profile_id == "google_gemini"
+                if args.provider_profile_id in {"google_gemini", "anthropic_claude"}
                 else int(provider_execution.get("schema_transform_total") or 0) == 0
             ),
             "routes_persisted": audit.get("route_total")
@@ -385,7 +385,7 @@ try:
         "prompt_domains": prompt_domains,
         "raw_outputs_total": len(raw_rows),
         "raw_output_private_total": sum(1 for row in raw_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),
-        "strict_raw_outputs_total": sum(1 for item in raw_payloads if item.get("structured_output_mode") == "openwebui_response_format_json_schema" and item.get("response_format_type") == "json_schema"),
+        "strict_raw_outputs_total": sum(1 for item in raw_payloads if item.get("structured_output_mode") in {"openwebui_response_format_json_schema", "openwebui_anthropic_output_config_json_schema"} and item.get("response_format_type") == "json_schema"),
         "fallback_raw_outputs_total": sum(1 for item in raw_payloads if item.get("fallback_used") is True),
         "source_facts_total": len(fact_rows),
         "source_facts_private_total": sum(1 for row in fact_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),

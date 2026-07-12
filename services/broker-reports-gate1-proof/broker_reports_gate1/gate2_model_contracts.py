@@ -18,6 +18,12 @@ PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED = "configuration_blocked"
 PROVIDER_SUITABILITY_RECOMMENDED = "recommended"
 PROVIDER_SUITABILITY_ELIGIBLE = "eligible"
 PROVIDER_SUITABILITY_NOT_RECOMMENDED = "not_recommended"
+GATE2_STRICT_STRUCTURED_OUTPUT_MODES = frozenset(
+    {
+        "openwebui_response_format_json_schema",
+        "openwebui_anthropic_output_config_json_schema",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -161,7 +167,7 @@ GATE2_PROVIDER_PROFILES = (
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("gpt-",),
-        approved_model_ids=("gpt-5.6-sol",),
+        approved_model_ids=("gpt-5.6-luna", "gpt-5.6-sol"),
         capability_status=PROVIDER_STATUS_APPROVED,
         availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
         transport_type="openai_chat_completions_via_openwebui",
@@ -182,14 +188,15 @@ GATE2_PROVIDER_PROFILES = (
         supports_any_of=True,
         supports_const=True,
         supports_additional_properties_false=True,
-        gate2_status=PROVIDER_STATUS_PROBE_REQUIRED,
+        gate2_status=PROVIDER_STATUS_APPROVED,
         adapter_id="anthropic_native_messages",
-        adapter_version="1.1.0",
+        adapter_version="1.2.0",
         structured_output_mode="openwebui_anthropic_output_config_json_schema",
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("claude-",),
-        capability_status=PROVIDER_STATUS_PROBE_REQUIRED,
+        approved_model_ids=("claude-haiku-4-5-20251001",),
+        capability_status=PROVIDER_STATUS_APPROVED,
         availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
         transport_type="anthropic_messages_native_via_openwebui_pipe",
         transport_configuration="openwebui_provider_connection",
@@ -216,14 +223,17 @@ GATE2_PROVIDER_PROFILES = (
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("models/gemini-",),
-        approved_model_ids=("models/gemini-3.5-flash",),
+        approved_model_ids=(
+            "models/gemini-3.1-flash-lite",
+            "models/gemini-3.5-flash",
+        ),
         capability_status=PROVIDER_STATUS_APPROVED,
         availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
         transport_type="gemini_openai_compatibility_via_openwebui",
         transport_configuration="openwebui_gemini_connection",
         extraction_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
         complex_fallback_suitability=PROVIDER_SUITABILITY_ELIGIBLE,
-        recommended_extraction_model_ids=("models/gemini-3.5-flash",),
+        recommended_extraction_model_ids=("models/gemini-3.1-flash-lite",),
         recommended_fallback_model_ids=("models/gemini-3.1-pro-preview",),
         connection_base_url_prefixes=(
             "https://generativelanguage.googleapis.com",
@@ -313,6 +323,28 @@ def gate2_provider_profile(profile_id: str) -> Gate2ProviderProfile:
         "gate2_provider_profile_unknown",
         "Unknown Gate 2 provider profile",
     )
+
+
+def gate2_resolve_extraction_model_id(
+    provider_profile_id: str,
+    requested_model_id: str | None = None,
+) -> str:
+    requested = str(requested_model_id or "").strip()
+    if requested:
+        return requested
+    profile = gate2_provider_profile(provider_profile_id)
+    if not profile.recommended_extraction_model_ids:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_unavailable",
+            "Selected provider profile has no extraction model",
+        )
+    model_id = profile.recommended_extraction_model_ids[0]
+    if model_id not in profile.approved_model_ids:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_no_strict_structured_provider_available",
+            "Selected provider profile has no approved extraction model",
+        )
+    return model_id
 
 
 def gate2_provider_profile_revision(profile: Gate2ProviderProfile) -> str:

@@ -122,6 +122,14 @@ class FullUnionBoundaryModel(RuntimeBoundaryModel):
                 response_format_schema_mode=None,
                 fallback_used=True,
             )
+        if self.mutation == "anthropic_strict":
+            return Gate2StructuredModelResult(
+                content=candidate,
+                structured_output_mode="openwebui_anthropic_output_config_json_schema",
+                response_format_type="json_schema",
+                response_format_schema_mode="strict_json_schema",
+                fallback_used=False,
+            )
         return Gate2StructuredModelResult(content=candidate)
 
 
@@ -1125,6 +1133,15 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 for record in self.store.list_by_run(self.context.normalization_run_id)
             )
         )
+
+    def test_runtime_accepts_anthropic_native_strict_mode_without_accepting_fallback(self):
+        result = self._run(FullUnionBoundaryModel(mutation="anthropic_strict"))
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertEqual(result.safe_summary["packages"]["accepted"], 1)
+        self.assertEqual(result.safe_summary["packages"]["rejected"], 0)
+        self.assertEqual(len(result.source_facts_refs), 1)
+        self.assertEqual(len(result.validation_refs), 1)
 
     def test_foreign_value_ref_and_gate3_semantics_fail_closed_after_private_raw_persistence(self):
         for mutation, expected_code in (

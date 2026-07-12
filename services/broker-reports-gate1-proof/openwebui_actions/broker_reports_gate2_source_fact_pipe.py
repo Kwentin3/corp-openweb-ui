@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Source Fact Extraction
 author: Alpha Soft
-version: 0.3.1
+version: 0.4.0
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -29,6 +29,7 @@ from broker_reports_gate1 import (
     Gate2StructuredModelClientConfig,
     Gate2StructuredModelClientFactory,
     SOURCE_REQUEST_PROFILE,
+    gate2_resolve_extraction_model_id,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
 
@@ -100,10 +101,16 @@ class Pipe:
             allow_private=True,
             require_source_available=True,
         )
-        model_id = str(config.get("model_id") or self.valves.model_id or "").strip()
         wave = str(config.get("wave") or self.valves.default_wave or "primary")
         run_mode = str(config.get("run_mode") or "customer")
         try:
+            provider_profile_id = str(
+                config.get("provider_profile_id") or self.valves.provider_profile_id
+            )
+            model_id = gate2_resolve_extraction_model_id(
+                provider_profile_id,
+                str(config.get("model_id") or self.valves.model_id or ""),
+            )
             prompt = Gate2ManagedPromptResolverFactory(
                 Gate2PromptConfig(
                     source="openwebui_sqlite",
@@ -118,10 +125,7 @@ class Pipe:
                 model_client=Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
                         request_profile=SOURCE_REQUEST_PROFILE,
-                        provider_profile_id=str(
-                            config.get("provider_profile_id")
-                            or self.valves.provider_profile_id
-                        ),
+                        provider_profile_id=provider_profile_id,
                     ),
                     user=__user__,
                     request=__request__,

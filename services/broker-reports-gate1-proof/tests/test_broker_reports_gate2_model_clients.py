@@ -33,6 +33,7 @@ from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     Gate2StructuredModelClientConfig,
     Gate2StructuredModelResult,
     gate2_provider_profile,
+    gate2_resolve_extraction_model_id,
 )
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
     DOMAIN_REQUEST_PROFILE,
@@ -58,7 +59,7 @@ from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
 
 EXPECTED_PROVIDER_STATUSES = {
     "openai_gpt": "approved",
-    "anthropic_claude": "probe_required",
+    "anthropic_claude": "approved",
     "google_gemini": "approved",
     "deepseek": "unsupported",
     "zai_glm": "unsupported",
@@ -129,12 +130,12 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(gate2_provider_profile("gpt").profile_id, "openai_gpt")
         self.assertEqual(
             gate2_provider_profile("gpt").approved_model_ids,
-            ("gpt-5.6-sol",),
+            ("gpt-5.6-luna", "gpt-5.6-sol"),
         )
         self.assertEqual(gate2_provider_profile("anthropic").profile_id, "anthropic_claude")
         self.assertEqual(
             gate2_provider_profile("anthropic").capability_status,
-            "probe_required",
+            "approved",
         )
         self.assertEqual(
             gate2_provider_profile("anthropic").availability_status,
@@ -147,7 +148,22 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(gate2_provider_profile("google").profile_id, "google_gemini")
         self.assertEqual(
             gate2_provider_profile("google").approved_model_ids,
-            ("models/gemini-3.5-flash",),
+            ("models/gemini-3.1-flash-lite", "models/gemini-3.5-flash"),
+        )
+        self.assertEqual(
+            gate2_resolve_extraction_model_id("openai_gpt"), "gpt-5.6-luna"
+        )
+        self.assertEqual(
+            gate2_resolve_extraction_model_id("google_gemini"),
+            "models/gemini-3.1-flash-lite",
+        )
+        self.assertEqual(
+            gate2_resolve_extraction_model_id("anthropic_claude"),
+            "claude-haiku-4-5-20251001",
+        )
+        self.assertEqual(
+            gate2_resolve_extraction_model_id("openai_gpt", "gpt-5.6-sol"),
+            "gpt-5.6-sol",
         )
         self.assertEqual(gate2_provider_profile("z.ai").profile_id, "zai_glm")
         self.assertEqual(gate2_provider_profile("alibaba").profile_id, "alibaba_qwen")
@@ -299,6 +315,117 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
         self.assertEqual(blocked.exception.failure_class, "provider_configuration")
         self.assertEqual(native_boundary.calls, [])
+
+    def test_anthropic_projects_only_unsupported_constraints_and_preserves_binding_contract(self):
+        response_format = self._response_format()
+        schema = response_format["json_schema"]["schema"]
+        schema["properties"]["facts"] = {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "candidate_id": {
+                        "type": "string",
+                        "enum": ["svc_1", "svc_2"],
+                        "minLength": 1,
+                        "maxLength": 64,
+                    },
+                    "relation_id": {
+                        "type": "string",
+                        "const": "rel_1",
+                    },
+                },
+                "required": ["candidate_id", "relation_id"],
+                "additionalProperties": False,
+            },
+        }
+        schema["properties"]["binding"] = {
+            "anyOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "candidate_id": {"type": "string", "const": "svc_1"},
+                        "semantic_role": {"type": "string", "const": "amount"},
+                    },
+                    "required": ["candidate_id", "semantic_role"],
+                    "additionalProperties": False,
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "candidate_id": {"type": "string", "const": "svc_2"},
+                        "semantic_role": {"type": "string", "const": "date"},
+                    },
+                    "required": ["candidate_id", "semantic_role"],
+                    "additionalProperties": False,
+                },
+            ]
+        }
+        schema["required"].append("facts")
+        schema["required"].append("binding")
+        canonical = copy.deepcopy(response_format)
+        native_boundary = NativeTransportBoundary(
+            {
+                "id": "msg_projection_test",
+                "model": "claude-haiku-4-5-20251001",
+                "content": [{"type": "text", "text": '{"accepted":true}'}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }
+        )
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="anthropic_claude",
+            capability_probe=True,
+            native_transport_resolver=native_boundary.resolve,
+        ).create()
+
+        result = self._extract(
+            client,
+            prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+            package=self._package(DOMAIN_REQUEST_PROFILE),
+            model_id="claude-haiku-4-5-20251001",
+            response_format=response_format,
+        )
+
+        sent_schema = native_boundary.calls[0]["form_data"]["output_config"][
+            "format"
+        ]["schema"]
+        sent_facts = sent_schema["properties"]["facts"]
+        sent_item = sent_facts["items"]
+        self.assertNotIn("minItems", sent_facts)
+        self.assertNotIn("maxItems", sent_facts)
+        self.assertNotIn("minLength", sent_item["properties"]["candidate_id"])
+        self.assertNotIn("maxLength", sent_item["properties"]["candidate_id"])
+        self.assertEqual(
+            sent_item["properties"]["candidate_id"]["enum"],
+            ["svc_1", "svc_2"],
+        )
+        self.assertEqual(
+            sent_item["properties"]["relation_id"]["const"], "rel_1"
+        )
+        self.assertEqual(
+            sent_item["required"], ["candidate_id", "relation_id"]
+        )
+        self.assertIs(sent_item["additionalProperties"], False)
+        sent_binding = sent_schema["properties"]["binding"]
+        self.assertNotIn("anyOf", sent_binding)
+        self.assertEqual(
+            sent_binding["properties"]["candidate_id"]["enum"],
+            ["svc_1", "svc_2"],
+        )
+        self.assertEqual(
+            sent_binding["properties"]["semantic_role"]["enum"],
+            ["amount", "date"],
+        )
+        self.assertEqual(response_format, canonical)
+        self.assertEqual(result.execution_metadata.schema_transform_count, 5)
+        self.assertNotEqual(
+            result.execution_metadata.canonical_request_schema_hash,
+            result.execution_metadata.adapted_request_schema_hash,
+        )
 
     def test_openwebui_connection_resolver_uses_enabled_admin_connection_without_exposing_key(self):
         connection = Gate2OpenWebUIProviderConnectionResolver(self.request).resolve(

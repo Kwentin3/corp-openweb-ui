@@ -20,6 +20,7 @@ from .gate2_source_fact_contracts import (
     source_facts_json_schema,
 )
 from .gate2_domain_packages import DOMAIN_PACKAGE_SCHEMA_VERSION
+from .gate2_model_contracts import GATE2_STRICT_STRUCTURED_OUTPUT_MODES
 from .source_provenance import reproduce_normalized_value
 
 
@@ -321,6 +322,11 @@ class Gate2SourceFactValidator:
                     "model_id": model_id,
                 }
                 for field, value in raw_expected.items():
+                    if (
+                        field == "structured_output_mode"
+                        and raw.get(field) in GATE2_STRICT_STRUCTURED_OUTPUT_MODES
+                    ):
+                        continue
                     if raw.get(field) != value:
                         code = (
                             "source_fact_structured_output_required"
@@ -697,7 +703,7 @@ class Gate2SourceFactValidator:
         for field, value in expected_values.items():
             if audit.get(field) != value:
                 errors.append(_error("source_fact_prompt_audit_mismatch", f"{path}.{field}"))
-        if audit.get("structured_output_mode") != "openwebui_response_format_json_schema":
+        if audit.get("structured_output_mode") not in GATE2_STRICT_STRUCTURED_OUTPUT_MODES:
             errors.append(_error("source_fact_structured_output_required", f"{path}.structured_output_mode"))
         if audit.get("response_format_type") != "json_schema" or audit.get("fallback_used") is not False:
             errors.append(_error("source_fact_structured_output_required", path))

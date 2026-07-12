@@ -145,7 +145,7 @@ def main() -> int:
         "provider_profile_statuses_match": provider_profile_statuses
         == {
             "alibaba_qwen": "unsupported",
-            "anthropic_claude": "probe_required",
+            "anthropic_claude": "approved",
             "deepseek": "unsupported",
             "google_gemini": "approved",
             "openai_gpt": "approved",
@@ -153,8 +153,12 @@ def main() -> int:
         },
         "provider_approved_models_match": provider_approved_model_ids
         == {
-            "openai_gpt": ["gpt-5.6-sol"],
-            "google_gemini": ["models/gemini-3.5-flash"],
+            "openai_gpt": ["gpt-5.6-luna", "gpt-5.6-sol"],
+            "google_gemini": [
+                "models/gemini-3.1-flash-lite",
+                "models/gemini-3.5-flash",
+            ],
+            "anthropic_claude": ["claude-haiku-4-5-20251001"],
         },
         "provider_model_namespaces_match": provider_model_id_prefixes
         == {

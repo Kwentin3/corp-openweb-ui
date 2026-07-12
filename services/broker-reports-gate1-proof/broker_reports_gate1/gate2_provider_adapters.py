@@ -414,6 +414,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
     ) -> Gate2PreparedProviderRequest:
         json_schema = self._strict_schema(response_format)
         schema = copy.deepcopy(json_schema["schema"])
+        transform_count = _project_anthropic_structural_schema(schema)
         messages = form_data.get("messages")
         if not isinstance(messages, list):
             raise Gate2SourceFactRuntimeError(
@@ -461,7 +462,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
             form_data=prepared,
             canonical_schema_hash=_schema_hash(json_schema["schema"]),
             adapted_schema_hash=_schema_hash(schema),
-            schema_transform_count=0,
+            schema_transform_count=transform_count,
         )
 
     def extract_content(self, payload: dict[str, Any]) -> Any:
@@ -678,6 +679,23 @@ _GEMINI_REMOVED_SCHEMA_KEYWORDS = (
     "title",
     "uniqueItems",
 )
+_ANTHROPIC_REMOVED_SCHEMA_KEYWORDS = (
+    "default",
+    "examples",
+    "exclusiveMaximum",
+    "exclusiveMinimum",
+    "maxItems",
+    "maxLength",
+    "maxProperties",
+    "maximum",
+    "minItems",
+    "minLength",
+    "minProperties",
+    "minimum",
+    "multipleOf",
+    "pattern",
+    "uniqueItems",
+)
 _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "code_kind",
     "completeness",
@@ -763,6 +781,98 @@ def _project_gemini_structural_schema(
                         property_name=property_name,
                     )
     return transform_count
+
+
+def _project_anthropic_structural_schema(schema: dict[str, Any]) -> int:
+    transform_count = 0
+    collapsed = _collapse_anthropic_const_object_union(schema)
+    if collapsed is not None:
+        schema.clear()
+        schema.update(collapsed)
+        transform_count += 1
+    for keyword in _ANTHROPIC_REMOVED_SCHEMA_KEYWORDS:
+        if keyword in schema:
+            schema.pop(keyword)
+            transform_count += 1
+    for keyword in _SCHEMA_MAP_KEYWORDS:
+        child_map = schema.get(keyword)
+        if isinstance(child_map, dict):
+            for child in child_map.values():
+                if isinstance(child, dict):
+                    transform_count += _project_anthropic_structural_schema(child)
+    for keyword in _SCHEMA_SINGLE_KEYWORDS:
+        child = schema.get(keyword)
+        if isinstance(child, dict):
+            transform_count += _project_anthropic_structural_schema(child)
+        elif keyword == "items" and isinstance(child, list):
+            for item in child:
+                if isinstance(item, dict):
+                    transform_count += _project_anthropic_structural_schema(item)
+    for keyword in _SCHEMA_ARRAY_KEYWORDS:
+        children = schema.get(keyword)
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    transform_count += _project_anthropic_structural_schema(child)
+    return transform_count
+
+
+def _collapse_anthropic_const_object_union(
+    schema: dict[str, Any],
+) -> dict[str, Any] | None:
+    variants = schema.get("anyOf")
+    if not isinstance(variants, list) or len(variants) < 2:
+        return None
+    property_names: tuple[str, ...] | None = None
+    required: tuple[str, ...] | None = None
+    merged_values: dict[str, list[Any]] = {}
+    property_types: dict[str, Any] = {}
+    for variant in variants:
+        if (
+            not isinstance(variant, dict)
+            or variant.get("type") != "object"
+            or variant.get("additionalProperties") is not False
+            or not isinstance(variant.get("properties"), dict)
+            or not isinstance(variant.get("required"), list)
+        ):
+            return None
+        properties = variant["properties"]
+        current_names = tuple(properties.keys())
+        current_required = tuple(str(item) for item in variant["required"])
+        if property_names is None:
+            property_names = current_names
+            required = current_required
+        elif current_names != property_names or current_required != required:
+            return None
+        for name, property_schema in properties.items():
+            if (
+                not isinstance(property_schema, dict)
+                or "const" not in property_schema
+                or set(property_schema) - {"type", "const", "description"}
+            ):
+                return None
+            property_type = property_schema.get("type")
+            if name in property_types and property_types[name] != property_type:
+                return None
+            property_types[name] = property_type
+            values = merged_values.setdefault(name, [])
+            value = copy.deepcopy(property_schema["const"])
+            if not any(_json_equal(value, existing) for existing in values):
+                values.append(value)
+    if property_names is None or required is None:
+        return None
+    return {
+        "type": "object",
+        "properties": {
+            name: {
+                **({"type": property_types[name]} if property_types[name] else {}),
+                "enum": merged_values[name],
+            }
+            for name in property_names
+        },
+        "required": list(required),
+        "additionalProperties": False,
+    }
 
 
 def _schema_hash(schema: dict[str, Any]) -> str:

@@ -103,6 +103,7 @@ from .gate2_source_fact_contracts import (
     source_facts_schema_hash,
 )
 from .gate2_model_contracts import (
+    GATE2_STRICT_STRUCTURED_OUTPUT_MODES,
     GATE2_PROVIDER_PROFILES,
     PROVIDER_AVAILABILITY_AVAILABLE,
     PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED,
@@ -121,6 +122,7 @@ from .gate2_model_contracts import (
     gate2_provider_execution_safe_metadata,
     gate2_provider_execution_summary,
     gate2_provider_profile,
+    gate2_resolve_extraction_model_id,
     gate2_provider_profile_revision,
 )
 from .gate2_model_requests import (
@@ -347,6 +349,7 @@ __all__ = [
     "Gate2SourceFactValidationOutcome",
     "Gate2SourceFactValidatorFactory",
     "GATE2_PROVIDER_PROFILES",
+    "GATE2_STRICT_STRUCTURED_OUTPUT_MODES",
     "PROVIDER_AVAILABILITY_AVAILABLE",
     "PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED",
     "PROVIDER_AVAILABILITY_UNAVAILABLE",
@@ -368,6 +371,7 @@ __all__ = [
     "Gate2OpenWebUIRequestBuilder",
     "StaticGate2PromptResolver",
     "gate2_provider_profile",
+    "gate2_resolve_extraction_model_id",
     "gate2_prompt_hash",
     "parse_source_facts_model_output",
     "render_gate2_compact_russian_summary",

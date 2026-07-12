@@ -356,7 +356,7 @@ print(json.dumps({{
     "issue_fact_links_total": sum(len(item.get("issue_fact_linkage") or []) for item in stitches),
     "raw_outputs_total": len(raw_rows),
     "private_raw_outputs_total": sum(1 for row in raw_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),
-    "strict_raw_outputs_total": sum(1 for item in raw_payloads if item.get("structured_output_mode") == "openwebui_response_format_json_schema" and item.get("response_format_type") == "json_schema"),
+    "strict_raw_outputs_total": sum(1 for item in raw_payloads if item.get("structured_output_mode") in {"openwebui_response_format_json_schema", "openwebui_anthropic_output_config_json_schema"} and item.get("response_format_type") == "json_schema"),
     "fallback_raw_outputs_total": sum(1 for item in raw_payloads if item.get("fallback_used") is True),
     "source_facts_total": len(fact_rows),
     "private_source_facts_total": sum(1 for row in fact_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),

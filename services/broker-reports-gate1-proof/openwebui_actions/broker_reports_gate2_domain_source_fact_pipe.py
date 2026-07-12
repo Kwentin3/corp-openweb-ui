@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.5.1
+version: 0.6.0
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -29,6 +29,7 @@ from broker_reports_gate1 import (
     Gate2StructuredModelClientConfig,
     Gate2StructuredModelClientFactory,
     DOMAIN_REQUEST_PROFILE,
+    gate2_resolve_extraction_model_id,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
 
@@ -114,7 +115,6 @@ class Pipe:
             allow_private=True,
             require_source_available=True,
         )
-        model_id = str(config.get("model_id") or self.valves.model_id or "").strip()
         try:
             run_mode = str(config.get("run_mode") or "customer")
             provider_capability_probe = self._config_bool(
@@ -124,6 +124,10 @@ class Pipe:
                 raise ValueError("gate2_provider_capability_probe_mode_invalid")
             provider_profile_id = str(
                 config.get("provider_profile_id") or self.valves.provider_profile_id
+            )
+            model_id = gate2_resolve_extraction_model_id(
+                provider_profile_id,
+                str(config.get("model_id") or self.valves.model_id or ""),
             )
             prompt_ids = config.get("prompt_ids")
             prompt_commands = config.get("prompt_commands")

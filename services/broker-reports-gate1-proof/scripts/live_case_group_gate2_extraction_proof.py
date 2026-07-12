@@ -334,7 +334,7 @@ print(json.dumps({{
     "decision_issue_refs_total": sum(len(item.get("issue_refs") or []) for item in decisions),
     "raw_outputs_total": len(raw_rows),
     "private_raw_outputs_total": sum(1 for row in raw_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),
-    "strict_json_schema_raw_outputs_total": sum(1 for meta in raw_meta if meta.get("structured_output_mode") == "openwebui_response_format_json_schema" and meta.get("response_format_type") == "json_schema"),
+    "strict_json_schema_raw_outputs_total": sum(1 for meta in raw_meta if meta.get("structured_output_mode") in {"openwebui_response_format_json_schema", "openwebui_anthropic_output_config_json_schema"} and meta.get("response_format_type") == "json_schema"),
     "fallback_raw_outputs_total": sum(1 for meta in raw_meta if meta.get("fallback_used") is True),
     "repair_raw_outputs_total": sum(1 for meta in raw_meta if int(meta.get("repair_attempt_count") or 0) == 1),
     "source_facts_total": len(fact_rows),
