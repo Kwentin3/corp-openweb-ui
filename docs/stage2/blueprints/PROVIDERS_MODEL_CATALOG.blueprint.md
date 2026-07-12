@@ -71,4 +71,19 @@ personal/financial/accounting data. Russian providers may be wider but still gov
 
 ## 13. Implementation readiness
 
-Needs provider research and operator access confirmation.
+The broad catalog still needs scenario-specific research and operator/data-policy
+approval. For bounded Gate 2 source-fact extraction, the current approved budget
+frontier profiles are:
+
+- OpenAI `gpt-5.6-luna` through the OpenWebUI-administered OpenAI connection;
+- Google `models/gemini-3.1-flash-lite` through the accepted OpenWebUI
+  compatibility transport;
+- Anthropic `claude-haiku-4-5-20251001` through native Messages API with
+  `output_config.format`.
+
+All provider credentials are resolved from OpenWebUI Admin Connections; no
+Function-level duplicate keys are part of the architecture. Gemini raw-native
+REST is deferred while the compatibility route preserves strict schema
+transport, canonical validation, provenance and no-fallback invariants.
+Selection is explicit and is not based on table size. Automatic failover and
+cost-based routing remain outside this catalog slice.

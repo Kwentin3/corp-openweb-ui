@@ -498,12 +498,14 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
-Current routing note, 2026-07-11: the bounded Gate 1/Gate 2 technical contour is
-implemented in the repository and locally verified. The current
-candidate-binding/provider-factory bundle is deployed with repo/live parity.
-Bounded synthetic semantic acceptance passed for OpenAI `gpt-5.6-sol` and
-Gemini `models/gemini-3.5-flash`. Keep the full customer workflow as a limited
-pilot that depends on methodology,
+Current routing note, 2026-07-12: the bounded Gate 1/Gate 2 technical contour is
+implemented and deployed with repo/live parity. A bounded real `income` target
+passed the same candidate-binding contract through Gemini
+`models/gemini-3.1-flash-lite`, native Anthropic
+`claude-haiku-4-5-20251001` and OpenAI `gpt-5.6-luna`, with strict structured
+output, canonical validation and complete stitch. The cross-domain and
+multi-provider architecture gap is closed; full-corpus quality remains open.
+Keep the full customer workflow as a limited pilot that depends on methodology,
 representative examples, accepted input formats and data policy.
 
 Read first:

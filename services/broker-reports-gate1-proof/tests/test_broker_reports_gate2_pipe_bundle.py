@@ -19,6 +19,7 @@ DOMAIN_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_f
 from build_openwebui_pipe_bundle import assert_gate2_bundle_contract
 from live_case_group_gate2_table_typed_vertical_proof import (
     FUNCTION_ID as TABLE_PROOF_FUNCTION_ID,
+    TABLE_SOURCE_INPUT_MODES,
     _run_chat as run_table_proof_chat,
     _safe_target,
 )
@@ -73,6 +74,12 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         for name in list(sys.modules):
             if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
                 del sys.modules[name]
+
+    def test_table_proof_accepts_current_and_legacy_table_source_modes(self):
+        self.assertEqual(
+            TABLE_SOURCE_INPUT_MODES,
+            {"full_source_unit", "normalized_table_projection"},
+        )
 
     def test_gate2_bundle_is_closed_world_and_missing_ref_terminates_safely(self):
         source = BUNDLE.read_text(encoding="utf-8")
@@ -389,6 +396,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
                 "source_unit_start": 0,
                 "source_segment_start": 0,
                 "domain": "cash_movement",
+                "source_input_mode": "full_source_unit",
             },
             candidate_binding_enabled=True,
             provider_profile_id="deepseek",
@@ -405,6 +413,9 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(
             table_body["broker_reports_gate2_domain"]["candidate_binding_enabled"]
+        )
+        self.assertFalse(
+            table_body["broker_reports_gate2_domain"]["prefer_table_projections"]
         )
         self.assertEqual(
             _safe_target(

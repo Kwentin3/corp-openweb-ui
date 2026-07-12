@@ -59,6 +59,10 @@ TYPED_DOMAINS = {
     "position_snapshot",
     "document_summary_evidence",
 }
+TABLE_SOURCE_INPUT_MODES = {
+    "full_source_unit",
+    "normalized_table_projection",
+}
 
 
 def main() -> int:
@@ -226,7 +230,10 @@ def main() -> int:
         "case_id": args.case_id,
         "model_id": model_id,
         "runtime_path": "broker_reports_gate2_domain_source_fact_pipe -> Gate2DomainSourceFactRuntimeFactory.create",
-        "prefer_table_projections": True,
+        "prefer_table_projections": all(
+            item.get("source_input_mode") == "normalized_table_projection"
+            for item in selected
+        ),
         "candidate_binding_enabled": args.candidate_binding,
         "provider_profile_id": args.provider_profile_id,
         "selected_targets": [_safe_target(item) for item in selected],
@@ -290,6 +297,7 @@ from broker_reports_gate1 import (
 )
 
 typed_domains = {sorted(TYPED_DOMAINS)!r}
+table_source_input_modes = {sorted(TABLE_SOURCE_INPUT_MODES)!r}
 store = ArtifactStoreFactory(ArtifactStoreConfig(
     mode="sqlite",
     sqlite_path=Path("/app/backend/data/broker_reports_gate1/artifacts.sqlite3"),
@@ -306,7 +314,7 @@ context = ArtifactAccessContext(
 )
 readiness = Gate2InputReadinessFactory(
     store=store,
-    config=Gate2InputReadinessConfig(prefer_table_projections=True),
+    config=Gate2InputReadinessConfig(prefer_table_projections=False),
 ).create().audit_and_build(domain_context_packet_ref={dcp_ref!r}, context=context)
 primary = [
     item for item in readiness.packages
@@ -318,7 +326,7 @@ for document_index, document_ref in enumerate(document_refs):
     units = [item for item in primary if str(item.get("document_ref") or "") == document_ref]
     for unit_index, package in enumerate(units):
         unit = package.get("source_unit") or {{}}
-        if unit.get("source_input_mode") != "normalized_table_projection":
+        if unit.get("source_input_mode") not in table_source_input_modes:
             continue
         route = Gate2SourceUnitRouterFactory().create().route(package)
         segmentation = Gate2SourceUnitSegmenterFactory(
@@ -374,6 +382,7 @@ for document_index, document_ref in enumerate(document_refs):
                 "source_segment_start": segment_index,
                 "source_segment_limit": 1,
                 "source_format": source_format,
+                "source_input_mode": unit.get("source_input_mode"),
                 "projection_quality": (unit.get("table_quality") or {{}}).get("reconstruction_quality"),
                 "semantic_table_truth_claimed": unit.get("semantic_table_truth_claimed"),
                 "selected_refs_total": len(derived_route.get("selected_source_refs") or []),
@@ -414,6 +423,14 @@ print(json.dumps({{
     ),
     "candidate_summary": {{
         "readiness_status": readiness.validation.get("validator_status"),
+        "readiness_error_code_counts": dict(sorted(Counter(
+            str(item.get("code") or "unknown")
+            for item in readiness.validation.get("errors") or []
+            if isinstance(item, dict)
+        ).items())),
+        "readiness_safe_error_code_counts": dict(sorted(
+            (readiness.safe_report.get("error_code_counts") or {{}}).items()
+        )),
         "packages_total": len(readiness.packages),
         "table_candidates_total": len(candidates),
         "eligible_table_targets_total": sum(1 for item in candidates if item["eligible"]),
@@ -486,7 +503,9 @@ def _run_chat(
                 "source_unit_start": target["source_unit_start"],
                 "source_unit_limit": 1,
                 "segmentation_enabled": True,
-                "prefer_table_projections": True,
+                "prefer_table_projections": (
+                    target.get("source_input_mode") == "normalized_table_projection"
+                ),
                 "source_segment_start": target["source_segment_start"],
                 "source_segment_limit": 1,
                 "table_segment_max_refs": 1,
@@ -540,7 +559,7 @@ def _summarize_run(
     }
     error_codes = set((audit.get("validation_error_code_counts") or {}).keys())
     checks = {
-        "target_is_normalized_table_projection": target.get("eligible") is True,
+        "target_is_bounded_table_projection": target.get("eligible") is True,
         "target_single_typed_domain": domain in TYPED_DOMAINS and target.get("domains") == [domain],
         "domain_runtime_terminal": summary.get("terminal_status") == "completed",
         "typed_fact_accepted": typed_fact_accepted,

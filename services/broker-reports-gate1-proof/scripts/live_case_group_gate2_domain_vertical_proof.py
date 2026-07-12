@@ -339,11 +339,25 @@ if len(runs) != 1:
 run = payload(runs[0])
 summary = payload(by_ref[str(run["summary_ref"])])
 raw_rows = [by_ref[ref] for ref in run.get("raw_output_refs") or []]
+candidate_rows = [by_ref[ref] for ref in run.get("source_value_candidate_set_refs") or []]
+relation_rows = [by_ref[ref] for ref in run.get("candidate_relation_set_refs") or []]
+binding_rows = [by_ref[ref] for ref in run.get("candidate_binding_validation_refs") or []]
 fact_rows = [by_ref[ref] for ref in run.get("source_facts_refs") or []]
 validation_rows = [by_ref[ref] for ref in run.get("validation_refs") or []]
 stitch_rows = [by_ref[ref] for ref in run.get("stitch_result_refs") or []]
 route_rows = [by_ref[ref] for ref in run.get("route_refs") or []]
 raw_payloads = [payload(row) for row in raw_rows]
+def structured_output(item):
+    value = item.get("raw_output")
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {{}}
+    return value if isinstance(value, dict) else {{}}
+candidate_metadata = [json.loads(row["safe_metadata_json"] or "{{}}") for row in candidate_rows]
+relation_metadata = [json.loads(row["safe_metadata_json"] or "{{}}") for row in relation_rows]
+binding_payloads = [payload(row) for row in binding_rows]
 stitches = [payload(row) for row in stitch_rows]
 validations = [payload(row) for row in validation_rows]
 error_counts = Counter(str(error.get("code") or "unknown") for item in validations for error in item.get("errors") or [])
@@ -358,6 +372,36 @@ print(json.dumps({{
     "private_raw_outputs_total": sum(1 for row in raw_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),
     "strict_raw_outputs_total": sum(1 for item in raw_payloads if item.get("structured_output_mode") in {"openwebui_response_format_json_schema", "openwebui_anthropic_output_config_json_schema"} and item.get("response_format_type") == "json_schema"),
     "fallback_raw_outputs_total": sum(1 for item in raw_payloads if item.get("fallback_used") is True),
+    "provider_execution": [item.get("provider_execution_safe") or {{}} for item in raw_payloads],
+    "candidate_sets": [{{
+        "candidates_total": item.get("candidates_total"),
+        "candidate_kind_counts": item.get("candidate_kind_counts") or {{}},
+        "validation_status": item.get("validation_status"),
+    }} for item in candidate_metadata],
+    "relation_sets": [{{
+        "relations_total": item.get("relations_total"),
+        "relation_kind_counts": item.get("relation_kind_counts") or {{}},
+        "validation_status": item.get("validation_status"),
+    }} for item in relation_metadata],
+    "binding_validations": [{{
+        "validator_status": item.get("validator_status"),
+        "errors_count": item.get("errors_count"),
+        "selected_refs_total": item.get("selected_refs_total"),
+        "accounted_refs_total": item.get("accounted_refs_total"),
+        "repair_attempt_count": item.get("repair_attempt_count"),
+    }} for item in binding_payloads],
+    "binding_fact_type_counts": dict(sorted(Counter(
+        str(result.get("fact_type") or "unknown")
+        for item in raw_payloads
+        for result in (structured_output(item).get("binding_results") or [])
+        if isinstance(result, dict)
+    ).items())),
+    "binding_no_fact_reason_counts": dict(sorted(Counter(
+        str(result.get("reason_code") or "unknown")
+        for item in raw_payloads
+        for result in (structured_output(item).get("no_fact_results") or [])
+        if isinstance(result, dict)
+    ).items())),
     "source_facts_total": len(fact_rows),
     "private_source_facts_total": sum(1 for row in fact_rows if row["visibility"] == "private_case" and row["storage_backend"] == "project_artifact_payload"),
     "validated_source_facts_total": sum(1 for row in fact_rows if row["validation_status"] == "validated"),
@@ -373,12 +417,16 @@ def _remote_json(ssh_target: str, code: str, *, timeout: int) -> dict[str, Any]:
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=no", ssh_target, "docker", "exec", "-i", "openwebui", "python", "-"],
         cwd=ROOT,
         input=code,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         encoding="utf-8",
         timeout=timeout,
     )
+    if completed.returncode != 0:
+        lines = [line.strip() for line in (completed.stderr or "").splitlines() if line.strip()]
+        failure_class = (lines[-1].split(":", 1)[0] if lines else "remote_execution_failed")[:120]
+        raise RuntimeError(f"gate2_domain_vertical_remote_failed: {failure_class}")
     value = json.loads(completed.stdout)
     if not isinstance(value, dict):
         raise RuntimeError("gate2_domain_vertical_remote_result_invalid")

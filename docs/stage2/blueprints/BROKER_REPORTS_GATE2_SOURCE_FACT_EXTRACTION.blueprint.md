@@ -301,6 +301,11 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
   validator, so a wrong constant, enum, ref or value still cannot be persisted.
   Canonical/adapted schema hashes plus the transform count are recorded per
   attempt.
+- Gemini's OpenWebUI compatibility transport is the accepted production route
+  for this bounded Gate 2 contract. It has proven strict structured transport,
+  provider schema adaptation and unchanged canonical post-validation on real
+  `cash_movement` and `income` facts. A separate raw-native Gemini REST adapter
+  is not a remaining blocker while these invariants hold.
 - Anthropic capability, availability and suitability are separate. The native
   Messages adapter maps the unchanged canonical schema to
   `output_config.format`, parses the native content/usage/stop fields and runs
@@ -327,6 +332,9 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
 - `probe_required` is not production approval. There is no automatic provider
   failover, and the factory fails closed when no approved strict-output route is
   available.
+- Provider routing is not based on table size. Cost-based routing and pricing
+  models remain outside Gate 2; the approved extraction models are treated as
+  budget frontier profiles and are selected explicitly without hidden failover.
 - Synthetic compatibility fallback: optional `json_object`, explicitly non-production, with the same full validators.
 - Repair: at most one same-schema call using safe error codes and unchanged evidence/issue whitelists.
 - Free-form explanations: generated only from validated safe summary fields, never stored as facts.
@@ -537,17 +545,19 @@ Non-primary and Gate 3 remain withheld before the real vertical passes.
 
 ## 16B. Current Proof Boundary
 
-Checkpoint: 2026-07-11.
+Checkpoint: 2026-07-12.
 
 | Surface | Current evidence | What it does not prove |
 | --- | --- | --- |
-| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters including native Anthropic Messages, model execution metadata, narrow domain materialization and validators pass 216 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
+| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters including native Anthropic Messages, model execution metadata, narrow domain materialization and validators pass the current local suite. | By itself, full-corpus quality or all-domain provider quality. |
 | Earlier bounded live vertical | One `cash_movement` vertical passed on native and text-layer PDF input on the preceding deployed bundle. | The current provider-factory bundle, all domains, all PDF layouts or every provider. |
 | Deployment parity | All three Functions and 12 managed Prompts pass repo/live SHA parity; provider adapter factory and execution metadata markers are present live. | Customer-corpus or all-domain quality. |
 | OpenAI low-cost production canary | `gpt-5.6-luna` completed one `cash_movement` candidate-binding run with one validator-accepted fact, complete stitch and no fallback. | All models/domains or future provider availability. |
 | Gemini low-cost production canary | `models/gemini-3.1-flash-lite` completed the normal approved-profile path with one validator-accepted fact, complete stitch and no fallback. | All Gemini models/domains or permanent catalog availability. |
 | Claude low-cost native canary | `claude-haiku-4-5-20251001` resolved the admin Connection, used native Messages plus provider schema projection, and completed candidate binding, source-fact validation and stitch with one accepted fact and no fallback. | All Claude models/domains or real-document quality. |
-| Real native/PDF rerun | Current-bundle Gemini passed one bounded native HTML and one bounded PDF `cash_movement` target with typed facts, complete stitch and no fallback. `position_snapshot` returned accepted `unknown_source_row`; no eligible `income` target existed. | Second-domain typed acceptance or all-document quality. |
+| Real native/PDF cash regression | Current-bundle Gemini passed one bounded native HTML and one bounded PDF `cash_movement` target with typed facts, complete stitch and no fallback. | All PDF layouts or full-corpus quality. |
+| Second real domain | One bounded complete-CSV `income` target produced the same five-candidate/one-relation package and one validator-accepted typed fact through Gemini Flash-Lite, native Claude Haiku and optional OpenAI Luna. Every run had complete stitch, zero conflict/uncovered refs and zero repair/fallback. | All income shapes or all-domain provider quality. |
+| Rejected position target diagnosis | The prior position route was source-visible, but the selected row produced zero mechanically admissible position candidates and therefore could not satisfy instrument plus quantity/valuation. The model's fail-closed no-fact result was correct; validator and provenance rules were not weakened. | That every other position row is unsuitable. |
 
 The current contour does not claim full-corpus coverage, automatic failover,
 all-domain Claude support, OCR/scanned-PDF support, all-domain live acceptance,
@@ -562,8 +572,10 @@ candidate-binding, provider adapter factory, native Anthropic transport seam and
 execution-metadata contour are implemented and deployed with exact
 Function/Prompt parity. Low-cost OpenAI, Gemini and Anthropic profiles produced
 validator-accepted synthetic facts through the same normal OpenWebUI Function
-route. Gemini also passed bounded real native/PDF `cash_movement`. A second real
-typed domain and real multi-provider comparison remain outside this checkpoint.
+route. Gemini also passed bounded real native/PDF `cash_movement`. The same
+bounded real `income` package now passed Gemini Flash-Lite, native Claude Haiku
+and OpenAI Luna; the Gate 2 cross-domain/multi-provider architecture gap is
+closed. Full-corpus and Gate 3 readiness remain outside this checkpoint.
 
 ```text
 GATE2_SOURCE_FACT_BLUEPRINT_READY
@@ -577,4 +589,7 @@ GATE2_PROVIDER_ADAPTER_FACTORY_DEPLOYED
 GATE2_PROVIDER_EXECUTION_METADATA_DEPLOYED
 GATE2_LOW_COST_MULTI_PROVIDER_BOUNDED_ACCEPTANCE_PROVEN
 GATE2_CLAUDE_NATIVE_STRICT_TRANSPORT_READY
+GATE2_MULTI_PROVIDER_SECOND_DOMAIN_PROOF_PASSED
+GATE2_CROSS_DOMAIN_REAL_ACCEPTANCE_PASSED
+STAGE2_GATE2_ARCHITECTURE_CLOSURE_READY
 ```
