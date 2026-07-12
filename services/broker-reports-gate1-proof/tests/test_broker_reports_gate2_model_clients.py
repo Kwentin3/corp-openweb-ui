@@ -43,6 +43,8 @@ from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
     FACTORY_REQUIRED as PROVIDER_FACTORY_REQUIRED,
     FORBIDDEN as PROVIDER_FORBIDDEN,
     Gate2GeminiResponseFormatAdapter,
+    Gate2AnthropicNativeMessagesAdapter,
+    Gate2NativeProviderTransportConfig,
     Gate2OpenAIResponseFormatAdapter,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
@@ -54,7 +56,7 @@ from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
 
 EXPECTED_PROVIDER_STATUSES = {
     "openai_gpt": "approved",
-    "anthropic_claude": "unsupported",
+    "anthropic_claude": "probe_required",
     "google_gemini": "approved",
     "deepseek": "unsupported",
     "zai_glm": "unsupported",
@@ -97,6 +99,21 @@ class CompletionBoundary:
         return copy.deepcopy(self.response)
 
 
+class NativeTransportBoundary:
+    def __init__(self, response: Any) -> None:
+        self.response = response
+        self.calls: list[dict[str, Any]] = []
+
+    def resolve(self, profile, form_data):
+        self.calls.append(
+            {
+                "profile_id": profile.profile_id,
+                "form_data": copy.deepcopy(form_data),
+            }
+        )
+        return copy.deepcopy(self.response)
+
+
 class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
     def test_registry_and_default_capability_matrix_are_explicit_and_fail_closed(self):
         self.assertEqual(
@@ -113,6 +130,18 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             ("gpt-5.6-sol",),
         )
         self.assertEqual(gate2_provider_profile("anthropic").profile_id, "anthropic_claude")
+        self.assertEqual(
+            gate2_provider_profile("anthropic").capability_status,
+            "probe_required",
+        )
+        self.assertEqual(
+            gate2_provider_profile("anthropic").availability_status,
+            "configuration_blocked",
+        )
+        self.assertEqual(
+            gate2_provider_profile("anthropic").transport_type,
+            "anthropic_messages_native_via_openwebui_pipe",
+        )
         self.assertEqual(gate2_provider_profile("google").profile_id, "google_gemini")
         self.assertEqual(
             gate2_provider_profile("google").approved_model_ids,
@@ -163,11 +192,29 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         "request_profile": request_profile,
                     }
                     boundary = CompletionBoundary({"content": expected_content})
+                    native_boundary = NativeTransportBoundary(
+                        {
+                            "id": "msg_test",
+                            "model": "claude-haiku-4-5-20251001",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": json.dumps(expected_content),
+                                }
+                            ],
+                            "stop_reason": "end_turn",
+                            "usage": {"input_tokens": 10, "output_tokens": 5},
+                        }
+                    )
                     factory = self._factory(
                         request_profile=request_profile,
                         provider_profile_id=provider_profile_id,
                         boundary=boundary,
                         capability_probe=True,
+                        native_transport_resolver=native_boundary.resolve,
+                        native_transport_config=Gate2NativeProviderTransportConfig(
+                            anthropic_api_key="x"
+                        ),
                     )
                     if provider_status == "unsupported":
                         with self.assertRaises(Gate2SourceFactRuntimeError) as rejected:
@@ -181,28 +228,76 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         continue
                     client = factory.create()
 
+                    model_id = (
+                        "models/gemini-3.5-flash"
+                        if provider_profile_id == "google_gemini"
+                        else (
+                            "claude-haiku-4-5-20251001"
+                            if provider_profile_id == "anthropic_claude"
+                            else DEFAULT_MODEL_ID
+                        )
+                    )
                     result = self._extract(
                         client,
                         prompt=self._prompt(request_profile),
                         package=self._package(request_profile),
-                        model_id=(
-                            "models/gemini-3.5-flash"
-                            if provider_profile_id == "google_gemini"
-                            else DEFAULT_MODEL_ID
-                        ),
+                        model_id=model_id,
                     )
 
                     self.assertIsInstance(result, Gate2StructuredModelResult)
-                    self.assertEqual(result.content, expected_content)
+                    self.assertEqual(
+                        json.loads(result.content)
+                        if provider_profile_id == "anthropic_claude"
+                        else result.content,
+                        expected_content,
+                    )
                     self.assertEqual(result.response_format_type, "json_schema")
                     self.assertEqual(result.response_format_schema_mode, "strict_json_schema")
                     self.assertFalse(result.fallback_used)
-                    self.assertEqual(boundary.resolved_user_ids, ["model-client-user"])
-                    self.assertEqual(len(boundary.calls), 1)
-                    self.assertEqual(
-                        boundary.calls[0]["form_data"]["response_format"],
-                        self._response_format(),
-                    )
+                    if provider_profile_id == "anthropic_claude":
+                        self.assertEqual(boundary.resolved_user_ids, [])
+                        self.assertEqual(boundary.calls, [])
+                        self.assertEqual(len(native_boundary.calls), 1)
+                        native_form = native_boundary.calls[0]["form_data"]
+                        self.assertNotIn("response_format", native_form)
+                        self.assertEqual(
+                            native_form["output_config"]["format"]["type"],
+                            "json_schema",
+                        )
+                        self.assertEqual(
+                            result.execution_metadata.transport_type,
+                            "anthropic_messages_native_via_openwebui_pipe",
+                        )
+                    else:
+                        self.assertEqual(boundary.resolved_user_ids, ["model-client-user"])
+                        self.assertEqual(len(boundary.calls), 1)
+                        self.assertEqual(
+                            boundary.calls[0]["form_data"]["response_format"],
+                            self._response_format(),
+                        )
+                        self.assertEqual(native_boundary.calls, [])
+
+    def test_anthropic_native_transport_is_configuration_blocked_before_call(self):
+        native_boundary = NativeTransportBoundary({"unexpected": True})
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="anthropic_claude",
+            boundary=CompletionBoundary({"unexpected": True}),
+            capability_probe=True,
+            native_transport_resolver=native_boundary.resolve,
+        ).create()
+
+        with self.assertRaises(Gate2SourceFactRuntimeError) as blocked:
+            self._extract(
+                client,
+                prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                package=self._package(DOMAIN_REQUEST_PROFILE),
+                model_id="claude-haiku-4-5-20251001",
+            )
+
+        self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
+        self.assertEqual(blocked.exception.failure_class, "provider_configuration")
+        self.assertEqual(native_boundary.calls, [])
 
     def test_source_v0_request_and_result_are_observable_without_schema_rewrite(self):
         response_format = self._response_format()
@@ -1172,7 +1267,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertIn("must not call OpenWebUI completion functions", FORBIDDEN)
         self.assertIn("provider SDKs directly", FORBIDDEN)
         self.assertIn("Gate2ProviderAdapterFactory.create", PROVIDER_FACTORY_REQUIRED)
-        self.assertIn("must not call provider SDKs", PROVIDER_FORBIDDEN)
+        self.assertIn("business runtimes must not build vendor payloads", PROVIDER_FORBIDDEN)
         self.assertIsInstance(
             self._factory(
                 request_profile=SOURCE_REQUEST_PROFILE,
@@ -1180,10 +1275,21 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             ).create().provider_adapter,
             Gate2OpenAIResponseFormatAdapter,
         )
+        anthropic = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            provider_profile_id="anthropic_claude",
+            capability_probe=True,
+            boundary=CompletionBoundary({"content": {"ok": True}}),
+        ).create()
+        self.assertIsInstance(
+            anthropic.provider_adapter,
+            Gate2AnthropicNativeMessagesAdapter,
+        )
 
     def test_model_factory_modules_are_closed_world_safe(self):
         allowed_top_level_modules = {
             "__future__",
+            "asyncio",
             "collections",
             "copy",
             "dataclasses",
@@ -1192,6 +1298,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             "json",
             "time",
             "typing",
+            "urllib",
         }
         for path in MODEL_MODULE_PATHS:
             with self.subTest(path=path.name):
@@ -1232,6 +1339,8 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         boundary: CompletionBoundary | None = None,
         completion_resolver=None,
         capability_probe: bool = False,
+        native_transport_resolver=None,
+        native_transport_config: Gate2NativeProviderTransportConfig | None = None,
     ) -> Gate2StructuredModelClientFactory:
         resolver = completion_resolver or (boundary.resolve if boundary else None)
         return Gate2StructuredModelClientFactory(
@@ -1243,6 +1352,8 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             user=self.user,
             request=self.request,
             completion_resolver=resolver,
+            native_transport_resolver=native_transport_resolver,
+            native_transport_config=native_transport_config,
         )
 
     def _extract(

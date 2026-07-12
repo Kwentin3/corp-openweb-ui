@@ -1,11 +1,11 @@
 # Broker Reports Gate 2 Source-Fact Extraction Blueprint
 
-Date: 2026-07-11
+Date: 2026-07-12
 
-Status: `GATE2_PROVIDER_ADAPTERS_AND_EXECUTION_METADATA_DEPLOYED`; repo/live
-SHA and managed-Prompt parity are proven, and bounded OpenAI/Gemini semantic
-acceptance passed. Claude remains fail-closed until a native strict transport is
-available.
+Status: `GATE2_NATIVE_PROVIDER_TRANSPORT_PARTIAL`; the factory/profile boundary,
+OpenAI and Gemini proven routes, and the native Anthropic Messages adapter are
+implemented. Anthropic remains configuration-blocked and qualification-only
+until a credentialed live strict-schema proof passes.
 
 ## 1. Problem and Risk
 
@@ -50,7 +50,8 @@ validated domain_context_packet_v0
   -> apply one narrow domain binding profile
   -> resolve OpenWebUI managed Prompt
   -> Gate2StructuredModelClientFactory
-  -> provider-native response_format=json_schema, strict=true model call
+  -> provider profile and native/approved transport adapter
+  -> provider strict JSON Schema model call
   -> select candidate ids, roles and relation ids only
   -> persist private raw output
   -> deterministic binding materialization
@@ -247,8 +248,8 @@ bounded source/domain package
   -> Gate2StructuredModelClientFactory.create
   -> provider capability/profile check
   -> Gate2ProviderAdapterFactory.create
-  -> profile-selected OpenAI/Gemini response-format adapter
-  -> OpenWebUI completion transport
+  -> profile-selected OpenAI/Gemini response-format adapter or Anthropic native Messages adapter
+  -> OpenWebUI completion transport or supported OpenWebUI Pipe native transport
   -> response content + runtime-authored provider execution metadata
   -> private raw output + safe validation/run projection
   -> deterministic materializer and validators
@@ -299,11 +300,25 @@ Do not create a general metadata-driven extraction framework or move Gate-specif
   validator, so a wrong constant, enum, ref or value still cannot be persisted.
   Canonical/adapted schema hashes plus the transform count are recorded per
   attempt.
-- The deployed Anthropic OpenAI-compatibility connection remains `unsupported`.
-  That compatibility layer ignores `response_format` and does not guarantee
-  strict tool schemas; native Claude strict output requires the Messages API
-  `output_config.format`, which the current OpenWebUI `/chat/completions` route
-  does not translate. No direct vendor HTTP/SDK bypass is allowed.
+- Anthropic capability, availability and suitability are separate. The native
+  Messages adapter maps the unchanged canonical schema to
+  `output_config.format`, parses the native content/usage/stop fields and runs
+  only inside the existing OpenWebUI Pipe Function behind both factories. The
+  OpenAI-compatibility connection is not reused for Gate 2 strict output.
+  Without the Function Secret Valve, the attempt terminates as
+  `gate2_provider_configuration_blocked` before network I/O. Until a live exact
+  candidate-binding schema passes, Claude stays `probe_required`, not production
+  approved.
+- Profile state is three-dimensional: `capability_status` records strict schema
+  support/qualification, `availability_status` records live/config/quota state,
+  and extraction/fallback suitability records workload fit. Quota exhaustion or
+  missing configuration never changes a model into `unsupported`.
+- Current workload candidates are data, not router hardcoding: OpenAI
+  `gpt-5.6-luna` extraction / `gpt-5.6-sol` complex fallback; Gemini
+  `models/gemini-3.5-flash` extraction / `models/gemini-3.1-pro-preview` complex
+  qualification candidate; Anthropic `claude-haiku-4-5-20251001` extraction /
+  `claude-sonnet-5` complex fallback. Only exact live-qualified model ids enter
+  `approved_model_ids`.
 - DeepSeek, Z.AI and Alibaba profiles remain `unsupported` for this strict Gate
   2 contract.
 - `probe_required` is not production approval. There is no automatic provider
@@ -523,13 +538,13 @@ Checkpoint: 2026-07-11.
 
 | Surface | Current evidence | What it does not prove |
 | --- | --- | --- |
-| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters, model execution metadata, narrow domain materialization and validators pass 202 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
+| Repository implementation | Normalized table projection, candidate/relation contracts, provider profiles/adapters including native Anthropic Messages, model execution metadata, narrow domain materialization and validators pass 212 local tests. | By itself, customer-corpus quality or all-domain provider quality. |
 | Earlier bounded live vertical | One `cash_movement` vertical passed on native and text-layer PDF input on the preceding deployed bundle. | The current provider-factory bundle, all domains, all PDF layouts or every provider. |
 | Deployment parity | All three Functions and 12 managed Prompts pass repo/live SHA parity; provider adapter factory and execution metadata markers are present live. | Customer-corpus or all-domain quality. |
 | OpenAI production canary | `gpt-5.6-sol` completed one `cash_movement` candidate-binding run with one validator-accepted fact, complete stitch and no fallback. | All models/domains or future provider availability. |
 | Gemini qualification and production canary | `models/gemini-3.5-flash` passed the adapter capability probe and then the normal approved-profile path; one fact was accepted in one call on both runs. Execution metadata recorded actual model, canonical/adapted schema hashes, transform count, response-id hash, usage and latency. | All Gemini models/domains or permanent catalog availability. |
-| Claude policy denial | `claude-sonnet-5` was stopped before runtime/provider call with `gate2_no_strict_structured_provider_available`; raw outputs and facts were `0`. | Native Claude Messages transport support. |
-| Real native/PDF rerun | Not performed because the controlled case had `0` active source records and no DCP. | Current-bundle native/PDF acceptance. |
+| Claude native configuration proof | `claude-haiku-4-5-20251001` reached the native Messages adapter and stopped before network I/O with `gate2_provider_configuration_blocked`; facts were `0`, fallback was `0`, and the synthetic case was purged. | Credentialed Anthropic strict-schema capability. |
+| Real native/PDF rerun | Current-bundle Gemini passed one bounded native HTML and one bounded PDF `cash_movement` target with typed facts, complete stitch and no fallback. `position_snapshot` returned accepted `unknown_source_row`; no eligible `income` target existed. | Second-domain typed acceptance or all-document quality. |
 
 The current contour does not claim full-corpus coverage, automatic failover,
 strict Claude support, OCR/scanned-PDF support, all-domain live acceptance,
@@ -540,12 +555,14 @@ text-layer path.
 ## 17. Readiness
 
 The pre-implementation `Slice 1 only` status is obsolete. The bounded
-candidate-binding, provider adapter factory and execution-metadata contour is
-implemented and deployed with exact Function/Prompt parity. OpenAI and Gemini
-both produced validator-accepted synthetic facts through the same normal
-OpenWebUI Function route. Claude policy denial and cleanup were proven, with
-zero Knowledge/vector/document/file deltas. Real customer corpus and all-domain
-quality remain outside this checkpoint.
+candidate-binding, provider adapter factory, native Anthropic transport seam and
+execution-metadata contour are implemented and deployed with exact
+Function/Prompt parity. OpenAI and Gemini both produced validator-accepted
+synthetic facts through the same normal OpenWebUI Function route. Gemini also
+passed bounded real native/PDF `cash_movement`. Claude configuration blocking
+and cleanup were proven with zero Knowledge/vector/document/file deltas. Native
+Anthropic capability and a second real typed domain remain outside this
+checkpoint.
 
 ```text
 GATE2_SOURCE_FACT_BLUEPRINT_READY

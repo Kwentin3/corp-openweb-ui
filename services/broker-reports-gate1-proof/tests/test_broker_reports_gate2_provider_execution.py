@@ -62,6 +62,7 @@ class BrokerReportsGate2ProviderExecutionTest(unittest.TestCase):
         )
         self.assertEqual(safe["total_tokens"], 0)
         self.assertEqual(safe["duration_ms"], 0)
+        self.assertEqual(private["transport_type"], "openwebui_chat_completions")
 
     def test_run_summary_distinguishes_zero_usage_from_unreported_usage(self):
         reported = self._metadata(
@@ -111,6 +112,10 @@ class BrokerReportsGate2ProviderExecutionTest(unittest.TestCase):
         self.assertEqual(
             summary["provider_profile_counts"],
             {"google_gemini": 2},
+        )
+        self.assertEqual(
+            summary["transport_type_counts"],
+            {"openwebui_chat_completions": 2},
         )
         self.assertEqual(
             summary["requested_model_counts"],

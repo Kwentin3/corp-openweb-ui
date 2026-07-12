@@ -145,7 +145,7 @@ def main() -> int:
         "provider_profile_statuses_match": provider_profile_statuses
         == {
             "alibaba_qwen": "unsupported",
-            "anthropic_claude": "unsupported",
+            "anthropic_claude": "probe_required",
             "deepseek": "unsupported",
             "google_gemini": "approved",
             "openai_gpt": "approved",
@@ -363,9 +363,14 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
                 "import httpx",
                 "from httpx",
                 "api.openai.com",
-                "api.anthropic.com",
                 "generativelanguage.googleapis.com",
             )
+        ),
+        "native_anthropic_transport_adapter_owned": (
+            "https://api.anthropic.com/v1/messages" in provider_adapters
+            and "api.anthropic.com" not in model_clients
+            and "api.anthropic.com" not in source_pipe
+            and "api.anthropic.com" not in domain_pipe
         ),
         "provider_execution_contract_present": (
             "gate2_provider_execution_metadata_v1" in model_contracts

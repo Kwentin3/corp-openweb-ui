@@ -21,6 +21,7 @@ from .gate2_model_requests import (
     Gate2OpenWebUIRequestBuilder,
 )
 from .gate2_provider_adapters import (
+    Gate2NativeProviderTransportConfig,
     Gate2ProviderAdapter,
     Gate2ProviderAdapterFactory,
     provider_error_code,
@@ -36,6 +37,7 @@ FORBIDDEN = (
 
 
 CompletionResolver = Callable[[str], Any]
+NativeTransportResolver = Callable[[Gate2ProviderProfile, dict[str, Any]], Any]
 MAX_PRIVATE_INVALID_RESPONSE_BYTES = 65_536
 MAX_MODEL_CONTENT_BYTES = 524_288
 MAX_MODEL_CONTENT_NODES = 20_000
@@ -51,11 +53,17 @@ class Gate2StructuredModelClientFactory:
         user: Any,
         request: Any,
         completion_resolver: CompletionResolver | None = None,
+        native_transport_resolver: NativeTransportResolver | None = None,
+        native_transport_config: Gate2NativeProviderTransportConfig | None = None,
     ) -> None:
         self.config = config
         self.user = user
         self.request = request
         self.completion_resolver = completion_resolver
+        self.native_transport_resolver = native_transport_resolver
+        self.native_transport_config = (
+            native_transport_config or Gate2NativeProviderTransportConfig()
+        )
 
     def create(self) -> "Gate2OpenWebUIStructuredModelClient":
         if self.config.transport != "openwebui":
@@ -79,6 +87,8 @@ class Gate2StructuredModelClientFactory:
         provider_adapter = Gate2ProviderAdapterFactory(
             profile=provider_profile,
             capability_probe=self.config.capability_probe,
+            native_transport_config=self.native_transport_config,
+            native_transport_resolver=self.native_transport_resolver,
         ).create()
         return Gate2OpenWebUIStructuredModelClient(
             request_profile=self.config.request_profile,
@@ -134,23 +144,28 @@ class Gate2OpenWebUIStructuredModelClient:
         started: float | None = None
         response_payload: dict[str, Any] | None = None
         try:
-            dependencies = self.completion_resolver(user_id)
-            if inspect.isawaitable(dependencies):
-                dependencies = await dependencies
-            completion_fn, user_model = dependencies
-            if inspect.isawaitable(user_model):
-                user_model = await user_model
-            if user_model is None:
-                raise Gate2SourceFactRuntimeError(
-                    "gate2_model_unavailable",
-                    self._user_unavailable_message(),
+            if not self.provider_adapter.uses_openwebui_completion:
+                self.provider_adapter.validate_transport_configuration()
+                started = time.monotonic()
+                response = self.provider_adapter.invoke_native_once(form_data)
+            else:
+                dependencies = self.completion_resolver(user_id)
+                if inspect.isawaitable(dependencies):
+                    dependencies = await dependencies
+                completion_fn, user_model = dependencies
+                if inspect.isawaitable(user_model):
+                    user_model = await user_model
+                if user_model is None:
+                    raise Gate2SourceFactRuntimeError(
+                        "gate2_model_unavailable",
+                        self._user_unavailable_message(),
+                    )
+                started = time.monotonic()
+                response = self._invoke_completion_once(
+                    completion_fn=completion_fn,
+                    form_data=form_data,
+                    user_model=user_model,
                 )
-            started = time.monotonic()
-            response = self._invoke_completion_once(
-                completion_fn=completion_fn,
-                form_data=form_data,
-                user_model=user_model,
-            )
             if inspect.isawaitable(response):
                 response = await response
             response_payload = self._response_payload(response)

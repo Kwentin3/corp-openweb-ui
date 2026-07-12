@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .gate2_model_contracts import (
     PROVIDER_STATUS_APPROVED,
@@ -22,8 +25,16 @@ FACTORY_REQUIRED = (
     "Gate2ProviderAdapterFactory.create is the only production Gate 2 provider adapter entrypoint"
 )
 FORBIDDEN = (
-    "Provider adapters must not call provider SDKs or HTTP endpoints; execution remains inside OpenWebUI"
+    "Pipes and Gate 2 business runtimes must not build vendor payloads or call provider endpoints"
 )
+MAX_NATIVE_PROVIDER_RESPONSE_BYTES = 1_048_576
+
+
+@dataclass(frozen=True)
+class Gate2NativeProviderTransportConfig:
+    anthropic_api_key: str = ""
+    anthropic_api_version: str = "2023-06-01"
+    timeout_seconds: int = 180
 
 
 @dataclass(frozen=True)
@@ -36,6 +47,7 @@ class Gate2PreparedProviderRequest:
 
 class Gate2ProviderAdapter(Protocol):
     profile: Gate2ProviderProfile
+    uses_openwebui_completion: bool
 
     def validate_model(self, model_id: str) -> None:
         ...
@@ -70,6 +82,12 @@ class Gate2ProviderAdapter(Protocol):
     ) -> Gate2ProviderExecutionMetadata:
         ...
 
+    def validate_transport_configuration(self) -> None:
+        ...
+
+    def invoke_native_once(self, form_data: dict[str, Any]) -> Any:
+        ...
+
 
 class Gate2ProviderAdapterFactory:
     def __init__(
@@ -77,9 +95,15 @@ class Gate2ProviderAdapterFactory:
         *,
         profile: Gate2ProviderProfile,
         capability_probe: bool = False,
+        native_transport_config: Gate2NativeProviderTransportConfig | None = None,
+        native_transport_resolver=None,
     ) -> None:
         self.profile = profile
         self.capability_probe = capability_probe
+        self.native_transport_config = (
+            native_transport_config or Gate2NativeProviderTransportConfig()
+        )
+        self.native_transport_resolver = native_transport_resolver
 
     def create(self) -> Gate2ProviderAdapter:
         adapter_type = _PROVIDER_ADAPTER_TYPES.get(self.profile.adapter_id)
@@ -91,18 +115,35 @@ class Gate2ProviderAdapterFactory:
         return adapter_type(
             profile=self.profile,
             capability_probe=self.capability_probe,
+            native_transport_config=self.native_transport_config,
+            native_transport_resolver=self.native_transport_resolver,
         )
 
 
 class _Gate2OpenWebUIProviderAdapter:
+    uses_openwebui_completion = True
+
     def __init__(
         self,
         *,
         profile: Gate2ProviderProfile,
         capability_probe: bool,
+        native_transport_config: Gate2NativeProviderTransportConfig,
+        native_transport_resolver,
     ) -> None:
         self.profile = profile
         self.capability_probe = capability_probe
+        self.native_transport_config = native_transport_config
+        self.native_transport_resolver = native_transport_resolver
+
+    def validate_transport_configuration(self) -> None:
+        return None
+
+    def invoke_native_once(self, form_data: dict[str, Any]) -> Any:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_transport_unsupported",
+            "Provider adapter does not expose a native transport",
+        )
 
     def validate_model(self, model_id: str) -> None:
         status = gate2_model_qualification_status(self.profile, model_id)
@@ -125,6 +166,7 @@ class _Gate2OpenWebUIProviderAdapter:
             structured_output_mode=self.profile.structured_output_mode,
             response_format_type=self.profile.response_format_type,
             response_format_schema_mode=self.profile.response_format_schema_mode,
+            transport_type=self.profile.transport_type,
         )
 
     def validate_execution_metadata(
@@ -217,6 +259,7 @@ class _Gate2OpenWebUIProviderAdapter:
             structured_output_mode=self.profile.structured_output_mode,
             response_format_type=self.profile.response_format_type,
             response_format_schema_mode=self.profile.response_format_schema_mode,
+            transport_type=self.profile.transport_type,
             canonical_request_schema_hash=(
                 prepared_request.canonical_schema_hash
             ),
@@ -284,9 +327,218 @@ class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
         return _project_gemini_structural_schema(schema)
 
 
+class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
+    uses_openwebui_completion = False
+
+    def prepare_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        json_schema = self._strict_schema(response_format)
+        schema = copy.deepcopy(json_schema["schema"])
+        messages = form_data.get("messages")
+        if not isinstance(messages, list):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Anthropic native transport requires messages",
+            )
+        system_parts: list[str] = []
+        native_messages: list[dict[str, str]] = []
+        for message in messages:
+            if not isinstance(message, dict):
+                raise Gate2SourceFactRuntimeError(
+                    "gate2_model_request_invalid",
+                    "Anthropic native transport received an invalid message",
+                )
+            role = message.get("role")
+            content = message.get("content")
+            if not isinstance(content, str) or role not in {"system", "user", "assistant"}:
+                raise Gate2SourceFactRuntimeError(
+                    "gate2_model_request_invalid",
+                    "Anthropic native transport requires text messages",
+                )
+            if role == "system":
+                system_parts.append(content)
+            else:
+                native_messages.append({"role": role, "content": content})
+        if not native_messages:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Anthropic native transport requires a user message",
+            )
+        prepared = {
+            "model": form_data.get("model"),
+            "max_tokens": 32768,
+            "messages": native_messages,
+            "output_config": {
+                "format": {
+                    "type": "json_schema",
+                    "schema": schema,
+                }
+            },
+        }
+        if system_parts:
+            prepared["system"] = "\n\n".join(system_parts)
+        return Gate2PreparedProviderRequest(
+            form_data=prepared,
+            canonical_schema_hash=_schema_hash(json_schema["schema"]),
+            adapted_schema_hash=_schema_hash(schema),
+            schema_transform_count=0,
+        )
+
+    def extract_content(self, payload: dict[str, Any]) -> Any:
+        blocks = payload.get("content") if isinstance(payload, dict) else None
+        text_blocks = [
+            block.get("text")
+            for block in blocks or []
+            if isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
+        ]
+        if len(text_blocks) == 1:
+            return text_blocks[0]
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_invalid_response",
+            "Anthropic response must contain exactly one structured text block",
+            raw_output=payload,
+        )
+
+    def execution_metadata(
+        self,
+        *,
+        payload: dict[str, Any] | None,
+        requested_model_id: str,
+        duration_ms: int | None,
+        prepared_request: Gate2PreparedProviderRequest,
+    ) -> Gate2ProviderExecutionMetadata:
+        value = payload if isinstance(payload, dict) else {}
+        usage = value.get("usage") if isinstance(value.get("usage"), dict) else {}
+        return Gate2ProviderExecutionMetadata(
+            provider_id=self.profile.provider_id,
+            provider_profile_id=self.profile.profile_id,
+            provider_profile_revision=gate2_provider_profile_revision(self.profile),
+            adapter_id=self.profile.adapter_id,
+            adapter_version=self.profile.adapter_version,
+            requested_model_id=requested_model_id,
+            structured_output_mode=self.profile.structured_output_mode,
+            response_format_type=self.profile.response_format_type,
+            response_format_schema_mode=self.profile.response_format_schema_mode,
+            transport_type=self.profile.transport_type,
+            canonical_request_schema_hash=prepared_request.canonical_schema_hash,
+            adapted_request_schema_hash=prepared_request.adapted_schema_hash,
+            schema_transform_count=prepared_request.schema_transform_count,
+            resolved_model_id=_optional_string(value.get("model")),
+            provider_response_id=_optional_string(value.get("id")),
+            duration_ms=duration_ms,
+            input_tokens=_optional_int(usage.get("input_tokens")),
+            output_tokens=_optional_int(usage.get("output_tokens")),
+            total_tokens=_optional_int(usage.get("total_tokens")),
+            finish_reason=_optional_string(value.get("stop_reason")),
+        )
+
+    def validate_transport_configuration(self) -> None:
+        if not self.native_transport_config.anthropic_api_key.strip():
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_configuration_blocked",
+                "Anthropic native transport is not configured in the OpenWebUI Function valves",
+                failure_class="provider_configuration",
+            )
+        if self.native_transport_config.anthropic_api_version != "2023-06-01":
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_configuration_blocked",
+                "Unsupported Anthropic API version",
+                failure_class="provider_configuration",
+            )
+        timeout = self.native_transport_config.timeout_seconds
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= 600:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_configuration_blocked",
+                "Anthropic native transport timeout is invalid",
+                failure_class="provider_configuration",
+            )
+
+    def invoke_native_once(self, form_data: dict[str, Any]) -> Any:
+        if self.native_transport_resolver is not None:
+            return self.native_transport_resolver(self.profile, form_data)
+        return asyncio.to_thread(self._post_messages, form_data)
+
+    def _post_messages(self, form_data: dict[str, Any]) -> dict[str, Any]:
+        encoded = json.dumps(
+            form_data,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        request = Request(
+            "https://api.anthropic.com/v1/messages",
+            data=encoded,
+            method="POST",
+            headers={
+                "content-type": "application/json",
+                "x-api-key": self.native_transport_config.anthropic_api_key,
+                "anthropic-version": self.native_transport_config.anthropic_api_version,
+            },
+        )
+        try:
+            with urlopen(
+                request,
+                timeout=self.native_transport_config.timeout_seconds,
+            ) as response:
+                body = response.read(MAX_NATIVE_PROVIDER_RESPONSE_BYTES + 1)
+        except HTTPError as exc:
+            body = exc.read(MAX_NATIVE_PROVIDER_RESPONSE_BYTES + 1)
+            if len(body) > MAX_NATIVE_PROVIDER_RESPONSE_BYTES:
+                raise Gate2SourceFactRuntimeError(
+                    "gate2_model_response_budget_exceeded",
+                    "Anthropic error response exceeds the byte budget",
+                    failure_class="response_budget",
+                ) from exc
+            payload = self._decode_payload(body)
+            payload.setdefault("status_code", exc.code)
+            return payload
+        except URLError as exc:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_provider_unavailable",
+                "Anthropic native transport is unavailable",
+                raw_output={"transport_error_type": exc.__class__.__name__},
+                failure_class="provider_transport",
+            ) from exc
+        if len(body) > MAX_NATIVE_PROVIDER_RESPONSE_BYTES:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_response_budget_exceeded",
+                "Anthropic response exceeds the byte budget",
+                failure_class="response_budget",
+            )
+        return self._decode_payload(body)
+
+    @staticmethod
+    def _decode_payload(body: bytes) -> dict[str, Any]:
+        diagnostic = {
+            "body_length": len(body),
+            "body_sha256": hashlib.sha256(body).hexdigest(),
+        }
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_invalid_response",
+                "Anthropic native transport returned invalid JSON",
+                raw_output=diagnostic,
+            ) from exc
+        if not isinstance(payload, dict):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_invalid_response",
+                "Anthropic native transport returned a non-object response",
+                raw_output=diagnostic,
+            )
+        return payload
+
+
 _PROVIDER_ADAPTER_TYPES = {
     "openai_response_format": Gate2OpenAIResponseFormatAdapter,
     "gemini_response_format": Gate2GeminiResponseFormatAdapter,
+    "anthropic_native_messages": Gate2AnthropicNativeMessagesAdapter,
 }
 
 

@@ -228,7 +228,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "Gate2ProviderAdapterFactory.create",
             adapters_module.FACTORY_REQUIRED,
         )
-        self.assertIn("execution remains inside OpenWebUI", adapters_module.FORBIDDEN)
+        self.assertIn("business runtimes must not build vendor payloads", adapters_module.FORBIDDEN)
 
     def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
         self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-11-provider-factory-v0")
@@ -269,6 +269,16 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         ):
             assert_gate2_bundle_contract(
                 direct_bypass,
+                runtime_factory="Gate2DomainSourceFactRuntimeFactory",
+            )
+
+        direct_anthropic_bypass = domain_bundle + "\napi.anthropic.com/v1/messages\n"
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "gate2_bundle_contract_forbidden:direct_anthropic_endpoint",
+        ):
+            assert_gate2_bundle_contract(
+                direct_anthropic_bypass,
                 runtime_factory="Gate2DomainSourceFactRuntimeFactory",
             )
 

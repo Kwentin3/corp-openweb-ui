@@ -12,6 +12,12 @@ from .gate2_source_fact_contracts import Gate2ManagedPrompt
 PROVIDER_STATUS_APPROVED = "approved"
 PROVIDER_STATUS_PROBE_REQUIRED = "probe_required"
 PROVIDER_STATUS_UNSUPPORTED = "unsupported"
+PROVIDER_AVAILABILITY_AVAILABLE = "available"
+PROVIDER_AVAILABILITY_UNAVAILABLE = "unavailable"
+PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED = "configuration_blocked"
+PROVIDER_SUITABILITY_RECOMMENDED = "recommended"
+PROVIDER_SUITABILITY_ELIGIBLE = "eligible"
+PROVIDER_SUITABILITY_NOT_RECOMMENDED = "not_recommended"
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,7 @@ class Gate2ProviderExecutionMetadata:
     structured_output_mode: str
     response_format_type: str
     response_format_schema_mode: str | None
+    transport_type: str = "openwebui_chat_completions"
     canonical_request_schema_hash: str | None = None
     adapted_request_schema_hash: str | None = None
     schema_transform_count: int = 0
@@ -50,6 +57,7 @@ class Gate2ProviderExecutionMetadata:
             "structured_output_mode": self.structured_output_mode,
             "response_format_type": self.response_format_type,
             "response_format_schema_mode": self.response_format_schema_mode,
+            "transport_type": self.transport_type,
             "canonical_request_schema_hash": self.canonical_request_schema_hash,
             "adapted_request_schema_hash": self.adapted_request_schema_hash,
             "schema_transform_count": self.schema_transform_count,
@@ -124,6 +132,14 @@ class Gate2ProviderProfile:
     response_format_schema_mode: str
     model_id_prefixes: tuple[str, ...]
     approved_model_ids: tuple[str, ...] = ()
+    capability_status: str = PROVIDER_STATUS_UNSUPPORTED
+    availability_status: str = PROVIDER_AVAILABILITY_UNAVAILABLE
+    transport_type: str = "openwebui_chat_completions"
+    transport_configuration: str | None = None
+    extraction_suitability: str = PROVIDER_SUITABILITY_NOT_RECOMMENDED
+    complex_fallback_suitability: str = PROVIDER_SUITABILITY_NOT_RECOMMENDED
+    recommended_extraction_model_ids: tuple[str, ...] = ()
+    recommended_fallback_model_ids: tuple[str, ...] = ()
 
 
 GATE2_PROVIDER_PROFILES = (
@@ -145,6 +161,14 @@ GATE2_PROVIDER_PROFILES = (
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("gpt-",),
         approved_model_ids=("gpt-5.6-sol",),
+        capability_status=PROVIDER_STATUS_APPROVED,
+        availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
+        transport_type="openai_chat_completions_via_openwebui",
+        transport_configuration="openwebui_openai_connection",
+        extraction_suitability=PROVIDER_SUITABILITY_ELIGIBLE,
+        complex_fallback_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
+        recommended_extraction_model_ids=("gpt-5.6-luna",),
+        recommended_fallback_model_ids=("gpt-5.6-sol",),
     ),
     Gate2ProviderProfile(
         profile_id="anthropic_claude",
@@ -156,13 +180,21 @@ GATE2_PROVIDER_PROFILES = (
         supports_any_of=True,
         supports_const=True,
         supports_additional_properties_false=True,
-        gate2_status=PROVIDER_STATUS_UNSUPPORTED,
+        gate2_status=PROVIDER_STATUS_PROBE_REQUIRED,
         adapter_id="anthropic_native_messages",
         adapter_version="1.0.0",
         structured_output_mode="openwebui_anthropic_output_config_json_schema",
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("claude-",),
+        capability_status=PROVIDER_STATUS_PROBE_REQUIRED,
+        availability_status=PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED,
+        transport_type="anthropic_messages_native_via_openwebui_pipe",
+        transport_configuration="openwebui_function_anthropic_api_key_valve",
+        extraction_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
+        complex_fallback_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
+        recommended_extraction_model_ids=("claude-haiku-4-5-20251001",),
+        recommended_fallback_model_ids=("claude-sonnet-5",),
     ),
     Gate2ProviderProfile(
         profile_id="google_gemini",
@@ -182,6 +214,14 @@ GATE2_PROVIDER_PROFILES = (
         response_format_schema_mode="strict_json_schema",
         model_id_prefixes=("models/gemini-",),
         approved_model_ids=("models/gemini-3.5-flash",),
+        capability_status=PROVIDER_STATUS_APPROVED,
+        availability_status=PROVIDER_AVAILABILITY_AVAILABLE,
+        transport_type="gemini_openai_compatibility_via_openwebui",
+        transport_configuration="openwebui_gemini_connection",
+        extraction_suitability=PROVIDER_SUITABILITY_RECOMMENDED,
+        complex_fallback_suitability=PROVIDER_SUITABILITY_ELIGIBLE,
+        recommended_extraction_model_ids=("models/gemini-3.5-flash",),
+        recommended_fallback_model_ids=("models/gemini-3.1-pro-preview",),
     ),
     Gate2ProviderProfile(
         profile_id="deepseek",
@@ -288,6 +328,18 @@ def gate2_provider_profile_revision(profile: Gate2ProviderProfile) -> str:
         "response_format_schema_mode": profile.response_format_schema_mode,
         "model_id_prefixes": list(profile.model_id_prefixes),
         "approved_model_ids": list(profile.approved_model_ids),
+        "capability_status": profile.capability_status,
+        "availability_status": profile.availability_status,
+        "transport_type": profile.transport_type,
+        "transport_configuration": profile.transport_configuration,
+        "extraction_suitability": profile.extraction_suitability,
+        "complex_fallback_suitability": profile.complex_fallback_suitability,
+        "recommended_extraction_model_ids": list(
+            profile.recommended_extraction_model_ids
+        ),
+        "recommended_fallback_model_ids": list(
+            profile.recommended_fallback_model_ids
+        ),
     }
     return hashlib.sha256(
         json.dumps(material, ensure_ascii=True, sort_keys=True).encode("utf-8")
@@ -414,6 +466,7 @@ def gate2_provider_execution_summary(
     failure_class_counts: Counter[str] = Counter()
     provider_profile_counts: Counter[str] = Counter()
     adapter_counts: Counter[str] = Counter()
+    transport_type_counts: Counter[str] = Counter()
     requested_model_counts: Counter[str] = Counter()
     resolved_model_counts: Counter[str] = Counter()
     adapted_schema_hash_counts: Counter[str] = Counter()
@@ -436,6 +489,7 @@ def gate2_provider_execution_summary(
         for counter, field in (
             (provider_profile_counts, "provider_profile_id"),
             (adapter_counts, "adapter_id"),
+            (transport_type_counts, "transport_type"),
             (requested_model_counts, "requested_model_id"),
             (resolved_model_counts, "resolved_model_id"),
             (adapted_schema_hash_counts, "adapted_request_schema_hash"),
@@ -467,6 +521,7 @@ def gate2_provider_execution_summary(
         "failure_class_counts": dict(sorted(failure_class_counts.items())),
         "provider_profile_counts": dict(sorted(provider_profile_counts.items())),
         "adapter_counts": dict(sorted(adapter_counts.items())),
+        "transport_type_counts": dict(sorted(transport_type_counts.items())),
         "requested_model_counts": dict(sorted(requested_model_counts.items())),
         "resolved_model_counts": dict(sorted(resolved_model_counts.items())),
         "adapted_schema_hash_counts": dict(

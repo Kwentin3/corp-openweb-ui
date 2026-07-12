@@ -20,6 +20,7 @@ from broker_reports_gate1 import (
     ArtifactStoreError,
     ArtifactStoreFactory,
     Gate2ManagedPromptResolverFactory,
+    Gate2NativeProviderTransportConfig,
     Gate2PromptConfig,
     Gate2PromptUserContext,
     Gate2SourceFactRuntimeConfig,
@@ -46,6 +47,13 @@ class Pipe:
         prompt_command: str = Field(default="broker_gate2_source_facts_v0")
         model_id: str = Field(default="")
         provider_profile_id: str = Field(default="openai_gpt")
+        anthropic_api_key: str = Field(
+            default="",
+            repr=False,
+            json_schema_extra={"input": {"type": "password"}},
+        )
+        anthropic_api_version: str = Field(default="2023-06-01")
+        native_provider_timeout_seconds: int = Field(default=180)
         default_wave: str = Field(default="primary")
         table_max_rows: int = Field(default=40)
         text_max_chars: int = Field(default=6000)
@@ -122,6 +130,11 @@ class Pipe:
                     ),
                     user=__user__,
                     request=__request__,
+                    native_transport_config=Gate2NativeProviderTransportConfig(
+                        anthropic_api_key=self.valves.anthropic_api_key,
+                        anthropic_api_version=self.valves.anthropic_api_version,
+                        timeout_seconds=self.valves.native_provider_timeout_seconds,
+                    ),
                 ).create(),
                 config=Gate2SourceFactRuntimeConfig(
                     model_id=model_id,

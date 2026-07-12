@@ -104,6 +104,9 @@ from .gate2_source_fact_contracts import (
 )
 from .gate2_model_contracts import (
     GATE2_PROVIDER_PROFILES,
+    PROVIDER_AVAILABILITY_AVAILABLE,
+    PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED,
+    PROVIDER_AVAILABILITY_UNAVAILABLE,
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
     PROVIDER_STATUS_UNSUPPORTED,
@@ -131,6 +134,8 @@ from .gate2_model_clients import (
     Gate2StructuredModelClientFactory,
 )
 from .gate2_provider_adapters import (
+    Gate2AnthropicNativeMessagesAdapter,
+    Gate2NativeProviderTransportConfig,
     Gate2GeminiResponseFormatAdapter,
     Gate2OpenAIResponseFormatAdapter,
     Gate2ProviderAdapter,
@@ -340,6 +345,9 @@ __all__ = [
     "Gate2SourceFactValidationOutcome",
     "Gate2SourceFactValidatorFactory",
     "GATE2_PROVIDER_PROFILES",
+    "PROVIDER_AVAILABILITY_AVAILABLE",
+    "PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED",
+    "PROVIDER_AVAILABILITY_UNAVAILABLE",
     "PROVIDER_STATUS_APPROVED",
     "PROVIDER_STATUS_PROBE_REQUIRED",
     "PROVIDER_STATUS_UNSUPPORTED",
@@ -347,6 +355,7 @@ __all__ = [
     "Gate2StructuredModelClient",
     "Gate2StructuredModelClientConfig",
     "Gate2StructuredModelResult",
+    "Gate2NativeProviderTransportConfig",
     "Gate2OpenWebUIStructuredModelClient",
     "Gate2StructuredModelClientFactory",
     "SOURCE_REQUEST_PROFILE",

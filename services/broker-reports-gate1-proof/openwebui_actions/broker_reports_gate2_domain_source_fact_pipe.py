@@ -23,6 +23,7 @@ from broker_reports_gate1 import (
     Gate2DomainPromptResolverFactory,
     Gate2DomainSourceFactRuntimeConfig,
     Gate2DomainSourceFactRuntimeFactory,
+    Gate2NativeProviderTransportConfig,
     Gate2PromptUserContext,
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClientConfig,
@@ -44,6 +45,13 @@ class Pipe:
         prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         model_id: str = Field(default="")
         provider_profile_id: str = Field(default="openai_gpt")
+        anthropic_api_key: str = Field(
+            default="",
+            repr=False,
+            json_schema_extra={"input": {"type": "password"}},
+        )
+        anthropic_api_version: str = Field(default="2023-06-01")
+        native_provider_timeout_seconds: int = Field(default=180)
         default_wave: str = Field(default="primary")
         default_document_batch_limit: int = Field(default=1)
         default_source_unit_limit: int = Field(default=1)
@@ -148,6 +156,11 @@ class Pipe:
                     ),
                     user=__user__,
                     request=__request__,
+                    native_transport_config=Gate2NativeProviderTransportConfig(
+                        anthropic_api_key=self.valves.anthropic_api_key,
+                        anthropic_api_version=self.valves.anthropic_api_version,
+                        timeout_seconds=self.valves.native_provider_timeout_seconds,
+                    ),
                 ).create(),
                 config=Gate2DomainSourceFactRuntimeConfig(
                     model_id=model_id,

@@ -387,6 +387,7 @@ Every attempted model call carries runtime-authored
   "structured_output_mode": "openwebui_response_format_json_schema",
   "response_format_type": "json_schema",
   "response_format_schema_mode": "strict_json_schema",
+  "transport_type": "gemini_openai_compatibility_via_openwebui",
   "canonical_request_schema_hash": "sha256_hex",
   "adapted_request_schema_hash": "sha256_hex",
   "schema_transform_count": 7,
@@ -401,6 +402,9 @@ Every attempted model call carries runtime-authored
 Rules:
 
 - `requested_model_id` is the model sent by the pipeline;
+- `transport_type` is the profile-owned actual transport class; it distinguishes
+  OpenWebUI OpenAI/Gemini routes from Anthropic native Messages via the
+  OpenWebUI Pipe Function;
 - `resolved_model_id` is populated only from the provider/OpenWebUI response and
   remains `null` when unreported;
 - when `resolved_model_id` is reported, it must equal the requested exact model
@@ -580,7 +584,7 @@ hardcoding.
 
 The terminal extraction-run payload also contains
 `gate2_provider_execution_summary_v1`: attempt/error/failure-class counts,
-provider-profile/adapter/requested/resolved-model counts, reported/unreported
+provider-profile/adapter/transport/requested/resolved-model counts, reported/unreported
 usage counts, provider-reported token totals, observed latency totals/max,
 adapted-schema hash counts and total schema-transform count. It contains no
 provider response ids and no raw model/provider content.

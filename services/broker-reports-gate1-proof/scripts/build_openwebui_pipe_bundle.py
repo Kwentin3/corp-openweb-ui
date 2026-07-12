@@ -159,6 +159,8 @@ def assert_gate2_bundle_contract(
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
         "provider_adapter_factory": "Gate2ProviderAdapterFactory(",
+        "anthropic_native_adapter": "Gate2AnthropicNativeMessagesAdapter",
+        "native_transport_config": "Gate2NativeProviderTransportConfig(",
         "provider_adapter_factory_anchor": (
             "Gate2ProviderAdapterFactory.create is the only production Gate 2 "
             "provider adapter entrypoint"
@@ -185,6 +187,7 @@ def assert_gate2_bundle_contract(
     source_adapter = bundle_source.split(BUNDLE_ADAPTER_MARKER, 1)[1]
     forbidden_markers = {
         "direct_openwebui_completion": "generate_chat_completion",
+        "direct_anthropic_endpoint": "api.anthropic.com/v1/messages",
         "duplicate_completion_parser": "_completion_dict_content",
         "duplicate_provider_error_classifier": "_provider_error_code",
         "legacy_pipe_model_client": "class OpenWebUIGate2",
