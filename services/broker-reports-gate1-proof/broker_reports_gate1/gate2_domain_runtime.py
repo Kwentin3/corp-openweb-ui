@@ -1690,6 +1690,18 @@ def _package_selected(package: dict[str, Any], wave: str) -> bool:
 
 
 def _package_budget_error(package: dict[str, Any], config: Gate2DomainSourceFactRuntimeConfig) -> str | None:
+    context_budget = _object(
+        _object(package.get("llm_context_package")).get("budget")
+    )
+    if context_budget.get("status") == "blocked":
+        return str(
+            context_budget.get("error_code")
+            or "gate2_llm_context_budget_exceeded"
+        )
+    feasibility = _object(package.get("package_feasibility"))
+    if feasibility.get("status") == "blocked":
+        reasons = _string_list(feasibility.get("reason_codes"))
+        return reasons[0] if reasons else "gate2_package_feasibility_blocked"
     unit = _object(package.get("source_unit"))
     projection = _object(unit.get("normalized_source_projection"))
     if unit.get("unit_kind") == "table_row_window":

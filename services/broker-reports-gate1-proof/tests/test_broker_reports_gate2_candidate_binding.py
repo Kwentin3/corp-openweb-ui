@@ -20,10 +20,16 @@ from broker_reports_gate1 import (
     Gate2DomainCandidateFinalizerFactory,
     Gate2DomainPackageBuilderConfig,
     Gate2DomainPackageBuilderFactory,
+    Gate2LlmContextBudget,
+    Gate2LlmContextPackageFactory,
     Gate2SourceFactStitcherFactory,
     Gate2SourceUnitRouterFactory,
     candidate_binding_schema_hash,
     candidate_binding_provider_json_schema,
+    context_component_metrics,
+    detect_context_duplication,
+    package_feasibility,
+    safe_inspection,
 )
 from broker_reports_gate1.artifact_models import (
     ArtifactAccessContext,
@@ -176,6 +182,91 @@ class BrokerReportsGate2CandidateBindingTest(unittest.TestCase):
         self.assertNotIn("100.00", rendered)
         self.assertNotIn("SYNTH", rendered)
 
+    def test_llm_context_v2_is_compact_provenance_complete_and_inspectable(self):
+        package = _domain_package("cash_movement")
+        context = package["llm_context_package"]
+        self.assertEqual(
+            context["schema_version"],
+            "broker_reports_gate2_llm_context_package_v2",
+        )
+        self.assertEqual(context["target_source_refs"], package["candidate_source_refs"])
+        self.assertNotIn("document_context", context)
+        self.assertNotIn("source_value_index", context)
+        self.assertEqual(context["material_issues"], [])
+        self.assertTrue(context["candidate_evidence"])
+        for candidate in context["candidate_evidence"]:
+            self.assertTrue(candidate["visible_label"])
+            self.assertTrue(candidate["source_value_refs"])
+            self.assertTrue(candidate["row_ref"])
+        inspection = safe_inspection(context)
+        self.assertEqual(inspection["domain"], "cash_movement")
+        self.assertEqual(inspection["target_refs_total"], 1)
+        metrics = context_component_metrics(context)
+        self.assertGreater(metrics["candidate_evidence"]["estimated_tokens"], 0)
+        self.assertEqual(context["budget"]["silent_truncation_used"], False)
+
+    def test_context_duplication_detection_is_component_specific(self):
+        first = _domain_package("cash_movement")["llm_context_package"]
+        second = copy.deepcopy(first)
+        result = detect_context_duplication([first, second])
+        self.assertEqual(result["local_structure"]["repeated_sends_total"], 1)
+        second["material_issues"] = [{"issue_ref": "different"}]
+        result = detect_context_duplication([first, second])
+        self.assertEqual(result["material_issues"]["repeated_sends_total"], 0)
+
+    def test_material_issue_that_limits_target_confirmation_is_preserved(self):
+        package = _domain_package("cash_movement", issue_limited=True)
+        issues = package["llm_context_package"]["material_issues"]
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["issue_ref"], "issue_limit")
+        self.assertEqual(issues[0]["impact"], "limits_confirmation")
+        schema = candidate_binding_provider_json_schema(package)
+        completeness = schema["properties"]["binding_results"]["items"]["properties"]["completeness"]
+        self.assertNotIn("complete", completeness["enum"])
+
+    def test_package_feasibility_blocks_impossible_roles_before_model(self):
+        package = _domain_package("cash_movement")
+        self.assertEqual(package_feasibility(package)["status"], "passed")
+        package["candidate_binding_profile"]["required_roles"] = ["impossible_role"]
+        feasibility = package_feasibility(package)
+        self.assertEqual(feasibility["status"], "blocked")
+        self.assertIn(
+            "gate2_package_feasibility_required_roles_unavailable",
+            feasibility["reason_codes"],
+        )
+
+    def test_compact_schema_is_flat_and_gemini_projectable(self):
+        package = _domain_package("document_summary_evidence")
+        schema = candidate_binding_provider_json_schema(package)
+        rendered = json.dumps(schema, ensure_ascii=False, sort_keys=True)
+        self.assertNotIn('"anyOf"', rendered)
+        self.assertNotIn('"oneOf"', rendered)
+        self.assertLess(len(rendered), 20000)
+        adapter = Gate2ProviderAdapterFactory(
+            profile=gate2_provider_profile("google_gemini")
+        ).create()
+        prepared = adapter.prepare_form_data(
+            form_data={
+                "model": "models/gemini-3.1-flash-lite",
+                "messages": [],
+                "response_format": candidate_binding_response_format(package),
+            },
+            response_format=candidate_binding_response_format(package),
+        )
+        self.assertTrue(prepared.form_data["response_format"]["json_schema"]["strict"])
+
+    def test_context_budget_blocks_without_silent_truncation(self):
+        package = _domain_package("cash_movement")
+        context = Gate2LlmContextPackageFactory(
+            Gate2LlmContextBudget(max_context_chars=100)
+        ).create().build(package)
+        self.assertEqual(context["budget"]["status"], "blocked")
+        self.assertIn(
+            "gate2_llm_context_budget_exceeded",
+            context["budget"]["error_code"],
+        )
+        self.assertFalse(context["budget"]["silent_truncation_used"])
+
     def test_gemini_projection_characterizes_real_gate2_schema_family(self):
         package = _domain_package("cash_movement")
         adapter = Gate2ProviderAdapterFactory(
@@ -224,9 +315,27 @@ class BrokerReportsGate2CandidateBindingTest(unittest.TestCase):
                     sort_keys=True,
                 )
                 self.assertNotIn('"const"', rendered_adapted)
-                self.assertTrue(
-                    all(value not in rendered_adapted for value in dynamic_values)
-                )
+                if name == "candidate_binding":
+                    self.assertIn('"semantic_role"', rendered_adapted)
+                    self.assertIn('"fact_field_path"', rendered_adapted)
+                    self.assertIn('"candidate_id"', rendered_adapted)
+                if name == "candidate_binding":
+                    self.assertTrue(
+                        all(
+                            value in rendered_adapted
+                            for value in package["source_value_candidate_set"]["candidate_ids"]
+                        )
+                    )
+                    self.assertTrue(
+                        all(
+                            value not in rendered_adapted
+                            for value in package["allowed_source_value_refs"]
+                        )
+                    )
+                else:
+                    self.assertTrue(
+                        all(value not in rendered_adapted for value in dynamic_values)
+                    )
 
     def test_negative_case_matrix_fails_with_typed_codes(self):
         cases = []

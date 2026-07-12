@@ -77,105 +77,78 @@ def candidate_binding_provider_json_schema(package: dict[str, Any]) -> dict[str,
         _object(package.get("coverage_expectation")).get("selected_source_refs")
     )
     domain = str(package.get("extractor_domain") or "")
-    result_variants = []
-    for source_ref in selected_refs:
-        candidate_variants = []
-        for candidate in candidates:
-            if str(candidate.get("row_ref") or "") != source_ref:
-                continue
-            for role in _strings(candidate.get("allowed_semantic_roles")):
-                spec = _object(_object(profile.get("roles")).get(role))
-                path = str(spec.get("fact_field_path") or "")
-                if not path:
-                    continue
-                candidate_variants.append(
-                    _strict_object(
-                        {
-                            "fact_field_path": {"type": "string", "const": path},
-                            "candidate_id": {
-                                "type": "string",
-                                "const": candidate.get("candidate_id"),
-                            },
-                            "semantic_role": {"type": "string", "const": role},
-                        }
-                    )
-                )
-        binding_items: dict[str, Any]
-        if candidate_variants:
-            binding_items = {"anyOf": candidate_variants}
-        else:
-            binding_items = _strict_object({})
-        relation_ids = [
-            str(item["relation_id"])
-            for item in relations
-            if source_ref in _strings(item.get("row_refs"))
-        ]
-        ambiguity_refs = sorted(
-            {
-                str(item.get("ambiguity_group_ref"))
-                for item in candidates
-                if item.get("ambiguity_group_ref")
-                and str(item.get("row_ref") or "") == source_ref
-            }
-        )
-        typed = _strict_object(
-            {
-                "source_ref": {"type": "string", "const": source_ref},
-                "fact_type": {"type": "string", "const": domain},
-                "selected_bindings": {
-                    "type": "array",
-                    "items": binding_items,
-                    "maxItems": len(candidate_variants),
-                },
-                "selected_relation_ids": _restricted_array(relation_ids),
-                "subtype_candidate": {
-                    "type": "string",
-                    "enum": _strings(profile.get("subtypes")) or ["unknown"],
-                },
-                "confidence": {
-                    "type": "string",
-                    "enum": ["high", "medium", "low", "none"],
-                },
-                "completeness": {
-                    "type": "string",
-                    "enum": ["complete", "partial", "uncertain", "blocked"],
-                },
-                "uncertainty_codes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "resolved_ambiguity_group_refs": _restricted_array(ambiguity_refs),
-            }
-        )
-        unknown = _strict_object(
-            {
-                "source_ref": {"type": "string", "const": source_ref},
-                "fact_type": {"type": "string", "const": "unknown_source_row"},
-                "selected_bindings": {
-                    "type": "array",
-                    "items": _strict_object({}),
-                    "maxItems": 0,
-                },
-                "selected_relation_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "maxItems": 0,
-                },
-                "subtype_candidate": {"type": "string", "const": "unknown"},
-                "confidence": {"type": "string", "enum": ["low", "none"]},
-                "completeness": {
-                    "type": "string",
-                    "enum": ["uncertain", "blocked"],
-                },
-                "uncertainty_codes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 1,
-                },
-                "resolved_ambiguity_group_refs": _restricted_array(ambiguity_refs),
-            }
-        )
-        result_variants.extend([typed, unknown])
+    candidate_ids = sorted(
+        str(item.get("candidate_id") or "") for item in candidates if item.get("candidate_id")
+    )
+    semantic_roles = sorted(
+        {
+            role
+            for item in candidates
+            for role in _strings(item.get("allowed_semantic_roles"))
+        }
+    )
+    fact_field_paths = sorted(
+        {
+            str(path)
+            for item in candidates
+            for path in _strings(item.get("allowed_fact_field_paths"))
+        }
+    )
+    relation_ids = sorted(
+        str(item.get("relation_id") or "") for item in relations if item.get("relation_id")
+    )
+    ambiguity_refs = sorted(
+        {
+            str(item.get("ambiguity_group_ref"))
+            for item in candidates
+            if item.get("ambiguity_group_ref")
+        }
+    )
+    issue_limited = bool(_strings(package.get("allowed_issue_refs")))
+    binding_item = _strict_object(
+        {
+            "fact_field_path": _enum_or_uninhabited(fact_field_paths),
+            "candidate_id": _enum_or_uninhabited(candidate_ids),
+            "semantic_role": _enum_or_uninhabited(semantic_roles),
+        }
+    )
+    result_item = _strict_object(
+        {
+            "source_ref": {"type": "string", "enum": selected_refs},
+            "fact_type": {
+                "type": "string",
+                "enum": [domain, "unknown_source_row"],
+            },
+            "selected_bindings": {
+                "type": "array",
+                "items": binding_item,
+                "maxItems": len(candidate_ids),
+                "uniqueItems": True,
+            },
+            "selected_relation_ids": _restricted_array(relation_ids),
+            "subtype_candidate": {
+                "type": "string",
+                "enum": sorted(set(_strings(profile.get("subtypes")) + ["unknown"])),
+            },
+            "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low", "none"],
+            },
+            "completeness": {
+                "type": "string",
+                "enum": (
+                    ["partial", "uncertain", "blocked"]
+                    if issue_limited
+                    else ["complete", "partial", "uncertain", "blocked"]
+                ),
+            },
+            "uncertainty_codes": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "resolved_ambiguity_group_refs": _restricted_array(ambiguity_refs),
+        }
+    )
     no_fact = _strict_object(
         {
             "source_ref": {"type": "string", "enum": selected_refs},
@@ -220,12 +193,18 @@ def candidate_binding_provider_json_schema(package: dict[str, Any]) -> dict[str,
             },
             "binding_results": {
                 "type": "array",
-                "items": {"anyOf": result_variants},
+                "items": result_item,
                 "maxItems": len(selected_refs),
             },
             "no_fact_results": {"type": "array", "items": no_fact},
         }
     )
+
+
+def _enum_or_uninhabited(values: list[str]) -> dict[str, Any]:
+    if values:
+        return {"type": "string", "enum": values}
+    return {"type": "string", "enum": ["__no_admissible_value__"]}
 
 
 def candidate_binding_schema_hash(package: dict[str, Any]) -> str:

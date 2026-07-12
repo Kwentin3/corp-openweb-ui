@@ -697,12 +697,14 @@ _ANTHROPIC_REMOVED_SCHEMA_KEYWORDS = (
     "uniqueItems",
 )
 _GEMINI_PRESERVED_ENUM_PROPERTIES = {
+    "candidate_id",
     "code_kind",
     "completeness",
     "confidence",
     "coverage_status",
     "fact_subtype",
     "fact_type",
+    "fact_field_path",
     "identifier_type",
     "income_type_candidate",
     "fee_type_candidate",
@@ -712,7 +714,10 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "position_kind_candidate",
     "precision",
     "reason_code",
+    "semantic_role",
     "source_granularity",
+    "source_ref",
+    "subtype_candidate",
     "withholding_type_candidate",
     "validator_status",
 }

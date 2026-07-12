@@ -13,6 +13,7 @@ from .gate2_domain_routing import (
     ROUTE_SCHEMA_VERSION,
     validate_source_unit_domain_route,
 )
+from .gate2_llm_context import Gate2LlmContextPackageFactory, package_feasibility
 from .source_provenance import reproduce_normalized_value
 
 
@@ -208,6 +209,10 @@ class Gate2DomainPackageBuilder:
                         "model_output_schema_id": "broker_reports.candidate_binding_output.schema.v0",
                         "model_output_schema_version": "broker_reports_candidate_binding_output_v0",
                     }
+                )
+                package["package_feasibility"] = package_feasibility(package)
+                package["llm_context_package"] = (
+                    Gate2LlmContextPackageFactory().create().build(package)
                 )
             validate_domain_extraction_package(package)
             packages.append(package)

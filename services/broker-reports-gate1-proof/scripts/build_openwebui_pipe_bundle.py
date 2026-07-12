@@ -61,6 +61,7 @@ MODULE_ORDER = [
     "gate2_domain_routing",
     "gate2_candidate_binding",
     "gate2_candidate_binding_runtime",
+    "gate2_llm_context",
     "gate2_domain_packages",
     "gate2_source_unit_segmentation",
     "gate2_domain_contracts",

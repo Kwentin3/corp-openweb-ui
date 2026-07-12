@@ -8,6 +8,11 @@
 Статус: навигационный индекс. Не является разрешением на implementation,
 runtime changes, provider setup или использование customer data.
 
+## Gate 2 LLM-friendly context, 2026-07-12
+
+- [Исследование состава и дублирования Gate 2 LLM-контекста](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
+- [Рефакторинг контекста и повтор одного реального PDF](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
+
 ## How to use this index
 
 1. Определи тип задачи и домен: planning, selected stories, synthetic data,

@@ -276,13 +276,15 @@ class Gate2SourceUnitRouter:
         token = _safe_token(segment.get("value"))
         domains = _domains_for_exact_visible_token(token)
         if not domains:
-            domains = ["document_summary_evidence"]
-            reasons = ["text_segment_default_summary_evidence"]
-            confidence = "low"
-        else:
-            domains = domains[: self.config.max_candidate_domains]
-            reasons = ["text_visible_domain_helper_signal"]
-            confidence = "medium"
+            return self._no_fact_entry(
+                source_ref=source_ref,
+                reason_code="text_segment_no_mechanically_visible_business_signal",
+                header_signals=header_signals,
+                package=package,
+            )
+        domains = domains[: self.config.max_candidate_domains]
+        reasons = ["text_visible_domain_helper_signal"]
+        confidence = "medium"
         return self._entry(
             source_ref=source_ref,
             source_kind="text_segment",
@@ -377,6 +379,20 @@ class Gate2SourceUnitRouter:
             },
             "candidate_domains": candidate_domains,
             "primary_suggested_domain": primary,
+            "domain_applicability": {
+                "schema_version": "broker_reports_gate2_domain_applicability_v1",
+                "decision": (
+                    "deterministic_terminal"
+                    if route_kind == "deterministic_no_fact"
+                    else "single_domain"
+                    if len(candidate_domains) == 1
+                    else "bounded_ambiguous_domains"
+                ),
+                "applicable_domains": copy.deepcopy(candidate_domains),
+                "confidence": confidence,
+                "reason_codes": copy.deepcopy(reason_codes),
+                "final_semantic_extraction_performed": False,
+            },
             "allowed_extractor_ids": [
                 DOMAIN_EXTRACTOR_IDS[domain] for domain in candidate_domains
             ],

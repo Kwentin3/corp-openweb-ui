@@ -9,6 +9,7 @@ OpenWebUI Gate 2 domain pipe one deterministic source-unit segment at a time.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 import time
@@ -59,9 +60,11 @@ def main() -> int:
     parser.add_argument("--table-segment-max-refs", type=int, default=4)
     parser.add_argument("--text-segment-max-refs", type=int, default=6)
     parser.add_argument("--max-model-calls", type=int, default=120)
+    parser.add_argument("--segments-per-window", type=int, default=8)
     parser.add_argument("--max-repair-attempts", type=int, default=0)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--bounded-corpus", action="store_true")
     parser.add_argument("--disable-candidate-binding", action="store_true")
     parser.add_argument("--resume-existing-runs", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--resume-run-count", type=int, default=None)
@@ -110,6 +113,12 @@ def main() -> int:
         text_segment_max_refs=args.text_segment_max_refs,
         candidate_binding_enabled=candidate_binding_enabled,
     )
+    if not args.bounded_corpus and args.segments_per_window > 1:
+        preflight = _batch_preflight_windows(
+            preflight, segments_per_window=args.segments_per_window
+        )
+    if args.bounded_corpus:
+        preflight = _bounded_corpus_preflight(preflight)
     preflight_checks = _preflight_checks(preflight, max_model_calls=args.max_model_calls)
     if args.preflight_only or not all(preflight_checks.values()):
         status = "passed" if all(preflight_checks.values()) else "blocked"
@@ -133,7 +142,7 @@ def main() -> int:
 
     existing_run_refs = _domain_run_refs(ssh_target=ssh_target, case_id=args.case_id)
     resume_count = 0
-    if args.resume_existing_runs:
+    if args.resume_existing_runs and not args.bounded_corpus:
         resume_count = min(len(existing_run_refs), len(preflight.get("windows") or []))
     if args.resume_run_count is not None:
         resume_count = max(0, min(args.resume_run_count, len(preflight.get("windows") or [])))
@@ -331,6 +340,132 @@ def _compact_preflight(preflight: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _bounded_corpus_preflight(preflight: dict[str, Any]) -> dict[str, Any]:
+    windows = list(preflight.get("windows") or [])
+    selected: list[dict[str, Any]] = []
+    seen_domains: set[str] = set()
+    seen_terminal: set[str] = set()
+    seen_blockers: set[str] = set()
+    preferred_domains = {
+        "cash_movement",
+        "income",
+        "trade_operation",
+        "fee_commission",
+        "position_snapshot",
+        "withholding_tax",
+        "document_summary_evidence",
+    }
+    for window in windows:
+        feasible = set(window.get("model_domains") or [])
+        routed = set(window.get("domains") or [])
+        blockers = set(window.get("feasibility_reason_codes") or [])
+        terminal = (
+            "deterministic_no_fact"
+            if int(window.get("deterministic_no_fact_total") or 0) > 0
+            else "unknown_source_row"
+            if "unknown_source_row" in feasible
+            else None
+        )
+        new_domain = bool((routed & preferred_domains) - seen_domains)
+        new_terminal = terminal is not None and terminal not in seen_terminal
+        new_blocker = bool(blockers - seen_blockers)
+        if not (new_domain or new_terminal or new_blocker):
+            continue
+        selected.append(window)
+        seen_domains.update(routed & preferred_domains)
+        if terminal:
+            seen_terminal.add(terminal)
+        seen_blockers.update(blockers)
+        if (
+            preferred_domains <= seen_domains
+            and {"deterministic_no_fact", "unknown_source_row"} <= seen_terminal
+            and len(seen_blockers) >= 2
+        ):
+            break
+    value = copy.deepcopy(preflight)
+    value["windows"] = selected
+    plan = value.get("coverage_plan") or {}
+    plan["bounded_corpus"] = True
+    plan["windows_total"] = len(selected)
+    plan["expected_model_calls_total"] = sum(
+        int(item.get("expected_model_calls_total") or 0) for item in selected
+    )
+    plan["mechanically_impossible_packages_total"] = sum(
+        int(item.get("mechanically_impossible_packages_total") or 0)
+        for item in selected
+    )
+    return value
+
+
+def _batch_preflight_windows(
+    preflight: dict[str, Any], *, segments_per_window: int
+) -> dict[str, Any]:
+    source = list(preflight.get("windows") or [])
+    batched: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+
+    def flush() -> None:
+        if not current:
+            return
+        first = copy.deepcopy(current[0])
+        first["window_index"] = len(batched)
+        first["source_segment_limit"] = sum(
+            int(item.get("source_segment_limit") or 1) for item in current
+        )
+        first["segment_kind"] = (
+            str(current[0].get("segment_kind") or "unknown")
+            if len(current) == 1
+            else "batched_contiguous_segments"
+        )
+        for field in (
+            "domain_packages_total",
+            "expected_model_calls_total",
+            "mechanically_impossible_packages_total",
+            "selected_refs_total",
+            "deterministic_no_fact_total",
+            "unknown_route_total",
+            "ambiguous_route_total",
+        ):
+            first[field] = sum(int(item.get(field) or 0) for item in current)
+        first["domains"] = sorted(
+            {domain for item in current for domain in item.get("domains") or []}
+        )
+        first["model_domains"] = sorted(
+            {domain for item in current for domain in item.get("model_domains") or []}
+        )
+        first["feasibility_reason_codes"] = sorted(
+            {
+                reason
+                for item in current
+                for reason in item.get("feasibility_reason_codes") or []
+            }
+        )
+        first["batched_segment_indexes"] = [
+            int(item.get("window_index") or 0) for item in current
+        ]
+        batched.append(first)
+
+    for window in source:
+        same_unit = not current or (
+            window.get("source_unit_start") == current[-1].get("source_unit_start")
+            and int(window.get("source_segment_start") or 0)
+            == int(current[-1].get("source_segment_start") or 0)
+            + int(current[-1].get("source_segment_limit") or 1)
+        )
+        if current and (not same_unit or len(current) >= segments_per_window):
+            flush()
+            current = []
+        current.append(window)
+    flush()
+    value = copy.deepcopy(preflight)
+    value["windows"] = batched
+    plan = value.get("coverage_plan") or {}
+    plan["unbatched_windows_total"] = len(source)
+    plan["windows_total"] = len(batched)
+    plan["segments_per_window"] = segments_per_window
+    return value
+
+
 def _preflight_matrix(
     *,
     ssh_target: str,
@@ -402,6 +537,8 @@ unaccounted_parent_refs_total = 0
 truncated_source_units_total = 0
 pending_parent_remainders_total = 0
 expected_model_calls_total = 0
+mechanically_impossible_packages_total = 0
+feasibility_reason_counts = Counter()
 source_input_mode_counts = Counter()
 unit_kind_counts = Counter()
 domain_package_counts = Counter()
@@ -455,8 +592,27 @@ for document_index, document_ref in enumerate(document_refs):
                 route_kind_counts[str(entry.get("route_kind") or "unknown")] += 1
             domain_packages = domain_builder.build(base_package=derived, route=route)
             domains = [str(item.get("extractor_domain") or "") for item in domain_packages if item.get("extractor_domain")]
+            feasible_packages = [
+                item for item in domain_packages
+                if (item.get("package_feasibility") or {{}}).get("status") != "blocked"
+                and ((item.get("llm_context_package") or {{}}).get("budget") or {{}}).get("status") != "blocked"
+            ]
+            model_domains = [str(item.get("extractor_domain") or "") for item in feasible_packages if item.get("extractor_domain")]
+            blocked_packages = [item for item in domain_packages if item not in feasible_packages]
+            blocked_reasons = sorted({{
+                str(reason)
+                for item in blocked_packages
+                for reason in (
+                    ((item.get("package_feasibility") or {{}}).get("reason_codes") or [])
+                    + ([((item.get("llm_context_package") or {{}}).get("budget") or {{}}).get("error_code")]
+                       if ((item.get("llm_context_package") or {{}}).get("budget") or {{}}).get("error_code") else [])
+                )
+                if reason
+            }})
             domain_package_counts.update(domains)
-            expected_model_calls_total += len(domain_packages)
+            expected_model_calls_total += len(feasible_packages)
+            mechanically_impossible_packages_total += len(blocked_packages)
+            feasibility_reason_counts.update(blocked_reasons)
             segment = (derived.get("segmentation") or {{}})
             coverage = derived.get("coverage_expectation") or {{}}
             coverage_ref = str(coverage.get("coverage_ref") or "")
@@ -476,7 +632,11 @@ for document_index, document_ref in enumerate(document_refs):
                 "unit_kind": unit.get("unit_kind"),
                 "source_format": unit.get("source_format"),
                 "domains": domains,
+                "model_domains": model_domains,
                 "domain_packages_total": len(domain_packages),
+                "expected_model_calls_total": len(feasible_packages),
+                "mechanically_impossible_packages_total": len(blocked_packages),
+                "feasibility_reason_codes": blocked_reasons,
                 "selected_refs_total": int(route_coverage.get("selected_total") or 0),
                 "deterministic_no_fact_total": int(route_coverage.get("deterministic_no_fact_total") or 0),
                 "unknown_route_total": int(route_coverage.get("unknown_total") or 0),
@@ -521,6 +681,8 @@ print(json.dumps({{
         "truncated_source_units_total": truncated_source_units_total,
         "pending_parent_remainders_total": pending_parent_remainders_total,
         "expected_model_calls_total": expected_model_calls_total,
+        "mechanically_impossible_packages_total": mechanically_impossible_packages_total,
+        "feasibility_reason_counts": dict(sorted(feasibility_reason_counts.items())),
         "deterministic_no_fact_route_refs_total": route_kind_counts.get("deterministic_no_fact", 0),
         "model_candidate_route_refs_total": route_kind_counts.get("model_candidate", 0),
         "domain_package_counts": dict(sorted(domain_package_counts.items())),
@@ -647,7 +809,7 @@ def _run_window_chat(
                 "segmentation_enabled": True,
                 "prefer_table_projections": True,
                 "source_segment_start": window["source_segment_start"],
-                "source_segment_limit": 1,
+                "source_segment_limit": window["source_segment_limit"],
                 "table_segment_max_refs": table_segment_max_refs,
                 "text_segment_max_refs": text_segment_max_refs,
                 "domain_allowlist": list(window.get("domains") or []),

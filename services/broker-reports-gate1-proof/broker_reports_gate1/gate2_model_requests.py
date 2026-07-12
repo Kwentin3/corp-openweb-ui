@@ -57,7 +57,8 @@ class Gate2OpenWebUIRequestBuilder:
                 "gate2_prompt_contract_mismatch",
                 "Managed Prompt input marker is missing",
             )
-        package_json = json.dumps(package, ensure_ascii=False, sort_keys=True)
+        model_package = package.get("llm_context_package") or package
+        package_json = json.dumps(model_package, ensure_ascii=False, sort_keys=True)
         system_content = prompt.content.replace(marker, package_json)
         user_content = json.dumps(
             {
@@ -111,8 +112,9 @@ class Gate2OpenWebUIRequestBuilder:
             )
         domain = str(package.get("extractor_domain") or "")
         candidate_binding = bool(package.get("candidate_binding_mode"))
+        model_package = package.get("llm_context_package") or package
         system_content = prompt.content.replace(
-            marker, json.dumps(package, ensure_ascii=False, sort_keys=True)
+            marker, json.dumps(model_package, ensure_ascii=False, sort_keys=True)
         )
         user_content = json.dumps(
             {

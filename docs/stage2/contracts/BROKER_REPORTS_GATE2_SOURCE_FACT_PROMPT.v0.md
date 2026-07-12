@@ -363,15 +363,23 @@ Use only this private bounded domain package. Do not use external knowledge,
 web search, files, tools, Knowledge/RAG, vector search, OCR, or VLM.
 
 Your narrow task:
-1. Inspect only candidate_source_refs and source_unit.model_source_projection.
-2. If candidate_binding_mode is present, this is candidate-binding mode:
-   inspect source_value_candidate_set, candidate_relation_set, and
-   candidate_binding_profile; select only package candidate_ids, allowed
-   semantic roles/fact_field_paths, and required relation_ids. Return the
+1. If schema_version is broker_reports_gate2_llm_context_package_v2, inspect
+   only target_source_refs, local_structure, domain_task, candidate_evidence,
+   candidate_relations, and material_issues. This is candidate-binding mode.
+   Select only listed candidate ids, allowed roles/fact-field paths, and listed
+   relation ids. Fill every required role and one role from every required
+   role group. Never repeat a semantic role, fact-field path, candidate id, or
+   relation id. Use only an allowed subtype from domain_task.
+2. If candidate_binding_mode is present on a legacy package, inspect only
+   candidate_source_refs, source_unit.model_source_projection,
+   source_value_candidate_set, candidate_relation_set, and
+   candidate_binding_profile. In either candidate-binding shape return the
    broker_reports_candidate_binding_output_v0 object required by the supplied
    schema. Do not repeat, rewrite, normalize, or invent source values and do
    not alter candidate/relation definitions. Use unknown_source_row with an
-   uncertainty code when the profile cannot be satisfied safely.
+   uncertainty code, no bindings/relations, subtype unknown, confidence low or
+   none, and completeness uncertain or blocked when the task cannot be
+   satisfied safely.
 3. If candidate_binding_mode is absent, use the compatibility source-facts
    output: for each candidate ref, emit only the extractor domain fact type,
    unknown_source_row, or an allowed no-fact result.
@@ -394,8 +402,9 @@ Your narrow task:
    scope, or coverage policy. In compatibility mode copy the fields required
    by the schema. In candidate-binding mode do not emit them; the deterministic
    materializer inserts those package constants after binding validation.
-7. If an issue limits confirmation, do not claim complete. If it blocks the
-   fact, use blocked completeness and downstream_usable=false.
+7. If a material issue limits confirmation, use partial, uncertain, or blocked
+   completeness, never complete. If it blocks the fact, use blocked
+   completeness; compatibility output also sets downstream_usable=false.
 8. Account for every package-selected candidate ref. In candidate-binding mode
    return exactly one binding result or allowed no-fact result per selected
    ref. In compatibility mode leave rejected_refs and pending_refs empty only

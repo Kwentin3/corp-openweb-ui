@@ -219,6 +219,17 @@ from .gate2_candidate_binding_runtime import (
     parse_candidate_binding_model_output,
     validate_candidate_binding_selection,
 )
+from .gate2_llm_context import (
+    LLM_CONTEXT_PACKAGE_POLICY_VERSION,
+    LLM_CONTEXT_PACKAGE_SCHEMA_VERSION,
+    Gate2LlmContextBudget,
+    Gate2LlmContextPackageFactory,
+    context_budget_metrics,
+    context_component_metrics,
+    detect_context_duplication,
+    package_feasibility,
+    safe_inspection,
+)
 from .inputs import BytesUnavailable, FileInput
 from .normalizer import Gate1Normalizer
 from .safe_report import render_chat_content
@@ -415,6 +426,15 @@ __all__ = [
     "materialize_candidate_binding_selection",
     "parse_candidate_binding_model_output",
     "validate_candidate_binding_selection",
+    "LLM_CONTEXT_PACKAGE_POLICY_VERSION",
+    "LLM_CONTEXT_PACKAGE_SCHEMA_VERSION",
+    "Gate2LlmContextBudget",
+    "Gate2LlmContextPackageFactory",
+    "context_budget_metrics",
+    "context_component_metrics",
+    "detect_context_duplication",
+    "package_feasibility",
+    "safe_inspection",
     "build_domain_source_facts_wrapper",
     "domain_source_facts_response_format",
     "render_domain_compact_russian_summary",
