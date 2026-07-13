@@ -82,6 +82,23 @@ class NativePdfTransport:
             return self._gemini(spec, pdf_bytes, prompt, schema, max_output_tokens)
         return self._anthropic(spec, pdf_bytes, prompt, schema, max_output_tokens)
 
+    def invoke_plain_text(
+        self,
+        *,
+        spec: ProviderSpec,
+        pdf_bytes: bytes,
+        filename: str,
+        prompt: str,
+        max_output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        if spec.provider != self.connection.provider:
+            raise ValueError("provider_connection_mismatch")
+        if spec.provider == "openai":
+            return self._openai_plain(spec, pdf_bytes, filename, prompt, max_output_tokens)
+        if spec.provider == "google":
+            return self._gemini_plain(spec, pdf_bytes, prompt, max_output_tokens)
+        return self._anthropic_plain(spec, pdf_bytes, prompt, max_output_tokens)
+
     def _openai(
         self,
         spec: ProviderSpec,
@@ -186,6 +203,95 @@ class NativePdfTransport:
         safe.update(_schema_projection_metadata(schema, adapted_schema, transform_count))
         return private, safe
 
+    def _openai_plain(
+        self,
+        spec: ProviderSpec,
+        pdf_bytes: bytes,
+        filename: str,
+        prompt: str,
+        max_output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        body = {
+            "model": spec.model,
+            "input": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_file",
+                        "filename": filename,
+                        "file_data": "data:application/pdf;base64," + base64.b64encode(pdf_bytes).decode("ascii"),
+                    },
+                    {"type": "input_text", "text": prompt},
+                ],
+            }],
+            "temperature": 0,
+            "max_output_tokens": max_output_tokens,
+            "store": False,
+        }
+        return self._post_plain(
+            self.connection.base_url + "/responses",
+            {"Authorization": f"Bearer {self.connection.api_key}"},
+            body,
+            provider="openai",
+        )
+
+    def _gemini_plain(
+        self,
+        spec: ProviderSpec,
+        pdf_bytes: bytes,
+        prompt: str,
+        max_output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        model = spec.model.removeprefix("models/")
+        body = {
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(pdf_bytes).decode("ascii")}},
+                    {"text": prompt},
+                ],
+            }],
+            "generationConfig": {"temperature": 0, "maxOutputTokens": max_output_tokens},
+        }
+        return self._post_plain(
+            self.connection.base_url.removesuffix("/openai") + f"/models/{model}:generateContent",
+            {"x-goog-api-key": self.connection.api_key},
+            body,
+            provider="google",
+        )
+
+    def _anthropic_plain(
+        self,
+        spec: ProviderSpec,
+        pdf_bytes: bytes,
+        prompt: str,
+        max_output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        body = {
+            "model": spec.model,
+            "max_tokens": max_output_tokens,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": base64.b64encode(pdf_bytes).decode("ascii"),
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        }
+        return self._post_plain(
+            self.connection.base_url + "/messages",
+            {"x-api-key": self.connection.api_key, "anthropic-version": "2023-06-01"},
+            body,
+            provider="anthropic",
+        )
+
     def _post(self, url: str, headers: dict[str, str], body: dict[str, Any], *, parser) -> tuple[dict[str, Any], dict[str, Any]]:
         started = time.perf_counter()
         response = requests.post(url, headers={**headers, "content-type": "application/json"}, json=body, timeout=self.timeout)
@@ -210,6 +316,41 @@ class NativePdfTransport:
             safe["failure_class"] = _failure_class(response.status_code, payload)
         private = {"request": body, "response": payload, "parsed": parsed}
         return private, safe
+
+    def _post_plain(
+        self,
+        url: str,
+        headers: dict[str, str],
+        body: dict[str, Any],
+        *,
+        provider: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        started = time.perf_counter()
+        response = requests.post(
+            url,
+            headers={**headers, "content-type": "application/json"},
+            json=body,
+            timeout=self.timeout,
+        )
+        duration = time.perf_counter() - started
+        if len(response.content) > MAX_RESPONSE_BYTES:
+            raise RuntimeError("provider_response_budget_exceeded")
+        payload = _response_json(response)
+        text, parse_error = parse_plain_text_payload(provider, payload) if response.ok else (None, None)
+        safe = {
+            "http_status": response.status_code,
+            "provider_status": "passed" if response.ok and isinstance(text, str) and bool(text.strip()) else "failed",
+            "parse_error": parse_error,
+            "duration_seconds": round(duration, 3),
+            "response_bytes": len(response.content),
+            "response_hash": hashlib.sha256(response.content).hexdigest(),
+            "response_id": _response_id(payload),
+            "resolved_model": str(payload.get("model") or "") if isinstance(payload, dict) else "",
+            **_usage(provider, payload),
+        }
+        if not response.ok:
+            safe["failure_class"] = _failure_class(response.status_code, payload)
+        return {"request": body, "response": payload, "text": text}, safe
 
 
 def connections_from_openwebui_config(config: dict[str, Any]) -> dict[str, ProviderConnection]:
@@ -241,6 +382,32 @@ def parse_provider_payload(provider: str, payload: dict[str, Any]) -> tuple[Any,
     if provider == "anthropic":
         return _parse_anthropic(payload)
     return None, "provider_unknown"
+
+
+def parse_plain_text_payload(provider: str, payload: dict[str, Any]) -> tuple[str | None, str | None]:
+    texts: list[str] = []
+    if provider == "openai":
+        for item in payload.get("output") or []:
+            for content in item.get("content") or [] if isinstance(item, dict) else []:
+                if isinstance(content, dict) and isinstance(content.get("text"), str):
+                    texts.append(content["text"])
+    elif provider == "google":
+        for candidate in payload.get("candidates") or []:
+            content = candidate.get("content") if isinstance(candidate, dict) else {}
+            for part in content.get("parts") or [] if isinstance(content, dict) else []:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    texts.append(part["text"])
+    elif provider == "anthropic":
+        texts = [
+            item["text"]
+            for item in payload.get("content") or []
+            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str)
+        ]
+    else:
+        return None, "provider_unknown"
+    if not texts or not any(value.strip() for value in texts):
+        return None, "plain_text_block_missing"
+    return "".join(texts), None
 
 
 def _provider_for_url(url: str) -> str | None:
