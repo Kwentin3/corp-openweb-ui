@@ -234,6 +234,56 @@ class PdfCsvExperimentRuntime:
         parsed["mode"] = "free_value_csv"
         return parsed
 
+    def inspect_free_csv(self, text: Any) -> dict[str, Any]:
+        """Parse a visual CSV challenge without assuming an advertised shape.
+
+        Dialect validity and rectangularity are intentionally separate from any
+        later comparison with parser or reference dimensions.  A valid natural
+        CSV shape must not be relabelled as malformed merely because the model
+        was not told the expected dimensions.
+        """
+
+        parsed = self._parse_csv_document(text)
+        rows = parsed["rows"]
+        widths = [len(row) for row in rows]
+        rectangular = bool(rows) and len(set(widths)) == 1 and widths[0] > 0
+        parsed.update(
+            {
+                "mode": "free_value_csv_unconstrained_shape",
+                "row_widths": widths,
+                "rectangular": rectangular,
+                "column_count": widths[0] if rectangular else None,
+                "grid_hash": sha256_json(rows) if rectangular else None,
+            }
+        )
+        return parsed
+
+    def parse_topology_json(
+        self,
+        value: Any,
+        *,
+        expected_rows: int,
+        expected_columns: int,
+        expected_continuation: list[Any] | None,
+    ) -> dict[str, Any]:
+        """Validate a topology-only JSON response independently of any grid."""
+
+        try:
+            text = json.dumps(
+                value,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise PdfCsvExperimentError("pdf_csv_topology_json_invalid") from exc
+        return self._parse_topology(
+            text,
+            expected_rows=expected_rows,
+            expected_columns=expected_columns,
+            expected_continuation=expected_continuation,
+        )
+
     def parse_candidate_csv(
         self,
         text: Any,
@@ -503,6 +553,30 @@ class PdfCsvExperimentRuntime:
         expected_rows: int,
         expected_columns: int,
     ) -> dict[str, Any]:
+        document = self._parse_csv_document(text)
+        encoded = text.encode("utf-8")
+        rows = document["rows"]
+        if len(rows) != expected_rows:
+            raise PdfCsvExperimentError("pdf_csv_row_count_mismatch")
+        if expected_columns < 1 or any(len(row) != expected_columns for row in rows):
+            raise PdfCsvExperimentError("pdf_csv_column_count_mismatch")
+        if any(row == [] for row in rows):
+            raise PdfCsvExperimentError("pdf_csv_blank_row_forbidden")
+        return {
+            "schema_version": self.config.schema_version,
+            "rows": rows,
+            "row_count": len(rows),
+            "column_count": expected_columns,
+            "grid_hash": sha256_json(rows),
+            "csv_bytes": len(encoded),
+            "maximum_row_bytes": max(
+                (len(self._serialize_row(row)) for row in rows), default=0
+            ),
+            "byte_complete_parse": True,
+            "silent_repair_performed": False,
+        }
+
+    def _parse_csv_document(self, text: Any) -> dict[str, Any]:
         if not isinstance(text, str):
             raise PdfCsvExperimentError("pdf_csv_output_not_text")
         encoded = text.encode("utf-8")
@@ -529,18 +603,14 @@ class PdfCsvExperimentRuntime:
             raise PdfCsvExperimentError("pdf_csv_malformed_quoting") from exc
         if rows and rows[-1] == []:
             rows.pop()
-        if len(rows) != expected_rows:
-            raise PdfCsvExperimentError("pdf_csv_row_count_mismatch")
-        if expected_columns < 1 or any(len(row) != expected_columns for row in rows):
-            raise PdfCsvExperimentError("pdf_csv_column_count_mismatch")
+        if not rows:
+            raise PdfCsvExperimentError("pdf_csv_output_empty")
         if any(row == [] for row in rows):
             raise PdfCsvExperimentError("pdf_csv_blank_row_forbidden")
         return {
             "schema_version": self.config.schema_version,
             "rows": rows,
             "row_count": len(rows),
-            "column_count": expected_columns,
-            "grid_hash": sha256_json(rows),
             "csv_bytes": len(encoded),
             "maximum_row_bytes": max(
                 (len(self._serialize_row(row)) for row in rows), default=0

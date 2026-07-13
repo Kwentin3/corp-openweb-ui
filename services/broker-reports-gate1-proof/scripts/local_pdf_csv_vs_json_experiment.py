@@ -64,6 +64,16 @@ from broker_reports_gate1.pdf_hybrid_structure import (  # noqa: E402
 from broker_reports_gate1.pdf_hybrid_windows import (  # noqa: E402
     PdfHybridWindowFactory,
 )
+from broker_reports_gate1.pdf_grid_experiment import (  # noqa: E402
+    PDF_GRID_EXPERIMENT_VERSION,
+    PdfGridExperimentError,
+    PdfGridExperimentFactory,
+)
+from broker_reports_gate1.pdf_grid_experiment_provider import (  # noqa: E402
+    PdfGridExperimentProviderFactory,
+    PdfGridProviderConfig,
+    PdfGridProviderError,
+)
 from broker_reports_gate1.pdf_table_classification import (  # noqa: E402
     PdfTableClassifierConfig,
     PdfTableClassifierFactory,
@@ -74,6 +84,8 @@ from broker_reports_gate1.pdf_table_validation import (  # noqa: E402
 )
 SAFE_SCHEMA = "broker_reports_real_table_csv_vs_json_experiment_safe_v1"
 PRIVATE_SCHEMA = "broker_reports_real_table_csv_vs_json_experiment_private_v1"
+V2_SAFE_SCHEMA = "broker_reports_real_table_grid_representation_experiment_safe_v2"
+V2_PRIVATE_SCHEMA = "broker_reports_real_table_grid_representation_experiment_private_v2"
 TARGET_KEYS = ("1:2", "1:3", "3:2", "4:1", "4:2", "5:3")
 REPEAT_KEYS = {"1:2", "1:3", "3:2", "4:1", "4:2"}
 JSON_LIVE3_KEYS = {"1:3", "3:2", "4:1", "4:2", "5:3"}
@@ -94,13 +106,18 @@ def main() -> int:
     parser.add_argument("--reference", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
-    parser.add_argument("--json-control-dir", required=True)
+    parser.add_argument("--json-control-dir")
     parser.add_argument("--model-id", default="models/gemini-3.5-flash")
+    parser.add_argument("--protocol", choices=("v1", "v2"), default="v1")
     parser.add_argument("--skip-provider", action="store_true")
     parser.add_argument("--resume-journal-only", action="store_true")
     args = parser.parse_args()
     if args.skip_provider and args.resume_journal_only:
         parser.error("--skip-provider and --resume-journal-only are mutually exclusive")
+    if args.protocol == "v1" and not args.json_control_dir:
+        parser.error("--json-control-dir is required for --protocol v1")
+    if args.protocol == "v2":
+        return _main_v2(args)
 
     pdf_path = Path(args.pdf).resolve()
     reference_path = Path(args.reference).resolve()
@@ -2072,6 +2089,1274 @@ def _gemini_text(payload: dict[str, Any]) -> str:
             if isinstance(part, dict) and isinstance(part.get("text"), str):
                 texts.append(part["text"])
     return "".join(texts)
+
+
+def _main_v2(args: Any) -> int:
+    pdf_path = Path(args.pdf).resolve()
+    reference_path = Path(args.reference).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    private_dir = output_dir / "private"
+    private_dir.mkdir(parents=True, exist_ok=True)
+    pdf_bytes = pdf_path.read_bytes()
+    pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    reference = json.loads(reference_path.read_text(encoding="utf-8"))
+    reference_tables = {
+        str(item.get("table_key") or ""): item
+        for item in reference.get("tables") or []
+        if isinstance(item, dict)
+    }
+    missing_reference = sorted(set(TARGET_KEYS) - set(reference_tables))
+    if missing_reference:
+        raise RuntimeError(
+            "grid_experiment_reference_missing:" + ",".join(missing_reference)
+        )
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput.from_bytes(
+                private_ref=f"controlled-private-pdf:{pdf_sha256}",
+                filename="controlled.pdf",
+                content=pdf_bytes,
+                mime_type=mimetypes.guess_type("controlled.pdf")[0]
+                or "application/pdf",
+                source_kind="local_private_test",
+            )
+        ],
+        entrypoint="local_pdf_csv_vs_json_experiment_v2",
+        trigger_type="controlled_private_research",
+        input_context={
+            "pdf_layout_slice2_enabled": True,
+            "pdf_compact_canonical_dual_write": False,
+            "pdf_hybrid_shadow_enabled": False,
+            "pdf_hybrid_reliability_shadow_enabled": False,
+        },
+    )
+    states, continuation_contract = _build_states(
+        normalized.package,
+        pdf_bytes=pdf_bytes,
+        pdf_sha256=pdf_sha256,
+        reference_tables=reference_tables,
+    )
+    csv_runtime = PdfCsvExperimentFactory().create()
+    grid_runtime = PdfGridExperimentFactory().create()
+    jobs = _v2_build_stage1_jobs(
+        states=states,
+        csv_runtime=csv_runtime,
+        grid_runtime=grid_runtime,
+        model_id=args.model_id,
+    )
+    journal_path = private_dir / "journal.private.json"
+    journal = _read_list(journal_path)
+    providers: dict[str, Any] = {}
+    if args.resume_journal_only:
+        existing_safe_path = output_dir / "experiment.safe.json"
+        if not existing_safe_path.is_file():
+            raise RuntimeError("grid_experiment_resume_safe_missing")
+        existing_safe = json.loads(existing_safe_path.read_text(encoding="utf-8"))
+        qualification = copy.deepcopy(existing_safe.get("provider_qualification") or {})
+        if any(
+            (qualification.get(name) or {}).get("status") != "qualified"
+            for name in ("verbose_json", "compact_json", "plain_text")
+        ):
+            raise RuntimeError("grid_experiment_resume_qualification_missing")
+        expected = {job["job_key"] for job in jobs}
+        recorded = {
+            str((item.get("safe") or {}).get("job_key") or "")
+            for item in journal
+            if (item.get("safe") or {}).get("stage") == "grid"
+        }
+        if expected != recorded:
+            raise RuntimeError("grid_experiment_resume_journal_incomplete")
+        qualification["evidence_resume"] = "journal_only_no_provider_calls"
+    elif args.skip_provider:
+        qualification = {
+            "verbose_json": {"status": "skipped"},
+            "compact_json": {"status": "skipped"},
+            "plain_text": {"status": "skipped"},
+        }
+    else:
+        request = _openwebui_request(Path(args.env_file))
+        providers = {
+            "verbose_json": PdfHybridProviderFactory(
+                PdfHybridProviderConfig(
+                    model_id=args.model_id,
+                    maximum_output_tokens=16_384,
+                )
+            ).create_for_openwebui(request),
+            "compact_json": PdfGridExperimentProviderFactory(
+                PdfGridProviderConfig(model_id=args.model_id)
+            ).create_for_openwebui(request),
+            "plain_text": PdfCsvExperimentProviderFactory(
+                PdfCsvProviderConfig(model_id=args.model_id)
+            ).create_for_openwebui(request),
+        }
+        qualification = {name: provider.qualify() for name, provider in providers.items()}
+        if any(item.get("status") != "qualified" for item in qualification.values()):
+            raise RuntimeError("grid_experiment_provider_not_qualified")
+
+    journal = _v2_run_stage1_jobs(
+        jobs=jobs,
+        journal=journal,
+        journal_path=journal_path,
+        providers=providers,
+        csv_runtime=csv_runtime,
+        grid_runtime=grid_runtime,
+    )
+    journal = _v2_revalidate_stage1_metadata(journal=journal, jobs=jobs)
+    _write_json(journal_path, journal)
+    candidate_arms = {
+        arm: _v2_candidate_arm_summary(
+            arm=arm,
+            states=states,
+            journal=journal,
+            csv_runtime=csv_runtime,
+        )
+        for arm in ("verbose_json", "compact_json", "candidate_csv")
+    }
+    free_arm = _v2_free_arm_summary(
+        states=states,
+        journal=journal,
+        csv_runtime=csv_runtime,
+    )
+    decision = _v2_decision_gate(candidate_arms)
+    topology_jobs = _v2_build_topology_jobs(
+        states=states,
+        grid_runtime=grid_runtime,
+        model_id=args.model_id,
+    ) if decision["eligible_arms"] else []
+    if args.resume_journal_only:
+        expected_topology = {job["job_key"] for job in topology_jobs}
+        recorded_topology = {
+            str((item.get("safe") or {}).get("job_key") or "")
+            for item in journal
+            if (item.get("safe") or {}).get("stage") == "topology"
+        }
+        if expected_topology != recorded_topology:
+            raise RuntimeError("grid_experiment_resume_topology_journal_incomplete")
+    else:
+        journal = _v2_run_topology_jobs(
+            jobs=topology_jobs,
+            journal=journal,
+            journal_path=journal_path,
+            provider=providers.get("compact_json"),
+            csv_runtime=csv_runtime,
+        )
+    topology = _v2_topology_summary(
+        jobs=topology_jobs,
+        journal=journal,
+        states=states,
+        candidate_arms=candidate_arms,
+        decision=decision,
+        continuation_contract=continuation_contract,
+    )
+    safe = {
+        "schema_version": V2_SAFE_SCHEMA,
+        "experiment_version": PDF_GRID_EXPERIMENT_VERSION,
+        "source_revision": _git_revision(),
+        "pdf_sha256": pdf_sha256,
+        "reference_status": reference.get("human_review_status"),
+        "reference_is_provisional": True,
+        "method": {
+            "stage1": "simultaneous_grid_only_same_model_same_crops_same_candidates",
+            "stage1_provider_attempts_expected": len(jobs),
+            "candidate_bound_attempts": 69,
+            "free_visual_csv_attempts": 11,
+            "free_csv_shape_advertised": False,
+            "free_csv_shape_mismatch_is_malformed": False,
+            "topology_coupled_to_grid": False,
+            "hidden_retries": 0,
+            "provider_failovers": 0,
+        },
+        "provider_qualification": qualification,
+        "corpus": [
+            {
+                "table_key": key,
+                "structural_case": _structural_case(key),
+                "reference_rows": len(reference_tables[key].get("cells") or []),
+                "reference_columns": max(
+                    (len(row) for row in reference_tables[key].get("cells") or []),
+                    default=0,
+                ),
+                "parser_rows": states[key]["ledger"].get("row_count"),
+                "parser_columns": states[key]["ledger"].get("column_count"),
+                "candidate_count": len(states[key]["ledger"].get("candidate_order") or []),
+                "window_count": len(states[key]["packages"]),
+            }
+            for key in TARGET_KEYS
+        ],
+        "stage1": {
+            "arms": {**candidate_arms, "free_csv_challenge": free_arm},
+            "decision_gate": decision,
+            "job_accounting": {
+                "expected": len(jobs),
+                "terminal": sum(
+                    (item.get("safe") or {}).get("stage") == "grid" for item in journal
+                ),
+            },
+        },
+        "stage2_topology": topology,
+        "hard_invariants": {
+            "production_pdf_pipeline_changed": False,
+            "production_gate2_selection_changed": False,
+            "existing_validators_weakened": False,
+            "research_outputs_authoritative": False,
+            "free_csv_authoritative": False,
+            "invalid_topology_erases_valid_grid": False,
+            "whole_pdf_provider_transport_used": False,
+            "ocr_used": False,
+            "knowledge_rag_vector_used": False,
+            "openwebui_core_patched": False,
+            "raw_customer_values_in_safe_output": False,
+            "raw_crops_in_safe_output": False,
+        },
+    }
+    private_result = {
+        "schema_version": V2_PRIVATE_SCHEMA,
+        "pdf_path": str(pdf_path),
+        "reference_path": str(reference_path),
+        "journal": journal,
+    }
+    _write_json(journal_path, journal)
+    _write_json(private_dir / "experiment.private.json", private_result)
+    _write_json(output_dir / "experiment.safe.json", safe)
+    print(json.dumps(safe, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _v2_build_stage1_jobs(
+    *,
+    states: dict[str, dict[str, Any]],
+    csv_runtime: Any,
+    grid_runtime: Any,
+    model_id: str,
+) -> list[dict[str, Any]]:
+    jobs: list[dict[str, Any]] = []
+    for key in TARGET_KEYS:
+        state = states[key]
+        attempts = (1, 2) if key in REPEAT_KEYS else (1,)
+        for attempt in attempts:
+            jobs.append(
+                _v2_job(
+                    arm="free_csv_challenge",
+                    table_key=key,
+                    package_id="full-table-crop",
+                    attempt=attempt,
+                    png=state["full_crop_png"],
+                    crop_manifest=state["full_crop_manifest"],
+                    model_id=model_id,
+                    prompt=csv_runtime.free_csv_prompt(table_identity=f"table-{key}"),
+                )
+            )
+        continuation = _continuation_identity(key)
+        for package in state["packages"]:
+            window = package.get("window") or {}
+            compact_view = grid_runtime.compact_model_view(
+                evidence_package=package,
+                continuation=continuation,
+            )
+            compact_schema = grid_runtime.compact_output_schema(
+                expected_rows=int(window.get("row_count") or 0),
+                expected_columns=int(window.get("column_count") or 0),
+            )
+            for arm in ("verbose_json", "compact_json", "candidate_csv"):
+                for attempt in attempts:
+                    jobs.append(
+                        _v2_job(
+                            arm=arm,
+                            table_key=key,
+                            package_id=str(package.get("package_id") or ""),
+                            attempt=attempt,
+                            png=state["png_by_package"][package["package_id"]],
+                            crop_manifest=package["crop_identity"],
+                            model_id=model_id,
+                            package=package,
+                            continuation=continuation,
+                            prompt=(
+                                csv_runtime.candidate_csv_prompt(
+                                    evidence_package=package,
+                                    topology_sidecar=False,
+                                    continuation=continuation,
+                                )
+                                if arm == "candidate_csv"
+                                else None
+                            ),
+                            model_view=compact_view if arm == "compact_json" else None,
+                            output_schema=compact_schema if arm == "compact_json" else None,
+                        )
+                    )
+    if len(jobs) != 80:
+        raise RuntimeError(f"grid_experiment_job_count_invalid:{len(jobs)}")
+    return jobs
+
+
+def _v2_job(
+    *,
+    arm: str,
+    table_key: str,
+    package_id: str,
+    attempt: int,
+    png: bytes,
+    crop_manifest: dict[str, Any],
+    model_id: str,
+    package: dict[str, Any] | None = None,
+    continuation: list[Any] | None = None,
+    prompt: str | None = None,
+    model_view: dict[str, Any] | None = None,
+    output_schema: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    identity = f"{arm}|{table_key}|{package_id}"
+    return {
+        "job_key": f"{identity}|a{attempt}",
+        "task_id": "pdfgridtask_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+        "stage": "grid",
+        "arm": arm,
+        "table_key": table_key,
+        "package_id": package_id,
+        "attempt_number": attempt,
+        "png": png,
+        "crop_manifest": crop_manifest,
+        "model_id": model_id,
+        "package": package,
+        "continuation": continuation,
+        "prompt": prompt,
+        "model_view": model_view,
+        "output_schema": output_schema,
+    }
+
+
+def _v2_run_stage1_jobs(
+    *,
+    jobs: list[dict[str, Any]],
+    journal: list[dict[str, Any]],
+    journal_path: Path,
+    providers: dict[str, Any],
+    csv_runtime: Any,
+    grid_runtime: Any,
+) -> list[dict[str, Any]]:
+    existing = {
+        str((item.get("safe") or {}).get("job_key") or "")
+        for item in journal
+    }
+    for index, job in enumerate(jobs, start=1):
+        if job["job_key"] in existing:
+            continue
+        print(
+            f"[grid-v2 {index}/{len(jobs)}] {job['arm']} {job['table_key']} "
+            f"{job['package_id']} a{job['attempt_number']}",
+            flush=True,
+        )
+        provider = (
+            providers.get("plain_text")
+            if job["arm"] in {"candidate_csv", "free_csv_challenge"}
+            else providers.get(job["arm"])
+        )
+        if provider is None:
+            outcome = _v2_skipped_entry(job)
+        else:
+            try:
+                outcome = _v2_execute_stage1_job(
+                    job=job,
+                    journal=journal,
+                    provider=provider,
+                    csv_runtime=csv_runtime,
+                    grid_runtime=grid_runtime,
+                )
+            except (
+                PdfCsvExperimentError,
+                PdfCsvProviderError,
+                PdfGridExperimentError,
+                PdfGridProviderError,
+                OSError,
+            ) as exc:
+                outcome = _v2_failed_entry(
+                    job,
+                    getattr(exc, "code", type(exc).__name__),
+                    getattr(
+                        exc,
+                        "failure_class",
+                        "timeout_or_transport" if isinstance(exc, OSError) else "contract_validation",
+                    ),
+                )
+        journal.append(outcome)
+        existing.add(job["job_key"])
+        _write_json(journal_path, journal)
+    return journal
+
+
+def _v2_revalidate_stage1_metadata(
+    *,
+    journal: list[dict[str, Any]],
+    jobs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    jobs_by_key = {job["job_key"]: job for job in jobs}
+    for entry in journal:
+        safe = entry.get("safe") or {}
+        if safe.get("stage") != "grid":
+            continue
+        job = jobs_by_key.get(str(safe.get("job_key") or ""))
+        if job is None:
+            raise RuntimeError("grid_experiment_journal_job_unknown")
+        arm = str(safe.get("arm") or "")
+        safe["prompt_bytes"] = _v2_model_input_bytes(job)
+        safe["schema_bytes"] = (
+            len(canonical_json_bytes(job["output_schema"]))
+            if job.get("output_schema")
+            else int(
+                ((job.get("package") or {}).get("component_accounting") or {}).get(
+                    "schema_bytes"
+                )
+                or 0
+            )
+            if arm == "verbose_json"
+            else 0
+        )
+    return journal
+
+
+def _v2_execute_stage1_job(
+    *,
+    job: dict[str, Any],
+    journal: list[dict[str, Any]],
+    provider: Any,
+    csv_runtime: Any,
+    grid_runtime: Any,
+) -> dict[str, Any]:
+    lineage = [
+        str((item.get("safe") or {}).get("attempt_id") or "")
+        for item in journal
+        if (item.get("safe") or {}).get("arm") == job["arm"]
+        and (item.get("safe") or {}).get("package_id") == job["package_id"]
+        and (item.get("safe") or {}).get("table_key") == job["table_key"]
+        and int((item.get("safe") or {}).get("attempt_number") or 0)
+        < job["attempt_number"]
+    ]
+    arm = job["arm"]
+    parsed: dict[str, Any] | None = None
+    binding: dict[str, Any] | None = None
+    raw_text = ""
+    validation_error: str | None = None
+    if arm == "verbose_json":
+        counted = provider.count_tokens(
+            evidence_package=job["package"], png_bytes=job["png"]
+        )
+        result = provider.invoke(
+            evidence_package=job["package"],
+            png_bytes=job["png"],
+            attempt_number=job["attempt_number"],
+            attempt_lineage=lineage,
+        )
+        binding = result.get("binding_output")
+        raw_text = _gemini_text(result.get("raw_private_response") or {})
+        provider_attempt = result.get("attempt") or {}
+    elif arm == "compact_json":
+        counted = provider.count_tokens(
+            model_view=job["model_view"],
+            output_schema=job["output_schema"],
+            png_bytes=job["png"],
+            crop_sha256=_v2_crop_hash(job),
+        )
+        result = provider.invoke(
+            task_id=job["task_id"],
+            model_view=job["model_view"],
+            output_schema=job["output_schema"],
+            png_bytes=job["png"],
+            crop_sha256=_v2_crop_hash(job),
+            attempt_number=job["attempt_number"],
+            attempt_lineage=lineage,
+        )
+        raw_text = str(result.get("text") or "")
+        provider_attempt = result.get("attempt") or {}
+        package = job["package"] or {}
+        window = package.get("window") or {}
+        model = package.get("model_facing") or {}
+        try:
+            parsed = grid_runtime.parse_compact_output(
+                result.get("json_output"),
+                expected_rows=int(window.get("row_count") or 0),
+                expected_columns=int(window.get("column_count") or 0),
+                candidate_ids=[str(item[0]) for item in model.get("c") or []],
+            )
+            binding = grid_runtime.binding_from_compact_grid(
+                evidence_package=package,
+                parsed=parsed,
+                global_header_depth=int((model.get("h") or [None, 0])[1] or 0),
+            )
+        except PdfGridExperimentError as exc:
+            validation_error = exc.code
+    else:
+        prompt = str(job.get("prompt") or "")
+        counted = provider.count_tokens(
+            prompt=prompt,
+            png_bytes=job["png"],
+            crop_sha256=_v2_crop_hash(job),
+        )
+        result = provider.invoke(
+            task_id=job["task_id"],
+            prompt=prompt,
+            png_bytes=job["png"],
+            crop_sha256=_v2_crop_hash(job),
+            attempt_number=job["attempt_number"],
+            attempt_lineage=lineage,
+        )
+        raw_text = str(result.get("text") or "")
+        provider_attempt = result.get("attempt") or {}
+        if arm == "free_csv_challenge":
+            try:
+                parsed = csv_runtime.inspect_free_csv(raw_text)
+            except PdfCsvExperimentError as exc:
+                validation_error = exc.code
+        else:
+            package = job["package"] or {}
+            window = package.get("window") or {}
+            model = package.get("model_facing") or {}
+            try:
+                parsed = csv_runtime.parse_candidate_csv(
+                    raw_text,
+                    expected_rows=int(window.get("row_count") or 0),
+                    expected_columns=int(window.get("column_count") or 0),
+                    candidate_ids=[str(item[0]) for item in model.get("c") or []],
+                )
+                binding = csv_runtime.binding_from_csv(
+                    evidence_package=package,
+                    parsed=parsed,
+                    topology=None,
+                    global_header_depth=int((model.get("h") or [None, 0])[1] or 0),
+                )
+            except PdfCsvExperimentError as exc:
+                validation_error = exc.code
+    expected_ids = _v2_expected_candidate_ids(job.get("package"))
+    coverage = (
+        float(parsed.get("candidate_coverage_ratio") or 0)
+        if parsed is not None
+        else _v2_binding_coverage(binding, expected_ids)
+    )
+    actual_input = (provider_attempt.get("usage") or {}).get("input_tokens")
+    output_tokens = (provider_attempt.get("usage") or {}).get("output_tokens")
+    artifact_status = (
+        "parsed"
+        if arm == "free_csv_challenge" and parsed is not None
+        else "accepted" if binding is not None else "failed"
+    )
+    safe = {
+        "job_key": job["job_key"],
+        "task_id": job["task_id"],
+        "stage": "grid",
+        "arm": arm,
+        "table_key": job["table_key"],
+        "package_id": job["package_id"],
+        "attempt_id": provider_attempt.get("attempt_id"),
+        "attempt_number": job["attempt_number"],
+        "artifact_status": artifact_status,
+        "validation_error": validation_error
+        or (
+            "provider_or_binding_unavailable"
+            if artifact_status == "failed"
+            else None
+        ),
+        "terminal_failure_class": provider_attempt.get("terminal_failure_class"),
+        "finish_reason": provider_attempt.get("finish_reason"),
+        "model_requested": provider_attempt.get("model_requested"),
+        "model_resolved": provider_attempt.get("model_resolved"),
+        "raw_response_hash": result.get("response_hash"),
+        "visible_output_hash": result.get("visible_output_hash")
+        or (hash_text(raw_text) if raw_text else None),
+        "candidate_grid_hash": (
+            parsed.get("candidate_grid_hash") if parsed else _v2_binding_grid_hash(binding)
+        ),
+        "natural_grid_hash": sha256_json(parsed.get("rows"))
+        if parsed and parsed.get("rows") is not None
+        else None,
+        "candidate_coverage_ratio": coverage,
+        "prompt_bytes": _v2_model_input_bytes(job),
+        "schema_bytes": (
+            len(canonical_json_bytes(job["output_schema"]))
+            if job.get("output_schema")
+            else int(
+                ((job.get("package") or {}).get("component_accounting") or {}).get(
+                    "schema_bytes"
+                )
+                or 0
+            )
+            if arm == "verbose_json"
+            else 0
+        ),
+        "visible_output_bytes": len(raw_text.encode("utf-8")),
+        "provider_response_bytes": result.get("response_bytes"),
+        "provider_counted_input_tokens": counted.get("total_tokens"),
+        "provider_actual_input_tokens": actual_input,
+        "provider_output_tokens": output_tokens,
+        "row_count": parsed.get("row_count") if parsed else None,
+        "column_count": parsed.get("column_count") if parsed else None,
+        "row_widths": parsed.get("row_widths") if parsed else None,
+        "rectangular": parsed.get("rectangular") if parsed else None,
+        "maximum_row_bytes": parsed.get("maximum_row_bytes") if parsed else None,
+        "crop_bytes": len(job["png"]),
+        "crop_width": job["crop_manifest"].get("width"),
+        "crop_height": job["crop_manifest"].get("height"),
+        "crop_dpi": job["crop_manifest"].get("dpi"),
+        "hidden_retry": False,
+        "provider_failover": False,
+    }
+    return {
+        "private": {
+            "prompt": job.get("prompt"),
+            "model_view": job.get("model_view"),
+            "output_schema": job.get("output_schema"),
+            "text": raw_text,
+            "raw_provider_response": result.get("raw_private_response"),
+            "parsed": parsed,
+            "binding": binding,
+        },
+        "safe": safe,
+    }
+
+
+def _v2_expected_candidate_ids(package: dict[str, Any] | None) -> list[str]:
+    model = (package or {}).get("model_facing") or {}
+    return [str(item[0]) for item in model.get("c") or []]
+
+
+def _v2_binding_coverage(
+    binding: dict[str, Any] | None, expected_ids: list[str]
+) -> float:
+    if not isinstance(binding, dict) or not expected_ids:
+        return 0.0
+    used = [
+        str(candidate)
+        for row in binding.get("rows") or []
+        for cell in row.get("cells") or []
+        for candidate in cell
+    ]
+    return 1.0 if len(used) == len(set(used)) and set(used) == set(expected_ids) else 0.0
+
+
+def _v2_binding_grid_hash(binding: dict[str, Any] | None) -> str | None:
+    if not isinstance(binding, dict):
+        return None
+    grid = [row.get("cells") or [] for row in binding.get("rows") or []]
+    return sha256_json(grid)
+
+
+def _v2_model_input_bytes(job: dict[str, Any]) -> int:
+    if job.get("prompt") is not None:
+        return len(str(job["prompt"]).encode("utf-8"))
+    if job.get("model_view") is not None:
+        return len(canonical_json_bytes(job["model_view"]))
+    return int(
+        ((job.get("package") or {}).get("component_accounting") or {}).get(
+            "model_facing_text_bytes"
+        )
+        or 0
+    )
+
+
+def _v2_crop_hash(job: dict[str, Any]) -> str:
+    manifest = job.get("crop_manifest") or {}
+    value = str(manifest.get("crop_sha256") or manifest.get("png_sha256") or "")
+    if not value or hashlib.sha256(job["png"]).hexdigest() != value:
+        raise PdfGridExperimentError("pdf_grid_crop_manifest_hash_invalid")
+    return value
+
+
+def _v2_skipped_entry(job: dict[str, Any]) -> dict[str, Any]:
+    return _v2_failed_entry(job, "provider_skipped", "provider_skipped")
+
+
+def _v2_failed_entry(
+    job: dict[str, Any], code: str, failure_class: str
+) -> dict[str, Any]:
+    return {
+        "private": {
+            "prompt": job.get("prompt"),
+            "model_view": job.get("model_view"),
+            "output_schema": job.get("output_schema"),
+            "text": None,
+            "parsed": None,
+            "binding": None,
+        },
+        "safe": {
+            "job_key": job["job_key"],
+            "task_id": job["task_id"],
+            "stage": job.get("stage") or "grid",
+            "arm": job["arm"],
+            "table_key": job["table_key"],
+            "package_id": job["package_id"],
+            "attempt_id": f"{job['task_id']}_a{job['attempt_number']}",
+            "attempt_number": job["attempt_number"],
+            "artifact_status": "failed",
+            "validation_error": code,
+            "terminal_failure_class": failure_class,
+            "candidate_coverage_ratio": 0.0,
+            "prompt_bytes": _v2_model_input_bytes(job),
+            "schema_bytes": len(canonical_json_bytes(job["output_schema"]))
+            if job.get("output_schema")
+            else 0,
+            "visible_output_bytes": 0,
+            "provider_actual_input_tokens": 0,
+            "provider_output_tokens": 0,
+            "crop_bytes": len(job["png"]),
+            "crop_width": job["crop_manifest"].get("width"),
+            "crop_height": job["crop_manifest"].get("height"),
+            "crop_dpi": job["crop_manifest"].get("dpi"),
+            "hidden_retry": False,
+            "provider_failover": False,
+        },
+    }
+
+
+def _v2_candidate_arm_summary(
+    *,
+    arm: str,
+    states: dict[str, dict[str, Any]],
+    journal: list[dict[str, Any]],
+    csv_runtime: Any,
+) -> dict[str, Any]:
+    tables = []
+    scores = []
+    primary_entries: list[dict[str, Any]] = []
+    repeat_passed = 0
+    for key in TARGET_KEYS:
+        primary = _v2_candidate_outcome(
+            arm=arm,
+            state=states[key],
+            journal=journal,
+            attempt_number=1,
+            csv_runtime=csv_runtime,
+        )
+        score = primary["score"]
+        scores.append(score)
+        primary_entries.extend(primary["entries"])
+        second = None
+        repeat_match = None
+        if key in REPEAT_KEYS:
+            second = _v2_candidate_outcome(
+                arm=arm,
+                state=states[key],
+                journal=journal,
+                attempt_number=2,
+                csv_runtime=csv_runtime,
+            )
+            repeat_match = bool(primary.get("placement_hash")) and (
+                primary.get("placement_hash") == second.get("placement_hash")
+            )
+            repeat_passed += bool(repeat_match)
+        tables.append(
+            {
+                "table_key": key,
+                "grid_status": primary["grid_status"],
+                "structural_status": primary["structural_status"],
+                "reason_codes": primary["reason_codes"],
+                "score": score,
+                "placement_hash": primary.get("placement_hash"),
+                "repeat_placement_hash": second.get("placement_hash") if second else None,
+                "repeat_match": repeat_match,
+                "package_count": len(primary["entries"]),
+                "malformed_packages": sum(
+                    (entry.get("safe") or {}).get("artifact_status") != "accepted"
+                    for entry in primary["entries"]
+                ),
+                "authoritative": False,
+            }
+        )
+    accepted_tables = sum(item["grid_status"] == "accepted_grid" for item in tables)
+    aggregate = _aggregate_scores(scores, len(TARGET_KEYS), accepted_tables)
+    aggregate.update(
+        {
+            "hallucinated_nonempty": sum(item.get("hallucinated_nonempty", 0) for item in scores),
+            "omitted_nonempty": sum(item.get("omitted_nonempty", 0) for item in scores),
+            "malformed_packages": sum(
+                (entry.get("safe") or {}).get("artifact_status") != "accepted"
+                for entry in primary_entries
+            ),
+            "primary_packages": len(primary_entries),
+            "candidate_coverage_complete": bool(primary_entries)
+            and all(
+                float((entry.get("safe") or {}).get("candidate_coverage_ratio") or 0)
+                == 1.0
+                for entry in primary_entries
+            ),
+            "provider_actual_input_tokens": sum(
+                int((entry.get("safe") or {}).get("provider_actual_input_tokens") or 0)
+                for entry in primary_entries
+            ),
+            "provider_counted_input_tokens": sum(
+                int((entry.get("safe") or {}).get("provider_counted_input_tokens") or 0)
+                for entry in primary_entries
+            ),
+            "provider_output_tokens": sum(
+                int((entry.get("safe") or {}).get("provider_output_tokens") or 0)
+                for entry in primary_entries
+            ),
+            "visible_output_bytes": sum(
+                int((entry.get("safe") or {}).get("visible_output_bytes") or 0)
+                for entry in primary_entries
+            ),
+            "model_facing_text_bytes": sum(
+                int((entry.get("safe") or {}).get("prompt_bytes") or 0)
+                for entry in primary_entries
+            ),
+            "schema_bytes": sum(
+                int((entry.get("safe") or {}).get("schema_bytes") or 0)
+                for entry in primary_entries
+            ),
+            "repeatability_passed_tables": repeat_passed,
+            "repeatability_required_tables": len(REPEAT_KEYS),
+            "repeatability_passed": repeat_passed == len(REPEAT_KEYS),
+        }
+    )
+    return {"tables": tables, "aggregate": aggregate, "authoritative": False}
+
+
+def _v2_candidate_outcome(
+    *,
+    arm: str,
+    state: dict[str, Any],
+    journal: list[dict[str, Any]],
+    attempt_number: int,
+    csv_runtime: Any,
+) -> dict[str, Any]:
+    entries = []
+    bindings = []
+    for package in state["packages"]:
+        entry = next(
+            (
+                item
+                for item in journal
+                if (item.get("safe") or {}).get("arm") == arm
+                and (item.get("safe") or {}).get("table_key") == state["table_key"]
+                and (item.get("safe") or {}).get("package_id") == package["package_id"]
+                and int((item.get("safe") or {}).get("attempt_number") or 0)
+                == attempt_number
+            ),
+            None,
+        )
+        if entry is not None:
+            entries.append(entry)
+            bindings.append((entry.get("private") or {}).get("binding"))
+    reference = state["reference"].get("cells") or []
+    failed = _failed_scheduled_score(state["reference"])
+    if len(entries) != len(state["packages"]) or any(
+        not isinstance(binding, dict) for binding in bindings
+    ):
+        return {
+            "entries": entries,
+            "grid_status": "blocked_package_contract",
+            "structural_status": "not_evaluated",
+            "reason_codes": ["grid_package_unavailable"],
+            "score": failed,
+            "placement_hash": None,
+            "materialization": None,
+            "structural_validation": None,
+        }
+    evidence, joined = state["windows_runtime"].join(
+        compact_ledger=state["ledger"],
+        plan=state["plan"],
+        packages=state["packages"],
+        bindings=bindings,
+    )
+    materialization = PdfHybridMaterializationFactory().create().materialize(
+        evidence_package=evidence,
+        binding_output=joined,
+    )
+    structural = PdfHybridStructureFactory().create().validate_placement(
+        compact_ledger=state["ledger"],
+        materialization=materialization,
+    )
+    validation = PdfTableValidationFactory().create().validate(
+        evidence_package=evidence,
+        binding_output=joined,
+        materialization=materialization,
+        classification=state["classification"],
+        independent_structural_validation=structural,
+    )
+    grid = _materialization_grid(materialization)
+    score = csv_runtime.compare_views(
+        free_grid=None,
+        candidate_grid=grid,
+        parser_grid=csv_runtime.parser_grid(state["ledger"]),
+        reference_grid=reference,
+    )["candidate_vs_reference"]
+    score["headers_exact"] = len(materialization.get("header_rows") or []) == int(
+        state["reference"].get("header_rows") or 0
+    )
+    reasons = sorted(
+        set(structural.get("reason_codes") or [])
+        | set(validation.get("reason_codes") or [])
+    )
+    return {
+        "entries": entries,
+        "grid_status": "accepted_grid",
+        "structural_status": validation.get("aggregate_result"),
+        "reason_codes": reasons,
+        "score": score,
+        "placement_hash": materialization.get("placement_checksum"),
+        "materialization": materialization,
+        "structural_validation": structural,
+    }
+
+
+def _v2_free_arm_summary(
+    *,
+    states: dict[str, dict[str, Any]],
+    journal: list[dict[str, Any]],
+    csv_runtime: Any,
+) -> dict[str, Any]:
+    tables = []
+    scores = []
+    repeat_passed = 0
+    for key in TARGET_KEYS:
+        entry = _journal_entry(journal, "free_csv_challenge", key, 1)
+        parsed = (entry.get("private") or {}).get("parsed") if entry else None
+        parser_grid = csv_runtime.parser_grid(states[key]["ledger"])
+        reference = states[key]["reference"].get("cells") or []
+        rows = parsed.get("rows") if isinstance(parsed, dict) else None
+        comparison = csv_runtime.compare_views(
+            free_grid=rows,
+            candidate_grid=None,
+            parser_grid=parser_grid,
+            reference_grid=reference,
+        )
+        score = comparison["free_vs_reference"] if rows is not None else _failed_scheduled_score(states[key]["reference"])
+        score["headers_exact"] = False
+        scores.append(score)
+        parser_shape = [
+            len(parser_grid),
+            max((len(row) for row in parser_grid), default=0),
+        ]
+        reference_shape = [
+            len(reference),
+            max((len(row) for row in reference), default=0),
+        ]
+        natural_shape = [
+            int(parsed.get("row_count") or 0),
+            int(parsed.get("column_count") or 0),
+        ] if isinstance(parsed, dict) and parsed.get("rectangular") else None
+        repeat_match = None
+        if key in REPEAT_KEYS:
+            second = _journal_entry(journal, "free_csv_challenge", key, 2)
+            first_hash = (entry.get("safe") or {}).get("natural_grid_hash") if entry else None
+            second_hash = (second.get("safe") or {}).get("natural_grid_hash") if second else None
+            repeat_match = bool(first_hash) and first_hash == second_hash
+            repeat_passed += bool(repeat_match)
+        tables.append(
+            {
+                "table_key": key,
+                "dialect_valid": isinstance(parsed, dict),
+                "rectangular": bool((parsed or {}).get("rectangular")),
+                "natural_shape": natural_shape,
+                "parser_shape": parser_shape,
+                "reference_shape": reference_shape,
+                "parser_shape_match": natural_shape == parser_shape,
+                "reference_shape_match": natural_shape == reference_shape,
+                "shape_mismatch_is_malformed": False,
+                "repeat_match": repeat_match,
+                "score": score,
+                "authoritative": False,
+            }
+        )
+    aggregate = _aggregate_scores(
+        scores,
+        len(TARGET_KEYS),
+        sum(item["dialect_valid"] for item in tables),
+    )
+    aggregate.update(
+        {
+            "dialect_valid_tables": sum(item["dialect_valid"] for item in tables),
+            "rectangular_tables": sum(item["rectangular"] for item in tables),
+            "parser_shape_match_tables": sum(item["parser_shape_match"] for item in tables),
+            "reference_shape_match_tables": sum(item["reference_shape_match"] for item in tables),
+            "repeatability_passed_tables": repeat_passed,
+            "repeatability_required_tables": len(REPEAT_KEYS),
+            "repeatability_passed": repeat_passed == len(REPEAT_KEYS),
+            "malformed_csv_documents": sum(not item["dialect_valid"] for item in tables),
+        }
+    )
+    return {"tables": tables, "aggregate": aggregate, "authoritative": False}
+
+
+def _v2_decision_gate(candidate_arms: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    verbose = candidate_arms["verbose_json"]["aggregate"]
+    compact = candidate_arms["compact_json"]["aggregate"]
+    results: dict[str, Any] = {}
+    for arm in ("compact_json", "candidate_csv"):
+        aggregate = candidate_arms[arm]["aggregate"]
+        verbose_output = int(verbose.get("provider_output_tokens") or 0)
+        verbose_input = int(verbose.get("provider_actual_input_tokens") or 0)
+        output = int(aggregate.get("provider_output_tokens") or 0)
+        input_tokens = int(aggregate.get("provider_actual_input_tokens") or 0)
+        output_reduction = (
+            round(1 - output / verbose_output, 6) if verbose_output else None
+        )
+        input_increase = (
+            round(input_tokens / verbose_input - 1, 6) if verbose_input else None
+        )
+        placement_no_worse = all(
+            int(aggregate.get(field) or 0) >= int(compact.get(field) or 0)
+            for field in ("structure_exact_tables", "cells_exact", "numeric_exact", "empty_exact")
+        ) and all(
+            int(aggregate.get(field) or 0) <= int(compact.get(field) or 0)
+            for field in ("hallucinated_nonempty", "omitted_nonempty")
+        )
+        checks = {
+            "malformed_no_more_than_compact_json": int(aggregate.get("malformed_packages") or 0)
+            <= int(compact.get("malformed_packages") or 0),
+            "candidate_ownership_complete": bool(aggregate.get("candidate_coverage_complete")),
+            "placement_and_empties_no_worse_than_compact_json": placement_no_worse,
+            "required_repeats_match": bool(aggregate.get("repeatability_passed")),
+            "output_token_reduction_at_least_50_percent": output_reduction is not None
+            and output_reduction >= 0.5,
+            "input_token_increase_at_most_5_percent": input_increase is not None
+            and input_increase <= 0.05,
+        }
+        results[arm] = {
+            "checks": checks,
+            "passed": all(checks.values()),
+            "output_token_reduction_vs_verbose_json": output_reduction,
+            "input_token_increase_vs_verbose_json": input_increase,
+        }
+    eligible = [arm for arm, result in results.items() if result["passed"]]
+    return {
+        "candidate_results": results,
+        "eligible_arms": eligible,
+        "topology_stage_required": bool(eligible),
+        "free_csv_is_challenge_only": True,
+    }
+
+
+def _v2_build_topology_jobs(
+    *,
+    states: dict[str, dict[str, Any]],
+    grid_runtime: Any,
+    model_id: str,
+) -> list[dict[str, Any]]:
+    jobs = []
+    for key in ("1:3", "3:2", "4:2", "5:3"):
+        state = states[key]
+        package = state["packages"][0]
+        continuation = _continuation_identity(key)
+        job = _v2_job(
+            arm="topology_json",
+            table_key=key,
+            package_id=package["package_id"],
+            attempt=1,
+            png=state["png_by_package"][package["package_id"]],
+            crop_manifest=package["crop_identity"],
+            model_id=model_id,
+            package=package,
+            continuation=continuation,
+            model_view=grid_runtime.topology_model_view(
+                evidence_package=package,
+                continuation=continuation,
+            ),
+            output_schema=grid_runtime.topology_output_schema(),
+        )
+        job["stage"] = "topology"
+        job["job_key"] = job["job_key"].replace("|a1", "|stage2|a1")
+        window = package.get("window") or {}
+        job["expected_rows"] = int(window.get("row_count") or 0)
+        job["expected_columns"] = int(window.get("column_count") or 0)
+        jobs.append(job)
+    return jobs
+
+
+def _v2_run_topology_jobs(
+    *,
+    jobs: list[dict[str, Any]],
+    journal: list[dict[str, Any]],
+    journal_path: Path,
+    provider: Any,
+    csv_runtime: Any,
+) -> list[dict[str, Any]]:
+    existing = {
+        str((item.get("safe") or {}).get("job_key") or "") for item in journal
+    }
+    for index, job in enumerate(jobs, start=1):
+        if job["job_key"] in existing:
+            continue
+        print(
+            f"[topology-v2 {index}/{len(jobs)}] {job['table_key']} {job['package_id']}",
+            flush=True,
+        )
+        if provider is None:
+            outcome = _v2_skipped_entry(job)
+        else:
+            try:
+                counted = provider.count_tokens(
+                    model_view=job["model_view"],
+                    output_schema=job["output_schema"],
+                    png_bytes=job["png"],
+                    crop_sha256=_v2_crop_hash(job),
+                )
+                result = provider.invoke(
+                    task_id=job["task_id"],
+                    model_view=job["model_view"],
+                    output_schema=job["output_schema"],
+                    png_bytes=job["png"],
+                    crop_sha256=_v2_crop_hash(job),
+                    attempt_number=1,
+                    attempt_lineage=[],
+                )
+                topology = csv_runtime.parse_topology_json(
+                    result.get("json_output"),
+                    expected_rows=job["expected_rows"],
+                    expected_columns=job["expected_columns"],
+                    expected_continuation=job["continuation"],
+                )
+                attempt = result.get("attempt") or {}
+                safe = {
+                    "job_key": job["job_key"],
+                    "task_id": job["task_id"],
+                    "stage": "topology",
+                    "arm": "topology_json",
+                    "table_key": job["table_key"],
+                    "package_id": job["package_id"],
+                    "attempt_id": attempt.get("attempt_id"),
+                    "attempt_number": 1,
+                    "artifact_status": "accepted",
+                    "validation_error": None,
+                    "terminal_failure_class": attempt.get("terminal_failure_class"),
+                    "finish_reason": attempt.get("finish_reason"),
+                    "topology_hash": topology.get("topology_hash"),
+                    "topology_decision": topology.get("d"),
+                    "prompt_bytes": _v2_model_input_bytes(job),
+                    "schema_bytes": len(canonical_json_bytes(job["output_schema"])),
+                    "visible_output_bytes": result.get("visible_output_bytes"),
+                    "provider_counted_input_tokens": counted.get("total_tokens"),
+                    "provider_actual_input_tokens": (attempt.get("usage") or {}).get(
+                        "input_tokens"
+                    ),
+                    "provider_output_tokens": (attempt.get("usage") or {}).get(
+                        "output_tokens"
+                    ),
+                    "grid_preserved_on_failure": True,
+                    "hidden_retry": False,
+                    "provider_failover": False,
+                }
+                outcome = {
+                    "private": {
+                        "model_view": job["model_view"],
+                        "output_schema": job["output_schema"],
+                        "text": result.get("text"),
+                        "raw_provider_response": result.get("raw_private_response"),
+                        "topology": topology,
+                    },
+                    "safe": safe,
+                }
+            except (
+                PdfCsvExperimentError,
+                PdfGridProviderError,
+                OSError,
+            ) as exc:
+                outcome = _v2_failed_entry(
+                    job,
+                    getattr(exc, "code", type(exc).__name__),
+                    getattr(
+                        exc,
+                        "failure_class",
+                        "timeout_or_transport" if isinstance(exc, OSError) else "contract_validation",
+                    ),
+                )
+                outcome["safe"]["grid_preserved_on_failure"] = True
+        journal.append(outcome)
+        existing.add(job["job_key"])
+        _write_json(journal_path, journal)
+    return journal
+
+
+def _v2_topology_summary(
+    *,
+    jobs: list[dict[str, Any]],
+    journal: list[dict[str, Any]],
+    states: dict[str, dict[str, Any]],
+    candidate_arms: dict[str, dict[str, Any]],
+    decision: dict[str, Any],
+    continuation_contract: dict[str, Any],
+) -> dict[str, Any]:
+    if not decision.get("eligible_arms"):
+        return {
+            "status": "not_run_grid_decision_gate_failed",
+            "triggered_tables": [],
+            "provider_attempts": 0,
+            "valid_grid_persists_independently": True,
+            "authoritative": False,
+        }
+    entries = [
+        item
+        for item in journal
+        if (item.get("safe") or {}).get("stage") == "topology"
+    ]
+    chosen_arm = str(decision["eligible_arms"][0])
+    table_by_key = {
+        item["table_key"]: item
+        for item in candidate_arms[chosen_arm].get("tables") or []
+    }
+    baselines = []
+    for key in TARGET_KEYS:
+        parser_grid = PdfCsvExperimentFactory().create().parser_grid(states[key]["ledger"])
+        baselines.append(
+            {
+                "table_key": key,
+                "parser_grid_hash": sha256_json(parser_grid),
+                "eligible_grid_arm": chosen_arm,
+                "eligible_grid_placement_hash": (table_by_key.get(key) or {}).get(
+                    "placement_hash"
+                ),
+                "topology_required_for_grid_persistence": False,
+            }
+        )
+    fragment_results = []
+    for key in ("3:2", "4:1"):
+        outcome = _v2_candidate_outcome(
+            arm=chosen_arm,
+            state=states[key],
+            journal=journal,
+            attempt_number=1,
+            csv_runtime=PdfCsvExperimentFactory().create(),
+        )
+        fragment_results.append(
+            {
+                "compact_ledger": states[key]["ledger"],
+                "materialization": outcome.get("materialization"),
+                "structural_validation": outcome.get("structural_validation"),
+            }
+        )
+    continuation = PdfHybridStructureFactory().create().validate_continuation(
+        contract=continuation_contract,
+        fragment_results=fragment_results,
+    )
+    return {
+        "status": "completed",
+        "eligible_grid_arms": list(decision["eligible_arms"]),
+        "selected_grid_arm_for_structural_baseline": chosen_arm,
+        "trigger_policy": "multi_row_or_merged_header_signal_only",
+        "triggered_tables": [job["table_key"] for job in jobs],
+        "provider_attempts": len(entries),
+        "accepted_topology_outputs": sum(
+            (entry.get("safe") or {}).get("artifact_status") == "accepted"
+            for entry in entries
+        ),
+        "invalid_topology_outputs": sum(
+            (entry.get("safe") or {}).get("artifact_status") != "accepted"
+            for entry in entries
+        ),
+        "results": [
+            {
+                "table_key": (entry.get("safe") or {}).get("table_key"),
+                "artifact_status": (entry.get("safe") or {}).get("artifact_status"),
+                "validation_error": (entry.get("safe") or {}).get("validation_error"),
+                "topology_decision": (entry.get("safe") or {}).get("topology_decision"),
+                "topology_hash": (entry.get("safe") or {}).get("topology_hash"),
+                "grid_preserved_on_failure": True,
+            }
+            for entry in entries
+        ],
+        "deterministic_parser_geometry_baselines": baselines,
+        "deterministic_continuation_validation": {
+            **continuation,
+            "vlm_continuation_call_used": False,
+        },
+        "valid_grid_persists_independently": True,
+        "authoritative": False,
+    }
 
 
 def _provider_skipped(job: dict[str, Any]) -> dict[str, Any]:

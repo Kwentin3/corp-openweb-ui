@@ -16,26 +16,21 @@ from .gate2_provider_adapters import (
     Gate2OpenWebUIProviderConnection,
     Gate2OpenWebUIProviderConnectionResolver,
 )
-from .pdf_hybrid_contracts import (
-    PDF_PROVIDER_ATTEMPT_SCHEMA,
-    canonical_json_bytes,
-    sha256_json,
-    validate_binding_output_shape,
-)
+from .pdf_hybrid_contracts import canonical_json_bytes, sha256_json
+from .pdf_hybrid_provider import project_gemini_schema
 
 
-PDF_HYBRID_PROVIDER_ADAPTER_VERSION = "gemini_native_image_json_schema_v2_calibrated"
+PDF_GRID_PROVIDER_ADAPTER_VERSION = "gemini_native_table_crop_compact_json_v1"
 MAX_PROVIDER_RESPONSE_BYTES = 2 * 1024 * 1024
 FACTORY_REQUIRED = (
-    "PdfHybridProviderFactory.create_for_openwebui is the only live hybrid provider entrypoint"
+    "PdfGridExperimentProviderFactory.create_for_openwebui is the only live compact-grid provider entrypoint"
 )
 FORBIDDEN = (
-    "The hybrid business pipeline must not construct Gemini payloads, resolve secrets, retry, "
-    "or fail over providers"
+    "Grid experiment orchestration must not construct provider payloads, resolve secrets, retry, or fail over providers"
 )
 
 
-class PdfHybridProviderError(RuntimeError):
+class PdfGridProviderError(RuntimeError):
     def __init__(self, code: str, failure_class: str) -> None:
         self.code = code
         self.failure_class = failure_class
@@ -43,57 +38,59 @@ class PdfHybridProviderError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class PdfHybridProviderConfig:
+class PdfGridProviderConfig:
     provider_profile: str = "google_gemini"
     model_id: str = "models/gemini-3.5-flash"
     timeout_seconds: int = 240
-    maximum_output_tokens: int = 16_384
+    maximum_output_tokens: int = 8192
+    maximum_counted_input_tokens: int = 24_000
     thinking_level: str = "minimal"
 
 
-class PdfHybridProviderFactory:
+class PdfGridExperimentProviderFactory:
     def __init__(
         self,
-        config: PdfHybridProviderConfig | None = None,
+        config: PdfGridProviderConfig | None = None,
         *,
         urlopen_fn: Callable[..., Any] = urlopen,
     ) -> None:
-        self.config = config or PdfHybridProviderConfig()
+        self.config = config or PdfGridProviderConfig()
         self.urlopen_fn = urlopen_fn
 
-    def create_for_openwebui(self, request: Any) -> "GeminiHybridProviderAdapter":
+    def create_for_openwebui(self, request: Any) -> "GeminiGridExperimentAdapter":
         profile = gate2_provider_profile(self.config.provider_profile)
         if profile.profile_id != "google_gemini":
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_profile_not_supported", "provider_configuration"
+            raise PdfGridProviderError(
+                "pdf_grid_provider_profile_not_supported", "provider_configuration"
             )
         if self.config.model_id not in profile.approved_model_ids:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_model_not_approved", "provider_configuration"
+            raise PdfGridProviderError(
+                "pdf_grid_model_not_approved", "provider_configuration"
             )
         connection = Gate2OpenWebUIProviderConnectionResolver(request).resolve(profile)
-        return GeminiHybridProviderAdapter(
-            self.config, profile, connection, urlopen_fn=self.urlopen_fn
+        return GeminiGridExperimentAdapter(
+            self.config,
+            profile,
+            connection,
+            urlopen_fn=self.urlopen_fn,
         )
 
     def create_with_connection(
-        self,
-        connection: Gate2OpenWebUIProviderConnection,
-    ) -> "GeminiHybridProviderAdapter":
+        self, connection: Gate2OpenWebUIProviderConnection
+    ) -> "GeminiGridExperimentAdapter":
         profile = gate2_provider_profile(self.config.provider_profile)
-        if profile.profile_id != "google_gemini":
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_profile_not_supported", "provider_configuration"
-            )
-        return GeminiHybridProviderAdapter(
-            self.config, profile, connection, urlopen_fn=self.urlopen_fn
+        return GeminiGridExperimentAdapter(
+            self.config,
+            profile,
+            connection,
+            urlopen_fn=self.urlopen_fn,
         )
 
 
-class GeminiHybridProviderAdapter:
+class GeminiGridExperimentAdapter:
     def __init__(
         self,
-        config: PdfHybridProviderConfig,
+        config: PdfGridProviderConfig,
         profile: Any,
         connection: Gate2OpenWebUIProviderConnection,
         *,
@@ -106,8 +103,7 @@ class GeminiHybridProviderAdapter:
 
     def qualify(self) -> dict[str, Any]:
         model = self.config.model_id.removeprefix("models/")
-        url = self._base_url() + f"/models/{model}"
-        status, body = self._request("GET", url, None)
+        status, body = self._request("GET", self._base_url() + f"/models/{model}", None)
         payload = self._decode_json(body)
         resolved = str(payload.get("name") or "")
         supported = set(str(item) for item in payload.get("supportedGenerationMethods") or [])
@@ -115,7 +111,10 @@ class GeminiHybridProviderAdapter:
             status == 200
             and resolved == self.config.model_id
             and "generateContent" in supported
+            and self.profile.supports_strict_final_json_schema
             and int(payload.get("outputTokenLimit") or 0) >= self.config.maximum_output_tokens
+            and int(payload.get("inputTokenLimit") or 0)
+            >= self.config.maximum_counted_input_tokens
         )
         return {
             "status": "qualified" if passed else "blocked",
@@ -126,104 +125,102 @@ class GeminiHybridProviderAdapter:
             "exact_model_match": resolved == self.config.model_id,
             "image_input_supported": "generateContent" in supported,
             "structured_output_supported": self.profile.supports_strict_final_json_schema,
-            "response_budget_supported": int(payload.get("outputTokenLimit") or 0)
-            >= self.config.maximum_output_tokens,
             "maximum_output_tokens": int(payload.get("outputTokenLimit") or 0),
             "maximum_input_tokens": int(payload.get("inputTokenLimit") or 0),
             "http_status": status,
             "response_hash": hashlib.sha256(body).hexdigest(),
             "native_provider_transport": True,
             "credentials_from_openwebui_connection": True,
-            "hidden_failover": False,
+            "hidden_retry": False,
+            "provider_failover": False,
         }
 
     def count_tokens(
         self,
         *,
-        evidence_package: dict[str, Any],
+        model_view: dict[str, Any],
+        output_schema: dict[str, Any],
         png_bytes: bytes,
+        crop_sha256: str,
     ) -> dict[str, Any]:
-        crop = evidence_package.get("crop_identity") or {}
-        if hashlib.sha256(png_bytes).hexdigest() != crop.get("crop_sha256"):
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_crop_hash_mismatch", "request_validation"
-            )
-        body, canonical_schema_hash, adapted_schema_hash, transform_count = (
-            self._generate_body(evidence_package=evidence_package, png_bytes=png_bytes)
+        self._validate_crop(png_bytes, crop_sha256)
+        body, canonical_schema_hash, adapted_schema_hash, transforms = self._generate_body(
+            model_view=model_view,
+            output_schema=output_schema,
+            png_bytes=png_bytes,
         )
         model = self.config.model_id.removeprefix("models/")
-        url = self._base_url() + f"/models/{model}:countTokens"
-        request_body = {
-            "generateContentRequest": {
-                "model": self.config.model_id,
-                **body,
-            }
-        }
-        status, response_body = self._request("POST", url, request_body)
+        request_body = {"generateContentRequest": {"model": self.config.model_id, **body}}
+        status, response_body = self._request(
+            "POST", self._base_url() + f"/models/{model}:countTokens", request_body
+        )
         payload = self._decode_json(response_body)
-        if status < 200 or status >= 300:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_count_tokens_failed", _http_failure_class(status)
-            )
         total = payload.get("totalTokens")
+        if status < 200 or status >= 300:
+            raise PdfGridProviderError(
+                "pdf_grid_provider_count_tokens_failed", _http_failure_class(status)
+            )
         if not isinstance(total, int) or total < 0:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_count_tokens_invalid", "provider_invalid_json"
+            raise PdfGridProviderError(
+                "pdf_grid_provider_count_tokens_invalid", "provider_invalid_json"
+            )
+        if total > self.config.maximum_counted_input_tokens:
+            raise PdfGridProviderError(
+                "pdf_grid_provider_counted_input_budget_exceeded", "context_budget"
             )
         return {
             "total_tokens": total,
-            "prompt_tokens_details": copy.deepcopy(
-                payload.get("promptTokensDetails") or []
-            ),
+            "prompt_tokens_details": copy.deepcopy(payload.get("promptTokensDetails") or []),
             "http_status": status,
-            "response_hash": hashlib.sha256(response_body).hexdigest(),
             "request_hash": sha256_json(request_body),
+            "response_hash": hashlib.sha256(response_body).hexdigest(),
             "canonical_schema_hash": canonical_schema_hash,
             "adapted_schema_hash": adapted_schema_hash,
-            "schema_transform_count": transform_count,
+            "schema_transform_count": transforms,
             "model_requested": self.config.model_id,
             "transport_identity": "gemini_count_tokens_generate_content_request",
+            "within_hard_guard": True,
         }
 
     def invoke(
         self,
         *,
-        evidence_package: dict[str, Any],
+        task_id: str,
+        model_view: dict[str, Any],
+        output_schema: dict[str, Any],
         png_bytes: bytes,
+        crop_sha256: str,
         attempt_number: int,
         attempt_lineage: list[str],
     ) -> dict[str, Any]:
-        if attempt_number not in {1, 2} or len(attempt_lineage) >= attempt_number:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_attempt_lineage_invalid", "attempt_policy"
+        if attempt_number not in {1, 2} or len(attempt_lineage) != attempt_number - 1:
+            raise PdfGridProviderError(
+                "pdf_grid_attempt_lineage_invalid", "attempt_policy"
             )
-        crop = evidence_package.get("crop_identity") or {}
-        if hashlib.sha256(png_bytes).hexdigest() != crop.get("crop_sha256"):
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_crop_hash_mismatch", "request_validation"
-            )
-        body, canonical_schema_hash, adapted_schema_hash, transform_count = (
-            self._generate_body(evidence_package=evidence_package, png_bytes=png_bytes)
+        self._validate_crop(png_bytes, crop_sha256)
+        body, canonical_schema_hash, adapted_schema_hash, transforms = self._generate_body(
+            model_view=model_view,
+            output_schema=output_schema,
+            png_bytes=png_bytes,
         )
-        package_id = str(evidence_package.get("package_id") or "")
-        task_id = "pdfhybridtask_" + package_id.removeprefix("pdfhybridpkg_")
+        model = self.config.model_id.removeprefix("models/")
         attempt_id = f"{task_id}_a{attempt_number}"
         started_at = _utc_now()
         started = time.perf_counter()
-        failure_class = None
-        status = None
+        status: int | None = None
         response_body = b""
         payload: dict[str, Any] = {}
-        binding: Any = None
+        failure_class: str | None = None
+        text: str | None = None
+        value: dict[str, Any] | None = None
         parse_result = "not_parsed"
-        validation_result = "not_validated"
         try:
-            model = self.config.model_id.removeprefix("models/")
-            url = self._base_url() + f"/models/{model}:generateContent"
-            status, response_body = self._request("POST", url, body)
+            status, response_body = self._request(
+                "POST", self._base_url() + f"/models/{model}:generateContent", body
+            )
             if len(response_body) > MAX_PROVIDER_RESPONSE_BYTES:
-                raise PdfHybridProviderError(
-                    "pdf_hybrid_provider_response_budget_exceeded", "response_budget"
+                raise PdfGridProviderError(
+                    "pdf_grid_provider_response_budget_exceeded", "response_budget"
                 )
             payload = self._decode_json(response_body)
             if status < 200 or status >= 300:
@@ -231,40 +228,43 @@ class GeminiHybridProviderAdapter:
             else:
                 text = _gemini_text(payload)
                 try:
-                    binding = json.loads(text)
-                    parse_result = "parsed"
+                    parsed = json.loads(text)
+                    if isinstance(parsed, dict):
+                        value = parsed
+                        parse_result = "parsed_object"
+                    else:
+                        parse_result = "parsed_non_object"
+                        failure_class = "parse_failure"
                 except (TypeError, ValueError):
                     parse_result = "invalid_json"
                     failure_class = "parse_failure"
-                if parse_result == "parsed":
-                    shape_errors = validate_binding_output_shape(binding)
-                    validation_result = "passed" if not shape_errors else "failed"
-                    if shape_errors:
-                        failure_class = "contract_validation"
-        except PdfHybridProviderError as exc:
+        except PdfGridProviderError as exc:
             failure_class = exc.failure_class
             if not response_body:
                 response_body = canonical_json_bytes({"error_code": exc.code})
-        duration_ms = round((time.perf_counter() - started) * 1000)
-        usage = payload.get("usageMetadata") if isinstance(payload.get("usageMetadata"), dict) else {}
         candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
         finish_reason = (
             str(candidates[0].get("finishReason") or "")
             if candidates and isinstance(candidates[0], dict)
             else None
         )
-        if finish_reason in {"MAX_TOKENS", "MAX_OUTPUT_TOKENS"}:
-            failure_class = "response_budget"
-            validation_result = "failed"
+        if finish_reason != "STOP":
+            failure_class = (
+                "response_budget"
+                if finish_reason in {"MAX_TOKENS", "MAX_OUTPUT_TOKENS"}
+                else (failure_class or "provider_non_terminal")
+            )
+            value = None
+        usage = payload.get("usageMetadata") if isinstance(payload.get("usageMetadata"), dict) else {}
         resolved = str(payload.get("modelVersion") or "")
         if resolved and not resolved.startswith("models/"):
             resolved = "models/" + resolved
         if resolved and resolved != self.config.model_id:
             failure_class = "resolved_model_mismatch"
-            validation_result = "failed"
+            value = None
+        visible = text.encode("utf-8") if isinstance(text, str) else b""
         attempt = {
-            "schema_version": PDF_PROVIDER_ATTEMPT_SCHEMA,
-            "same_evidence_task_id": task_id,
+            "task_id": task_id,
             "attempt_id": attempt_id,
             "attempt_number": attempt_number,
             "attempt_lineage": list(attempt_lineage),
@@ -273,16 +273,17 @@ class GeminiHybridProviderAdapter:
             "provider_profile_revision": gate2_provider_profile_revision(self.profile),
             "model_requested": self.config.model_id,
             "model_resolved": resolved or None,
-            "adapter_identity": PDF_HYBRID_PROVIDER_ADAPTER_VERSION,
-            "transport_identity": "gemini_generate_content_native_image",
-            "package_hash": evidence_package.get("package_hash"),
-            "crop_hash": crop.get("crop_sha256"),
+            "adapter_identity": PDF_GRID_PROVIDER_ADAPTER_VERSION,
+            "transport_identity": "gemini_generate_content_native_table_crop_json_schema",
+            "request_hash": sha256_json(body),
+            "crop_sha256": crop_sha256,
+            "model_view_hash": sha256_json(model_view),
             "canonical_schema_hash": canonical_schema_hash,
             "adapted_schema_hash": adapted_schema_hash,
-            "schema_transform_count": transform_count,
+            "schema_transform_count": transforms,
             "started_at": started_at,
             "ended_at": _utc_now(),
-            "duration_ms": duration_ms,
+            "duration_ms": round((time.perf_counter() - started) * 1000),
             "http_status": status,
             "provider_response_id": payload.get("responseId"),
             "usage": {
@@ -292,38 +293,31 @@ class GeminiHybridProviderAdapter:
             },
             "finish_reason": finish_reason,
             "thinking_level": self.config.thinking_level,
-            "raw_private_response_ref": None,
             "parse_result": parse_result,
-            "validation_result": validation_result,
             "terminal_failure_class": failure_class,
             "hidden_retry": False,
             "provider_failover": False,
         }
         return {
             "attempt": attempt,
-            "binding_output": (
-                binding
-                if isinstance(binding, dict)
-                and validation_result == "passed"
-                and failure_class is None
-                else None
-            ),
+            "json_output": value if failure_class is None else None,
+            "text": text,
             "raw_private_response": payload,
             "response_bytes": len(response_body),
             "response_hash": hashlib.sha256(response_body).hexdigest(),
+            "visible_output_bytes": len(visible),
+            "visible_output_hash": hashlib.sha256(visible).hexdigest() if visible else None,
         }
 
     def _generate_body(
         self,
         *,
-        evidence_package: dict[str, Any],
+        model_view: dict[str, Any],
+        output_schema: dict[str, Any],
         png_bytes: bytes,
     ) -> tuple[dict[str, Any], str, str, int]:
-        schema = copy.deepcopy(evidence_package.get("output_schema") or {})
-        adapted_schema, transform_count = _project_gemini_schema(schema)
-        canonical_schema_hash = sha256_json(schema)
-        adapted_schema_hash = sha256_json(adapted_schema)
-        model_view = evidence_package.get("model_facing") or {}
+        canonical = copy.deepcopy(output_schema)
+        adapted, transforms = project_gemini_schema(canonical)
         body = {
             "contents": [
                 {
@@ -334,6 +328,7 @@ class GeminiHybridProviderAdapter:
                                 model_view,
                                 ensure_ascii=False,
                                 separators=(",", ":"),
+                                sort_keys=True,
                             )
                         },
                         {
@@ -351,16 +346,20 @@ class GeminiHybridProviderAdapter:
                 "maxOutputTokens": self.config.maximum_output_tokens,
                 "thinkingConfig": {"thinkingLevel": self.config.thinking_level},
                 "responseMimeType": "application/json",
-                "responseJsonSchema": adapted_schema,
+                "responseJsonSchema": adapted,
             },
         }
-        return body, canonical_schema_hash, adapted_schema_hash, transform_count
+        return body, sha256_json(canonical), sha256_json(adapted), transforms
+
+    @staticmethod
+    def _validate_crop(png_bytes: bytes, crop_sha256: str) -> None:
+        if hashlib.sha256(png_bytes).hexdigest() != crop_sha256:
+            raise PdfGridProviderError(
+                "pdf_grid_provider_crop_hash_mismatch", "request_validation"
+            )
 
     def _request(
-        self,
-        method: str,
-        url: str,
-        body: dict[str, Any] | None,
+        self, method: str, url: str, body: dict[str, Any] | None
     ) -> tuple[int, bytes]:
         request = Request(
             url,
@@ -377,8 +376,8 @@ class GeminiHybridProviderAdapter:
         except HTTPError as exc:
             return int(exc.code), exc.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
         except (TimeoutError, URLError) as exc:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_transport_failed", "timeout_or_transport"
+            raise PdfGridProviderError(
+                "pdf_grid_provider_transport_failed", "timeout_or_transport"
             ) from exc
 
     def _base_url(self) -> str:
@@ -392,80 +391,14 @@ class GeminiHybridProviderAdapter:
         try:
             value = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_invalid_json", "provider_invalid_json"
+            raise PdfGridProviderError(
+                "pdf_grid_provider_invalid_json", "provider_invalid_json"
             ) from exc
         if not isinstance(value, dict):
-            raise PdfHybridProviderError(
-                "pdf_hybrid_provider_response_not_object", "provider_invalid_json"
+            raise PdfGridProviderError(
+                "pdf_grid_provider_response_not_object", "provider_invalid_json"
             )
         return value
-
-
-_GEMINI_SCHEMA_KEYS = {
-    "$id",
-    "$defs",
-    "$ref",
-    "$anchor",
-    "type",
-    "format",
-    "title",
-    "description",
-    "enum",
-    "items",
-    "prefixItems",
-    "minItems",
-    "minimum",
-    "maximum",
-    "anyOf",
-    "oneOf",
-    "properties",
-    "additionalProperties",
-    "required",
-    "propertyOrdering",
-}
-
-
-def _project_gemini_schema(value: dict[str, Any]) -> tuple[dict[str, Any], int]:
-    result = copy.deepcopy(value)
-    transforms = 0
-
-    def walk(node: Any) -> None:
-        nonlocal transforms
-        if isinstance(node, dict):
-            for key in list(node):
-                if key not in _GEMINI_SCHEMA_KEYS:
-                    node.pop(key)
-                    transforms += 1
-            properties = node.get("properties")
-            if isinstance(properties, dict):
-                for child in properties.values():
-                    walk(child)
-            definitions = node.get("$defs")
-            if isinstance(definitions, dict):
-                for child in definitions.values():
-                    walk(child)
-            for key in ("items", "additionalProperties"):
-                child = node.get(key)
-                if isinstance(child, dict):
-                    walk(child)
-            for key in ("prefixItems", "anyOf", "oneOf"):
-                children = node.get(key)
-                if isinstance(children, list):
-                    for child in children:
-                        walk(child)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child)
-
-    walk(result)
-    return result, transforms
-
-
-def project_gemini_schema(value: dict[str, Any]) -> tuple[dict[str, Any], int]:
-    """Expose the canonical Gemini projection for bounded research adapters."""
-
-    return _project_gemini_schema(value)
 
 
 def _gemini_text(payload: dict[str, Any]) -> str:
@@ -476,8 +409,8 @@ def _gemini_text(payload: dict[str, Any]) -> str:
             if isinstance(part, dict) and isinstance(part.get("text"), str):
                 texts.append(part["text"])
     if len(texts) != 1:
-        raise PdfHybridProviderError(
-            "pdf_hybrid_provider_structured_text_count_invalid", "parse_failure"
+        raise PdfGridProviderError(
+            "pdf_grid_provider_text_count_invalid", "parse_failure"
         )
     return texts[0]
 
