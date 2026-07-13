@@ -3,13 +3,14 @@ title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
 version: 0.6.0-pdf-layout-rich-slice2
 required_open_webui_version: 0.9.6
-requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107
+requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
 
 from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import inspect
 import json
 import re
@@ -62,6 +63,16 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
+from broker_reports_gate1.pdf_hybrid_evidence import PdfHybridEvidenceConfig
+from broker_reports_gate1.pdf_hybrid_provider import (
+    PdfHybridProviderConfig,
+    PdfHybridProviderError,
+    PdfHybridProviderFactory,
+)
+from broker_reports_gate1.pdf_hybrid_shadow import (
+    PdfHybridShadowConfig,
+    PdfHybridShadowFactory,
+)
 
 
 class Pipe:
@@ -95,6 +106,15 @@ class Pipe:
         clarification_prompt_command: str = Field(default="broker_gate1_clarification_request")
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
+        pdf_compact_canonical_dual_write: bool = Field(default=False)
+        pdf_hybrid_shadow_enabled: bool = Field(default=False)
+        pdf_hybrid_shadow_table_allowlist: str = Field(default="")
+        pdf_hybrid_provider_profile: str = Field(default="google_gemini")
+        pdf_hybrid_model_id: str = Field(default="models/gemini-3.5-flash")
+        pdf_hybrid_max_candidates: int = Field(default=512)
+        pdf_hybrid_max_context_bytes: int = Field(default=128 * 1024)
+        pdf_hybrid_primary_dpi: int = Field(default=150)
+        pdf_hybrid_escalation_dpi: int = Field(default=200)
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
@@ -151,6 +171,9 @@ class Pipe:
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
+                "pdf_compact_canonical_dual_write": bool(
+                    self.valves.pdf_compact_canonical_dual_write
+                ),
             },
             extra_private_markers=self._private_markers(file_refs),
         )
@@ -191,8 +214,19 @@ class Pipe:
             retention_policy=retention_policy,
             source_file_refs=self._source_file_refs(file_refs),
         )
+        hybrid_shadow = self._maybe_run_pdf_hybrid_shadow(
+            store=artifact_store,
+            result=result,
+            context=artifact_context,
+            retention_policy=retention_policy,
+            file_inputs=file_inputs,
+            request=__request__,
+        )
         self.last_safe_report = result.safe_report
-        self.last_artifact_manifest = artifact_manifest.to_dict()
+        self.last_artifact_manifest = {
+            **artifact_manifest.to_dict(),
+            "pdf_hybrid_shadow": hybrid_shadow,
+        }
 
         if not file_refs:
             await self._emit(__event_emitter__, "No uploaded file refs were visible.", done=True)
@@ -219,6 +253,63 @@ class Pipe:
                 ]
             )
         return chat_content
+
+    def _maybe_run_pdf_hybrid_shadow(
+        self,
+        *,
+        store,
+        result: NormalizationResult,
+        context: ArtifactAccessContext,
+        retention_policy,
+        file_inputs: list[FileInput],
+        request: Any,
+    ) -> dict[str, Any]:
+        if not self.valves.pdf_hybrid_shadow_enabled:
+            return {"enabled": False, "artifact_refs": [], "summary": None}
+        pdf_bytes_by_sha256: dict[str, bytes] = {}
+        for file_input in file_inputs:
+            read = file_input.read_bytes()
+            if read.status != "available" or not isinstance(read.content_bytes, bytes):
+                continue
+            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = read.content_bytes
+        provider = None
+        try:
+            provider = PdfHybridProviderFactory(
+                PdfHybridProviderConfig(
+                    provider_profile=self.valves.pdf_hybrid_provider_profile,
+                    model_id=self.valves.pdf_hybrid_model_id,
+                )
+            ).create_for_openwebui(request)
+        except (PdfHybridProviderError, RuntimeError, ValueError):
+            provider = None
+        allowlist = tuple(
+            sorted(
+                {
+                    item.strip()
+                    for item in self.valves.pdf_hybrid_shadow_table_allowlist.split(",")
+                    if item.strip()
+                }
+            )
+        )
+        runtime = PdfHybridShadowFactory(
+            PdfHybridShadowConfig(
+                enabled=True,
+                primary_dpi=self.valves.pdf_hybrid_primary_dpi,
+                escalation_dpi=self.valves.pdf_hybrid_escalation_dpi,
+                table_allowlist=allowlist,
+            ),
+            evidence_config=PdfHybridEvidenceConfig(
+                maximum_candidates=self.valves.pdf_hybrid_max_candidates,
+                maximum_candidate_json_bytes=self.valves.pdf_hybrid_max_context_bytes,
+            ),
+        ).create(provider=provider)
+        return runtime.run(
+            store=store,
+            package=result.package,
+            context=context,
+            retention_policy=retention_policy,
+            pdf_bytes_by_sha256=pdf_bytes_by_sha256,
+        )
 
     async def _maybe_run_passport_stage(
         self,

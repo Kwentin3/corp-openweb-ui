@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -76,6 +78,15 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
         self.assertIn("pdf_layout_units", module._BUNDLED_MODULES)
         self.assertIn("pdf_text_layer", module._BUNDLED_MODULES)
+        self.assertIn("pdf_compact_canonical", module._BUNDLED_MODULES)
+        self.assertIn("pdf_compact_gate2_adapter", module._BUNDLED_MODULES)
+        self.assertIn("pdf_normalization_acceptance", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_budget", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_compaction", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_windows", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_structure", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_reliability", module._BUNDLED_MODULES)
+        self.assertIn("pdf_hybrid_reliability_shadow", module._BUNDLED_MODULES)
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_contracts", module._BUNDLED_MODULES)
@@ -93,6 +104,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
+        self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
         self.assertEqual(bundled_package.PDFPLUMBER_PINNED_VERSION, "0.11.10")
         self.assertEqual(bundled_package.PDFMINER_PINNED_VERSION, "20260107")
         pipe = module.Pipe()
@@ -172,6 +186,51 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertNotIn("SYNTH-A,1,SYNTH-FCY", content)
         self.assertNotIn('"rows"', content)
         self.assertNotIn('"text"', content)
+
+    def test_bundled_pipe_dual_writes_compact_pdf_only_when_explicitly_enabled(self):
+        module = load_bundle_module()
+        pipe = module.Pipe()
+        root = Path(self._tmp.name)
+        pipe.valves.artifact_store_path = str(root / "compact.sqlite3")
+        pipe.valves.artifact_payload_root = str(root / "compact-payloads")
+        self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
+        self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
+        pipe.valves.pdf_compact_canonical_dual_write = True
+
+        content = run_pipe(
+            pipe,
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "normalize",
+                        "files": [
+                            file_ref(
+                                "bundle-pdf-compact-1",
+                                "synthetic-table.pdf",
+                                "application/pdf",
+                                _ruled_table_pdf(),
+                            )
+                        ],
+                    }
+                ]
+            },
+        )
+        refs = pipe.last_artifact_manifest["artifact_refs_by_type"]
+        self.assertEqual(
+            len(refs["broker_reports_pdf_compact_canonical_document_v1"]), 1
+        )
+        self.assertEqual(
+            len(refs["broker_reports_pdf_normalization_acceptance_v1"]), 1
+        )
+        self.assertEqual(
+            pipe.last_artifact_manifest["pdf_hybrid_shadow"],
+            {"enabled": False, "artifact_refs": [], "summary": None},
+        )
+        self.assertFalse(
+            any("pdf_hybrid" in artifact_type for artifact_type in refs)
+        )
+        self.assertNotIn("Synthetic Table", content)
 
 
 if __name__ == "__main__":

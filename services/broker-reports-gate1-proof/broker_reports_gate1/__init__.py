@@ -44,6 +44,31 @@ from .domain_ingestion import (
     build_gate1_issue_ledger,
 )
 from .gate2_handoff import Gate1ArtifactManifest, persist_gate1_result
+from .pdf_compact_canonical import (
+    PDF_COMPACT_CANONICAL_POLICY_VERSION,
+    PDF_COMPACT_CANONICAL_SCHEMA_VERSION,
+    PdfCompactCanonicalBuilder,
+    PdfCompactCanonicalConfig,
+    PdfCompactCanonicalError,
+    PdfCompactCanonicalFactory,
+    PdfCompactCanonicalValidator,
+    resolve_compact_source_value,
+)
+from .pdf_compact_gate2_adapter import (
+    PDF_COMPACT_GATE2_MAPPING_SCHEMA_VERSION,
+    PdfCompactGate2Adapter,
+    PdfCompactGate2AdapterConfig,
+    PdfCompactGate2AdapterFactory,
+    PdfCompactGate2MappingValidator,
+)
+from .pdf_normalization_acceptance import (
+    PDF_NORMALIZATION_ACCEPTANCE_POLICY_VERSION,
+    PDF_NORMALIZATION_ACCEPTANCE_SCHEMA_VERSION,
+    PdfNormalizationAcceptanceBuilder,
+    PdfNormalizationAcceptanceConfig,
+    PdfNormalizationAcceptanceFactory,
+    PdfNormalizationAcceptanceValidator,
+)
 from .full_source import (
     FullSourceArtifactConfig,
     FullSourceArtifactFactory,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import argparse
 import json
 from pathlib import Path
 
@@ -41,6 +42,9 @@ MODULE_ORDER = [
     "pdf_layout_units",
     "pdf_text_layer",
     "full_source",
+    "pdf_compact_canonical",
+    "pdf_compact_gate2_adapter",
+    "pdf_normalization_acceptance",
     "taxonomy",
     "criticality",
     "eligibility",
@@ -78,54 +82,88 @@ MODULE_ORDER = [
     "__init__",
 ]
 
+GATE1_HYBRID_MODULES = [
+    "pdf_hybrid_contracts",
+    "pdf_table_classification",
+    "pdf_table_raster",
+    "pdf_hybrid_evidence",
+    "pdf_hybrid_budget",
+    "pdf_hybrid_compaction",
+    "pdf_hybrid_windows",
+    "pdf_hybrid_provider",
+    "pdf_hybrid_materialization",
+    "pdf_hybrid_structure",
+    "pdf_table_validation",
+    "pdf_hybrid_reliability",
+    "pdf_hybrid_shadow",
+    "pdf_hybrid_reliability_shadow",
+]
+
+_GATE1_HYBRID_INSERT_AT = MODULE_ORDER.index("gate2_provider_adapters") + 1
+GATE1_MODULE_ORDER = [
+    *MODULE_ORDER[:_GATE1_HYBRID_INSERT_AT],
+    *GATE1_HYBRID_MODULES,
+    *MODULE_ORDER[_GATE1_HYBRID_INSERT_AT:],
+]
+
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--target",
+        choices=("all", "gate1", "gate2", "gate2-domain"),
+        default="all",
+    )
+    target = parser.parse_args().target
     modules = {
         name: (PACKAGE_ROOT / f"{name}.py").read_text(encoding="utf-8")
-        for name in MODULE_ORDER
+        for name in sorted(set(MODULE_ORDER) | set(GATE1_HYBRID_MODULES))
     }
-    pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
-    bundle = _render_bundle(
-        modules=modules,
-        pipe_source=pipe_source,
-        title="Broker Reports Gate 1 Pipe Backend Normalizer",
-        version="0.6.0-pdf-layout-rich-slice2-bundled",
-        package_version="gate1_pdf_layout_rich_slice2_v0",
-        source_label="openwebui_actions/broker_reports_gate1_pipe.py",
-        requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107",
-    )
-    BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
-    print(str(BUNDLE_PATH))
-    gate2_pipe_source = _strip_openwebui_metadata(
-        GATE2_PIPE_SOURCE.read_text(encoding="utf-8")
-    )
-    gate2_bundle = _render_bundle(
-        modules=modules,
-        pipe_source=gate2_pipe_source,
-        title="Broker Reports Gate 2 Source Fact Extraction",
-        version="0.3.0-provider-adapters-metadata-runtime-bundled",
-        package_version="gate2_provider_adapters_metadata_runtime_v1",
-        source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
-        requirements="pydantic",
-    )
-    GATE2_BUNDLE_PATH.write_text(gate2_bundle, encoding="utf-8", newline="\n")
-    print(str(GATE2_BUNDLE_PATH))
-    gate2_domain_pipe_source = _strip_openwebui_metadata(
-        GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
-    )
-    gate2_domain_bundle = _render_bundle(
-        modules=modules,
-        pipe_source=gate2_domain_pipe_source,
-        title="Broker Reports Gate 2 Domain Source Fact Extraction",
-        version="0.5.0-domain-provider-adapters-metadata-runtime-bundled",
-        package_version="gate2_domain_provider_adapters_metadata_runtime_v1",
-        source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
-        requirements="pydantic",
-    )
-    GATE2_DOMAIN_BUNDLE_PATH.write_text(
-        gate2_domain_bundle, encoding="utf-8", newline="\n"
-    )
-    print(str(GATE2_DOMAIN_BUNDLE_PATH))
+    if target in {"all", "gate1"}:
+        pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
+        bundle = _render_bundle(
+            modules={name: modules[name] for name in GATE1_MODULE_ORDER},
+            pipe_source=pipe_source,
+            title="Broker Reports Gate 1 Pipe Backend Normalizer",
+            version="0.9.0-pdf-hybrid-reliability-shadow-bundled",
+            package_version="gate1_pdf_hybrid_reliability_shadow_v2",
+            source_label="openwebui_actions/broker_reports_gate1_pipe.py",
+            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
+        )
+        BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
+        print(str(BUNDLE_PATH))
+    if target in {"all", "gate2"}:
+        gate2_pipe_source = _strip_openwebui_metadata(
+            GATE2_PIPE_SOURCE.read_text(encoding="utf-8")
+        )
+        gate2_bundle = _render_bundle(
+            modules={name: modules[name] for name in MODULE_ORDER},
+            pipe_source=gate2_pipe_source,
+            title="Broker Reports Gate 2 Source Fact Extraction",
+            version="0.3.0-provider-adapters-metadata-runtime-bundled",
+            package_version="gate2_provider_adapters_metadata_runtime_v1",
+            source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
+            requirements="pydantic",
+        )
+        GATE2_BUNDLE_PATH.write_text(gate2_bundle, encoding="utf-8", newline="\n")
+        print(str(GATE2_BUNDLE_PATH))
+    if target in {"all", "gate2-domain"}:
+        gate2_domain_pipe_source = _strip_openwebui_metadata(
+            GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
+        )
+        gate2_domain_bundle = _render_bundle(
+            modules={name: modules[name] for name in MODULE_ORDER},
+            pipe_source=gate2_domain_pipe_source,
+            title="Broker Reports Gate 2 Domain Source Fact Extraction",
+            version="0.5.0-domain-provider-adapters-metadata-runtime-bundled",
+            package_version="gate2_domain_provider_adapters_metadata_runtime_v1",
+            source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
+            requirements="pydantic",
+        )
+        GATE2_DOMAIN_BUNDLE_PATH.write_text(
+            gate2_domain_bundle, encoding="utf-8", newline="\n"
+        )
+        print(str(GATE2_DOMAIN_BUNDLE_PATH))
 
 
 def _strip_openwebui_metadata(source: str) -> str:
@@ -215,7 +253,7 @@ def _render_bundle(
     requirements: str,
 ) -> str:
     modules_literal = json.dumps(modules, ensure_ascii=False, indent=2, sort_keys=True)
-    order_literal = json.dumps(MODULE_ORDER, ensure_ascii=True)
+    order_literal = json.dumps(list(modules), ensure_ascii=True)
     return f'''"""
 title: {title}
 author: Alpha Soft

@@ -7,6 +7,13 @@ from typing import Any
 from .artifact_lifecycle import lifecycle_for_visibility
 from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPolicy, utc_now_iso
 from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
+from .pdf_compact_canonical import (
+    PdfCompactCanonicalError,
+    PdfCompactCanonicalFactory,
+    canonical_json_bytes,
+)
+from .pdf_compact_gate2_adapter import PdfCompactGate2MappingValidator
+from .pdf_normalization_acceptance import PdfNormalizationAcceptanceFactory
 
 
 @dataclass(frozen=True)
@@ -52,8 +59,10 @@ def persist_gate1_result(
     private_refs: list[str] = []
     private_refs_by_doc: dict[str, list[str]] = {}
     private_source_payload_refs: list[str] = []
+    private_source_payload_refs_by_doc: dict[str, list[str]] = {}
     private_source_unit_refs: list[str] = []
     private_source_unit_refs_by_doc: dict[str, list[str]] = {}
+    table_projection_refs_by_doc: dict[str, list[str]] = {}
     clarification_resolution_refs: list[str] = []
     passport_refs_by_doc: dict[str, str] = {}
     blocker_refs: list[str] = []
@@ -228,6 +237,9 @@ def persist_gate1_result(
             )
         )
         private_source_payload_refs.append(record.artifact_id)
+        private_source_payload_refs_by_doc.setdefault(str(document_id), []).append(
+            record.artifact_id
+        )
 
     for source_unit in package.get("private_normalized_source_units", []):
         document_id = source_unit.get("document_id")
@@ -289,7 +301,7 @@ def persist_gate1_result(
         "private_normalized_table_projections", []
     ):
         document_id = table_projection.get("source_document_ref")
-        put(
+        record = put(
             _record(
                 artifact_type="broker_reports_normalized_table_projection_v0",
                 context=context,
@@ -345,6 +357,23 @@ def persist_gate1_result(
                 access_policy={**access_policy, "requires_gate2_resolver": True},
             )
         )
+        table_projection_refs_by_doc.setdefault(str(document_id), []).append(
+            record.artifact_id
+        )
+
+    _persist_pdf_compact_dual_write(
+        put=put,
+        package=package,
+        documents=documents,
+        source_records_by_doc=source_records_by_doc,
+        source_artifact_ids_by_doc=source_artifact_ids_by_doc,
+        source_payload_refs_by_doc=private_source_payload_refs_by_doc,
+        source_unit_refs_by_doc=private_source_unit_refs_by_doc,
+        table_projection_refs_by_doc=table_projection_refs_by_doc,
+        context=context,
+        retention_policy=retention_policy,
+        access_policy=access_policy,
+    )
 
     prompt_snapshot = package.get("llm_prompt_snapshot")
     if isinstance(prompt_snapshot, dict):
@@ -829,6 +858,247 @@ def persist_gate1_result(
     )
 
 
+def _persist_pdf_compact_dual_write(
+    *,
+    put,
+    package: dict[str, Any],
+    documents: list[dict[str, Any]],
+    source_records_by_doc: dict[str, dict[str, Any]],
+    source_artifact_ids_by_doc: dict[str, str],
+    source_payload_refs_by_doc: dict[str, list[str]],
+    source_unit_refs_by_doc: dict[str, list[str]],
+    table_projection_refs_by_doc: dict[str, list[str]],
+    context: ArtifactAccessContext,
+    retention_policy: RetentionPolicy,
+    access_policy: dict[str, Any],
+) -> None:
+    if _object(package.get("input_context")).get(
+        "pdf_compact_canonical_dual_write"
+    ) is not True:
+        return
+    run_id = str(_object(package.get("normalization_run")).get("run_id") or "")
+    all_payloads = _dicts(package.get("private_normalized_source_payloads"))
+    all_units = _dicts(package.get("private_normalized_source_units"))
+    all_projections = _dicts(package.get("private_normalized_table_projections"))
+    all_decisions = _dicts(package.get("table_projection_decisions"))
+    for document in documents:
+        if document.get("container_format") != "pdf":
+            continue
+        document_id = str(document.get("document_id") or "")
+        source_payloads = [
+            item for item in all_payloads if str(item.get("document_ref") or "") == document_id
+        ]
+        source_units = [
+            item for item in all_units if str(item.get("document_id") or "") == document_id
+        ]
+        table_projections = [
+            item
+            for item in all_projections
+            if str(item.get("source_document_ref") or "") == document_id
+            and item.get("source_format") == "pdf"
+        ]
+        table_decisions = [
+            item for item in all_decisions if str(item.get("document_ref") or "") == document_id
+        ]
+        try:
+            if len(source_payloads) != 1:
+                raise PdfCompactCanonicalError(
+                    "pdf_compact_source_payload_cardinality_invalid", document_id
+                )
+            compact_builder = PdfCompactCanonicalFactory().create()
+            build_args = {
+                "normalization_run_id": run_id,
+                "document": document,
+                "original_pdf_artifact_ref": source_artifact_ids_by_doc.get(document_id, ""),
+                "source_payload": source_payloads[0],
+                "source_units": source_units,
+                "table_projections": table_projections,
+                "table_decisions": table_decisions,
+            }
+            compact = compact_builder.build(**build_args)
+            repeated = compact_builder.build(**build_args)
+            reproducibility_passed = (
+                compact.get("canonical_document_checksum_ref")
+                == repeated.get("canonical_document_checksum_ref")
+                and canonical_json_bytes(compact) == canonical_json_bytes(repeated)
+            )
+            mapping_validation = PdfCompactGate2MappingValidator().validate(
+                compact_document=compact,
+                current_projections=table_projections,
+            )
+            compact_artifact_id = new_artifact_id()
+            acceptance = PdfNormalizationAcceptanceFactory().create().build(
+                compact_document=compact,
+                compact_canonical_artifact_ref=compact_artifact_id,
+                source_payloads=source_payloads,
+                source_units=source_units,
+                table_projections=table_projections,
+                current_artifact_refs={
+                    "source_payloads": list(
+                        source_payload_refs_by_doc.get(document_id) or []
+                    ),
+                    "source_units": list(source_unit_refs_by_doc.get(document_id) or []),
+                    "table_projections": list(
+                        table_projection_refs_by_doc.get(document_id) or []
+                    ),
+                },
+                mapping_validation=mapping_validation,
+                reproducibility_passed=reproducibility_passed,
+            )
+            compact_record = put(
+                _record(
+                    artifact_id=compact_artifact_id,
+                    artifact_type="broker_reports_pdf_compact_canonical_document_v1",
+                    context=context,
+                    retention_policy=retention_policy,
+                    document_id=document_id,
+                    source_file_ref=source_records_by_doc.get(document_id),
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    validation_status="validated",
+                    payload=compact,
+                    safe_metadata={
+                        "schema_version": compact.get("schema_version"),
+                        "canonical_document_id": compact.get("canonical_document_id"),
+                        "canonical_document_checksum_ref": compact.get(
+                            "canonical_document_checksum_ref"
+                        ),
+                        "document_ref": document_id,
+                        "original_pdf_artifact_ref": compact.get(
+                            "original_pdf_artifact_ref"
+                        ),
+                        "page_count": len(compact.get("pages") or []),
+                        "table_candidates_total": _object(
+                            compact.get("coverage")
+                        ).get("table_candidates_total"),
+                        "tables_accepted_total": _object(compact.get("coverage")).get(
+                            "tables_accepted_total"
+                        ),
+                        "tables_blocked_total": _object(compact.get("coverage")).get(
+                            "tables_blocked_total"
+                        ),
+                        "knowledge_rag_used": False,
+                        "vectorization_performed": False,
+                    },
+                    access_policy={**access_policy, "requires_gate2_resolver": True},
+                )
+            )
+            if compact_record.artifact_id != compact_artifact_id:
+                raise PdfCompactCanonicalError("pdf_compact_reserved_artifact_ref_changed")
+            acceptance_status = str(acceptance.get("acceptance_status") or "blocked")
+            put(
+                _record(
+                    artifact_type="broker_reports_pdf_normalization_acceptance_v1",
+                    context=context,
+                    retention_policy=retention_policy,
+                    document_id=document_id,
+                    source_file_ref=source_records_by_doc.get(document_id),
+                    visibility="safe_internal",
+                    storage_backend="project_artifact_store",
+                    validation_status=(
+                        "validated"
+                        if acceptance_status
+                        in {"accepted_complete", "accepted_with_explicit_blocked_tables"}
+                        else "blocked"
+                    ),
+                    payload=acceptance,
+                    safe_metadata={
+                        "schema_version": acceptance.get("schema_version"),
+                        "acceptance_id": acceptance.get("acceptance_id"),
+                        "acceptance_status": acceptance_status,
+                        "approval_required": acceptance.get("approval_required") is True,
+                        "document_ref": document_id,
+                        "compact_canonical_artifact_ref": compact_artifact_id,
+                        "table_candidates_total": _object(
+                            acceptance.get("metrics")
+                        ).get("table_candidates_total"),
+                        "tables_accepted_total": _object(
+                            acceptance.get("metrics")
+                        ).get("tables_accepted_total"),
+                        "tables_blocked_total": _object(
+                            acceptance.get("metrics")
+                        ).get("tables_blocked_total"),
+                        "compact_json_bytes": _object(acceptance.get("metrics")).get(
+                            "compact_json_bytes"
+                        ),
+                        "production_gate2_selection_changed": False,
+                        "acceptance_mode": compact.get("acceptance_mode"),
+                        "authority_state": compact.get("authority_state"),
+                        "production_ready": compact.get("production_ready"),
+                    },
+                    access_policy=access_policy,
+                )
+            )
+        except PdfCompactCanonicalError as exc:
+            _persist_pdf_compact_failure(
+                put=put,
+                code=exc.code,
+                run_id=run_id,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(document_id),
+                context=context,
+                retention_policy=retention_policy,
+                access_policy=access_policy,
+            )
+        except Exception:
+            _persist_pdf_compact_failure(
+                put=put,
+                code="pdf_compact_unexpected_build_failure",
+                run_id=run_id,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(document_id),
+                context=context,
+                retention_policy=retention_policy,
+                access_policy=access_policy,
+            )
+
+
+def _persist_pdf_compact_failure(
+    *,
+    put,
+    code: str,
+    run_id: str,
+    document_id: str,
+    source_file_ref: dict[str, Any] | None,
+    context: ArtifactAccessContext,
+    retention_policy: RetentionPolicy,
+    access_policy: dict[str, Any],
+) -> None:
+    payload = {
+        "schema_version": "broker_reports_pdf_compact_build_failure_v1",
+        "normalization_run_id": run_id,
+        "document_id": document_id,
+        "failure_code": code,
+        "dual_write_enabled": True,
+        "current_normalization_available": True,
+        "partial_compact_accepted": False,
+        "production_gate2_selection_changed": False,
+        "current_artifacts_deleted": False,
+        "knowledge_rag_used": False,
+        "vectorization_performed": False,
+    }
+    put(
+        _record(
+            artifact_type="broker_reports_pdf_compact_build_failure_v1",
+            context=context,
+            retention_policy=retention_policy,
+            document_id=document_id,
+            source_file_ref=source_file_ref,
+            visibility="safe_internal",
+            storage_backend="project_artifact_store",
+            validation_status="blocked",
+            payload=payload,
+            safe_metadata={
+                "failure_code": code,
+                "document_ref": document_id,
+                "current_normalization_available": True,
+                "partial_compact_accepted": False,
+            },
+            access_policy=access_policy,
+        )
+    )
+
+
 def _record(
     *,
     artifact_type: str,
@@ -843,10 +1113,11 @@ def _record(
     safe_metadata: dict[str, Any],
     access_policy: dict[str, Any],
     warning_codes: list[str] | None = None,
+    artifact_id: str | None = None,
 ) -> ArtifactRecord:
     lifecycle_status = lifecycle_for_visibility(visibility=visibility, validation_status=validation_status)
     return ArtifactRecord(
-        artifact_id=new_artifact_id(),
+        artifact_id=artifact_id or new_artifact_id(),
         artifact_type=artifact_type,
         case_id=context.case_id,
         chat_id=context.chat_id,
@@ -1005,3 +1276,11 @@ def _safe_metadata_for_payload(package: dict, artifact_type: str) -> dict[str, A
 
 def _warning_codes(package: dict) -> list[str]:
     return sorted({str(item.get("code")) for item in package.get("normalization_blockers", []) if item.get("code")})
+
+
+def _object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _dicts(value: Any) -> list[dict[str, Any]]:
+    return [item for item in value or [] if isinstance(item, dict)] if isinstance(value, list) else []
