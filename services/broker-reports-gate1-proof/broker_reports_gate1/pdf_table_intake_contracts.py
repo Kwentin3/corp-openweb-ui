@@ -569,7 +569,9 @@ def _technical_reason_codes(facts: dict[str, Any]) -> list[str]:
     elif scope == "page":
         if candidate_bbox is not None:
             reasons.append("page_candidate_bbox_unexpected")
-        if atom_count != 0 or coordinate_count != 0:
+        # Page proposals expose no text atoms to the provider, but retain the
+        # verified source word coordinates for the provider-free binder.
+        if atom_count != 0:
             reasons.append("page_atoms_present_before_region_proposal")
         if facts.get("crop_count") != 0:
             reasons.append("page_crop_count_invalid")

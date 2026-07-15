@@ -684,6 +684,30 @@ class PdfVlmRegionBindingRuntime:
                 or result_region.get("source_bbox") != expected_source_bbox
             ):
                 errors.append("pdf_vlm_region_binding_proposal_binding_mismatch")
+            if words and expected_source_bbox is not None and result_region:
+                included, excluded, crossing = _partition_words(
+                    words,
+                    expected_source_bbox,
+                )
+                expected_candidate_accounting = _candidate_partition(
+                    candidate_scope=candidate_scope,
+                    included_word_refs=included,
+                    excluded_word_refs=excluded,
+                    crossing_word_refs=crossing,
+                )
+                if (
+                    result_region.get("included_word_refs")
+                    != sorted(included)
+                    or result_region.get("excluded_word_refs")
+                    != sorted(excluded)
+                    or result_region.get("crossing_word_refs")
+                    != sorted(crossing)
+                    or result_region.get("candidate_accounting")
+                    != expected_candidate_accounting
+                ):
+                    errors.append(
+                        "pdf_vlm_region_binding_partition_anchor_invalid"
+                    )
             if (
                 not crop_manifest
                 or result_region.get("crop_manifest_hash")

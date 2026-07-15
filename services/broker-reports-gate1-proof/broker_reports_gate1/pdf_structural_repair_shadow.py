@@ -37,6 +37,12 @@ PDF_STRUCTURAL_REPAIR_SHADOW_SUMMARY_SCHEMA = (
 PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA = (
     "broker_reports_pdf_structural_repair_target_state_v1"
 )
+PDF_VLM_GUIDED_CANDIDATE_INTAKE_RESULT_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_candidate_intake_result_v1"
+)
+PDF_VLM_GUIDED_CANDIDATE_INTAKE_SAFE_SUMMARY_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_candidate_intake_safe_summary_v1"
+)
 PDF_VLM_GUIDED_PAGE_INTAKE_RESULT_SCHEMA = (
     "broker_reports_pdf_vlm_guided_page_intake_result_v1"
 )
@@ -1929,6 +1935,9 @@ class PdfStructuralRepairShadowRuntime:
                 private_cause=intake_error,
                 target_state_ref=state_ref,
             )
+        candidate_proposal: dict[str, Any] | None = None
+        candidate_binding: dict[str, Any] | None = None
+        candidate_region_manifests: dict[str, dict[str, Any]] = {}
         try:
             if guided_intake:
                 result = self.structural_runtime.run_candidate_once(
@@ -1938,6 +1947,19 @@ class PdfStructuralRepairShadowRuntime:
                     visual_package=visual_package,
                     png_bytes=png_bytes,
                     provider_qualification=qualification,
+                )
+                (
+                    candidate_proposal,
+                    candidate_binding,
+                    candidate_region_manifests,
+                ) = self._bind_candidate_proposal(
+                    package_descriptor=package_descriptor,
+                    pdf_bytes=pdf_bytes,
+                    pdf_text_layer_projection=projection,
+                    parent_bbox=table_bbox,
+                    parent_manifest=_object(rendered.get("manifest")),
+                    visual_package=visual_package,
+                    proposal_result=result,
                 )
             elif window_plan is None:
                 result = self.structural_runtime.run_target(
@@ -2015,12 +2037,30 @@ class PdfStructuralRepairShadowRuntime:
                 visual_package=visual_package,
                 intake_decisions=finalized_intake,
             )
+            result = self._candidate_intake_result(
+                target_id=str(package_descriptor["target_id"]),
+                table_ref=table_ref,
+                page_ref=page_ref,
+                page_number=page_number,
+                parent_bbox=table_bbox,
+                parent_manifest=_object(rendered.get("manifest")),
+                pdf_text_layer_projection=projection,
+                visual_package=visual_package,
+                proposal_result=result,
+                proposal=candidate_proposal,
+                binding_result=candidate_binding,
+                region_crop_manifests=candidate_region_manifests,
+                finalized_intake_decisions=finalized_intake,
+            )
         if state_ref is None:
             raise PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_target_state_missing"
             )
         terminal = result.get("runtime_terminal_status")
-        if self.structural_runtime.validate_result(result):
+        if (
+            not guided_intake
+            and self.structural_runtime.validate_result(result)
+        ):
             raise PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_runtime_result_invalid"
             )
@@ -2092,7 +2132,7 @@ class PdfStructuralRepairShadowRuntime:
                 retention_policy=retention_policy,
                 document_id=document_ref,
                 artifact_type=(
-                    "broker_reports_pdf_vlm_guided_intake_result_v1"
+                    PDF_VLM_GUIDED_CANDIDATE_INTAKE_RESULT_SCHEMA
                     if guided_intake
                     else "broker_reports_pdf_structural_repair_runtime_result_v1"
                 ),
@@ -2168,7 +2208,10 @@ class PdfStructuralRepairShadowRuntime:
                 **(
                     {
                         "target_scope": "page_level",
-                        "full_page_identity_verified": True,
+                        "full_page_identity_verified": (
+                            sealed_state.get("full_page_identity_verified")
+                            is True
+                        ),
                     }
                     if page_state
                     else {}
@@ -2217,6 +2260,389 @@ class PdfStructuralRepairShadowRuntime:
             visual_package=visual_package,
             intake_decisions=finalized,
         )
+
+    def _bind_candidate_proposal(
+        self,
+        *,
+        package_descriptor: dict[str, Any],
+        pdf_bytes: bytes,
+        pdf_text_layer_projection: dict[str, Any],
+        parent_bbox: list[float],
+        parent_manifest: dict[str, Any],
+        visual_package: dict[str, Any],
+        proposal_result: dict[str, Any],
+    ) -> tuple[
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        dict[str, dict[str, Any]],
+    ]:
+        journal = _dicts(proposal_result.get("journal"))
+        raw_proposal = (
+            _object(journal[0].get("topology_response"))
+            if len(journal) == 1
+            else {}
+        )
+        if not raw_proposal:
+            return None, None, {}
+        try:
+            proposal = self.visual.parse_region_proposal_response(
+                raw_proposal,
+                expected_package_id=str(visual_package.get("package_id") or ""),
+                expected_proposal_scope="candidate_crop",
+            )
+        except ValueError:
+            return None, None, {}
+        manifests: dict[str, dict[str, Any]] = {}
+        if proposal.get("table_presence") == "present":
+            for region in _dicts(proposal.get("regions")):
+                region_key = str(region.get("region_key") or "")
+                source_bbox = _source_bbox_from_normalized(
+                    region.get("bbox"),
+                    parent_bbox,
+                )
+                if source_bbox == [float(item) for item in parent_bbox]:
+                    manifest = copy.deepcopy(parent_manifest)
+                else:
+                    rendered = self.raster.render(
+                        pdf_bytes=pdf_bytes,
+                        pdf_sha256=str(package_descriptor["pdf_sha256"]),
+                        document_ref=str(package_descriptor["document_ref"]),
+                        page_number=_strict_nonnegative_int(
+                            package_descriptor["page_number"]
+                        ),
+                        table_ref=str(package_descriptor["table_ref"]),
+                        table_bbox=source_bbox,
+                        dpi=150,
+                    )
+                    manifest = copy.deepcopy(_object(rendered.get("manifest")))
+                manifests[region_key] = manifest
+        binding = self.vlm_region_binding.bind(
+            proposal_package=visual_package,
+            proposal=proposal,
+            pdf_text_layer_projection=pdf_text_layer_projection,
+            parent_source_bbox=parent_bbox,
+            region_crop_manifests=manifests,
+        )
+        anchor_errors = self.vlm_region_binding.validate_result_against_inputs(
+            binding,
+            proposal_package=visual_package,
+            proposal=proposal,
+            pdf_text_layer_projection=pdf_text_layer_projection,
+            parent_source_bbox=parent_bbox,
+            region_crop_manifests=manifests,
+        )
+        if anchor_errors:
+            raise PdfStructuralRepairShadowError(anchor_errors[0])
+        return proposal, binding, manifests
+
+    def _candidate_intake_result(
+        self,
+        *,
+        target_id: str,
+        table_ref: str,
+        page_ref: str,
+        page_number: int,
+        parent_bbox: list[float],
+        parent_manifest: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        visual_package: dict[str, Any],
+        proposal_result: dict[str, Any],
+        proposal: dict[str, Any] | None,
+        binding_result: dict[str, Any] | None,
+        region_crop_manifests: dict[str, dict[str, Any]],
+        finalized_intake_decisions: dict[str, Any],
+    ) -> dict[str, Any]:
+        proposal_safe = _object(proposal_result.get("safe_summary"))
+        if binding_result is not None:
+            terminal = str(
+                binding_result.get("runtime_terminal_status")
+                or "validation_blocked"
+            )
+            reasons = [
+                str(item) for item in binding_result.get("reason_codes") or []
+            ]
+        else:
+            terminal = str(
+                proposal_result.get("runtime_terminal_status")
+                or "validation_blocked"
+            )
+            reasons = [
+                str(item)
+                for item in proposal_safe.get("reason_codes") or []
+                if isinstance(item, str) and item
+            ]
+        accepted_regions = [
+            item
+            for item in _dicts(
+                _object(binding_result).get("region_results")
+            )
+            if item.get("runtime_terminal_status")
+            == "accepted_physical_structure"
+        ]
+        materialization = (
+            copy.deepcopy(_object(accepted_regions[0].get("materialization")))
+            if terminal == "accepted_physical_structure"
+            and len(accepted_regions) == 1
+            else None
+        )
+        safe_summary = {
+            "schema_version": (
+                PDF_VLM_GUIDED_CANDIDATE_INTAKE_SAFE_SUMMARY_SCHEMA
+            ),
+            "target_id": target_id,
+            "execution_mode": "guided_candidate_crop",
+            "runtime_terminal_status": terminal,
+            "reason_codes": sorted(set(reasons)),
+            "table_presence": _object(proposal).get("table_presence"),
+            "regions_proposed": len(
+                _dicts(_object(proposal).get("regions"))
+            ),
+            "regions_accepted": _strict_nonnegative_int(
+                _object(_object(binding_result).get("source_accounting")).get(
+                    "regions_accepted"
+                )
+            ),
+            "count_token_calls": proposal_result.get(
+                "new_provider_count_token_calls"
+            ),
+            "generate_calls": proposal_result.get(
+                "new_provider_generate_calls"
+            ),
+            "hidden_retry": proposal_safe.get("hidden_retry"),
+            "provider_failover": proposal_safe.get("provider_failover"),
+            "default_enabled": False,
+            "production_authority": False,
+        }
+        result = {
+            "schema_version": PDF_VLM_GUIDED_CANDIDATE_INTAKE_RESULT_SCHEMA,
+            "target_id": target_id,
+            "proposal_scope": "candidate_crop",
+            "candidate_identity": {
+                "document_ref": visual_package.get("document_ref"),
+                "pdf_sha256": visual_package.get("pdf_sha256"),
+                "page_ref": page_ref,
+                "page_number": page_number,
+                "table_ref": table_ref,
+                "parent_source_bbox": copy.deepcopy(parent_bbox),
+                "parent_manifest_hash": parent_manifest.get("manifest_hash"),
+                "parent_crop_sha256": parent_manifest.get("png_sha256"),
+                "projection_checksum": sha256_json(
+                    pdf_text_layer_projection
+                ),
+            },
+            "parent_crop_manifest": copy.deepcopy(parent_manifest),
+            "visual_package": copy.deepcopy(visual_package),
+            "proposal_result": copy.deepcopy(proposal_result),
+            "proposal": copy.deepcopy(proposal),
+            "binding_result": copy.deepcopy(binding_result),
+            "region_crop_manifests": copy.deepcopy(
+                region_crop_manifests
+            ),
+            "finalized_intake_decisions": copy.deepcopy(
+                finalized_intake_decisions
+            ),
+            "materialization": materialization,
+            "runtime_terminal_status": terminal,
+            "reason_codes": sorted(set(reasons)),
+            "new_provider_count_token_calls": proposal_result.get(
+                "new_provider_count_token_calls"
+            ),
+            "new_provider_generate_calls": proposal_result.get(
+                "new_provider_generate_calls"
+            ),
+            "safe_summary": safe_summary,
+            "authority_state": "shadow_non_authoritative",
+            "default_enabled": False,
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+        }
+        result["result_checksum"] = sha256_json(result)
+        errors = self._validate_candidate_intake_result(
+            result,
+            expected_pdf_text_layer_projection=pdf_text_layer_projection,
+            expected_parent_crop_manifest=parent_manifest,
+        )
+        if errors:
+            raise PdfStructuralRepairShadowError(errors[0])
+        return result
+
+    def _validate_candidate_intake_result(
+        self,
+        value: Any,
+        *,
+        expected_pdf_text_layer_projection: dict[str, Any],
+        expected_parent_crop_manifest: dict[str, Any],
+    ) -> list[str]:
+        expected_keys = {
+            "schema_version", "target_id", "proposal_scope",
+            "candidate_identity", "parent_crop_manifest", "visual_package",
+            "proposal_result", "proposal", "binding_result",
+            "region_crop_manifests", "finalized_intake_decisions",
+            "materialization", "runtime_terminal_status", "reason_codes",
+            "new_provider_count_token_calls", "new_provider_generate_calls",
+            "safe_summary", "authority_state", "default_enabled",
+            "production_ready", "production_gate2_selection_changed",
+            "result_checksum",
+        }
+        if not isinstance(value, dict) or set(value) != expected_keys:
+            return ["pdf_vlm_guided_candidate_intake_result_keys_invalid"]
+        data = copy.deepcopy(value)
+        errors: list[str] = []
+        identity = _object(data.get("candidate_identity"))
+        package = _object(data.get("visual_package"))
+        proposal_result = _object(data.get("proposal_result"))
+        proposal = data.get("proposal")
+        binding = data.get("binding_result")
+        manifests = _object(data.get("region_crop_manifests"))
+        parent_manifest = _object(data.get("parent_crop_manifest"))
+        finalized = _object(data.get("finalized_intake_decisions"))
+        if (
+            data.get("schema_version")
+            != PDF_VLM_GUIDED_CANDIDATE_INTAKE_RESULT_SCHEMA
+            or data.get("proposal_scope") != "candidate_crop"
+            or self.structural_runtime.validate_result(proposal_result)
+        ):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_proposal_result_invalid"
+            )
+        journal = _dicts(proposal_result.get("journal"))
+        raw_proposal = (
+            _object(journal[0].get("topology_response"))
+            if len(journal) == 1
+            else {}
+        )
+        parsed: dict[str, Any] | None = None
+        if isinstance(proposal, dict):
+            try:
+                parsed = self.visual.parse_region_proposal_response(
+                    proposal,
+                    expected_package_id=str(package.get("package_id") or ""),
+                    expected_proposal_scope="candidate_crop",
+                )
+            except ValueError:
+                errors.append(
+                    "pdf_vlm_guided_candidate_intake_proposal_invalid"
+                )
+            if parsed != proposal or raw_proposal != proposal:
+                errors.append(
+                    "pdf_vlm_guided_candidate_intake_proposal_anchor_invalid"
+                )
+        elif raw_proposal:
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_proposal_missing"
+            )
+        if (
+            parent_manifest != expected_parent_crop_manifest
+            or identity.get("parent_manifest_hash")
+            != parent_manifest.get("manifest_hash")
+            or identity.get("parent_crop_sha256")
+            != parent_manifest.get("png_sha256")
+            or identity.get("parent_source_bbox")
+            != parent_manifest.get("declared_table_bbox")
+            or identity.get("parent_source_bbox")
+            != parent_manifest.get("rendered_bbox")
+            or identity.get("projection_checksum")
+            != sha256_json(expected_pdf_text_layer_projection)
+            or identity.get("document_ref") != package.get("document_ref")
+            or identity.get("pdf_sha256") != package.get("pdf_sha256")
+            or identity.get("page_ref") != package.get("page_ref")
+            or identity.get("page_number") != package.get("page_number")
+            or identity.get("table_ref") != package.get("table_ref")
+        ):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_identity_invalid"
+            )
+        if self.intake_contracts.validate_decisions(finalized):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_decisions_invalid"
+            )
+        if isinstance(binding, dict) and isinstance(parsed, dict):
+            anchor_errors = (
+                self.vlm_region_binding.validate_result_against_inputs(
+                    binding,
+                    proposal_package=package,
+                    proposal=parsed,
+                    pdf_text_layer_projection=(
+                        expected_pdf_text_layer_projection
+                    ),
+                    parent_source_bbox=identity.get(
+                        "parent_source_bbox"
+                    ),
+                    region_crop_manifests=manifests,
+                )
+            )
+            if anchor_errors:
+                errors.append(
+                    "pdf_vlm_guided_candidate_intake_binding_anchor_invalid"
+                )
+            expected_terminal = binding.get("runtime_terminal_status")
+            expected_reasons = binding.get("reason_codes")
+            accepted_regions = [
+                item
+                for item in _dicts(binding.get("region_results"))
+                if item.get("runtime_terminal_status")
+                == "accepted_physical_structure"
+            ]
+            expected_materialization = (
+                _object(accepted_regions[0].get("materialization"))
+                if expected_terminal == "accepted_physical_structure"
+                and len(accepted_regions) == 1
+                else None
+            )
+        else:
+            expected_terminal = proposal_result.get(
+                "runtime_terminal_status"
+            )
+            expected_reasons = _object(
+                proposal_result.get("safe_summary")
+            ).get("reason_codes") or []
+            expected_materialization = None
+        if (
+            data.get("runtime_terminal_status") != expected_terminal
+            or data.get("reason_codes") != expected_reasons
+            or data.get("materialization") != expected_materialization
+            or (
+                isinstance(binding, dict)
+                and "pdf_vlm_guided_intake_region_reselection_required"
+                in data.get("reason_codes", [])
+            )
+        ):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_terminal_invalid"
+            )
+        proposal_safe = _object(proposal_result.get("safe_summary"))
+        safe = _object(data.get("safe_summary"))
+        if (
+            data.get("new_provider_count_token_calls") != 1
+            or data.get("new_provider_generate_calls") not in {0, 1}
+            or safe.get("runtime_terminal_status")
+            != data.get("runtime_terminal_status")
+            or safe.get("reason_codes") != data.get("reason_codes")
+            or safe.get("count_token_calls")
+            != data.get("new_provider_count_token_calls")
+            or safe.get("generate_calls")
+            != data.get("new_provider_generate_calls")
+            or safe.get("hidden_retry")
+            is not proposal_safe.get("hidden_retry")
+            or safe.get("provider_failover")
+            is not proposal_safe.get("provider_failover")
+            or safe.get("default_enabled") is not False
+            or safe.get("production_authority") is not False
+            or data.get("authority_state") != "shadow_non_authoritative"
+            or data.get("default_enabled") is not False
+            or data.get("production_ready") is not False
+            or data.get("production_gate2_selection_changed") is not False
+        ):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_authority_invalid"
+            )
+        unsigned = dict(data)
+        stored = unsigned.pop("result_checksum", None)
+        if stored != sha256_json(unsigned):
+            errors.append(
+                "pdf_vlm_guided_candidate_intake_checksum_invalid"
+            )
+        return sorted(set(errors))
 
     def _run_page_target(
         self,
@@ -2278,10 +2704,24 @@ class PdfStructuralRepairShadowRuntime:
             proposal_scope="page_level",
             crop_manifest=parent_manifest,
         )
-        _, exact_word_projection = _page_word_bboxes(
+        verified_word_bbox_records, exact_word_projection = _page_word_bboxes(
             projection=projection,
             page_ref=page_ref,
             parent_bbox=parent_bbox,
+        )
+        projection_checksum = sha256_json(projection)
+        page_evidence = _page_evidence(
+            visual_package=visual_package,
+            projection_checksum=projection_checksum,
+            verified_word_bbox_records=verified_word_bbox_records,
+        )
+        full_page_identity_verified = _full_page_manifest_identity_verified(
+            parent_manifest=parent_manifest,
+            visual_package=visual_package,
+            page_ref=page_ref,
+            page_number=page_number,
+            parent_bbox=parent_bbox,
+            expected_png_sha256=hashlib.sha256(png_bytes).hexdigest(),
         )
         intake_decisions = self.intake_contracts.build_decisions(
             document_ref=document_ref,
@@ -2290,7 +2730,7 @@ class PdfStructuralRepairShadowRuntime:
             page_number=page_number,
             scope_ref=target_id,
             table_ref=None,
-            evidence_checksum=str(visual_package.get("package_hash") or ""),
+            evidence_checksum=str(page_evidence.get("evidence_checksum") or ""),
             assessor_stage="guided_page_preflight",
             scope="page",
             detection_decision="plausible",
@@ -2301,15 +2741,12 @@ class PdfStructuralRepairShadowRuntime:
             # provider.  The source word coordinates are verified above and
             # consumed only by the provider-free region binder after a
             # proposal exists.
-            coordinate_bboxes=(),
+            coordinate_bboxes=[
+                copy.deepcopy(_object(record).get("bbox"))
+                for record in verified_word_bbox_records
+            ],
             provenance_verified=exact_word_projection,
-            crop_identity_verified=bool(
-                parent_manifest.get("page_ref") == page_ref
-                and parent_manifest.get("actual_page_bbox") == parent_bbox
-                and parent_manifest.get("full_page_identity_verified") is True
-                and parent_manifest.get("png_sha256")
-                == hashlib.sha256(png_bytes).hexdigest()
-            ),
+            crop_identity_verified=full_page_identity_verified,
             exact_ownership_verified=exact_word_projection,
             atom_count=0,
             model_json_bytes=_strict_nonnegative_int(
@@ -2339,6 +2776,8 @@ class PdfStructuralRepairShadowRuntime:
             "parser_geometry_observation": None,
             "private_raster": rendered,
             "visual_package": visual_package,
+            "page_evidence": copy.deepcopy(page_evidence),
+            "full_page_identity_verified": full_page_identity_verified,
             "execution_mode": "guided_page_level",
             "vlm_guided_intake_enabled": True,
             "intake_decisions": copy.deepcopy(intake_decisions),
@@ -2530,6 +2969,7 @@ class PdfStructuralRepairShadowRuntime:
             parent_bbox=parent_bbox,
             parent_manifest=parent_manifest,
             pdf_text_layer_projection=projection,
+            page_evidence=page_evidence,
             visual_package=visual_package,
             proposal_result=proposal_result,
             binding_result=binding_result,
@@ -2581,6 +3021,7 @@ class PdfStructuralRepairShadowRuntime:
         parent_bbox: list[float],
         parent_manifest: dict[str, Any],
         pdf_text_layer_projection: dict[str, Any],
+        page_evidence: dict[str, Any],
         visual_package: dict[str, Any],
         proposal_result: dict[str, Any],
         binding_result: dict[str, Any] | None,
@@ -2588,6 +3029,14 @@ class PdfStructuralRepairShadowRuntime:
         finalized_intake_decisions: dict[str, Any],
     ) -> dict[str, Any]:
         projection_checksum = sha256_json(pdf_text_layer_projection)
+        full_page_identity_verified = _full_page_manifest_identity_verified(
+            parent_manifest=parent_manifest,
+            visual_package=visual_package,
+            page_ref=page_ref,
+            page_number=page_number,
+            parent_bbox=parent_bbox,
+            expected_png_sha256=str(parent_manifest.get("png_sha256") or ""),
+        )
         proposal = _object(proposal_result.get("proposal"))
         proposal_terminal = str(
             proposal_result.get("runtime_terminal_status") or ""
@@ -2640,7 +3089,7 @@ class PdfStructuralRepairShadowRuntime:
             ),
             "hidden_retry": proposal_safe.get("hidden_retry"),
             "provider_failover": proposal_safe.get("provider_failover"),
-            "full_page_identity_verified": True,
+            "full_page_identity_verified": full_page_identity_verified,
             "default_enabled": False,
             "production_authority": False,
         }
@@ -2657,8 +3106,10 @@ class PdfStructuralRepairShadowRuntime:
                 "parent_manifest_hash": parent_manifest.get("manifest_hash"),
                 "parent_crop_sha256": parent_manifest.get("png_sha256"),
                 "projection_checksum": projection_checksum,
-                "full_page_identity_verified": True,
+                "full_page_identity_verified": full_page_identity_verified,
             },
+            "parent_manifest": copy.deepcopy(parent_manifest),
+            "page_evidence": copy.deepcopy(page_evidence),
             "visual_package": copy.deepcopy(visual_package),
             "proposal_result": copy.deepcopy(proposal_result),
             "binding_result": copy.deepcopy(binding_result),
@@ -2684,6 +3135,7 @@ class PdfStructuralRepairShadowRuntime:
         errors = self._validate_page_intake_result(
             result,
             expected_pdf_text_layer_projection=pdf_text_layer_projection,
+            expected_parent_manifest=parent_manifest,
         )
         if errors:
             raise PdfStructuralRepairShadowError(errors[0])
@@ -2694,11 +3146,13 @@ class PdfStructuralRepairShadowRuntime:
         value: Any,
         *,
         expected_pdf_text_layer_projection: dict[str, Any] | None = None,
+        expected_parent_manifest: dict[str, Any] | None = None,
     ) -> list[str]:
         data = _object(value)
         expected_keys = {
             "schema_version", "target_id", "proposal_scope", "page_identity",
-            "visual_package", "proposal_result", "binding_result",
+            "parent_manifest", "page_evidence", "visual_package",
+            "proposal_result", "binding_result",
             "region_crop_manifests", "finalized_intake_decisions",
             "runtime_terminal_status", "reason_codes",
             "new_provider_count_token_calls", "new_provider_generate_calls",
@@ -2714,8 +3168,17 @@ class PdfStructuralRepairShadowRuntime:
         binding = data.get("binding_result")
         manifests = _object(data.get("region_crop_manifests"))
         identity = _object(data.get("page_identity"))
+        parent_manifest = _object(data.get("parent_manifest"))
+        page_evidence = _object(data.get("page_evidence"))
         safe = _object(data.get("safe_summary"))
         finalized_intake = _object(data.get("finalized_intake_decisions"))
+        if (
+            expected_parent_manifest is not None
+            and parent_manifest != expected_parent_manifest
+        ):
+            errors.append(
+                "pdf_vlm_guided_page_intake_parent_manifest_anchor_invalid"
+            )
         if (
             data.get("schema_version") != PDF_VLM_GUIDED_PAGE_INTAKE_RESULT_SCHEMA
             or data.get("proposal_scope") != "page_level"
@@ -2816,6 +3279,14 @@ class PdfStructuralRepairShadowRuntime:
                         )
         elif manifests:
             errors.append("pdf_vlm_guided_page_intake_orphan_crop_invalid")
+        manifest_identity_verified = _full_page_manifest_identity_verified(
+            parent_manifest=parent_manifest,
+            visual_package=package,
+            page_ref=str(identity.get("page_ref") or ""),
+            page_number=_strict_nonnegative_int(identity.get("page_number")),
+            parent_bbox=identity.get("parent_source_bbox"),
+            expected_png_sha256=str(identity.get("parent_crop_sha256") or ""),
+        )
         if (
             set(identity)
             != {
@@ -2832,8 +3303,12 @@ class PdfStructuralRepairShadowRuntime:
             != _object(package.get("crop_identity")).get("declared_table_bbox")
             or identity.get("parent_manifest_hash")
             != _object(package.get("crop_identity")).get("manifest_hash")
+            or identity.get("parent_manifest_hash")
+            != parent_manifest.get("manifest_hash")
             or identity.get("parent_crop_sha256")
             != _object(package.get("crop_identity")).get("crop_sha256")
+            or identity.get("parent_crop_sha256")
+            != parent_manifest.get("png_sha256")
             or not isinstance(identity.get("projection_checksum"), str)
             or re.fullmatch(
                 r"[0-9a-f]{64}", identity.get("projection_checksum") or ""
@@ -2844,9 +3319,58 @@ class PdfStructuralRepairShadowRuntime:
                 and identity.get("projection_checksum")
                 != sha256_json(expected_pdf_text_layer_projection)
             )
-            or identity.get("full_page_identity_verified") is not True
+            or identity.get("full_page_identity_verified")
+            is not manifest_identity_verified
+            or not manifest_identity_verified
         ):
             errors.append("pdf_vlm_guided_page_intake_page_identity_invalid")
+        evidence_records = page_evidence.get("verified_word_bbox_records")
+        expected_evidence_records: list[dict[str, Any]] | None = None
+        expected_records_verified = False
+        if expected_pdf_text_layer_projection is not None:
+            expected_evidence_records, expected_records_verified = (
+                _page_word_bboxes(
+                    projection=expected_pdf_text_layer_projection,
+                    page_ref=str(identity.get("page_ref") or ""),
+                    parent_bbox=identity.get("parent_source_bbox"),
+                )
+            )
+        evidence_material = {
+            "visual_package": package,
+            "projection_checksum": page_evidence.get("projection_checksum"),
+            "verified_word_bbox_records": evidence_records,
+        }
+        evidence_records_structurally_valid = _word_bbox_records_valid(
+            evidence_records,
+            parent_bbox=identity.get("parent_source_bbox"),
+        )
+        evidence_records_anchor_verified = bool(
+            evidence_records_structurally_valid
+            and (
+                expected_pdf_text_layer_projection is None
+                or (
+                    expected_records_verified
+                    and evidence_records == expected_evidence_records
+                )
+            )
+        )
+        if (
+            set(page_evidence)
+            != {
+                "visual_package_hash",
+                "projection_checksum",
+                "verified_word_bbox_records",
+                "evidence_checksum",
+            }
+            or page_evidence.get("visual_package_hash")
+            != package.get("package_hash")
+            or page_evidence.get("projection_checksum")
+            != identity.get("projection_checksum")
+            or not evidence_records_anchor_verified
+            or page_evidence.get("evidence_checksum")
+            != sha256_json(evidence_material)
+        ):
+            errors.append("pdf_vlm_guided_page_intake_page_evidence_invalid")
         intake_facts = _object(finalized_intake.get("technical_facts"))
         intake_binding = _object(
             _object(finalized_intake.get("processability")).get(
@@ -2872,11 +3396,20 @@ class PdfStructuralRepairShadowRuntime:
             or intake_binding.get("scope_ref") != data.get("target_id")
             or intake_binding.get("table_ref") is not None
             or intake_binding.get("evidence_checksum")
-            != package.get("package_hash")
+            != page_evidence.get("evidence_checksum")
             or intake_binding.get("assessor_stage") != "guided_page_preflight"
             or intake_facts.get("scope") != "page"
             or intake_facts.get("page_bbox")
             != identity.get("parent_source_bbox")
+            or intake_facts.get("coordinate_bboxes_total")
+            != len(evidence_records if isinstance(evidence_records, list) else [])
+            or intake_facts.get("atom_count") != 0
+            or intake_facts.get("provenance_verified")
+            is not evidence_records_anchor_verified
+            or intake_facts.get("exact_ownership_verified")
+            is not evidence_records_anchor_verified
+            or intake_facts.get("crop_identity_verified")
+            is not manifest_identity_verified
             or intake_facts.get("counted_input_tokens")
             != expected_counted_tokens
         ):
@@ -2941,7 +3474,9 @@ class PdfStructuralRepairShadowRuntime:
             or safe.get("regions_accepted") != expected_regions_accepted
             or safe.get("hidden_retry") is not False
             or safe.get("provider_failover") is not False
-            or safe.get("full_page_identity_verified") is not True
+            or safe.get("full_page_identity_verified")
+            is not manifest_identity_verified
+            or not manifest_identity_verified
             or safe.get("default_enabled") is not False
             or safe.get("production_authority") is not False
         ):
@@ -3632,7 +4167,7 @@ def _page_word_bboxes(
     projection: dict[str, Any],
     page_ref: str,
     parent_bbox: list[float],
-) -> tuple[list[list[float]], bool]:
+) -> tuple[list[dict[str, Any]], bool]:
     bbox_by_ref: dict[str, list[float]] = {}
     valid = True
     for item in _dicts(projection.get("bbox_inventory")):
@@ -3657,7 +4192,7 @@ def _page_word_bboxes(
         bbox_by_ref[bbox_ref] = [float(value) for value in bbox]
     word_refs: set[str] = set()
     bbox_refs: set[str] = set()
-    result: list[list[float]] = []
+    result: list[dict[str, Any]] = []
     for word in _dicts(projection.get("word_inventory")):
         if word.get("page_ref") != page_ref:
             continue
@@ -3676,8 +4211,139 @@ def _page_word_bboxes(
             continue
         word_refs.add(word_ref)
         bbox_refs.add(bbox_ref)
-        result.append(copy.deepcopy(bbox))
+        result.append(
+            {
+                "word_ref": word_ref,
+                "bbox_ref": bbox_ref,
+                "bbox": copy.deepcopy(bbox),
+            }
+        )
     return result, bool(valid and result)
+
+
+def _page_evidence(
+    *,
+    visual_package: dict[str, Any],
+    projection_checksum: str,
+    verified_word_bbox_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    material = {
+        "visual_package": visual_package,
+        "projection_checksum": projection_checksum,
+        "verified_word_bbox_records": verified_word_bbox_records,
+    }
+    return {
+        "visual_package_hash": visual_package.get("package_hash"),
+        "projection_checksum": projection_checksum,
+        "verified_word_bbox_records": copy.deepcopy(
+            verified_word_bbox_records
+        ),
+        "evidence_checksum": sha256_json(material),
+    }
+
+
+def _word_bbox_records_valid(
+    value: Any,
+    *,
+    parent_bbox: Any,
+) -> bool:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not isinstance(parent_bbox, list)
+        or len(parent_bbox) != 4
+    ):
+        return False
+    word_refs: set[str] = set()
+    bbox_refs: set[str] = set()
+    for record in value:
+        item = _object(record)
+        word_ref = item.get("word_ref")
+        bbox_ref = item.get("bbox_ref")
+        bbox = item.get("bbox")
+        if (
+            set(item) != {"word_ref", "bbox_ref", "bbox"}
+            or not isinstance(word_ref, str)
+            or not word_ref
+            or word_ref in word_refs
+            or not isinstance(bbox_ref, str)
+            or not bbox_ref
+            or bbox_ref in bbox_refs
+            or not isinstance(bbox, list)
+            or len(bbox) != 4
+            or not all(
+                isinstance(coordinate, (int, float))
+                and not isinstance(coordinate, bool)
+                and math.isfinite(float(coordinate))
+                for coordinate in bbox
+            )
+            or not _bbox_contained(bbox, parent_bbox)
+        ):
+            return False
+        word_refs.add(word_ref)
+        bbox_refs.add(bbox_ref)
+    return True
+
+
+def _full_page_manifest_identity_verified(
+    *,
+    parent_manifest: dict[str, Any],
+    visual_package: dict[str, Any],
+    page_ref: str,
+    page_number: int,
+    parent_bbox: Any,
+    expected_png_sha256: str,
+) -> bool:
+    manifest = _object(parent_manifest)
+    package = _object(visual_package)
+    crop = _object(package.get("crop_identity"))
+    if (
+        not isinstance(parent_bbox, list)
+        or len(parent_bbox) != 4
+        or not all(
+            isinstance(coordinate, (int, float))
+            and not isinstance(coordinate, bool)
+            and math.isfinite(float(coordinate))
+            for coordinate in parent_bbox
+        )
+        or not isinstance(page_ref, str)
+        or not page_ref
+        or page_number < 1
+        or not isinstance(expected_png_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_png_sha256) is None
+    ):
+        return False
+    unsigned_manifest = copy.deepcopy(manifest)
+    stored_manifest_hash = unsigned_manifest.pop("manifest_hash", None)
+    try:
+        manifest_checksum_valid = bool(
+            isinstance(stored_manifest_hash, str)
+            and re.fullmatch(r"[0-9a-f]{64}", stored_manifest_hash)
+            and stored_manifest_hash == sha256_json(unsigned_manifest)
+        )
+    except (TypeError, ValueError):
+        manifest_checksum_valid = False
+    return bool(
+        manifest_checksum_valid
+        and manifest.get("document_ref") == package.get("document_ref")
+        and manifest.get("pdf_sha256") == package.get("pdf_sha256")
+        and manifest.get("page_ref") == page_ref == package.get("page_ref")
+        and manifest.get("page_number") == page_number == package.get("page_number")
+        and manifest.get("render_scope") == "full_page"
+        and manifest.get("actual_page_bbox") == parent_bbox
+        and manifest.get("declared_table_bbox") == parent_bbox
+        and manifest.get("rendered_bbox") == parent_bbox
+        and manifest.get("padding_points") == 0.0
+        and manifest.get("page_rotation") == 0
+        and manifest.get("applied_rotation") == 0
+        and manifest.get("full_page_identity_verified") is True
+        and manifest.get("png_sha256") == expected_png_sha256
+        and crop.get("manifest_hash") == stored_manifest_hash
+        and crop.get("crop_sha256") == expected_png_sha256
+        and crop.get("declared_table_bbox") == parent_bbox
+        and crop.get("rendered_bbox") == parent_bbox
+        and crop.get("padding_points") == 0.0
+    )
 
 
 def _bbox_contained(inner: list[float], outer: list[float]) -> bool:

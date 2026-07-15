@@ -391,6 +391,102 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
             ),
         )
 
+    def test_anchored_validation_rejects_resealed_partition_reassignment(
+        self,
+    ) -> None:
+        observation = (
+            PdfDualOracleContractFactory()
+            .create()
+            .build_parser_observation_from_word_atoms(
+                document_ref="document-1",
+                pdf_sha256="pdf-sha",
+                page_ref="page-1",
+                page_number=1,
+                table_ref="table-1",
+                table_bbox=[0.0, 0.0, 200.0, 100.0],
+                pdf_text_layer_projection=self.projection,
+            )
+        )
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(
+                table_ref="table-1",
+                bbox=[0.0, 0.0, 200.0, 100.0],
+                crop_id="candidate-parent",
+                png_sha256="candidate-parent-sha",
+            ),
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="candidate_crop",
+                regions=[
+                    _region(
+                        "left_half",
+                        [0.0, 0.0, 0.5, 1.0],
+                        row_boundaries=[0.0, 0.5, 1.0],
+                        column_boundaries=[0.0, 1.0],
+                    )
+                ],
+            )
+        )
+        manifests = {
+            "left_half": _crop_manifest(
+                table_ref="table-1",
+                bbox=[0.0, 0.0, 100.0, 100.0],
+                crop_id="candidate-left",
+                png_sha256="candidate-left-sha",
+            )
+        }
+        # Keep this non-accepted so no materialization duplicates the partition;
+        # the attack can then reseal every internal/outer checksum while
+        # preserving the same counts and universe.
+        manifests["left_half"]["manifest_hash"] = "invalid-manifest-hash"
+        result = self.runtime.bind(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=self.projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+            region_crop_manifests=manifests,
+        )
+        tampered = copy.deepcopy(result)
+        region = tampered["region_results"][0]
+        candidate_by_word = {
+            record["word_refs"][0]: candidate_id
+            for candidate_id, record in package[
+                "private_candidate_dictionary"
+            ].items()
+        }
+        included_candidate = candidate_by_word["word-1"]
+        excluded_candidate = candidate_by_word["word-2"]
+        region["included_word_refs"] = ["word-2", "word-3"]
+        region["excluded_word_refs"] = ["word-1", "word-4"]
+        candidate = region["candidate_accounting"]
+        candidate["included_candidate_ids"] = sorted(
+            excluded_candidate if item == included_candidate else item
+            for item in candidate["included_candidate_ids"]
+        )
+        candidate["excluded_candidate_ids"] = sorted(
+            included_candidate if item == excluded_candidate else item
+            for item in candidate["excluded_candidate_ids"]
+        )
+        _reseal(tampered)
+
+        self.assertEqual("validation_blocked", region["runtime_terminal_status"])
+        self.assertEqual([], self.runtime.validate_result(tampered))
+        self.assertIn(
+            "pdf_vlm_region_binding_partition_anchor_invalid",
+            self.runtime.validate_result_against_inputs(
+                tampered,
+                proposal_package=package,
+                proposal=proposal,
+                pdf_text_layer_projection=self.projection,
+                parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+                region_crop_manifests=manifests,
+            ),
+        )
+
     def test_page_scope_rejects_same_page_word_outside_parent_bbox(self) -> None:
         projection = copy.deepcopy(self.projection)
         projection["bbox_inventory"].append(

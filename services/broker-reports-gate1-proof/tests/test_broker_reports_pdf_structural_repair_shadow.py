@@ -48,6 +48,7 @@ class _ProviderBoundary:
         page_regions: int = 1,
         page_presence: str = "present",
         page_uncertain: bool = False,
+        candidate_bbox: list[float] | None = None,
     ) -> None:
         self.fail_message = fail_message
         self.header_row_count = header_row_count
@@ -55,6 +56,7 @@ class _ProviderBoundary:
         self.page_regions = page_regions
         self.page_presence = page_presence
         self.page_uncertain = page_uncertain
+        self.candidate_bbox = candidate_bbox
         self.qualification_calls = 0
         self.count_calls = 0
         self.generate_calls = 0
@@ -113,7 +115,10 @@ class _ProviderBoundary:
             ambiguous=self.ambiguous,
         )
         if model_view.get("proposal_scope") == "candidate_crop":
-            topology = _candidate_region_response(topology)
+            topology = _candidate_region_response(
+                topology,
+                bbox=self.candidate_bbox,
+            )
         elif model_view.get("proposal_scope") == "page_level":
             topology = _page_region_response(
                 topology,
@@ -362,7 +367,7 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         )
         guided_records = self.store.list_by_type(
             self.context.normalization_run_id,
-            "broker_reports_pdf_vlm_guided_intake_result_v1",
+            "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
         )
         self.assertEqual(1, len(guided_records))
         guided = self.store.read_payload(guided_records[0])
@@ -408,6 +413,92 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             PdfTableIntakeContractFactory().create().validate_decisions(
                 decisions
             ),
+        )
+
+    def test_adjusted_candidate_bbox_binds_every_parent_atom_once(self) -> None:
+        provider = _ProviderBoundary(candidate_bbox=[0.0, 0.0, 0.5, 1.0])
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(
+            "accepted_physical_structure",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        record = self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        payload = self.store.read_payload(record)
+        self.assertEqual(
+            "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
+            record.artifact_type,
+        )
+        self.assertEqual(
+            "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
+            payload["schema_version"],
+        )
+        accounting = payload["binding_result"]["source_accounting"]
+        region = payload["binding_result"]["region_results"][0]
+        self.assertEqual(
+            accounting["parent_word_refs_total"],
+            len(region["included_word_refs"])
+            + len(region["excluded_word_refs"])
+            + len(region["crossing_word_refs"]),
+        )
+        self.assertEqual([], region["crossing_word_refs"])
+        self.assertEqual(
+            [0.0, 0.0, 100.0, 100.0],
+            region["source_bbox"],
+        )
+        self.assertEqual(
+            0.0,
+            payload["region_crop_manifests"]["candidate"]["padding_points"],
+        )
+        self.assertNotIn(
+            "pdf_vlm_guided_intake_region_reselection_required",
+            payload["reason_codes"],
+        )
+        self.assertEqual(
+            "processable",
+            payload["finalized_intake_decisions"]["processability"]["decision"],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory()
+            .create()
+            .validate_decisions(payload["finalized_intake_decisions"]),
+        )
+
+    def test_adjusted_candidate_bbox_crossing_source_atoms_is_blocked(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary(candidate_bbox=[0.0, 0.0, 0.25, 1.0])
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(
+            "validation_blocked",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        record = self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        payload = self.store.read_payload(record)
+        region = payload["binding_result"]["region_results"][0]
+        self.assertGreater(len(region["crossing_word_refs"]), 0)
+        self.assertIsNone(payload["materialization"])
+        self.assertIn(
+            "pdf_vlm_region_binding_atom_crosses_region_boundary",
+            payload["reason_codes"],
         )
 
     def test_guided_intake_blocks_missing_page_geometry_before_model_calls(
@@ -554,6 +645,44 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
                 "counted_input_tokens"
             ],
         )
+        page_facts = payload["finalized_intake_decisions"]["technical_facts"]
+        self.assertEqual(0, page_facts["atom_count"])
+        self.assertEqual(4, page_facts["coordinate_bboxes_total"])
+        expected_records = [
+            {
+                "word_ref": f"word_{index}",
+                "bbox_ref": f"bbox_word_{index}",
+                "bbox": bbox,
+            }
+            for index, bbox in enumerate(
+                (
+                    [10.0, 10.0, 90.0, 40.0],
+                    [110.0, 10.0, 190.0, 40.0],
+                    [10.0, 60.0, 90.0, 90.0],
+                    [110.0, 60.0, 190.0, 90.0],
+                ),
+                start=1,
+            )
+        ]
+        self.assertEqual(
+            expected_records,
+            payload["page_evidence"]["verified_word_bbox_records"],
+        )
+        self.assertEqual(
+            sha256_json(
+                {
+                    "visual_package": payload["visual_package"],
+                    "projection_checksum": sha256_json(projection),
+                    "verified_word_bbox_records": expected_records,
+                }
+            ),
+            payload["page_evidence"]["evidence_checksum"],
+        )
+        self.assertTrue(
+            payload["page_identity"]["full_page_identity_verified"]
+        )
+        self.assertTrue(payload["parent_manifest"]["full_page_identity_verified"])
+        self.assertEqual([], runtime._validate_page_intake_result(payload))
         self.assertFalse(payload["production_gate2_selection_changed"])
 
     def test_allowlisted_page_can_bind_two_nonoverlapping_regions(self) -> None:
@@ -643,6 +772,36 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "pdf_vlm_guided_page_intake_region_crop_binding_invalid",
             runtime._validate_page_intake_result(
                 crop_drift,
+                expected_pdf_text_layer_projection=projection,
+            ),
+        )
+
+        word_bbox_drift = copy.deepcopy(payload)
+        records = word_bbox_drift["page_evidence"][
+            "verified_word_bbox_records"
+        ]
+        records[0]["bbox"] = [11.0, 10.0, 90.0, 40.0]
+        evidence = word_bbox_drift["page_evidence"]
+        evidence["evidence_checksum"] = sha256_json(
+            {
+                "visual_package": word_bbox_drift["visual_package"],
+                "projection_checksum": evidence["projection_checksum"],
+                "verified_word_bbox_records": records,
+            }
+        )
+        intake = word_bbox_drift["finalized_intake_decisions"]
+        for decision_name in ("detection", "processability", "holdout"):
+            intake[decision_name]["evidence_binding"]["evidence_checksum"] = (
+                evidence["evidence_checksum"]
+            )
+        intake.pop("contract_checksum")
+        intake["contract_checksum"] = sha256_json(intake)
+        word_bbox_drift.pop("result_checksum")
+        word_bbox_drift["result_checksum"] = sha256_json(word_bbox_drift)
+        self.assertIn(
+            "pdf_vlm_guided_page_intake_page_evidence_invalid",
+            runtime._validate_page_intake_result(
+                word_bbox_drift,
                 expected_pdf_text_layer_projection=projection,
             ),
         )
@@ -913,6 +1072,47 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual([], result["runtime_result_refs"])
         self.assertEqual([], result["private_target_state_refs"])
         self.assertEqual(1, len(result["private_diagnostic_refs"]))
+
+    def test_unverified_full_page_manifest_persists_truthful_blocked_state(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+        render_full_page = runtime.raster.render_full_page
+
+        def render_unverified(**kwargs):
+            rendered = render_full_page(**kwargs)
+            manifest = rendered["manifest"]
+            manifest["full_page_identity_verified"] = False
+            manifest.pop("manifest_hash")
+            manifest["manifest_hash"] = sha256_json(manifest)
+            return rendered
+
+        runtime.raster.render_full_page = render_unverified
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        state_record = self.store.get_record_unchecked(
+            result["private_target_state_refs"][0]
+        )
+        state = self.store.read_payload(state_record)
+        self.assertFalse(state["full_page_identity_verified"])
+        self.assertFalse(
+            state_record.safe_metadata["full_page_identity_verified"]
+        )
+        self.assertEqual(
+            ["crop_identity_unverified"],
+            state["intake_decisions"]["processability"]["reason_codes"],
+        )
 
     def test_semantic_projection_requires_both_valves_and_persists_privately(
         self,
@@ -1599,7 +1799,15 @@ def _topology_response(
     }
 
 
-def _candidate_region_response(topology: dict) -> dict:
+def _candidate_region_response(
+    topology: dict,
+    *,
+    bbox: list[float] | None = None,
+) -> dict:
+    region_bbox = bbox or [0.0, 0.0, 1.0, 1.0]
+    hypotheses = copy.deepcopy(topology["hypotheses"])
+    if region_bbox == [0.0, 0.0, 0.5, 1.0]:
+        hypotheses[0]["column_boundaries"] = [0.0, 1.0]
     return {
         "schema_version": PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
         "contract_revision": PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
@@ -1610,11 +1818,11 @@ def _candidate_region_response(topology: dict) -> dict:
         "regions": [
             {
                 "region_key": "candidate",
-                "bbox": [0.0, 0.0, 1.0, 1.0],
+                "bbox": region_bbox,
                 "border_evidence": "mixed",
                 "density": "mixed",
                 "continuation_likelihood": "unlikely",
-                "hypotheses": topology["hypotheses"],
+                "hypotheses": hypotheses,
                 "uncertainty_codes": [],
             }
         ],

@@ -101,6 +101,7 @@ ARTIFACT_TYPES = {
     "broker_reports_pdf_structural_repair_target_state_v1",
     "broker_reports_pdf_structural_repair_runtime_result_v1",
     "broker_reports_pdf_vlm_guided_intake_result_v1",
+    "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
     "broker_reports_pdf_vlm_guided_page_intake_result_v1",
     "broker_reports_pdf_semantic_header_projection_v1",
     "broker_reports_pdf_semantic_header_private_diagnostic_v1",

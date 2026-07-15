@@ -290,6 +290,10 @@ class PdfTableIntakeContractTests(unittest.TestCase):
     def test_page_path_has_no_atoms_and_at_most_two_region_proposals(self) -> None:
         processable = self.runtime.build_decisions(
             **_page_facts(
+                coordinate_bboxes=[
+                    [10.0, 10.0, 20.0, 20.0],
+                    [25.0, 10.0, 35.0, 20.0],
+                ],
                 proposed_region_bboxes=[
                     [10.0, 10.0, 300.0, 350.0],
                     [310.0, 400.0, 600.0, 780.0],
@@ -309,6 +313,11 @@ class PdfTableIntakeContractTests(unittest.TestCase):
         )
 
         self.assertEqual("processable", processable["processability"]["decision"])
+        self.assertEqual(
+            2,
+            processable["technical_facts"]["coordinate_bboxes_total"],
+        )
+        self.assertEqual(0, processable["technical_facts"]["atom_count"])
         self.assertEqual(
             [
                 "page_atoms_present_before_region_proposal",
