@@ -28,7 +28,10 @@ from live_gate2_domain_synthetic_smoke import (
     FUNCTION_ID as DOMAIN_SMOKE_FUNCTION_ID,
     _run_domain_chat as run_domain_smoke_chat,
 )
-from live_gate2_synthetic_extraction_smoke import _synthetic_documents
+from live_gate2_synthetic_extraction_smoke import (
+    _select_gate2_smoke_model,
+    _synthetic_documents,
+)
 from live_update_gate2_domain_function_and_prompts import (
     PROMPT_VERSION as DOMAIN_PROMPT_VERSION,
     _assert_prompt_readbacks,
@@ -70,6 +73,30 @@ def load_domain_bundle_module():
 
 
 class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
+    def test_live_smoke_model_selection_uses_gate2_provider_registry(self):
+        self.assertEqual(
+            "gpt-5.6-luna",
+            _select_gate2_smoke_model(
+                explicit_model_id=None,
+                env={},
+            ),
+        )
+        self.assertEqual(
+            "models/gemini-3.1-flash-lite",
+            _select_gate2_smoke_model(
+                explicit_model_id=None,
+                env={},
+                provider_profile_id="google_gemini",
+            ),
+        )
+        self.assertEqual(
+            "gpt-5.6-sol",
+            _select_gate2_smoke_model(
+                explicit_model_id=None,
+                env={"OPENWEBUI_GATE2_MODEL_ID": "gpt-5.6-sol"},
+            ),
+        )
+
     def tearDown(self) -> None:
         for name in list(sys.modules):
             if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
@@ -203,6 +230,13 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
 
         module = load_domain_bundle_module()
         order = module._BUNDLED_MODULE_ORDER
+        self.assertNotIn("pdf_structural_repair_runtime", order)
+        self.assertNotIn("pdf_structural_row_windows", order)
+        self.assertNotIn("pdf_structural_repair_shadow", order)
+        bundled_package = sys.modules["broker_reports_gate1"]
+        self.assertFalse(hasattr(bundled_package, "PdfStructuralRepairRuntimeFactory"))
+        self.assertFalse(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
+        self.assertFalse(hasattr(bundled_package, "PdfStructuralRepairShadowFactory"))
         self.assertLess(
             order.index("gate2_source_fact_contracts"),
             order.index("gate2_model_contracts"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove one live typed derived Gate 2 unit from a truncated synthetic parent."""
+"""Prove one live typed derived Gate 2 unit from a complete full-source parent."""
 
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from live_case_group_process_false_gate1_run import (
     _counter_delta,
-    _select_passport_model,
     _vector_delta_zero,
 )
 from live_gate2_domain_synthetic_smoke import (
@@ -35,7 +34,11 @@ from live_gate2_domain_synthetic_smoke import (
     _audit_safe_validation_metadata,
     _remote_json,
 )
-from live_gate2_synthetic_extraction_smoke import _current_user, _purge_case
+from live_gate2_synthetic_extraction_smoke import (
+    _current_user,
+    _purge_case,
+    _select_gate2_smoke_model,
+)
 from live_no_rag_source_intake_smoke import (
     _base_url,
     _default_ssh_target,
@@ -70,11 +73,9 @@ def main() -> int:
     token = _signin(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
     current_user = _current_user(session, base_url)
-    model_id = (
-        args.model_id
-        or env.get("OPENWEBUI_GATE2_MODEL_ID")
-        or env.get("OPENWEBUI_PASSPORT_MODEL_ID")
-        or _select_passport_model(session, base_url)
+    model_id = _select_gate2_smoke_model(
+        explicit_model_id=args.model_id,
+        env=env,
     )
     case_id = f"synthetic_gate2_typed_segmentation_{time.strftime('%Y%m%d%H%M%S')}"
     before = _runtime_snapshot(ssh_target)
@@ -109,16 +110,23 @@ def main() -> int:
     packages = summary.get("domain_packages") if isinstance(summary.get("domain_packages"), dict) else {}
     coverage = summary.get("coverage") if isinstance(summary.get("coverage"), dict) else {}
     checks = {
-        "parent_large_and_truncated": seeded.get("parent_slice_truncated") is True
-        and int(seeded.get("parent_selected_total") or 0) >= 5,
+        "compact_projection_truncated_full_source_complete": (
+            seeded.get("compact_slice_truncated") is True
+            and int(seeded.get("parent_selected_total") or 0) >= 5
+            and target.get("parent_source_slice_truncated") is False
+            and target.get("source_slice_truncated") is False
+        ),
         "typed_high_confidence_target": target.get("domain") == "position_snapshot"
         and target.get("confidence") == "high",
         "one_plan_one_private_derived_unit": segmentation.get("plan_total") == 1
         and segmentation.get("derived_total") == 1
         and segmentation.get("private_derived_total") == 1,
-        "derived_complete_parent_pending": segmentation.get("derived_truncated_total") == 0
-        and segmentation.get("parent_truncated_total") == 1
-        and segmentation.get("parent_remainder_status") == "pending_gate1_reslice",
+        "derived_complete_parent_complete": (
+            segmentation.get("derived_truncated_total") == 0
+            and segmentation.get("parent_truncated_total") == 0
+            and segmentation.get("parent_remainder_status")
+            == "not_applicable_parent_complete"
+        ),
         "parent_refs_partitioned": segmentation.get("all_parent_selected_refs_partitioned") is True
         and segmentation.get("unaccounted_total") == 0
         and segmentation.get("duplicate_total") == 0,
@@ -130,13 +138,14 @@ def main() -> int:
         "complete_stitch_coverage": coverage.get("uncovered_total") == 0
         and coverage.get("conflict_total") == 0
         and audit.get("complete_stitch_total") == 1,
-        "issue_refs_carried": int(audit.get("issue_fact_links_total") or 0) > 0,
         "strict_private_outputs": audit.get("strict_raw_outputs_total") == audit.get("raw_outputs_total") == 1
         and audit.get("fallback_raw_outputs_total") == 0
         and audit.get("raw_output_private_total") == 1
         and audit.get("source_facts_private_total") == audit.get("source_facts_total") == 1
         and audit.get("source_facts_validated_total") == 1,
-        "expansion_stays_blocked_for_parent_remainder": summary.get("ready_for_primary_expansion") is False,
+        "expansion_ready_for_complete_parent": (
+            summary.get("ready_for_primary_expansion") is True
+        ),
         "safe_chat_summary": "Gate 2" in chat_content
         and not any(
             marker in chat_content
@@ -210,40 +219,6 @@ private_slice = next(
     item for item in package["private_normalized_slices"]
     if item["document_id"] == document_ref
 )
-issue_ref = "issue_synthetic_typed_segmentation"
-package["gate1_issue_ledger"]["entries"].append({{
-    "issue_id": issue_ref,
-    "normalization_run_id": package["normalization_run"]["run_id"],
-    "issue_type": "metadata_gap",
-    "target_document_refs": [document_ref],
-    "criticality": "clarifying",
-    "affected_stage": "source_fact_extraction",
-    "blocked_stages": [],
-    "stages_that_may_continue": ["source_fact_extraction"],
-    "status": "unresolved",
-    "unresolved_reason": "synthetic_proof_issue",
-    "user_was_asked": False,
-    "answer_supplied": False,
-    "ask_policy": "do_not_ask",
-    "resolution_refs": [],
-    "evidence_refs": [private_slice["slice_id"]],
-    "blocker_refs": [],
-    "reason_codes": ["synthetic_confirmation_limit"],
-    "provenance": {{"source_artifact_type": "synthetic_fixture", "source_ref": private_slice["slice_id"]}},
-    "created_at": "2026-07-10T00:00:00Z",
-    "updated_at": "2026-07-10T00:00:00Z",
-    "safe_explanation": "Synthetic unresolved confirmation limit.",
-}})
-usage = package["document_usage_classification"]["entries"][0]
-usage["issue_refs"] = sorted(set((usage.get("issue_refs") or []) + [issue_ref]))
-usage["warning_issue_refs"] = sorted(set((usage.get("warning_issue_refs") or []) + [issue_ref]))
-usage["issue_refs_by_stage"].setdefault("source_fact_extraction", []).append(issue_ref)
-usage["readiness_by_stage"]["source_fact_extraction"] = "ready_with_issues"
-dcp = package["domain_context_packet"]
-dcp["unresolved_issue_refs"] = sorted(set((dcp.get("unresolved_issue_refs") or []) + [issue_ref]))
-dcp["document_issue_refs"].setdefault(document_ref, []).append(issue_ref)
-dcp["stage_readiness"]["source_fact_extraction"] = "ready_with_issue_context"
-package["gate2_handoff"].setdefault("document_issue_refs", {{}}).setdefault(document_ref, []).append(issue_ref)
 context = ArtifactAccessContext(
     user_id={user_id!r},
     normalization_run_id=package["normalization_run"]["run_id"],
@@ -267,7 +242,7 @@ manifest = persist_gate1_result(
 )
 print(json.dumps({{
     "domain_context_packet_ref": manifest.artifact_refs_by_type["domain_context_packet_v0"][0],
-    "parent_slice_truncated": bool(private_slice.get("truncated")),
+    "compact_slice_truncated": bool(private_slice.get("truncated")),
     "parent_selected_total": int((private_slice.get("coverage") or {{}}).get("selected_total") or 0),
 }}, ensure_ascii=False, sort_keys=True))
 '''

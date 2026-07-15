@@ -78,6 +78,80 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
 
         self.assertTrue(all(checks.values()), checks)
 
+    def test_function_active_state_is_strict(self):
+        contract = self.module.FUNCTION_CONTRACTS[0]
+        content = contract.bundle_path.read_text(encoding="utf-8")
+
+        for inactive_value in (False, 0, None, "false"):
+            with self.subTest(inactive_value=inactive_value):
+                result = self.module.evaluate_function_contract(
+                    contract,
+                    {"content": content, "is_active": inactive_value},
+                )
+                self.assertFalse(result["passed"])
+                self.assertFalse(result["checks"]["active"])
+
+        for active_value in (True, 1):
+            with self.subTest(active_value=active_value):
+                result = self.module.evaluate_function_contract(
+                    contract,
+                    {"content": content, "is_active": active_value},
+                )
+                self.assertTrue(result["passed"])
+                self.assertTrue(result["checks"]["active"])
+
+    def test_gate1_operational_state_requires_disabled_shadow_and_exact_fitz(self):
+        passed = self.module.evaluate_gate1_operational_state(
+            valves={},
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
+        enabled = self.module.evaluate_gate1_operational_state(
+            valves={"pdf_structural_repair_shadow_enabled": True},
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
+        guided_enabled = self.module.evaluate_gate1_operational_state(
+            valves={"pdf_vlm_guided_intake_shadow_enabled": True},
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
+        page_allowlisted = self.module.evaluate_gate1_operational_state(
+            valves={
+                "pdf_vlm_guided_intake_shadow_page_allowlist": "page_1"
+            },
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
+        semantic_enabled = self.module.evaluate_gate1_operational_state(
+            valves={"pdf_semantic_header_shadow_enabled": True},
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
+        wrong_runtime = self.module.evaluate_gate1_operational_state(
+            valves={"pdf_structural_repair_shadow_enabled": False},
+            fitz_version="0.0.0",
+        )
+
+        self.assertTrue(passed["structural_shadow_disabled"])
+        self.assertTrue(passed["guided_intake_shadow_disabled"])
+        self.assertTrue(passed["guided_page_allowlist_empty"])
+        self.assertTrue(passed["semantic_header_shadow_disabled"])
+        self.assertTrue(passed["fitz_version_match"])
+        self.assertFalse(enabled["structural_shadow_disabled"])
+        self.assertFalse(guided_enabled["guided_intake_shadow_disabled"])
+        self.assertFalse(page_allowlisted["guided_page_allowlist_empty"])
+        self.assertFalse(semantic_enabled["semantic_header_shadow_disabled"])
+        self.assertFalse(wrong_runtime["fitz_version_match"])
+
+    def test_gate1_contract_has_continuation_antidrift_markers(self):
+        markers = set(self.module.FUNCTION_CONTRACTS[0].required_markers)
+
+        self.assertIn(
+            "broker_reports_pdf_structural_repair_continuation_result_v1",
+            markers,
+        )
+        self.assertIn(
+            "broker_reports_pdf_continuation_materialization_v1",
+            markers,
+        )
+        self.assertIn("run_continuation_group", markers)
+
 
 if __name__ == "__main__":
     unittest.main()

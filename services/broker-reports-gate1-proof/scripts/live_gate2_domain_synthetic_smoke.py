@@ -8,7 +8,6 @@ import json
 import subprocess
 import sys
 import time
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -38,12 +37,12 @@ from broker_reports_gate1 import PROVIDER_STATUS_APPROVED, gate2_provider_profil
 
 from live_case_group_process_false_gate1_run import (
     _counter_delta,
-    _select_passport_model,
     _vector_delta_zero,
 )
 from live_gate2_synthetic_extraction_smoke import (
     _current_user,
     _purge_case,
+    _select_gate2_smoke_model,
     _seed_synthetic_gate1,
 )
 from live_no_rag_source_intake_smoke import (
@@ -114,11 +113,10 @@ def main() -> int:
     token = _signin(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
     current_user = _current_user(session, base_url)
-    model_id = (
-        args.model_id
-        or env.get("OPENWEBUI_GATE2_MODEL_ID")
-        or env.get("OPENWEBUI_PASSPORT_MODEL_ID")
-        or _select_passport_model(session, base_url)
+    model_id = _select_gate2_smoke_model(
+        explicit_model_id=args.model_id,
+        env=env,
+        provider_profile_id=args.provider_profile_id,
     )
     case_id = f"synthetic_gate2_domain_{time.strftime('%Y%m%d%H%M%S')}"
     before = _runtime_snapshot(ssh_target)

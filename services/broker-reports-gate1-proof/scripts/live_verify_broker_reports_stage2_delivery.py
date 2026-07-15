@@ -18,6 +18,7 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
+REQUIRED_FITZ_VERSION = "1.26.5"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -51,6 +52,17 @@ FUNCTION_CONTRACTS = (
             "Gate2StructuredModelClientFactory",
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
+            "PdfGridExperimentProviderFactory",
+            "PdfContinuationDiscoveryFactory",
+            "PdfStructuralRowWindowFactory",
+            "PdfStructuralRepairRuntimeFactory",
+            "PdfStructuralRepairShadowFactory",
+            "pdf_structural_row_window_policy_v1",
+            "pdf_structural_repair_runtime_policy_v1",
+            "broker_reports_pdf_structural_repair_continuation_result_v1",
+            "broker_reports_pdf_continuation_materialization_v1",
+            "run_continuation_group",
+            "run_windowed_target",
         ),
     ),
     FunctionContract(
@@ -113,6 +125,16 @@ def main() -> int:
         )
         for contract in FUNCTION_CONTRACTS
     ]
+    gate1_valves = _get_live_function_valves(
+        session,
+        base_url,
+        gate1_update.FUNCTION_ID,
+    )
+    fitz_version = _read_live_fitz_version(ssh_target)
+    gate1_operational_state = evaluate_gate1_operational_state(
+        valves=gate1_valves,
+        fitz_version=fitz_version,
+    )
     repository_boundary = repository_factory_boundary_checks()
     provider_profile_ids = sorted(
         profile.profile_id for profile in GATE2_PROVIDER_PROFILES
@@ -170,6 +192,21 @@ def main() -> int:
             "zai_glm": ["glm-"],
         },
         "repository_factory_boundary_passed": all(repository_boundary.values()),
+        "gate1_structural_shadow_disabled_after_canary": gate1_operational_state[
+            "structural_shadow_disabled"
+        ],
+        "gate1_guided_intake_shadow_disabled_after_canary": (
+            gate1_operational_state["guided_intake_shadow_disabled"]
+        ),
+        "gate1_guided_page_allowlist_empty_after_canary": (
+            gate1_operational_state["guided_page_allowlist_empty"]
+        ),
+        "gate1_semantic_header_shadow_disabled_after_canary": (
+            gate1_operational_state["semantic_header_shadow_disabled"]
+        ),
+        "gate1_structural_runtime_dependency_ready": gate1_operational_state[
+            "fitz_version_match"
+        ],
     }
     output = {
         "status": "passed" if all(checks.values()) else "failed",
@@ -183,6 +220,7 @@ def main() -> int:
         "provider_approved_model_ids": provider_approved_model_ids,
         "provider_model_id_prefixes": provider_model_id_prefixes,
         "repository_factory_boundary": repository_boundary,
+        "gate1_operational_state": gate1_operational_state,
     }
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if output["status"] == "passed" else 1
@@ -274,7 +312,7 @@ def evaluate_function_contract(
     live_content = str((live_function or {}).get("content") or "")
     checks = {
         "present": live_function is not None,
-        "active": (live_function or {}).get("is_active") is not False,
+        "active": _is_active_function((live_function or {}).get("is_active")),
         "bundle_sha256_match": bool(live_content)
         and content_sha256(live_content) == content_sha256(local_content),
         "required_modules_present": all(
@@ -288,6 +326,39 @@ def evaluate_function_contract(
         "repository_bundle_sha256": content_sha256(local_content),
         "live_bundle_sha256": content_sha256(live_content) if live_content else None,
         "required_markers": list(contract.required_markers),
+    }
+
+
+def _is_active_function(value: Any) -> bool:
+    return value is True or (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value == 1
+    )
+
+
+def evaluate_gate1_operational_state(
+    *,
+    valves: dict[str, Any],
+    fitz_version: str,
+) -> dict[str, Any]:
+    shadow_value = valves.get("pdf_structural_repair_shadow_enabled", False)
+    guided_value = valves.get(
+        "pdf_vlm_guided_intake_shadow_enabled", False
+    )
+    page_allowlist = valves.get(
+        "pdf_vlm_guided_intake_shadow_page_allowlist", ""
+    )
+    semantic_value = valves.get("pdf_semantic_header_shadow_enabled", False)
+    return {
+        "structural_shadow_disabled": shadow_value is False,
+        "guided_intake_shadow_disabled": guided_value is False,
+        "guided_page_allowlist_empty": isinstance(page_allowlist, str)
+        and not page_allowlist.strip(),
+        "semantic_header_shadow_disabled": semantic_value is False,
+        "fitz_version": fitz_version,
+        "required_fitz_version": REQUIRED_FITZ_VERSION,
+        "fitz_version_match": fitz_version == REQUIRED_FITZ_VERSION,
     }
 
 
@@ -419,6 +490,58 @@ def _get_live_function(
     response.raise_for_status()
     value = response.json()
     return value if isinstance(value, dict) else None
+
+
+def _get_live_function_valves(
+    session: requests.Session,
+    base_url: str,
+    function_id: str,
+) -> dict[str, Any]:
+    response = session.get(
+        _url(base_url, f"/api/v1/functions/id/{function_id}/valves"),
+        timeout=30,
+    )
+    response.raise_for_status()
+    value = response.json()
+    if not isinstance(value, dict):
+        raise RuntimeError("stage2_delivery_function_valves_invalid")
+    return value
+
+
+def _read_live_fitz_version(ssh_target: str) -> str:
+    remote_code = (
+        "import fitz, json; "
+        "print(json.dumps({'version': fitz.__version__}, sort_keys=True))"
+    )
+    completed = subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            ssh_target,
+            "docker",
+            "exec",
+            "-i",
+            "openwebui",
+            "python",
+            "-",
+        ],
+        cwd=ROOT,
+        input=remote_code,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=90,
+    )
+    value = json.loads(completed.stdout)
+    if not isinstance(value, dict):
+        raise RuntimeError("stage2_delivery_fitz_response_invalid")
+    return str(value.get("version") or "")
 
 
 def _read_live_prompt_state(

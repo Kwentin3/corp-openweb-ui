@@ -290,6 +290,19 @@ Finding:
 - Broker-report PDFs with a text layer now have a bounded deterministic
   normalization/table path; corpus-wide acceptance still waits for customer
   samples.
+- The PDF intake/physical-table and semantic-header shadows remain default-off
+  and non-authoritative. Intake separates detection, technical processability
+  and holdout selection; inventory overflow preserves the completed parser
+  prefix; bounded candidate/page proposals cannot replace exact parser atoms as
+  source authority. The sealed 2026-07-15 development gate ran and failed: two
+  exact regions were accepted against a required minimum of four, while false
+  acceptances remained zero. Fresh holdout and live canary are `NOT_RUN`, and
+  production authority is `DISABLED`. See the
+  [intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md),
+  [shadow runbook](operations/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_SHADOW_RUNBOOK.md),
+  [current E2E closeout](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_CLOSEOUT.report.md),
+  and the
+  [historical refactor report](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_REFACTOR.report.md).
 - OCR remains a separate unproven path for scanned/image-only pages and is not
   the default PDF route.
 - VL OCR is promising but unproven.

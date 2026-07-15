@@ -16,20 +16,22 @@ import requests
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
+SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 BUNDLE = (
-    ROOT
-    / "services"
-    / "broker-reports-gate1-proof"
+    SERVICE_ROOT
     / "openwebui_actions"
     / "broker_reports_gate2_source_fact_pipe_bundled.py"
 )
 FUNCTION_ID = "broker_reports_gate2_source_fact_pipe"
+DEFAULT_GATE2_PROVIDER_PROFILE_ID = "openai_gpt"
 
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SERVICE_ROOT))
+
+from broker_reports_gate1 import gate2_resolve_extraction_model_id
 
 from live_case_group_process_false_gate1_run import (
     _counter_delta,
-    _select_passport_model,
     _vector_delta_zero,
 )
 from live_no_rag_source_intake_smoke import (
@@ -67,6 +69,19 @@ SYNTHETIC_DOMAIN_ROWS = {
     "document_summary_evidence": b"2025-01-08,source_summary,141.75,USD,SYNTH-SUMMARY\n",
     "unknown_source_row": b"2025-01-09,unclassified_source_row,3.00,USD,SYNTH-UNKNOWN\n",
 }
+
+
+def _select_gate2_smoke_model(
+    *,
+    explicit_model_id: str | None,
+    env: dict[str, str],
+    provider_profile_id: str = DEFAULT_GATE2_PROVIDER_PROFILE_ID,
+) -> str:
+    return (
+        explicit_model_id
+        or env.get("OPENWEBUI_GATE2_MODEL_ID")
+        or gate2_resolve_extraction_model_id(provider_profile_id)
+    )
 
 
 def main() -> int:
@@ -112,11 +127,9 @@ def main() -> int:
     token = _signin(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
     current_user = _current_user(session, base_url)
-    model_id = (
-        args.model_id
-        or env.get("OPENWEBUI_GATE2_MODEL_ID")
-        or env.get("OPENWEBUI_PASSPORT_MODEL_ID")
-        or _select_passport_model(session, base_url)
+    model_id = _select_gate2_smoke_model(
+        explicit_model_id=args.model_id,
+        env=env,
     )
     case_id = f"synthetic_gate2_full_union_{time.strftime('%Y%m%d%H%M%S')}"
 

@@ -558,7 +558,7 @@ def main() -> int:
             raise ProofError(f"structural_repair_solver_nondeterministic:{key}")
         materialization = None
         accepted_binding = None
-        if first.get("terminal_status") == "accepted_unique_consensus":
+        if first.get("terminal_status") == "accepted_supplied_consensus":
             accepted_binding = solver_runtime.binding_from_accepted_consensus(
                 parser_observation=state["parser_observation"],
                 consensus_result=first,
@@ -644,8 +644,20 @@ def main() -> int:
                 "valid_distinct_grid_count": first.get(
                     "valid_distinct_grid_count"
                 ),
-                "solver_search_complete": first.get("solver_search_complete"),
+                "supplied_hypotheses_exhausted": first.get(
+                    "supplied_hypotheses_exhausted"
+                ),
+                "structural_domain_complete": first.get(
+                    "structural_domain_complete"
+                ),
                 "uniqueness_proven": first.get("uniqueness_proven"),
+                "ambiguity_proven": first.get("ambiguity_proven"),
+                "domain_incomplete": first.get("domain_incomplete"),
+                "search_not_certifiable": first.get(
+                    "search_not_certifiable"
+                ),
+                "search_scope": first.get("search_scope"),
+                "safe_explanation": first.get("safe_explanation"),
                 "result_checksum": first.get("result_checksum"),
             }
         )
@@ -691,7 +703,7 @@ def main() -> int:
             reference_scores.get(key) or _unavailable_score()
         )
     accepted_count = sum(
-        item["certification_status"] == "accepted_unique_consensus"
+        item["certification_status"] == "accepted_supplied_consensus"
         for item in safe_tables
     )
     reference_exact_count = sum(
@@ -760,7 +772,7 @@ def main() -> int:
         ),
         "goal_metrics": {
             "target_tables": 3,
-            "accepted_unique_consensus": accepted_count,
+            "accepted_supplied_consensus": accepted_count,
             "reference_exact_tables": reference_exact_count,
             "all_atoms_exactly_once_tables": sum(
                 item["all_atoms_exactly_once"] is True for item in safe_tables
