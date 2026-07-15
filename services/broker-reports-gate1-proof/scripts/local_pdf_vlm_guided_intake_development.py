@@ -330,12 +330,16 @@ def run_gate_processes(
         "--bundle",
         str(bundle),
     ]
+    child_env = os.environ.copy()
+    child_env["PYTHONIOENCODING"] = "utf-8"
+    child_env["PYTHONUTF8"] = "1"
     run_process = subprocess.Popen(
         run_command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        env=child_env,
     )
     run_stdout, run_stderr = run_process.communicate()
 
@@ -360,6 +364,7 @@ def run_gate_processes(
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
+        env=child_env,
     )
     score_stdout, score_stderr = score_process.communicate()
     process_evidence = {

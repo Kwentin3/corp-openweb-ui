@@ -786,7 +786,7 @@ def _fake_runner_source():
             "terminal_size_bytes": len(terminal_bytes),
         }
         (output / "terminal.private.sha256.json").write_text(json.dumps(seal), encoding="utf-8")
-        print("sealed")
+        print("sealed: Проекты")
         """
     )
 
