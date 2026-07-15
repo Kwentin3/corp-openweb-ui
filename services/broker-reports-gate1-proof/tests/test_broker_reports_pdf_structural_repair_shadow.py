@@ -32,6 +32,7 @@ from broker_reports_gate1.pdf_semantic_header_projection import (
 from broker_reports_gate1.pdf_table_intake_contracts import (
     PdfTableIntakeContractFactory,
 )
+from broker_reports_gate1.pdf_table_raster import PdfTableRasterError
 from broker_reports_gate1.pdf_visual_topology import (
     PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
     PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
@@ -159,6 +160,12 @@ class _FailingSemanticProjection:
         raise PdfSemanticHeaderProjectionError(
             "pdf_semantic_header_projection_test_failure"
         )
+
+
+class _QualificationFailureProvider(_ProviderBoundary):
+    def qualify(self) -> dict:
+        self.qualification_calls += 1
+        raise RuntimeError("private-qualification-failure")
 
 
 class PdfStructuralRepairShadowTests(unittest.TestCase):
@@ -403,16 +410,240 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             decisions["processability"]["decision"],
         )
         self.assertEqual(
-            ["pdf_vlm_guided_intake_runtime_execution_failed"],
+            ["pdf_vlm_guided_intake_unexpected_processing_error"],
             decisions["technical_facts"][
                 "upstream_failure_reason_codes"
             ],
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_vlm_guided_intake_unexpected_processing_error",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            {"count_token_calls": 1, "generate_calls": 1},
+            terminal["provider_accounting"],
         )
         self.assertEqual(
             [],
             PdfTableIntakeContractFactory().create().validate_decisions(
                 decisions
             ),
+        )
+
+    def test_guided_qualification_failure_persists_closed_upstream_terminal(
+        self,
+    ) -> None:
+        provider = _QualificationFailureProvider()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        terminal_record = self.store.get_record_unchecked(
+            result["guided_upstream_terminal_refs"][0]
+        )
+        terminal = self.store.read_payload(terminal_record)
+        self.assertEqual(
+            "broker_reports_pdf_vlm_guided_upstream_terminal_v1",
+            terminal_record.artifact_type,
+        )
+        self.assertEqual(
+            "pdf_vlm_guided_intake_provider_qualification_failed",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            {"count_token_calls": 0, "generate_calls": 0},
+            terminal["provider_accounting"],
+        )
+        self.assertIn(
+            terminal["private_diagnostic_ref"],
+            result["private_diagnostic_refs"],
+        )
+        decisions = terminal["finalized_intake_decisions"]
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        self.assertEqual(decisions, state["intake_decisions"])
+        self.assertEqual(
+            terminal["private_diagnostic_ref"],
+            state["upstream_terminal"]["private_diagnostic_ref"],
+        )
+        self.assertEqual(
+            "absent_due_to_upstream_failure",
+            decisions["detection"]["decision"],
+        )
+        self.assertEqual("unsupported", decisions["processability"]["decision"])
+        self.assertEqual("not_evaluated", decisions["holdout"]["decision"])
+        self.assertEqual(
+            ["pdf_vlm_guided_intake_provider_qualification_failed"],
+            decisions["technical_facts"]["upstream_failure_reason_codes"],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(decisions),
+        )
+        self.assertNotIn("private-qualification-failure", repr(result["summary"]))
+
+    def test_guided_known_raster_failure_keeps_exact_safe_reason(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        def fail_raster(**_kwargs):
+            raise PdfTableRasterError(
+                "pdf_table_raster_encoded_budget_exceeded"
+            )
+
+        runtime.raster.render = fail_raster
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_table_raster_encoded_budget_exceeded",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            ["pdf_table_raster_encoded_budget_exceeded"],
+            terminal["finalized_intake_decisions"]["detection"]["reason_codes"],
+        )
+
+    def test_guided_unexpected_early_error_is_typed_and_diagnostic(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        def fail_geometry(**_kwargs):
+            raise RuntimeError("private-programmer-failure")
+
+        runtime.geometry.build_observation = fail_geometry
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_vlm_guided_intake_unexpected_processing_error",
+            terminal["reason_code"],
+        )
+        diagnostic = self.store.read_payload(
+            self.store.get_record_unchecked(terminal["private_diagnostic_ref"])
+        )
+        self.assertIn("private-programmer-failure", repr(diagnostic))
+        self.assertNotIn("private-programmer-failure", repr(result["summary"]))
+
+    def test_guided_missing_source_projection_is_not_silent_success(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        package["private_normalized_source_payloads"][0].pop(
+            "pdf_text_layer_projection"
+        )
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((0, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        self.assertEqual(1, result["summary"]["tables_selected"])
+        self.assertEqual(1, result["summary"]["tables_failed"])
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_vlm_guided_intake_source_projection_missing",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(
+                terminal["finalized_intake_decisions"]
+            ),
+        )
+
+    def test_guided_damaged_source_projection_is_typed_upstream_terminal(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]["word_inventory"] = "damaged-private-projection"
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((0, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_vlm_guided_intake_source_projection_invalid",
+            terminal["reason_code"],
+        )
+        self.assertNotIn(
+            "damaged-private-projection", repr(result["summary"])
         )
 
     def test_adjusted_candidate_bbox_binds_every_parent_atom_once(self) -> None:
@@ -525,9 +756,10 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual([], result["runtime_result_refs"])
         self.assertEqual(1, len(result["private_target_state_refs"]))
         self.assertEqual(
-            "pdf_structural_repair_shadow_intake_unsupported",
+            "guided_upstream_blocked",
             result["summary"]["target_outcomes"][0]["terminal_status"],
         )
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
         state_record = self.store.list_by_type(
             self.context.normalization_run_id,
             "broker_reports_pdf_structural_repair_target_state_v1",
@@ -1070,8 +1302,21 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual(1, provider.qualification_calls)
         self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
         self.assertEqual([], result["runtime_result_refs"])
-        self.assertEqual([], result["private_target_state_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
         self.assertEqual(1, len(result["private_diagnostic_refs"]))
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_table_raster_full_page_identity_mismatch",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            {"count_token_calls": 0, "generate_calls": 0},
+            terminal["provider_accounting"],
+        )
 
     def test_unverified_full_page_manifest_persists_truthful_blocked_state(
         self,

@@ -49,6 +49,9 @@ PDF_VLM_GUIDED_PAGE_INTAKE_RESULT_SCHEMA = (
 PDF_VLM_GUIDED_PAGE_INTAKE_SAFE_SUMMARY_SCHEMA = (
     "broker_reports_pdf_vlm_guided_page_intake_safe_summary_v1"
 )
+PDF_VLM_GUIDED_UPSTREAM_TERMINAL_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_upstream_terminal_v1"
+)
 
 FACTORY_REQUIRED = (
     "PdfStructuralRepairShadowFactory.create is the only production entrypoint "
@@ -70,6 +73,38 @@ _SAFE_FILE_REF = re.compile(
 _SAFE_SEMANTIC_REASON = re.compile(r"^pdf_semantic_header_[a-z0-9_]{1,96}$")
 _SEMANTIC_REASON_COUNT_LIMIT = 16
 _SEMANTIC_REASON_TRUNCATED = "pdf_semantic_header_reason_codes_truncated"
+_GUIDED_INTAKE_TECHNICAL_REASONS = frozenset(
+    {
+        "atom_coordinate_count_mismatch",
+        "candidate_atom_budget_exceeded",
+        "candidate_atoms_missing",
+        "candidate_bbox_invalid",
+        "candidate_bbox_outside_page",
+        "candidate_crop_count_invalid",
+        "candidate_region_proposal_unexpected",
+        "coordinate_bbox_invalid",
+        "coordinate_bbox_outside_owned_bbox",
+        "counted_input_token_budget_exceeded",
+        "crop_identity_unverified",
+        "exact_ownership_unverified",
+        "image_budget_exceeded",
+        "image_count_invalid",
+        "image_missing",
+        "intake_scope_invalid",
+        "model_json_budget_exceeded",
+        "model_json_missing",
+        "page_atoms_present_before_region_proposal",
+        "page_bbox_invalid",
+        "page_candidate_bbox_unexpected",
+        "page_crop_count_invalid",
+        "page_region_bbox_invalid",
+        "page_region_bbox_outside_page",
+        "page_region_proposal_budget_exceeded",
+        "page_region_proposals_overlap",
+        "pdf_payload_forbidden",
+        "provenance_unverified",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -137,6 +172,29 @@ class _UnavailableProviderBoundary:
         )
 
 
+class _GuidedObservedProviderBoundary:
+    """Factory-owned call ledger that never stores provider payloads."""
+
+    def __init__(self, provider: Any) -> None:
+        self._provider = provider
+        self._count_token_calls = 0
+        self._generate_calls = 0
+
+    def qualify(self) -> dict[str, Any]:
+        return self._provider.qualify()
+
+    def count_tokens(self, **kwargs: Any) -> dict[str, Any]:
+        self._count_token_calls += 1
+        return self._provider.count_tokens(**kwargs)
+
+    def invoke(self, **kwargs: Any) -> dict[str, Any]:
+        self._generate_calls += 1
+        return self._provider.invoke(**kwargs)
+
+    def call_snapshot(self) -> tuple[int, int]:
+        return self._count_token_calls, self._generate_calls
+
+
 class PdfStructuralRepairShadowFactory:
     def __init__(
         self,
@@ -189,8 +247,13 @@ class PdfStructuralRepairShadowFactory:
                 semantic_projection=None,
                 _factory_token=_FACTORY_TOKEN,
             )
-        resolved_provider = (
+        base_provider = (
             provider if provider is not None else _UnavailableProviderBoundary()
+        )
+        resolved_provider = (
+            _GuidedObservedProviderBoundary(base_provider)
+            if self.config.vlm_guided_intake_enabled
+            else base_provider
         )
         structural_runtime = PdfStructuralRepairRuntimeFactory(
             self.runtime_config
@@ -258,6 +321,35 @@ class PdfStructuralRepairShadowRuntime:
         self.semantic_projection = semantic_projection
         self.outcomes = FileProcessingOutcomeFactory().create()
 
+    def _guided_provider_call_snapshot(self) -> tuple[int, int] | None:
+        provider = getattr(self.structural_runtime, "provider", None)
+        snapshot = getattr(provider, "call_snapshot", None)
+        if not callable(snapshot):
+            return None
+        value = snapshot()
+        if (
+            not isinstance(value, tuple)
+            or len(value) != 2
+            or any(not _nonnegative_integer(item) for item in value)
+        ):
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_intake_provider_call_ledger_invalid"
+            )
+        return value
+
+    def _guided_provider_call_delta(
+        self, before: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        after = self._guided_provider_call_snapshot()
+        if before is None or after is None:
+            return None
+        delta = (after[0] - before[0], after[1] - before[1])
+        if any(item < 0 for item in delta):
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_intake_provider_call_ledger_invalid"
+            )
+        return delta
+
     def run(
         self,
         *,
@@ -279,6 +371,7 @@ class PdfStructuralRepairShadowRuntime:
                 "artifact_refs": [],
                 "private_target_state_refs": [],
                 "runtime_result_refs": [],
+                "guided_upstream_terminal_refs": [],
                 "private_diagnostic_refs": [],
                 "repeat_history_refs": [],
                 "continuation_discovery_refs": [],
@@ -315,6 +408,7 @@ class PdfStructuralRepairShadowRuntime:
         refs: list[str] = []
         target_state_refs: list[str] = []
         runtime_refs: list[str] = []
+        guided_upstream_terminal_refs: list[str] = []
         diagnostic_refs: list[str] = []
         repeat_history_refs: list[str] = []
         continuation_discovery_refs: list[str] = []
@@ -334,7 +428,8 @@ class PdfStructuralRepairShadowRuntime:
             progress = documents[descriptor["document_ref"]]
             progress.candidates_discovered += 1
             if (
-                descriptor.get("target_scope") != "page_level"
+                descriptor.get("target_scope")
+                not in {"page_level", "upstream_document"}
                 and self.config.table_allowlist
                 and (
                 descriptor["table_ref"] not in self.config.table_allowlist
@@ -347,6 +442,88 @@ class PdfStructuralRepairShadowRuntime:
             selected.append(descriptor)
             progress.targets_selected += 1
 
+        upstream_selected = [
+            descriptor
+            for descriptor in selected
+            if descriptor.get("target_scope") == "upstream_document"
+        ]
+        selected = [
+            descriptor
+            for descriptor in selected
+            if descriptor.get("target_scope") != "upstream_document"
+        ]
+        for descriptor in upstream_selected:
+            progress = documents[descriptor["document_ref"]]
+            progress.targets_failed += 1
+            reason_code = str(
+                descriptor.get("guided_upstream_reason_code")
+                or "pdf_vlm_guided_intake_source_projection_invalid"
+            )
+            source_error = PdfStructuralRepairShadowError(reason_code)
+            diagnostic = self.outcomes.private_diagnostic(
+                file_ref=progress.file_ref,
+                stage="parsing",
+                exception=source_error,
+                private_context={
+                    "operation": "guided_source_projection_discovery",
+                    "target_id": descriptor["target_id"],
+                },
+            )
+            diagnostic_ref = self._try_put_diagnostic(
+                store=store,
+                context=context,
+                retention_policy=retention_policy,
+                document_id=descriptor["document_ref"],
+                target_id=descriptor["target_id"],
+                reason_code=reason_code,
+                diagnostic=diagnostic.snapshot(),
+            )
+            if diagnostic_ref is not None:
+                diagnostic_refs.append(diagnostic_ref)
+                refs.append(diagnostic_ref)
+            state_ref, terminal_ref = self._persist_guided_upstream_terminal(
+                store=store,
+                context=context,
+                retention_policy=retention_policy,
+                package_descriptor=descriptor,
+                reason_code=reason_code,
+                private_diagnostic_ref=diagnostic_ref,
+                count_token_calls=0,
+                generate_calls=0,
+                existing_state_ref=None,
+                existing_decisions=None,
+            )
+            target_state_refs.append(state_ref)
+            guided_upstream_terminal_refs.append(terminal_ref)
+            refs.extend((state_ref, terminal_ref))
+            progress.failures.append(("parser_failed", "parsing", diagnostic))
+            semantic_status = (
+                "not_projected_structural_failure"
+                if self.config.semantic_header_shadow_enabled
+                else "disabled"
+            )
+            target_summaries.append(
+                _target_summary(
+                    target_id=descriptor["target_id"],
+                    terminal_status="guided_upstream_blocked",
+                    reason_code=reason_code,
+                    count_token_calls=0,
+                    generate_calls=0,
+                    target_state_persisted=True,
+                    runtime_result_persisted=False,
+                    repeat_history_persisted=False,
+                    repeat_history_ever_conflicted=False,
+                    semantic_projection_status=semantic_status,
+                    semantic_projection_persisted=False,
+                )
+            )
+            _increment(terminal_counts, "guided_upstream_blocked")
+            _increment(semantic_projection_status_counts, semantic_status)
+            _increment_semantic_reasons(
+                semantic_projection_reason_counts,
+                _semantic_reasons_for_status(semantic_status),
+            )
+
         qualification: dict[str, Any] | None = None
         qualification_error: BaseException | None = None
         if selected:
@@ -356,6 +533,11 @@ class PdfStructuralRepairShadowRuntime:
                 qualification_error = exc
 
         if qualification_error is not None:
+            qualification_reason = (
+                "pdf_vlm_guided_intake_provider_qualification_failed"
+                if self.config.vlm_guided_intake_enabled
+                else "provider_temporarily_unavailable"
+            )
             selected_by_document: dict[str, list[dict[str, Any]]] = {}
             for descriptor in selected:
                 selected_by_document.setdefault(
@@ -379,7 +561,7 @@ class PdfStructuralRepairShadowRuntime:
                     retention_policy=retention_policy,
                     document_id=document_ref,
                     target_id=None,
-                    reason_code="provider_temporarily_unavailable",
+                    reason_code=qualification_reason,
                     diagnostic=diagnostic.snapshot(),
                 )
                 if diagnostic_ref:
@@ -393,6 +575,26 @@ class PdfStructuralRepairShadowRuntime:
                     )
                 )
                 for descriptor in current:
+                    target_state_persisted = False
+                    if self.config.vlm_guided_intake_enabled:
+                        state_ref, terminal_ref = (
+                            self._persist_guided_upstream_terminal(
+                                store=store,
+                                context=context,
+                                retention_policy=retention_policy,
+                                package_descriptor=descriptor,
+                                reason_code=qualification_reason,
+                                private_diagnostic_ref=diagnostic_ref,
+                                count_token_calls=0,
+                                generate_calls=0,
+                                existing_state_ref=None,
+                                existing_decisions=None,
+                            )
+                        )
+                        target_state_refs.append(state_ref)
+                        guided_upstream_terminal_refs.append(terminal_ref)
+                        refs.extend((state_ref, terminal_ref))
+                        target_state_persisted = True
                     semantic_status = (
                         "not_projected_structural_terminal"
                         if self.config.semantic_header_shadow_enabled
@@ -400,11 +602,19 @@ class PdfStructuralRepairShadowRuntime:
                     )
                     target_summary = _target_summary(
                         target_id=descriptor["target_id"],
-                        terminal_status="provider_not_qualified",
-                        reason_code="provider_temporarily_unavailable",
+                        terminal_status=(
+                            "guided_upstream_blocked"
+                            if self.config.vlm_guided_intake_enabled
+                            else "provider_not_qualified"
+                        ),
+                        reason_code=(
+                            qualification_reason
+                            if self.config.vlm_guided_intake_enabled
+                            else "provider_temporarily_unavailable"
+                        ),
                         count_token_calls=0,
                         generate_calls=0,
-                        target_state_persisted=False,
+                        target_state_persisted=target_state_persisted,
                         runtime_result_persisted=False,
                         repeat_history_persisted=False,
                         repeat_history_ever_conflicted=False,
@@ -412,7 +622,14 @@ class PdfStructuralRepairShadowRuntime:
                         semantic_projection_persisted=False,
                     )
                     target_summaries.append(target_summary)
-                    _increment(terminal_counts, "provider_not_qualified")
+                    _increment(
+                        terminal_counts,
+                        (
+                            "guided_upstream_blocked"
+                            if self.config.vlm_guided_intake_enabled
+                            else "provider_not_qualified"
+                        ),
+                    )
                     _increment(
                         semantic_projection_status_counts,
                         semantic_status,
@@ -425,6 +642,11 @@ class PdfStructuralRepairShadowRuntime:
             assert qualification is not None or not selected
             for descriptor in selected:
                 progress = documents[descriptor["document_ref"]]
+                guided_calls_before = (
+                    self._guided_provider_call_snapshot()
+                    if self.config.vlm_guided_intake_enabled
+                    else None
+                )
                 try:
                     (
                         result,
@@ -592,6 +814,9 @@ class PdfStructuralRepairShadowRuntime:
                         if isinstance(exc, _TargetExecutionError)
                         else exc
                     )
+                    guided_reason = _guided_upstream_reason_from_exception(
+                        exc
+                    )
                     persisted_state_ref = (
                         exc.target_state_ref
                         if isinstance(exc, _TargetExecutionError)
@@ -630,20 +855,103 @@ class PdfStructuralRepairShadowRuntime:
                         retention_policy=retention_policy,
                         document_id=descriptor["document_ref"],
                         target_id=descriptor["target_id"],
-                        reason_code=reason_code,
+                        reason_code=(
+                            guided_reason
+                            if self.config.vlm_guided_intake_enabled
+                            else reason_code
+                        ),
                         diagnostic=diagnostic.snapshot(),
                     )
                     if diagnostic_ref:
                         diagnostic_refs.append(diagnostic_ref)
                         refs.append(diagnostic_ref)
+                    guided_terminal_ref: str | None = None
+                    guided_count_calls: int | None = None
+                    guided_generate_calls: int | None = None
+                    if self.config.vlm_guided_intake_enabled:
+                        guided_call_delta = self._guided_provider_call_delta(
+                            guided_calls_before
+                        )
+                        if guided_call_delta is not None:
+                            (
+                                guided_count_calls,
+                                guided_generate_calls,
+                            ) = guided_call_delta
+                        elif partial_result:
+                            guided_count_calls = _strict_nonnegative_int(
+                                partial_result.get(
+                                    "new_provider_count_token_calls"
+                                )
+                            )
+                            guided_generate_calls = _strict_nonnegative_int(
+                                partial_result.get(
+                                    "new_provider_generate_calls"
+                                )
+                            )
+                        elif persisted_state_ref is None:
+                            guided_count_calls = 0
+                            guided_generate_calls = 0
+                        existing_decisions: dict[str, Any] | None = None
+                        if persisted_state_ref is not None:
+                            existing_state = store.read_payload(
+                                store.get_record_unchecked(
+                                    persisted_state_ref
+                                )
+                            )
+                            existing_decisions = _object(
+                                _object(existing_state).get(
+                                    "intake_decisions"
+                                )
+                            )
+                        guided_state_ref, guided_terminal_ref = (
+                            self._persist_guided_upstream_terminal(
+                                store=store,
+                                context=context,
+                                retention_policy=retention_policy,
+                                package_descriptor=descriptor,
+                                reason_code=guided_reason,
+                                private_diagnostic_ref=diagnostic_ref,
+                                count_token_calls=guided_count_calls,
+                                generate_calls=guided_generate_calls,
+                                existing_state_ref=persisted_state_ref,
+                                existing_decisions=existing_decisions,
+                            )
+                        )
+                        if persisted_state_ref is None:
+                            persisted_state_ref = guided_state_ref
+                            target_state_refs.append(guided_state_ref)
+                            refs.append(guided_state_ref)
+                        guided_upstream_terminal_refs.append(
+                            guided_terminal_ref
+                        )
+                        refs.append(guided_terminal_ref)
                     progress.failures.append((reason_code, stage, diagnostic))
-                    terminal = _safe_exception_terminal(exc)
+                    terminal = (
+                        "guided_upstream_blocked"
+                        if self.config.vlm_guided_intake_enabled
+                        else _safe_exception_terminal(exc)
+                    )
                     provider_calls_known = not (
                         isinstance(exc, _TargetExecutionError)
                         and exc.code
                         == "pdf_structural_repair_shadow_provider_execution_failed"
                         and not partial_result
                     )
+                    if self.config.vlm_guided_intake_enabled:
+                        summary_count_calls = guided_count_calls
+                        summary_generate_calls = guided_generate_calls
+                    elif provider_calls_known:
+                        summary_count_calls = _strict_nonnegative_int(
+                            partial_result.get(
+                                "new_provider_count_token_calls"
+                            )
+                        )
+                        summary_generate_calls = _strict_nonnegative_int(
+                            partial_result.get("new_provider_generate_calls")
+                        )
+                    else:
+                        summary_count_calls = None
+                        summary_generate_calls = None
                     semantic_status = (
                         "not_projected_structural_failure"
                         if self.config.semantic_header_shadow_enabled
@@ -653,25 +961,13 @@ class PdfStructuralRepairShadowRuntime:
                         _target_summary(
                             target_id=descriptor["target_id"],
                             terminal_status=terminal,
-                            reason_code=reason_code,
-                            count_token_calls=(
-                                _strict_nonnegative_int(
-                                    partial_result.get(
-                                        "new_provider_count_token_calls"
-                                    )
-                                )
-                                if provider_calls_known
-                                else None
+                            reason_code=(
+                                guided_reason
+                                if self.config.vlm_guided_intake_enabled
+                                else reason_code
                             ),
-                            generate_calls=(
-                                _strict_nonnegative_int(
-                                    partial_result.get(
-                                        "new_provider_generate_calls"
-                                    )
-                                )
-                                if provider_calls_known
-                                else None
-                            ),
+                            count_token_calls=summary_count_calls,
+                            generate_calls=summary_generate_calls,
                             target_state_persisted=bool(persisted_state_ref),
                             runtime_result_persisted=False,
                             repeat_history_persisted=bool(
@@ -787,6 +1083,9 @@ class PdfStructuralRepairShadowRuntime:
                 ),
                 "private_target_states_persisted": len(target_state_refs),
                 "private_runtime_results_persisted": len(runtime_refs),
+                "guided_upstream_terminals_persisted": len(
+                    guided_upstream_terminal_refs
+                ),
                 "private_diagnostics_persisted": len(diagnostic_refs),
                 "private_repeat_histories_persisted": len(
                     repeat_history_refs
@@ -851,6 +1150,7 @@ class PdfStructuralRepairShadowRuntime:
             "artifact_refs": refs,
             "private_target_state_refs": target_state_refs,
             "runtime_result_refs": runtime_refs,
+            "guided_upstream_terminal_refs": guided_upstream_terminal_refs,
             "private_diagnostic_refs": diagnostic_refs,
             "repeat_history_refs": repeat_history_refs,
             "continuation_discovery_refs": continuation_discovery_refs,
@@ -1534,6 +1834,44 @@ class PdfStructuralRepairShadowRuntime:
             )
             documents[document_ref] = progress
             source_payload = _object(source_payloads.get(document_ref))
+            source_projection_reason = (
+                _guided_source_projection_reason(source_payload)
+                if self.config.vlm_guided_intake_enabled
+                else None
+            )
+            if source_projection_reason is not None:
+                pdf_sha256 = str(document.get("sha256") or "")
+                identity_digest = hashlib.sha256(
+                    f"{document_ref}:{pdf_sha256}:guided-upstream".encode(
+                        "utf-8"
+                    )
+                ).hexdigest()[:24]
+                descriptors.append(
+                    {
+                        "document_ref": document_ref,
+                        "pdf_sha256": pdf_sha256,
+                        "page_ref": f"page_upstream_{identity_digest}",
+                        "page_number": 1,
+                        "table_ref": f"upstream_scope_{identity_digest}",
+                        "candidate_ordinal": 0,
+                        "target_id": f"structshadow_{identity_digest}",
+                        "target_scope": "upstream_document",
+                        "table_bbox": None,
+                        "page_width": None,
+                        "page_height": None,
+                        "table_strategy_ref": None,
+                        "geometry_confidence": None,
+                        "rows_total": None,
+                        "columns_total": None,
+                        "candidate_rank_on_page": 0,
+                        "candidates_on_page": 0,
+                        "pdf_text_layer_projection": {},
+                        "guided_upstream_reason_code": (
+                            source_projection_reason
+                        ),
+                    }
+                )
+                continue
             projection = _object(
                 source_payload.get("pdf_text_layer_projection")
             )
@@ -1918,6 +2256,16 @@ class PdfStructuralRepairShadowRuntime:
         if intake_decisions is not None and _object(
             intake_decisions.get("processability")
         ).get("decision") != "processable":
+            intake_error = PdfStructuralRepairShadowError(
+                _guided_processability_reason(intake_decisions)
+            )
+            intake_decisions = self.intake_contracts.finalize_decisions(
+                decisions=intake_decisions,
+                upstream_failure_reason_codes=[intake_error.code],
+            )
+            target_state["intake_decisions"] = copy.deepcopy(
+                intake_decisions
+            )
             state_ref = self._persist_target_state(
                 store=store,
                 context=context,
@@ -1927,9 +2275,6 @@ class PdfStructuralRepairShadowRuntime:
                 visual_package=visual_package,
                 intake_decisions=intake_decisions,
             )
-            intake_error = PdfStructuralRepairShadowError(
-                "pdf_structural_repair_shadow_intake_unsupported"
-            )
             raise _TargetExecutionError(
                 intake_error.code,
                 private_cause=intake_error,
@@ -1938,6 +2283,7 @@ class PdfStructuralRepairShadowRuntime:
         candidate_proposal: dict[str, Any] | None = None
         candidate_binding: dict[str, Any] | None = None
         candidate_region_manifests: dict[str, dict[str, Any]] = {}
+        result: dict[str, Any] | None = None
         try:
             if guided_intake:
                 result = self.structural_runtime.run_candidate_once(
@@ -1982,10 +2328,17 @@ class PdfStructuralRepairShadowRuntime:
                 )
         except Exception as exc:
             if guided_intake and intake_decisions is not None:
+                upstream_reason = _guided_upstream_reason_from_exception(exc)
+                counted_tokens = (
+                    _guided_runtime_intake_observations(result)[0]
+                    if isinstance(result, dict)
+                    else None
+                )
                 finalized_intake = self.intake_contracts.finalize_decisions(
                     decisions=intake_decisions,
+                    actual_counted_input_tokens=counted_tokens,
                     upstream_failure_reason_codes=[
-                        "pdf_vlm_guided_intake_runtime_execution_failed"
+                        upstream_reason
                     ],
                 )
                 target_state["intake_decisions"] = copy.deepcopy(
@@ -2005,9 +2358,14 @@ class PdfStructuralRepairShadowRuntime:
                     "pdf_structural_repair_shadow_target_state_missing"
                 ) from exc
             raise _TargetExecutionError(
-                "pdf_structural_repair_shadow_provider_execution_failed",
+                (
+                    upstream_reason
+                    if guided_intake
+                    else "pdf_structural_repair_shadow_provider_execution_failed"
+                ),
                 private_cause=exc,
                 target_state_ref=state_ref,
+                runtime_result=(result if isinstance(result, dict) else None),
             ) from exc
         if guided_intake and intake_decisions is not None:
             (
@@ -2176,6 +2534,249 @@ class PdfStructuralRepairShadowRuntime:
                 "runtime_result": result,
             },
         )
+
+    def _persist_guided_upstream_terminal(
+        self,
+        *,
+        store: SqliteArtifactStoreAdapter,
+        context: ArtifactAccessContext,
+        retention_policy: RetentionPolicy,
+        package_descriptor: dict[str, Any],
+        reason_code: str,
+        private_diagnostic_ref: str | None,
+        count_token_calls: int | None,
+        generate_calls: int | None,
+        existing_state_ref: str | None,
+        existing_decisions: dict[str, Any] | None,
+    ) -> tuple[str, str]:
+        if self.intake_contracts is None:
+            raise PdfStructuralRepairShadowError(
+                "pdf_structural_repair_shadow_intake_factory_missing"
+            )
+        decisions = copy.deepcopy(existing_decisions or {})
+        if self.intake_contracts.validate_decisions(decisions):
+            decisions = self._guided_upstream_decisions(
+                package_descriptor=package_descriptor,
+                reason_code=reason_code,
+            )
+        if self.intake_contracts.validate_decisions(decisions):
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_intake_upstream_decisions_invalid"
+            )
+        decisions = self.intake_contracts.finalize_decisions(
+            decisions=decisions,
+            upstream_failure_reason_codes=[reason_code],
+        )
+
+        state_ref = existing_state_ref
+        if state_ref is None:
+            target_state = {
+                "schema_version": PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA,
+                "target_id": package_descriptor["target_id"],
+                "target_scope": package_descriptor.get("target_scope"),
+                "execution_mode": "guided_upstream_terminal",
+                "vlm_guided_intake_enabled": True,
+                "intake_decisions": copy.deepcopy(decisions),
+                "upstream_terminal": {
+                    "reason_code": reason_code,
+                    "private_diagnostic_ref": private_diagnostic_ref,
+                    "provider_accounting": {
+                        "count_token_calls": count_token_calls,
+                        "generate_calls": generate_calls,
+                    },
+                },
+                "authority_state": "non_authoritative",
+                "production_ready": False,
+                "production_gate2_selection_changed": False,
+            }
+            state_ref = self._persist_target_state(
+                store=store,
+                context=context,
+                retention_policy=retention_policy,
+                document_ref=str(package_descriptor["document_ref"]),
+                target_state=target_state,
+                visual_package={},
+                intake_decisions=decisions,
+            )
+
+        terminal = {
+            "schema_version": PDF_VLM_GUIDED_UPSTREAM_TERMINAL_SCHEMA,
+            "target_id": package_descriptor["target_id"],
+            "target_scope": package_descriptor.get("target_scope"),
+            "terminal_status": "guided_upstream_blocked",
+            "reason_code": reason_code,
+            "finalized_intake_decisions": copy.deepcopy(decisions),
+            "provider_accounting": {
+                "count_token_calls": count_token_calls,
+                "generate_calls": generate_calls,
+            },
+            "target_state_ref": state_ref,
+            "private_diagnostic_ref": private_diagnostic_ref,
+            "authority_state": "non_authoritative",
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+        }
+        terminal["result_checksum"] = sha256_json(terminal)
+        terminal_errors = self._validate_guided_upstream_terminal(terminal)
+        if terminal_errors:
+            raise PdfStructuralRepairShadowError(terminal_errors[0])
+        terminal_ref = self._put_record(
+            store=store,
+            context=context,
+            retention_policy=retention_policy,
+            document_id=str(package_descriptor["document_ref"]),
+            artifact_type=PDF_VLM_GUIDED_UPSTREAM_TERMINAL_SCHEMA,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="blocked",
+            payload=terminal,
+            safe_metadata={
+                "target_id": package_descriptor["target_id"],
+                "target_scope": package_descriptor.get("target_scope"),
+                "terminal_status": "guided_upstream_blocked",
+                "reason_code": reason_code,
+                "count_token_calls": count_token_calls,
+                "generate_calls": generate_calls,
+                "authority_state": "non_authoritative",
+                "production_ready": False,
+                "production_gate2_selection_changed": False,
+            },
+        )
+        return state_ref, terminal_ref
+
+    def _guided_upstream_decisions(
+        self,
+        *,
+        package_descriptor: dict[str, Any],
+        reason_code: str,
+    ) -> dict[str, Any]:
+        target_scope = str(package_descriptor.get("target_scope") or "")
+        scope = "candidate_crop" if target_scope == "candidate_crop" else "page"
+        page_bbox = _page_bbox(package_descriptor)
+        candidate_bbox = (
+            copy.deepcopy(package_descriptor.get("table_bbox"))
+            if scope == "candidate_crop"
+            else None
+        )
+        evidence_checksum = sha256_json(
+            {
+                "document_ref": package_descriptor.get("document_ref"),
+                "pdf_sha256": package_descriptor.get("pdf_sha256"),
+                "page_ref": package_descriptor.get("page_ref"),
+                "page_number": package_descriptor.get("page_number"),
+                "target_id": package_descriptor.get("target_id"),
+                "target_scope": target_scope,
+                "table_ref": package_descriptor.get("table_ref"),
+                "reason_code": reason_code,
+            }
+        )
+        return self.intake_contracts.build_decisions(
+            document_ref=str(package_descriptor["document_ref"]),
+            pdf_sha256=str(package_descriptor["pdf_sha256"]),
+            page_ref=str(package_descriptor["page_ref"]),
+            page_number=_strict_nonnegative_int(
+                package_descriptor.get("page_number")
+            ),
+            scope_ref=str(package_descriptor["target_id"]),
+            table_ref=(
+                str(package_descriptor["table_ref"])
+                if scope == "candidate_crop"
+                else None
+            ),
+            evidence_checksum=evidence_checksum,
+            assessor_stage="vlm_guided_upstream",
+            scope=scope,
+            detection_decision="absent_due_to_upstream_failure",
+            upstream_failure_reason_codes=[reason_code],
+            holdout_decision="not_evaluated",
+            page_bbox=page_bbox,
+            candidate_bbox=candidate_bbox,
+            coordinate_bboxes=(),
+            provenance_verified=False,
+            crop_identity_verified=False,
+            exact_ownership_verified=False,
+            atom_count=0,
+            model_json_bytes=0,
+            counted_input_tokens=None,
+            image_count=0,
+            crop_count=0,
+            pdf_count=0,
+            image_bytes=0,
+            metadata={"upstream_stage": "pre_terminal"},
+        )
+
+    def _validate_guided_upstream_terminal(
+        self, value: Any
+    ) -> list[str]:
+        if not isinstance(value, dict):
+            return ["pdf_vlm_guided_intake_upstream_terminal_invalid"]
+        data = copy.deepcopy(value)
+        stored_checksum = data.pop("result_checksum", None)
+        required_keys = {
+            "schema_version", "target_id", "target_scope",
+            "terminal_status", "reason_code",
+            "finalized_intake_decisions", "provider_accounting",
+            "target_state_ref", "private_diagnostic_ref",
+            "authority_state", "production_ready",
+            "production_gate2_selection_changed",
+        }
+        errors: list[str] = []
+        if set(data) != required_keys:
+            errors.append("pdf_vlm_guided_intake_upstream_terminal_keys_invalid")
+        if (
+            data.get("schema_version")
+            != PDF_VLM_GUIDED_UPSTREAM_TERMINAL_SCHEMA
+            or data.get("terminal_status") != "guided_upstream_blocked"
+            or data.get("authority_state") != "non_authoritative"
+            or data.get("production_ready") is not False
+            or data.get("production_gate2_selection_changed") is not False
+            or not isinstance(data.get("target_id"), str)
+            or not data.get("target_id")
+            or not isinstance(data.get("target_state_ref"), str)
+            or not data.get("target_state_ref")
+        ):
+            errors.append("pdf_vlm_guided_intake_upstream_terminal_invalid")
+        reason_code = data.get("reason_code")
+        if not _safe_guided_reason_code(reason_code):
+            errors.append("pdf_vlm_guided_intake_upstream_reason_invalid")
+        decisions = _object(data.get("finalized_intake_decisions"))
+        if self.intake_contracts.validate_decisions(decisions):
+            errors.append("pdf_vlm_guided_intake_upstream_decisions_invalid")
+        else:
+            upstream_reasons = _object(
+                decisions.get("technical_facts")
+            ).get("upstream_failure_reason_codes", [])
+            processability = _object(decisions.get("processability"))
+            if (
+                reason_code not in upstream_reasons
+                or processability.get("decision") != "unsupported"
+            ):
+                errors.append("pdf_vlm_guided_intake_upstream_reason_drift")
+        accounting = _object(data.get("provider_accounting"))
+        if set(accounting) != {"count_token_calls", "generate_calls"}:
+            errors.append("pdf_vlm_guided_intake_upstream_accounting_invalid")
+        else:
+            count_calls = accounting.get("count_token_calls")
+            generate_calls = accounting.get("generate_calls")
+            if not (
+                (
+                    count_calls is None
+                    and generate_calls is None
+                )
+                or (
+                    _nonnegative_integer(count_calls)
+                    and _nonnegative_integer(generate_calls)
+                )
+            ):
+                errors.append(
+                    "pdf_vlm_guided_intake_upstream_accounting_invalid"
+                )
+        diagnostic_ref = data.get("private_diagnostic_ref")
+        if not isinstance(diagnostic_ref, str) or not diagnostic_ref:
+            errors.append("pdf_vlm_guided_intake_upstream_diagnostic_invalid")
+        if stored_checksum != sha256_json(data):
+            errors.append("pdf_vlm_guided_intake_upstream_checksum_invalid")
+        return sorted(set(errors))
 
     def _persist_target_state(
         self,
@@ -2793,6 +3394,16 @@ class PdfStructuralRepairShadowRuntime:
         if _object(intake_decisions.get("processability")).get(
             "decision"
         ) != "processable":
+            intake_error = PdfStructuralRepairShadowError(
+                _guided_processability_reason(intake_decisions)
+            )
+            intake_decisions = self.intake_contracts.finalize_decisions(
+                decisions=intake_decisions,
+                upstream_failure_reason_codes=[intake_error.code],
+            )
+            target_state["intake_decisions"] = copy.deepcopy(
+                intake_decisions
+            )
             state_ref = self._persist_target_state(
                 store=store,
                 context=context,
@@ -2801,9 +3412,6 @@ class PdfStructuralRepairShadowRuntime:
                 target_state=target_state,
                 visual_package=visual_package,
                 intake_decisions=intake_decisions,
-            )
-            intake_error = PdfStructuralRepairShadowError(
-                "pdf_structural_repair_shadow_intake_unsupported"
             )
             raise _TargetExecutionError(
                 intake_error.code,
@@ -2819,6 +3427,7 @@ class PdfStructuralRepairShadowRuntime:
                 provider_qualification=qualification,
             )
         except Exception as exc:
+            upstream_reason = _guided_upstream_reason_from_exception(exc)
             state_ref = self._persist_page_upstream_state(
                 store=store,
                 context=context,
@@ -2827,10 +3436,10 @@ class PdfStructuralRepairShadowRuntime:
                 target_state=target_state,
                 visual_package=visual_package,
                 intake_decisions=intake_decisions,
-                reason_code="pdf_vlm_guided_page_runtime_execution_failed",
+                reason_code=upstream_reason,
             )
             raise _TargetExecutionError(
-                "pdf_structural_repair_shadow_provider_execution_failed",
+                upstream_reason,
                 private_cause=exc,
                 target_state_ref=state_ref,
             ) from exc
@@ -2849,7 +3458,7 @@ class PdfStructuralRepairShadowRuntime:
                 reason_code="pdf_vlm_guided_page_runtime_result_invalid",
             )
             raise _TargetExecutionError(
-                runtime_error.code,
+                "pdf_vlm_guided_page_runtime_result_invalid",
                 private_cause=runtime_error,
                 target_state_ref=state_ref,
             )
@@ -2909,6 +3518,7 @@ class PdfStructuralRepairShadowRuntime:
                     region_crop_manifests=region_crop_manifests,
                 )
         except Exception as exc:
+            upstream_reason = _guided_upstream_reason_from_exception(exc)
             state_ref = self._persist_page_upstream_state(
                 store=store,
                 context=context,
@@ -2917,13 +3527,14 @@ class PdfStructuralRepairShadowRuntime:
                 target_state=target_state,
                 visual_package=visual_package,
                 intake_decisions=intake_decisions,
-                reason_code="pdf_vlm_guided_page_binding_execution_failed",
+                reason_code=upstream_reason,
                 actual_counted_input_tokens=actual_counted_tokens,
             )
             raise _TargetExecutionError(
-                "pdf_structural_repair_shadow_page_binding_failed",
+                upstream_reason,
                 private_cause=exc,
                 target_state_ref=state_ref,
+                runtime_result=proposal_result,
             ) from exc
         upstream_reasons = (
             [
@@ -4002,6 +4613,7 @@ def _base_summary(
         "file_processing_outcomes": None,
         "private_target_states_persisted": 0,
         "private_runtime_results_persisted": 0,
+        "guided_upstream_terminals_persisted": 0,
         "private_diagnostics_persisted": 0,
         "private_repeat_histories_persisted": 0,
         "continuation_groups_discovered": 0,
@@ -4078,6 +4690,67 @@ def _outcome_reason_from_exception(exc: BaseException) -> tuple[str, str]:
     return _map_internal_code(str(getattr(exc, "code", "")))
 
 
+def _guided_source_projection_reason(
+    source_payload: dict[str, Any],
+) -> str | None:
+    if "pdf_text_layer_projection" not in source_payload:
+        return "pdf_vlm_guided_intake_source_projection_missing"
+    projection = source_payload.get("pdf_text_layer_projection")
+    required_inventories = (
+        "page_inventory",
+        "bbox_inventory",
+        "word_inventory",
+        "line_inventory",
+        "vector_line_inventory",
+        "rect_inventory",
+        "table_candidate_inventory",
+    )
+    if not isinstance(projection, dict) or any(
+        not isinstance(projection.get(key), list)
+        or any(not isinstance(item, dict) for item in projection[key])
+        for key in required_inventories
+    ):
+        return "pdf_vlm_guided_intake_source_projection_invalid"
+    return None
+
+
+def _guided_upstream_reason_from_exception(exc: BaseException) -> str:
+    code = str(getattr(exc, "code", ""))
+    if _safe_guided_reason_code(code):
+        return code
+    return "pdf_vlm_guided_intake_unexpected_processing_error"
+
+
+def _safe_guided_reason_code(value: Any) -> bool:
+    return bool(
+        isinstance(value, str)
+        and re.fullmatch(r"[a-z][a-z0-9_]{2,95}", value)
+        and (
+            value in _GUIDED_INTAKE_TECHNICAL_REASONS
+            or value.startswith(
+                (
+                    "pdf_dual_oracle_",
+                    "pdf_grid_",
+                    "pdf_parser_",
+                    "pdf_structural_",
+                    "pdf_table_",
+                    "pdf_visual_",
+                    "pdf_vlm_",
+                )
+            )
+        )
+    )
+
+
+def _guided_processability_reason(decisions: dict[str, Any]) -> str:
+    reasons = _object(decisions.get("processability")).get("reason_codes")
+    if isinstance(reasons, list):
+        for reason in reasons:
+            if reason in _GUIDED_INTAKE_TECHNICAL_REASONS:
+                return str(reason)
+    return "pdf_structural_repair_shadow_intake_unsupported"
+
+
 def _map_internal_code(code: str) -> tuple[str, str]:
     if "intake_unsupported" in code or "intake_factory" in code:
         return "parser_failed", "parsing"
@@ -4085,6 +4758,8 @@ def _map_internal_code(code: str) -> tuple[str, str]:
         return "atom_budget_exceeded", "visual_topology"
     if "counted_input_budget" in code or "token_budget" in code:
         return "model_input_budget_exceeded", "input_budget"
+    if code in _GUIDED_INTAKE_TECHNICAL_REASONS:
+        return "parser_failed", "parsing"
     if "count_tokens" in code or "not_qualified" in code:
         return "provider_temporarily_unavailable", "provider_call"
     if any(
@@ -4622,6 +5297,10 @@ def _optional_nonnegative_int(value: Any) -> int | None:
 
 def _positive_integer(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _nonnegative_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _strict_nonnegative_int(value: Any) -> int:
