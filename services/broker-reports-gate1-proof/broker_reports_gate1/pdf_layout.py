@@ -11,7 +11,7 @@ from .contracts import stable_digest
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
 PDFMINER_PINNED_VERSION = "20260107"
-PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v0"
+PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v1"
 PDF_LAYOUT_CAPABILITIES = frozenset(
     {"layout_words", "layout_lines", "table_candidates"}
 )
@@ -131,8 +131,14 @@ class PdfPlumberLayoutAdapter:
             )
 
         pages: list[dict[str, Any]] = []
+        source_pages_total = 0
+        completed_pages_total = 0
+        first_missing_page_number: int | None = None
+        inventory_objects_total = 0
+        inventory_objects_would_be_total = 0
         try:
             pages_total = len(pdf.pages)
+            source_pages_total = pages_total
             if pages_total <= 0:
                 return self._terminal_result(
                     "partial", ["pdf_layout_page_inventory_empty"]
@@ -141,12 +147,10 @@ class PdfPlumberLayoutAdapter:
                 return self._terminal_result(
                     "partial", ["pdf_layout_page_budget_exceeded"]
                 )
-            inventory_objects_total = 0
             for page_number, page in enumerate(pdf.pages, start=1):
                 page_result = self._parse_page(page=page, page_number=page_number)
-                pages.append(page_result)
                 page.close()
-                inventory_objects_total += sum(
+                page_inventory_objects_total = sum(
                     len(page_result.get(key) or [])
                     for key in (
                         "char_inventory",
@@ -158,11 +162,22 @@ class PdfPlumberLayoutAdapter:
                         "table_candidate_inventory",
                     )
                 )
-                if inventory_objects_total > self.config.max_inventory_objects_per_document:
-                    return self._terminal_result(
-                        "partial",
-                        ["pdf_layout_document_inventory_budget_exceeded"],
+                inventory_objects_would_be_total = (
+                    inventory_objects_total + page_inventory_objects_total
+                )
+                if inventory_objects_would_be_total > self.config.max_inventory_objects_per_document:
+                    first_missing_page_number = page_number
+                    pages.extend(
+                        self._page_failure(
+                            missing_page_number,
+                            "pdf_layout_page_not_processed_document_inventory_budget",
+                        )
+                        for missing_page_number in range(page_number, pages_total + 1)
                     )
+                    break
+                pages.append(page_result)
+                inventory_objects_total = inventory_objects_would_be_total
+                completed_pages_total += 1
         finally:
             pdf.close()
 
@@ -173,6 +188,10 @@ class PdfPlumberLayoutAdapter:
                 for reason in page.get("layout_reason_codes") or []
             }
         )
+        if first_missing_page_number is not None:
+            layout_reasons = sorted(
+                {*layout_reasons, "pdf_layout_document_inventory_budget_exceeded"}
+            )
         layout_status = "complete" if not layout_reasons else "partial"
         table_statuses = {
             str(page.get("table_candidate_status") or "not_claimed")
@@ -201,6 +220,13 @@ class PdfPlumberLayoutAdapter:
             pages=pages,
             diagnostics={
                 "pages_total": len(pages),
+                "source_pages_total": source_pages_total,
+                "completed_pages_total": completed_pages_total,
+                "missing_tail_pages_total": source_pages_total - completed_pages_total,
+                "first_missing_page_number": first_missing_page_number,
+                "inventory_objects_retained_total": inventory_objects_total,
+                "inventory_objects_would_be_total": inventory_objects_would_be_total,
+                "inventory_objects_limit": self.config.max_inventory_objects_per_document,
                 "layout_complete_pages": sum(
                     1
                     for page in pages

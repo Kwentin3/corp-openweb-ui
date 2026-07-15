@@ -339,6 +339,16 @@ class PdfHybridMaterializationRuntime:
         result["materialization_checksum"] = sha256_json(result)
         return result
 
+    def validate_materialization(self, value: Any) -> list[str]:
+        """Validate a single-fragment materialization as a terminal contract.
+
+        Materialization construction and terminal validation intentionally stay
+        separate: shadow intake callers must prove the returned source-only grid
+        before treating it as an accepted physical structure.
+        """
+
+        return _fragment_materialization_errors(value)
+
     def materialize_continuation(
         self,
         *,
@@ -357,7 +367,7 @@ class PdfHybridMaterializationRuntime:
             continuation_result.get("schema_version")
             != PDF_DUAL_ORACLE_CONTINUATION_RESULT_SCHEMA
             or continuation_result.get("terminal_status")
-            != "accepted_unique_consensus"
+            != "accepted_supplied_consensus"
             or continuation_result.get("joined_coverage_complete") is not True
             or not continuation_result.get("join_plan_checksum")
         ):

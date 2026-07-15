@@ -246,8 +246,19 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             historical_repeatability=repeatability,
         )
 
-        self.assertEqual("accepted_unique_consensus", first["terminal_status"])
-        self.assertTrue(first["uniqueness_proven"])
+        self.assertEqual("accepted_supplied_consensus", first["terminal_status"])
+        self.assertTrue(first["supplied_hypotheses_exhausted"])
+        self.assertFalse(first["structural_domain_complete"])
+        self.assertFalse(first["uniqueness_proven"])
+        self.assertFalse(first["ambiguity_proven"])
+        self.assertTrue(first["domain_incomplete"])
+        self.assertFalse(first["search_not_certifiable"])
+        self.assertEqual(
+            "supplied_vlm_hypotheses_only", first["search_scope"]
+        )
+        self.assertIn(
+            "structural domain was not enumerated", first["safe_explanation"]
+        )
         self.assertEqual(1, first["valid_distinct_grid_count"])
         self.assertEqual(first["result_checksum"], second["result_checksum"])
         self.assertEqual(
@@ -306,7 +317,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             historical_repeatability=_passed_repeatability(),
         )
 
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_vlm_shape_independence_not_proven",
             result["reason_codes"],
@@ -332,7 +343,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
             historical_repeatability=_passed_repeatability(),
         )
-        self.assertEqual("human_review_required", unsealed["terminal_status"])
+        self.assertEqual("incomplete_evidence", unsealed["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_repeatability_incomplete", unsealed["review_codes"]
         )
@@ -345,7 +356,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
             historical_repeatability=sealed_record,
         )
-        self.assertEqual("accepted_unique_consensus", accepted["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", accepted["terminal_status"])
 
         wrong_identity = copy.deepcopy(sealed_record)
         wrong_identity["model"] = "foreign-model"
@@ -357,7 +368,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
             historical_repeatability=wrong_identity,
         )
-        self.assertEqual("human_review_required", blocked["terminal_status"])
+        self.assertEqual("incomplete_evidence", blocked["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_repeatability_incomplete", blocked["review_codes"]
         )
@@ -375,7 +386,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
                 self.solver, single_observation, single_set
             ),
         )
-        self.assertEqual("human_review_required", single["terminal_status"])
+        self.assertEqual("incomplete_evidence", single["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_repeatability_incomplete", single["review_codes"]
         )
@@ -388,7 +399,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             historical_repeatability=legacy_prior_conflict,
         )
         self.assertEqual(
-            "human_review_required", conservatively_blocked["terminal_status"]
+            "incomplete_evidence", conservatively_blocked["terminal_status"]
         )
         self.assertTrue(
             conservatively_blocked["historical_conflict_preserved"]
@@ -451,7 +462,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
         self.assertEqual(2, len(repeatability["attempt_history"]))
         self.assertTrue(repeatability["supplied_history_structurally_complete"])
         self.assertTrue(repeatability["passed"])
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
 
     def test_alternatives_from_one_provider_attempt_do_not_prove_repeatability(
         self,
@@ -495,7 +506,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
         )
         self.assertFalse(record["supplied_history_structurally_complete"])
         self.assertFalse(record["passed"])
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_repeatability_incomplete", result["review_codes"]
         )
@@ -544,7 +555,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
         )
         self.assertFalse(record["ever_conflicted"])
         self.assertFalse(record["passed"])
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertNotIn(
             "pdf_dual_oracle_historical_same_evidence_conflict",
             result["review_codes"],
@@ -622,7 +633,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             replayed_history["history_checksum"],
         )
         self.assertEqual(repeat_history["events"], replayed_history["events"])
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_historical_same_evidence_conflict",
             result["review_codes"],
@@ -689,7 +700,13 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
 
         self.assertEqual("ambiguous_multiple_consensus", result["terminal_status"])
         self.assertEqual(2, result["valid_distinct_grid_count"])
+        self.assertTrue(result["supplied_hypotheses_exhausted"])
         self.assertFalse(result["uniqueness_proven"])
+        self.assertTrue(result["ambiguity_proven"])
+        self.assertFalse(result["structural_domain_complete"])
+        self.assertTrue(result["domain_incomplete"])
+        self.assertFalse(result["search_not_certifiable"])
+        self.assertIn("ambiguity is proven", result["safe_explanation"])
 
     def test_indistinguishable_duplicate_value_identity_requires_review(self) -> None:
         ledger, projection, binding, _ = _fixture(rows=1, columns=2, values=("same", "same"))
@@ -715,7 +732,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
         )
 
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_duplicate_identity_not_physically_distinguishable",
             result["review_codes"],
@@ -774,7 +791,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             historical_repeatability=repeatability,
         )
 
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
         alternative = next(
             item
             for item in result["alternatives_considered"]
@@ -809,7 +826,13 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             parser_observation=observation,
             vlm_hypothesis_set=tampered,
         )
-        self.assertEqual("no_valid_consensus", invalid["terminal_status"])
+        self.assertEqual("incomplete_evidence", invalid["terminal_status"])
+        self.assertFalse(invalid["supplied_hypotheses_exhausted"])
+        self.assertFalse(invalid["structural_domain_complete"])
+        self.assertFalse(invalid["uniqueness_proven"])
+        self.assertFalse(invalid["ambiguity_proven"])
+        self.assertTrue(invalid["domain_incomplete"])
+        self.assertTrue(invalid["search_not_certifiable"])
 
         unsupported_binding = copy.deepcopy(binding)
         unsupported_binding.update(
@@ -840,6 +863,15 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=unsupported_set,
         )
         self.assertEqual("unsupported", unsupported["terminal_status"])
+        self.assertTrue(unsupported["supplied_hypotheses_exhausted"])
+        self.assertFalse(unsupported["structural_domain_complete"])
+        self.assertFalse(unsupported["uniqueness_proven"])
+        self.assertFalse(unsupported["ambiguity_proven"])
+        self.assertTrue(unsupported["domain_incomplete"])
+        self.assertFalse(unsupported["search_not_certifiable"])
+        self.assertEqual(
+            "supplied_vlm_hypotheses_only", unsupported["search_scope"]
+        )
 
     def test_mixed_supported_and_unsupported_alternatives_are_explained_and_blocked(
         self,
@@ -897,12 +929,13 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
         )
 
         self.assertTrue(record["passed"])
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_vlm_mixed_unsupported_alternative",
             result["review_codes"],
         )
-        self.assertFalse(result["solver_search_complete"])
+        self.assertTrue(result["supplied_hypotheses_exhausted"])
+        self.assertFalse(result["search_not_certifiable"])
         self.assertEqual(4, result["alternatives_considered_count"])
         self.assertEqual(
             2,
@@ -915,7 +948,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
     def test_failed_required_continuation_fragment_blocks_logical_group(self) -> None:
         accepted = {
             "table_ref": "table1",
-            "terminal_status": "accepted_unique_consensus",
+            "terminal_status": "accepted_supplied_consensus",
             "canonical_grid_checksum": "a",
             "column_count": 2,
         }
@@ -955,7 +988,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
         self.assertEqual("parser_vlm_conflict", result["terminal_status"])
         self.assertFalse(result["all_required_fragments_independently_accepted"])
         self.assertIn(
-            "pdf_dual_oracle_continuation_fragment_not_uniquely_accepted",
+            "pdf_dual_oracle_continuation_fragment_not_accepted_supplied_scope",
             result["reason_codes"],
         )
 
@@ -988,9 +1021,10 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
         )
 
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertFalse(result["uniqueness_proven"])
-        self.assertFalse(result["solver_search_complete"])
+        self.assertFalse(result["supplied_hypotheses_exhausted"])
+        self.assertTrue(result["search_not_certifiable"])
         self.assertIn("pdf_dual_oracle_vlm_evidence_rejected", result["review_codes"])
         self.assertEqual(2, result["alternatives_considered_count"])
 
@@ -1025,7 +1059,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
         )
 
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_vlm_shape_independence_not_proven",
             result["review_codes"],
@@ -1091,7 +1125,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
                 self.solver, observation, hypothesis_set
             ),
         )
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
 
         mutations = {
             "exact_source_span": "INVENTED",
@@ -1196,7 +1230,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
                 for item in repeatability["attempt_history"]
             )
         )
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
         self.assertEqual(
             ["attempt-1-valid", "attempt-2-valid"],
             result["consensus_witness_hypothesis_ids"],
@@ -1289,7 +1323,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
         )
 
-        self.assertEqual("no_valid_consensus", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_vlm_hypothesis_span_anchor_or_empty_coverage_invalid",
             result["reason_codes"],
@@ -1312,7 +1346,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             vlm_hypothesis_set=hypothesis_set,
         )
 
-        self.assertEqual("no_valid_consensus", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn("pdf_vlm_hypothesis_count_budget_exceeded", result["reason_codes"])
 
     def test_accepted_continuation_uses_real_checked_fragment_results(self) -> None:
@@ -1412,7 +1446,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             fragment_evidence=fragment_evidence,
         )
 
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
         self.assertEqual(
             PDF_DUAL_ORACLE_CONTINUATION_RESULT_SCHEMA,
             result["schema_version"],
@@ -1445,7 +1479,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             fragment_results=[first, second],
             fragment_evidence=tampered_evidence,
         )
-        self.assertNotEqual("accepted_unique_consensus", tampered["terminal_status"])
+        self.assertNotEqual("accepted_supplied_consensus", tampered["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_continuation_fragment_evidence_checksum_invalid",
             tampered["reason_codes"],
@@ -1456,7 +1490,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             fragment_results=[first, first],
             fragment_evidence=fragment_evidence,
         )
-        self.assertNotEqual("accepted_unique_consensus", duplicate["terminal_status"])
+        self.assertNotEqual("accepted_supplied_consensus", duplicate["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_continuation_fragment_identity_duplicate",
             duplicate["reason_codes"],
@@ -1639,7 +1673,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             fragment_evidence=subtotal[2],
         )
         self.assertEqual(
-            "accepted_unique_consensus", subtotal_result["terminal_status"]
+            "accepted_supplied_consensus", subtotal_result["terminal_status"]
         )
         self.assertEqual(1, len(subtotal_result["deduplicated_boundary_rows"]))
         self.assertEqual(3, subtotal_result["joined_row_count"])
@@ -1652,7 +1686,7 @@ class PdfDualOracleConsensusTests(unittest.TestCase):
             fragment_results=subtotal[1],
             fragment_evidence=subtotal[2],
         )
-        self.assertNotEqual("accepted_unique_consensus", preserved["terminal_status"])
+        self.assertNotEqual("accepted_supplied_consensus", preserved["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_continuation_duplicate_row_policy_violation",
             preserved["reason_codes"],

@@ -184,7 +184,47 @@ def _aligned_table_pdf(*, ambiguous: bool = False) -> bytes:
     return _pdf_bytes([{"texts": texts}])
 
 
+def _inventory_overflow_pdf() -> bytes:
+    table_rows = [
+        (250, "Date", "Amount", "Currency"),
+        (225, "2026-01-01", "10.00", "USD"),
+        (200, "2026-01-02", "20.00", "EUR"),
+        (175, "2026-01-03", "30.00", "GBP"),
+    ]
+    table_texts = [
+        item
+        for y, left, middle, right in table_rows
+        for item in ((25, y, left), (130, y, middle), (235, y, right))
+    ]
+    tail_texts = [
+        (20, 300 - (index * 12), f"Tail inventory line {index:02d}")
+        for index in range(1, 20)
+    ]
+    return _pdf_bytes([{"texts": table_texts}, {"texts": tail_texts}])
+
+
+def _layout_inventory_objects(page: dict) -> int:
+    return sum(
+        len(page.get(key) or [])
+        for key in (
+            "char_inventory",
+            "word_inventory",
+            "line_inventory",
+            "block_inventory",
+            "vector_line_inventory",
+            "rect_inventory",
+            "table_candidate_inventory",
+        )
+    )
+
+
 class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
+    def test_document_inventory_cap_default_remains_75000(self) -> None:
+        self.assertEqual(
+            75_000,
+            PdfLayoutParserConfig().max_inventory_objects_per_document,
+        )
+
     def test_factory_pins_layout_backend_and_never_downgrades(self):
         self.assertIn("PdfTextLayerParserFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not instantiate PypdfParserAdapter directly", FORBIDDEN)
@@ -395,6 +435,113 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertEqual(
             {unit["pdf_unit_type"] for unit in cluster_budget.units},
             {"pdf_page_text_unit"},
+        )
+
+    def test_document_inventory_overflow_preserves_completed_prefix_and_accounts_tail(self):
+        content = _inventory_overflow_pdf()
+        request = PdfParserCapabilityRequest(capability="table_candidates")
+        baseline = PdfTextLayerParserFactory().create(request).parse(content)
+        first_page_objects = _layout_inventory_objects(baseline.pages[0])
+        second_page_objects = _layout_inventory_objects(baseline.pages[1])
+        first_page_candidates = baseline.pages[0]["table_candidate_inventory"]
+        self.assertGreater(first_page_objects, 0)
+        self.assertGreater(second_page_objects, 0)
+        self.assertTrue(first_page_candidates)
+
+        limited_parser = PdfTextLayerParserFactory(
+            PdfTextLayerParserConfig(
+                layout=PdfLayoutParserConfig(
+                    max_inventory_objects_per_document=first_page_objects
+                )
+            )
+        ).create(request)
+        limited = limited_parser.parse(content)
+
+        self.assertEqual("partial", limited.layout_projection_status)
+        self.assertIn(
+            "pdf_layout_document_inventory_budget_exceeded",
+            limited.layout_reason_codes,
+        )
+        self.assertEqual(2, len(limited.pages))
+        self.assertEqual(
+            first_page_candidates,
+            limited.pages[0]["table_candidate_inventory"],
+        )
+        self.assertEqual([], limited.pages[1]["table_candidate_inventory"])
+        self.assertIn(
+            "pdf_layout_page_not_processed_document_inventory_budget",
+            limited.pages[1]["layout_reason_codes"],
+        )
+        self.assertEqual(
+            {
+                "source_pages_total": 2,
+                "completed_pages_total": 1,
+                "missing_tail_pages_total": 1,
+                "first_missing_page_number": 2,
+                "inventory_objects_retained_total": first_page_objects,
+                "inventory_objects_would_be_total": first_page_objects + second_page_objects,
+                "inventory_objects_limit": first_page_objects,
+            },
+            {
+                key: limited.diagnostics[key]
+                for key in (
+                    "source_pages_total",
+                    "completed_pages_total",
+                    "missing_tail_pages_total",
+                    "first_missing_page_number",
+                    "inventory_objects_retained_total",
+                    "inventory_objects_would_be_total",
+                    "inventory_objects_limit",
+                )
+            },
+        )
+
+        result = FullSourceArtifactFactory(
+            FullSourceArtifactConfig(
+                max_pdf_layout_inventory_objects_per_document=first_page_objects
+            )
+        ).create().build(
+            normalization_run_id="normrun_pdf_layout_inventory_overflow",
+            document_id="brdoc_pdf_layout_inventory_overflow",
+            profile_id="techprof_pdf_layout_inventory_overflow",
+            container_format="pdf",
+            content_bytes=content,
+            source_checksum_sha256="a" * 64,
+        )
+        payload = result.payloads[0]
+        projection = payload["pdf_text_layer_projection"]
+        retained_candidates = projection["table_candidate_inventory"]
+        retained_word_refs = {
+            item["word_ref"] for item in projection["word_inventory"]
+        }
+        self.assertEqual("partial", projection["layout_projection_status"])
+        self.assertTrue(retained_candidates)
+        self.assertTrue(
+            all(
+                set(candidate["contributing_word_refs"]) <= retained_word_refs
+                for candidate in retained_candidates
+            )
+        )
+        self.assertIn(
+            "pdf_layout_page_not_processed_document_inventory_budget",
+            projection["page_inventory"][1]["layout_reason_codes"],
+        )
+        self.assertEqual(
+            1,
+            projection["layout_parser_diagnostics"]["completed_pages_total"],
+        )
+        self.assertEqual(
+            1,
+            projection["layout_parser_diagnostics"]["missing_tail_pages_total"],
+        )
+        self.assertEqual(
+            {"pdf_page_text_unit"},
+            {unit["pdf_unit_type"] for unit in result.units},
+        )
+        self.assertFalse(projection["ocr_vlm_used"])
+        self.assertFalse(projection["page_rendering_used_for_extraction"])
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
         )
 
     def test_multi_column_geometry_order_reconciles_through_page_local_word_refs(self):

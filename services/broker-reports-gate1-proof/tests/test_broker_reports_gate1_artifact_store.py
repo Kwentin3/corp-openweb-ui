@@ -168,10 +168,13 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             "summary": {
                 "enabled": True,
                 "tables_selected": 2,
-                "accepted_unique_consensus_tables": 2,
+                "accepted_supplied_consensus_tables": 2,
                 "continuation_groups_discovered": 1,
                 "continuation_groups_accepted": 1,
                 "continuation_groups_failed": 0,
+                "semantic_header_shadow_enabled": True,
+                "semantic_projection_status_counts": {"projected": 2},
+                "private_semantic_projections_persisted": 2,
             }
         }
 
@@ -183,6 +186,11 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             content,
         )
         self.assertIn("основной результат Gate 2 не изменён", content)
+        self.assertIn(
+            "Семантические заголовки: сохранено приватных проекций 2; "
+            "статусы: projected: 2.",
+            content,
+        )
 
     def test_resolver_allows_same_context_safe_and_private_refs(self):
         _result, context, manifest = self._persist_clean_run()

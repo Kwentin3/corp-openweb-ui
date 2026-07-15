@@ -142,3 +142,65 @@ class PdfTableRasterRenderer:
             }
         finally:
             document.close()
+
+    def render_full_page(
+        self,
+        *,
+        pdf_bytes: bytes,
+        pdf_sha256: str,
+        document_ref: str,
+        page_ref: str,
+        page_number: int,
+        expected_page_bbox: list[float],
+        dpi: int,
+    ) -> dict[str, Any]:
+        """Render one page only after proving its parser/PDF identity.
+
+        The ordinary crop entrypoint remains unchanged.  This narrower helper
+        is used by the default-disabled page-proposal shadow route so a VLM
+        never sees a page whose source bounds differ from the text-layer page
+        it is expected to describe.
+        """
+
+        if not isinstance(page_ref, str) or not page_ref:
+            raise PdfTableRasterError("pdf_table_raster_page_ref_invalid")
+        if hashlib.sha256(pdf_bytes).hexdigest() != pdf_sha256:
+            raise PdfTableRasterError("pdf_table_raster_pdf_checksum_mismatch")
+        if len(expected_page_bbox) != 4:
+            raise PdfTableRasterError("pdf_table_raster_page_bbox_invalid")
+        document = self.fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            if page_number < 1 or page_number > len(document):
+                raise PdfTableRasterError("pdf_table_raster_page_invalid")
+            page = document[page_number - 1]
+            actual_bbox = [round(float(value), 6) for value in page.rect]
+            expected_bbox = [round(float(value), 6) for value in expected_page_bbox]
+            if expected_bbox != actual_bbox:
+                raise PdfTableRasterError(
+                    "pdf_table_raster_full_page_identity_mismatch"
+                )
+        finally:
+            document.close()
+
+        rendered = self.render(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=pdf_sha256,
+            document_ref=document_ref,
+            page_number=page_number,
+            table_ref="page_scope_"
+            + stable_digest([document_ref, page_ref, page_number], length=24),
+            table_bbox=actual_bbox,
+            dpi=dpi,
+        )
+        manifest = rendered["manifest"]
+        manifest.update(
+            {
+                "page_ref": page_ref,
+                "render_scope": "full_page",
+                "actual_page_bbox": actual_bbox,
+                "full_page_identity_verified": True,
+            }
+        )
+        manifest.pop("manifest_hash", None)
+        manifest["manifest_hash"] = sha256_json(manifest)
+        return rendered

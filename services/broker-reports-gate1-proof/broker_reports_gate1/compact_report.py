@@ -103,8 +103,8 @@ def render_compact_report(report: dict) -> str:
         lines.append(
             "- Выбрано таблиц: "
             f"{int(structural_summary.get('tables_selected') or 0)}; "
-            "согласовано двумя проверками: "
-            f"{int(structural_summary.get('accepted_unique_consensus_tables') or 0)}"
+            "согласовано двумя проверками в переданном наборе: "
+            f"{int(structural_summary.get('accepted_supplied_consensus_tables') or 0)}"
         )
         continuation_groups_discovered = int(
             structural_summary.get("continuation_groups_discovered") or 0
@@ -123,6 +123,19 @@ def render_compact_report(report: dict) -> str:
                 f"требует проверки {continuation_groups_failed}."
             )
         lines.append("- Режим: проверочный shadow; основной результат Gate 2 не изменён.")
+        if structural_summary.get("semantic_header_shadow_enabled") is True:
+            semantic_counts = structural_summary.get(
+                "semantic_projection_status_counts"
+            ) or {}
+            rendered_counts = ", ".join(
+                f"{key}: {int(value or 0)}"
+                for key, value in sorted(semantic_counts.items())
+            )
+            lines.append(
+                "- Семантические заголовки: сохранено приватных проекций "
+                f"{int(structural_summary.get('private_semantic_projections_persisted') or 0)}; "
+                f"статусы: {rendered_counts or 'нет выбранных таблиц'}."
+            )
         structural_batch = structural_summary.get("file_processing_outcomes") or {}
         if isinstance(structural_batch, dict) and structural_batch.get("outcomes"):
             lines.append(

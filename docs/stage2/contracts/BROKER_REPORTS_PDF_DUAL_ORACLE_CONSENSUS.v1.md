@@ -1,17 +1,23 @@
 # Broker Reports PDF Dual-Oracle Consensus v1
 
-Update: the independent anonymous-visual plus raw-vector assembly path is specified in `BROKER_REPORTS_PDF_STRUCTURAL_REPAIR_CONSENSUS.v2.md`. This v1 remains the baseline for generic terminals, constraints and the legacy replay findings.
+> **Superseded active-runtime semantics.** Use
+> `BROKER_REPORTS_PDF_STRUCTURAL_REPAIR_CONSENSUS.v2.md` for current terminals,
+> supplied-hypothesis scope and acceptance rules. Names such as
+> `accepted_unique_consensus`, `uniqueness_proven` and
+> `solver_search_complete` below are retained only to explain immutable
+> historical v1 artifacts. They must not be used to claim global uniqueness or
+> complete enumeration in the repaired runtime.
 
-Status: research baseline retained inside the default-disabled, non-authoritative v2 Gate 1 shadow. Production Gate 2 selection and OpenWebUI core are unchanged.
+Status: obsolete research baseline retained only for legacy replay interpretation. Production Gate 2 selection and OpenWebUI core are unchanged.
 
 ## Purpose
 
-The vertical decides whether one bounded PDF table topology is simultaneously compatible with two observations:
+Historically, this vertical asked whether one bounded PDF table topology was simultaneously compatible with two observations:
 
 1. parser physical evidence: immutable words, exact values, source identities, checksums and PDF coordinates;
 2. VLM visual evidence: candidate-id-only rows, columns, empties, headers, spans, geometry and continuation hypotheses.
 
-Neither oracle is preferred. A result is accepted only when the supplied evidence set is complete, independently derived and has exactly one physically valid canonical grid.
+Neither oracle was preferred. The old acceptance wording below applied only to the supplied v1 evidence set; it did not prove global structural uniqueness. Current runtime semantics are defined by v2.
 
 ## Domain boundaries
 

@@ -75,6 +75,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             source,
         )
         module = load_bundle_module()
+        self.assertEqual(
+            "gate1_pdf_structural_semantic_shadow_v1",
+            module._BUNDLED_PACKAGE_VERSION,
+        )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
         self.assertIn("pdf_layout_units", module._BUNDLED_MODULES)
         self.assertIn("pdf_text_layer", module._BUNDLED_MODULES)
@@ -82,6 +86,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_compact_gate2_adapter", module._BUNDLED_MODULES)
         self.assertIn("pdf_normalization_acceptance", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_budget", module._BUNDLED_MODULES)
+        self.assertIn("pdf_table_intake_contracts", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_compaction", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_windows", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_structure", module._BUNDLED_MODULES)
@@ -92,15 +97,34 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_structural_row_windows", module._BUNDLED_MODULES)
         self.assertIn("pdf_visual_topology", module._BUNDLED_MODULES)
         self.assertIn("pdf_topology_assembly", module._BUNDLED_MODULES)
+        self.assertIn("pdf_vlm_region_binding", module._BUNDLED_MODULES)
         self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
         self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
         self.assertIn("pdf_continuation_discovery", module._BUNDLED_MODULES)
         self.assertIn("pdf_structural_repair_runtime", module._BUNDLED_MODULES)
+        self.assertIn("pdf_semantic_header_contracts", module._BUNDLED_MODULES)
+        self.assertIn("pdf_semantic_header_projection", module._BUNDLED_MODULES)
         self.assertIn("pdf_structural_repair_shadow", module._BUNDLED_MODULES)
         bundled_order = module._BUNDLED_MODULE_ORDER
         self.assertLess(
+            bundled_order.index("pdf_table_intake_contracts"),
+            bundled_order.index("pdf_structural_repair_shadow"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_semantic_header_contracts"),
+            bundled_order.index("pdf_semantic_header_projection"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_semantic_header_projection"),
+            bundled_order.index("pdf_structural_repair_shadow"),
+        )
+        self.assertLess(
             bundled_order.index("pdf_structural_row_windows"),
             bundled_order.index("pdf_structural_repair_runtime"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_topology_assembly"),
+            bundled_order.index("pdf_vlm_region_binding"),
         )
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
@@ -214,6 +238,11 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
         self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
         self.assertFalse(pipe.valves.pdf_structural_repair_shadow_enabled)
+        self.assertFalse(pipe.valves.pdf_vlm_guided_intake_shadow_enabled)
+        self.assertEqual(
+            "", pipe.valves.pdf_vlm_guided_intake_shadow_page_allowlist
+        )
+        self.assertFalse(pipe.valves.pdf_semantic_header_shadow_enabled)
         pipe.valves.pdf_compact_canonical_dual_write = True
 
         content = run_pipe(
@@ -248,6 +277,24 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         self.assertFalse(
             pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["enabled"]
+        )
+        self.assertFalse(
+            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
+                "summary"
+            ]["vlm_guided_intake_enabled"]
+        )
+        self.assertEqual(
+            {
+                "enabled": False,
+                "artifact_refs": [],
+                "status_counts": {},
+                "reason_counts": {},
+                "private_projections_persisted": 0,
+                "private_diagnostics_persisted": 0,
+                "authority_state": "non_authoritative",
+                "production_gate2_selection_changed": False,
+            },
+            pipe.last_artifact_manifest["pdf_semantic_header_shadow"],
         )
         self.assertFalse(
             any("pdf_hybrid" in artifact_type for artifact_type in refs)

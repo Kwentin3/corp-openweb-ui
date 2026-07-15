@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.12.0-pdf-structural-windowed-continuation-shadow
+version: 0.13.0-pdf-structural-semantic-shadow
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -131,6 +131,9 @@ class Pipe:
         pdf_hybrid_primary_dpi: int = Field(default=150)
         pdf_hybrid_escalation_dpi: int = Field(default=200)
         pdf_structural_repair_shadow_enabled: bool = Field(default=False)
+        pdf_vlm_guided_intake_shadow_enabled: bool = Field(default=False)
+        pdf_vlm_guided_intake_shadow_page_allowlist: str = Field(default="")
+        pdf_semantic_header_shadow_enabled: bool = Field(default=False)
         pdf_structural_repair_shadow_table_allowlist: str = Field(default="")
         pdf_structural_repair_provider_profile: str = Field(default="google_gemini")
         pdf_structural_repair_model_id: str = Field(default="models/gemini-3.5-flash")
@@ -193,6 +196,12 @@ class Pipe:
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
+                ),
+                "pdf_semantic_header_shadow_enabled": bool(
+                    self.valves.pdf_semantic_header_shadow_enabled
+                ),
+                "pdf_vlm_guided_intake_shadow_enabled": bool(
+                    self.valves.pdf_vlm_guided_intake_shadow_enabled
                 ),
             },
             extra_private_markers=self._private_markers(file_refs),
@@ -258,6 +267,9 @@ class Pipe:
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
             "pdf_structural_repair_shadow": structural_shadow,
+            "pdf_semantic_header_shadow": self._semantic_shadow_manifest(
+                structural_shadow
+            ),
             "pdf_hybrid_shadow": hybrid_shadow,
         }
 
@@ -299,7 +311,13 @@ class Pipe:
     ) -> dict[str, Any]:
         if not self.valves.pdf_structural_repair_shadow_enabled:
             runtime = PdfStructuralRepairShadowFactory(
-                PdfStructuralRepairShadowConfig(enabled=False)
+                PdfStructuralRepairShadowConfig(
+                    enabled=False,
+                    vlm_guided_intake_enabled=False,
+                    semantic_header_shadow_enabled=bool(
+                        self.valves.pdf_semantic_header_shadow_enabled
+                    ),
+                )
             ).create(provider=None)
             return runtime.run(
                 store=store,
@@ -334,12 +352,28 @@ class Pipe:
                 }
             )
         )
+        page_allowlist = tuple(
+            sorted(
+                {
+                    item.strip()
+                    for item in self.valves.pdf_vlm_guided_intake_shadow_page_allowlist.split(",")
+                    if item.strip()
+                }
+            )
+        )
         try:
             runtime = PdfStructuralRepairShadowFactory(
                 PdfStructuralRepairShadowConfig(
                     enabled=True,
+                    vlm_guided_intake_enabled=bool(
+                        self.valves.pdf_vlm_guided_intake_shadow_enabled
+                    ),
+                    semantic_header_shadow_enabled=bool(
+                        self.valves.pdf_semantic_header_shadow_enabled
+                    ),
                     maximum_tables=self.valves.pdf_structural_repair_max_tables,
                     table_allowlist=allowlist,
+                    page_allowlist=page_allowlist,
                 ),
                 runtime_config=PdfStructuralRepairRuntimeConfig(
                     provider_profile=self.valves.pdf_structural_repair_provider_profile,
@@ -354,7 +388,15 @@ class Pipe:
                 pdf_bytes_by_sha256=pdf_bytes_by_sha256,
             )
         except (PdfStructuralRepairShadowError, RuntimeError, ValueError):
-            return self._pdf_structural_repair_safe_fallback(result)
+            return self._pdf_structural_repair_safe_fallback(
+                result,
+                vlm_guided_intake_enabled=bool(
+                    self.valves.pdf_vlm_guided_intake_shadow_enabled
+                ),
+                semantic_header_shadow_enabled=bool(
+                    self.valves.pdf_semantic_header_shadow_enabled
+                ),
+            )
 
     def _attach_pdf_structural_repair_shadow(
         self,
@@ -378,7 +420,15 @@ class Pipe:
             run_id=result.package["normalization_run"]["run_id"],
         )
         if validation.get("status") != "passed":
-            fallback = self._pdf_structural_repair_safe_fallback(result)
+            fallback = self._pdf_structural_repair_safe_fallback(
+                result,
+                vlm_guided_intake_enabled=bool(
+                    self.valves.pdf_vlm_guided_intake_shadow_enabled
+                ),
+                semantic_header_shadow_enabled=bool(
+                    self.valves.pdf_semantic_header_shadow_enabled
+                ),
+            )
             result.package["pdf_structural_repair_shadow"] = {
                 "enabled": True,
                 "summary_ref": None,
@@ -396,6 +446,9 @@ class Pipe:
     @staticmethod
     def _pdf_structural_repair_safe_fallback(
         result: NormalizationResult,
+        *,
+        vlm_guided_intake_enabled: bool = False,
+        semantic_header_shadow_enabled: bool = False,
     ) -> dict[str, Any]:
         documents = [
             item
@@ -406,7 +459,7 @@ class Pipe:
         if documents:
             service = FileProcessingOutcomeFactory().create()
             records = [
-                service.partial(
+                service.failed(
                     file_ref=str(item.get("document_id")),
                     stage="processing",
                     reason_code="internal_processing_failed",
@@ -417,23 +470,75 @@ class Pipe:
         return {
             "enabled": True,
             "artifact_refs": [],
+            "semantic_projection_refs": [],
+            "semantic_diagnostic_refs": [],
             "summary_ref": None,
             "summary": {
                 "schema_version": "broker_reports_pdf_structural_repair_shadow_summary_v1",
                 "enabled": True,
+                "vlm_guided_intake_enabled": vlm_guided_intake_enabled,
                 "tables_discovered": 0,
                 "tables_selected": 0,
-                "accepted_unique_consensus_tables": 0,
+                "accepted_supplied_consensus_tables": 0,
+                "accepted_physical_structure_tables": 0,
                 "continuation_groups_discovered": 0,
                 "continuation_groups_accepted": 0,
                 "continuation_groups_failed": 0,
                 "continuation_group_outcomes": [],
                 "terminal_outcomes": {"internal_failure": len(documents)},
+                "semantic_header_shadow_enabled": (
+                    semantic_header_shadow_enabled
+                ),
+                "semantic_projection_status_counts": (
+                    {"not_projected_structural_failure": len(documents)}
+                    if semantic_header_shadow_enabled and documents
+                    else {}
+                ),
+                "semantic_projection_reason_counts": (
+                    {
+                        "pdf_semantic_header_not_projected_structural_failure": (
+                            len(documents)
+                        )
+                    }
+                    if semantic_header_shadow_enabled and documents
+                    else {}
+                ),
+                "private_semantic_projections_persisted": 0,
+                "private_semantic_diagnostics_persisted": 0,
                 "file_processing_outcomes": outcomes,
                 "authority_state": "non_authoritative",
                 "production_ready": False,
                 "production_gate2_selection_changed": False,
             },
+        }
+
+    @staticmethod
+    def _semantic_shadow_manifest(
+        structural_shadow: dict[str, Any],
+    ) -> dict[str, Any]:
+        summary = (
+            structural_shadow.get("summary")
+            if isinstance(structural_shadow.get("summary"), dict)
+            else {}
+        )
+        refs = structural_shadow.get("semantic_projection_refs")
+        return {
+            "enabled": summary.get("semantic_header_shadow_enabled") is True,
+            "artifact_refs": list(refs) if isinstance(refs, list) else [],
+            "status_counts": dict(
+                summary.get("semantic_projection_status_counts") or {}
+            ),
+            "reason_counts": dict(
+                summary.get("semantic_projection_reason_counts") or {}
+            ),
+            "private_projections_persisted": int(
+                summary.get("private_semantic_projections_persisted") or 0
+            ),
+            "private_diagnostics_persisted": int(
+                summary.get("private_semantic_diagnostics_persisted") or 0
+            ),
+            "authority_state": "non_authoritative",
+            "production_gate2_selection_changed": False,
         }
 
     def _maybe_run_pdf_hybrid_shadow(

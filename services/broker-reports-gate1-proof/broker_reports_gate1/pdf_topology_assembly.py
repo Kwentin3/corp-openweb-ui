@@ -23,9 +23,9 @@ from .pdf_visual_topology import (
 
 
 PDF_TOPOLOGY_ASSEMBLY_RESULT_SCHEMA = (
-    "broker_reports_pdf_topology_assembly_result_v4"
+    "broker_reports_pdf_topology_assembly_result_v5"
 )
-PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION = "pdf_topology_assembly_policy_v4"
+PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION = "pdf_topology_assembly_policy_v5"
 
 FACTORY_REQUIRED = (
     "PdfTopologyAssemblyFactory.create is the only visual-topology to raw-atom "
@@ -52,6 +52,7 @@ _RESULT_KEYS = {
     "alternatives_complete",
     "binding_hypotheses",
     "rejected_evidence",
+    "geometry_evidence",
     "regional_issues",
     "structural_adjustments",
     "source_accounting",
@@ -59,6 +60,25 @@ _RESULT_KEYS = {
     "nearest_cell_fallback_used",
     "legacy_grid_consumed",
     "result_checksum",
+}
+_GEOMETRY_EVIDENCE_STATUSES = {
+    "confirmed",
+    "contradicted",
+    "insufficient_evidence",
+    "not_applicable",
+}
+_GEOMETRY_EVIDENCE_KEYS = {
+    "hypothesis_id",
+    "row_boundaries",
+    "column_boundaries",
+    "candidate_separators",
+    "span_separators",
+}
+_GEOMETRY_EVIDENCE_ITEM_KEYS = {
+    "status",
+    "observed_count",
+    "required_count",
+    "reason_codes",
 }
 
 
@@ -188,6 +208,7 @@ class PdfTopologyAssemblyRuntime:
         rejected: list[dict[str, Any]] = []
         all_issues: list[dict[str, Any]] = []
         all_adjustments: list[dict[str, Any]] = []
+        geometry_evidence: list[dict[str, Any]] = []
         alternative_accounting: list[dict[str, Any]] = []
         package_evidence = {
             "package_id": visual_package.get("package_id"),
@@ -238,8 +259,24 @@ class PdfTopologyAssemblyRuntime:
             bound["accounting"]["structural_adjustments"] += len(
                 pre_adjustments
             )
+            pre_separator_conflicts = sum(
+                len(item.get("parser_separator_boundaries") or [])
+                for item in pre_adjustments
+            )
+            if pre_separator_conflicts:
+                bound["geometry_evidence"]["span_separators"] = (
+                    _geometry_evidence_item(
+                        status="contradicted",
+                        observed_count=pre_separator_conflicts,
+                        required_count=0,
+                        reason_codes=[
+                            "pdf_topology_assembly_span_crosses_parser_separator"
+                        ],
+                    )
+                )
             all_issues.extend(bound["regional_issues"])
             all_adjustments.extend(bound["structural_adjustments"])
+            geometry_evidence.append(bound["geometry_evidence"])
             alternative_accounting.append(bound["accounting"])
             if bound["binding_output"] is None:
                 reason_codes = sorted(
@@ -364,6 +401,7 @@ class PdfTopologyAssemblyRuntime:
             "alternatives_complete": response.get("alternatives_complete") is True,
             "binding_hypotheses": bindings,
             "rejected_evidence": rejected,
+            "geometry_evidence": geometry_evidence,
             "regional_issues": sorted(
                 all_issues,
                 key=lambda item: (
@@ -425,6 +463,57 @@ class PdfTopologyAssemblyRuntime:
             )
             if binding_errors:
                 errors.append(binding_errors[0])
+        evidence_value = data.get("geometry_evidence")
+        evidence = _dicts(evidence_value)
+        if (
+            not isinstance(evidence_value, list)
+            or len(evidence) != len(evidence_value)
+            or any(set(item) != _GEOMETRY_EVIDENCE_KEYS for item in evidence)
+        ):
+            errors.append("pdf_topology_assembly_geometry_evidence_invalid")
+        expected_evidence_ids = {
+            str(item.get("hypothesis_id") or "")
+            for item in _dicts(data.get("binding_hypotheses"))
+        } | {
+            str(item.get("evidence_id") or "")
+            for item in _dicts(data.get("rejected_evidence"))
+        }
+        observed_evidence_ids = [
+            str(item.get("hypothesis_id") or "") for item in evidence
+        ]
+        if (
+            set(observed_evidence_ids) != expected_evidence_ids
+            or len(set(observed_evidence_ids)) != len(observed_evidence_ids)
+        ):
+            errors.append("pdf_topology_assembly_geometry_evidence_invalid")
+        for item in evidence:
+            if not isinstance(item.get("hypothesis_id"), str) or not item.get(
+                "hypothesis_id"
+            ):
+                errors.append("pdf_topology_assembly_geometry_evidence_invalid")
+            for subject in (
+                "row_boundaries",
+                "column_boundaries",
+                "candidate_separators",
+                "span_separators",
+            ):
+                observation = _object(item.get(subject))
+                status = observation.get("status")
+                reason_codes = observation.get("reason_codes")
+                if (
+                    set(observation) != _GEOMETRY_EVIDENCE_ITEM_KEYS
+                    or status not in _GEOMETRY_EVIDENCE_STATUSES
+                    or not _nonnegative_integer(observation.get("observed_count"))
+                    or not _nonnegative_integer(observation.get("required_count"))
+                    or not _reason_codes(reason_codes)
+                    or status in {"confirmed", "not_applicable"}
+                    and bool(reason_codes)
+                    or status in {"contradicted", "insufficient_evidence"}
+                    and not reason_codes
+                ):
+                    errors.append(
+                        "pdf_topology_assembly_geometry_evidence_invalid"
+                    )
         unsigned = dict(data)
         stored = unsigned.pop("result_checksum", None)
         if stored != sha256_json(unsigned):
@@ -652,28 +741,28 @@ class PdfTopologyAssemblyRuntime:
             hypothesis_id=hypothesis_id,
         )
         issues.extend(position_issues)
-        issues.extend(
-            self._candidate_separator_issues(
-                boxes=boxes,
-                positions=positions,
-                row_boundaries=canonical_rows,
-                column_boundaries=canonical_columns,
-                horizontal_signals=_dicts(
-                    parser_geometry_observation.get("horizontal_signals")
-                ),
-                vertical_signals=_dicts(
-                    parser_geometry_observation.get("vertical_signals")
-                ),
-                hypothesis_id=hypothesis_id,
-            )
+        candidate_separator_result = self._candidate_separator_issues(
+            boxes=boxes,
+            positions=positions,
+            row_boundaries=canonical_rows,
+            column_boundaries=canonical_columns,
+            horizontal_signals=_dicts(
+                parser_geometry_observation.get("horizontal_signals")
+            ),
+            vertical_signals=_dicts(
+                parser_geometry_observation.get("vertical_signals")
+            ),
+            row_geometry_status=str(row_result["evidence"]["status"]),
+            column_geometry_status=str(column_result["evidence"]["status"]),
+            hypothesis_id=hypothesis_id,
         )
+        issues.extend(candidate_separator_result["issues"])
 
         original_spans = copy.deepcopy(spans)
         span_result = self._canonicalize_spans(
             spans=spans,
             positions=positions,
             boxes=boxes,
-            source_order=source_order,
             row_boundaries=canonical_rows,
             column_boundaries=canonical_columns,
             horizontal_signals=_dicts(
@@ -881,6 +970,13 @@ class PdfTopologyAssemblyRuntime:
             "structural_adjustments": len(adjustments),
             "regional_issues": len(issues),
         }
+        geometry_evidence = {
+            "hypothesis_id": hypothesis_id,
+            "row_boundaries": row_result["evidence"],
+            "column_boundaries": column_result["evidence"],
+            "candidate_separators": candidate_separator_result["evidence"],
+            "span_separators": span_result["evidence"],
+        }
         return {
             "binding_output": binding,
             "proposed_geometry": {
@@ -895,6 +991,7 @@ class PdfTopologyAssemblyRuntime:
             },
             "regional_issues": issues,
             "structural_adjustments": adjustments,
+            "geometry_evidence": geometry_evidence,
             "accounting": accounting,
         }
 
@@ -922,17 +1019,21 @@ class PdfTopologyAssemblyRuntime:
             >= self.config.minimum_geometry_boundary_coverage_normalized
         ]
         if len(clusters) != expected_segments + 1:
+            reason_code = (
+                "pdf_topology_assembly_parser_geometry_missing"
+                if not vector_signals
+                else "pdf_topology_assembly_parser_geometry_incomplete"
+            )
             return {
                 "boundaries": list(visual_boundaries),
-                "issues": [
-                    _issue(
-                        hypothesis_id,
-                        axis,
-                        None,
-                        "pdf_topology_assembly_parser_geometry_boundary_count_conflict",
-                    )
-                ],
+                "issues": [],
                 "adjustments": [],
+                "evidence": _geometry_evidence_item(
+                    status="insufficient_evidence",
+                    observed_count=len(clusters),
+                    required_count=expected_segments + 1,
+                    reason_codes=[reason_code],
+                ),
             }
         result = [float(item["position"]) for item in clusters]
         edge_tolerance = self.config.geometry_cluster_tolerance_normalized * 2
@@ -980,6 +1081,16 @@ class PdfTopologyAssemblyRuntime:
             "boundaries": result,
             "issues": issues,
             "adjustments": adjustments,
+            "evidence": _geometry_evidence_item(
+                status="contradicted" if issues else "confirmed",
+                observed_count=len(clusters),
+                required_count=expected_segments + 1,
+                reason_codes=[
+                    str(item.get("reason_code") or "")
+                    for item in issues
+                    if item.get("reason_code")
+                ],
+            ),
         }
 
     def _canonicalize_spans(
@@ -988,7 +1099,6 @@ class PdfTopologyAssemblyRuntime:
         spans: list[dict[str, Any]],
         positions: dict[str, tuple[int, int]],
         boxes: dict[str, list[float]],
-        source_order: dict[str, int],
         row_boundaries: list[float],
         column_boundaries: list[float],
         horizontal_signals: list[dict[str, Any]],
@@ -999,9 +1109,17 @@ class PdfTopologyAssemblyRuntime:
         contradicted: list[dict[str, Any]] = []
         issues: list[dict[str, Any]] = []
         adjustments: list[dict[str, Any]] = []
+        separator_conflict_count = 0
+        separator_check_count = 0
         for source_span in spans:
             span = copy.deepcopy(source_span)
-            separator_boundaries, ambiguous_boundaries = self._span_separator_states(
+            separator_check_count += (
+                int(span["end_row"])
+                - int(span["start_row"])
+                + int(span["end_column"])
+                - int(span["start_column"])
+            )
+            separator_boundaries, _ = self._span_separator_states(
                 span=span,
                 row_boundaries=row_boundaries,
                 column_boundaries=column_boundaries,
@@ -1009,6 +1127,7 @@ class PdfTopologyAssemblyRuntime:
                 vertical_signals=vertical_signals,
             )
             if separator_boundaries:
+                separator_conflict_count += len(separator_boundaries)
                 trimmed = _trim_span_at_separators(span, separator_boundaries)
                 after = None if _single_position_span(trimmed) else trimmed
                 adjustments.append(
@@ -1034,32 +1153,12 @@ class PdfTopologyAssemblyRuntime:
                 if after is None:
                     continue
                 span = after
-                _, ambiguous_boundaries = self._span_separator_states(
-                    span=span,
-                    row_boundaries=row_boundaries,
-                    column_boundaries=column_boundaries,
-                    horizontal_signals=horizontal_signals,
-                    vertical_signals=vertical_signals,
-                )
-            if ambiguous_boundaries:
-                issues.append(
-                    _issue(
-                        hypothesis_id,
-                        "span",
-                        None,
-                        "pdf_topology_assembly_span_separator_evidence_ambiguous",
-                    )
-                )
-                continue
 
-            members = sorted(
-                (
-                    candidate_id
-                    for candidate_id, position in positions.items()
-                    if _span_contains(span, position[0], position[1])
-                ),
-                key=lambda item: source_order.get(item, -1),
-            )
+            members = [
+                candidate_id
+                for candidate_id, position in positions.items()
+                if _span_contains(span, position[0], position[1])
+            ]
             if not members:
                 adjustments.append(
                     {
@@ -1080,41 +1179,54 @@ class PdfTopologyAssemblyRuntime:
                 )
                 continue
 
-            orders = [source_order.get(item, -1) for item in members]
-            contiguous = orders == list(range(min(orders), max(orders) + 1))
-            horizontal = int(span["end_column"]) > int(span["start_column"])
-            vertical = int(span["end_row"]) > int(span["start_row"])
-            coherent = True
-            if horizontal:
-                coherent = coherent and _common_band(
-                    [boxes[item][1:4:2] for item in members],
+            selected_region = [
+                column_boundaries[int(span["start_column"]) - 1],
+                row_boundaries[int(span["start_row"]) - 1],
+                column_boundaries[int(span["end_column"])],
+                row_boundaries[int(span["end_row"])],
+            ]
+            if any(
+                not _bbox_within_region(
+                    boxes[item],
+                    selected_region,
                     tolerance=self.config.atom_band_tolerance_normalized,
                 )
-            if vertical:
-                coherent = coherent and _common_band(
-                    [boxes[item][0:3:2] for item in members],
-                    tolerance=self.config.atom_band_tolerance_normalized,
-                )
-            if not contiguous or not coherent:
+                for item in members
+            ):
                 issues.append(
                     _issue(
                         hypothesis_id,
                         "span",
                         None,
-                        (
-                            "pdf_topology_assembly_span_source_order_not_contiguous"
-                            if not contiguous
-                            else "pdf_topology_assembly_span_atom_band_incoherent"
-                        ),
+                        "pdf_topology_assembly_span_atom_outside_selected_region",
                     )
                 )
                 continue
             kept.append(copy.deepcopy(span))
+        if not spans or separator_check_count == 0:
+            evidence_status = "not_applicable"
+            evidence_reasons: list[str] = []
+        elif separator_conflict_count:
+            evidence_status = "contradicted"
+            evidence_reasons = [
+                "pdf_topology_assembly_span_crosses_parser_separator"
+            ]
+        else:
+            evidence_status = "insufficient_evidence"
+            evidence_reasons = [
+                "pdf_topology_assembly_span_separator_evidence_incomplete"
+            ]
         return {
             "spans": kept,
             "contradicted_spans": contradicted,
             "issues": issues,
             "adjustments": adjustments,
+            "evidence": _geometry_evidence_item(
+                status=evidence_status,
+                observed_count=separator_conflict_count,
+                required_count=0,
+                reason_codes=evidence_reasons,
+            ),
         }
 
     def _span_separator_states(
@@ -1178,8 +1290,10 @@ class PdfTopologyAssemblyRuntime:
         column_boundaries: list[float],
         horizontal_signals: list[dict[str, Any]],
         vertical_signals: list[dict[str, Any]],
+        row_geometry_status: str,
+        column_geometry_status: str,
         hypothesis_id: str,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         issues: list[dict[str, Any]] = []
         vector_horizontal = [
             item for item in horizontal_signals if item.get("kind") == "vector_line"
@@ -1237,7 +1351,35 @@ class PdfTopologyAssemblyRuntime:
                         )
                     )
                     break
-        return issues
+        if not positions:
+            evidence_status = "not_applicable"
+            evidence_reasons: list[str] = []
+        elif issues:
+            evidence_status = "contradicted"
+            evidence_reasons = sorted(
+                {
+                    str(item.get("reason_code") or "")
+                    for item in issues
+                    if item.get("reason_code")
+                }
+            )
+        elif row_geometry_status == column_geometry_status == "confirmed":
+            evidence_status = "confirmed"
+            evidence_reasons = []
+        else:
+            evidence_status = "insufficient_evidence"
+            evidence_reasons = [
+                "pdf_topology_assembly_candidate_separator_evidence_incomplete"
+            ]
+        return {
+            "issues": issues,
+            "evidence": _geometry_evidence_item(
+                status=evidence_status,
+                observed_count=len(issues),
+                required_count=0,
+                reason_codes=evidence_reasons,
+            ),
+        }
 
     def _positions(
         self,
@@ -1492,11 +1634,47 @@ def _union_length(intervals: list[list[float]]) -> float:
     return total + end - start
 
 
-def _common_band(intervals: list[list[float]], *, tolerance: float) -> bool:
+def _bbox_within_region(
+    bbox: list[float], region: list[float], *, tolerance: float
+) -> bool:
     return bool(
-        intervals
-        and max(float(item[0]) for item in intervals)
-        <= min(float(item[1]) for item in intervals) + tolerance
+        len(bbox) == 4
+        and len(region) == 4
+        and float(bbox[0]) >= float(region[0]) - tolerance
+        and float(bbox[1]) >= float(region[1]) - tolerance
+        and float(bbox[2]) <= float(region[2]) + tolerance
+        and float(bbox[3]) <= float(region[3]) + tolerance
+    )
+
+
+def _geometry_evidence_item(
+    *,
+    status: str,
+    observed_count: int,
+    required_count: int,
+    reason_codes: list[str],
+) -> dict[str, Any]:
+    if status not in _GEOMETRY_EVIDENCE_STATUSES:
+        raise PdfTopologyAssemblyError(
+            "pdf_topology_assembly_geometry_evidence_status_invalid"
+        )
+    return {
+        "status": status,
+        "observed_count": int(observed_count),
+        "required_count": int(required_count),
+        "reason_codes": sorted(set(reason_codes)),
+    }
+
+
+def _nonnegative_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _reason_codes(value: Any) -> bool:
+    return bool(
+        isinstance(value, list)
+        and all(isinstance(item, str) and bool(item) for item in value)
+        and value == sorted(set(value))
     )
 
 

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -589,6 +590,29 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual(report["recommended_next_step"], "attach_synthetic_files_and_retry")
         self.assertNotIn("PRIVATE NAME", content)
 
+    def test_passport_enabled_without_files_stays_safe_without_model_call(self):
+        pipe = self._passport_pipe()
+
+        content = run_pipe(
+            pipe,
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 passport without attachments PRIVATE NAME",
+                    }
+                ],
+            },
+            __request__=object(),
+        )
+
+        report = pipe.last_safe_report
+        self.assertIsNotNone(report)
+        self.assertEqual(report["run_status"], "failed_safe")
+        self.assertEqual(report["blockers"][0]["code"], "no_files")
+        self.assertEqual([], pipe.completion_forms)
+        self.assertNotIn("PRIVATE NAME", content)
+
     def test_pipe_can_require_trigger_phrase(self):
         pipe = self._pipe()
         pipe.valves.require_trigger_phrase = True
@@ -781,6 +805,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
     def test_structural_shadow_failure_is_safe_and_visible_to_passport_llm(self):
         pipe = self._passport_pipe()
         pipe.valves.pdf_structural_repair_shadow_enabled = True
+        pipe.valves.pdf_semantic_header_shadow_enabled = True
 
         content = run_pipe(
             pipe,
@@ -809,6 +834,32 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         shadow = report["pdf_structural_repair_shadow"]
         self.assertTrue(shadow["enabled"])
         self.assertFalse(shadow["production_gate2_selection_changed"])
+        self.assertTrue(shadow["summary"]["semantic_header_shadow_enabled"])
+        self.assertEqual(
+            {"not_projected_structural_terminal": 1},
+            shadow["summary"]["semantic_projection_status_counts"],
+        )
+        self.assertEqual(
+            [],
+            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
+                "semantic_projection_refs"
+            ],
+        )
+        self.assertEqual(
+            {
+                "enabled": True,
+                "artifact_refs": [],
+                "status_counts": {"not_projected_structural_terminal": 1},
+                "reason_counts": {
+                    "pdf_semantic_header_not_projected_structural_terminal": 1
+                },
+                "private_projections_persisted": 0,
+                "private_diagnostics_persisted": 0,
+                "authority_state": "non_authoritative",
+                "production_gate2_selection_changed": False,
+            },
+            pipe.last_artifact_manifest["pdf_semantic_header_shadow"],
+        )
         structural_outcome = shadow["summary"]["file_processing_outcomes"][
             "outcomes"
         ][0]
@@ -834,6 +885,55 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("provider_payload", rendered)
         self.assertNotIn("exception_message", rendered)
         self.assertNotIn("private-structural-source.pdf", content)
+
+    def test_structural_shadow_runtime_exception_returns_safe_failed_outcome(self):
+        pipe = self._passport_pipe()
+        pipe.valves.pdf_structural_repair_shadow_enabled = True
+
+        with patch(
+            "openwebui_actions.broker_reports_gate1_pipe."
+            "PdfStructuralRepairShadowFactory.create",
+            side_effect=RuntimeError("private runtime failure detail"),
+        ):
+            content = run_pipe(
+                pipe,
+                {
+                    "metadata": {"case_id": "case-structural-runtime-exception"},
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Gate 1 normalization with passport",
+                            "files": [
+                                file_ref(
+                                    "pipe-file-structural-exception-1",
+                                    "private-structural-exception.pdf",
+                                    "application/pdf",
+                                    content_bytes=_ruled_table_pdf(),
+                                )
+                            ],
+                        }
+                    ],
+                },
+                __request__=object(),
+            )
+
+        report = pipe.last_safe_report
+        self.assertIsNotNone(report)
+        outcome = report["pdf_structural_repair_shadow"]["summary"][
+            "file_processing_outcomes"
+        ]["outcomes"][0]
+        self.assertEqual(outcome["status"], "failed")
+        self.assertEqual(outcome["reason_code"], "internal_processing_failed")
+        self.assertEqual(outcome["stage"], "processing")
+        first_llm_input = json.loads(
+            pipe.completion_forms[0]["messages"][0]["content"]
+        )
+        self.assertEqual(first_llm_input["structural_repair_outcome"], outcome)
+        rendered = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn("private runtime failure detail", rendered)
+        self.assertNotIn("private-structural-exception.pdf", rendered)
+        self.assertNotIn("private runtime failure detail", content)
+        self.assertNotIn("private-structural-exception.pdf", content)
 
 
 if __name__ == "__main__":

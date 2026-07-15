@@ -234,7 +234,9 @@ class PdfStructuralRowWindowTests(unittest.TestCase):
             png_bytes=png_bytes,
             provider_qualification=runtime.qualify_provider(),
         )
-        self.assertEqual("accepted_unique_consensus", result["runtime_terminal_status"])
+        self.assertEqual(
+            "accepted_supplied_consensus", result["runtime_terminal_status"]
+        )
         self.assertEqual((2, 2), (provider.count_calls, provider.generate_calls))
 
     def test_plan_tampering_missing_duplicate_and_crossing_atom_fail_closed(
@@ -358,7 +360,9 @@ class PdfStructuralRowWindowTests(unittest.TestCase):
         )
 
         self.assertFalse(full_package["provider_input_allowed"])
-        self.assertEqual("accepted_unique_consensus", result["runtime_terminal_status"])
+        self.assertEqual(
+            "accepted_supplied_consensus", result["runtime_terminal_status"]
+        )
         self.assertEqual(4, provider.count_calls)
         self.assertEqual(4, provider.generate_calls)
         self.assertEqual(4, result["new_provider_count_token_calls"])

@@ -640,9 +640,12 @@ def build_llm_document_packages(
         document_id = blocker.get("document_id")
         if document_id:
             blockers_by_doc.setdefault(str(document_id), []).append(blocker)
+    processing_batch = package.get("file_processing_outcomes")
+    if not isinstance(processing_batch, dict):
+        processing_batch = {}
     processing_outcomes_by_doc = {
         str(item.get("file_ref")): copy.deepcopy(item)
-        for item in package.get("file_processing_outcomes", {}).get("outcomes", [])
+        for item in processing_batch.get("outcomes", [])
         if isinstance(item, dict) and item.get("file_ref")
     }
     structural_shadow = package.get("pdf_structural_repair_shadow")

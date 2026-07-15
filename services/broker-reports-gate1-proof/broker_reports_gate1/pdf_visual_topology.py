@@ -26,20 +26,32 @@ PDF_VISUAL_TOPOLOGY_WINDOW_PACKAGE_SCHEMA = (
 PDF_VISUAL_TOPOLOGY_LEDGER_PACKAGE_SCHEMA = (
     "broker_reports_pdf_visual_topology_ledger_package_v1"
 )
-PDF_VISUAL_TOPOLOGY_POLICY_VERSION = "pdf_visual_topology_policy_v4"
+PDF_VISUAL_TOPOLOGY_POLICY_VERSION = "pdf_visual_topology_policy_v5"
+PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION = (
+    "pdf_visual_topology_region_proposal_v1"
+)
 
 FACTORY_REQUIRED = (
     "PdfVisualTopologyFactory.create is the only topology-neutral visual "
-    "package and response-contract entrypoint"
+    "package and bounded region-proposal response-contract entrypoint"
 )
 FORBIDDEN = (
-    "Visual topology input must not contain source text, values, parser rows, "
-    "parser columns, header-depth hints, legacy cells, or expected topology"
+    "Legacy visual topology input must not contain source text, values, parser "
+    "rows, parser columns, header-depth hints, legacy cells, or expected "
+    "topology; candidate-crop region proposals may expose only exact source "
+    "word text with anonymous geometry and must not expose source refs, "
+    "checksums, candidate ids, or permit source text in a response"
 )
 
 _FACTORY_TOKEN = object()
 _DECISIONS = {"bound", "ambiguous", "unsupported"}
-_SPAN_RELATIONS = {"merged", "spanning_header"}
+_REGION_PROPOSAL_SCOPES = {"candidate_crop", "page_level"}
+_TABLE_PRESENCE = {"present", "absent", "uncertain"}
+_BORDER_EVIDENCE = {"ruled", "alignment_based", "mixed", "uncertain"}
+_DENSITY = {"sparse", "mixed", "dense", "uncertain"}
+_CONTINUATION_LIKELIHOOD = {"likely", "unlikely", "uncertain"}
+_CANONICAL_SPAN_RELATION = "merged"
+_ACCEPTED_SPAN_RELATIONS = {_CANONICAL_SPAN_RELATION, "spanning_header"}
 _CODE = re.compile(r"^[a-z][a-z0-9_]{2,95}$")
 _HYPOTHESIS_ID = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,95}$")
 
@@ -87,6 +99,55 @@ _RESPONSE_KEYS = {
     "alternatives_complete",
     "hypotheses",
     "uncertainty_codes",
+}
+_REGION_PROPOSAL_PACKAGE_KEYS = {
+    *_PACKAGE_KEYS,
+    "contract_revision",
+    "proposal_scope",
+}
+_REGION_PROPOSAL_RESPONSE_KEYS = {
+    "schema_version",
+    "contract_revision",
+    "package_id",
+    "proposal_scope",
+    "table_presence",
+    "alternatives_complete",
+    "regions",
+    "uncertainty_codes",
+}
+_REGION_PROPOSAL_KEYS = {
+    "region_key",
+    "bbox",
+    "border_evidence",
+    "density",
+    "continuation_likelihood",
+    "hypotheses",
+    "uncertainty_codes",
+}
+_REGION_MODEL_KEYS = {
+    "schema_version",
+    "contract_revision",
+    "task",
+    "proposal_scope",
+    "input_basis",
+    "identity",
+    "coordinate_space",
+    "atoms",
+    "output_limits",
+    "rules",
+}
+_CROP_IDENTITY_KEYS = {
+    "crop_id",
+    "crop_sha256",
+    "manifest_hash",
+    "dpi",
+    "width",
+    "height",
+    "png_bytes",
+    "declared_table_bbox",
+    "rendered_bbox",
+    "page_rotation",
+    "padding_points",
 }
 _HYPOTHESIS_KEYS = {
     "hypothesis_key",
@@ -162,31 +223,51 @@ class PdfVisualTopologyFactory:
 
 class PdfVisualTopologyRuntime:
     TASK_TEXT = (
-        "Inspect only the supplied table crop. Infer the complete visible grid "
-        "topology from the image. Return normalized row and column boundaries, "
-        "where each boundary array describes the full table extent, starts with "
-        "exactly 0.0 and ends with exactly 1.0; only the values between them are "
-        "internal separators. "
-        "header depth, merged or spanning header regions, and header "
-        "relations. Return every materially plausible topology, up to the stated "
-        "limit. Never return cell text, values, candidate ids, source refs, or "
-        "business facts. Wrapped text lines inside one visible cell are not "
-        "separate table rows. Count physical row bands separated by visible "
-        "horizontal cell borders, not text baselines. Before returning, verify "
-        "that every internal row boundary corresponds to a visible horizontal "
-        "separator somewhere across the table; omit a boundary supported only "
-        "by whitespace or another text line. Empty neighboring cells do not "
-        "imply a merged "
-        "cell: declare a span only when a physical cell visibly crosses one or "
-        "more grid boundaries. A span must cover at least two grid positions; "
-        "never return a one-cell merged or spanning region. Do not return "
-        "identity header relations for a "
-        "single column; a header relation is valid only when backed by a declared "
-        "spanning header. The atom boxes are anonymous physical observations, "
-        "not a parser grid. If the crop cannot support a bounded answer, return "
-        "unsupported with an empty hypotheses array and at least one precise "
-        "snake_case uncertainty code explaining why. Cross-page continuation is "
-        "outside this v1 slice."
+        "Inspect only the supplied table crop and infer its visible grid topology. "
+        "Return full normalized row and column boundary arrays; each starts with "
+        "exactly 0.0 and ends with exactly 1.0, plus header depth, spans, header "
+        "relations, and every materially plausible topology within the limit. "
+        "Never return cell text, values, candidate ids, source refs, or business "
+        "facts. Boundary evidence may be stable whitespace gutters, repeated "
+        "horizontal or vertical alignment, consistent atom bands, or visible "
+        "separators when present. A drawn grid is optional: the absence of drawn "
+        "grid lines alone must not force unsupported. Non-line evidence must repeat "
+        "coherently; one gap or text baseline is insufficient. Wrapped lines in one "
+        "cell are not rows. If two-column and three-column structures are both "
+        "plausible, return both hypotheses with decision ambiguous. Empty neighbors "
+        "do not imply a span. Each span must cross a boundary and cover at least two "
+        "positions. Use relation merged for every span, including spanning headers; "
+        "header depth and hierarchy carry header meaning. Omit single-column "
+        "identity header relations. Atoms are anonymous observations, not a parser "
+        "grid. If no bounded answer is supportable, return unsupported, no "
+        "hypotheses, and at least one precise snake_case uncertainty code in sorted "
+        "order. Cross-page continuation is outside this slice."
+    )
+    REGION_PROPOSAL_TASK_TEXT = {
+        "candidate_crop": (
+            "Inspect only the supplied candidate crop. Decide whether a table is "
+            "present, absent, or uncertain. If a table may be present, propose at "
+            "most one normalized positive-area region inside the crop and include "
+            "every materially plausible grid topology for it. Anonymous source-word "
+            "atoms carry exact word text and boxes as bounded context only; they "
+            "are not a parser grid and their text must not be returned."
+        ),
+        "page_level": (
+            "Inspect only the supplied single-page image. Decide whether a table is "
+            "present, absent, or uncertain. If a table may be present, propose at "
+            "most two normalized positive-area, non-overlapping regions and include "
+            "every materially plausible grid topology for each region. No word atoms "
+            "are supplied on this path."
+        ),
+    }
+    REGION_PROPOSAL_COMMON_TASK_TEXT = (
+        "For each region report border evidence, visual density, continuation "
+        "likelihood, header depth, normalized row and column boundaries, physical "
+        "spans, header relations, alternatives, and precise uncertainty codes. "
+        "Never return source text, values, source identifiers, business facts, "
+        "acceptance thresholds, validator bypasses, or parser configuration. The "
+        "proposal is untrusted: a deterministic parser and validator will reselect "
+        "exact source atoms and either prove or block it."
     )
 
     def __init__(
@@ -318,8 +399,8 @@ class PdfVisualTopologyRuntime:
                 "span_requires_visible_physical_merge": True,
                 "single_cell_spans_allowed": False,
                 "boundary_arrays_start_at_zero_and_end_at_one": True,
-                "row_boundary_requires_visible_horizontal_separator": True,
-                "column_boundary_requires_visible_vertical_separator_in_unmerged_regions": True,
+                "boundary_evidence_requires_drawn_grid": False,
+                "borderless_table_implies_unsupported": False,
                 "unsupported_requires_uncertainty_code": True,
             },
         }
@@ -396,6 +477,409 @@ class PdfVisualTopologyRuntime:
         if package_errors:
             raise PdfVisualTopologyError(package_errors[0])
         return result
+
+    def build_region_proposal_package(
+        self,
+        *,
+        proposal_scope: str,
+        crop_manifest: dict[str, Any],
+        parser_observation: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build a bounded VLM proposal package without adding another wire schema."""
+
+        if proposal_scope not in _REGION_PROPOSAL_SCOPES:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_proposal_scope_invalid"
+            )
+        maximum_regions = 1 if proposal_scope == "candidate_crop" else 2
+        if proposal_scope == "candidate_crop":
+            if not isinstance(parser_observation, dict):
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_parser_observation_required"
+                )
+            base = self.build_package(
+                parser_observation=parser_observation,
+                crop_manifest=crop_manifest,
+            )
+            atoms = copy.deepcopy(base["model_facing"]["atoms"])
+            crop_identity = copy.deepcopy(base["crop_identity"])
+            neutral_map = copy.deepcopy(base["neutral_atom_to_candidate_id"])
+            dictionary = copy.deepcopy(base["private_candidate_dictionary"])
+            for atom in atoms:
+                candidate_id = neutral_map.get(str(atom.get("atom_id") or ""))
+                source = _object(dictionary.get(candidate_id))
+                exact_source_span = source.get("exact_source_span")
+                if not isinstance(exact_source_span, str):
+                    raise PdfVisualTopologyError(
+                        "pdf_visual_topology_region_atom_text_invalid"
+                    )
+                atom["text"] = exact_source_span
+            metadata = {
+                key: base.get(key)
+                for key in (
+                    "document_ref",
+                    "pdf_sha256",
+                    "page_ref",
+                    "page_number",
+                    "table_ref",
+                    "parser_observation_id",
+                    "parser_observation_checksum",
+                )
+            }
+            source_authority = (
+                "immutable_pdf_word_atoms_with_exact_text_plus_exact_crop"
+            )
+            source_values_exposed = True
+        else:
+            if parser_observation is not None:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_page_atoms_forbidden"
+                )
+            self._validate_region_crop_identity(crop_manifest)
+            atoms = []
+            crop_identity = self._region_crop_identity(crop_manifest)
+            neutral_map = {}
+            dictionary = {}
+            metadata = {
+                "document_ref": crop_manifest.get("document_ref"),
+                "pdf_sha256": crop_manifest.get("pdf_sha256"),
+                "page_ref": crop_manifest.get("page_ref"),
+                "page_number": crop_manifest.get("page_number"),
+                "table_ref": None,
+                "parser_observation_id": None,
+                "parser_observation_checksum": None,
+            }
+            source_authority = "immutable_single_pdf_page_crop_only"
+            source_values_exposed = False
+
+        atom_manifest_hash = sha256_json(atoms)
+        dictionary_hash = sha256_json(dictionary)
+        package_id = "pdfvisualregionpkg_" + stable_digest(
+            [
+                metadata["pdf_sha256"],
+                metadata["page_number"],
+                crop_identity.get("manifest_hash"),
+                proposal_scope,
+                atom_manifest_hash,
+                self.config.policy_version,
+                PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+            ],
+            length=24,
+        )
+        model_view = {
+            "schema_version": PDF_VISUAL_TOPOLOGY_REQUEST_SCHEMA,
+            "contract_revision": PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+            "task": self._region_proposal_task(proposal_scope),
+            "proposal_scope": proposal_scope,
+            "input_basis": self._region_proposal_input_basis(proposal_scope),
+            "identity": {
+                "package_id": package_id,
+            },
+            "coordinate_space": {
+                "kind": "crop_normalized",
+                "origin": "top_left",
+                "x_axis": "right",
+                "y_axis": "down",
+                "bounds": [0.0, 0.0, 1.0, 1.0],
+            },
+            "atoms": atoms,
+            "output_limits": self._region_proposal_output_limits(proposal_scope),
+            "rules": self._region_proposal_rules(proposal_scope),
+        }
+        output_schema = self.region_proposal_output_schema(
+            proposal_scope=proposal_scope
+        )
+        model_bytes = len(canonical_json_bytes(model_view))
+        schema_bytes = len(canonical_json_bytes(output_schema))
+        static_tokens = (model_bytes + schema_bytes + 3) // 4
+        if model_bytes > self.config.maximum_model_json_bytes:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_model_json_budget_exceeded"
+            )
+        if static_tokens > self.config.maximum_static_input_tokens:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_static_token_budget_exceeded"
+            )
+        if static_tokens > self.config.maximum_counted_input_tokens:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_counted_input_budget_exceeded"
+            )
+
+        result = {
+            "schema_version": PDF_VISUAL_TOPOLOGY_PACKAGE_SCHEMA,
+            "contract_revision": PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+            "proposal_scope": proposal_scope,
+            "policy_version": self.config.policy_version,
+            "policy_configuration_hash": sha256_json(asdict(self.config)),
+            "package_id": package_id,
+            **metadata,
+            "crop_identity": crop_identity,
+            "neutral_atom_manifest_hash": atom_manifest_hash,
+            "neutral_atom_to_candidate_id": neutral_map,
+            "candidate_dictionary_hash": dictionary_hash,
+            "private_candidate_dictionary": dictionary,
+            "model_facing": model_view,
+            "output_schema": output_schema,
+            "component_accounting": {
+                "atom_count": len(atoms),
+                "maximum_regions": maximum_regions,
+                "model_json_bytes": model_bytes,
+                "schema_json_bytes": schema_bytes,
+                "static_input_token_estimate": static_tokens,
+                "maximum_atoms": self.config.maximum_atoms,
+                "maximum_model_json_bytes": self.config.maximum_model_json_bytes,
+                "maximum_static_input_tokens": self.config.maximum_static_input_tokens,
+                "maximum_counted_input_tokens": self.config.maximum_counted_input_tokens,
+                "maximum_output_tokens": self.config.maximum_output_tokens,
+                "legacy_shape_tokens": 0,
+            },
+            "source_authority": source_authority,
+            "legacy_grid_consumed": False,
+            "source_values_exposed_to_model_view": source_values_exposed,
+        }
+        result["package_hash"] = sha256_json(result)
+        errors = self.validate_region_proposal_package(result)
+        if errors:
+            raise PdfVisualTopologyError(errors[0])
+        return result
+
+    def _region_proposal_task(self, proposal_scope: str) -> str:
+        return (
+            self.REGION_PROPOSAL_TASK_TEXT[proposal_scope]
+            + " "
+            + self.REGION_PROPOSAL_COMMON_TASK_TEXT
+        )
+
+    @staticmethod
+    def _region_proposal_input_basis(proposal_scope: str) -> str:
+        return (
+            "visual_candidate_crop_plus_anonymous_exact_word_text_and_boxes_"
+            "without_parser_grid"
+            if proposal_scope == "candidate_crop"
+            else "visual_single_page_crop_without_word_atoms_or_parser_grid"
+        )
+
+    def _region_proposal_output_limits(
+        self, proposal_scope: str
+    ) -> dict[str, int]:
+        return {
+            "maximum_regions": 1 if proposal_scope == "candidate_crop" else 2,
+            "maximum_hypotheses_per_region": self.config.maximum_hypotheses,
+            "maximum_rows": self.config.maximum_rows,
+            "maximum_columns": self.config.maximum_columns,
+            "maximum_output_tokens": self.config.maximum_output_tokens,
+        }
+
+    @staticmethod
+    def _region_proposal_rules(proposal_scope: str) -> dict[str, bool]:
+        return {
+            "parser_grid_available": False,
+            "parser_dimensions_available": False,
+            "exact_source_word_text_available": proposal_scope == "candidate_crop",
+            "exact_source_word_text_may_be_returned": False,
+            "source_values_may_be_returned": False,
+            "source_identifiers_may_be_returned": False,
+            "business_facts_may_be_returned": False,
+            "acceptance_thresholds_may_be_returned": False,
+            "validator_bypasses_may_be_returned": False,
+            "parser_configuration_may_be_returned": False,
+            "region_boxes_are_normalized": True,
+            "region_boxes_must_have_positive_area": True,
+            "regions_must_not_overlap": True,
+            "all_material_alternatives_required": True,
+            "exact_atoms_are_reselected_after_proposal": True,
+        }
+
+    def validate_region_proposal_package(self, package: Any) -> list[str]:
+        data = _object(package)
+        errors: list[str] = []
+        if set(data) != _REGION_PROPOSAL_PACKAGE_KEYS:
+            return ["pdf_visual_topology_region_package_keys_invalid"]
+        scope = data.get("proposal_scope")
+        if scope not in _REGION_PROPOSAL_SCOPES:
+            errors.append("pdf_visual_topology_region_proposal_scope_invalid")
+            return errors
+        if (
+            data.get("schema_version") != PDF_VISUAL_TOPOLOGY_PACKAGE_SCHEMA
+            or data.get("contract_revision")
+            != PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION
+            or data.get("policy_version") != self.config.policy_version
+            or data.get("policy_configuration_hash")
+            != sha256_json(asdict(self.config))
+        ):
+            errors.append("pdf_visual_topology_region_package_contract_invalid")
+
+        model_view = _object(data.get("model_facing"))
+        atoms = model_view.get("atoms")
+        maximum_regions = 1 if scope == "candidate_crop" else 2
+        if (
+            set(model_view) != _REGION_MODEL_KEYS
+            or model_view.get("schema_version") != PDF_VISUAL_TOPOLOGY_REQUEST_SCHEMA
+            or model_view.get("contract_revision")
+            != PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION
+            or model_view.get("proposal_scope") != scope
+            or model_view.get("task") != self._region_proposal_task(scope)
+            or model_view.get("input_basis")
+            != self._region_proposal_input_basis(scope)
+            or model_view.get("coordinate_space")
+            != {
+                "kind": "crop_normalized",
+                "origin": "top_left",
+                "x_axis": "right",
+                "y_axis": "down",
+                "bounds": [0.0, 0.0, 1.0, 1.0],
+            }
+            or model_view.get("output_limits")
+            != self._region_proposal_output_limits(scope)
+            or model_view.get("rules") != self._region_proposal_rules(scope)
+            or not isinstance(atoms, list)
+        ):
+            errors.append("pdf_visual_topology_region_model_contract_invalid")
+            atoms = []
+        if scope == "page_level" and atoms != []:
+            errors.append("pdf_visual_topology_region_page_atoms_forbidden")
+        if scope == "candidate_crop" and (
+            not atoms or len(atoms) > self.config.maximum_atoms
+        ):
+            errors.append("pdf_visual_topology_atom_budget_exceeded")
+        if isinstance(atoms, list):
+            for order, atom in enumerate(atoms):
+                expected_keys = (
+                    {"atom_id", "bbox", "order", "text"}
+                    if scope == "candidate_crop"
+                    else {"atom_id", "bbox", "order"}
+                )
+                if (
+                    not isinstance(atom, dict)
+                    or set(atom) != expected_keys
+                    or atom.get("atom_id") != f"a{order + 1:04d}"
+                    or atom.get("order") != order
+                    or not _normalized_box(atom.get("bbox"))
+                    or (
+                        scope == "candidate_crop"
+                        and not isinstance(atom.get("text"), str)
+                    )
+                ):
+                    errors.append("pdf_visual_topology_region_atom_contract_invalid")
+                    break
+        if data.get("neutral_atom_manifest_hash") != sha256_json(atoms):
+            errors.append("pdf_visual_topology_region_atom_manifest_invalid")
+        neutral_map = _object(data.get("neutral_atom_to_candidate_id"))
+        dictionary = _object(data.get("private_candidate_dictionary"))
+        if (
+            data.get("candidate_dictionary_hash") != sha256_json(dictionary)
+            or (scope == "page_level" and (neutral_map or dictionary))
+            or (
+                scope == "candidate_crop"
+                and (
+                    set(neutral_map) != {
+                        str(atom.get("atom_id"))
+                        for atom in atoms
+                        if isinstance(atom, dict)
+                    }
+                    or set(dictionary) != set(neutral_map.values())
+                )
+            )
+        ):
+            errors.append("pdf_visual_topology_region_dictionary_invalid")
+        if scope == "candidate_crop" and isinstance(atoms, list):
+            for atom in atoms:
+                candidate_id = neutral_map.get(str(atom.get("atom_id") or ""))
+                source = _object(dictionary.get(candidate_id))
+                if (
+                    not isinstance(candidate_id, str)
+                    or not candidate_id
+                    or set(source)
+                    != {
+                        "candidate_id",
+                        "exact_source_span",
+                        "source_value_refs",
+                        "word_refs",
+                        "source_bbox",
+                        "source_bbox_refs",
+                        "source_text_checksum_refs",
+                        "source_order",
+                    }
+                    or source.get("candidate_id") != candidate_id
+                    or source.get("exact_source_span") != atom.get("text")
+                ):
+                    errors.append(
+                        "pdf_visual_topology_region_atom_text_derivation_invalid"
+                    )
+                    break
+        identity = _object(model_view.get("identity"))
+        crop = _object(data.get("crop_identity"))
+        if (
+            set(crop) != _CROP_IDENTITY_KEYS
+            or _bbox(crop.get("declared_table_bbox")) is None
+            or crop.get("rendered_bbox") != crop.get("declared_table_bbox")
+            or crop.get("page_rotation") != 0
+            or crop.get("padding_points") != 0.0
+        ):
+            errors.append("pdf_visual_topology_region_crop_identity_invalid")
+        if identity != {"package_id": data.get("package_id")}:
+            errors.append("pdf_visual_topology_region_model_identity_invalid")
+        expected_package_id = "pdfvisualregionpkg_" + stable_digest(
+            [
+                data.get("pdf_sha256"),
+                data.get("page_number"),
+                crop.get("manifest_hash"),
+                scope,
+                data.get("neutral_atom_manifest_hash"),
+                self.config.policy_version,
+                PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+            ],
+            length=24,
+        )
+        if data.get("package_id") != expected_package_id:
+            errors.append("pdf_visual_topology_region_package_identity_invalid")
+        if data.get("output_schema") != self.region_proposal_output_schema(
+            proposal_scope=scope
+        ):
+            errors.append("pdf_visual_topology_region_output_schema_invalid")
+        accounting = _object(data.get("component_accounting"))
+        model_bytes = len(canonical_json_bytes(model_view))
+        schema_bytes = len(canonical_json_bytes(data.get("output_schema")))
+        static_tokens = (model_bytes + schema_bytes + 3) // 4
+        if (
+            accounting.get("atom_count") != len(atoms)
+            or accounting.get("maximum_regions") != maximum_regions
+            or accounting.get("model_json_bytes") != model_bytes
+            or accounting.get("schema_json_bytes") != schema_bytes
+            or accounting.get("static_input_token_estimate") != static_tokens
+            or accounting.get("maximum_atoms") != self.config.maximum_atoms
+            or accounting.get("maximum_model_json_bytes")
+            != self.config.maximum_model_json_bytes
+            or accounting.get("maximum_static_input_tokens")
+            != self.config.maximum_static_input_tokens
+            or accounting.get("maximum_counted_input_tokens")
+            != self.config.maximum_counted_input_tokens
+            or accounting.get("maximum_output_tokens")
+            != self.config.maximum_output_tokens
+            or accounting.get("legacy_shape_tokens") != 0
+            or model_bytes > self.config.maximum_model_json_bytes
+            or static_tokens > self.config.maximum_static_input_tokens
+            or static_tokens > self.config.maximum_counted_input_tokens
+        ):
+            errors.append("pdf_visual_topology_region_accounting_invalid")
+        expected_authority = (
+            "immutable_pdf_word_atoms_with_exact_text_plus_exact_crop"
+            if scope == "candidate_crop"
+            else "immutable_single_pdf_page_crop_only"
+        )
+        expected_source_values_exposed = scope == "candidate_crop"
+        if (
+            data.get("source_authority") != expected_authority
+            or data.get("legacy_grid_consumed") is not False
+            or data.get("source_values_exposed_to_model_view")
+            is not expected_source_values_exposed
+        ):
+            errors.append("pdf_visual_topology_region_source_authority_invalid")
+        unsigned = dict(data)
+        stored_hash = unsigned.pop("package_hash", None)
+        if stored_hash != sha256_json(unsigned):
+            errors.append("pdf_visual_topology_region_package_hash_invalid")
+        return sorted(set(errors))
 
     def build_ledger_package(
         self,
@@ -646,8 +1130,8 @@ class PdfVisualTopologyRuntime:
                 "span_requires_visible_physical_merge": True,
                 "single_cell_spans_allowed": False,
                 "boundary_arrays_start_at_zero_and_end_at_one": True,
-                "row_boundary_requires_visible_horizontal_separator": True,
-                "column_boundary_requires_visible_vertical_separator_in_unmerged_regions": True,
+                "boundary_evidence_requires_drawn_grid": False,
+                "borderless_table_implies_unsupported": False,
                 "unsupported_requires_uncertainty_code": True,
                 "full_width_vertical_window": True,
                 "column_splitting_used": False,
@@ -1011,6 +1495,255 @@ class PdfVisualTopologyRuntime:
             errors.append("pdf_visual_topology_package_hash_invalid")
         return sorted(set(errors))
 
+    def region_proposal_output_schema(
+        self, *, proposal_scope: str
+    ) -> dict[str, Any]:
+        if proposal_scope not in _REGION_PROPOSAL_SCOPES:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_proposal_scope_invalid"
+            )
+        maximum_regions = 1 if proposal_scope == "candidate_crop" else 2
+        hypothesis = copy.deepcopy(
+            self.output_schema()["properties"]["hypotheses"]["items"]
+        )
+        region = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "region_key": {"type": "string"},
+                "bbox": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                    },
+                    "description": (
+                        "Normalized [x0,y0,x1,y1] inside the supplied crop, with "
+                        "strictly positive width and height."
+                    ),
+                },
+                "border_evidence": {
+                    "type": "string",
+                    "enum": sorted(_BORDER_EVIDENCE),
+                },
+                "density": {"type": "string", "enum": sorted(_DENSITY)},
+                "continuation_likelihood": {
+                    "type": "string",
+                    "enum": sorted(_CONTINUATION_LIKELIHOOD),
+                },
+                "hypotheses": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": self.config.maximum_hypotheses,
+                    "items": hypothesis,
+                },
+                "uncertainty_codes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+            "required": sorted(_REGION_PROPOSAL_KEYS),
+        }
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "schema_version": {
+                    "type": "string",
+                    "enum": [PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA],
+                },
+                "contract_revision": {
+                    "type": "string",
+                    "enum": [PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION],
+                },
+                "package_id": {"type": "string"},
+                "proposal_scope": {
+                    "type": "string",
+                    "enum": [proposal_scope],
+                },
+                "table_presence": {
+                    "type": "string",
+                    "enum": sorted(_TABLE_PRESENCE),
+                },
+                "alternatives_complete": {"type": "boolean", "enum": [True]},
+                "regions": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": maximum_regions,
+                    "items": region,
+                },
+                "uncertainty_codes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+            "required": sorted(_REGION_PROPOSAL_RESPONSE_KEYS),
+        }
+
+    def parse_region_proposal_response(
+        self,
+        value: Any,
+        *,
+        expected_package_id: str | None = None,
+        expected_proposal_scope: str | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_response_not_object"
+            )
+        if len(canonical_json_bytes(value)) > self.config.maximum_response_json_bytes:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_response_budget_exceeded"
+            )
+        data = copy.deepcopy(value)
+        if set(data) != _REGION_PROPOSAL_RESPONSE_KEYS:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_response_keys_invalid"
+            )
+        if (
+            data.get("schema_version") != PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA
+            or data.get("contract_revision")
+            != PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION
+        ):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_response_schema_invalid"
+            )
+        package_id = data.get("package_id")
+        if (
+            not isinstance(package_id, str)
+            or not package_id
+            or (
+                expected_package_id is not None
+                and package_id != expected_package_id
+            )
+        ):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_response_package_mismatch"
+            )
+        scope = data.get("proposal_scope")
+        if (
+            scope not in _REGION_PROPOSAL_SCOPES
+            or (
+                expected_proposal_scope is not None
+                and scope != expected_proposal_scope
+            )
+        ):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_proposal_scope_invalid"
+            )
+        presence = data.get("table_presence")
+        if presence not in _TABLE_PRESENCE:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_table_presence_invalid"
+            )
+        if data.get("alternatives_complete") is not True:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_alternative_set_incomplete"
+            )
+        uncertainty = _codes(data.get("uncertainty_codes"))
+        raw_regions = data.get("regions")
+        regions = _dicts(raw_regions)
+        maximum_regions = 1 if scope == "candidate_crop" else 2
+        if (
+            not isinstance(raw_regions, list)
+            or len(regions) != len(raw_regions)
+            or len(regions) > maximum_regions
+        ):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_collection_invalid"
+            )
+        if presence == "present" and not regions:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_present_contract_invalid"
+            )
+        if presence == "absent" and regions:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_absent_contract_invalid"
+            )
+        if presence == "uncertain" and not uncertainty:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_uncertain_contract_invalid"
+            )
+
+        canonical_regions: list[dict[str, Any]] = []
+        seen_region_keys: set[str] = set()
+        seen_boxes: list[list[float]] = []
+        for region in regions:
+            if set(region) != _REGION_PROPOSAL_KEYS:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_keys_invalid"
+                )
+            region_key = region.get("region_key")
+            if (
+                not isinstance(region_key, str)
+                or not _HYPOTHESIS_ID.fullmatch(region_key)
+                or region_key in seen_region_keys
+            ):
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_identity_invalid"
+                )
+            bbox = _region_bbox(region.get("bbox"))
+            if any(_boxes_overlap(bbox, prior) for prior in seen_boxes):
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_overlap"
+                )
+            border_evidence = region.get("border_evidence")
+            density = region.get("density")
+            continuation = region.get("continuation_likelihood")
+            if border_evidence not in _BORDER_EVIDENCE:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_border_evidence_invalid"
+                )
+            if density not in _DENSITY:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_density_invalid"
+                )
+            if continuation not in _CONTINUATION_LIKELIHOOD:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_region_continuation_invalid"
+                )
+            raw_hypotheses = region.get("hypotheses")
+            hypotheses = _dicts(raw_hypotheses)
+            if (
+                not isinstance(raw_hypotheses, list)
+                or len(hypotheses) != len(raw_hypotheses)
+                or not hypotheses
+                or len(hypotheses) > self.config.maximum_hypotheses
+            ):
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_hypothesis_collection_invalid"
+                )
+            canonical_hypotheses: list[dict[str, Any]] = []
+            seen_hypotheses: set[str] = set()
+            for hypothesis in hypotheses:
+                canonical_hypothesis = self._parse_hypothesis(hypothesis)
+                hypothesis_key = canonical_hypothesis["hypothesis_key"]
+                if hypothesis_key in seen_hypotheses:
+                    raise PdfVisualTopologyError(
+                        "pdf_visual_topology_hypothesis_identity_duplicate"
+                    )
+                seen_hypotheses.add(hypothesis_key)
+                canonical_hypotheses.append(canonical_hypothesis)
+            seen_region_keys.add(region_key)
+            seen_boxes.append(bbox)
+            canonical_regions.append(
+                {
+                    "region_key": region_key,
+                    "bbox": bbox,
+                    "border_evidence": border_evidence,
+                    "density": density,
+                    "continuation_likelihood": continuation,
+                    "hypotheses": canonical_hypotheses,
+                    "uncertainty_codes": _codes(region.get("uncertainty_codes")),
+                }
+            )
+        data["regions"] = canonical_regions
+        data["uncertainty_codes"] = uncertainty
+        return data
+
     def output_schema(self) -> dict[str, Any]:
         integer = {"type": "integer", "minimum": 1}
         span = {
@@ -1023,7 +1756,7 @@ class PdfVisualTopologyRuntime:
                 "end_column": integer,
                 "relation": {
                     "type": "string",
-                    "enum": sorted(_SPAN_RELATIONS),
+                    "enum": [_CANONICAL_SPAN_RELATION],
                 },
             },
             "required": sorted(_SPAN_KEYS),
@@ -1052,19 +1785,18 @@ class PdfVisualTopologyRuntime:
                 "row_boundaries": {
                     **boundary,
                     "description": (
-                        "Full physical row-band edges: first item must be exactly "
-                        "0.0 and last item exactly 1.0. Every internal boundary must "
-                        "be supported by a visible horizontal cell separator, "
-                        "not merely a new text baseline or whitespace."
+                        "Full row-band edges: first item must be exactly 0.0, last "
+                        "1.0. Evidence: whitespace gutters, repeated horizontal "
+                        "alignment, atom bands, or visible separators; not one "
+                        "text baseline."
                     ),
                 },
                 "column_boundaries": {
                     **boundary,
                     "description": (
-                        "Full global physical column edges: first item must be "
-                        "exactly 0.0 and last item exactly 1.0; internal edges are "
-                        "inferred from visible vertical separators in unmerged "
-                        "regions."
+                        "Full column edges: first item must be exactly 0.0, last 1.0. "
+                        "Evidence: whitespace gutters, repeated vertical alignment, "
+                        "atom bands, or visible separators."
                     ),
                 },
                 "header_row_count": {
@@ -1080,16 +1812,15 @@ class PdfVisualTopologyRuntime:
                     "type": "array",
                     "items": span,
                     "description": (
-                        "Only physically merged regions; empty adjacent cells are "
-                        "not spans. Every span must cover at least two positions; "
-                        "one-cell spans are forbidden."
+                        "Physical spans only, always relation merged. Empty neighbors "
+                        "are not spans; one-cell spans are forbidden."
                     ),
                 },
                 "header_hierarchy": {
                     "type": "array",
                     "items": hierarchy,
                     "description": (
-                        "Only relations backed by a spanning_header span; omit "
+                        "Header relations require a merged header span; omit "
                         "single-column identity relations."
                     ),
                 },
@@ -1266,6 +1997,55 @@ class PdfVisualTopologyRuntime:
         }
 
     @staticmethod
+    def _validate_region_crop_identity(crop_manifest: dict[str, Any]) -> None:
+        declared = _bbox(crop_manifest.get("declared_table_bbox"))
+        rendered = _bbox(crop_manifest.get("rendered_bbox"))
+        page_number = crop_manifest.get("page_number")
+        padding = crop_manifest.get("padding_points")
+        if (
+            not isinstance(crop_manifest.get("pdf_sha256"), str)
+            or not crop_manifest.get("pdf_sha256")
+            or not isinstance(page_number, int)
+            or isinstance(page_number, bool)
+            or page_number < 1
+            or not crop_manifest.get("crop_id")
+            or declared is None
+            or rendered != declared
+            or not isinstance(padding, (int, float))
+            or isinstance(padding, bool)
+            or not math.isfinite(float(padding))
+            or float(padding) != 0.0
+            or crop_manifest.get("page_rotation") != 0
+            or crop_manifest.get("applied_rotation") != 0
+            or crop_manifest.get("dpi") not in {150, 200}
+            or not crop_manifest.get("png_sha256")
+            or not crop_manifest.get("manifest_hash")
+        ):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_region_crop_identity_invalid"
+            )
+
+    @staticmethod
+    def _region_crop_identity(
+        crop_manifest: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "crop_id": crop_manifest.get("crop_id"),
+            "crop_sha256": crop_manifest.get("png_sha256"),
+            "manifest_hash": crop_manifest.get("manifest_hash"),
+            "dpi": crop_manifest.get("dpi"),
+            "width": crop_manifest.get("width"),
+            "height": crop_manifest.get("height"),
+            "png_bytes": crop_manifest.get("png_bytes"),
+            "declared_table_bbox": copy.deepcopy(
+                crop_manifest.get("declared_table_bbox")
+            ),
+            "rendered_bbox": copy.deepcopy(crop_manifest.get("rendered_bbox")),
+            "page_rotation": crop_manifest.get("page_rotation"),
+            "padding_points": crop_manifest.get("padding_points"),
+        }
+
+    @staticmethod
     def _validate_crop_identity(
         parser_observation: dict[str, Any], crop_manifest: dict[str, Any]
     ) -> None:
@@ -1375,7 +2155,11 @@ def _spans(
     occupied: set[tuple[int, int]] = set()
     result: list[dict[str, Any]] = []
     for item in spans:
-        if set(item) != _SPAN_KEYS or item.get("relation") not in _SPAN_RELATIONS:
+        relation = item.get("relation")
+        if (
+            set(item) != _SPAN_KEYS
+            or relation not in _ACCEPTED_SPAN_RELATIONS
+        ):
             raise PdfVisualTopologyError("pdf_visual_topology_span_invalid")
         values = [
             item.get("start_row"),
@@ -1394,7 +2178,7 @@ def _spans(
             or not 1 <= start_column <= end_column <= columns
             or (start_row == end_row and start_column == end_column)
             or (
-                item.get("relation") == "spanning_header"
+                relation == "spanning_header"
                 and start_row > header_count
             )
         ):
@@ -1413,7 +2197,7 @@ def _spans(
                 "end_row": end_row,
                 "start_column": start_column,
                 "end_column": end_column,
-                "relation": item["relation"],
+                "relation": _CANONICAL_SPAN_RELATION,
             }
         )
     return sorted(
@@ -1540,6 +2324,22 @@ def _normalized_box(value: Any) -> bool:
         )
         and 0.0 <= float(value[0]) < float(value[2]) <= 1.0
         and 0.0 <= float(value[1]) < float(value[3]) <= 1.0
+    )
+
+
+def _region_bbox(value: Any) -> list[float]:
+    if not _normalized_box(value):
+        raise PdfVisualTopologyError("pdf_visual_topology_region_bbox_invalid")
+    result = [round(float(item), 9) for item in value]
+    if not _normalized_box(result):
+        raise PdfVisualTopologyError("pdf_visual_topology_region_bbox_invalid")
+    return result
+
+
+def _boxes_overlap(left: list[float], right: list[float]) -> bool:
+    return bool(
+        min(left[2], right[2]) > max(left[0], right[0])
+        and min(left[3], right[3]) > max(left[1], right[1])
     )
 
 

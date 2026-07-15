@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import tempfile
@@ -9,6 +10,8 @@ from pathlib import Path
 import fitz
 
 from broker_reports_gate1.artifact_models import ArtifactAccessContext
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_store import ArtifactStoreError
 from broker_reports_gate1.artifact_retention import build_retention_policy
 from broker_reports_gate1.artifact_store import (
     ArtifactStoreConfig,
@@ -22,7 +25,15 @@ from broker_reports_gate1.pdf_structural_repair_shadow import (
     PdfStructuralRepairShadowFactory,
     PdfStructuralRepairShadowRuntime,
 )
+from broker_reports_gate1.pdf_hybrid_contracts import sha256_json
+from broker_reports_gate1.pdf_semantic_header_projection import (
+    PdfSemanticHeaderProjectionError,
+)
+from broker_reports_gate1.pdf_table_intake_contracts import (
+    PdfTableIntakeContractFactory,
+)
 from broker_reports_gate1.pdf_visual_topology import (
+    PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
     PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
 )
 
@@ -33,9 +44,17 @@ class _ProviderBoundary:
         *,
         fail_message: str | None = None,
         header_row_count: int = 1,
+        ambiguous: bool = False,
+        page_regions: int = 1,
+        page_presence: str = "present",
+        page_uncertain: bool = False,
     ) -> None:
         self.fail_message = fail_message
         self.header_row_count = header_row_count
+        self.ambiguous = ambiguous
+        self.page_regions = page_regions
+        self.page_presence = page_presence
+        self.page_uncertain = page_uncertain
         self.qualification_calls = 0
         self.count_calls = 0
         self.generate_calls = 0
@@ -87,6 +106,21 @@ class _ProviderBoundary:
             else:
                 rows = [0.0, core_y[0], 1.0]
                 header_row_count = 0
+        topology = _topology_response(
+            model_view["identity"]["package_id"],
+            header_row_count=header_row_count,
+            rows=rows,
+            ambiguous=self.ambiguous,
+        )
+        if model_view.get("proposal_scope") == "candidate_crop":
+            topology = _candidate_region_response(topology)
+        elif model_view.get("proposal_scope") == "page_level":
+            topology = _page_region_response(
+                topology,
+                regions=self.page_regions,
+                table_presence=self.page_presence,
+                uncertain=self.page_uncertain,
+            )
         return {
             "attempt": {
                 "task_id": task_id,
@@ -106,17 +140,20 @@ class _ProviderBoundary:
                 "hidden_retry": False,
                 "provider_failover": False,
             },
-            "json_output": _topology_response(
-                model_view["identity"]["package_id"],
-                header_row_count=header_row_count,
-                rows=rows,
-            ),
+            "json_output": topology,
             "raw_private_response": {
                 "provider_secret": "private-provider-response"
             },
             "visible_output_bytes": 100,
             "response_bytes": 200,
         }
+
+
+class _FailingSemanticProjection:
+    def project(self, **kwargs) -> dict:
+        raise PdfSemanticHeaderProjectionError(
+            "pdf_semantic_header_projection_test_failure"
+        )
 
 
 class PdfStructuralRepairShadowTests(unittest.TestCase):
@@ -144,7 +181,9 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
 
     def test_factory_anchors_and_disabled_path_are_deterministic(self) -> None:
         self.assertIn("PdfStructuralRepairShadowFactory.create", FACTORY_REQUIRED)
+        self.assertIn("PdfTableIntakeContractFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not invoke structural stages", FORBIDDEN)
+        self.assertIn("processability from morphology metadata", FORBIDDEN)
         runtime = PdfStructuralRepairShadowFactory().create(provider=None)
 
         first = runtime.run(
@@ -161,8 +200,26 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             retention_policy=self.retention,
             pdf_bytes_by_sha256={},
         )
+        semantic_only_runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=False,
+                semantic_header_shadow_enabled=True,
+            )
+        ).create(provider=None)
+        semantic_only = semantic_only_runtime.run(
+            store=self.store,
+            package={"customer": "private-customer-value"},
+            context=self.context,
+            retention_policy=self.retention,
+            pdf_bytes_by_sha256={},
+        )
 
         self.assertEqual(first, second)
+        self.assertFalse(semantic_only["enabled"])
+        self.assertFalse(
+            semantic_only["summary"]["semantic_header_shadow_enabled"]
+        )
+        self.assertEqual([], semantic_only["semantic_projection_refs"])
         self.assertFalse(first["enabled"])
         self.assertEqual("non_authoritative", first["summary"]["authority_state"])
         self.assertFalse(first["summary"]["production_ready"])
@@ -196,10 +253,10 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual(2, provider.generate_calls)
         self.assertEqual(
             1,
-            result["summary"]["accepted_unique_consensus_tables"],
+            result["summary"]["accepted_supplied_consensus_tables"],
         )
         self.assertEqual(
-            "accepted_unique_consensus",
+            "accepted_supplied_consensus",
             result["summary"]["target_outcomes"][0]["terminal_status"],
         )
         self.assertEqual(
@@ -210,6 +267,8 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual(1, len(result["runtime_result_refs"]))
         self.assertEqual(1, len(result["repeat_history_refs"]))
         self.assertEqual([], result["private_diagnostic_refs"])
+        self.assertFalse(result["summary"]["semantic_header_shadow_enabled"])
+        self.assertEqual([], result["semantic_projection_refs"])
 
         target_record = self.store.list_by_type(
             self.context.normalization_run_id,
@@ -230,6 +289,7 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual("private_case", target_record.visibility)
         self.assertEqual("private_case", runtime_record.visibility)
         self.assertIn("private-customer-value", repr(target_payload))
+        self.assertNotIn("intake_decisions", target_payload)
         self.assertIn("private-provider-response", repr(runtime_payload))
         self.assertEqual("safe_internal", summary_record.visibility)
         self.assertNotIn("private-customer-value", repr(safe_payload))
@@ -237,6 +297,737 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertFalse(safe_payload["customer_values_included"])
         self.assertFalse(safe_payload["crop_bytes_included"])
         self.assertFalse(safe_payload["raw_provider_response_included"])
+
+    def test_guided_intake_is_separate_default_disabled_one_call_shadow(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertTrue(result["summary"]["vlm_guided_intake_enabled"])
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(0, result["summary"]["accepted_supplied_consensus_tables"])
+        self.assertEqual(1, result["summary"]["accepted_physical_structure_tables"])
+        self.assertEqual(
+            "accepted_physical_structure",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        self.assertEqual([], result["repeat_history_refs"])
+        self.assertFalse(
+            result["summary"]["target_outcomes"][0]["repeat_history_persisted"]
+        )
+        state_record = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_structural_repair_target_state_v1",
+        )[0]
+        state = self.store.read_payload(state_record)
+        self.assertEqual("guided_candidate_crop", state["execution_mode"])
+        self.assertTrue(state["vlm_guided_intake_enabled"])
+        self.assertNotIn("window_plan", state)
+        intake_decisions = state["intake_decisions"]
+        self.assertEqual("plausible", intake_decisions["detection"]["decision"])
+        self.assertEqual(
+            "processable",
+            intake_decisions["processability"]["decision"],
+        )
+        self.assertEqual(
+            100,
+            intake_decisions["technical_facts"][
+                "counted_input_tokens"
+            ],
+        )
+        self.assertEqual(
+            "not_evaluated",
+            intake_decisions["holdout"]["decision"],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory()
+            .create()
+            .validate_decisions(intake_decisions),
+        )
+        self.assertEqual(
+            "ruled_lines_v0",
+            intake_decisions["metadata"]["parser_morphology"][
+                "table_strategy_ref"
+            ],
+        )
+        self.assertNotIn(
+            "private-customer-value", repr(state_record.safe_metadata)
+        )
+        guided_records = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_vlm_guided_intake_result_v1",
+        )
+        self.assertEqual(1, len(guided_records))
+        guided = self.store.read_payload(guided_records[0])
+        self.assertEqual(1, guided["new_provider_count_token_calls"])
+        self.assertEqual(1, guided["new_provider_generate_calls"])
+        self.assertFalse(guided["production_gate2_selection_changed"])
+        self.assertNotIn("private-provider-response", repr(result["summary"]))
+
+    def test_guided_runtime_failure_seals_upstream_intake_terminal(self) -> None:
+        provider = _ProviderBoundary(fail_message="private-provider-failure")
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        state_record = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_structural_repair_target_state_v1",
+        )[0]
+        decisions = self.store.read_payload(state_record)["intake_decisions"]
+        self.assertEqual(
+            "absent_due_to_upstream_failure",
+            decisions["detection"]["decision"],
+        )
+        self.assertEqual(
+            "unsupported",
+            decisions["processability"]["decision"],
+        )
+        self.assertEqual(
+            ["pdf_vlm_guided_intake_runtime_execution_failed"],
+            decisions["technical_facts"][
+                "upstream_failure_reason_codes"
+            ],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(
+                decisions
+            ),
+        )
+
+    def test_guided_intake_blocks_missing_page_geometry_before_model_calls(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        page = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]["page_inventory"][0]
+        page.pop("layout_page_width")
+        page.pop("layout_page_height")
+
+        result = self._run(runtime, package)
+
+        self.assertEqual(1, provider.qualification_calls)
+        self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(
+            "pdf_structural_repair_shadow_intake_unsupported",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        state_record = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_structural_repair_target_state_v1",
+        )[0]
+        state = self.store.read_payload(state_record)
+        self.assertEqual(
+            "unsupported",
+            state["intake_decisions"]["processability"]["decision"],
+        )
+        self.assertIn(
+            "page_bbox_invalid",
+            state["intake_decisions"]["processability"]["reason_codes"],
+        )
+        outcome = result["file_processing_outcomes"]["outcomes"][0]
+        self.assertEqual(("failed", "parsing", "parser_failed"), (
+            outcome["status"],
+            outcome["stage"],
+            outcome["reason_code"],
+        ))
+
+    def test_guided_intake_keeps_193_atoms_in_one_crop_without_windows(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _package(self.pdf_sha256, atom_count=193),
+        )
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        state_record = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_structural_repair_target_state_v1",
+        )[0]
+        state = self.store.read_payload(state_record)
+        self.assertEqual("guided_candidate_crop", state["execution_mode"])
+        self.assertNotIn("window_plan", state)
+        self.assertEqual(
+            193,
+            state["visual_package"]["component_accounting"]["atom_count"],
+        )
+        self.assertEqual(1, len(result["runtime_result_refs"]))
+
+    def test_allowlisted_candidate_less_page_runs_once_and_binds_exact_atoms(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        projection["table_candidate_inventory"] = []
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((1, 1, 1), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        self.assertEqual([], result["repeat_history_refs"])
+        self.assertEqual(
+            "accepted_physical_structure",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        state_record = self.store.get_record_unchecked(
+            result["private_target_state_refs"][0]
+        )
+        state = self.store.read_payload(state_record)
+        self.assertEqual("guided_page_level", state["execution_mode"])
+        self.assertEqual(
+            100,
+            state["intake_decisions"]["technical_facts"][
+                "counted_input_tokens"
+            ]
+        )
+        self.assertTrue(
+            state["private_raster"]["manifest"][
+                "full_page_identity_verified"
+            ]
+        )
+        runtime_record = self.store.get_record_unchecked(
+            result["runtime_result_refs"][0]
+        )
+        payload = self.store.read_payload(runtime_record)
+        self.assertEqual(
+            "broker_reports_pdf_vlm_guided_page_intake_result_v1",
+            runtime_record.artifact_type,
+        )
+        self.assertEqual(
+            "accepted_physical_structure",
+            payload["binding_result"]["runtime_terminal_status"],
+        )
+        self.assertEqual(
+            4,
+            payload["binding_result"]["source_accounting"][
+                "unique_region_word_refs_included"
+            ],
+        )
+        self.assertEqual(
+            100,
+            payload["finalized_intake_decisions"]["technical_facts"][
+                "counted_input_tokens"
+            ],
+        )
+        self.assertFalse(payload["production_gate2_selection_changed"])
+
+    def test_allowlisted_page_can_bind_two_nonoverlapping_regions(self) -> None:
+        provider = _ProviderBoundary(page_regions=2)
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(2, len(payload["binding_result"]["region_results"]))
+        self.assertEqual(
+            2,
+            payload["binding_result"]["source_accounting"][
+                "regions_accepted"
+            ],
+        )
+        self.assertEqual(
+            "accepted_physical_structure",
+            payload["runtime_terminal_status"],
+        )
+
+    def test_page_composite_rejects_resealed_cross_evidence_drift(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        result = self._run(runtime, package)
+        payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        counted_drift = copy.deepcopy(payload)
+        intake = counted_drift["finalized_intake_decisions"]
+        intake["technical_facts"]["counted_input_tokens"] = 101
+        intake.pop("contract_checksum")
+        intake["contract_checksum"] = sha256_json(intake)
+        counted_drift.pop("result_checksum")
+        counted_drift["result_checksum"] = sha256_json(counted_drift)
+        self.assertIn(
+            "pdf_vlm_guided_page_intake_evidence_binding_invalid",
+            runtime._validate_page_intake_result(
+                counted_drift,
+                expected_pdf_text_layer_projection=projection,
+            ),
+        )
+
+        projection_drift = copy.deepcopy(payload)
+        projection_drift["page_identity"]["projection_checksum"] = "0" * 64
+        binding = projection_drift["binding_result"]
+        binding["projection_checksum"] = "0" * 64
+        binding.pop("result_checksum")
+        binding["result_checksum"] = sha256_json(binding)
+        projection_drift.pop("result_checksum")
+        projection_drift["result_checksum"] = sha256_json(projection_drift)
+        self.assertIn(
+            "pdf_vlm_guided_page_intake_page_identity_invalid",
+            runtime._validate_page_intake_result(
+                projection_drift,
+                expected_pdf_text_layer_projection=projection,
+            ),
+        )
+
+        crop_drift = copy.deepcopy(payload)
+        manifest = crop_drift["region_crop_manifests"]["region_1"]
+        manifest["png_sha256"] = "0" * 64
+        manifest.pop("manifest_hash")
+        manifest["manifest_hash"] = sha256_json(manifest)
+        crop_drift.pop("result_checksum")
+        crop_drift["result_checksum"] = sha256_json(crop_drift)
+        self.assertIn(
+            "pdf_vlm_guided_page_intake_region_crop_binding_invalid",
+            runtime._validate_page_intake_result(
+                crop_drift,
+                expected_pdf_text_layer_projection=projection,
+            ),
+        )
+
+    def test_absent_page_proposal_never_accepts_a_region_binding(self) -> None:
+        provider = _ProviderBoundary(page_regions=0, page_presence="absent")
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual("no_table_proposed", payload["runtime_terminal_status"])
+        self.assertEqual(
+            0,
+            payload["binding_result"]["source_accounting"][
+                "regions_accepted"
+            ],
+        )
+        self.assertEqual({}, payload["region_crop_manifests"])
+        self.assertEqual(0, result["summary"]["tables_failed"])
+        self.assertIsNone(
+            result["summary"]["target_outcomes"][0]["reason_code"]
+        )
+        self.assertEqual(
+            {"success": 1, "partial": 0, "failed": 0},
+            result["file_processing_outcomes"]["status_counts"],
+        )
+        self.assertEqual(
+            "implausible",
+            payload["finalized_intake_decisions"]["detection"]["decision"],
+        )
+        self.assertEqual(
+            "processable",
+            payload["finalized_intake_decisions"]["processability"][
+                "decision"
+            ],
+        )
+
+    def test_uncertain_page_proposal_is_not_sent_to_binder(self) -> None:
+        provider = _ProviderBoundary(
+            page_regions=0,
+            page_presence="uncertain",
+            page_uncertain=True,
+        )
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual("proposal_ambiguous", payload["runtime_terminal_status"])
+        self.assertIsNone(payload["binding_result"])
+        self.assertEqual({}, payload["region_crop_manifests"])
+        self.assertEqual(1, result["summary"]["tables_failed"])
+        self.assertEqual(
+            "consensus_not_reached",
+            result["summary"]["target_outcomes"][0]["reason_code"],
+        )
+        self.assertEqual(
+            {"success": 0, "partial": 1, "failed": 0},
+            result["file_processing_outcomes"]["status_counts"],
+        )
+        self.assertEqual(
+            "uncertain",
+            payload["finalized_intake_decisions"]["detection"]["decision"],
+        )
+        self.assertEqual(
+            "processable",
+            payload["finalized_intake_decisions"]["processability"][
+                "decision"
+            ],
+        )
+
+    def test_candidate_less_unallowlisted_page_performs_no_provider_calls(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_not_present",),
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]["table_candidate_inventory"] = []
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((0, 0, 0), (
+            provider.qualification_calls,
+            provider.count_calls,
+            provider.generate_calls,
+        ))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(0, result["summary"]["tables_selected"])
+
+    def test_plain_page_ref_allowlist_does_not_cross_document_identity(self) -> None:
+        package = _package(self.pdf_sha256)
+        source = package["private_normalized_source_payloads"][0]
+        source["pdf_text_layer_projection"]["table_candidate_inventory"] = []
+        package["document_inventory"]["documents"].append(
+            {
+                "document_id": "document_2",
+                "container_format": "pdf",
+                "sha256": self.pdf_sha256,
+            }
+        )
+        second_source = copy.deepcopy(source)
+        second_source["document_ref"] = "document_2"
+        package["private_normalized_source_payloads"].append(second_source)
+
+        ambiguous_provider = _ProviderBoundary()
+        ambiguous_runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=ambiguous_provider)
+        ambiguous_result = self._run(ambiguous_runtime, package)
+
+        self.assertEqual(
+            (0, 0, 0),
+            (
+                ambiguous_provider.qualification_calls,
+                ambiguous_provider.count_calls,
+                ambiguous_provider.generate_calls,
+            ),
+        )
+        self.assertEqual(0, ambiguous_result["summary"]["tables_selected"])
+
+        exact_provider = _ProviderBoundary()
+        exact_runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=exact_provider)
+        exact_result = self._run(exact_runtime, package)
+
+        self.assertEqual(
+            (1, 1, 1),
+            (
+                exact_provider.qualification_calls,
+                exact_provider.count_calls,
+                exact_provider.generate_calls,
+            ),
+        )
+        self.assertEqual(1, exact_result["summary"]["tables_selected"])
+
+    def test_page_word_outside_owned_bbox_blocks_before_model_calls(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        projection["table_candidate_inventory"] = []
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_word_1"
+        )["bbox"] = [201.0, 10.0, 210.0, 20.0]
+
+        result = self._run(runtime, package)
+
+        self.assertEqual(
+            (1, 0, 0),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "unsupported",
+            state["intake_decisions"]["processability"]["decision"],
+        )
+        self.assertIn(
+            "provenance_unverified",
+            state["intake_decisions"]["processability"]["reason_codes"],
+        )
+
+    def test_page_binding_exception_persists_final_upstream_intake(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+
+        def fail_binding(**_kwargs):
+            raise RuntimeError("private-binding-failure")
+
+        runtime.vlm_region_binding.bind = fail_binding
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        decisions = state["intake_decisions"]
+        self.assertEqual(
+            "absent_due_to_upstream_failure",
+            decisions["detection"]["decision"],
+        )
+        self.assertEqual(
+            "unsupported", decisions["processability"]["decision"]
+        )
+        self.assertEqual(100, decisions["technical_facts"]["counted_input_tokens"])
+
+    def test_full_page_identity_mismatch_blocks_before_model_calls(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                page_allowlist=("page_1",),
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]["page_inventory"][0]["layout_page_width"] = 199.0
+
+        result = self._run(runtime, package)
+
+        self.assertEqual(1, provider.qualification_calls)
+        self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual([], result["private_target_state_refs"])
+        self.assertEqual(1, len(result["private_diagnostic_refs"]))
+
+    def test_semantic_projection_requires_both_valves_and_persists_privately(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                semantic_header_shadow_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertTrue(result["summary"]["semantic_header_shadow_enabled"])
+        self.assertEqual(
+            {"incomplete": 1},
+            result["summary"]["semantic_projection_status_counts"],
+        )
+        self.assertEqual(
+            {"pdf_semantic_header_unknown_or_unmapped_columns": 1},
+            result["summary"]["semantic_projection_reason_counts"],
+        )
+        self.assertEqual(1, result["summary"]["private_semantic_projections_persisted"])
+        self.assertEqual(0, result["summary"]["private_semantic_diagnostics_persisted"])
+        self.assertEqual(1, len(result["semantic_projection_refs"]))
+        self.assertEqual([], result["semantic_diagnostic_refs"])
+        semantic_ref = result["semantic_projection_refs"][0]
+        semantic_record = self.store.get_record_unchecked(semantic_ref)
+        semantic_payload = self.store.read_payload(semantic_record)
+        self.assertEqual(
+            "broker_reports_pdf_semantic_header_projection_v1",
+            semantic_record.artifact_type,
+        )
+        self.assertEqual("private_case", semantic_record.visibility)
+        self.assertEqual("project_artifact_payload", semantic_record.storage_backend)
+        self.assertEqual(
+            semantic_payload["configuration_checksum"],
+            semantic_record.safe_metadata["configuration_checksum"],
+        )
+        self.assertEqual(
+            semantic_payload["configuration"]["schema_version"],
+            semantic_record.safe_metadata["configuration_schema_version"],
+        )
+        self.assertEqual("fragment", semantic_record.safe_metadata["projection_scope"])
+        self.assertEqual("non_authoritative", semantic_payload["authority_state"])
+        self.assertFalse(semantic_payload["production_gate2_selection_changed"])
+        self.assertFalse(semantic_payload["source_value_change_allowed"])
+        self.assertEqual(
+            semantic_payload["structural_result_checksum"],
+            self.store.read_payload(
+                self.store.get_record_unchecked(result["runtime_result_refs"][0])
+            )["result_checksum"],
+        )
+        safe_summary = result["summary"]
+        self.assertNotIn("private-customer-value", repr(safe_summary))
+        resolver = ArtifactResolver(self.store)
+        resolved = resolver.resolve(
+            semantic_ref,
+            ArtifactAccessContext(**{**self.context.__dict__, "allow_private": True}),
+        )
+        self.assertEqual(semantic_payload, resolved["payload"])
+        with self.assertRaises(ArtifactStoreError) as denied:
+            resolver.resolve(
+                semantic_ref,
+                ArtifactAccessContext(
+                    **{
+                        **self.context.__dict__,
+                        "user_id": "wrong-user",
+                        "allow_private": True,
+                    }
+                ),
+            )
+        self.assertEqual("artifact_access_denied", denied.exception.code)
+        self.store.purge_run(self.context.normalization_run_id)
+        purged = self.store.get_record_unchecked(semantic_ref)
+        self.assertEqual("purged", purged.purge_status)
+        self.assertIsNone(purged.payload_ref)
+
+    def test_semantic_projection_does_not_materialize_physical_ambiguity(self) -> None:
+        provider = _ProviderBoundary(ambiguous=True)
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                semantic_header_shadow_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        outcome = result["summary"]["target_outcomes"][0]
+        self.assertEqual(
+            "historical_conflict_manual_review",
+            outcome["terminal_status"],
+        )
+        runtime_payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual(
+            "ambiguous_multiple_consensus",
+            runtime_payload["runtime_terminal_status"],
+        )
+        self.assertEqual(
+            "not_projected_physical_ambiguity",
+            outcome["semantic_projection_status"],
+        )
+        self.assertEqual([], result["semantic_projection_refs"])
+        self.assertEqual(
+            {"not_projected_physical_ambiguity": 1},
+            result["summary"]["semantic_projection_status_counts"],
+        )
+        self.assertEqual(
+            {"pdf_semantic_header_not_projected_physical_ambiguity": 1},
+            result["summary"]["semantic_projection_reason_counts"],
+        )
 
     def test_windowed_shadow_renders_full_width_crops_and_uses_exact_2w_calls(
         self,
@@ -254,7 +1045,7 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual(4, provider.count_calls)
         self.assertEqual(4, provider.generate_calls)
         self.assertEqual(
-            "accepted_unique_consensus",
+            "accepted_supplied_consensus",
             result["summary"]["target_outcomes"][0]["terminal_status"],
         )
         state_record = self.store.list_by_type(
@@ -295,7 +1086,9 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
 
         self.assertEqual(4, provider.count_calls)
         self.assertEqual(4, provider.generate_calls)
-        self.assertEqual(2, result["summary"]["accepted_unique_consensus_tables"])
+        self.assertEqual(
+            2, result["summary"]["accepted_supplied_consensus_tables"]
+        )
         self.assertEqual(1, result["summary"]["continuation_groups_discovered"])
         self.assertEqual(1, result["summary"]["continuation_groups_accepted"])
         self.assertEqual(0, result["summary"]["continuation_groups_failed"])
@@ -309,6 +1102,9 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
                 "row_count": 4,
                 "column_count": 2,
                 "reason_codes": [],
+                "semantic_projection_status": "disabled",
+                "semantic_projection_persisted": False,
+                "semantic_reason_codes": [],
             },
             result["summary"]["continuation_group_outcomes"][0],
         )
@@ -345,6 +1141,96 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             continuation_payload["production_gate2_selection_changed"]
         )
 
+    def test_semantic_shadow_projects_fragments_and_joined_continuation(self) -> None:
+        pdf_bytes = _continuation_pdf_bytes()
+        pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                semantic_header_shadow_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = runtime.run(
+            store=self.store,
+            package=_continuation_package(pdf_sha256),
+            context=self.context,
+            retention_policy=self.retention,
+            pdf_bytes_by_sha256={pdf_sha256: pdf_bytes},
+        )
+
+        self.assertEqual(4, provider.count_calls)
+        self.assertEqual(4, provider.generate_calls)
+        self.assertEqual(3, len(result["semantic_projection_refs"]))
+        self.assertEqual(
+            {"incomplete": 3},
+            result["summary"]["semantic_projection_status_counts"],
+        )
+        self.assertEqual(
+            {"pdf_semantic_header_unknown_or_unmapped_columns": 3},
+            result["summary"]["semantic_projection_reason_counts"],
+        )
+        self.assertEqual(3, result["summary"]["private_semantic_projections_persisted"])
+        group_outcome = result["summary"]["continuation_group_outcomes"][0]
+        self.assertEqual("incomplete", group_outcome["semantic_projection_status"])
+        self.assertTrue(group_outcome["semantic_projection_persisted"])
+
+        semantic_records = [
+            self.store.get_record_unchecked(artifact_ref)
+            for artifact_ref in result["semantic_projection_refs"]
+        ]
+        joined_record = next(
+            record
+            for record in semantic_records
+            if record.safe_metadata["projection_scope"] == "joined_continuation"
+        )
+        joined_payload = self.store.read_payload(joined_record)
+        continuation_payload = self.store.read_payload(
+            self.store.get_record_unchecked(result["continuation_result_refs"][0])
+        )
+        self.assertEqual(
+            continuation_payload["result_checksum"],
+            joined_payload["structural_result_checksum"],
+        )
+        self.assertEqual(
+            joined_payload["projection_checksum"],
+            joined_record.safe_metadata["projection_checksum"],
+        )
+        self.assertEqual([], result["semantic_diagnostic_refs"])
+
+    def test_typed_semantic_projection_failure_is_safe_and_diagnostic(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                semantic_header_shadow_enabled=True,
+            )
+        ).create(provider=provider)
+        runtime.semantic_projection = _FailingSemanticProjection()
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual(
+            {"projection_failed": 1},
+            result["summary"]["semantic_projection_status_counts"],
+        )
+        self.assertEqual(
+            {"pdf_semantic_header_projection_test_failure": 1},
+            result["summary"]["semantic_projection_reason_counts"],
+        )
+        self.assertEqual([], result["semantic_projection_refs"])
+        self.assertEqual(1, len(result["semantic_diagnostic_refs"]))
+        self.assertEqual(1, result["summary"]["private_semantic_diagnostics_persisted"])
+        diagnostic = self.store.get_record_unchecked(
+            result["semantic_diagnostic_refs"][0]
+        )
+        self.assertEqual(
+            "broker_reports_pdf_semantic_header_private_diagnostic_v1",
+            diagnostic.artifact_type,
+        )
+        self.assertNotIn("private-customer-value", repr(result["summary"]))
+
     def test_join_policy_failure_is_safe_partial_with_no_joined_materialization(
         self,
     ) -> None:
@@ -368,14 +1254,16 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
 
         self.assertEqual(4, provider.count_calls)
         self.assertEqual(4, provider.generate_calls)
-        self.assertEqual(2, result["summary"]["accepted_unique_consensus_tables"])
+        self.assertEqual(
+            2, result["summary"]["accepted_supplied_consensus_tables"]
+        )
         self.assertEqual(1, result["summary"]["continuation_groups_discovered"])
         self.assertEqual(0, result["summary"]["continuation_groups_accepted"])
         self.assertEqual(1, result["summary"]["continuation_groups_failed"])
         outcome = result["summary"]["continuation_group_outcomes"][0]
         self.assertEqual("partial", outcome["status"])
         self.assertEqual(
-            ["pdf_structural_repair_continuation_consensus_not_unique"],
+            ["pdf_structural_repair_continuation_not_accepted_supplied_scope"],
             outcome["reason_codes"],
         )
         self.assertEqual(
@@ -448,6 +1336,47 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "consensus_not_reached",
             second["file_processing_outcomes"]["outcomes"][0]["reason_code"],
         )
+
+    def test_repeat_history_does_not_cross_user_boundary_for_same_case(self) -> None:
+        first_runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(enabled=True)
+        ).create(provider=_ProviderBoundary(header_row_count=1))
+        first = self._run(first_runtime, _package(self.pdf_sha256))
+
+        self.context = ArtifactAccessContext(
+            user_id="different_user_shadow",
+            case_id="case_shadow",
+            chat_id="chat_shadow",
+            workspace_model_id="broker_reports_gate1",
+            normalization_run_id="normalization_shadow_different_user",
+        )
+        second_provider = _ProviderBoundary(header_row_count=0)
+        second_runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(enabled=True)
+        ).create(provider=second_provider)
+        second = self._run(second_runtime, _package(self.pdf_sha256))
+
+        first_record = self.store.get_record_unchecked(first["repeat_history_refs"][0])
+        second_record = self.store.get_record_unchecked(second["repeat_history_refs"][0])
+        self.assertIsNotNone(first_record)
+        self.assertIsNotNone(second_record)
+        self.assertEqual("user_shadow", first_record.user_id)  # type: ignore[union-attr]
+        self.assertEqual(
+            "different_user_shadow",
+            second_record.user_id,  # type: ignore[union-attr]
+        )
+        second_history = self.store.read_payload(second_record)  # type: ignore[arg-type]
+        self.assertEqual(
+            [1, 2],
+            [item["sequence"] for item in second_history["events"]],
+        )
+        self.assertFalse(second_history["ever_conflicted"])
+        self.assertEqual(
+            "accepted_supplied_consensus",
+            second["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        self.assertEqual(2, second_provider.count_calls)
+        self.assertEqual(2, second_provider.generate_calls)
 
     def test_tampered_prior_history_blocks_new_provider_calls(self) -> None:
         first_provider = _ProviderBoundary()
@@ -637,25 +1566,104 @@ def _topology_response(
     *,
     header_row_count: int = 1,
     rows: list[float] | None = None,
+    ambiguous: bool = False,
 ) -> dict:
+    hypotheses = [
+        {
+            "hypothesis_key": "primary",
+            "row_boundaries": rows or [0.0, 0.5, 1.0],
+            "column_boundaries": [0.0, 0.5, 1.0],
+            "header_row_count": header_row_count,
+            "spans": [],
+            "header_hierarchy": [],
+            "continuation_required": False,
+            "uncertainty_codes": [],
+        }
+    ]
+    if ambiguous:
+        hypotheses.append(
+            {
+                **hypotheses[0],
+                "hypothesis_key": "alternative",
+                "row_boundaries": [0.0, 1.0],
+                "header_row_count": 1 if header_row_count else 0,
+            }
+        )
     return {
         "schema_version": PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
         "package_id": package_id,
-        "decision": "bound",
+        "decision": "ambiguous" if ambiguous else "bound",
         "alternatives_complete": True,
-        "hypotheses": [
+        "hypotheses": hypotheses,
+        "uncertainty_codes": [],
+    }
+
+
+def _candidate_region_response(topology: dict) -> dict:
+    return {
+        "schema_version": PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
+        "contract_revision": PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+        "package_id": topology["package_id"],
+        "proposal_scope": "candidate_crop",
+        "table_presence": "present",
+        "alternatives_complete": True,
+        "regions": [
             {
-                "hypothesis_key": "primary",
-                "row_boundaries": rows or [0.0, 0.5, 1.0],
-                "column_boundaries": [0.0, 0.5, 1.0],
-                "header_row_count": header_row_count,
-                "spans": [],
-                "header_hierarchy": [],
-                "continuation_required": False,
+                "region_key": "candidate",
+                "bbox": [0.0, 0.0, 1.0, 1.0],
+                "border_evidence": "mixed",
+                "density": "mixed",
+                "continuation_likelihood": "unlikely",
+                "hypotheses": topology["hypotheses"],
                 "uncertainty_codes": [],
             }
         ],
         "uncertainty_codes": [],
+    }
+
+
+def _page_region_response(
+    topology: dict,
+    *,
+    regions: int,
+    table_presence: str,
+    uncertain: bool,
+) -> dict:
+    proposed_regions = []
+    boxes = (
+        [[0.0, 0.0, 1.0, 1.0]]
+        if regions == 1
+        else [[0.0, 0.0, 1.0, 0.5], [0.0, 0.5, 1.0, 1.0]]
+        if regions == 2
+        else []
+    )
+    for index, bbox in enumerate(boxes, start=1):
+        hypothesis = {
+            **topology["hypotheses"][0],
+            "row_boundaries": [0.0, 1.0] if regions == 2 else [0.0, 0.5, 1.0],
+        }
+        proposed_regions.append(
+            {
+                "region_key": f"region_{index}",
+                "bbox": bbox,
+                "border_evidence": "ruled",
+                "density": "mixed",
+                "continuation_likelihood": "unlikely",
+                "hypotheses": [hypothesis],
+                "uncertainty_codes": [],
+            }
+        )
+    return {
+        "schema_version": PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
+        "contract_revision": PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION,
+        "package_id": topology["package_id"],
+        "proposal_scope": "page_level",
+        "table_presence": table_presence,
+        "alternatives_complete": True,
+        "regions": proposed_regions,
+        "uncertainty_codes": (
+            ["visual_table_presence_uncertain"] if uncertain else []
+        ),
     }
 
 
@@ -952,7 +1960,14 @@ def _projection(*, atom_count: int, table_refs: tuple[str, ...]) -> dict:
             }
         )
     return {
-        "page_inventory": [{"page_ref": "page_1", "page_number": 1}],
+        "page_inventory": [
+            {
+                "page_ref": "page_1",
+                "page_number": 1,
+                "layout_page_width": 200.0,
+                "layout_page_height": 100.0,
+            }
+        ],
         "bbox_inventory": bbox_inventory,
         "word_inventory": words,
         "line_inventory": [],
@@ -964,6 +1979,10 @@ def _projection(*, atom_count: int, table_refs: tuple[str, ...]) -> dict:
                 "table_candidate_ref": table_ref,
                 "page_ref": "page_1",
                 "bbox_ref": "bbox_table",
+                "table_strategy_ref": "ruled_lines_v0",
+                "geometry_confidence": 0.95,
+                "rows_total": 2,
+                "columns_total": 2,
             }
             for index, table_ref in enumerate(table_refs, start=1)
         ],

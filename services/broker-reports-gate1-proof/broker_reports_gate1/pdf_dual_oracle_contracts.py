@@ -97,12 +97,19 @@ _ALTERNATIVE_GENERATION_CONTRACTS = {
 _EXECUTION_MODES = {"whole_table", "vertical_atom_windows"}
 _REPEATED_HEADER_POLICIES = {"source_header", "no_repeated_header"}
 _REPEAT_HISTORY_TERMINALS = {
+    "accepted_supplied_consensus",
+    # Legacy append-only histories remain readable; new runtime events never emit it.
     "accepted_unique_consensus",
     "ambiguous_multiple_consensus",
+    "incomplete_evidence",
     "parser_vlm_conflict",
     "no_valid_consensus",
     "human_review_required",
     "unsupported",
+}
+_REPEAT_HISTORY_ACCEPTED_TERMINALS = {
+    "accepted_supplied_consensus",
+    "accepted_unique_consensus",
 }
 _FACTORY_TOKEN = object()
 
@@ -1067,9 +1074,17 @@ class PdfDualOracleContractRuntime:
         if (
             result_checksum != sha256_json(result_copy)
             or consensus_result.get("terminal_status")
-            != "accepted_unique_consensus"
-            or consensus_result.get("uniqueness_proven") is not True
-            or consensus_result.get("solver_search_complete") is not True
+            != "accepted_supplied_consensus"
+            or consensus_result.get("supplied_hypotheses_exhausted") is not True
+            or consensus_result.get("structural_domain_complete") is not False
+            or consensus_result.get("uniqueness_proven") is not False
+            or consensus_result.get("ambiguity_proven") is not False
+            or consensus_result.get("domain_incomplete") is not True
+            or consensus_result.get("search_not_certifiable") is not False
+            or consensus_result.get("search_scope")
+            != "supplied_vlm_hypotheses_only"
+            or consensus_result.get("structurally_unique_within_supplied_evidence")
+            is not True
             or consensus_result.get("table_ref") != parser_observation.get("table_ref")
         ):
             raise PdfDualOracleContractError(
@@ -1355,7 +1370,7 @@ class PdfDualOracleContractRuntime:
             and not _nonempty_string(canonical_grid_checksum)
             or topology_checksum is not None
             and not _nonempty_string(topology_checksum)
-            or terminal_status == "accepted_unique_consensus"
+            or terminal_status in _REPEAT_HISTORY_ACCEPTED_TERMINALS
             and not _nonempty_string(canonical_grid_checksum)
         ):
             raise PdfDualOracleContractError(
@@ -1469,7 +1484,8 @@ class PdfDualOracleContractRuntime:
                 and not _nonempty_string(event.get("canonical_grid_checksum"))
                 or event.get("topology_checksum") is not None
                 and not _nonempty_string(event.get("topology_checksum"))
-                or event.get("terminal_status") == "accepted_unique_consensus"
+                or event.get("terminal_status")
+                in _REPEAT_HISTORY_ACCEPTED_TERMINALS
                 and not _nonempty_string(event.get("canonical_grid_checksum"))
                 or event.get("previous_event_checksum")
                 != prior.get("latest_event_checksum")

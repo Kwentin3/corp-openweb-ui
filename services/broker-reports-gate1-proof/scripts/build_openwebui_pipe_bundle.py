@@ -85,6 +85,7 @@ MODULE_ORDER = [
 
 GATE1_HYBRID_MODULES = [
     "pdf_hybrid_contracts",
+    "pdf_table_intake_contracts",
     "pdf_table_classification",
     "pdf_table_raster",
     "pdf_hybrid_evidence",
@@ -102,9 +103,12 @@ GATE1_HYBRID_MODULES = [
     "pdf_structural_row_windows",
     "pdf_visual_topology",
     "pdf_topology_assembly",
+    "pdf_vlm_region_binding",
     "pdf_grid_experiment_provider",
     "pdf_continuation_discovery",
     "pdf_structural_repair_runtime",
+    "pdf_semantic_header_contracts",
+    "pdf_semantic_header_projection",
     "pdf_structural_repair_shadow",
     "pdf_hybrid_shadow",
     "pdf_hybrid_reliability_shadow",
@@ -136,8 +140,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.12.0-pdf-structural-windowed-continuation-shadow-bundled",
-            package_version="gate1_pdf_structural_windowed_continuation_shadow_v1",
+            version="0.13.0-pdf-structural-semantic-shadow-bundled",
+            package_version="gate1_pdf_structural_semantic_shadow_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )

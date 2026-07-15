@@ -63,10 +63,19 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
         self.assertNotIn("cell_inventory", rendered)
         self.assertNotIn("shape_hints", model_view)
         self.assertFalse(model_view["rules"]["parser_header_depth_available"])
-        self.assertTrue(
-            model_view["rules"][
-                "row_boundary_requires_visible_horizontal_separator"
-            ]
+        self.assertFalse(
+            model_view["rules"]["boundary_evidence_requires_drawn_grid"]
+        )
+        self.assertFalse(
+            model_view["rules"]["borderless_table_implies_unsupported"]
+        )
+        self.assertNotIn(
+            "row_boundary_requires_visible_horizontal_separator",
+            model_view["rules"],
+        )
+        self.assertNotIn(
+            "column_boundary_requires_visible_vertical_separator_in_unmerged_regions",
+            model_view["rules"],
         )
         self.assertFalse(model_view["rules"]["single_cell_spans_allowed"])
         self.assertTrue(
@@ -78,6 +87,11 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
             model_view["rules"]["unsupported_requires_uncertainty_code"]
         )
         self.assertIn("starts with exactly 0.0", model_view["task"])
+        self.assertIn("stable whitespace gutters", model_view["task"])
+        self.assertIn("repeated horizontal or vertical alignment", model_view["task"])
+        self.assertIn("consistent atom bands", model_view["task"])
+        self.assertIn("visible separators when present", model_view["task"])
+        self.assertIn("absence of drawn grid lines", model_view["task"])
         self.assertIn("at least one precise snake_case uncertainty code", model_view["task"])
         output_schema = package["output_schema"]
         hypothesis_schema = output_schema["properties"]["hypotheses"]["items"]
@@ -94,6 +108,10 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
         )
         self.assertFalse(package["legacy_grid_consumed"])
         self.assertFalse(package["source_values_exposed_to_model_view"])
+        self.assertLessEqual(
+            package["component_accounting"]["static_input_token_estimate"],
+            1_482,
+        )
         self.assertEqual(
             ["a0001", "a0002", "a0003", "a0004"],
             [item["atom_id"] for item in model_view["atoms"]],
@@ -106,12 +124,12 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
             ),
         )
 
-    def test_policy_v4_raises_atom_cap_without_weakening_other_budgets(
+    def test_policy_v5_repairs_visual_contract_without_weakening_budgets(
         self,
     ) -> None:
         config = PdfVisualTopologyConfig()
 
-        self.assertEqual("pdf_visual_topology_policy_v4", config.policy_version)
+        self.assertEqual("pdf_visual_topology_policy_v5", config.policy_version)
         self.assertEqual(PDF_VISUAL_TOPOLOGY_POLICY_VERSION, config.policy_version)
         self.assertEqual(1_000, config.maximum_atoms)
         self.assertEqual(48 * 1024, config.maximum_model_json_bytes)
@@ -123,7 +141,7 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
         ):
             PdfVisualTopologyFactory(
                 PdfVisualTopologyConfig(
-                    policy_version="pdf_visual_topology_policy_v3"
+                    policy_version="pdf_visual_topology_policy_v4"
                 )
             ).create()
 
@@ -272,6 +290,92 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
                 expected_package_id=package["package_id"],
             )
 
+    def test_borderless_contract_preserves_two_and_three_column_alternatives(
+        self,
+    ) -> None:
+        package = self.visual.build_package(
+            parser_observation=self.observation,
+            crop_manifest=self.crop,
+        )
+        response = _response(package["package_id"])
+        response["decision"] = "ambiguous"
+        response["uncertainty_codes"] = ["two_or_three_columns_plausible"]
+        two_columns = response["hypotheses"][0]
+        two_columns["hypothesis_key"] = "two_columns"
+        three_columns = copy.deepcopy(two_columns)
+        three_columns["hypothesis_key"] = "three_columns"
+        three_columns["column_boundaries"] = [0.0, 0.4, 0.7, 1.0]
+        response["hypotheses"].append(three_columns)
+
+        parsed = self.visual.parse_response(
+            response,
+            expected_package_id=package["package_id"],
+        )
+
+        self.assertEqual("ambiguous", parsed["decision"])
+        self.assertEqual(
+            ["two_columns", "three_columns"],
+            [item["hypothesis_key"] for item in parsed["hypotheses"]],
+        )
+        self.assertEqual(
+            [[0.0, 0.5, 1.0], [0.0, 0.4, 0.7, 1.0]],
+            [item["column_boundaries"] for item in parsed["hypotheses"]],
+        )
+
+    def test_provider_schema_is_canonical_merged_and_legacy_span_normalizes(
+        self,
+    ) -> None:
+        package = self.visual.build_package(
+            parser_observation=self.observation,
+            crop_manifest=self.crop,
+        )
+        provider_schema = package["output_schema"]
+        hypothesis_schema = provider_schema["properties"]["hypotheses"]["items"]
+        relation_schema = hypothesis_schema["properties"]["spans"]["items"][
+            "properties"
+        ]["relation"]
+        self.assertEqual(["merged"], relation_schema["enum"])
+
+        canonical = _response(package["package_id"])
+        canonical["hypotheses"][0]["spans"] = [
+            {
+                "start_row": 1,
+                "end_row": 1,
+                "start_column": 1,
+                "end_column": 2,
+                "relation": "merged",
+            }
+        ]
+        canonical["hypotheses"][0]["header_hierarchy"] = [
+            {
+                "parent_row": 1,
+                "parent_column": 1,
+                "child_start_column": 1,
+                "child_end_column": 2,
+            }
+        ]
+        legacy = copy.deepcopy(canonical)
+        legacy["hypotheses"][0]["spans"][0]["relation"] = "spanning_header"
+
+        parsed_canonical = self.visual.parse_response(
+            canonical,
+            expected_package_id=package["package_id"],
+        )
+        parsed_legacy = self.visual.parse_response(
+            legacy,
+            expected_package_id=package["package_id"],
+        )
+
+        self.assertEqual(parsed_canonical, parsed_legacy)
+        self.assertEqual(
+            "merged",
+            parsed_legacy["hypotheses"][0]["spans"][0]["relation"],
+        )
+        self.assertEqual(
+            "spanning_header",
+            legacy["hypotheses"][0]["spans"][0]["relation"],
+        )
+
     def test_package_validation_survives_canonical_json_key_sorting(self) -> None:
         package = self.visual.build_package(
             parser_observation=self.observation,
@@ -386,7 +490,19 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
     ) -> None:
         assembly = self._assemble(_response(self.package["package_id"]))
 
+        self.assertEqual(
+            "broker_reports_pdf_topology_assembly_result_v5",
+            assembly["schema_version"],
+        )
+        self.assertEqual(
+            "pdf_topology_assembly_policy_v5", assembly["policy_version"]
+        )
         self.assertEqual("assembled", assembly["reconstruction_status"])
+        evidence = assembly["geometry_evidence"][0]
+        self.assertEqual("confirmed", evidence["row_boundaries"]["status"])
+        self.assertEqual("confirmed", evidence["column_boundaries"]["status"])
+        self.assertEqual("confirmed", evidence["candidate_separators"]["status"])
+        self.assertEqual("not_applicable", evidence["span_separators"]["status"])
         self.assertEqual("not_evaluated", assembly["certification_status"])
         self.assertFalse(assembly["value_mutation_performed"])
         self.assertFalse(assembly["nearest_cell_fallback_used"])
@@ -656,12 +772,95 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
         )
 
         self.assertEqual("regional_retry_required", assembly["reconstruction_status"])
+        self.assertEqual([], assembly["binding_hypotheses"])
         self.assertIn(
             "pdf_topology_assembly_candidate_bbox_crosses_parser_separator",
             [item["reason_code"] for item in assembly["regional_issues"]],
         )
+        self.assertEqual(
+            "contradicted",
+            assembly["geometry_evidence"][0]["candidate_separators"]["status"],
+        )
+        tampered = copy.deepcopy(assembly)
+        tampered["geometry_evidence"] = []
+        tampered.pop("result_checksum")
+        tampered["result_checksum"] = sha256_json(tampered)
+        self.assertIn(
+            "pdf_topology_assembly_geometry_evidence_invalid",
+            self.assembler.validate_result(tampered),
+        )
 
-    def test_two_explicit_attempts_reach_current_solver_unique_consensus(self) -> None:
+    def test_noncontiguous_multiline_span_membership_uses_region_ownership_not_global_order_or_common_band(
+        self,
+    ) -> None:
+        projection = _projection(merged_header=True)
+        projection["bbox_inventory"][0]["bbox"] = [10.0, 10.0, 30.0, 40.0]
+        projection["bbox_inventory"][2]["bbox"] = [60.0, 60.0, 90.0, 90.0]
+        middle_row = next(
+            item
+            for item in projection["vector_line_inventory"]
+            if item["object_ref"] == "vector-middle-row"
+        )
+        middle_bbox = next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == middle_row["bbox_ref"]
+        )
+        middle_bbox["bbox"] = [100.0, 50.0, 200.0, 50.0]
+        observation = _observation(self.contracts, projection=projection)
+        package = self.visual.build_package(
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(),
+        )
+        response = _response(package["package_id"])
+        response["hypotheses"][0]["spans"] = [
+            {
+                "start_row": 1,
+                "end_row": 2,
+                "start_column": 1,
+                "end_column": 1,
+                "relation": "merged",
+            }
+        ]
+
+        assembly = self.assembler.assemble(
+            parser_observation=observation,
+            parser_geometry_observation=_geometry_observation(
+                self.geometry, projection=projection
+            ),
+            visual_package=package,
+            topology_response=response,
+            attempt_evidence=_attempt_evidence(1),
+            hypothesis_id_prefix="multiline-span-a1",
+        )
+
+        self.assertEqual("assembled", assembly["reconstruction_status"])
+        binding = assembly["binding_hypotheses"][0]["binding_output"]
+        self.assertEqual(
+            [observation["candidate_order"][0], observation["candidate_order"][2]],
+            binding["rows"][0]["cells"][0],
+        )
+        self.assertEqual([], binding["rows"][1]["cells"][0])
+        self.assertEqual(1, len(binding["spans"]))
+        accounting = assembly["source_accounting"]["alternative_accounting"][0]
+        self.assertEqual(4, accounting["used_candidates"])
+        self.assertEqual(4, accounting["unique_used_candidates"])
+        self.assertEqual([], accounting["omitted_candidate_ids"])
+        self.assertEqual([], accounting["duplicate_candidate_ids"])
+        self.assertEqual(
+            "insufficient_evidence",
+            assembly["geometry_evidence"][0]["span_separators"]["status"],
+        )
+        self.assertNotIn(
+            "pdf_topology_assembly_span_source_order_not_contiguous",
+            [item["reason_code"] for item in assembly["regional_issues"]],
+        )
+        self.assertNotIn(
+            "pdf_topology_assembly_span_atom_band_incoherent",
+            [item["reason_code"] for item in assembly["regional_issues"]],
+        )
+
+    def test_two_explicit_attempts_reach_supplied_scope_consensus(self) -> None:
         first = self._assemble(
             _response(self.package["package_id"], split=0.49), attempt=1
         )
@@ -693,9 +892,12 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
         )
 
         self.assertTrue(repeatability["passed"])
-        self.assertEqual("accepted_unique_consensus", result["terminal_status"])
-        self.assertTrue(result["uniqueness_proven"])
-        self.assertTrue(result["solver_search_complete"])
+        self.assertEqual("accepted_supplied_consensus", result["terminal_status"])
+        self.assertFalse(result["uniqueness_proven"])
+        self.assertTrue(result["supplied_hypotheses_exhausted"])
+        self.assertFalse(result["structural_domain_complete"])
+        self.assertTrue(result["domain_incomplete"])
+        self.assertEqual("supplied_vlm_hypotheses_only", result["search_scope"])
         persisted_package = json.loads(
             json.dumps(self.package, sort_keys=True)
         )
@@ -861,7 +1063,7 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
             [item["operation"] for item in assembly["structural_adjustments"]],
         )
 
-    def test_partial_separator_evidence_blocks_instead_of_guessing_span(self) -> None:
+    def test_partial_separator_evidence_abstains_without_rejecting_visual_span(self) -> None:
         projection = _projection(merged_header=True)
         bbox_ref = "vector-bbox-partial-middle"
         projection["bbox_inventory"].append(
@@ -903,11 +1105,14 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
             hypothesis_id_prefix="partial-separator-a1",
         )
 
-        self.assertEqual("regional_retry_required", assembly["reconstruction_status"])
-        self.assertEqual([], assembly["binding_hypotheses"])
-        self.assertIn(
-            "pdf_topology_assembly_span_separator_evidence_ambiguous",
-            [item["reason_code"] for item in assembly["regional_issues"]],
+        self.assertEqual("assembled", assembly["reconstruction_status"])
+        self.assertEqual(
+            1,
+            len(assembly["binding_hypotheses"][0]["binding_output"]["spans"]),
+        )
+        self.assertEqual(
+            "insufficient_evidence",
+            assembly["geometry_evidence"][0]["span_separators"]["status"],
         )
 
     def test_rect_fill_edge_cannot_contradict_span_without_vector_line(self) -> None:
@@ -958,7 +1163,9 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
             len(assembly["binding_hypotheses"][0]["binding_output"]["spans"]),
         )
 
-    def test_missing_parser_geometry_boundary_blocks_hypothesis(self) -> None:
+    def test_missing_parser_geometry_boundary_abstains_and_keeps_visual_hypothesis(
+        self,
+    ) -> None:
         projection = _projection()
         projection["vector_line_inventory"] = [
             item
@@ -982,11 +1189,57 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
             hypothesis_id_prefix="missing-boundary-a1",
         )
 
-        self.assertEqual("regional_retry_required", assembly["reconstruction_status"])
-        self.assertIn(
-            "pdf_topology_assembly_parser_geometry_boundary_count_conflict",
-            [item["reason_code"] for item in assembly["regional_issues"]],
+        self.assertEqual("assembled", assembly["reconstruction_status"])
+        self.assertEqual(
+            [0.0, 0.5, 1.0],
+            assembly["binding_hypotheses"][0]["proposed_geometry"]["columns"][
+                "boundaries"
+            ],
         )
+        column_evidence = assembly["geometry_evidence"][0]["column_boundaries"]
+        self.assertEqual("insufficient_evidence", column_evidence["status"])
+        self.assertEqual(2, column_evidence["observed_count"])
+        self.assertEqual(3, column_evidence["required_count"])
+        self.assertEqual(
+            ["pdf_topology_assembly_parser_geometry_incomplete"],
+            column_evidence["reason_codes"],
+        )
+
+    def test_missing_vector_line_sets_are_insufficient_evidence_not_rejection(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["vector_line_inventory"] = []
+        observation = _observation(self.contracts, projection=projection)
+        package = self.visual.build_package(
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(),
+        )
+
+        assembly = self.assembler.assemble(
+            parser_observation=observation,
+            parser_geometry_observation=_geometry_observation(
+                self.geometry, projection=projection
+            ),
+            visual_package=package,
+            topology_response=_response(package["package_id"]),
+            attempt_evidence=_attempt_evidence(1),
+            hypothesis_id_prefix="missing-geometry-a1",
+        )
+
+        self.assertEqual("assembled", assembly["reconstruction_status"])
+        evidence = assembly["geometry_evidence"][0]
+        for subject in ("row_boundaries", "column_boundaries"):
+            self.assertEqual("insufficient_evidence", evidence[subject]["status"])
+            self.assertEqual(0, evidence[subject]["observed_count"])
+            self.assertEqual(
+                ["pdf_topology_assembly_parser_geometry_missing"],
+                evidence[subject]["reason_codes"],
+            )
+        self.assertEqual(
+            "insufficient_evidence", evidence["candidate_separators"]["status"]
+        )
+        self.assertEqual("not_applicable", evidence["span_separators"]["status"])
 
     def test_parser_geometry_scope_mismatch_fails_closed(self) -> None:
         foreign = _geometry_observation(self.geometry, table_ref="foreign-table")

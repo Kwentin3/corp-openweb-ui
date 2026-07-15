@@ -13,9 +13,13 @@ The slice has four explicit domains:
 | Raw parser values | Exact PDF word atoms, immutable visible values, source refs, checksums, bboxes and source order | Rows, columns, headers or a preferred grid |
 | Raw parser geometry | Vector-line and rectangle-edge observations in table-normalized coordinates | Values, candidate groups or table semantics |
 | Visual topology | Crop plus anonymous atom ids/bboxes/order; proposed rows, columns, headers, spans and alternatives | Source values, parser grid, reference answers or authority |
-| Deterministic assembly and consensus | Geometry calibration, span adjudication, atom placement, constraint evaluation, uniqueness and typed terminals | Value repair, score-based ranking, provider calls or reference scoring |
+| Deterministic assembly and consensus | Geometry calibration, span adjudication, atom placement, supplied-hypothesis constraint evaluation and typed terminals | Value repair, score-based ranking, provider calls, global-uniqueness claims or reference scoring |
 
-The existing v1 dual-oracle contract remains the baseline for typed terminals, continuation and generic solver constraints. This v2 contract defines the independent observation and deterministic assembly path that was missing in v1.
+Selected legacy v1 schemas and validators remain implementation dependencies for
+replay compatibility. They do not own active terminal or acceptance semantics.
+This v2 contract owns current terminals, supplied-hypothesis scope, continuation
+acceptance and the independent observation/deterministic assembly path that was
+missing in v1.
 
 ## Factory entrypoints
 
@@ -88,7 +92,9 @@ The topology response is closed-shape and package-bound. It can propose:
 - header hierarchy;
 - explicit alternatives, continuation need and uncertainty codes.
 
-Rows mean physical bands separated by visible horizontal separators, not individual text baselines. One-cell spans are invalid model claims.
+Rows and columns are physical bands supported by repeated visual evidence: stable whitespace gutters, horizontal or vertical alignment, consistent atom bands, or visible separators when present. A text baseline alone is insufficient, but the absence of drawn grid lines does not force `unsupported`.
+
+All non-degenerate cell geometry uses one canonical span relation, `merged`. Header meaning is carried by `header_rows` and `header_hierarchy`; the legacy provider word `spanning_header` is accepted only at the response boundary and canonicalized to `merged` before assembly. One-cell spans are invalid model claims.
 
 ## Deterministic assembly
 
@@ -96,23 +102,32 @@ Assembly has no provider call and cannot mutate values.
 
 ### Boundary calibration
 
-Visual boundaries are proposals. Parser vector geometry calibrates them only when the expected `N + 1` strong line clusters are present and each certified line has sufficient table coverage. A missing or extra strong boundary is a typed regional block.
+Visual boundaries are proposals. Parser vector geometry calibrates them only when the expected `N + 1` strong line clusters are present and each certified line has sufficient table coverage. Geometry evidence has four explicit polarities:
+
+- `confirmed`: a complete matching set may calibrate the visual boundaries;
+- `contradicted`: positive certified separator evidence conflicts with the hypothesis and fails closed;
+- `insufficient_evidence`: a partial or mismatched set abstains and leaves the visual boundaries unchanged;
+- `not_applicable`: no check applies to that subject.
+
+Missing, incomplete or inapplicable geometry is never negative evidence by itself. Geometry remains an auditor and calibrator, not topology authority.
 
 Candidate placement uses bbox bands, not nearest-cell fallback. A bbox center on a boundary or a bbox crossing a certified separator blocks the affected hypothesis.
 
 ### Span adjudication
 
-Every proposed span is checked against vector-line coverage at its internal separators:
+Every proposed span is checked against positive vector-line coverage at its internal separators:
 
 - coverage at or above `0.80` means a real separator;
-- coverage at or below `0.10` means a supported gap;
-- intermediate coverage is ambiguous and produces a typed regional block.
+- coverage at or below `0.10` is not a separator contradiction;
+- intermediate or missing coverage is `insufficient_evidence` and abstains.
 
 A span that overreaches a certified separator is trimmed to the nearest certified gap. If that reduces it to one cell, it is dropped as a no-op. The adjustment journal records the operation and fixes `source_value_change_allowed=false`.
 
 This rule repaired the grouped-header development case without consulting cell values or the reference. It is geometry policy, not an exception for one table.
 
 An empty geometry-certified merged region is currently projected to explicit empty cells because the existing binding schema requires a non-empty span anchor. That projection is journaled and is a known contract limitation.
+
+Span membership is determined by the selected grid region, exact atom ownership, certified-separator non-crossing, non-overlap and anchor/covered-cell consistency. A multi-line or vertical header span does not require globally contiguous parser source order or one common narrow x/y overlap band.
 
 ### Binding invariants
 
@@ -121,25 +136,28 @@ An assembled hypothesis must prove:
 - complete rectangular rows and explicit empty cells;
 - every atom bound exactly once;
 - no unknown, missing or duplicated candidate id;
-- stable source order;
+- stable source order inside each materialized cell, without using global order as a span-membership gate;
 - no value mutation;
 - no nearest-cell fallback;
 - package, crop, dictionary and raw-response checksum integrity.
 
-Ambiguous geometry returns `regional_retry_required`; it is not guessed into an accepted grid.
+Positive contradictory geometry returns a typed rejection. Incomplete geometry abstains; it does not manufacture a boundary, reject a visual boundary, or trigger a hidden retry.
 
 ## Final consensus
 
-The existing bounded finite-domain solver remains the final auditor. It checks each assembled hypothesis against exact parser evidence and returns one terminal:
+The existing bounded evaluator remains the final auditor. It checks the hypotheses actually supplied to it against exact parser evidence and returns one terminal:
 
-- `accepted_unique_consensus`;
+- `accepted_supplied_consensus`;
 - `ambiguous_multiple_consensus`;
+- `incomplete_evidence`;
 - `parser_vlm_conflict`;
 - `no_valid_consensus`;
 - `human_review_required`;
 - `unsupported`.
 
-There is no numeric optimizer, majority vote, oracle preference or “best-looking” response. Acceptance requires one complete, unique, constraint-valid canonical grid and a passing repeatability record.
+There is no numeric optimizer, majority vote, oracle preference or “best-looking” response. `supplied_hypotheses_exhausted` states only that every valid supplied hypothesis was evaluated. The runtime sets `structural_domain_complete=false`, `domain_incomplete=true` and `uniqueness_proven=false` because it does not enumerate every physically possible table. `structurally_unique_within_supplied_evidence` is deliberately narrower. `ambiguity_proven=true` requires at least two distinct constraint-valid supplied grids. `search_scope` and `search_not_certifiable` make the scope of any bounded conclusion explicit.
+
+Bounded acceptance requires one constraint-valid canonical grid within the exhausted supplied set, a passing repeatability record and no unresolved supplied-evidence blocker. It does not claim global uniqueness and remains non-authoritative for production Gate 2.
 
 Before materialization, the solver revalidates the accepted witness and the private dictionary against parser evidence. Dictionary insertion order is not semantic; exact candidate key membership and the explicit parser order are checked separately.
 
@@ -162,6 +180,8 @@ The terminal seal includes the replay-input SHA plus, for every table:
 The scoring process re-reads the terminal file after scoring and rejects any byte or semantic change.
 
 ## Evidence proved on 2026-07-14
+
+The terminal names in this historical section are preserved as recorded. In particular, `accepted_unique_consensus` is a deprecated historical label and is not emitted by the repaired runtime.
 
 ### Historical sealed replay
 
@@ -206,7 +226,7 @@ For `W` windows, the runtime performs exactly `2W` `countTokens` calls and `2W` 
 
 Local tests cover a `3 x 12` wide table with multiline content and exact atom ownership. This proves the bounded implementation path, not public-corpus generalization.
 
-Continuation discovery is parser/geometry-only and currently accepts exactly two adjacent page fragments with a compatible column model. Each fragment must independently reach accepted unique consensus. The join:
+Continuation discovery is parser/geometry-only and currently accepts exactly two adjacent page fragments with a compatible column model. Each fragment must independently reach `accepted_supplied_consensus` and satisfy the explicit supplied-scope predicates; this does not prove global uniqueness. The join:
 
 - adds zero provider calls;
 - preserves fragment row order and subtotals;
@@ -250,9 +270,38 @@ The live OpenWebUI canary passed with the repository Gate 1 bundle:
 
 Repository/live SHA parity then passed for Gate 1, Gate 2 source-fact and Gate 2 domain bundles, together with all twelve managed prompts. Gate 2 selection remains unchanged: the domain live smoke recorded `candidate_binding_enabled=false` while accepting all nine synthetic domain packages.
 
+## Structural contract repair evidence on 2026-07-15
+
+A read-only replay used only the sealed `fresh_holdout_v4` pre-registration and terminal artifacts. It made zero provider calls, did not read the human reference and did not write a replacement terminal.
+
+- `holdout_001` and `holdout_002` each admitted both controlled anonymous-bbox two-column and three-column alternatives. Both ended `ambiguous_multiple_consensus` with `ambiguity_proven=true`; neither was materialized.
+- Both sealed raw visual attempts for `holdout_003` assembled to the same canonical `3 x 6` binding with five `merged` spans, one header-hierarchy relation and `51/51` exact atom ownership. The bounded terminal was `accepted_supplied_consensus`; materialization invented zero values.
+- Every result reported `structural_domain_complete=false`, `uniqueness_proven=false`, `domain_incomplete=true` and `search_scope=supplied_vlm_hypotheses_only`.
+- The v5 static package estimates decreased by `87`, `88` and `87` tokens respectively; crop bytes were unchanged. No v5 provider `countTokens` result is claimed.
+
+The controlled `holdout_001` and `holdout_002` cases prove contract expressibility and honest ambiguity, not that a live provider will necessarily emit both alternatives. A new source-frozen provider holdout is still required for generalization or production-accuracy claims.
+
+## Fresh v5 validation boundary on 2026-07-15
+
+The next certification-eligible corpus was frozen as seven previously unused official public broker PDFs under policy `official_public_broker_pdf_2026_07_15_v5`. Its parser-only selection rule and eligibility-policy checksum were declared before execution. No human reference was opened.
+
+The one pre-registration attempt found `27` parser table candidates but `0` eligible candidates:
+
+- Betterment: `7/0`;
+- DriveWealth: `4/0`;
+- IBKR audited and mid-year: `0/0` each;
+- Moomoo audited and mid-year: `8/0` each;
+- Wealthfront: `0/0`.
+
+The general rejection families were multi-region coverage, unsupported row extent, multi-region height, page-wide area and sparse structural signal. The runner stopped with `pdf_structural_holdout_no_eligible_document` before writing a pre-registration artifact. It made zero `countTokens` and zero generate calls, wrote no terminal, and did not unlock a reference. No corpus substitution, validator weakening or retry followed the outcome.
+
+Consequently v5 did not test repaired-provider behaviour or exact topology accuracy. It is a valid fail-closed preflight result, not an accuracy pass. The bounded remaining defect is the mismatch between real-document parser candidate regions and the frozen eligibility contract.
+
+The separate semantic contract is defined in `BROKER_REPORTS_PDF_SEMANTIC_HEADER_PROJECTION.v1.md`. Semantic meaning cannot repair this structural eligibility failure or select an ambiguous physical topology.
+
 ## Current readiness boundary
 
-The bounded implementation and live default-disabled shadow are complete. Production accuracy and production Gate 2 authority are not approved because the independent fresh holdout accepted `0/3` supported tables.
+The five structural contract defects are repaired in the default-disabled Gate 1 research path and are covered by controlled/sealed replay plus repository tests. Production accuracy and production Gate 2 authority remain unapproved: two borderless cases are genuinely ambiguous under the controlled proof, and the frozen fresh v5 attempt stopped before provider execution because no real candidate passed eligibility.
 
 The remaining limitations are explicit:
 
@@ -262,4 +311,4 @@ The remaining limitations are explicit:
 - a completely empty merged region without a source anchor still requires explicit projection or review;
 - the shadow remains default-disabled and non-authoritative.
 
-Production Gate 2 selection must remain unchanged until a new source-frozen, previously unseen holdout proves the agreed accuracy bar without hidden retries, value invention or reference leakage.
+Production Gate 2 selection must remain unchanged until a new source-frozen, previously unseen holdout reaches real provider execution and proves the agreed accuracy bar without hidden retries, value invention or reference leakage. The 2026-07-15 epic closes at this explicit partial boundary; another broad architecture cycle is not implied.

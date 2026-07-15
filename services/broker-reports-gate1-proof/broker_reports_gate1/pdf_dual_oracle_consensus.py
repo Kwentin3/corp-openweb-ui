@@ -16,7 +16,7 @@ from .pdf_hybrid_structure import PDF_HYBRID_CONTINUATION_SCHEMA
 
 
 PDF_DUAL_ORACLE_CONSENSUS_RESULT_SCHEMA = (
-    "broker_reports_pdf_dual_oracle_consensus_result_v1"
+    "broker_reports_pdf_dual_oracle_consensus_result_v2"
 )
 PDF_DUAL_ORACLE_CONTINUATION_RESULT_SCHEMA_V1 = (
     "broker_reports_pdf_dual_oracle_continuation_consensus_v1"
@@ -24,13 +24,14 @@ PDF_DUAL_ORACLE_CONTINUATION_RESULT_SCHEMA_V1 = (
 PDF_DUAL_ORACLE_CONTINUATION_RESULT_SCHEMA = (
     "broker_reports_pdf_dual_oracle_continuation_consensus_v2"
 )
-PDF_DUAL_ORACLE_CONSENSUS_POLICY_VERSION = "pdf_dual_oracle_consensus_policy_v1"
+PDF_DUAL_ORACLE_CONSENSUS_POLICY_VERSION = "pdf_dual_oracle_consensus_policy_v2"
 PDF_DUAL_ORACLE_REPEATABILITY_RECORD_SCHEMA = (
     "broker_reports_pdf_dual_oracle_repeatability_record_v2"
 )
 TERMINAL_STATUSES = {
-    "accepted_unique_consensus",
+    "accepted_supplied_consensus",
     "ambiguous_multiple_consensus",
+    "incomplete_evidence",
     "parser_vlm_conflict",
     "no_valid_consensus",
     "human_review_required",
@@ -144,7 +145,13 @@ _CONSENSUS_RESULT_KEYS = {
     "valid_distinct_grid_count",
     "structurally_unique_within_supplied_evidence",
     "uniqueness_proven",
-    "solver_search_complete",
+    "supplied_hypotheses_exhausted",
+    "structural_domain_complete",
+    "ambiguity_proven",
+    "domain_incomplete",
+    "search_not_certifiable",
+    "search_scope",
+    "safe_explanation",
     "required_evidence_to_resolve",
     "historical_repeatability",
     "historical_conflict_preserved",
@@ -160,11 +167,11 @@ _CONSENSUS_RESULT_KEYS = {
 
 FACTORY_REQUIRED = (
     "PdfDualOracleConsensusFactory.create is the only deterministic dual-oracle "
-    "constraint-enumeration entrypoint"
+    "supplied-hypothesis constraint-evaluation entrypoint"
 )
 FORBIDDEN = (
     "The solver must not score, rank, repair, majority-vote, prefer an oracle, "
-    "or use reference answers"
+    "use reference answers, or claim structural-domain completeness"
 )
 
 
@@ -314,7 +321,7 @@ class PdfDualOracleConsensusRuntime:
                 for item in attempt.get("valid_canonical_grid_checksums") or []
             ]
             terminal_status = (
-                "accepted_unique_consensus"
+                "accepted_supplied_consensus"
                 if len(valid_checksums) == 1
                 else "ambiguous_multiple_consensus"
                 if len(valid_checksums) > 1
@@ -358,7 +365,7 @@ class PdfDualOracleConsensusRuntime:
             return self._result(
                 parser_observation=parser_observation,
                 hypothesis_set=vlm_hypothesis_set,
-                terminal_status="no_valid_consensus",
+                terminal_status="incomplete_evidence",
                 alternatives=[],
                 valid_checksums=[],
                 review_codes=[],
@@ -393,7 +400,7 @@ class PdfDualOracleConsensusRuntime:
             return self._result(
                 parser_observation=parser_observation,
                 hypothesis_set=vlm_hypothesis_set,
-                terminal_status=("no_valid_consensus" if rejected else "unsupported"),
+                terminal_status=("incomplete_evidence" if rejected else "unsupported"),
                 alternatives=[
                     self._rejected_evidence_alternative(item)
                     for item in rejected
@@ -523,11 +530,11 @@ class PdfDualOracleConsensusRuntime:
             required = ["human_signed_topology_or_new_disambiguating_geometry"]
         elif len(valid_checksums) == 1:
             if review_codes:
-                terminal = "human_review_required"
+                terminal = "incomplete_evidence"
                 reasons = sorted(set(review_codes))
                 required = _required_evidence(review_codes)
             else:
-                terminal = "accepted_unique_consensus"
+                terminal = "accepted_supplied_consensus"
                 reasons = []
                 required = []
         else:
@@ -587,9 +594,17 @@ class PdfDualOracleConsensusRuntime:
             )
         if (
             consensus_result.get("terminal_status")
-            != "accepted_unique_consensus"
-            or consensus_result.get("uniqueness_proven") is not True
-            or consensus_result.get("solver_search_complete") is not True
+            != "accepted_supplied_consensus"
+            or consensus_result.get("supplied_hypotheses_exhausted") is not True
+            or consensus_result.get("structural_domain_complete") is not False
+            or consensus_result.get("uniqueness_proven") is not False
+            or consensus_result.get("ambiguity_proven") is not False
+            or consensus_result.get("domain_incomplete") is not True
+            or consensus_result.get("search_not_certifiable") is not False
+            or consensus_result.get("search_scope")
+            != "supplied_vlm_hypotheses_only"
+            or consensus_result.get("structurally_unique_within_supplied_evidence")
+            is not True
             or consensus_result.get("valid_distinct_grid_count") != 1
             or consensus_result.get("reason_codes")
             or consensus_result.get("review_codes")
@@ -810,8 +825,10 @@ class PdfDualOracleConsensusRuntime:
             for item in ordered_results
             if isinstance(item, dict)
         ]
-        if any(value != "accepted_unique_consensus" for value in terminals):
-            reasons.append("pdf_dual_oracle_continuation_fragment_not_uniquely_accepted")
+        if any(value != "accepted_supplied_consensus" for value in terminals):
+            reasons.append(
+                "pdf_dual_oracle_continuation_fragment_not_accepted_supplied_scope"
+            )
         for item in ordered_results:
             if not isinstance(item, dict):
                 continue
@@ -822,14 +839,23 @@ class PdfDualOracleConsensusRuntime:
                 or item.get("schema_version")
                 != PDF_DUAL_ORACLE_CONSENSUS_RESULT_SCHEMA
                 or stored_checksum != sha256_json(result_copy)
-                or item.get("uniqueness_proven")
-                is not (item.get("terminal_status") == "accepted_unique_consensus")
+                or item.get("uniqueness_proven") is not False
                 or item.get("authority_state") != "non_authoritative"
                 or item.get("production_gate2_selection_changed") is not False
                 or (
-                    item.get("terminal_status") == "accepted_unique_consensus"
+                    item.get("terminal_status") == "accepted_supplied_consensus"
                     and (
-                        item.get("solver_search_complete") is not True
+                        item.get("supplied_hypotheses_exhausted") is not True
+                        or item.get("structural_domain_complete") is not False
+                        or item.get("ambiguity_proven") is not False
+                        or item.get("domain_incomplete") is not True
+                        or item.get("search_not_certifiable") is not False
+                        or item.get("search_scope")
+                        != "supplied_vlm_hypotheses_only"
+                        or item.get(
+                            "structurally_unique_within_supplied_evidence"
+                        )
+                        is not True
                         or item.get("valid_distinct_grid_count") != 1
                         or not item.get("canonical_grid_checksum")
                         or item.get("reason_codes")
@@ -1129,10 +1155,12 @@ class PdfDualOracleConsensusRuntime:
                 terminal = "parser_vlm_conflict"
             elif any(value == "unsupported" for value in terminals):
                 terminal = "unsupported"
+            elif any(value == "incomplete_evidence" for value in terminals):
+                terminal = "incomplete_evidence"
             elif any(value == "no_valid_consensus" for value in terminals):
                 terminal = "no_valid_consensus"
             elif any("contract_invalid" in value for value in reasons):
-                terminal = "no_valid_consensus"
+                terminal = "incomplete_evidence"
             else:
                 terminal = "human_review_required"
             canonical_checksum = None
@@ -1140,7 +1168,7 @@ class PdfDualOracleConsensusRuntime:
             sealed_joined_rows: list[dict[str, Any]] = []
             sealed_deduplicated_rows: list[dict[str, Any]] = []
         else:
-            terminal = "accepted_unique_consensus"
+            terminal = "accepted_supplied_consensus"
             sealed_joined_rows = copy.deepcopy(joined_rows)
             sealed_deduplicated_rows = copy.deepcopy(deduplicated_boundary_rows)
             canonical_checksum = sha256_json(
@@ -1201,20 +1229,20 @@ class PdfDualOracleConsensusRuntime:
             "source_candidate_count": len(source_candidate_ids),
             "joined_candidate_count": (
                 len(joined_candidate_ids)
-                if terminal == "accepted_unique_consensus"
+                if terminal == "accepted_supplied_consensus"
                 else 0
             ),
             "deduplicated_boundary_rows": sealed_deduplicated_rows,
             "joined_coverage_complete": (
                 joined_coverage_complete
-                and terminal == "accepted_unique_consensus"
+                and terminal == "accepted_supplied_consensus"
             ),
             "repeated_header_policy_passed": repeated_header_policy_passed,
             "subtotal_policy_passed": subtotal_policy_passed,
             "duplicate_row_policy_passed": duplicate_row_policy_passed,
             "canonical_joined_grid_checksum": canonical_checksum,
             "all_required_fragments_independently_accepted": (
-                terminal == "accepted_unique_consensus"
+                terminal == "accepted_supplied_consensus"
             ),
             "authority_state": "non_authoritative",
             "production_gate2_selection_changed": False,
@@ -1695,28 +1723,27 @@ class PdfDualOracleConsensusRuntime:
             ),
             {},
         )
-        context = _object(hypothesis_set.get("model_context"))
-        construction = _object(parser_observation.get("candidate_construction"))
-        solver_search_complete = bool(
-            terminal_status
-            in {
-                "accepted_unique_consensus",
-                "ambiguous_multiple_consensus",
-                "parser_vlm_conflict",
-                "human_review_required",
-            }
-            and
-            context.get("topology_dimensions_independently_observed") is True
-            and context.get("alternative_topology_hypotheses_complete") is True
-            and context.get("context_guard_attested") is True
-            and not _dicts(hypothesis_set.get("rejected_evidence"))
-            and all(
-                item.get("decision") != "unsupported"
-                for item in _dicts(hypothesis_set.get("hypotheses"))
-            )
-            and construction.get("kind") == "raw_word_atoms"
-            and construction.get("semantic_grid_dependency") is False
+        hypotheses = _dicts(hypothesis_set.get("hypotheses"))
+        rejected_evidence = _dicts(hypothesis_set.get("rejected_evidence"))
+        supplied_ids = sorted(str(item.get("hypothesis_id") or "") for item in hypotheses)
+        evaluated_ids = sorted(
+            str(item.get("hypothesis_id") or "")
+            for item in alternatives
+            if item.get("decision") != "rejected_evidence"
         )
+        supplied_hypotheses_exhausted = bool(
+            not self.contracts.validate_parser_observation(parser_observation)
+            and not self.contracts.validate_vlm_hypothesis_set(
+                parser_observation=parser_observation,
+                hypothesis_set=hypothesis_set,
+            )
+            and not rejected_evidence
+            and evaluated_ids == supplied_ids
+        )
+        structural_domain_complete = False
+        ambiguity_proven = len(valid_checksums) > 1
+        domain_incomplete = not structural_domain_complete
+        search_not_certifiable = not supplied_hypotheses_exhausted
         result = {
             "schema_version": PDF_DUAL_ORACLE_CONSENSUS_RESULT_SCHEMA,
             "policy_version": self.config.policy_version,
@@ -1756,11 +1783,17 @@ class PdfDualOracleConsensusRuntime:
             "structurally_unique_within_supplied_evidence": (
                 len(valid_checksums) == 1
             ),
-            "uniqueness_proven": (
-                terminal_status == "accepted_unique_consensus"
-                and solver_search_complete
+            "uniqueness_proven": False,
+            "supplied_hypotheses_exhausted": supplied_hypotheses_exhausted,
+            "structural_domain_complete": structural_domain_complete,
+            "ambiguity_proven": ambiguity_proven,
+            "domain_incomplete": domain_incomplete,
+            "search_not_certifiable": search_not_certifiable,
+            "search_scope": "supplied_vlm_hypotheses_only",
+            "safe_explanation": _safe_consensus_explanation(
+                terminal_status=terminal_status,
+                supplied_hypotheses_exhausted=supplied_hypotheses_exhausted,
             ),
-            "solver_search_complete": solver_search_complete,
             "required_evidence_to_resolve": sorted(set(required_evidence)),
             "historical_repeatability": copy.deepcopy(
                 historical_repeatability or {}
@@ -1778,6 +1811,50 @@ class PdfDualOracleConsensusRuntime:
         }
         result["result_checksum"] = sha256_json(result)
         return result
+
+
+def _safe_consensus_explanation(
+    *, terminal_status: str, supplied_hypotheses_exhausted: bool
+) -> str:
+    if terminal_status == "accepted_supplied_consensus":
+        return (
+            "One canonical grid passed within the supplied hypotheses; "
+            "the structural domain was not enumerated."
+        )
+    if terminal_status == "ambiguous_multiple_consensus":
+        return (
+            "Multiple supplied grids passed; ambiguity is proven, but the "
+            "structural domain was not enumerated."
+        )
+    if terminal_status == "incomplete_evidence":
+        return (
+            "Supplied evidence or context is incomplete; no supplied-scope "
+            "conclusion is certified."
+        )
+    if terminal_status == "unsupported":
+        return (
+            "No supported bounded hypothesis was available; the structural "
+            "domain was not enumerated."
+        )
+    if terminal_status == "parser_vlm_conflict":
+        return (
+            "The evaluated supplied hypotheses conflict with positive parser "
+            "or structural evidence; the structural domain was not enumerated."
+        )
+    if terminal_status == "no_valid_consensus":
+        return (
+            "No supplied hypothesis passed the bounded checks; the structural "
+            "domain was not enumerated."
+        )
+    if not supplied_hypotheses_exhausted:
+        return (
+            "The supplied hypotheses were not exhausted; the structural domain "
+            "was not enumerated."
+        )
+    return (
+        "The supplied hypotheses require review; the structural domain was not "
+        "enumerated."
+    )
 
 
 def _continuation_result_errors(
@@ -1842,7 +1919,7 @@ def _continuation_result_errors(
     ):
         errors.append("pdf_dual_oracle_continuation_result_join_contract_invalid")
 
-    accepted = result.get("terminal_status") == "accepted_unique_consensus"
+    accepted = result.get("terminal_status") == "accepted_supplied_consensus"
     if not accepted:
         if (
             joined_rows
@@ -1884,7 +1961,7 @@ def _continuation_result_errors(
         != result.get("ordered_table_refs")
         or len(set(result.get("ordered_table_refs") or [])) != 2
         or result.get("fragment_terminals")
-        != ["accepted_unique_consensus", "accepted_unique_consensus"]
+        != ["accepted_supplied_consensus", "accepted_supplied_consensus"]
     ):
         errors.append("pdf_dual_oracle_continuation_result_fragment_plan_invalid")
     columns = result.get("shared_column_count")

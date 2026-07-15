@@ -20,6 +20,7 @@ from .pdf_structural_row_windows import (
 )
 from .pdf_topology_assembly import PdfTopologyAssemblyFactory
 from .pdf_visual_topology import (
+    PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
     PdfVisualTopologyConfig,
     PdfVisualTopologyFactory,
 )
@@ -37,23 +38,162 @@ PDF_STRUCTURAL_REPAIR_WINDOWED_RUNTIME_RESULT_SCHEMA = (
 PDF_STRUCTURAL_REPAIR_CONTINUATION_RESULT_SCHEMA = (
     "broker_reports_pdf_structural_repair_continuation_result_v1"
 )
+PDF_VLM_GUIDED_INTAKE_RESULT_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_intake_result_v1"
+)
+PDF_VLM_GUIDED_INTAKE_SAFE_SUMMARY_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_intake_safe_summary_v1"
+)
+PDF_VLM_PAGE_PROPOSAL_RESULT_SCHEMA = (
+    "broker_reports_pdf_vlm_page_proposal_result_v1"
+)
+PDF_VLM_PAGE_PROPOSAL_SAFE_SUMMARY_SCHEMA = (
+    "broker_reports_pdf_vlm_page_proposal_safe_summary_v1"
+)
 
 FACTORY_REQUIRED = (
     "PdfStructuralRepairRuntimeFactory.create is the only countTokens, "
-    "two-attempt, assembly, consensus, materialization and zero-provider "
-    "continuation-group entrypoint"
+    "one-call page proposal, guided candidate, two-attempt, assembly, "
+    "consensus, materialization and zero-provider continuation-group entrypoint"
 )
 FORBIDDEN = (
     "Callers must not bypass provider factories, hide retries, select the "
-    "best-looking attempt, expose raw provider data, or promote a non-unique "
-    "terminal to production authority; continuation groups must not trigger "
+    "best-looking attempt, expose raw provider data, claim global uniqueness, "
+    "or promote supplied-scope consensus to production authority; continuation "
+    "groups must not trigger "
     "new provider calls or bypass checked fragment evidence; windowed runs "
     "must not compact source values, call a full-table provider fallback, or "
-    "mix windows from different attempts"
+    "mix windows from different attempts; page proposals must not consume parser "
+    "atoms, retry, fail over, assemble, or materialize"
 )
 
 _FACTORY_TOKEN = object()
 _ATTEMPTS = (1, 2)
+_GUIDED_INTAKE_EXECUTION_CONTRACT = "candidate_crop_one_call_v1"
+_PAGE_PROPOSAL_EXECUTION_CONTRACT = "page_level_one_call_shadow_v1"
+_PAGE_PROPOSAL_RESULT_KEYS = {
+    "schema_version",
+    "policy_version",
+    "policy_configuration_hash",
+    "run_id",
+    "target_id",
+    "execution_contract",
+    "package_id",
+    "package_hash",
+    "provider_qualification",
+    "journal",
+    "proposal",
+    "table_presence",
+    "runtime_terminal_status",
+    "new_provider_count_token_calls",
+    "new_provider_generate_calls",
+    "authority_state",
+    "default_enabled",
+    "production_ready",
+    "production_gate2_selection_changed",
+    "safe_summary",
+    "result_checksum",
+}
+_PAGE_PROPOSAL_SAFE_SUMMARY_KEYS = {
+    "schema_version",
+    "target_id",
+    "runtime_terminal_status",
+    "reason_codes",
+    "count_token_calls",
+    "generate_calls",
+    "table_presence",
+    "regions_proposed",
+    "input_atom_count",
+    "proposal_persisted",
+    "hidden_retry",
+    "provider_failover",
+    "default_enabled",
+    "production_authority",
+    "result_checksum_ref",
+}
+_PAGE_PROPOSAL_JOURNAL_KEYS = {
+    "target_id",
+    "attempt_number",
+    "task_id",
+    "job_key",
+    "evidence_revision",
+    "provider_config_hash",
+    "count_tokens",
+    "provider_attempt",
+    "provider_result",
+    "topology_response",
+    "assembly",
+    "failure_code",
+    "provider_count_token_call_performed",
+    "provider_generate_call_performed",
+}
+_PAGE_PROPOSAL_REASON_CODES = frozenset(
+    {
+        "pdf_structural_repair_count_tokens_failed",
+        "pdf_structural_repair_counted_input_budget_exceeded",
+        "pdf_structural_repair_provider_attempt_failed",
+        "pdf_structural_repair_provider_lineage_invalid",
+        "pdf_structural_repair_provider_accounting_invalid",
+        "pdf_vlm_page_proposal_response_invalid",
+        "pdf_structural_repair_unknown_failure",
+    }
+)
+_GUIDED_INTAKE_RESULT_KEYS = {
+    "schema_version",
+    "policy_version",
+    "policy_configuration_hash",
+    "run_id",
+    "target_id",
+    "execution_contract",
+    "package_id",
+    "package_hash",
+    "parser_observation_checksum",
+    "parser_geometry_observation_checksum",
+    "provider_qualification",
+    "journal",
+    "proposal_decision",
+    "assembly",
+    "accepted_binding",
+    "materialization",
+    "post_validation",
+    "runtime_terminal_status",
+    "new_provider_count_token_calls",
+    "new_provider_generate_calls",
+    "authority_state",
+    "production_ready",
+    "production_gate2_selection_changed",
+    "safe_summary",
+    "result_checksum",
+}
+_GUIDED_INTAKE_POST_VALIDATION_KEYS = {
+    "passed",
+    "reason_codes",
+    "single_bound_hypothesis",
+    "alternatives_complete",
+    "exact_candidate_ownership",
+    "coordinate_compatible",
+    "certified_separators_preserved",
+    "spans_headers_valid",
+    "crop_identity_preserved",
+    "ambiguity_preserved",
+    "source_only_materialization",
+}
+_GUIDED_INTAKE_SAFE_SUMMARY_KEYS = {
+    "schema_version",
+    "target_id",
+    "runtime_terminal_status",
+    "reason_codes",
+    "count_token_calls",
+    "generate_calls",
+    "candidate_atoms",
+    "row_count",
+    "column_count",
+    "all_candidates_accounted",
+    "model_invented_values_total",
+    "hidden_retry",
+    "provider_failover",
+    "production_authority",
+}
 _RESULT_KEYS = {
     "schema_version",
     "policy_version",
@@ -102,6 +242,14 @@ _SAFE_SUMMARY_KEYS = {
     "hidden_retry",
     "provider_failover",
     "production_authority",
+    "search_scope",
+    "supplied_hypotheses_exhausted",
+    "structural_domain_complete",
+    "uniqueness_proven",
+    "ambiguity_proven",
+    "domain_incomplete",
+    "search_not_certifiable",
+    "consensus_explanation",
     "result_checksum_ref",
 }
 _SAFE_REASON_CODES = frozenset(
@@ -116,6 +264,10 @@ _SAFE_REASON_CODES = frozenset(
         "pdf_structural_repair_topology_invalid",
         "pdf_structural_repair_consensus_unavailable",
         "pdf_structural_repair_consensus_not_unique",
+        "pdf_structural_repair_incomplete_evidence",
+        "pdf_structural_repair_supplied_consensus_ambiguous",
+        "pdf_structural_repair_supplied_consensus_conflict",
+        "pdf_structural_repair_no_valid_supplied_consensus",
         "pdf_structural_repair_materialization_failed",
         "pdf_structural_repair_unknown_failure",
         "pdf_structural_window_plan_invalid",
@@ -164,7 +316,10 @@ _CONTINUATION_SAFE_SUMMARY_KEYS = {
 }
 _CONTINUATION_SAFE_REASON_CODES = frozenset(
     {
-        "pdf_structural_repair_continuation_consensus_not_unique",
+        "pdf_structural_repair_continuation_incomplete_evidence",
+        "pdf_structural_repair_continuation_supplied_consensus_ambiguous",
+        "pdf_structural_repair_continuation_consensus_unsupported",
+        "pdf_structural_repair_continuation_not_accepted_supplied_scope",
         "pdf_structural_repair_continuation_materialization_failed",
     }
 )
@@ -214,7 +369,13 @@ class PdfStructuralRepairRuntimeFactory:
             self.config.maximum_provider_response_bytes,
             self.config.maximum_image_bytes,
         )
-        if min(budgets) < 1 or not self.config.model_id:
+        if budgets != (
+            20_000,
+            8_192,
+            512 * 1024,
+            2 * 1024 * 1024,
+            8 * 1024 * 1024,
+        ) or not self.config.model_id:
             raise PdfStructuralRepairRuntimeError(
                 "pdf_structural_repair_runtime_config_invalid"
             )
@@ -312,6 +473,547 @@ class PdfStructuralRepairRuntime:
                 "pdf_structural_repair_provider_not_qualified"
             )
         return copy.deepcopy(data)
+
+    def run_page_proposal_once(
+        self,
+        *,
+        target_id: str,
+        visual_package: dict[str, Any],
+        png_bytes: bytes,
+        provider_qualification: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Run one default-disabled, non-authoritative page proposal call."""
+
+        self._validate_page_proposal_input(
+            target_id=target_id,
+            visual_package=visual_package,
+            png_bytes=png_bytes,
+            provider_qualification=provider_qualification,
+        )
+        provider_config_hash = sha256_json(
+            {
+                "provider_profile": self.config.provider_profile,
+                "provider_name": self.config.provider_name,
+                "model_id": self.config.model_id,
+                "maximum_counted_input_tokens": (
+                    self.config.maximum_counted_input_tokens
+                ),
+                "maximum_output_tokens": self.config.maximum_output_tokens,
+                "execution_contract": _PAGE_PROPOSAL_EXECUTION_CONTRACT,
+            }
+        )
+        evidence_revision = sha256_json(
+            {
+                "package_hash": visual_package.get("package_hash"),
+                "provider_config_hash": provider_config_hash,
+                "model_view_hash": sha256_json(
+                    visual_package.get("model_facing")
+                ),
+                "output_schema_hash": sha256_json(
+                    visual_package.get("output_schema")
+                ),
+            }
+        )
+        task_id = "pdfpageproposaltask_" + hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "target_id": target_id,
+                    "package_hash": visual_package.get("package_hash"),
+                    "evidence_revision": evidence_revision,
+                    "model_id": self.config.model_id,
+                }
+            )
+        ).hexdigest()[:24]
+        run_id = "pdfpageproposalrun_" + hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "task_id": task_id,
+                    "policy_version": self.config.policy_version,
+                    "execution_contract": _PAGE_PROPOSAL_EXECUTION_CONTRACT,
+                }
+            )
+        ).hexdigest()[:24]
+
+        counted: dict[str, Any] = {}
+        provider_result: dict[str, Any] = {}
+        provider_attempt: dict[str, Any] = {}
+        topology_response: dict[str, Any] | None = None
+        proposal: dict[str, Any] | None = None
+        table_presence = "not_evaluated"
+        terminal = "preflight_blocked"
+        failure_code: str | None = None
+
+        try:
+            counted = _object(
+                self.provider.count_tokens(
+                    model_view=visual_package["model_facing"],
+                    output_schema=visual_package["output_schema"],
+                    png_bytes=png_bytes,
+                    crop_sha256=visual_package["crop_identity"][
+                        "crop_sha256"
+                    ],
+                )
+            )
+            self._validate_counted_tokens(counted)
+        except (PdfGridProviderError, PdfStructuralRepairRuntimeError) as exc:
+            counted = _counted_from_provider_error(
+                exc,
+                model_id=self.config.model_id,
+                current=counted,
+            )
+            failure_code = (
+                "pdf_structural_repair_counted_input_budget_exceeded"
+                if _strict_int(counted.get("total_tokens"))
+                > self.config.maximum_counted_input_tokens
+                else "pdf_structural_repair_count_tokens_failed"
+            )
+            journal = [
+                self._journal_entry(
+                    target_id=target_id,
+                    task_id=task_id,
+                    attempt_number=1,
+                    evidence_revision=evidence_revision,
+                    provider_config_hash=provider_config_hash,
+                    counted=counted,
+                    provider_attempt={},
+                    provider_result={},
+                    topology_response=None,
+                    assembly=None,
+                    failure_code=failure_code,
+                    count_token_call_performed=True,
+                    generate_call_performed=False,
+                )
+            ]
+            return self._page_proposal_result(
+                run_id=run_id,
+                target_id=target_id,
+                visual_package=visual_package,
+                provider_qualification=provider_qualification,
+                journal=journal,
+                proposal=None,
+                table_presence=table_presence,
+                terminal=terminal,
+            )
+
+        try:
+            provider_result = _object(
+                self.provider.invoke(
+                    task_id=task_id,
+                    model_view=visual_package["model_facing"],
+                    output_schema=visual_package["output_schema"],
+                    png_bytes=png_bytes,
+                    crop_sha256=visual_package["crop_identity"][
+                        "crop_sha256"
+                    ],
+                    attempt_number=1,
+                    attempt_lineage=[],
+                )
+            )
+            provider_attempt = _object(provider_result.get("attempt"))
+            self._validate_provider_attempt(
+                attempt=provider_attempt,
+                task_id=task_id,
+                attempt_number=1,
+                attempt_lineage=[],
+                counted=counted,
+                provider_result=provider_result,
+            )
+            topology_response = _object(provider_result.get("json_output"))
+            if not topology_response:
+                raise PdfStructuralRepairRuntimeError(
+                    "pdf_structural_repair_provider_attempt_failed"
+                )
+            proposal = self.visual.parse_region_proposal_response(
+                topology_response,
+                expected_package_id=str(
+                    visual_package.get("package_id") or ""
+                ),
+                expected_proposal_scope="page_level",
+            )
+            table_presence = str(proposal.get("table_presence") or "")
+            terminal = "proposal_persisted"
+        except (
+            PdfGridProviderError,
+            PdfStructuralRepairRuntimeError,
+            ValueError,
+        ) as exc:
+            failure_code = _safe_page_proposal_failure_code(exc)
+            terminal = (
+                "proposal_invalid"
+                if topology_response is not None
+                else "provider_failed"
+            )
+            proposal = None
+            table_presence = "not_evaluated"
+
+        journal = [
+            self._journal_entry(
+                target_id=target_id,
+                task_id=task_id,
+                attempt_number=1,
+                evidence_revision=evidence_revision,
+                provider_config_hash=provider_config_hash,
+                counted=counted,
+                provider_attempt=provider_attempt,
+                provider_result=provider_result,
+                topology_response=topology_response,
+                assembly=None,
+                failure_code=failure_code,
+                count_token_call_performed=True,
+                generate_call_performed=True,
+            )
+        ]
+        return self._page_proposal_result(
+            run_id=run_id,
+            target_id=target_id,
+            visual_package=visual_package,
+            provider_qualification=provider_qualification,
+            journal=journal,
+            proposal=proposal,
+            table_presence=table_presence,
+            terminal=terminal,
+        )
+
+    def run_candidate_once(
+        self,
+        *,
+        target_id: str,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        png_bytes: bytes,
+        provider_qualification: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Run the default-disabled candidate-crop intake contract once.
+
+        This route deliberately does not reuse the two-attempt consensus
+        contract.  The provider may propose one bounded structure; parser
+        geometry, exact atom ownership and source-only materialization then
+        prove it or block it.  No retry, failover, ranking or best-candidate
+        selection exists in this method.
+        """
+
+        self._validate_guided_intake_input(
+            target_id=target_id,
+            parser_observation=parser_observation,
+            parser_geometry_observation=parser_geometry_observation,
+            visual_package=visual_package,
+            png_bytes=png_bytes,
+            provider_qualification=provider_qualification,
+        )
+        provider_config_hash = sha256_json(
+            {
+                "provider_profile": self.config.provider_profile,
+                "provider_name": self.config.provider_name,
+                "model_id": self.config.model_id,
+                "maximum_counted_input_tokens": (
+                    self.config.maximum_counted_input_tokens
+                ),
+                "maximum_output_tokens": self.config.maximum_output_tokens,
+                "execution_contract": _GUIDED_INTAKE_EXECUTION_CONTRACT,
+            }
+        )
+        evidence_revision = sha256_json(
+            {
+                "package_hash": visual_package.get("package_hash"),
+                "provider_config_hash": provider_config_hash,
+                "model_view_hash": sha256_json(
+                    visual_package.get("model_facing")
+                ),
+                "output_schema_hash": sha256_json(
+                    visual_package.get("output_schema")
+                ),
+            }
+        )
+        task_id = "pdfguidedintaketask_" + hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "target_id": target_id,
+                    "package_hash": visual_package.get("package_hash"),
+                    "evidence_revision": evidence_revision,
+                    "model_id": self.config.model_id,
+                }
+            )
+        ).hexdigest()[:24]
+        run_id = "pdfguidedintakerun_" + hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "task_id": task_id,
+                    "policy_version": self.config.policy_version,
+                    "execution_contract": _GUIDED_INTAKE_EXECUTION_CONTRACT,
+                }
+            )
+        ).hexdigest()[:24]
+
+        counted: dict[str, Any] = {}
+        provider_result: dict[str, Any] = {}
+        provider_attempt: dict[str, Any] = {}
+        topology_response: dict[str, Any] | None = None
+        parsed_response: dict[str, Any] | None = None
+        assembly_package = visual_package
+        assembly: dict[str, Any] | None = None
+        accepted_binding: dict[str, Any] | None = None
+        materialization: dict[str, Any] | None = None
+        proposal_decision = "not_evaluated"
+        terminal = "preflight_blocked"
+        failure_code: str | None = None
+        count_call_performed = False
+        generate_call_performed = False
+
+        try:
+            count_call_performed = True
+            counted = _object(
+                self.provider.count_tokens(
+                    model_view=visual_package["model_facing"],
+                    output_schema=visual_package["output_schema"],
+                    png_bytes=png_bytes,
+                    crop_sha256=visual_package["crop_identity"][
+                        "crop_sha256"
+                    ],
+                )
+            )
+            self._validate_counted_tokens(counted)
+        except (PdfGridProviderError, PdfStructuralRepairRuntimeError) as exc:
+            counted = _counted_from_provider_error(
+                exc,
+                model_id=self.config.model_id,
+                current=counted,
+            )
+            failure_code = (
+                "pdf_structural_repair_counted_input_budget_exceeded"
+                if _strict_int(counted.get("total_tokens"))
+                > self.config.maximum_counted_input_tokens
+                else "pdf_structural_repair_count_tokens_failed"
+            )
+            journal = [
+                self._journal_entry(
+                    target_id=target_id,
+                    task_id=task_id,
+                    attempt_number=1,
+                    evidence_revision=evidence_revision,
+                    provider_config_hash=provider_config_hash,
+                    counted=counted,
+                    provider_attempt={},
+                    provider_result={},
+                    topology_response=None,
+                    assembly=None,
+                    failure_code=failure_code,
+                    count_token_call_performed=True,
+                    generate_call_performed=False,
+                )
+            ]
+            return self._guided_intake_result(
+                run_id=run_id,
+                target_id=target_id,
+                parser_observation=parser_observation,
+                parser_geometry_observation=parser_geometry_observation,
+                visual_package=visual_package,
+                provider_qualification=provider_qualification,
+                journal=journal,
+                proposal_decision=proposal_decision,
+                assembly=None,
+                accepted_binding=None,
+                materialization=None,
+                post_validation=self._guided_post_validation(
+                    reason_codes=[failure_code]
+                ),
+                terminal=terminal,
+            )
+
+        try:
+            generate_call_performed = True
+            provider_result = _object(
+                self.provider.invoke(
+                    task_id=task_id,
+                    model_view=visual_package["model_facing"],
+                    output_schema=visual_package["output_schema"],
+                    png_bytes=png_bytes,
+                    crop_sha256=visual_package["crop_identity"][
+                        "crop_sha256"
+                    ],
+                    attempt_number=1,
+                    attempt_lineage=[],
+                )
+            )
+            provider_attempt = _object(provider_result.get("attempt"))
+            self._validate_provider_attempt(
+                attempt=provider_attempt,
+                task_id=task_id,
+                attempt_number=1,
+                attempt_lineage=[],
+                counted=counted,
+                provider_result=provider_result,
+            )
+            topology_response = _object(provider_result.get("json_output"))
+            if not topology_response:
+                raise PdfStructuralRepairRuntimeError(
+                    "pdf_structural_repair_provider_attempt_failed"
+                )
+            region_response = self.visual.parse_region_proposal_response(
+                topology_response,
+                expected_package_id=str(
+                    visual_package.get("package_id") or ""
+                ),
+                expected_proposal_scope="candidate_crop",
+            )
+            presence = region_response.get("table_presence")
+            if presence == "absent":
+                proposal_decision = "unsupported"
+                terminal = "proposal_absent"
+            elif presence == "uncertain":
+                proposal_decision = "ambiguous"
+                terminal = "proposal_ambiguous"
+            else:
+                region = _dicts(region_response.get("regions"))[0]
+                if region.get("bbox") != [0.0, 0.0, 1.0, 1.0]:
+                    proposal_decision = "bound"
+                    failure_code = (
+                        "pdf_vlm_guided_intake_region_reselection_required"
+                    )
+                    terminal = "validation_blocked"
+                else:
+                    assembly_package = self._guided_legacy_package_from_region(
+                        parser_observation=parser_observation,
+                        region_package=visual_package,
+                    )
+                    parsed_response = self._guided_topology_from_region(
+                        region_response=region_response,
+                        legacy_package_id=str(
+                            assembly_package.get("package_id") or ""
+                        ),
+                    )
+                    proposal_decision = str(
+                        parsed_response.get("decision") or "not_evaluated"
+                    )
+
+            if parsed_response is not None:
+                assembly = self.assembler.assemble(
+                    parser_observation=parser_observation,
+                    parser_geometry_observation=parser_geometry_observation,
+                    visual_package=assembly_package,
+                    topology_response=parsed_response,
+                    attempt_evidence={
+                        "attempt_id": provider_attempt["attempt_id"],
+                        "attempt_number": 1,
+                        "evidence_revision": evidence_revision,
+                        "provider": self.config.provider_name,
+                        "model": self.config.model_id,
+                        "provider_config_hash": provider_config_hash,
+                    },
+                    hypothesis_id_prefix=f"guided_{target_id}_a1",
+                )
+                if self.assembler.validate_result(assembly):
+                    raise PdfStructuralRepairRuntimeError(
+                        "pdf_structural_repair_topology_invalid"
+                    )
+
+                if proposal_decision == "unsupported":
+                    terminal = "proposal_unsupported"
+                elif (
+                    proposal_decision != "bound"
+                    or parsed_response.get("alternatives_complete") is not True
+                    or len(_dicts(parsed_response.get("hypotheses"))) != 1
+                ):
+                    terminal = "proposal_ambiguous"
+                else:
+                    bindings = _dicts(assembly.get("binding_hypotheses"))
+                    pre_reasons = self._guided_acceptance_reasons(
+                        parser_observation=parser_observation,
+                        visual_package=assembly_package,
+                        parsed_response=parsed_response,
+                        assembly=assembly,
+                    )
+                    if not pre_reasons and len(bindings) == 1:
+                        candidate_binding = _object(
+                            bindings[0].get("binding_output")
+                        )
+                        try:
+                            candidate_materialization = (
+                                self.materializer.materialize(
+                                    evidence_package=assembly_package,
+                                    binding_output=candidate_binding,
+                                )
+                            )
+                        except PdfHybridMaterializationError as exc:
+                            pre_reasons.append(exc.code)
+                        else:
+                            materialization_errors = (
+                                self.materializer.validate_materialization(
+                                    candidate_materialization
+                                )
+                            )
+                            if materialization_errors:
+                                pre_reasons.extend(materialization_errors)
+                            else:
+                                accepted_binding = candidate_binding
+                                materialization = candidate_materialization
+                    if (
+                        pre_reasons
+                        or accepted_binding is None
+                        or materialization is None
+                    ):
+                        failure_code = (
+                            sorted(set(pre_reasons))[0]
+                            if pre_reasons
+                            else "pdf_vlm_guided_intake_single_binding_required"
+                        )
+                        terminal = "validation_blocked"
+                    else:
+                        terminal = "accepted_physical_structure"
+        except (
+            PdfGridProviderError,
+            PdfStructuralRepairRuntimeError,
+            ValueError,
+        ) as exc:
+            failure_code = _safe_failure_code(exc)
+            terminal = (
+                "validation_blocked"
+                if topology_response is not None
+                else "provider_failed"
+            )
+
+        reason_codes = [failure_code] if failure_code else []
+        post_validation = self._guided_post_validation(
+            reason_codes=reason_codes,
+            parsed_response=parsed_response,
+            parser_observation=parser_observation,
+            visual_package=assembly_package,
+            assembly=assembly,
+            materialization=materialization,
+            terminal=terminal,
+        )
+        journal = [
+            self._journal_entry(
+                target_id=target_id,
+                task_id=task_id,
+                attempt_number=1,
+                evidence_revision=evidence_revision,
+                provider_config_hash=provider_config_hash,
+                counted=counted,
+                provider_attempt=provider_attempt,
+                provider_result=provider_result,
+                topology_response=topology_response,
+                assembly=assembly,
+                failure_code=failure_code,
+                count_token_call_performed=count_call_performed,
+                generate_call_performed=generate_call_performed,
+            )
+        ]
+        return self._guided_intake_result(
+            run_id=run_id,
+            target_id=target_id,
+            parser_observation=parser_observation,
+            parser_geometry_observation=parser_geometry_observation,
+            visual_package=visual_package,
+            provider_qualification=provider_qualification,
+            journal=journal,
+            proposal_decision=proposal_decision,
+            assembly=assembly,
+            accepted_binding=accepted_binding,
+            materialization=materialization,
+            post_validation=post_validation,
+            terminal=terminal,
+        )
 
     def run_target(
         self,
@@ -581,7 +1283,7 @@ class PdfStructuralRepairRuntime:
                 raise PdfStructuralRepairRuntimeError(
                     "pdf_structural_repair_solver_nondeterministic"
                 )
-            if consensus.get("terminal_status") == "accepted_unique_consensus":
+            if consensus.get("terminal_status") == "accepted_supplied_consensus":
                 accepted_binding = self.solver.binding_from_accepted_consensus(
                     parser_observation=parser_observation,
                     consensus_result=consensus,
@@ -976,7 +1678,7 @@ class PdfStructuralRepairRuntime:
                 raise PdfStructuralRepairRuntimeError(
                     "pdf_structural_repair_solver_nondeterministic"
                 )
-            if consensus.get("terminal_status") == "accepted_unique_consensus":
+            if consensus.get("terminal_status") == "accepted_supplied_consensus":
                 accepted_binding = self.solver.binding_from_accepted_consensus(
                     parser_observation=parser_observation,
                     consensus_result=consensus,
@@ -1141,7 +1843,7 @@ class PdfStructuralRepairRuntime:
         runtime_terminal = str(
             consensus.get("terminal_status") or "no_valid_consensus"
         )
-        if runtime_terminal == "accepted_unique_consensus":
+        if runtime_terminal == "accepted_supplied_consensus":
             try:
                 materialization = self.materializer.materialize_continuation(
                     continuation_result=consensus,
@@ -1167,9 +1869,21 @@ class PdfStructuralRepairRuntime:
             safe_reasons.append(
                 "pdf_structural_repair_continuation_materialization_failed"
             )
-        elif runtime_terminal != "accepted_unique_consensus":
+        elif runtime_terminal == "incomplete_evidence":
             safe_reasons.append(
-                "pdf_structural_repair_continuation_consensus_not_unique"
+                "pdf_structural_repair_continuation_incomplete_evidence"
+            )
+        elif runtime_terminal == "ambiguous_multiple_consensus":
+            safe_reasons.append(
+                "pdf_structural_repair_continuation_supplied_consensus_ambiguous"
+            )
+        elif runtime_terminal == "unsupported":
+            safe_reasons.append(
+                "pdf_structural_repair_continuation_consensus_unsupported"
+            )
+        elif runtime_terminal != "accepted_supplied_consensus":
+            safe_reasons.append(
+                "pdf_structural_repair_continuation_not_accepted_supplied_scope"
             )
         all_candidates_accounted = bool(
             materialization
@@ -1275,7 +1989,7 @@ class PdfStructuralRepairRuntime:
             )
         materialization = data.get("materialization")
         terminal = data.get("runtime_terminal_status")
-        if terminal == "accepted_unique_consensus":
+        if terminal == "accepted_supplied_consensus":
             if not isinstance(materialization, dict) or (
                 self.materializer.validate_continuation_materialization(
                     materialization
@@ -1355,7 +2069,7 @@ class PdfStructuralRepairRuntime:
                 or self.validate_result(runtime_result)
                 or runtime_result.get("target_id") != target_id
                 or runtime_result.get("runtime_terminal_status")
-                != "accepted_unique_consensus"
+                != "accepted_supplied_consensus"
                 or runtime_result.get("accepted_binding") is None
                 or runtime_result.get("materialization") is None
                 or runtime_result.get("package_id") != package.get("package_id")
@@ -1403,6 +2117,10 @@ class PdfStructuralRepairRuntime:
 
     def validate_result(self, value: Any) -> list[str]:
         data = _object(value)
+        if data.get("schema_version") == PDF_VLM_PAGE_PROPOSAL_RESULT_SCHEMA:
+            return self._validate_page_proposal_result(data)
+        if data.get("schema_version") == PDF_VLM_GUIDED_INTAKE_RESULT_SCHEMA:
+            return self._validate_guided_intake_result(data)
         if (
             data.get("schema_version")
             == PDF_STRUCTURAL_REPAIR_WINDOWED_RUNTIME_RESULT_SCHEMA
@@ -1436,6 +2154,13 @@ class PdfStructuralRepairRuntime:
             errors.append("pdf_structural_repair_safe_reason_invalid")
         if safe.get("production_authority") is not False:
             errors.append("pdf_structural_repair_shadow_authority_invalid")
+        if any(
+            safe.get(key) != expected
+            for key, expected in _safe_consensus_semantics(
+                _object(data.get("consensus_result"))
+            ).items()
+        ):
+            errors.append("pdf_structural_repair_safe_consensus_semantics_invalid")
         stored = data.get("result_checksum")
         if stored != _result_checksum(data):
             errors.append("pdf_structural_repair_result_checksum_invalid")
@@ -1514,6 +2239,13 @@ class PdfStructuralRepairRuntime:
             code not in _SAFE_REASON_CODES for code in safe.get("reason_codes") or []
         ):
             errors.append("pdf_structural_repair_safe_reason_invalid")
+        if any(
+            safe.get(key) != expected
+            for key, expected in _safe_consensus_semantics(
+                _object(data.get("consensus_result"))
+            ).items()
+        ):
+            errors.append("pdf_structural_repair_safe_consensus_semantics_invalid")
         counted_calls = sum(
             item.get("provider_count_token_call_performed") is True
             for item in journal
@@ -1532,7 +2264,7 @@ class PdfStructuralRepairRuntime:
             or safe.get("production_authority") is not False
         ):
             errors.append("pdf_structural_repair_window_accounting_invalid")
-        if data.get("runtime_terminal_status") == "accepted_unique_consensus" and (
+        if data.get("runtime_terminal_status") == "accepted_supplied_consensus" and (
             len(journal) != expected_calls
             or counted_calls != expected_calls
             or generated_calls != expected_calls
@@ -1550,6 +2282,997 @@ class PdfStructuralRepairRuntime:
         if safe.get("result_checksum_ref") != stored:
             errors.append("pdf_structural_repair_safe_checksum_ref_invalid")
         return sorted(set(errors))
+
+    def _validate_page_proposal_result(
+        self, data: dict[str, Any]
+    ) -> list[str]:
+        errors: list[str] = []
+        if set(data) != _PAGE_PROPOSAL_RESULT_KEYS:
+            return ["pdf_vlm_page_proposal_result_keys_invalid"]
+        if (
+            data.get("schema_version") != PDF_VLM_PAGE_PROPOSAL_RESULT_SCHEMA
+            or data.get("policy_version") != self.config.policy_version
+            or data.get("policy_configuration_hash")
+            != sha256_json(asdict(self.config))
+            or data.get("execution_contract")
+            != _PAGE_PROPOSAL_EXECUTION_CONTRACT
+            or not isinstance(data.get("package_id"), str)
+            or not data.get("package_id")
+            or not isinstance(data.get("package_hash"), str)
+            or not data.get("package_hash")
+        ):
+            errors.append("pdf_vlm_page_proposal_result_identity_invalid")
+        journal = _dicts(data.get("journal"))
+        if (
+            not isinstance(data.get("journal"), list)
+            or len(journal) != 1
+            or len(journal) != len(data.get("journal") or [])
+            or set(journal[0]) != _PAGE_PROPOSAL_JOURNAL_KEYS
+            or journal[0].get("attempt_number") != 1
+            or journal[0].get("target_id") != data.get("target_id")
+            or journal[0].get("assembly") is not None
+        ):
+            errors.append("pdf_vlm_page_proposal_journal_invalid")
+        counted_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        generated_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        if (
+            counted_calls != 1
+            or generated_calls not in {0, 1}
+            or data.get("new_provider_count_token_calls") != counted_calls
+            or data.get("new_provider_generate_calls") != generated_calls
+        ):
+            errors.append("pdf_vlm_page_proposal_provider_accounting_invalid")
+        terminal = data.get("runtime_terminal_status")
+        proposal = data.get("proposal")
+        table_presence = data.get("table_presence")
+        if terminal not in {
+            "preflight_blocked",
+            "provider_failed",
+            "proposal_invalid",
+            "proposal_persisted",
+        }:
+            errors.append("pdf_vlm_page_proposal_terminal_invalid")
+        if terminal == "preflight_blocked":
+            if generated_calls != 0 or proposal is not None or table_presence != "not_evaluated":
+                errors.append("pdf_vlm_page_proposal_preflight_contract_invalid")
+        elif terminal in {"provider_failed", "proposal_invalid"}:
+            if generated_calls != 1 or proposal is not None or table_presence != "not_evaluated":
+                errors.append("pdf_vlm_page_proposal_failure_contract_invalid")
+        elif terminal == "proposal_persisted":
+            if generated_calls != 1 or not isinstance(proposal, dict):
+                errors.append("pdf_vlm_page_proposal_persistence_invalid")
+            else:
+                try:
+                    parsed = self.visual.parse_region_proposal_response(
+                        proposal,
+                        expected_package_id=str(data.get("package_id") or ""),
+                        expected_proposal_scope="page_level",
+                    )
+                except ValueError:
+                    errors.append("pdf_vlm_page_proposal_persistence_invalid")
+                else:
+                    if (
+                        parsed != proposal
+                        or table_presence != parsed.get("table_presence")
+                    ):
+                        errors.append("pdf_vlm_page_proposal_persistence_invalid")
+        safe = _object(data.get("safe_summary"))
+        reason_codes = safe.get("reason_codes")
+        attempts = [
+            _object(item.get("provider_attempt"))
+            for item in journal
+            if _object(item.get("provider_attempt"))
+        ]
+        hidden_retry = any(
+            attempt.get("hidden_retry") is not False for attempt in attempts
+        )
+        provider_failover = any(
+            attempt.get("provider_failover") is not False
+            for attempt in attempts
+        )
+        expected_regions = (
+            len(_dicts(_object(proposal).get("regions")))
+            if terminal == "proposal_persisted"
+            else 0
+        )
+        if (
+            set(safe) != _PAGE_PROPOSAL_SAFE_SUMMARY_KEYS
+            or safe.get("schema_version")
+            != PDF_VLM_PAGE_PROPOSAL_SAFE_SUMMARY_SCHEMA
+            or safe.get("target_id") != data.get("target_id")
+            or safe.get("runtime_terminal_status") != terminal
+            or not isinstance(reason_codes, list)
+            or reason_codes != sorted(set(reason_codes))
+            or any(code not in _PAGE_PROPOSAL_REASON_CODES for code in reason_codes)
+            or safe.get("count_token_calls") != counted_calls
+            or safe.get("generate_calls") != generated_calls
+            or safe.get("table_presence") != table_presence
+            or safe.get("regions_proposed") != expected_regions
+            or safe.get("input_atom_count") != 0
+            or safe.get("proposal_persisted")
+            is not (terminal == "proposal_persisted")
+            or safe.get("hidden_retry") is not hidden_retry
+            or safe.get("provider_failover") is not provider_failover
+            or safe.get("default_enabled") is not False
+            or safe.get("production_authority") is not False
+        ):
+            errors.append("pdf_vlm_page_proposal_safe_summary_invalid")
+        failure_code = journal[0].get("failure_code") if journal else None
+        expected_reasons = [failure_code] if failure_code else []
+        if reason_codes != expected_reasons:
+            errors.append("pdf_vlm_page_proposal_reason_binding_invalid")
+        if terminal == "preflight_blocked" and failure_code not in {
+            "pdf_structural_repair_count_tokens_failed",
+            "pdf_structural_repair_counted_input_budget_exceeded",
+        }:
+            errors.append("pdf_vlm_page_proposal_failure_reason_invalid")
+        elif terminal == "provider_failed" and failure_code not in {
+            "pdf_structural_repair_provider_attempt_failed",
+            "pdf_structural_repair_provider_lineage_invalid",
+            "pdf_structural_repair_provider_accounting_invalid",
+            "pdf_structural_repair_unknown_failure",
+        }:
+            errors.append("pdf_vlm_page_proposal_failure_reason_invalid")
+        elif (
+            terminal == "proposal_invalid"
+            and failure_code != "pdf_vlm_page_proposal_response_invalid"
+        ):
+            errors.append("pdf_vlm_page_proposal_failure_reason_invalid")
+        elif terminal == "proposal_persisted" and failure_code is not None:
+            errors.append("pdf_vlm_page_proposal_failure_reason_invalid")
+        if (
+            data.get("authority_state") != "shadow_non_authoritative"
+            or data.get("default_enabled") is not False
+            or data.get("production_ready") is not False
+            or data.get("production_gate2_selection_changed") is not False
+        ):
+            errors.append("pdf_vlm_page_proposal_authority_invalid")
+        stored = data.get("result_checksum")
+        if stored != _result_checksum(data):
+            errors.append("pdf_vlm_page_proposal_result_checksum_invalid")
+        if safe.get("result_checksum_ref") != stored:
+            errors.append("pdf_vlm_page_proposal_safe_checksum_ref_invalid")
+        return sorted(set(errors))
+
+    def _validate_guided_intake_result(
+        self, data: dict[str, Any]
+    ) -> list[str]:
+        errors: list[str] = []
+        if set(data) != _GUIDED_INTAKE_RESULT_KEYS:
+            return ["pdf_vlm_guided_intake_result_keys_invalid"]
+        if (
+            data.get("schema_version") != PDF_VLM_GUIDED_INTAKE_RESULT_SCHEMA
+            or data.get("policy_version") != self.config.policy_version
+            or data.get("policy_configuration_hash")
+            != sha256_json(asdict(self.config))
+            or data.get("execution_contract")
+            != _GUIDED_INTAKE_EXECUTION_CONTRACT
+        ):
+            errors.append("pdf_vlm_guided_intake_result_identity_invalid")
+        journal = _dicts(data.get("journal"))
+        if (
+            not isinstance(data.get("journal"), list)
+            or len(journal) != len(data.get("journal") or [])
+            or len(journal) != 1
+            or journal[0].get("attempt_number") != 1
+        ):
+            errors.append("pdf_vlm_guided_intake_journal_invalid")
+        counted_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        generated_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        if (
+            data.get("new_provider_count_token_calls") != counted_calls
+            or data.get("new_provider_generate_calls") != generated_calls
+            or counted_calls != 1
+            or generated_calls not in {0, 1}
+        ):
+            errors.append("pdf_vlm_guided_intake_provider_accounting_invalid")
+        post = _object(data.get("post_validation"))
+        if set(post) != _GUIDED_INTAKE_POST_VALIDATION_KEYS:
+            errors.append("pdf_vlm_guided_intake_post_validation_keys_invalid")
+        safe = _object(data.get("safe_summary"))
+        if (
+            set(safe) != _GUIDED_INTAKE_SAFE_SUMMARY_KEYS
+            or safe.get("schema_version")
+            != PDF_VLM_GUIDED_INTAKE_SAFE_SUMMARY_SCHEMA
+            or safe.get("count_token_calls") != counted_calls
+            or safe.get("generate_calls") != generated_calls
+            or safe.get("production_authority") is not False
+        ):
+            errors.append("pdf_vlm_guided_intake_safe_summary_invalid")
+        terminal = data.get("runtime_terminal_status")
+        if terminal not in {
+            "preflight_blocked",
+            "provider_failed",
+            "proposal_absent",
+            "proposal_unsupported",
+            "proposal_ambiguous",
+            "validation_blocked",
+            "accepted_physical_structure",
+        }:
+            errors.append("pdf_vlm_guided_intake_terminal_invalid")
+        if data.get("proposal_decision") not in {
+            "not_evaluated",
+            "bound",
+            "ambiguous",
+            "unsupported",
+        }:
+            errors.append("pdf_vlm_guided_intake_proposal_decision_invalid")
+        raw_response = (
+            _object(journal[0].get("topology_response")) if journal else {}
+        )
+        if raw_response.get("proposal_scope") == "candidate_crop":
+            try:
+                region_response = self.visual.parse_region_proposal_response(
+                    raw_response,
+                    expected_package_id=str(data.get("package_id") or ""),
+                    expected_proposal_scope="candidate_crop",
+                )
+            except ValueError:
+                if terminal != "validation_blocked":
+                    errors.append(
+                        "pdf_vlm_guided_intake_region_response_invalid"
+                    )
+            else:
+                presence = region_response.get("table_presence")
+                if presence == "absent" and (
+                    terminal != "proposal_absent"
+                    or data.get("proposal_decision") != "unsupported"
+                ):
+                    errors.append(
+                        "pdf_vlm_guided_intake_region_presence_invalid"
+                    )
+                elif presence == "uncertain" and (
+                    terminal != "proposal_ambiguous"
+                    or data.get("proposal_decision") != "ambiguous"
+                ):
+                    errors.append(
+                        "pdf_vlm_guided_intake_region_presence_invalid"
+                    )
+                elif presence == "present":
+                    regions = _dicts(region_response.get("regions"))
+                    full_scope = bool(
+                        len(regions) == 1
+                        and regions[0].get("bbox")
+                        == [0.0, 0.0, 1.0, 1.0]
+                    )
+                    if not full_scope and (
+                        terminal != "validation_blocked"
+                        or "pdf_vlm_guided_intake_region_reselection_required"
+                        not in post.get("reason_codes", [])
+                    ):
+                        errors.append(
+                            "pdf_vlm_guided_intake_region_reselection_invalid"
+                        )
+                    if (
+                        terminal == "accepted_physical_structure"
+                        and not full_scope
+                    ):
+                        errors.append(
+                            "pdf_vlm_guided_intake_region_acceptance_invalid"
+                        )
+        if (
+            data.get("authority_state") != "non_authoritative"
+            or data.get("production_ready") is not False
+            or data.get("production_gate2_selection_changed") is not False
+        ):
+            errors.append("pdf_vlm_guided_intake_authority_invalid")
+        if terminal == "accepted_physical_structure":
+            if (
+                generated_calls != 1
+                or data.get("proposal_decision") != "bound"
+                or data.get("accepted_binding") is None
+                or data.get("materialization") is None
+                or post.get("passed") is not True
+                or safe.get("all_candidates_accounted") is not True
+                or safe.get("model_invented_values_total") != 0
+                or safe.get("hidden_retry") is not False
+                or safe.get("provider_failover") is not False
+            ):
+                errors.append("pdf_vlm_guided_intake_acceptance_invalid")
+        elif (
+            data.get("accepted_binding") is not None
+            or data.get("materialization") is not None
+            or post.get("passed") is True
+        ):
+            errors.append("pdf_vlm_guided_intake_blocked_materialization_invalid")
+        unsigned = dict(data)
+        stored = unsigned.pop("result_checksum", None)
+        if stored != sha256_json(unsigned):
+            errors.append("pdf_vlm_guided_intake_result_checksum_invalid")
+        return sorted(set(errors))
+
+    def _page_proposal_result(
+        self,
+        *,
+        run_id: str,
+        target_id: str,
+        visual_package: dict[str, Any],
+        provider_qualification: dict[str, Any],
+        journal: list[dict[str, Any]],
+        proposal: dict[str, Any] | None,
+        table_presence: str,
+        terminal: str,
+    ) -> dict[str, Any]:
+        count_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        generate_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        attempts = [
+            _object(item.get("provider_attempt"))
+            for item in journal
+            if _object(item.get("provider_attempt"))
+        ]
+        reason_codes = sorted(
+            {
+                str(item.get("failure_code"))
+                for item in journal
+                if item.get("failure_code")
+            }
+        )
+        regions = _dicts(_object(proposal).get("regions"))
+        safe_summary = {
+            "schema_version": PDF_VLM_PAGE_PROPOSAL_SAFE_SUMMARY_SCHEMA,
+            "target_id": target_id,
+            "runtime_terminal_status": terminal,
+            "reason_codes": reason_codes,
+            "count_token_calls": count_calls,
+            "generate_calls": generate_calls,
+            "table_presence": table_presence,
+            "regions_proposed": len(regions),
+            "input_atom_count": _object(
+                visual_package.get("component_accounting")
+            ).get("atom_count"),
+            "proposal_persisted": proposal is not None,
+            "hidden_retry": any(
+                attempt.get("hidden_retry") is not False
+                for attempt in attempts
+            ),
+            "provider_failover": any(
+                attempt.get("provider_failover") is not False
+                for attempt in attempts
+            ),
+            "default_enabled": False,
+            "production_authority": False,
+            "result_checksum_ref": None,
+        }
+        result = {
+            "schema_version": PDF_VLM_PAGE_PROPOSAL_RESULT_SCHEMA,
+            "policy_version": self.config.policy_version,
+            "policy_configuration_hash": sha256_json(asdict(self.config)),
+            "run_id": run_id,
+            "target_id": target_id,
+            "execution_contract": _PAGE_PROPOSAL_EXECUTION_CONTRACT,
+            "package_id": visual_package.get("package_id"),
+            "package_hash": visual_package.get("package_hash"),
+            "provider_qualification": copy.deepcopy(provider_qualification),
+            "journal": copy.deepcopy(journal),
+            "proposal": copy.deepcopy(proposal),
+            "table_presence": table_presence,
+            "runtime_terminal_status": terminal,
+            "new_provider_count_token_calls": count_calls,
+            "new_provider_generate_calls": generate_calls,
+            "authority_state": "shadow_non_authoritative",
+            "default_enabled": False,
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+            "safe_summary": safe_summary,
+        }
+        result["result_checksum"] = _result_checksum(result)
+        result["safe_summary"]["result_checksum_ref"] = result[
+            "result_checksum"
+        ]
+        validation_errors = self._validate_page_proposal_result(result)
+        if validation_errors:
+            raise PdfStructuralRepairRuntimeError(validation_errors[0])
+        return result
+
+    def _validate_page_proposal_input(
+        self,
+        *,
+        target_id: str,
+        visual_package: dict[str, Any],
+        png_bytes: bytes,
+        provider_qualification: dict[str, Any],
+    ) -> None:
+        package_errors = self.visual.validate_region_proposal_package(
+            visual_package
+        )
+        crop = _object(visual_package.get("crop_identity"))
+        accounting = _object(visual_package.get("component_accounting"))
+        model_view = _object(visual_package.get("model_facing"))
+        if (
+            not target_id
+            or len(target_id) > 96
+            or package_errors
+            or visual_package.get("proposal_scope") != "page_level"
+            or model_view.get("atoms") != []
+            or accounting.get("atom_count") != 0
+            or not isinstance(png_bytes, bytes)
+            or not png_bytes
+            or len(png_bytes) > self.config.maximum_image_bytes
+            or hashlib.sha256(png_bytes).hexdigest()
+            != crop.get("crop_sha256")
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            )
+        if (
+            provider_qualification.get("status") != "qualified"
+            or provider_qualification.get("requested_model_id")
+            != self.config.model_id
+            or provider_qualification.get("resolved_model_id")
+            != self.config.model_id
+            or provider_qualification.get("exact_model_match") is not True
+            or provider_qualification.get("hidden_retry") is not False
+            or provider_qualification.get("provider_failover") is not False
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_provider_not_qualified"
+            )
+
+    def _validate_guided_intake_input(
+        self,
+        *,
+        target_id: str,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        png_bytes: bytes,
+        provider_qualification: dict[str, Any],
+    ) -> None:
+        if not target_id or len(target_id) > 96:
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            )
+        common_errors = [
+            *self.contracts.validate_parser_observation(parser_observation),
+            *self.parser_geometry.validate_observation(
+                parser_geometry_observation
+            ),
+        ]
+        package_errors = self.visual.validate_region_proposal_package(
+            visual_package
+        )
+        if (
+            visual_package.get("proposal_scope") == "candidate_crop"
+            and not package_errors
+        ):
+            self._guided_legacy_package_from_region(
+                parser_observation=parser_observation,
+                region_package=visual_package,
+            )
+        crop = _object(visual_package.get("crop_identity"))
+        accounting = _object(visual_package.get("component_accounting"))
+        atom_count = accounting.get("atom_count")
+        if (
+            common_errors
+            or package_errors
+            or visual_package.get("proposal_scope") != "candidate_crop"
+            or not _is_strict_non_negative_int(atom_count)
+            or atom_count < 1
+            or atom_count > self.visual.config.maximum_atoms
+            or accounting.get("model_json_bytes")
+            > self.visual.config.maximum_model_json_bytes
+            or not isinstance(png_bytes, bytes)
+            or not png_bytes
+            or len(png_bytes) > self.config.maximum_image_bytes
+            or hashlib.sha256(png_bytes).hexdigest()
+            != crop.get("crop_sha256")
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            )
+        if (
+            provider_qualification.get("status") != "qualified"
+            or provider_qualification.get("requested_model_id")
+            != self.config.model_id
+            or provider_qualification.get("resolved_model_id")
+            != self.config.model_id
+            or provider_qualification.get("exact_model_match") is not True
+            or provider_qualification.get("hidden_retry") is not False
+            or provider_qualification.get("provider_failover") is not False
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_provider_not_qualified"
+            )
+
+    def _guided_acceptance_reasons(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        parsed_response: dict[str, Any],
+        assembly: dict[str, Any],
+    ) -> list[str]:
+        reasons: list[str] = []
+        hypotheses = _dicts(parsed_response.get("hypotheses"))
+        bindings = _dicts(assembly.get("binding_hypotheses"))
+        if (
+            parsed_response.get("decision") != "bound"
+            or parsed_response.get("alternatives_complete") is not True
+            or len(hypotheses) != 1
+            or hypotheses[0].get("uncertainty_codes")
+        ):
+            reasons.append("pdf_vlm_guided_intake_single_bound_hypothesis_required")
+        if (
+            assembly.get("reconstruction_status") != "assembled"
+            or len(bindings) != 1
+            or assembly.get("rejected_evidence")
+            or assembly.get("regional_issues")
+        ):
+            reasons.append("pdf_vlm_guided_intake_assembly_not_uniquely_bound")
+        source = _object(assembly.get("source_accounting"))
+        if source.get("all_bound_alternatives_exactly_once") is not True:
+            reasons.append("pdf_vlm_guided_intake_candidate_ownership_invalid")
+        adjustments = _dicts(assembly.get("structural_adjustments"))
+        forbidden_adjustments = [
+            item
+            for item in adjustments
+            if item.get("operation")
+            != "replace_visual_boundary_with_parser_geometry"
+        ]
+        if forbidden_adjustments:
+            reasons.append("pdf_vlm_guided_intake_proposal_repair_forbidden")
+        if len(bindings) == 1:
+            binding = _object(bindings[0].get("binding_output"))
+            if binding.get("decision") != "bound":
+                reasons.append("pdf_vlm_guided_intake_binding_not_bound")
+            if not self._guided_binding_bbox_compatible(
+                parser_observation=parser_observation,
+                visual_package=visual_package,
+                binding_hypothesis=bindings[0],
+            ):
+                reasons.append(
+                    "pdf_vlm_guided_intake_atom_bbox_crosses_proposed_boundary"
+                )
+        if (
+            assembly.get("package_id") != visual_package.get("package_id")
+            or assembly.get("package_hash") != visual_package.get("package_hash")
+            or assembly.get("parser_observation_checksum")
+            != parser_observation.get("observation_checksum")
+        ):
+            reasons.append("pdf_vlm_guided_intake_crop_or_parser_identity_mismatch")
+        return sorted(set(reasons))
+
+    def _guided_legacy_package_from_region(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        region_package: dict[str, Any],
+    ) -> dict[str, Any]:
+        crop = _object(region_package.get("crop_identity"))
+        crop_manifest = {
+            "crop_id": crop.get("crop_id"),
+            "pdf_sha256": region_package.get("pdf_sha256"),
+            "page_number": region_package.get("page_number"),
+            "table_ref": region_package.get("table_ref"),
+            "declared_table_bbox": copy.deepcopy(
+                crop.get("declared_table_bbox")
+            ),
+            "rendered_bbox": copy.deepcopy(crop.get("rendered_bbox")),
+            "page_rotation": crop.get("page_rotation"),
+            "applied_rotation": 0,
+            "padding_points": crop.get("padding_points"),
+            "dpi": crop.get("dpi"),
+            "width": crop.get("width"),
+            "height": crop.get("height"),
+            "png_bytes": crop.get("png_bytes"),
+            "png_sha256": crop.get("crop_sha256"),
+            "manifest_hash": crop.get("manifest_hash"),
+        }
+        try:
+            legacy = self.visual.build_package(
+                parser_observation=parser_observation,
+                crop_manifest=crop_manifest,
+            )
+        except ValueError as exc:
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            ) from exc
+        identity_fields = (
+            "crop_identity",
+            "parser_observation_id",
+            "parser_observation_checksum",
+            "neutral_atom_to_candidate_id",
+            "candidate_dictionary_hash",
+            "private_candidate_dictionary",
+        )
+        if any(
+            legacy.get(field) != region_package.get(field)
+            for field in identity_fields
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            )
+        legacy_atoms = _dicts(_object(legacy.get("model_facing")).get("atoms"))
+        region_atoms = _dicts(
+            _object(region_package.get("model_facing")).get("atoms")
+        )
+        neutral_map = _object(region_package.get("neutral_atom_to_candidate_id"))
+        dictionary = _object(region_package.get("private_candidate_dictionary"))
+        expected_region_atoms: list[dict[str, Any]] = []
+        for atom in legacy_atoms:
+            atom_id = str(atom.get("atom_id") or "")
+            candidate_id = neutral_map.get(atom_id)
+            source = _object(dictionary.get(candidate_id))
+            exact_source_span = source.get("exact_source_span")
+            if not isinstance(exact_source_span, str):
+                raise PdfStructuralRepairRuntimeError(
+                    "pdf_structural_repair_input_invalid"
+                )
+            expected_region_atoms.append(
+                {
+                    "atom_id": atom.get("atom_id"),
+                    "bbox": copy.deepcopy(atom.get("bbox")),
+                    "order": atom.get("order"),
+                    "text": exact_source_span,
+                }
+            )
+        if (
+            region_atoms != expected_region_atoms
+            or region_package.get("neutral_atom_manifest_hash")
+            != sha256_json(region_atoms)
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_input_invalid"
+            )
+        return legacy
+
+    def _guided_topology_from_region(
+        self,
+        *,
+        region_response: dict[str, Any],
+        legacy_package_id: str,
+    ) -> dict[str, Any]:
+        regions = _dicts(region_response.get("regions"))
+        if (
+            region_response.get("table_presence") != "present"
+            or len(regions) != 1
+        ):
+            raise PdfStructuralRepairRuntimeError(
+                "pdf_structural_repair_topology_invalid"
+            )
+        region = regions[0]
+        hypotheses = copy.deepcopy(_dicts(region.get("hypotheses")))
+        uncertainty = sorted(
+            {
+                *[str(item) for item in region_response.get("uncertainty_codes") or []],
+                *[str(item) for item in region.get("uncertainty_codes") or []],
+            }
+        )
+        response = {
+            "schema_version": PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
+            "package_id": legacy_package_id,
+            "decision": (
+                "bound"
+                if len(hypotheses) == 1 and not uncertainty
+                else "ambiguous"
+            ),
+            "alternatives_complete": (
+                region_response.get("alternatives_complete") is True
+            ),
+            "hypotheses": hypotheses,
+            "uncertainty_codes": uncertainty,
+        }
+        return self.visual.parse_response(
+            response,
+            expected_package_id=legacy_package_id,
+        )
+
+    def _guided_binding_bbox_compatible(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        binding_hypothesis: dict[str, Any],
+    ) -> bool:
+        binding = _object(binding_hypothesis.get("binding_output"))
+        geometry = _object(binding_hypothesis.get("proposed_geometry"))
+        row_boundaries = [
+            float(item)
+            for item in _object(geometry.get("rows")).get("boundaries") or []
+        ]
+        column_boundaries = [
+            float(item)
+            for item in _object(geometry.get("columns")).get("boundaries") or []
+        ]
+        row_count = _strict_int(binding.get("row_count"))
+        column_count = _strict_int(binding.get("column_count"))
+        if (
+            row_count < 1
+            or column_count < 1
+            or len(row_boundaries) != row_count + 1
+            or len(column_boundaries) != column_count + 1
+        ):
+            return False
+        neutral_map = _object(
+            visual_package.get("neutral_atom_to_candidate_id")
+        )
+        atom_boxes = {
+            str(neutral_map.get(str(atom.get("atom_id") or "")) or ""): [
+                float(value) for value in atom.get("bbox") or []
+            ]
+            for atom in _dicts(
+                _object(visual_package.get("model_facing")).get("atoms")
+            )
+        }
+        positions: dict[str, tuple[int, int]] = {}
+        for row in _dicts(binding.get("rows")):
+            row_ordinal = _strict_int(row.get("row_ordinal"))
+            cells = row.get("cells")
+            if not isinstance(cells, list):
+                return False
+            for column_ordinal, cell in enumerate(cells, start=1):
+                if not isinstance(cell, list):
+                    return False
+                for candidate_id in cell:
+                    key = str(candidate_id)
+                    if key in positions:
+                        return False
+                    positions[key] = (row_ordinal, column_ordinal)
+        expected = {
+            str(item) for item in parser_observation.get("candidate_order") or []
+        }
+        if set(positions) != expected or set(atom_boxes) != expected:
+            return False
+        spans = _dicts(binding.get("spans"))
+        tolerance = self.assembler.config.atom_band_tolerance_normalized
+        for candidate_id, (row, column) in positions.items():
+            end_row = row
+            end_column = column
+            for span in spans:
+                if (
+                    span.get("start_row") == row
+                    and span.get("start_column") == column
+                ):
+                    end_row = _strict_int(span.get("end_row"))
+                    end_column = _strict_int(span.get("end_column"))
+                    break
+            if not (
+                1 <= row <= end_row <= row_count
+                and 1 <= column <= end_column <= column_count
+            ):
+                return False
+            bbox = atom_boxes.get(candidate_id) or []
+            if len(bbox) != 4 or not (
+                bbox[0] >= column_boundaries[column - 1] - tolerance
+                and bbox[1] >= row_boundaries[row - 1] - tolerance
+                and bbox[2] <= column_boundaries[end_column] + tolerance
+                and bbox[3] <= row_boundaries[end_row] + tolerance
+            ):
+                return False
+        return True
+
+    def _guided_post_validation(
+        self,
+        *,
+        reason_codes: list[str],
+        parsed_response: dict[str, Any] | None = None,
+        parser_observation: dict[str, Any] | None = None,
+        visual_package: dict[str, Any] | None = None,
+        assembly: dict[str, Any] | None = None,
+        materialization: dict[str, Any] | None = None,
+        terminal: str | None = None,
+    ) -> dict[str, Any]:
+        parsed = _object(parsed_response)
+        assembled = _object(assembly)
+        materialized = _object(materialization)
+        reasons = [str(item) for item in reason_codes if item]
+        if parsed and parser_observation and visual_package and assembled:
+            reasons.extend(
+                self._guided_acceptance_reasons(
+                    parser_observation=parser_observation,
+                    visual_package=visual_package,
+                    parsed_response=parsed,
+                    assembly=assembled,
+                )
+            )
+        materialization_errors = (
+            self.materializer.validate_materialization(materialized)
+            if materialized
+            else ["pdf_vlm_guided_intake_materialization_missing"]
+        )
+        if terminal == "accepted_physical_structure":
+            reasons.extend(materialization_errors)
+        single_bound = bool(
+            parsed.get("decision") == "bound"
+            and len(_dicts(parsed.get("hypotheses"))) == 1
+            and not _object(_dicts(parsed.get("hypotheses"))[0]).get(
+                "uncertainty_codes"
+            )
+        )
+        exact_ownership = bool(
+            _object(assembled.get("source_accounting")).get(
+                "all_bound_alternatives_exactly_once"
+            )
+            is True
+        )
+        coordinate_compatible = bool(
+            parser_observation
+            and visual_package
+            and len(_dicts(assembled.get("binding_hypotheses"))) == 1
+            and self._guided_binding_bbox_compatible(
+                parser_observation=parser_observation,
+                visual_package=visual_package,
+                binding_hypothesis=_dicts(
+                    assembled.get("binding_hypotheses")
+                )[0],
+            )
+        )
+        adjustments = _dicts(assembled.get("structural_adjustments"))
+        separators_preserved = bool(
+            assembled
+            and not assembled.get("regional_issues")
+            and all(
+                item.get("operation")
+                == "replace_visual_boundary_with_parser_geometry"
+                for item in adjustments
+            )
+        )
+        spans_headers_valid = bool(
+            assembled
+            and not any(
+                str(item.get("axis") or "") in {"span", "header"}
+                for item in adjustments
+            )
+        )
+        crop_identity_preserved = bool(
+            parser_observation
+            and visual_package
+            and assembled.get("package_id") == visual_package.get("package_id")
+            and assembled.get("parser_observation_checksum")
+            == parser_observation.get("observation_checksum")
+        )
+        source_only = bool(materialized and not materialization_errors)
+        ambiguity_preserved = bool(
+            terminal != "accepted_physical_structure"
+            or single_bound
+        )
+        reasons = sorted(set(reasons))
+        passed = bool(
+            terminal == "accepted_physical_structure"
+            and not reasons
+            and single_bound
+            and parsed.get("alternatives_complete") is True
+            and exact_ownership
+            and coordinate_compatible
+            and separators_preserved
+            and spans_headers_valid
+            and crop_identity_preserved
+            and ambiguity_preserved
+            and source_only
+        )
+        return {
+            "passed": passed,
+            "reason_codes": reasons,
+            "single_bound_hypothesis": single_bound,
+            "alternatives_complete": parsed.get("alternatives_complete") is True,
+            "exact_candidate_ownership": exact_ownership,
+            "coordinate_compatible": coordinate_compatible,
+            "certified_separators_preserved": separators_preserved,
+            "spans_headers_valid": spans_headers_valid,
+            "crop_identity_preserved": crop_identity_preserved,
+            "ambiguity_preserved": ambiguity_preserved,
+            "source_only_materialization": source_only,
+        }
+
+    def _guided_intake_result(
+        self,
+        *,
+        run_id: str,
+        target_id: str,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        provider_qualification: dict[str, Any],
+        journal: list[dict[str, Any]],
+        proposal_decision: str,
+        assembly: dict[str, Any] | None,
+        accepted_binding: dict[str, Any] | None,
+        materialization: dict[str, Any] | None,
+        post_validation: dict[str, Any],
+        terminal: str,
+    ) -> dict[str, Any]:
+        count_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        generate_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        attempts = [
+            _object(item.get("provider_attempt"))
+            for item in journal
+            if _object(item.get("provider_attempt"))
+        ]
+        materialized = _object(materialization)
+        all_accounted = bool(
+            materialized
+            and materialized.get("omitted_candidate_ids") == []
+            and materialized.get("extra_candidate_ids") == []
+            and materialized.get("duplicate_candidate_ids") == []
+            and materialized.get("structural_provenance_conflicts") == []
+        )
+        safe_summary = {
+            "schema_version": PDF_VLM_GUIDED_INTAKE_SAFE_SUMMARY_SCHEMA,
+            "target_id": target_id,
+            "runtime_terminal_status": terminal,
+            "reason_codes": copy.deepcopy(
+                post_validation.get("reason_codes") or []
+            ),
+            "count_token_calls": count_calls,
+            "generate_calls": generate_calls,
+            "candidate_atoms": _object(
+                visual_package.get("component_accounting")
+            ).get("atom_count"),
+            "row_count": materialized.get("row_count"),
+            "column_count": materialized.get("column_count"),
+            "all_candidates_accounted": all_accounted,
+            "model_invented_values_total": (
+                materialized.get("model_invented_values_total")
+                if materialized
+                else None
+            ),
+            "hidden_retry": any(
+                item.get("hidden_retry") is not False for item in attempts
+            ),
+            "provider_failover": any(
+                item.get("provider_failover") is not False for item in attempts
+            ),
+            "production_authority": False,
+        }
+        result = {
+            "schema_version": PDF_VLM_GUIDED_INTAKE_RESULT_SCHEMA,
+            "policy_version": self.config.policy_version,
+            "policy_configuration_hash": sha256_json(asdict(self.config)),
+            "run_id": run_id,
+            "target_id": target_id,
+            "execution_contract": _GUIDED_INTAKE_EXECUTION_CONTRACT,
+            "package_id": visual_package.get("package_id"),
+            "package_hash": visual_package.get("package_hash"),
+            "parser_observation_checksum": parser_observation.get(
+                "observation_checksum"
+            ),
+            "parser_geometry_observation_checksum": (
+                parser_geometry_observation.get("observation_checksum")
+            ),
+            "provider_qualification": copy.deepcopy(provider_qualification),
+            "journal": copy.deepcopy(journal),
+            "proposal_decision": proposal_decision,
+            "assembly": copy.deepcopy(assembly),
+            "accepted_binding": copy.deepcopy(accepted_binding),
+            "materialization": copy.deepcopy(materialization),
+            "post_validation": copy.deepcopy(post_validation),
+            "runtime_terminal_status": terminal,
+            "new_provider_count_token_calls": count_calls,
+            "new_provider_generate_calls": generate_calls,
+            "authority_state": "non_authoritative",
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+            "safe_summary": safe_summary,
+        }
+        result["result_checksum"] = sha256_json(result)
+        validation_errors = self._validate_guided_intake_result(result)
+        if validation_errors:
+            raise PdfStructuralRepairRuntimeError(validation_errors[0])
+        return result
 
     def _validate_input(
         self,
@@ -1931,19 +3654,26 @@ class PdfStructuralRepairRuntime:
             for code in consensus.get("reason_codes") or []
             if code in _SAFE_REASON_CODES
         )
-        if (
-            result.get("runtime_terminal_status") == "no_valid_consensus"
-            and not reasons
-        ):
-            reasons.append("pdf_structural_repair_consensus_not_unique")
-        elif (
-            result.get("runtime_terminal_status") == "unsupported"
-            and not reasons
-        ):
-            reasons.append("pdf_structural_repair_consensus_unavailable")
+        terminal = result.get("runtime_terminal_status")
+        if not reasons:
+            safe_reason = {
+                "incomplete_evidence": "pdf_structural_repair_incomplete_evidence",
+                "ambiguous_multiple_consensus": (
+                    "pdf_structural_repair_supplied_consensus_ambiguous"
+                ),
+                "parser_vlm_conflict": (
+                    "pdf_structural_repair_supplied_consensus_conflict"
+                ),
+                "no_valid_consensus": (
+                    "pdf_structural_repair_no_valid_supplied_consensus"
+                ),
+                "unsupported": "pdf_structural_repair_consensus_unavailable",
+            }.get(str(terminal or ""))
+            if safe_reason:
+                reasons.append(safe_reason)
         return {
             "schema_version": (
-                "broker_reports_pdf_structural_repair_runtime_safe_summary_v1"
+                "broker_reports_pdf_structural_repair_runtime_safe_summary_v2"
             ),
             "run_id": result.get("run_id"),
             "target_id": result.get("target_id"),
@@ -1984,6 +3714,7 @@ class PdfStructuralRepairRuntime:
                 if _object(item.get("provider_attempt"))
             ),
             "production_authority": False,
+            **_safe_consensus_semantics(consensus),
             "result_checksum_ref": None,
         }
 
@@ -2148,16 +3879,23 @@ class PdfStructuralRepairRuntime:
             for code in consensus.get("reason_codes") or []
             if code in _SAFE_REASON_CODES
         )
-        if (
-            result.get("runtime_terminal_status") == "no_valid_consensus"
-            and not reasons
-        ):
-            reasons.append("pdf_structural_repair_consensus_not_unique")
-        elif (
-            result.get("runtime_terminal_status") == "unsupported"
-            and not reasons
-        ):
-            reasons.append("pdf_structural_repair_consensus_unavailable")
+        terminal = result.get("runtime_terminal_status")
+        if not reasons:
+            safe_reason = {
+                "incomplete_evidence": "pdf_structural_repair_incomplete_evidence",
+                "ambiguous_multiple_consensus": (
+                    "pdf_structural_repair_supplied_consensus_ambiguous"
+                ),
+                "parser_vlm_conflict": (
+                    "pdf_structural_repair_supplied_consensus_conflict"
+                ),
+                "no_valid_consensus": (
+                    "pdf_structural_repair_no_valid_supplied_consensus"
+                ),
+                "unsupported": "pdf_structural_repair_consensus_unavailable",
+            }.get(str(terminal or ""))
+            if safe_reason:
+                reasons.append(safe_reason)
         expected = 2 * _strict_int(
             _object(result.get("window_plan")).get("window_count")
         )
@@ -2170,7 +3908,7 @@ class PdfStructuralRepairRuntime:
         )
         return {
             "schema_version": (
-                "broker_reports_pdf_structural_repair_runtime_safe_summary_v1"
+                "broker_reports_pdf_structural_repair_runtime_safe_summary_v2"
             ),
             "run_id": result.get("run_id"),
             "target_id": result.get("target_id"),
@@ -2207,8 +3945,43 @@ class PdfStructuralRepairRuntime:
                 if _object(item.get("provider_attempt"))
             ),
             "production_authority": False,
+            **_safe_consensus_semantics(consensus),
             "result_checksum_ref": None,
         }
+
+
+def _safe_consensus_semantics(consensus: dict[str, Any]) -> dict[str, Any]:
+    if not consensus:
+        return {
+            "search_scope": "not_started",
+            "supplied_hypotheses_exhausted": False,
+            "structural_domain_complete": False,
+            "uniqueness_proven": False,
+            "ambiguity_proven": False,
+            "domain_incomplete": True,
+            "search_not_certifiable": True,
+            "consensus_explanation": (
+                "Consensus evaluation did not start; the structural domain was "
+                "not enumerated."
+            ),
+        }
+    return {
+        "search_scope": str(consensus.get("search_scope") or "unknown"),
+        "supplied_hypotheses_exhausted": (
+            consensus.get("supplied_hypotheses_exhausted") is True
+        ),
+        "structural_domain_complete": (
+            consensus.get("structural_domain_complete") is True
+        ),
+        "uniqueness_proven": consensus.get("uniqueness_proven") is True,
+        "ambiguity_proven": consensus.get("ambiguity_proven") is True,
+        "domain_incomplete": consensus.get("domain_incomplete") is True,
+        "search_not_certifiable": consensus.get("search_not_certifiable") is True,
+        "consensus_explanation": str(
+            consensus.get("safe_explanation")
+            or "Consensus semantics are unavailable."
+        ),
+    }
 
 
 def _safe_failure_code(exc: BaseException) -> str:
@@ -2226,6 +3999,18 @@ def _safe_failure_code(exc: BaseException) -> str:
     if "topology" in code or "assembly" in code:
         return "pdf_structural_repair_topology_invalid"
     return "pdf_structural_repair_unknown_failure"
+
+
+def _safe_page_proposal_failure_code(exc: BaseException) -> str:
+    code = str(getattr(exc, "code", ""))
+    if code.startswith("pdf_visual_topology_"):
+        return "pdf_vlm_page_proposal_response_invalid"
+    mapped = _safe_failure_code(exc)
+    return (
+        mapped
+        if mapped in _PAGE_PROPOSAL_REASON_CODES
+        else "pdf_structural_repair_unknown_failure"
+    )
 
 
 def _safe_window_failure_code(exc: BaseException) -> str:

@@ -235,7 +235,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
                 "ever_conflicted": False,
             },
         )
-        self.assertEqual("human_review_required", result["terminal_status"])
+        self.assertEqual("incomplete_evidence", result["terminal_status"])
         self.assertIn(
             "pdf_dual_oracle_context_guard_not_proven", result["review_codes"]
         )
@@ -397,7 +397,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
             evidence_revision="revision-1",
             canonical_grid_checksum="grid-a",
             topology_checksum="topology-a",
-            terminal_status="accepted_unique_consensus",
+            terminal_status="accepted_supplied_consensus",
             expected_prior_history_checksum=history["history_checksum"],
         )
         immutable_first = copy.deepcopy(first)
@@ -408,7 +408,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
             evidence_revision="revision-1",
             canonical_grid_checksum="grid-b",
             topology_checksum="topology-b",
-            terminal_status="accepted_unique_consensus",
+            terminal_status="accepted_supplied_consensus",
             expected_prior_history_checksum=first["history_checksum"],
         )
         later_agreement = self.contracts.append_repeat_history_event(
@@ -418,7 +418,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
             evidence_revision="revision-1",
             canonical_grid_checksum="grid-b",
             topology_checksum="topology-b",
-            terminal_status="accepted_unique_consensus",
+            terminal_status="accepted_supplied_consensus",
             expected_prior_history_checksum=conflicted["history_checksum"],
         )
 
@@ -437,7 +437,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
             evidence_revision="revision-1",
             canonical_grid_checksum="grid-b",
             topology_checksum="topology-b",
-            terminal_status="accepted_unique_consensus",
+            terminal_status="accepted_supplied_consensus",
         )
         self.assertEqual(later_agreement, idempotent)
 
@@ -452,7 +452,7 @@ class PdfDualOracleContractIntegrityTests(unittest.TestCase):
                 evidence_revision="revision-1",
                 canonical_grid_checksum="grid-c",
                 topology_checksum="topology-c",
-                terminal_status="accepted_unique_consensus",
+                terminal_status="accepted_supplied_consensus",
             )
         tampered = copy.deepcopy(later_agreement)
         tampered["ever_conflicted"] = False
