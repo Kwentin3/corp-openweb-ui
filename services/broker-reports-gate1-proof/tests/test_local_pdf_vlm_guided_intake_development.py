@@ -209,6 +209,78 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
         self.assertTrue(result["terminal_unchanged_during_scoring"])
         self.assertTrue(result["reference_accessed_after_terminal_verification"])
 
+    def test_page_region_with_zero_parser_candidates_keeps_source_proof(self) -> None:
+        terminal, reference = _passing_fixture()
+        moomoo = next(
+            item for item in terminal["cases"] if item["case_id"] == "moomoo_compound"
+        )
+        region = moomoo["target_terminal"]["binding_result"]["region_results"][0]
+        accounting = region["candidate_accounting"]
+        accounting["scope_candidates_total"] = 0
+        accounting["included_candidate_ids"] = []
+        accounting["excluded_candidate_ids"] = []
+        accounting["crossing_candidate_ids"] = []
+        self.assertNotEqual(
+            region["materialization"]["selected_candidate_ids"],
+            accounting["included_candidate_ids"],
+        )
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(0, completed.returncode, completed.stdout)
+        self.assertEqual("WORKS_ON_DEVELOPMENT_CORPUS\n", completed.stdout)
+
+    def test_exact_accepted_region_counts_when_peer_region_is_blocked(self) -> None:
+        terminal, reference = _passing_fixture()
+        moomoo = next(
+            item for item in terminal["cases"] if item["case_id"] == "moomoo_compound"
+        )
+        target = moomoo["target_terminal"]
+        target["binding_result"]["region_results"][1]["runtime_terminal_status"] = (
+            "validation_blocked"
+        )
+        target["binding_result"]["source_accounting"]["regions_accepted"] = 1
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(0, completed.returncode, completed.stdout)
+        result = json.loads(output_path.read_text(encoding="utf-8"))
+        for condition in (6, 7, 8):
+            observed = next(
+                item for item in result["conditions"] if item["condition"] == condition
+            )
+            self.assertTrue(observed["passed"], observed)
+
+    def test_accepted_region_is_compared_with_same_position_reference(self) -> None:
+        terminal, reference = _passing_fixture()
+        moomoo = next(
+            item for item in terminal["cases"] if item["case_id"] == "moomoo_compound"
+        )
+        target = moomoo["target_terminal"]
+        first, second = target["binding_result"]["region_results"]
+        first["runtime_terminal_status"] = "validation_blocked"
+        second["materialization"]["cells"][0]["resolved_source_values"] = [
+            "moomoo_compound value 1"
+        ]
+        target["binding_result"]["source_accounting"]["regions_accepted"] = 1
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_8 target=moomoo_compound", completed.stdout)
+        self.assertIn(
+            "reason=development_incorrect_structure_accepted", completed.stdout
+        )
+
     def test_retained_prefix_assertion_rejects_resealed_evidence_drift(self) -> None:
         terminal, reference = _passing_fixture()
         ibkr = next(

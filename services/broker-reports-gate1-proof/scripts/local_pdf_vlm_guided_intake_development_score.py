@@ -330,7 +330,9 @@ def _evaluate_conditions(
             if region.get("runtime_terminal_status") == "accepted_physical_structure":
                 binding = _object(target.get("binding_result"))
                 if (
-                    not _accepted_region_source_exact(region)
+                    not _accepted_region_source_exact(
+                        region, page_level=route == "page_level"
+                    )
                     or binding.get("value_mutation_performed") is not False
                     or binding.get("model_invented_values_total") != 0
                 ):
@@ -395,17 +397,16 @@ def _evaluate_conditions(
                 "development_known_failure_collapsed_to_internal",
             )
 
-    correct_cases = [
-        case_id
+    correct_regions_by_case = {
+        case_id: _correctly_accepted_regions(observed.get(case_id), ref)
         for case_id, ref in expected.items()
         if ref.get("expected_kind") == "table"
-        and _case_correctly_accepted(observed.get(case_id), ref)
-    ]
+    }
     minimum = reference.get("minimum_correct_acceptances", 4)
     if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum < 4:
         minimum = 4
     correct_table_total = sum(
-        int(expected[case_id].get("expected_regions") or 0) for case_id in correct_cases
+        len(regions) for regions in correct_regions_by_case.values()
     )
     if correct_table_total < minimum:
         _fail(
@@ -421,13 +422,16 @@ def _evaluate_conditions(
         reference.get("required_brokers") or ["betterment", "drivewealth", "moomoo"]
     )
     accepted_brokers = {
-        str(expected[case_id].get("broker") or "") for case_id in correct_cases
+        str(expected[case_id].get("broker") or "")
+        for case_id, regions in correct_regions_by_case.items()
+        if regions
     }
     accepted_routes = {
         _object(_object(observed.get(case_id)).get("target_terminal")).get(
             "route_selected"
         )
-        for case_id in correct_cases
+        for case_id, regions in correct_regions_by_case.items()
+        if regions
     }
     for broker in sorted(required_brokers - accepted_brokers):
         _fail(
@@ -464,7 +468,9 @@ def _evaluate_conditions(
                 case_id,
                 "development_excess_accepted_table_region",
             )
-        elif accepted_total and not _accepted_structures_exact(target, ref):
+        elif accepted_total and not _accepted_regions_match_expected_positions(
+            target, ref
+        ):
             _fail(
                 failures,
                 8,
@@ -513,7 +519,9 @@ def _evaluate_conditions(
     )
 
 
-def _case_correctly_accepted(case: Any, reference: dict[str, Any]) -> bool:
+def _correctly_accepted_regions(
+    case: Any, reference: dict[str, Any]
+) -> list[dict[str, Any]]:
     terminal = _object(_object(case).get("target_terminal"))
     if (
         terminal.get("route_selected") != reference.get("expected_route")
@@ -525,36 +533,35 @@ def _case_correctly_accepted(case: Any, reference: dict[str, Any]) -> bool:
         or _object(terminal.get("proposal")).get("table_presence") != "present"
         or terminal.get("hidden_retry") is not False
         or terminal.get("provider_failover") is not False
-        or _accepted_region_count(terminal) != reference.get("expected_regions")
     ):
-        return False
-    accepted = [
-        item
-        for item in _regions(terminal)
-        if item.get("runtime_terminal_status") == "accepted_physical_structure"
+        return []
+    expected = reference.get("regions")
+    if not isinstance(expected, list):
+        return []
+    produced = sorted(_regions(terminal), key=_region_order_key)
+    return [
+        region
+        for index, region in enumerate(produced)
+        if region.get("runtime_terminal_status") == "accepted_physical_structure"
+        and index < len(expected)
+        and _accepted_region_source_exact(
+            region, page_level=terminal.get("route_selected") == "page_level"
+        )
+        and _region_structure_exact(region, expected[index])
     ]
-    return (
-        bool(accepted)
-        and all(_accepted_region_source_exact(item) for item in accepted)
-        and _accepted_structures_exact(terminal, reference)
-    )
 
 
-def _accepted_structures_exact(
+def _accepted_regions_match_expected_positions(
     terminal: dict[str, Any], reference: dict[str, Any]
 ) -> bool:
-    accepted = [
-        item
-        for item in _regions(terminal)
-        if item.get("runtime_terminal_status") == "accepted_physical_structure"
-    ]
     expected = reference.get("regions")
-    if not isinstance(expected, list) or len(accepted) != len(expected):
+    if not isinstance(expected, list):
         return False
-    accepted.sort(key=_region_order_key)
+    produced = sorted(_regions(terminal), key=_region_order_key)
     return all(
-        _region_structure_exact(region, expected_region)
-        for region, expected_region in zip(accepted, expected, strict=True)
+        index < len(expected) and _region_structure_exact(region, expected[index])
+        for index, region in enumerate(produced)
+        if region.get("runtime_terminal_status") == "accepted_physical_structure"
     )
 
 
@@ -628,11 +635,28 @@ def _region_order_key(region: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def _accepted_region_source_exact(region: dict[str, Any]) -> bool:
+def _accepted_region_source_exact(
+    region: dict[str, Any], *, page_level: bool = False
+) -> bool:
     material = _object(region.get("materialization"))
     assembly = _object(region.get("assembly"))
     source = _object(assembly.get("source_accounting"))
     candidate = _object(region.get("candidate_accounting"))
+    scope_candidates_total = candidate.get("scope_candidates_total")
+    page_scope_without_parser_candidates = bool(
+        page_level
+        and isinstance(scope_candidates_total, int)
+        and not isinstance(scope_candidates_total, bool)
+        and scope_candidates_total == 0
+        and candidate.get("included_candidate_ids") == []
+        and candidate.get("excluded_candidate_ids") == []
+        and candidate.get("crossing_candidate_ids") == []
+    )
+    selected_candidates_match_scope = bool(
+        page_scope_without_parser_candidates
+        or set(material.get("selected_candidate_ids") or [])
+        == set(candidate.get("included_candidate_ids") or [])
+    )
     return bool(
         region.get("crossing_word_refs") == []
         and candidate.get("every_scope_candidate_accounted") is True
@@ -645,8 +669,7 @@ def _accepted_region_source_exact(region: dict[str, Any]) -> bool:
         and material.get("extra_candidate_ids") == []
         and material.get("duplicate_candidate_ids") == []
         and not material.get("structural_provenance_conflicts")
-        and set(material.get("selected_candidate_ids") or [])
-        == set(candidate.get("included_candidate_ids") or [])
+        and selected_candidates_match_scope
         and set(material.get("word_refs") or [])
         == set(region.get("included_word_refs") or [])
     )
