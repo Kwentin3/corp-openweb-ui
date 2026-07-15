@@ -4,6 +4,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -151,6 +152,32 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             markers,
         )
         self.assertIn("run_continuation_group", markers)
+
+    def test_live_ssh_reads_require_strict_host_key_verification(self):
+        with mock.patch.object(self.module.subprocess, "run") as run:
+            run.return_value = mock.Mock(
+                stdout='{"version": "1.26.5"}',
+            )
+
+            version = self.module._read_live_fitz_version("stage@example.invalid")
+
+        command = run.call_args.args[0]
+        self.assertEqual("1.26.5", version)
+        self.assertIn("StrictHostKeyChecking=yes", command)
+        self.assertNotIn("StrictHostKeyChecking=no", command)
+
+        with mock.patch.object(self.module.subprocess, "run") as run:
+            run.return_value = mock.Mock(stdout="[]")
+
+            prompts = self.module._read_live_prompt_state(
+                ssh_target="stage@example.invalid",
+                prompt_ids=["prompt-v0"],
+            )
+
+        command = run.call_args.args[0]
+        self.assertEqual({}, prompts)
+        self.assertIn("StrictHostKeyChecking=yes", command)
+        self.assertNotIn("StrictHostKeyChecking=no", command)
 
 
 if __name__ == "__main__":

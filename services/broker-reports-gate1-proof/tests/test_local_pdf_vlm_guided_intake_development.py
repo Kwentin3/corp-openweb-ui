@@ -84,6 +84,83 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
         self.assertEqual("WORKS_ON_DEVELOPMENT_CORPUS", score["binary_result"])
         self.assertTrue(score["terminal_verified_before_reference"])
 
+    def test_gate_preserves_runner_failure_without_starting_scorer(self) -> None:
+        fake_runner = self.root / "fake_failed_runner.py"
+        fake_scorer = self.root / "fake_probe_scorer.py"
+        fake_runner.write_text(_fake_incomplete_runner_source(exit_code=7), encoding="utf-8")
+        fake_scorer.write_text(_fake_probe_scorer_source(), encoding="utf-8")
+        reference = self.root / "reference.json"
+        reference.write_text('{"human": "reference"}', encoding="utf-8")
+        output = self.root / "failed-gate"
+
+        returncode = RUNNER.run_gate_processes(
+            manifest=self.root / "manifest.json",
+            corpus_root=self.root / "corpus",
+            output_root=output,
+            env_file=self.root / ".env",
+            repo_root=self.root,
+            bundle=self.root / "bundle.py",
+            reference=reference,
+            runner_script=fake_runner,
+            scorer_script=fake_scorer,
+        )
+
+        process = json.loads(
+            (output / "gate_processes.safe.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(7, returncode)
+        self.assertEqual(7, process["run_returncode"])
+        self.assertIsNone(process["scorer_pid"])
+        self.assertIsNone(process["scorer_returncode"])
+        self.assertFalse(process["scorer_started"])
+        self.assertFalse(process["separate_processes"])
+        self.assertFalse(process["reference_argument_passed_to_scorer"])
+        self.assertEqual(
+            ["development_runner_failed", "development_terminal_not_sealed"],
+            process["gate_blocker_codes"],
+        )
+        self.assertFalse((output / "reference-read.marker").exists())
+
+    def test_gate_requires_terminal_and_seal_before_starting_scorer(self) -> None:
+        fake_runner = self.root / "fake_unsealed_runner.py"
+        fake_scorer = self.root / "fake_probe_scorer.py"
+        fake_runner.write_text(
+            _fake_incomplete_runner_source(exit_code=0, write_terminal=True),
+            encoding="utf-8",
+        )
+        fake_scorer.write_text(_fake_probe_scorer_source(), encoding="utf-8")
+        reference = self.root / "reference.json"
+        reference.write_text('{"human": "reference"}', encoding="utf-8")
+        output = self.root / "unsealed-gate"
+
+        returncode = RUNNER.run_gate_processes(
+            manifest=self.root / "manifest.json",
+            corpus_root=self.root / "corpus",
+            output_root=output,
+            env_file=self.root / ".env",
+            repo_root=self.root,
+            bundle=self.root / "bundle.py",
+            reference=reference,
+            runner_script=fake_runner,
+            scorer_script=fake_scorer,
+        )
+
+        process = json.loads(
+            (output / "gate_processes.safe.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(1, returncode)
+        self.assertEqual(0, process["run_returncode"])
+        self.assertIsNone(process["scorer_pid"])
+        self.assertIsNone(process["scorer_returncode"])
+        self.assertFalse(process["terminal_sealed_before_scorer_started"])
+        self.assertFalse(process["scorer_started"])
+        self.assertFalse(process["separate_processes"])
+        self.assertEqual(
+            ["development_terminal_not_sealed"],
+            process["gate_blocker_codes"],
+        )
+        self.assertFalse((output / "reference-read.marker").exists())
+
     def test_scorer_rejects_terminal_tamper_before_reference_access(self) -> None:
         terminal, reference = _passing_fixture()
         terminal_path, seal_path, reference_path, output_path = self._write_fixture(
@@ -819,6 +896,55 @@ def _fake_scorer_source():
         }
         Path(args.output).write_text(json.dumps(result), encoding="utf-8")
         print("WORKS_ON_DEVELOPMENT_CORPUS")
+        """
+    )
+
+
+def _fake_incomplete_runner_source(*, exit_code: int, write_terminal: bool = False):
+    terminal_write = (
+        "(output / 'terminal.private.json').write_text('{}', encoding='utf-8')"
+        if write_terminal
+        else "pass"
+    )
+    return textwrap.dedent(
+        f"""
+        import argparse
+        from pathlib import Path
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("command")
+        parser.add_argument("--manifest")
+        parser.add_argument("--corpus-root")
+        parser.add_argument("--output-dir", required=True)
+        parser.add_argument("--env-file")
+        parser.add_argument("--repo-root")
+        parser.add_argument("--bundle")
+        args = parser.parse_args()
+        output = Path(args.output_dir)
+        output.mkdir(parents=True)
+        {terminal_write}
+        raise SystemExit({exit_code})
+        """
+    )
+
+
+def _fake_probe_scorer_source():
+    return textwrap.dedent(
+        """
+        import argparse
+        from pathlib import Path
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--terminal", required=True)
+        parser.add_argument("--seal", required=True)
+        parser.add_argument("--reference", required=True)
+        parser.add_argument("--output", required=True)
+        args = parser.parse_args()
+        Path(args.reference).read_bytes()
+        (Path(args.output).parent / "reference-read.marker").write_text(
+            "read",
+            encoding="utf-8",
+        )
         """
     )
 

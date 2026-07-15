@@ -346,36 +346,51 @@ def run_gate_processes(
     terminal_sealed_before_scorer_started = (
         terminal_path.is_file() and seal_path.is_file()
     )
-    score_command = [
-        sys.executable,
-        str(scorer_script),
-        "--terminal",
-        str(terminal_path),
-        "--seal",
-        str(seal_path),
-        "--reference",
-        str(reference),
-        "--output",
-        str(score_path),
-    ]
-    score_process = subprocess.Popen(
-        score_command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        env=child_env,
-    )
-    score_stdout, score_stderr = score_process.communicate()
+    gate_blocker_codes: list[str] = []
+    if run_process.returncode != 0:
+        gate_blocker_codes.append("development_runner_failed")
+    if not terminal_sealed_before_scorer_started:
+        gate_blocker_codes.append("development_terminal_not_sealed")
+
+    score_command: list[str] = []
+    score_process: subprocess.Popen[str] | None = None
+    score_stdout = ""
+    score_stderr = ""
+    if not gate_blocker_codes:
+        score_command = [
+            sys.executable,
+            str(scorer_script),
+            "--terminal",
+            str(terminal_path),
+            "--seal",
+            str(seal_path),
+            "--reference",
+            str(reference),
+            "--output",
+            str(score_path),
+        ]
+        score_process = subprocess.Popen(
+            score_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env=child_env,
+        )
+        score_stdout, score_stderr = score_process.communicate()
     process_evidence = {
         "schema_version": PROCESS_SCHEMA,
         "gate_pid": os.getpid(),
         "run_pid": run_process.pid,
-        "scorer_pid": score_process.pid,
-        "separate_processes": len({os.getpid(), run_process.pid, score_process.pid})
-        == 3,
+        "scorer_pid": score_process.pid if score_process is not None else None,
+        "scorer_started": score_process is not None,
+        "separate_processes": score_process is not None
+        and len({os.getpid(), run_process.pid, score_process.pid}) == 3,
         "run_returncode": run_process.returncode,
-        "scorer_returncode": score_process.returncode,
+        "scorer_returncode": (
+            score_process.returncode if score_process is not None else None
+        ),
+        "gate_blocker_codes": gate_blocker_codes,
         "terminal_sealed_before_scorer_started": (
             terminal_sealed_before_scorer_started
         ),
@@ -392,10 +407,18 @@ def run_gate_processes(
     )
     if run_stdout:
         print(run_stdout.rstrip(), file=sys.stderr)
+    if run_stderr and gate_blocker_codes:
+        print(run_stderr.rstrip(), file=sys.stderr)
     if score_stdout:
         print(score_stdout.rstrip())
     elif score_stderr:
         print(score_stderr.rstrip(), file=sys.stderr)
+    if run_process.returncode != 0:
+        return int(run_process.returncode)
+    if not terminal_sealed_before_scorer_started:
+        return 1
+    if score_process is None:
+        raise RuntimeError("development_gate_scorer_not_started")
     return int(score_process.returncode or 0)
 
 
