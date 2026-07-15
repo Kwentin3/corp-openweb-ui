@@ -103,6 +103,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_structural_row_windows",
     "pdf_visual_topology",
     "pdf_topology_assembly",
+    "pdf_vlm_product_routing",
     "pdf_vlm_region_binding",
     "pdf_grid_experiment_provider",
     "pdf_continuation_discovery",

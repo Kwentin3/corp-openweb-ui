@@ -64,6 +64,7 @@ SUPPORTED_CONTRACTS = [
     "broker_reports_pdf_vlm_guided_intake_result_v1",
     "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
     "broker_reports_pdf_vlm_guided_upstream_terminal_v1",
+    "broker_reports_pdf_vlm_guided_skip_terminal_v1",
     "broker_reports_pdf_vlm_page_proposal_result_v1",
     "broker_reports_pdf_vlm_region_binding_result_v1",
     "llm_document_package_v0",

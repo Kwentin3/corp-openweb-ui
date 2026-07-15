@@ -97,6 +97,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_structural_row_windows", module._BUNDLED_MODULES)
         self.assertIn("pdf_visual_topology", module._BUNDLED_MODULES)
         self.assertIn("pdf_topology_assembly", module._BUNDLED_MODULES)
+        self.assertIn("pdf_vlm_product_routing", module._BUNDLED_MODULES)
         self.assertIn("pdf_vlm_region_binding", module._BUNDLED_MODULES)
         self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
         self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
@@ -125,6 +126,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertLess(
             bundled_order.index("pdf_topology_assembly"),
             bundled_order.index("pdf_vlm_region_binding"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_vlm_product_routing"),
+            bundled_order.index("pdf_structural_repair_shadow"),
         )
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)

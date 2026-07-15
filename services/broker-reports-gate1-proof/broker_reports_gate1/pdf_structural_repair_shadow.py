@@ -28,6 +28,7 @@ from .pdf_structural_repair_runtime import (
 from .pdf_table_intake_contracts import PdfTableIntakeContractFactory
 from .pdf_table_raster import PdfTableRasterConfig, PdfTableRasterFactory
 from .pdf_visual_topology import PdfVisualTopologyFactory
+from .pdf_vlm_product_routing import PdfVlmProductRouterFactory
 from .pdf_vlm_region_binding import PdfVlmRegionBindingFactory
 
 
@@ -52,11 +53,15 @@ PDF_VLM_GUIDED_PAGE_INTAKE_SAFE_SUMMARY_SCHEMA = (
 PDF_VLM_GUIDED_UPSTREAM_TERMINAL_SCHEMA = (
     "broker_reports_pdf_vlm_guided_upstream_terminal_v1"
 )
+PDF_VLM_GUIDED_SKIP_TERMINAL_SCHEMA = (
+    "broker_reports_pdf_vlm_guided_skip_terminal_v1"
+)
 
 FACTORY_REQUIRED = (
     "PdfStructuralRepairShadowFactory.create is the only production entrypoint "
     "for structural-repair shadow orchestration; guided intake decisions must "
-    "route through PdfTableIntakeContractFactory.create"
+    "route through PdfTableIntakeContractFactory.create and product routing "
+    "must route through PdfVlmProductRouterFactory.create"
 )
 FORBIDDEN = (
     "Callers must not invoke structural stages or providers directly, retry or "
@@ -111,6 +116,7 @@ _GUIDED_INTAKE_TECHNICAL_REASONS = frozenset(
 class PdfStructuralRepairShadowConfig:
     enabled: bool = False
     vlm_guided_intake_enabled: bool = False
+    vlm_guided_product_routing_enabled: bool = False
     semantic_header_shadow_enabled: bool = False
     maximum_tables: int = 8
     table_allowlist: tuple[str, ...] = ()
@@ -209,6 +215,9 @@ class PdfStructuralRepairShadowFactory:
         if (
             not isinstance(self.config.enabled, bool)
             or not isinstance(self.config.vlm_guided_intake_enabled, bool)
+            or not isinstance(
+                self.config.vlm_guided_product_routing_enabled, bool
+            )
             or not isinstance(self.config.semantic_header_shadow_enabled, bool)
             or not _positive_integer(self.config.maximum_tables)
             or not isinstance(self.config.table_allowlist, tuple)
@@ -229,6 +238,10 @@ class PdfStructuralRepairShadowFactory:
                 self.config.page_allowlist
                 and not self.config.vlm_guided_intake_enabled
             )
+            or (
+                self.config.vlm_guided_product_routing_enabled
+                and not self.config.vlm_guided_intake_enabled
+            )
         ):
             raise PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_config_invalid"
@@ -241,6 +254,7 @@ class PdfStructuralRepairShadowFactory:
                 geometry=None,
                 raster=None,
                 visual=None,
+                product_router=None,
                 vlm_region_binding=None,
                 intake_contracts=None,
                 structural_runtime=None,
@@ -269,6 +283,11 @@ class PdfStructuralRepairShadowFactory:
                 PdfTableRasterConfig(padding_points=0.0)
             ).create(),
             visual=PdfVisualTopologyFactory().create(),
+            product_router=(
+                PdfVlmProductRouterFactory().create()
+                if self.config.vlm_guided_product_routing_enabled
+                else None
+            ),
             vlm_region_binding=(
                 PdfVlmRegionBindingFactory().create()
                 if self.config.vlm_guided_intake_enabled
@@ -299,6 +318,7 @@ class PdfStructuralRepairShadowRuntime:
         geometry: Any | None,
         raster: Any | None,
         visual: Any | None,
+        product_router: Any | None = None,
         vlm_region_binding: Any | None = None,
         intake_contracts: Any | None = None,
         structural_runtime: Any | None,
@@ -315,6 +335,7 @@ class PdfStructuralRepairShadowRuntime:
         self.geometry = geometry
         self.raster = raster
         self.visual = visual
+        self.product_router = product_router
         self.vlm_region_binding = vlm_region_binding
         self.intake_contracts = intake_contracts
         self.structural_runtime = structural_runtime
@@ -372,6 +393,7 @@ class PdfStructuralRepairShadowRuntime:
                 "private_target_state_refs": [],
                 "runtime_result_refs": [],
                 "guided_upstream_terminal_refs": [],
+                "guided_skip_terminal_refs": [],
                 "private_diagnostic_refs": [],
                 "repeat_history_refs": [],
                 "continuation_discovery_refs": [],
@@ -397,6 +419,10 @@ class PdfStructuralRepairShadowRuntime:
                 and self.vlm_region_binding is None
             )
             or (
+                self.config.vlm_guided_product_routing_enabled
+                and self.product_router is None
+            )
+            or (
                 self.config.semantic_header_shadow_enabled
                 and self.semantic_projection is None
             )
@@ -409,6 +435,7 @@ class PdfStructuralRepairShadowRuntime:
         target_state_refs: list[str] = []
         runtime_refs: list[str] = []
         guided_upstream_terminal_refs: list[str] = []
+        guided_skip_terminal_refs: list[str] = []
         diagnostic_refs: list[str] = []
         repeat_history_refs: list[str] = []
         continuation_discovery_refs: list[str] = []
@@ -424,10 +451,13 @@ class PdfStructuralRepairShadowRuntime:
         documents, descriptors = self._discover(package)
 
         selected: list[dict[str, Any]] = []
+        provider_targets_selected = 0
         for descriptor in descriptors:
             progress = documents[descriptor["document_ref"]]
             progress.candidates_discovered += 1
             if (
+                not self.config.vlm_guided_product_routing_enabled
+                and
                 descriptor.get("target_scope")
                 not in {"page_level", "upstream_document"}
                 and self.config.table_allowlist
@@ -436,21 +466,41 @@ class PdfStructuralRepairShadowRuntime:
                 )
             ):
                 continue
-            if len(selected) >= self.config.maximum_tables:
+            provider_routed = descriptor.get("target_scope") in {
+                "candidate_crop",
+                "page_level",
+            }
+            if (
+                provider_routed
+                and provider_targets_selected >= self.config.maximum_tables
+            ):
                 progress.targets_skipped_limit += 1
                 continue
             selected.append(descriptor)
+            if provider_routed:
+                provider_targets_selected += 1
             progress.targets_selected += 1
 
         upstream_selected = [
             descriptor
             for descriptor in selected
-            if descriptor.get("target_scope") == "upstream_document"
+            if descriptor.get("target_scope")
+            in {"upstream_document", "upstream_failure"}
+        ]
+        skip_selected = [
+            descriptor
+            for descriptor in selected
+            if descriptor.get("target_scope") == "skip_obvious_non_table"
         ]
         selected = [
             descriptor
             for descriptor in selected
-            if descriptor.get("target_scope") != "upstream_document"
+            if descriptor.get("target_scope")
+            not in {
+                "upstream_document",
+                "upstream_failure",
+                "skip_obvious_non_table",
+            }
         ]
         for descriptor in upstream_selected:
             progress = documents[descriptor["document_ref"]]
@@ -518,6 +568,115 @@ class PdfStructuralRepairShadowRuntime:
                 )
             )
             _increment(terminal_counts, "guided_upstream_blocked")
+            _increment(semantic_projection_status_counts, semantic_status)
+            _increment_semantic_reasons(
+                semantic_projection_reason_counts,
+                _semantic_reasons_for_status(semantic_status),
+            )
+
+        for descriptor in skip_selected:
+            progress = documents[descriptor["document_ref"]]
+            try:
+                state_ref, terminal_ref = self._persist_guided_skip_terminal(
+                    store=store,
+                    context=context,
+                    retention_policy=retention_policy,
+                    package_descriptor=descriptor,
+                    pdf_bytes_by_sha256=pdf_bytes_by_sha256,
+                )
+            except Exception as exc:
+                progress.targets_failed += 1
+                reason_code = _guided_upstream_reason_from_exception(exc)
+                private_exc = (
+                    exc.private_cause
+                    if isinstance(exc, _TargetExecutionError)
+                    else exc
+                )
+                diagnostic = self.outcomes.private_diagnostic(
+                    file_ref=progress.file_ref,
+                    stage="parsing",
+                    exception=private_exc,
+                    private_context={
+                        "operation": "guided_skip_preflight",
+                        "target_id": descriptor["target_id"],
+                    },
+                )
+                diagnostic_ref = self._try_put_diagnostic(
+                    store=store,
+                    context=context,
+                    retention_policy=retention_policy,
+                    document_id=descriptor["document_ref"],
+                    target_id=descriptor["target_id"],
+                    reason_code=reason_code,
+                    diagnostic=diagnostic.snapshot(),
+                )
+                if diagnostic_ref is not None:
+                    diagnostic_refs.append(diagnostic_ref)
+                    refs.append(diagnostic_ref)
+                existing_state_ref = (
+                    exc.target_state_ref
+                    if isinstance(exc, _TargetExecutionError)
+                    else None
+                )
+                existing_decisions = None
+                if existing_state_ref is not None:
+                    existing_state = _object(
+                        store.read_payload(
+                            store.get_record_unchecked(existing_state_ref)
+                        )
+                    )
+                    existing_decisions = _object(
+                        existing_state.get("intake_decisions")
+                    )
+                state_ref, terminal_ref = (
+                    self._persist_guided_upstream_terminal(
+                        store=store,
+                        context=context,
+                        retention_policy=retention_policy,
+                        package_descriptor=descriptor,
+                        reason_code=reason_code,
+                        private_diagnostic_ref=diagnostic_ref,
+                        count_token_calls=0,
+                        generate_calls=0,
+                        existing_state_ref=existing_state_ref,
+                        existing_decisions=existing_decisions,
+                    )
+                )
+                target_state_refs.append(state_ref)
+                guided_upstream_terminal_refs.append(terminal_ref)
+                refs.extend((state_ref, terminal_ref))
+                progress.failures.append(("parser_failed", "parsing", diagnostic))
+                terminal_status = "guided_upstream_blocked"
+                runtime_result_persisted = False
+            else:
+                target_state_refs.append(state_ref)
+                runtime_refs.append(terminal_ref)
+                guided_skip_terminal_refs.append(terminal_ref)
+                refs.extend((state_ref, terminal_ref))
+                reason_code = None
+                terminal_status = "skipped_obvious_non_table"
+                runtime_result_persisted = True
+            semantic_status = (
+                "not_projected_structural_terminal"
+                if self.config.semantic_header_shadow_enabled
+                else "disabled"
+            )
+            target_summaries.append(
+                _target_summary(
+                    target_id=descriptor["target_id"],
+                    terminal_status=terminal_status,
+                    reason_code=reason_code,
+                    count_token_calls=0,
+                    generate_calls=0,
+                    target_state_persisted=True,
+                    runtime_result_persisted=runtime_result_persisted,
+                    repeat_history_persisted=False,
+                    repeat_history_ever_conflicted=False,
+                    semantic_projection_status=semantic_status,
+                    semantic_projection_persisted=False,
+                )
+            )
+            _increment(terminal_counts, terminal_status)
             _increment(semantic_projection_status_counts, semantic_status)
             _increment_semantic_reasons(
                 semantic_projection_reason_counts,
@@ -1086,6 +1245,9 @@ class PdfStructuralRepairShadowRuntime:
                 "guided_upstream_terminals_persisted": len(
                     guided_upstream_terminal_refs
                 ),
+                "guided_skip_terminals_persisted": len(
+                    guided_skip_terminal_refs
+                ),
                 "private_diagnostics_persisted": len(diagnostic_refs),
                 "private_repeat_histories_persisted": len(
                     repeat_history_refs
@@ -1151,6 +1313,7 @@ class PdfStructuralRepairShadowRuntime:
             "private_target_state_refs": target_state_refs,
             "runtime_result_refs": runtime_refs,
             "guided_upstream_terminal_refs": guided_upstream_terminal_refs,
+            "guided_skip_terminal_refs": guided_skip_terminal_refs,
             "private_diagnostic_refs": diagnostic_refs,
             "repeat_history_refs": repeat_history_refs,
             "continuation_discovery_refs": continuation_discovery_refs,
@@ -1841,13 +2004,24 @@ class PdfStructuralRepairShadowRuntime:
             )
             if source_projection_reason is not None:
                 pdf_sha256 = str(document.get("sha256") or "")
+                product_routing = None
+                if self.config.vlm_guided_product_routing_enabled:
+                    product_routing = self.product_router.route(
+                        page_evidence=None,
+                        candidate_evidence=None,
+                        page_words=[],
+                        bbox_inventory=[],
+                        upstream_failure_reason_codes=[
+                            source_projection_reason
+                        ],
+                    )
+                    self.product_router.validate_result(product_routing)
                 identity_digest = hashlib.sha256(
                     f"{document_ref}:{pdf_sha256}:guided-upstream".encode(
                         "utf-8"
                     )
                 ).hexdigest()[:24]
-                descriptors.append(
-                    {
+                descriptor = {
                         "document_ref": document_ref,
                         "pdf_sha256": pdf_sha256,
                         "page_ref": f"page_upstream_{identity_digest}",
@@ -1870,7 +2044,11 @@ class PdfStructuralRepairShadowRuntime:
                             source_projection_reason
                         ),
                     }
-                )
+                if product_routing is not None:
+                    descriptor["product_routing"] = copy.deepcopy(
+                        product_routing
+                    )
+                descriptors.append(descriptor)
                 continue
             projection = _object(
                 source_payload.get("pdf_text_layer_projection")
@@ -1920,6 +2098,158 @@ class PdfStructuralRepairShadowRuntime:
                 if self.config.vlm_guided_intake_enabled
                 else set()
             )
+            if self.config.vlm_guided_product_routing_enabled:
+                selected_page_refs = (
+                    selected_page_refs if page_allowlist else set(pages)
+                )
+                words_by_page: dict[str, list[dict[str, Any]]] = {}
+                for word in _dicts(projection.get("word_inventory")):
+                    words_by_page.setdefault(
+                        str(word.get("page_ref") or ""), []
+                    ).append(word)
+                candidate_ordinals = {
+                    str(candidate.get("table_candidate_ref") or ""): ordinal
+                    for ordinal, candidate in enumerate(candidates, start=1)
+                }
+                bbox_inventory = _dicts(projection.get("bbox_inventory"))
+                for page_ref in sorted(
+                    selected_page_refs,
+                    key=lambda ref: (
+                        _strict_nonnegative_int(
+                            _object(pages.get(ref)).get("page_number")
+                        ),
+                        ref,
+                    ),
+                ):
+                    page = _object(pages.get(page_ref))
+                    page_number = _strict_nonnegative_int(
+                        page.get("page_number")
+                    )
+                    current_page_candidates = page_candidates.get(page_ref) or []
+                    route_inputs = current_page_candidates or [None]
+                    routed: list[
+                        tuple[dict[str, Any], dict[str, Any] | None]
+                    ] = []
+                    for candidate in route_inputs:
+                        routing = self.product_router.route(
+                            page_evidence=page,
+                            candidate_evidence=candidate,
+                            page_words=words_by_page.get(page_ref) or [],
+                            bbox_inventory=bbox_inventory,
+                        )
+                        self.product_router.validate_result(routing)
+                        routed.append((routing, candidate))
+                    precedence = {
+                        "upstream_failure": 0,
+                        "page_level": 1,
+                        "candidate_crop": 2,
+                        "skip_obvious_non_table": 3,
+                    }
+                    routing, routed_candidate = min(
+                        routed,
+                        key=lambda item: (
+                            precedence[str(item[0]["route"])],
+                            _strict_nonnegative_int(
+                                _object(item[1]).get("parser_ordinal")
+                            ),
+                            str(
+                                _object(item[1]).get(
+                                    "table_candidate_ref"
+                                )
+                                or ""
+                            ),
+                        ),
+                    )
+                    route = str(routing["route"])
+                    if route == "candidate_crop" and routed_candidate is not None:
+                        candidate = routed_candidate
+                        table_ref = str(
+                            candidate.get("table_candidate_ref") or ""
+                        )
+                        ordinal = candidate_ordinals.get(table_ref, 0)
+                        table_bbox = copy.deepcopy(
+                            bboxes.get(str(candidate.get("bbox_ref") or ""))
+                        )
+                        candidate_rank_on_page = next(
+                            (
+                                index
+                                for index, current in enumerate(
+                                    current_page_candidates, start=1
+                                )
+                                if current is candidate
+                            ),
+                            0,
+                        )
+                        identity = {
+                            "document_ref": document_ref,
+                            "pdf_sha256": pdf_sha256,
+                            "page_ref": page_ref,
+                            "page_number": page_number,
+                            "table_ref": table_ref,
+                            "candidate_ordinal": ordinal,
+                        }
+                        target_scope = "candidate_crop"
+                        table_strategy_ref = candidate.get(
+                            "table_strategy_ref"
+                        )
+                        geometry_confidence = candidate.get(
+                            "geometry_confidence"
+                        )
+                        rows_total = candidate.get("rows_total")
+                        columns_total = candidate.get("columns_total")
+                    else:
+                        table_ref = "page_scope_" + hashlib.sha256(
+                            f"{document_ref}:{page_ref}:{page_number}".encode(
+                                "utf-8"
+                            )
+                        ).hexdigest()[:24]
+                        identity = {
+                            "document_ref": document_ref,
+                            "pdf_sha256": pdf_sha256,
+                            "page_ref": page_ref,
+                            "page_number": page_number,
+                            "table_ref": table_ref,
+                            "candidate_ordinal": 0,
+                        }
+                        target_scope = route
+                        table_bbox = [
+                            0.0,
+                            0.0,
+                            page.get("layout_page_width"),
+                            page.get("layout_page_height"),
+                        ]
+                        candidate_rank_on_page = 0
+                        table_strategy_ref = None
+                        geometry_confidence = None
+                        rows_total = None
+                        columns_total = None
+                    target_id = "structshadow_" + hashlib.sha256(
+                        repr(sorted(identity.items())).encode("utf-8")
+                    ).hexdigest()[:24]
+                    descriptor = {
+                        **identity,
+                        "target_id": target_id,
+                        "target_scope": target_scope,
+                        "table_bbox": table_bbox,
+                        "page_width": page.get("layout_page_width"),
+                        "page_height": page.get("layout_page_height"),
+                        "table_strategy_ref": table_strategy_ref,
+                        "geometry_confidence": geometry_confidence,
+                        "rows_total": rows_total,
+                        "columns_total": columns_total,
+                        "candidate_rank_on_page": candidate_rank_on_page,
+                        "candidates_on_page": len(current_page_candidates),
+                        "pdf_text_layer_projection": projection,
+                        "product_routing": copy.deepcopy(routing),
+                    }
+                    if route == "upstream_failure":
+                        descriptor["guided_upstream_reason_code"] = str(
+                            (routing.get("reason_codes") or [
+                                "pdf_vlm_product_routing_upstream_failure"
+                            ])[0]
+                        )
+                    descriptors.append(descriptor)
+                continue
             for page_ref in sorted(
                 selected_page_refs,
                 key=lambda ref: (
@@ -2229,6 +2559,10 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        product_routing = package_descriptor.get("product_routing")
+        if product_routing is not None:
+            self.product_router.validate_result(product_routing)
+            target_state["product_routing"] = copy.deepcopy(product_routing)
         if intake_decisions is not None:
             target_state["intake_decisions"] = copy.deepcopy(
                 intake_decisions
@@ -2409,6 +2743,7 @@ class PdfStructuralRepairShadowRuntime:
                 binding_result=candidate_binding,
                 region_crop_manifests=candidate_region_manifests,
                 finalized_intake_decisions=finalized_intake,
+                product_routing=product_routing,
             )
         if state_ref is None:
             raise PdfStructuralRepairShadowError(
@@ -2535,6 +2870,270 @@ class PdfStructuralRepairShadowRuntime:
             },
         )
 
+    def _persist_guided_skip_terminal(
+        self,
+        *,
+        store: SqliteArtifactStoreAdapter,
+        context: ArtifactAccessContext,
+        retention_policy: RetentionPolicy,
+        package_descriptor: dict[str, Any],
+        pdf_bytes_by_sha256: dict[str, bytes],
+    ) -> tuple[str, str]:
+        if self.intake_contracts is None or self.product_router is None:
+            raise PdfStructuralRepairShadowError(
+                "pdf_structural_repair_shadow_product_routing_factory_missing"
+            )
+        routing = copy.deepcopy(
+            _object(package_descriptor.get("product_routing"))
+        )
+        self.product_router.validate_result(routing)
+        if (
+            routing.get("route") != "skip_obvious_non_table"
+            or routing.get("provider_call_allowed") is not False
+        ):
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_skip_route_invalid"
+            )
+        document_ref = str(package_descriptor.get("document_ref") or "")
+        pdf_sha256 = str(package_descriptor.get("pdf_sha256") or "")
+        page_ref = str(package_descriptor.get("page_ref") or "")
+        page_number = _strict_nonnegative_int(
+            package_descriptor.get("page_number")
+        )
+        target_id = str(package_descriptor.get("target_id") or "")
+        parent_bbox = _page_bbox(package_descriptor)
+        projection = _object(
+            package_descriptor.get("pdf_text_layer_projection")
+        )
+        pdf_bytes = pdf_bytes_by_sha256.get(pdf_sha256)
+        if (
+            not document_ref
+            or not pdf_sha256
+            or not page_ref
+            or page_number < 1
+            or parent_bbox is None
+            or not isinstance(pdf_bytes, bytes)
+        ):
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_skip_target_input_invalid"
+            )
+        rendered = self.raster.render_full_page(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=pdf_sha256,
+            document_ref=document_ref,
+            page_ref=page_ref,
+            page_number=page_number,
+            expected_page_bbox=parent_bbox,
+            dpi=150,
+        )
+        parent_manifest = _object(rendered.get("manifest"))
+        png_bytes = base64.b64decode(
+            str(rendered.get("private_png_base64") or ""), validate=True
+        )
+        visual_package = self.visual.build_region_proposal_package(
+            proposal_scope="page_level",
+            crop_manifest=parent_manifest,
+        )
+        verified_records, exact_projection = _page_word_bboxes(
+            projection=projection,
+            page_ref=page_ref,
+            parent_bbox=parent_bbox,
+        )
+        page_evidence = _page_evidence(
+            visual_package=visual_package,
+            projection_checksum=sha256_json(projection),
+            verified_word_bbox_records=verified_records,
+        )
+        full_page_identity_verified = _full_page_manifest_identity_verified(
+            parent_manifest=parent_manifest,
+            visual_package=visual_package,
+            page_ref=page_ref,
+            page_number=page_number,
+            parent_bbox=parent_bbox,
+            expected_png_sha256=hashlib.sha256(png_bytes).hexdigest(),
+        )
+        decisions = self.intake_contracts.build_decisions(
+            document_ref=document_ref,
+            pdf_sha256=pdf_sha256,
+            page_ref=page_ref,
+            page_number=page_number,
+            scope_ref=target_id,
+            table_ref=None,
+            evidence_checksum=str(routing.get("routing_checksum") or ""),
+            assessor_stage="vlm_guided_product_routing",
+            scope="page",
+            detection_decision=str(routing.get("detection") or ""),
+            detection_reason_codes=routing.get("reason_codes") or [],
+            holdout_decision="not_evaluated",
+            page_bbox=parent_bbox,
+            candidate_bbox=None,
+            coordinate_bboxes=[
+                copy.deepcopy(_object(record).get("bbox"))
+                for record in verified_records
+            ],
+            provenance_verified=exact_projection,
+            crop_identity_verified=full_page_identity_verified,
+            exact_ownership_verified=exact_projection,
+            atom_count=0,
+            model_json_bytes=_strict_nonnegative_int(
+                _object(visual_package.get("component_accounting")).get(
+                    "model_json_bytes"
+                )
+            ),
+            counted_input_tokens=None,
+            image_count=1,
+            crop_count=0,
+            pdf_count=0,
+            image_bytes=len(png_bytes),
+            metadata={"product_routing_checksum": routing["routing_checksum"]},
+        )
+        if _object(decisions.get("processability")).get(
+            "decision"
+        ) != "processable":
+            raise PdfStructuralRepairShadowError(
+                "pdf_vlm_guided_skip_processability_invalid"
+            )
+        state = {
+            "schema_version": PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA,
+            "target_id": target_id,
+            "target_scope": "skip_obvious_non_table",
+            "parser_observation": None,
+            "parser_geometry_observation": None,
+            "private_raster": rendered,
+            "visual_package": visual_package,
+            "page_evidence": copy.deepcopy(page_evidence),
+            "full_page_identity_verified": full_page_identity_verified,
+            "execution_mode": "guided_skip_obvious_non_table",
+            "vlm_guided_intake_enabled": True,
+            "product_routing": copy.deepcopy(routing),
+            "intake_decisions": copy.deepcopy(decisions),
+            "provider_qualification": None,
+            "repeat_history_scope": {},
+            "prior_repeat_history_ref": None,
+            "prior_repeat_history_checksum": None,
+            "authority_state": "non_authoritative",
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+        }
+        state_ref = self._persist_target_state(
+            store=store,
+            context=context,
+            retention_policy=retention_policy,
+            document_ref=document_ref,
+            target_state=state,
+            visual_package=visual_package,
+            intake_decisions=decisions,
+        )
+        terminal = {
+            "schema_version": PDF_VLM_GUIDED_SKIP_TERMINAL_SCHEMA,
+            "target_id": target_id,
+            "target_scope": "skip_obvious_non_table",
+            "runtime_terminal_status": "skipped_obvious_non_table",
+            "reason_codes": copy.deepcopy(routing["reason_codes"]),
+            "product_routing": copy.deepcopy(routing),
+            "finalized_intake_decisions": copy.deepcopy(decisions),
+            "provider_accounting": {
+                "count_token_calls": 0,
+                "generate_calls": 0,
+            },
+            "new_provider_count_token_calls": 0,
+            "new_provider_generate_calls": 0,
+            "target_state_ref": state_ref,
+            "safe_summary": {
+                "target_id": target_id,
+                "runtime_terminal_status": "skipped_obvious_non_table",
+                "reason_codes": copy.deepcopy(routing["reason_codes"]),
+                "count_token_calls": 0,
+                "generate_calls": 0,
+                "hidden_retry": False,
+                "provider_failover": False,
+                "default_enabled": False,
+                "production_authority": False,
+            },
+            "authority_state": "shadow_non_authoritative",
+            "default_enabled": False,
+            "production_ready": False,
+            "production_gate2_selection_changed": False,
+        }
+        terminal["result_checksum"] = sha256_json(terminal)
+        errors = self._validate_guided_skip_terminal(terminal)
+        if errors:
+            error = PdfStructuralRepairShadowError(errors[0])
+            raise _TargetExecutionError(
+                errors[0],
+                private_cause=error,
+                target_state_ref=state_ref,
+            ) from error
+        try:
+            terminal_ref = self._put_record(
+                store=store,
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_ref,
+                artifact_type=PDF_VLM_GUIDED_SKIP_TERMINAL_SCHEMA,
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status="validated",
+                payload=terminal,
+                safe_metadata={
+                    **copy.deepcopy(terminal["safe_summary"]),
+                    "authority_state": "non_authoritative",
+                    "production_ready": False,
+                    "production_gate2_selection_changed": False,
+                },
+            )
+        except Exception as exc:
+            raise _TargetExecutionError(
+                "pdf_vlm_guided_skip_terminal_persistence_failed",
+                private_cause=exc,
+                target_state_ref=state_ref,
+            ) from exc
+        return state_ref, terminal_ref
+
+    def _validate_guided_skip_terminal(self, value: Any) -> list[str]:
+        if not isinstance(value, dict):
+            return ["pdf_vlm_guided_skip_terminal_invalid"]
+        data = copy.deepcopy(value)
+        stored = data.pop("result_checksum", None)
+        routing = _object(data.get("product_routing"))
+        decisions = _object(data.get("finalized_intake_decisions"))
+        errors: list[str] = []
+        try:
+            self.product_router.validate_result(routing)
+        except Exception:
+            errors.append("pdf_vlm_guided_skip_routing_invalid")
+        if (
+            data.get("schema_version") != PDF_VLM_GUIDED_SKIP_TERMINAL_SCHEMA
+            or data.get("target_scope") != "skip_obvious_non_table"
+            or data.get("runtime_terminal_status")
+            != "skipped_obvious_non_table"
+            or routing.get("route") != "skip_obvious_non_table"
+            or routing.get("provider_call_allowed") is not False
+            or data.get("new_provider_count_token_calls") != 0
+            or data.get("new_provider_generate_calls") != 0
+            or data.get("provider_accounting")
+            != {"count_token_calls": 0, "generate_calls": 0}
+            or data.get("authority_state") != "shadow_non_authoritative"
+            or data.get("default_enabled") is not False
+            or data.get("production_ready") is not False
+            or data.get("production_gate2_selection_changed") is not False
+        ):
+            errors.append("pdf_vlm_guided_skip_terminal_invalid")
+        if self.intake_contracts.validate_decisions(decisions):
+            errors.append("pdf_vlm_guided_skip_decisions_invalid")
+        elif (
+            _object(decisions.get("detection")).get("decision")
+            != routing.get("detection")
+            or _object(decisions.get("detection")).get("reason_codes")
+            != routing.get("reason_codes")
+            or _object(decisions.get("processability")).get("decision")
+            != "processable"
+        ):
+            errors.append("pdf_vlm_guided_skip_decisions_drift")
+        if stored != sha256_json(data):
+            errors.append("pdf_vlm_guided_skip_checksum_invalid")
+        return sorted(set(errors))
+
     def _persist_guided_upstream_terminal(
         self,
         *,
@@ -2569,6 +3168,15 @@ class PdfStructuralRepairShadowRuntime:
         )
 
         state_ref = existing_state_ref
+        product_routing = copy.deepcopy(
+            package_descriptor.get("product_routing")
+        )
+        if product_routing is not None:
+            if self.product_router is None:
+                raise PdfStructuralRepairShadowError(
+                    "pdf_structural_repair_shadow_product_routing_factory_missing"
+                )
+            self.product_router.validate_result(product_routing)
         if state_ref is None:
             target_state = {
                 "schema_version": PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA,
@@ -2589,6 +3197,10 @@ class PdfStructuralRepairShadowRuntime:
                 "production_ready": False,
                 "production_gate2_selection_changed": False,
             }
+            if product_routing is not None:
+                target_state["product_routing"] = copy.deepcopy(
+                    product_routing
+                )
             state_ref = self._persist_target_state(
                 store=store,
                 context=context,
@@ -2616,6 +3228,8 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        if product_routing is not None:
+            terminal["product_routing"] = copy.deepcopy(product_routing)
         terminal["result_checksum"] = sha256_json(terminal)
         terminal_errors = self._validate_guided_upstream_terminal(terminal)
         if terminal_errors:
@@ -2720,6 +3334,8 @@ class PdfStructuralRepairShadowRuntime:
             "authority_state", "production_ready",
             "production_gate2_selection_changed",
         }
+        if "product_routing" in data:
+            required_keys.add("product_routing")
         errors: list[str] = []
         if set(data) != required_keys:
             errors.append("pdf_vlm_guided_intake_upstream_terminal_keys_invalid")
@@ -2739,6 +3355,26 @@ class PdfStructuralRepairShadowRuntime:
         reason_code = data.get("reason_code")
         if not _safe_guided_reason_code(reason_code):
             errors.append("pdf_vlm_guided_intake_upstream_reason_invalid")
+        routing = data.get("product_routing")
+        if routing is not None:
+            try:
+                self.product_router.validate_result(routing)
+            except Exception:
+                errors.append(
+                    "pdf_vlm_guided_intake_upstream_routing_invalid"
+                )
+            else:
+                if (
+                    data.get("target_scope")
+                    in {"upstream_document", "upstream_failure"}
+                    and (
+                        routing.get("route") != "upstream_failure"
+                        or routing.get("provider_call_allowed") is not False
+                    )
+                ):
+                    errors.append(
+                        "pdf_vlm_guided_intake_upstream_routing_invalid"
+                    )
         decisions = _object(data.get("finalized_intake_decisions"))
         if self.intake_contracts.validate_decisions(decisions):
             errors.append("pdf_vlm_guided_intake_upstream_decisions_invalid")
@@ -2952,6 +3588,7 @@ class PdfStructuralRepairShadowRuntime:
         binding_result: dict[str, Any] | None,
         region_crop_manifests: dict[str, dict[str, Any]],
         finalized_intake_decisions: dict[str, Any],
+        product_routing: dict[str, Any] | None,
     ) -> dict[str, Any]:
         proposal_safe = _object(proposal_result.get("safe_summary"))
         if binding_result is not None:
@@ -3057,6 +3694,8 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        if product_routing is not None:
+            result["product_routing"] = copy.deepcopy(product_routing)
         result["result_checksum"] = sha256_json(result)
         errors = self._validate_candidate_intake_result(
             result,
@@ -3085,6 +3724,8 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready", "production_gate2_selection_changed",
             "result_checksum",
         }
+        if isinstance(value, dict) and "product_routing" in value:
+            expected_keys.add("product_routing")
         if not isinstance(value, dict) or set(value) != expected_keys:
             return ["pdf_vlm_guided_candidate_intake_result_keys_invalid"]
         data = copy.deepcopy(value)
@@ -3097,6 +3738,22 @@ class PdfStructuralRepairShadowRuntime:
         manifests = _object(data.get("region_crop_manifests"))
         parent_manifest = _object(data.get("parent_crop_manifest"))
         finalized = _object(data.get("finalized_intake_decisions"))
+        product_routing = data.get("product_routing")
+        if product_routing is not None:
+            try:
+                self.product_router.validate_result(product_routing)
+            except Exception:
+                errors.append(
+                    "pdf_vlm_guided_candidate_intake_routing_invalid"
+                )
+            else:
+                if (
+                    product_routing.get("route") != "candidate_crop"
+                    or product_routing.get("provider_call_allowed") is not True
+                ):
+                    errors.append(
+                        "pdf_vlm_guided_candidate_intake_routing_invalid"
+                    )
         if (
             data.get("schema_version")
             != PDF_VLM_GUIDED_CANDIDATE_INTAKE_RESULT_SCHEMA
@@ -3324,6 +3981,13 @@ class PdfStructuralRepairShadowRuntime:
             parent_bbox=parent_bbox,
             expected_png_sha256=hashlib.sha256(png_bytes).hexdigest(),
         )
+        product_routing = package_descriptor.get("product_routing")
+        if product_routing is not None:
+            self.product_router.validate_result(product_routing)
+            if product_routing.get("route") != "page_level":
+                raise PdfStructuralRepairShadowError(
+                    "pdf_vlm_guided_page_product_route_invalid"
+                )
         intake_decisions = self.intake_contracts.build_decisions(
             document_ref=document_ref,
             pdf_sha256=pdf_sha256,
@@ -3334,7 +3998,12 @@ class PdfStructuralRepairShadowRuntime:
             evidence_checksum=str(page_evidence.get("evidence_checksum") or ""),
             assessor_stage="guided_page_preflight",
             scope="page",
-            detection_decision="plausible",
+            detection_decision=str(
+                _object(product_routing).get("detection") or "plausible"
+            ),
+            detection_reason_codes=(
+                _object(product_routing).get("reason_codes") or []
+            ),
             holdout_decision="not_evaluated",
             page_bbox=parent_bbox,
             candidate_bbox=None,
@@ -3362,9 +4031,22 @@ class PdfStructuralRepairShadowRuntime:
             image_bytes=len(png_bytes),
             metadata={
                 "routing": {
-                    "source": "explicit_page_ref_allowlist",
+                    "source": (
+                        "product_router"
+                        if product_routing is not None
+                        else "explicit_page_ref_allowlist"
+                    ),
                     "candidate_count_on_page": _strict_nonnegative_int(
                         package_descriptor.get("candidates_on_page")
+                    ),
+                    **(
+                        {
+                            "product_routing_checksum": product_routing.get(
+                                "routing_checksum"
+                            )
+                        }
+                        if product_routing is not None
+                        else {}
                     ),
                 }
             },
@@ -3390,6 +4072,8 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        if product_routing is not None:
+            target_state["product_routing"] = copy.deepcopy(product_routing)
         state_ref: str | None = None
         if _object(intake_decisions.get("processability")).get(
             "decision"
@@ -3586,6 +4270,7 @@ class PdfStructuralRepairShadowRuntime:
             binding_result=binding_result,
             region_crop_manifests=region_crop_manifests,
             finalized_intake_decisions=finalized_intake_decisions,
+            product_routing=product_routing,
         )
         runtime_ref = self._put_record(
             store=store,
@@ -3638,6 +4323,7 @@ class PdfStructuralRepairShadowRuntime:
         binding_result: dict[str, Any] | None,
         region_crop_manifests: dict[str, dict[str, Any]],
         finalized_intake_decisions: dict[str, Any],
+        product_routing: dict[str, Any] | None,
     ) -> dict[str, Any]:
         projection_checksum = sha256_json(pdf_text_layer_projection)
         full_page_identity_verified = _full_page_manifest_identity_verified(
@@ -3742,6 +4428,8 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        if product_routing is not None:
+            result["product_routing"] = copy.deepcopy(product_routing)
         result["result_checksum"] = sha256_json(result)
         errors = self._validate_page_intake_result(
             result,
@@ -3771,9 +4459,25 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready", "production_gate2_selection_changed",
             "result_checksum",
         }
+        if isinstance(value, dict) and "product_routing" in value:
+            expected_keys.add("product_routing")
         if set(data) != expected_keys:
             return ["pdf_vlm_guided_page_intake_result_keys_invalid"]
         errors: list[str] = []
+        product_routing = data.get("product_routing")
+        if product_routing is not None:
+            try:
+                self.product_router.validate_result(product_routing)
+            except Exception:
+                errors.append("pdf_vlm_guided_page_intake_routing_invalid")
+            else:
+                if (
+                    product_routing.get("route") != "page_level"
+                    or product_routing.get("provider_call_allowed") is not True
+                ):
+                    errors.append(
+                        "pdf_vlm_guided_page_intake_routing_invalid"
+                    )
         package = _object(data.get("visual_package"))
         proposal_result = _object(data.get("proposal_result"))
         binding = data.get("binding_result")
@@ -4165,6 +4869,13 @@ class PdfStructuralRepairShadowRuntime:
             and len(candidate_ids) == len(set(candidate_ids))
             and all(candidate_ids)
         )
+        product_routing = _object(
+            package_descriptor.get("product_routing")
+        )
+        detection_decision = str(
+            product_routing.get("detection") or "plausible"
+        )
+        detection_reasons = product_routing.get("reason_codes") or []
         return self.intake_contracts.build_decisions(
             document_ref=str(package_descriptor.get("document_ref") or ""),
             pdf_sha256=str(package_descriptor.get("pdf_sha256") or ""),
@@ -4177,7 +4888,8 @@ class PdfStructuralRepairShadowRuntime:
             evidence_checksum=str(visual_package.get("package_hash") or ""),
             assessor_stage="guided_intake_preflight",
             scope="candidate_crop",
-            detection_decision="plausible",
+            detection_decision=detection_decision,
+            detection_reason_codes=detection_reasons,
             holdout_decision="not_evaluated",
             page_bbox=_page_bbox(package_descriptor),
             candidate_bbox=copy.deepcopy(
@@ -4198,7 +4910,18 @@ class PdfStructuralRepairShadowRuntime:
             crop_count=1,
             pdf_count=0,
             image_bytes=len(png_bytes),
-            metadata=_intake_morphology_metadata(package_descriptor),
+            metadata={
+                **_intake_morphology_metadata(package_descriptor),
+                **(
+                    {
+                        "product_routing_checksum": product_routing.get(
+                            "routing_checksum"
+                        )
+                    }
+                    if product_routing
+                    else {}
+                ),
+            },
         )
 
     def _repeat_history_scope(
@@ -4614,6 +5337,7 @@ def _base_summary(
         "private_target_states_persisted": 0,
         "private_runtime_results_persisted": 0,
         "guided_upstream_terminals_persisted": 0,
+        "guided_skip_terminals_persisted": 0,
         "private_diagnostics_persisted": 0,
         "private_repeat_histories_persisted": 0,
         "continuation_groups_discovered": 0,

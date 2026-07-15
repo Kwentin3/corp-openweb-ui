@@ -383,6 +383,238 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertFalse(guided["production_gate2_selection_changed"])
         self.assertNotIn("private-provider-response", repr(result["summary"]))
 
+    def test_product_router_candidate_route_is_factory_owned_and_persisted(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                table_allowlist=("human-label-must-not-select",),
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _product_routing_package(self.pdf_sha256, route="candidate_crop"),
+        )
+
+        self.assertEqual(
+            (1, 1, 1),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual("candidate_crop", state["product_routing"]["route"])
+        self.assertEqual(state["product_routing"], terminal["product_routing"])
+        unsigned = copy.deepcopy(state["product_routing"])
+        checksum = unsigned.pop("routing_checksum")
+        self.assertEqual(checksum, sha256_json(unsigned))
+
+    def test_product_router_page_route_reaches_full_page_flow(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _product_routing_package(self.pdf_sha256, route="page_level"),
+        )
+
+        self.assertEqual(
+            (1, 1, 1),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual("guided_page_level", state["execution_mode"])
+        self.assertEqual("page_level", state["product_routing"]["route"])
+        self.assertEqual(state["product_routing"], terminal["product_routing"])
+
+    def test_product_router_skip_is_closed_and_uses_zero_provider_calls(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _product_routing_package(
+                self.pdf_sha256,
+                route="skip_obvious_non_table",
+            ),
+        )
+
+        self.assertEqual(
+            (0, 0, 0),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        self.assertEqual(1, len(result["guided_skip_terminal_refs"]))
+        self.assertEqual(1, len(result["runtime_result_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_skip_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "skip_obvious_non_table",
+            state["product_routing"]["route"],
+        )
+        self.assertEqual(state["product_routing"], terminal["product_routing"])
+        self.assertEqual(
+            "skipped_obvious_non_table",
+            terminal["runtime_terminal_status"],
+        )
+        self.assertEqual(
+            {"count_token_calls": 0, "generate_calls": 0},
+            terminal["provider_accounting"],
+        )
+        self.assertEqual(
+            "processable",
+            terminal["finalized_intake_decisions"]["processability"][
+                "decision"
+            ],
+        )
+
+    def test_product_router_skip_raster_failure_is_typed_upstream_terminal(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        def fail_raster(**_kwargs):
+            raise PdfTableRasterError(
+                "pdf_table_raster_encoded_budget_exceeded"
+            )
+
+        runtime.raster.render_full_page = fail_raster
+        result = self._run(
+            runtime,
+            _product_routing_package(
+                self.pdf_sha256,
+                route="skip_obvious_non_table",
+            ),
+        )
+
+        self.assertEqual(
+            (0, 0, 0),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        self.assertEqual([], result["guided_skip_terminal_refs"])
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_table_raster_encoded_budget_exceeded",
+            terminal["reason_code"],
+        )
+        self.assertEqual(
+            "skip_obvious_non_table",
+            terminal["product_routing"]["route"],
+        )
+        self.assertEqual(
+            {"count_token_calls": 0, "generate_calls": 0},
+            terminal["provider_accounting"],
+        )
+
+    def test_product_router_limit_does_not_discard_later_skip(self) -> None:
+        self.pdf_bytes = _continuation_pdf_bytes()
+        self.pdf_sha256 = hashlib.sha256(self.pdf_bytes).hexdigest()
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=(
+                    "document_continuation::page_1",
+                    "document_continuation::page_2",
+                ),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _two_page_product_routing_package(self.pdf_sha256),
+        )
+
+        self.assertEqual(
+            (1, 1, 1),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        self.assertEqual(0, result["summary"]["tables_skipped_by_limit"])
+        self.assertEqual(2, len(result["summary"]["target_outcomes"]))
+        self.assertEqual(2, len(result["private_target_state_refs"]))
+        self.assertEqual(2, len(result["runtime_result_refs"]))
+        self.assertEqual(1, len(result["guided_skip_terminal_refs"]))
+
     def test_guided_runtime_failure_seals_upstream_intake_terminal(self) -> None:
         provider = _ProviderBoundary(fail_message="private-provider-failure")
         runtime = PdfStructuralRepairShadowFactory(
@@ -2323,6 +2555,94 @@ def _continuation_projection(*, duplicate_values: bool = False) -> dict:
         "rect_inventory": [],
         "table_candidate_inventory": candidates,
     }
+
+
+def _two_page_product_routing_package(pdf_sha256: str) -> dict:
+    package = _continuation_package(pdf_sha256)
+    projection = package["private_normalized_source_payloads"][0][
+        "pdf_text_layer_projection"
+    ]
+    for page in projection["page_inventory"]:
+        page["layout_projection_status"] = "complete"
+    for candidate in projection["table_candidate_inventory"]:
+        page_ref = candidate["page_ref"]
+        words = [
+            word
+            for word in projection["word_inventory"]
+            if word["page_ref"] == page_ref
+        ]
+        candidate.update(
+            {
+                "table_reconstruction_status": "candidate",
+                "cells_total": 4,
+                "contributing_word_refs": [
+                    word["word_ref"] for word in words
+                ],
+                "cell_inventory": [
+                    {"word_refs": [word["word_ref"]]} for word in words
+                ],
+            }
+        )
+        if page_ref == "page_2":
+            candidate["table_strategy_ref"] = "aligned_text_v0"
+            words[0]["text"] = "TABLE OF CONTENTS"
+    return package
+
+
+def _product_routing_package(pdf_sha256: str, *, route: str) -> dict:
+    package = _package(pdf_sha256)
+    projection = package["private_normalized_source_payloads"][0][
+        "pdf_text_layer_projection"
+    ]
+    page = projection["page_inventory"][0]
+    page["layout_projection_status"] = "complete"
+    words = projection["word_inventory"]
+    candidate = projection["table_candidate_inventory"][0]
+    candidate.update(
+        {
+            "table_reconstruction_status": "candidate",
+            "cells_total": 4,
+            "contributing_word_refs": [
+                word["word_ref"] for word in words
+            ],
+            "cell_inventory": [
+                {"word_refs": [word["word_ref"]]} for word in words
+            ],
+        }
+    )
+    if route == "page_level":
+        candidate.update(
+            {
+                "table_strategy_ref": "aligned_text_v0",
+                "rows_total": 42,
+                "columns_total": 8,
+                "cells_total": 336,
+                "cell_inventory": [
+                    *[
+                        {"word_refs": [word["word_ref"]]}
+                        for word in words
+                    ],
+                    *[{"word_refs": []} for _ in range(332)],
+                ],
+            }
+        )
+        for word, text in zip(
+            words,
+            (
+                "The following table presents fair value assets",
+                "Opening balance",
+                "1,200",
+                "900",
+            ),
+            strict=True,
+        ):
+            word["text"] = text
+    elif route == "skip_obvious_non_table":
+        candidate["table_strategy_ref"] = "aligned_text_v0"
+        words[0]["text"] = "TABLE OF CONTENTS"
+    elif route != "candidate_crop":
+        raise ValueError(route)
+    return package
 
 
 def _package(
