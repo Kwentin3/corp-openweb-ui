@@ -1,8 +1,9 @@
 # Broker Reports PDF VLM-Guided Intake Shadow Runbook
 
-Status: operator procedure for a default-disabled research shadow. The current
-proof boundary is partial until a one-call development runner, a new unseen
-holdout, a passing live canary, and repository/live parity all exist.
+Status: operator procedure for a default-disabled research shadow. The
+repository now has a one-call development runner and a reference-isolated
+scorer. The 2026-07-15 development gate failed, so the unseen holdout and live
+canary were not run and production authority remains disabled.
 
 ## 1. Scope
 
@@ -83,7 +84,13 @@ create:
 - the persisted 2026-07-15 semantic/structural canary attempt failed during
   evidence collection and rolled back; its postmortem is cleanup evidence, not
   a passed canary or parity result;
-- no new unseen intake holdout is present at this boundary.
+- the one-call development runner and independent scorer now exist;
+- the sealed development gate result is
+  `DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`;
+- a new unseen intake holdout and live canary remain `NOT_RUN` because the
+  development gate did not pass;
+- production authority remains disabled and the local guided-intake bundle is
+  not live-parity evidence.
 
 Do not call the feature ready based on old structural-repair or v5 artifacts.
 
@@ -194,13 +201,122 @@ For every case record separately:
 - requested and resolved model;
 - retry and failover counts, both zero.
 
-There is no repository command at the current boundary that performs this
-one-call matrix. Do not substitute the old two-attempt structural holdout. If a
-bounded development runner and its tests are absent, stop with a partial result.
+Do not substitute the old two-attempt structural holdout. Use the repository
+runner and scorer below from the repository root. The output directories must
+not exist before the command starts.
+
+Define the frozen inputs once:
+
+```powershell
+$RepoRoot = (Resolve-Path '.').Path
+$ServiceRoot = Join-Path $RepoRoot 'services\broker-reports-gate1-proof'
+if ([string]::IsNullOrWhiteSpace($env:BROKER_REPORTS_EVIDENCE_ROOT)) {
+  throw 'Set BROKER_REPORTS_EVIDENCE_ROOT to the local data-bearing checkout'
+}
+$EvidenceRoot = (Resolve-Path -LiteralPath `
+  $env:BROKER_REPORTS_EVIDENCE_ROOT).Path
+$ProofRoot = Join-Path $EvidenceRoot `
+  'local\stage2\broker_reports_pdf_vlm_guided_intake_e2e_2026-07-15'
+$CorpusRoot = Join-Path $EvidenceRoot `
+  'local\stage2\broker_reports_pdf_structural_holdout_public_v5_2026-07-15\corpus'
+$Manifest = Join-Path $ProofRoot 'private\development.manifest.private.json'
+$Reference = Join-Path $ProofRoot 'private\development.reference.private.json'
+$Bundle = Join-Path $ServiceRoot `
+  'openwebui_actions\broker_reports_gate1_pipe_bundled.py'
+$EnvFile = Join-Path $EvidenceRoot '.env'
+$RunId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+
+Set-Location $ServiceRoot
+```
+
+`$RepoRoot` is the clean checkout containing the exact source revision and
+bundle under test. `$EvidenceRoot` is the local checkout that owns the ignored
+private corpus, manifest, reference, and `.env`; it may be the same checkout,
+but does not need to be. Neither private input nor credentials are copied into
+the delivery worktree.
+
+To run provider work without exposing the human reference to the runner:
+
+```powershell
+$RunOutput = Join-Path $ProofRoot "development-run-$RunId"
+
+python scripts/local_pdf_vlm_guided_intake_development.py run `
+  --manifest $Manifest `
+  --corpus-root $CorpusRoot `
+  --output-dir $RunOutput `
+  --env-file $EnvFile `
+  --repo-root $RepoRoot `
+  --bundle $Bundle
+if ($LASTEXITCODE -ne 0) { throw 'development runner failed before scoring' }
+```
+
+Only after `terminal.private.json` and its seal exist, score them in the
+separate scorer process. The reference argument is accepted by this scorer
+only; it is not an argument of `run`:
+
+```powershell
+$ScoreOutput = Join-Path $RunOutput 'development.score.private.json'
+
+python scripts/local_pdf_vlm_guided_intake_development_score.py `
+  --terminal (Join-Path $RunOutput 'terminal.private.json') `
+  --seal (Join-Path $RunOutput 'terminal.private.sha256.json') `
+  --reference $Reference `
+  --output $ScoreOutput
+$DevelopmentScoreExit = $LASTEXITCODE
+```
+
+The single reproducible gate command launches `run`, waits for the sealed
+terminal, and then launches the reference-aware scorer as another process:
+
+```powershell
+$GateOutput = Join-Path $ProofRoot "development-gate-$RunId"
+
+python scripts/local_pdf_vlm_guided_intake_development.py gate `
+  --manifest $Manifest `
+  --corpus-root $CorpusRoot `
+  --output-dir $GateOutput `
+  --env-file $EnvFile `
+  --repo-root $RepoRoot `
+  --bundle $Bundle `
+  --reference $Reference
+$DevelopmentGateExit = $LASTEXITCODE
+```
+
+`gate_processes.safe.json` must prove distinct gate, runner, and scorer process
+ids, `terminal_sealed_before_scorer_started=true`, no reference argument in the
+runner command, and a reference argument in the scorer command. The scorer
+must verify the same terminal bytes before opening the reference and again
+after scoring.
+
+The frozen 2026-07-15 development result is exactly:
+
+```text
+DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS
+condition_1 target=drivewealth_p07 reason=development_positive_route_mismatch
+condition_1 target=drivewealth_p09 reason=development_positive_route_mismatch
+condition_1 target=drivewealth_p11 reason=development_positive_route_mismatch
+condition_1 target=ibkr_midyear_p03 reason=development_positive_route_mismatch
+condition_6 target=corpus reason=development_minimum_correct_acceptances_not_met observed=2 expected=4
+condition_7 target=corpus reason=development_required_broker_acceptance_missing broker=drivewealth
+condition_9 target=drivewealth_p07 reason=development_provider_accounting_invalid
+condition_9 target=drivewealth_p09 reason=development_provider_accounting_invalid
+condition_9 target=drivewealth_p11 reason=development_provider_accounting_invalid
+condition_9 target=ibkr_midyear_p03 reason=development_provider_accounting_invalid
+condition_10 target=drivewealth_p09 reason=development_terminal_or_intake_decisions_missing
+```
+
+This is a binary failed development gate. Stop here: do not create or open a
+fresh unseen holdout, do not run a live canary, do not enable production
+authority, and do not reinterpret safe blocking as a passing reconstruction.
 
 ## 8. Phase C — freeze a genuinely unseen holdout
 
 Do this only after Phase A and Phase B are complete and code is frozen.
+
+For the 2026-07-15 closure this phase is `NOT_RUN`: Phase B returned
+`DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`. The remaining instructions define the
+future procedure after a new frozen implementation passes the development
+gate; they do not authorize bypassing that gate.
 
 Before opening document content or invoking a provider, persist a checksummed
 manifest containing:
@@ -264,6 +380,10 @@ reference leakage, hidden retry, failover, atom invention, or validator
 weakening.
 
 ## 10. Phase E — one default-disabled live shadow canary
+
+For the 2026-07-15 closure this phase is `NOT_RUN`. A failed development gate
+does not authorize a live diagnostic, deployment, temporary valve change, or
+production enablement. Production authority remains disabled.
 
 Before running live, the canary tests must prove that it:
 
@@ -401,7 +521,26 @@ Stop immediately and preserve the typed terminal when:
 
 ## 16. Final decision
 
-Use exactly one final decision:
+The current frozen decision is:
+
+```text
+BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_NOT_WORKING
+development=DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS
+fresh_unseen_holdout=NOT_RUN
+live_canary=NOT_RUN
+production_authority=DISABLED
+```
+
+No other readiness label applies to this run. For a future frozen
+implementation that passes development but has not yet passed both external
+proofs, use:
+
+```text
+BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_DEVELOPMENT_READY
+<specific remaining external proof>
+```
+
+Only after rerunning and passing the entire sequence, use:
 
 ```text
 BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_READY_FOR_SHADOW_E2E
@@ -409,23 +548,6 @@ BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_READY_FOR_SHADOW_E2E
 
 Use it only when local regression, fresh unseen holdout, live canary, cleanup,
 rollback, and parity all pass on the same frozen implementation.
-
-Otherwise use:
-
-```text
-BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_PARTIAL
-<specific remaining defect>
-```
-
-or:
-
-```text
-BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_NOT_READY
-<specific failed evidence>
-```
-
-Missing fresh-holdout accuracy, an incompatible two-attempt canary, missing
-interrupted-process recovery, or missing repository/live parity are each
-sufficient reasons for `PARTIAL`. A validator failure, reference leak, hidden
-retry/failover, source mutation, or Gate 2 authority change requires
-`NOT_READY`.
+Failure of the development gate always returns the current
+`BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_NOT_WORKING` form with exact failed
+contracts. Do not substitute older `PARTIAL` or `NOT_READY` labels.

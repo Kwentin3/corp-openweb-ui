@@ -299,9 +299,26 @@ Consequently v5 did not test repaired-provider behaviour or exact topology accur
 
 The separate semantic contract is defined in `BROKER_REPORTS_PDF_SEMANTIC_HEADER_PROJECTION.v1.md`. Semantic meaning cannot repair this structural eligibility failure or select an ambiguous physical topology.
 
+The v5 eligibility attempt above is retained only as historical preflight
+evidence. It is not the current proof of the guided physical path.
+
+## VLM-guided development E2E boundary on 2026-07-15
+
+The default-disabled guided physical route is now implemented end to end from
+deterministic product routing through persisted intake terminals. Its one
+reproducible development-corpus gate returned
+`DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`.
+
+The run produced two exact accepted regions against a required minimum of four,
+produced no correct DriveWealth acceptance, and failed bounded route, provider
+accounting, and terminal-persistence contracts on named development targets.
+False accepted regions remained zero. This is useful fail-closed evidence, but
+it is not an accuracy pass and authorizes neither fresh-holdout execution nor a
+live canary.
+
 ## Current readiness boundary
 
-The five structural contract defects are repaired in the default-disabled Gate 1 research path and are covered by controlled/sealed replay plus repository tests. Production accuracy and production Gate 2 authority remain unapproved: two borderless cases are genuinely ambiguous under the controlled proof, and the frozen fresh v5 attempt stopped before provider execution because no real candidate passed eligibility.
+The earlier five structural contract defects remain covered by controlled/sealed replay and repository tests. The newer guided physical path is implemented, but its development E2E gate failed the required binary contract. Production accuracy and production Gate 2 authority therefore remain unapproved.
 
 The remaining limitations are explicit:
 
@@ -311,4 +328,4 @@ The remaining limitations are explicit:
 - a completely empty merged region without a source anchor still requires explicit projection or review;
 - the shadow remains default-disabled and non-authoritative.
 
-Production Gate 2 selection must remain unchanged until a new source-frozen, previously unseen holdout reaches real provider execution and proves the agreed accuracy bar without hidden retries, value invention or reference leakage. The 2026-07-15 epic closes at this explicit partial boundary; another broad architecture cycle is not implied.
+Production Gate 2 selection must remain unchanged. Before any fresh source-frozen holdout or live canary, the same development gate must first pass its frozen acceptance conditions without hidden retries, value invention or reference leakage. Another broad architecture cycle is not implied.

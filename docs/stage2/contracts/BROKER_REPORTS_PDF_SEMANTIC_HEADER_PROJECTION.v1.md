@@ -175,6 +175,15 @@ Typed incomplete or not-projected outcomes remain correct for:
 
 No semantic outcome can promote the feature to production Gate 2. That decision still requires a fresh source-frozen structural holdout with useful zero-false-acceptance results plus a passing live shadow proof.
 
+## VLM-guided E2E boundary on 2026-07-15
+
+Semantic-header projection is downstream-only. It was `NOT_RUN` in the current
+VLM-guided intake E2E because the physical development-corpus gate returned
+`DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`. No semantic result may repair that
+failure, reinterpret a blocked physical region as accepted, or satisfy a
+missing physical acceptance. Fresh-holdout and live semantic execution were
+also not run in this E2E.
+
 ## Operator procedure and rollback
 
 Run from:

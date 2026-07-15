@@ -217,8 +217,11 @@ marks it plausible or uncertain.
 - the VLM proposes topology rather than a parser profile.
 
 All atoms in the original candidate scope remain accounted for after adjustment
-as included or deterministically excluded. Adjustment cannot make atoms vanish
-from the ledger.
+by three disjoint sets: included, deterministically excluded, or crossing the
+adjusted boundary. Their union must equal the complete parent atom set. An
+adjusted bbox is admissible for materialization only when the crossing set is
+empty. Adjustment cannot make atoms vanish from the ledger or silently cut an
+atom at the new boundary.
 
 ### 7.2 Page-level proposal path
 
@@ -394,6 +397,15 @@ The canonical feature flag is
 `pdf_vlm_guided_intake_shadow_enabled=false`. It defaults to false and cannot
 change production Gate 2 selection.
 
+The implemented product router has its own default-off control,
+`vlm_guided_product_routing_enabled=false`. Enabling guided intake does not
+implicitly enable this router. When the product router is enabled for a bounded
+run, it emits exactly one target per selected document page using the fixed
+precedence `upstream_failure > page_level > candidate_crop >
+skip_obvious_non_table`. Ties between candidate inputs are resolved by parser
+ordinal and stable candidate reference. This is deterministic routing, not a
+model decision.
+
 Page-level routing is additionally closed by
 `pdf_vlm_guided_intake_shadow_page_allowlist=""`. The value is an explicit set
 of comma-separated scope tokens and is empty by default. The canonical token is
@@ -401,7 +413,39 @@ of comma-separated scope tokens and is empty by default. The canonical token is
 is globally unique across the current package; an ambiguous plain ref selects
 nothing. The allowlist must not be interpreted as permission to scan every
 page. An allowlisted page replaces candidate-crop targets on that page so the
-provider is called once for the declared scope.
+provider is called once for the declared scope. With product routing enabled,
+the allowlist only selects which pages the router may inspect; it does not
+enable the router or predetermine `page_level` as the route.
+
+The routed terminal artifacts are closed and explicit:
+
+- `broker_reports_pdf_vlm_guided_candidate_intake_result_v1` persists a
+  candidate-crop result;
+- `broker_reports_pdf_vlm_guided_page_intake_result_v1` persists a page-level
+  result and its independently bound regions;
+- `broker_reports_pdf_vlm_guided_upstream_terminal_v1` persists a typed
+  `guided_upstream_blocked` terminal before a usable guided target exists;
+- `broker_reports_pdf_vlm_guided_skip_terminal_v1` persists
+  `skipped_obvious_non_table` with zero `countTokens` and zero generate calls.
+
+Candidate-crop results preserve exactly one of `preflight_blocked`,
+`provider_failed`, `proposal_absent`, `proposal_unsupported`,
+`proposal_ambiguous`, `validation_blocked`, or
+`accepted_physical_structure`. Page-level binding preserves exactly one of
+`no_table_proposed`, `proposal_ambiguous`, `validation_blocked`,
+`partially_validated`, or `accepted_physical_structure`; the persisted
+page-level wrapper also uses `proposal_blocked` when no bindable proposal was
+created. Routing-only terminals are `guided_upstream_blocked` and
+`skipped_obvious_non_table`. A skip is a persisted zero-call terminal, not a
+missing result.
+
+Expected startup, factory, source, parser, geometry, raster, identity, package,
+JSON-budget, and token-budget failures retain a closed public reason code and
+all three intake decisions. They must not be represented only as
+`internal_processing_failed`. A genuinely unexpected programming error may use
+that safe public reason only when it also persists the three decisions and an
+opaque reference to a private diagnostic. Private exception details never
+enter the safe artifact.
 
 Candidate-crop target state persists the intake decision finalized with the
 actual counted-token observation. Page-level shadow persists the page proposal,
@@ -433,5 +477,11 @@ frozen source revision:
 7. both the new intake shadow and production Gate 2 selection left disabled or
    unchanged as applicable.
 
-Until those artifacts exist, the correct status is partial with the missing
-evidence named explicitly.
+If the development gate fails, the only project status is
+`BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_NOT_WORKING` with exact failed
+contracts. If development passes but fresh holdout or live canary has not
+passed, use `BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_DEVELOPMENT_READY` with
+the missing external proof named explicitly. Only a passing development gate,
+fresh holdout, and live canary may use
+`BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_READY_FOR_SHADOW_E2E`; that label still
+does not authorize production Gate 2 selection.

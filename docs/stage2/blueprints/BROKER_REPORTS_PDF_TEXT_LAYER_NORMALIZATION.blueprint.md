@@ -1,9 +1,10 @@
 # Broker Reports PDF text-layer normalization blueprint
 
-Date: 2026-07-11
-Status: Slices 1-4 implemented locally; current bundle deployed with SHA parity,
-but the native/PDF customer rerun was not performed because no active source
-records or DCP were available
+Date: 2026-07-11; updated 2026-07-15
+Status: Slices 1-4 are implemented. A separate default-disabled VLM-guided
+structural proposal path is wired locally, but its development gate failed.
+The fresh holdout and live canary were not run; the local guided bundle is not
+deployed and production authority remains disabled.
 
 ## 1. Problem and risk
 
@@ -73,6 +74,34 @@ approved private PDF bytes
 
 Failure at any parser/provenance/coverage gate emits a typed partial/blocked
 payload and no extraction-grade source unit.
+
+### 4.1 Narrow VLM-guided structural proposal path
+
+The guided path is an optional bounded consumer of the deterministic evidence
+above. It does not replace the default PDF normalization path:
+
+```text
+exact deterministic PDF evidence
+  -> default-off deterministic product routing
+       upstream failure | page level | candidate crop | obvious-text skip
+  -> at most one bounded VLM structural proposal for the selected scope
+  -> provider-free source binder reopens the original atoms and crop manifest
+  -> deterministic materialization and strict validation
+  -> accepted, partially validated, validation blocked, upstream blocked, or skipped terminal
+```
+
+The router owns only deterministic target selection. The VLM owns only a
+bounded structural proposal. The source binder and validators own atom
+identity, inclusion/exclusion/crossing accounting, provenance, topology, and
+the terminal decision. Parser atoms and coordinates remain exact-value
+authority throughout.
+
+This is a narrow integration slice, not a parser, provider, solver, OCR, Gate 2,
+or OpenWebUI Core redesign. With the guided flags left at their default false
+values, existing PDF normalization and Gate 2 selection remain unchanged.
+Image-only values still have no text-layer source atoms and require a separate,
+explicitly approved OCR/source-authority contract; the guided VLM path does not
+quietly create that authority.
 
 ## 5. Boundary contracts
 
@@ -377,7 +406,8 @@ Before production enablement:
 
 ## 14. Non-goals and deferred work
 
-- OCR/VLM, image transcription or scanned-PDF support;
+- OCR, image transcription or scanned-PDF source-value support;
+- unbounded VLM parsing, VLM-authored source values or VLM factual authority;
 - page rendering for extraction;
 - semantic document understanding in Gate 1;
 - guaranteed visual reading order;
@@ -390,17 +420,24 @@ Before production enablement:
 
 ## 15. Readiness
 
-The earlier `runtime not implemented` statement is obsolete. The repository
-implements the pinned page-text and layout-rich paths, bounded line/table
-candidate units, format-neutral normalized table projections and Gate 2 input
-routing. Local contract, provenance, quality and bundle-parity checks pass.
+The earlier `runtime not implemented` statement is obsolete for the
+deterministic text-layer path. The repository implements pinned page-text and
+layout-rich parsing, bounded line/table candidate units, normalized table
+projections, and Gate 2 input routing.
 
-The current bundle is deployed with repo/live SHA parity, and bounded synthetic
-semantic acceptance passed for `gpt-5.6-sol` and
-`models/gemini-3.5-flash`. The controlled case had no active source records or
-DCP, so the current native/PDF customer rerun was not performed. This is not
-proof of the current PDF path, all layouts or a customer corpus. OCR/VLM, scans
-and image-only pages remain unsupported here.
+The optional guided structural path also has a deterministic router, bounded
+proposal entry points, source binding, validation, sealed development runner,
+and independent scorer. Its frozen 2026-07-15 result is nevertheless
+`DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`: only two required real regions were
+accepted, DriveWealth had no required acceptance, and specified routing,
+provider-accounting, and terminal contracts failed. Therefore a fresh unseen
+holdout and live canary are `NOT_RUN`, the production flag remains disabled,
+and local/live bundle parity is not claimed for this guided revision.
+
+This failed guided result does not revoke previously established deterministic
+text-layer contracts. It also does not prove image-only tables unsupported in
+principle; it proves that this no-OCR source-binding contour cannot currently
+accept enough of the frozen development corpus.
 
 ```text
 PDF_TEXT_LAYER_NORMALIZATION_RESEARCH_READY
@@ -410,4 +447,8 @@ PDF_TEXT_LAYER_NO_OCR_BOUNDARY_READY
 PDF_TEXT_LAYER_GATE2_INPUT_IMPLEMENTED_LOCAL
 PDF_NORMALIZED_TABLE_PROJECTION_IMPLEMENTED_LOCAL
 PDF_CURRENT_BUNDLE_NATIVE_PDF_CUSTOMER_RERUN_NOT_PERFORMED
+PDF_VLM_GUIDED_INTAKE_DEVELOPMENT_GATE_FAILED
+PDF_VLM_GUIDED_INTAKE_FRESH_HOLDOUT_NOT_RUN
+PDF_VLM_GUIDED_INTAKE_LIVE_CANARY_NOT_RUN
+PDF_VLM_GUIDED_INTAKE_PRODUCTION_AUTHORITY_DISABLED
 ```

@@ -515,9 +515,17 @@ strict-schema calls and complete document coverage was not proven. The
 cross-domain and multi-provider architecture gap is closed; full-document
 quality remains open.
 
+VLM-guided PDF intake note, 2026-07-15: the already implemented deterministic
+evidence, product router, bounded structural proposal, source binder, and
+validator were connected into a sealed development gate. The binary result is
+`DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS`. The fresh unseen holdout and live canary
+are `NOT_RUN`; production authority remains disabled.
+
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
+- [PDF VLM-guided intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md)
+- [PDF VLM-guided intake shadow runbook](operations/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_SHADOW_RUNBOOK.md)
 - [Gate 2 source-fact extraction blueprint](blueprints/BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
 - [Normalized table projection contract](contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)
 - [Single PDF whole-document Gate 2 E2E proof](proof/BROKER_REPORTS_SINGLE_PDF_WHOLE_DOCUMENT_GATE2_E2E.md)
@@ -531,6 +539,7 @@ Additional context:
 - [SECURITY_DATA_POLICY](blueprints/SECURITY_DATA_POLICY.blueprint.md)
 - [PROVIDERS_MODEL_CATALOG](blueprints/PROVIDERS_MODEL_CATALOG.blueprint.md)
 - [Single PDF whole-document Gate 2 E2E report](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_SINGLE_PDF_WHOLE_DOCUMENT_GATE2_E2E.report.md)
+- [PDF VLM-guided intake E2E closeout](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_CLOSEOUT.report.md)
 
 Skip unless needed:
 
