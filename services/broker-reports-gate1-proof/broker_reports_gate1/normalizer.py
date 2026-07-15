@@ -20,6 +20,7 @@ from .contracts import (
 from .detectors import detect_container, extension_from_name, machine_readable_baseline
 from .domain_ingestion import apply_domain_ingestion_artifacts
 from .eligibility import build_document_source_eligibility
+from .file_processing_outcomes import FileProcessingOutcomeFactory
 from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory
 from .inputs import FileInput
 from .profilers_csv_txt import profile_csv, profile_txt
@@ -307,6 +308,10 @@ class Gate1Normalizer:
             "gate2_handoff_mode": gate2_handoff_mode,
             "safety_flags": safety_flags(),
         }
+        file_processing_outcomes = self._file_processing_outcomes(
+            documents=documents,
+            blockers=blockers,
+        )
         package = {
             "schema_version": "broker_reports_gate1_normalization_package_v0",
             "trigger_type": trigger_type,
@@ -333,6 +338,7 @@ class Gate1Normalizer:
             "full_source_coverage_summary": full_source_coverage_summary,
             "taxonomy_candidates": taxonomy_candidates,
             "normalization_blockers": blockers,
+            "file_processing_outcomes": file_processing_outcomes,
             "document_source_eligibility": document_source_eligibility,
             "source_eligibility_summary": source_eligibility_summary,
             "gate2_handoff": gate2_handoff,
@@ -495,6 +501,63 @@ class Gate1Normalizer:
             return "failed_safe"
         blocking = any(blocker.get("blocks_gate2") for blocker in blockers)
         return "completed_with_blockers" if blocking or blockers else "completed"
+
+    def _file_processing_outcomes(
+        self,
+        *,
+        documents: list[dict],
+        blockers: list[dict],
+    ) -> dict | None:
+        """Build the single safe per-file result used by chat and LLM contexts."""
+        if not documents:
+            return None
+        blockers_by_document: dict[str, set[str]] = defaultdict(set)
+        for blocker in blockers:
+            document_id_value = blocker.get("document_id")
+            code = blocker.get("code")
+            if isinstance(document_id_value, str) and isinstance(code, str):
+                blockers_by_document[document_id_value].add(code)
+
+        outcomes = FileProcessingOutcomeFactory().create()
+        records = []
+        terminal_reasons = (
+            ("bytes_unavailable", "byte_access"),
+            ("encrypted_file", "parsing"),
+            ("corrupt_file", "parsing"),
+            ("parser_failed", "parsing"),
+            ("unsupported_format", "container_detection"),
+        )
+        partial_codes = {
+            "raster_requires_ocr_or_review",
+            "zip_requires_review",
+        }
+        for document in documents:
+            file_ref = str(document["document_id"])
+            codes = blockers_by_document.get(file_ref, set())
+            terminal = next(
+                ((reason_code, stage) for reason_code, stage in terminal_reasons if reason_code in codes),
+                None,
+            )
+            if terminal is not None:
+                reason_code, stage = terminal
+                records.append(
+                    outcomes.failed(
+                        file_ref=file_ref,
+                        stage=stage,
+                        reason_code=reason_code,
+                    )
+                )
+            elif codes & partial_codes:
+                records.append(
+                    outcomes.partial(
+                        file_ref=file_ref,
+                        stage="processing",
+                        reason_code="partial_result_available",
+                    )
+                )
+            else:
+                records.append(outcomes.success(file_ref=file_ref))
+        return outcomes.batch(records).model_context()
 
     def _recommended_next_step(
         self,

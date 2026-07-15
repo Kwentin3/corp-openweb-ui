@@ -19,6 +19,7 @@ from broker_reports_gate1.pdf_grid_experiment import (
 from broker_reports_gate1.pdf_grid_experiment_provider import (
     PdfGridExperimentProviderFactory,
     PdfGridProviderConfig,
+    PdfGridProviderError,
 )
 
 
@@ -106,6 +107,42 @@ class PdfGridExperimentContractTests(unittest.TestCase):
 
 
 class PdfGridExperimentProviderTests(unittest.TestCase):
+    def test_count_budget_error_retains_only_safe_observed_tokens(self) -> None:
+        transport = _FakeUrlOpen()
+        adapter = PdfGridExperimentProviderFactory(
+            PdfGridProviderConfig(maximum_counted_input_tokens=100),
+            urlopen_fn=transport,
+        ).create_with_connection(
+            Gate2OpenWebUIProviderConnection(
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+                api_key="secret",
+            )
+        )
+        png = b"png"
+        with self.assertRaises(PdfGridProviderError) as raised:
+            adapter.count_tokens(
+                model_view={"i": "place ids", "c": [["0", "A"]]},
+                output_schema=PdfGridExperimentFactory().create().compact_output_schema(
+                    expected_rows=1,
+                    expected_columns=1,
+                ),
+                png_bytes=png,
+                crop_sha256=hashlib.sha256(png).hexdigest(),
+            )
+
+        self.assertEqual(
+            "pdf_grid_provider_counted_input_budget_exceeded",
+            raised.exception.code,
+        )
+        self.assertEqual(
+            {
+                "observed_total_tokens": 123,
+                "maximum_counted_input_tokens": 100,
+            },
+            raised.exception.safe_details,
+        )
+        self.assertNotIn("secret", repr(raised.exception.safe_details))
+
     def test_provider_uses_json_schema_and_has_terminal_no_retry_attempt(self) -> None:
         transport = _FakeUrlOpen()
         adapter = PdfGridExperimentProviderFactory(

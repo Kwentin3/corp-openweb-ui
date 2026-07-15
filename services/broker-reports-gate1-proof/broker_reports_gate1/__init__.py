@@ -44,6 +44,15 @@ from .domain_ingestion import (
     build_gate1_issue_ledger,
 )
 from .gate2_handoff import Gate1ArtifactManifest, persist_gate1_result
+from .file_processing_outcomes import (
+    FileProcessingOutcomeConfig,
+    FileProcessingOutcomeError,
+    FileProcessingOutcomeFactory,
+    render_file_processing_batch,
+    render_file_processing_outcome,
+    validate_file_processing_batch,
+    validate_file_processing_outcome,
+)
 from .pdf_compact_canonical import (
     PDF_COMPACT_CANONICAL_POLICY_VERSION,
     PDF_COMPACT_CANONICAL_SCHEMA_VERSION,
@@ -255,6 +264,30 @@ from .gate2_llm_context import (
     package_feasibility,
     safe_inspection,
 )
+from .pdf_structural_repair_runtime import (
+    PDF_STRUCTURAL_REPAIR_CONTINUATION_RESULT_SCHEMA,
+    PDF_STRUCTURAL_REPAIR_RUNTIME_POLICY_VERSION,
+    PDF_STRUCTURAL_REPAIR_RUNTIME_RESULT_SCHEMA,
+    PDF_STRUCTURAL_REPAIR_WINDOWED_RUNTIME_RESULT_SCHEMA,
+    PdfStructuralRepairRuntimeConfig,
+    PdfStructuralRepairRuntimeError,
+    PdfStructuralRepairRuntimeFactory,
+)
+from .pdf_structural_row_windows import (
+    PDF_STRUCTURAL_ROW_WINDOW_PLAN_SCHEMA,
+    PDF_STRUCTURAL_ROW_WINDOW_POLICY_VERSION,
+    PDF_STRUCTURAL_ROW_WINDOW_STITCH_SCHEMA,
+    PdfStructuralRowWindowConfig,
+    PdfStructuralRowWindowError,
+    PdfStructuralRowWindowFactory,
+)
+from .pdf_structural_repair_shadow import (
+    PDF_STRUCTURAL_REPAIR_SHADOW_SUMMARY_SCHEMA,
+    PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA,
+    PdfStructuralRepairShadowConfig,
+    PdfStructuralRepairShadowError,
+    PdfStructuralRepairShadowFactory,
+)
 from .inputs import BytesUnavailable, FileInput
 from .normalizer import Gate1Normalizer
 from .safe_report import render_chat_content
@@ -300,6 +333,9 @@ __all__ = [
     "DOCUMENT_USAGE_CLASSIFICATION_SCHEMA_VERSION",
     "DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION",
     "FileInput",
+    "FileProcessingOutcomeConfig",
+    "FileProcessingOutcomeError",
+    "FileProcessingOutcomeFactory",
     "Gate1Normalizer",
     "Gate1ArtifactManifest",
     "FullSourceArtifactConfig",
@@ -312,10 +348,28 @@ __all__ = [
     "PDFPLUMBER_PINNED_VERSION",
     "PDFMINER_PINNED_VERSION",
     "PDF_LAYOUT_POLICY_VERSION",
+    "PDF_STRUCTURAL_REPAIR_CONTINUATION_RESULT_SCHEMA",
+    "PDF_STRUCTURAL_REPAIR_RUNTIME_POLICY_VERSION",
+    "PDF_STRUCTURAL_REPAIR_RUNTIME_RESULT_SCHEMA",
+    "PDF_STRUCTURAL_REPAIR_WINDOWED_RUNTIME_RESULT_SCHEMA",
+    "PDF_STRUCTURAL_ROW_WINDOW_PLAN_SCHEMA",
+    "PDF_STRUCTURAL_ROW_WINDOW_POLICY_VERSION",
+    "PDF_STRUCTURAL_ROW_WINDOW_STITCH_SCHEMA",
+    "PDF_STRUCTURAL_REPAIR_SHADOW_SUMMARY_SCHEMA",
+    "PDF_STRUCTURAL_REPAIR_TARGET_STATE_SCHEMA",
     "PDF_LAYOUT_UNIT_POLICY_VERSION",
     "PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION",
     "PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION",
     "PdfParserCapabilityRequest",
+    "PdfStructuralRepairRuntimeConfig",
+    "PdfStructuralRepairRuntimeError",
+    "PdfStructuralRepairRuntimeFactory",
+    "PdfStructuralRowWindowConfig",
+    "PdfStructuralRowWindowError",
+    "PdfStructuralRowWindowFactory",
+    "PdfStructuralRepairShadowConfig",
+    "PdfStructuralRepairShadowError",
+    "PdfStructuralRepairShadowFactory",
     "PdfLayoutParserConfig",
     "PdfLayoutParseResult",
     "PdfPlumberLayoutAdapter",
@@ -360,6 +414,8 @@ __all__ = [
     "passport_json_schema_response_format",
     "persist_gate1_result",
     "render_chat_content",
+    "render_file_processing_batch",
+    "render_file_processing_outcome",
     "reproduce_normalized_value",
     "resolve_source_value",
     "resolve_source_values",
@@ -369,6 +425,8 @@ __all__ = [
     "validate_dry_run_source_fact_package",
     "validate_normalized_slice_provenance",
     "validate_full_source_unit",
+    "validate_file_processing_batch",
+    "validate_file_processing_outcome",
     "validate_pdf_source_unit",
     "validate_pdf_text_layer_payload",
     "validation_error_summary",

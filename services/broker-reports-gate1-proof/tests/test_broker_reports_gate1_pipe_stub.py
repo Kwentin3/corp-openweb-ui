@@ -16,6 +16,7 @@ from broker_reports_gate1 import RetentionPolicyError
 from broker_reports_gate1 import ManagedPrompt
 from broker_reports_gate1.document_passport import document_metadata_passport_schema_hash, prompt_hash
 from openwebui_actions.broker_reports_gate1_pipe import NORMALIZER_VERSION, SAFETY_STATEMENT, Pipe
+from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
 
 
 def run_pipe(pipe: Pipe, body: dict, **kwargs) -> str:
@@ -619,7 +620,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         pipe = self._pipe()
         pipe.valves.allow_upload_path_access = False
 
-        content = run_pipe(
+        run_pipe(
             pipe,
             {
                 "messages": [
@@ -776,6 +777,63 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual(report["blockers"][0]["reason_code"], "upload_path_escape_detected")
         self.assertNotIn("escape-file", content)
         self.assertNotIn("synthetic_gate1_operations.csv", content)
+
+    def test_structural_shadow_failure_is_safe_and_visible_to_passport_llm(self):
+        pipe = self._passport_pipe()
+        pipe.valves.pdf_structural_repair_shadow_enabled = True
+
+        content = run_pipe(
+            pipe,
+            {
+                "metadata": {"case_id": "case-structural-safe-outcome"},
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 normalization with passport",
+                        "files": [
+                            file_ref(
+                                "pipe-file-structural-1",
+                                "private-structural-source.pdf",
+                                "application/pdf",
+                                content_bytes=_ruled_table_pdf(),
+                            )
+                        ],
+                    }
+                ],
+            },
+            __request__=object(),
+        )
+
+        report = pipe.last_safe_report
+        self.assertIsNotNone(report)
+        shadow = report["pdf_structural_repair_shadow"]
+        self.assertTrue(shadow["enabled"])
+        self.assertFalse(shadow["production_gate2_selection_changed"])
+        structural_outcome = shadow["summary"]["file_processing_outcomes"][
+            "outcomes"
+        ][0]
+        self.assertEqual(structural_outcome["status"], "failed")
+        self.assertEqual(
+            structural_outcome["reason_code"],
+            "provider_temporarily_unavailable",
+        )
+        first_llm_input = json.loads(
+            pipe.completion_forms[0]["messages"][0]["content"]
+        )
+        self.assertEqual(
+            first_llm_input["structural_repair_outcome"],
+            structural_outcome,
+        )
+        self.assertTrue(
+            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
+                "private_diagnostic_refs"
+            ]
+        )
+        rendered = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn("private-structural-source.pdf", rendered)
+        self.assertNotIn("provider_payload", rendered)
+        self.assertNotIn("exception_message", rendered)
+        self.assertNotIn("private-structural-source.pdf", content)
 
 
 if __name__ == "__main__":

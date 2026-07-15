@@ -64,6 +64,10 @@ def render_safe_report(package: dict) -> dict:
         "taxonomy_candidates": taxonomy_candidates,
         "normalization_blockers": blockers,
         "blockers": blockers,
+        "file_processing_outcomes": copy.deepcopy(package.get("file_processing_outcomes")),
+        "pdf_structural_repair_shadow": copy.deepcopy(
+            package.get("pdf_structural_repair_shadow")
+        ),
         "document_source_eligibility": document_source_eligibility,
         "source_eligibility_summary": source_eligibility_summary,
         "gate2_handoff": gate2_handoff,
@@ -168,6 +172,8 @@ def render_privacy_failed_report(
         "input_context": input_context or {},
         "normalization_blockers": [blocker],
         "blockers": [blocker],
+        "file_processing_outcomes": None,
+        "pdf_structural_repair_shadow": None,
         "case_groups": [],
         "safe_artifact_refs": {},
         "private_artifact_summary": {

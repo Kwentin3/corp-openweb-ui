@@ -640,6 +640,27 @@ def build_llm_document_packages(
         document_id = blocker.get("document_id")
         if document_id:
             blockers_by_doc.setdefault(str(document_id), []).append(blocker)
+    processing_outcomes_by_doc = {
+        str(item.get("file_ref")): copy.deepcopy(item)
+        for item in package.get("file_processing_outcomes", {}).get("outcomes", [])
+        if isinstance(item, dict) and item.get("file_ref")
+    }
+    structural_shadow = package.get("pdf_structural_repair_shadow")
+    structural_summary = (
+        structural_shadow.get("summary", {})
+        if isinstance(structural_shadow, dict)
+        else {}
+    )
+    structural_processing_outcomes = structural_summary.get(
+        "file_processing_outcomes"
+    )
+    if not isinstance(structural_processing_outcomes, dict):
+        structural_processing_outcomes = {}
+    structural_outcomes_by_doc = {
+        str(item.get("file_ref")): copy.deepcopy(item)
+        for item in structural_processing_outcomes.get("outcomes", [])
+        if isinstance(item, dict) and item.get("file_ref")
+    }
     slices_by_doc: dict[str, list[dict[str, Any]]] = {}
     for private_slice in package.get("private_normalized_slices", []):
         document_id = private_slice.get("document_id")
@@ -675,6 +696,10 @@ def build_llm_document_packages(
                     "duplicate_group_id": document.get("duplicate_group_id"),
                     "duplicate_of_document_id": document.get("duplicate_of_document_id"),
                 },
+                "processing_outcome": processing_outcomes_by_doc.get(document_id),
+                "structural_repair_outcome": structural_outcomes_by_doc.get(
+                    document_id
+                ),
                 "technical_profile_summary": _profile_summary(profile),
                 "taxonomy_candidate": _taxonomy_summary(taxonomy),
                 "blocker_codes": [str(item.get("code")) for item in blockers_by_doc.get(document_id, []) if item.get("code")],

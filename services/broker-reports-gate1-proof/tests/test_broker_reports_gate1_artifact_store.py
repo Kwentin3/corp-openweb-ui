@@ -99,6 +99,7 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertIn("technical_readability_profile_v0", types)
         self.assertIn("taxonomy_candidates_v0", types)
         self.assertIn("normalization_blockers_v0", types)
+        self.assertIn("broker_reports_file_processing_batch_v1", types)
         self.assertIn("document_source_eligibility_v0", types)
         self.assertIn("gate1_issue_ledger_v0", types)
         self.assertIn("document_usage_classification_v0", types)
@@ -159,6 +160,29 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertNotIn("synthetic_operations.csv", content)
         self.assertNotIn("SYNTH-ACCOUNT-001", content)
         self.assertNotIn("SYNTH-A,1,SYNTH-FCY", content)
+
+    def test_compact_chat_report_explains_cross_page_continuation_outcome(self):
+        result, _context, _manifest = self._persist_clean_run()
+        report = dict(result.safe_report)
+        report["pdf_structural_repair_shadow"] = {
+            "summary": {
+                "enabled": True,
+                "tables_selected": 2,
+                "accepted_unique_consensus_tables": 2,
+                "continuation_groups_discovered": 1,
+                "continuation_groups_accepted": 1,
+                "continuation_groups_failed": 0,
+            }
+        }
+
+        content = render_chat_content(report)
+
+        self.assertIn(
+            "Продолжения таблиц на соседней странице: найдено 1; "
+            "аккуратно объединено 1; требует проверки 0.",
+            content,
+        )
+        self.assertIn("основной результат Gate 2 не изменён", content)
 
     def test_resolver_allows_same_context_safe_and_private_refs(self):
         _result, context, manifest = self._persist_clean_run()

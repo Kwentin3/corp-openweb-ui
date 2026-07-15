@@ -87,6 +87,21 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_hybrid_structure", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_reliability", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_reliability_shadow", module._BUNDLED_MODULES)
+        self.assertIn("pdf_dual_oracle_contracts", module._BUNDLED_MODULES)
+        self.assertIn("pdf_parser_geometry", module._BUNDLED_MODULES)
+        self.assertIn("pdf_structural_row_windows", module._BUNDLED_MODULES)
+        self.assertIn("pdf_visual_topology", module._BUNDLED_MODULES)
+        self.assertIn("pdf_topology_assembly", module._BUNDLED_MODULES)
+        self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
+        self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
+        self.assertIn("pdf_continuation_discovery", module._BUNDLED_MODULES)
+        self.assertIn("pdf_structural_repair_runtime", module._BUNDLED_MODULES)
+        self.assertIn("pdf_structural_repair_shadow", module._BUNDLED_MODULES)
+        bundled_order = module._BUNDLED_MODULE_ORDER
+        self.assertLess(
+            bundled_order.index("pdf_structural_row_windows"),
+            bundled_order.index("pdf_structural_repair_runtime"),
+        )
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_contracts", module._BUNDLED_MODULES)
@@ -104,6 +119,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
+        self.assertTrue(
+            hasattr(bundled_package, "PdfStructuralRowWindowFactory")
+        )
         self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
@@ -195,6 +213,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
         self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
+        self.assertFalse(pipe.valves.pdf_structural_repair_shadow_enabled)
         pipe.valves.pdf_compact_canonical_dual_write = True
 
         content = run_pipe(
@@ -226,6 +245,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertEqual(
             pipe.last_artifact_manifest["pdf_hybrid_shadow"],
             {"enabled": False, "artifact_refs": [], "summary": None},
+        )
+        self.assertFalse(
+            pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["enabled"]
         )
         self.assertFalse(
             any("pdf_hybrid" in artifact_type for artifact_type in refs)

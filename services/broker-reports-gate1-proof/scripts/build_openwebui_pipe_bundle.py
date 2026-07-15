@@ -30,6 +30,7 @@ MODULE_ORDER = [
     "source_provenance",
     "table_projection",
     "blockers",
+    "file_processing_outcomes",
     "inputs",
     "detectors",
     "profilers_csv_txt",
@@ -91,10 +92,20 @@ GATE1_HYBRID_MODULES = [
     "pdf_hybrid_compaction",
     "pdf_hybrid_windows",
     "pdf_hybrid_provider",
-    "pdf_hybrid_materialization",
     "pdf_hybrid_structure",
+    "pdf_dual_oracle_contracts",
+    "pdf_dual_oracle_consensus",
+    "pdf_hybrid_materialization",
     "pdf_table_validation",
     "pdf_hybrid_reliability",
+    "pdf_parser_geometry",
+    "pdf_structural_row_windows",
+    "pdf_visual_topology",
+    "pdf_topology_assembly",
+    "pdf_grid_experiment_provider",
+    "pdf_continuation_discovery",
+    "pdf_structural_repair_runtime",
+    "pdf_structural_repair_shadow",
     "pdf_hybrid_shadow",
     "pdf_hybrid_reliability_shadow",
 ]
@@ -125,8 +136,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.9.0-pdf-hybrid-reliability-shadow-bundled",
-            package_version="gate1_pdf_hybrid_reliability_shadow_v2",
+            version="0.12.0-pdf-structural-windowed-continuation-shadow-bundled",
+            package_version="gate1_pdf_structural_windowed_continuation_shadow_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
@@ -136,8 +147,12 @@ def main() -> None:
         gate2_pipe_source = _strip_openwebui_metadata(
             GATE2_PIPE_SOURCE.read_text(encoding="utf-8")
         )
+        gate2_modules = {name: modules[name] for name in MODULE_ORDER}
+        gate2_modules["__init__"] = _project_package_init(
+            gate2_modules["__init__"], included_modules=set(gate2_modules)
+        )
         gate2_bundle = _render_bundle(
-            modules={name: modules[name] for name in MODULE_ORDER},
+            modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
             version="0.3.0-provider-adapters-metadata-runtime-bundled",
@@ -151,8 +166,13 @@ def main() -> None:
         gate2_domain_pipe_source = _strip_openwebui_metadata(
             GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
         )
+        gate2_domain_modules = {name: modules[name] for name in MODULE_ORDER}
+        gate2_domain_modules["__init__"] = _project_package_init(
+            gate2_domain_modules["__init__"],
+            included_modules=set(gate2_domain_modules),
+        )
         gate2_domain_bundle = _render_bundle(
-            modules={name: modules[name] for name in MODULE_ORDER},
+            modules=gate2_domain_modules,
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
             version="0.5.0-domain-provider-adapters-metadata-runtime-bundled",
@@ -184,6 +204,63 @@ def _strip_openwebui_metadata(source: str) -> str:
             continue
         kept.append(line)
     return "\n".join(kept).lstrip() + "\n"
+
+
+def _project_package_init(
+    source: str,
+    *,
+    included_modules: set[str],
+) -> str:
+    """Keep a closed-world package facade for the selected bundle."""
+
+    tree = ast.parse(source)
+    removed_exports: set[str] = set()
+    dropped_lines: set[int] = set()
+
+    for node in tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.level != 1:
+            continue
+        module_name = str(node.module or "").split(".", 1)[0]
+        if not module_name or module_name in included_modules:
+            continue
+        removed_exports.update(alias.asname or alias.name for alias in node.names)
+        dropped_lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+
+    if not removed_exports:
+        return source
+
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        ):
+            continue
+        if not isinstance(node.value, (ast.List, ast.Tuple)):
+            raise RuntimeError("bundle_package_init_all_must_be_static")
+        constants_by_line: dict[int, list[str]] = {}
+        for item in node.value.elts:
+            if isinstance(item, ast.Constant) and isinstance(item.value, str):
+                constants_by_line.setdefault(item.lineno, []).append(item.value)
+        for item in node.value.elts:
+            if not (
+                isinstance(item, ast.Constant)
+                and isinstance(item.value, str)
+                and item.value in removed_exports
+            ):
+                continue
+            if item.end_lineno != item.lineno or len(constants_by_line[item.lineno]) != 1:
+                raise RuntimeError("bundle_package_init_all_entry_must_own_line")
+            dropped_lines.add(item.lineno)
+
+    projected = "".join(
+        line
+        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
+        if line_number not in dropped_lines
+    )
+    ast.parse(projected)
+    return projected
 
 
 def assert_gate2_bundle_contract(

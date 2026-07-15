@@ -109,6 +109,11 @@ def persist_gate1_result(
         ("technical_readability_profile_v0", package["technical_readability_profiles"], None),
         ("taxonomy_candidates_v0", package["taxonomy_candidates"], None),
         ("normalization_blockers_v0", package["normalization_blockers"], None),
+        (
+            "broker_reports_file_processing_batch_v1",
+            package.get("file_processing_outcomes"),
+            None,
+        ),
         ("document_source_eligibility_v0", package["document_source_eligibility"], None),
         ("gate1_issue_ledger_v0", package.get("gate1_issue_ledger"), None),
         ("document_usage_classification_v0", package.get("document_usage_classification"), None),

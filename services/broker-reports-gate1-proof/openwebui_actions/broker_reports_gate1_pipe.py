@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.6.0-pdf-layout-rich-slice2
+version: 0.12.0-pdf-structural-windowed-continuation-shadow
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -34,12 +34,12 @@ from broker_reports_gate1 import (
     DocumentPassportPromptConfig,
     DocumentPassportPromptResolverFactory,
     FileInput,
+    FileProcessingOutcomeFactory,
     Gate1Normalizer,
     ManagedPrompt,
     NORMALIZER_VERSION,
     PromptUserContext,
-    SAFE_REPORT_SCHEMA,
-    SAFETY_STATEMENT,
+    SAFETY_STATEMENT as SAFETY_STATEMENT,
     RetentionPolicyError,
     apply_document_passport_stage,
     apply_clarification_request_stage,
@@ -73,6 +73,21 @@ from broker_reports_gate1.pdf_hybrid_shadow import (
     PdfHybridShadowConfig,
     PdfHybridShadowFactory,
 )
+from broker_reports_gate1.pdf_grid_experiment_provider import (
+    PdfGridExperimentProviderFactory,
+    PdfGridProviderConfig,
+    PdfGridProviderError,
+)
+from broker_reports_gate1.pdf_structural_repair_runtime import (
+    PdfStructuralRepairRuntimeConfig,
+)
+from broker_reports_gate1.pdf_structural_repair_shadow import (
+    PdfStructuralRepairShadowConfig,
+    PdfStructuralRepairShadowError,
+    PdfStructuralRepairShadowFactory,
+)
+from broker_reports_gate1.safe_report import render_safe_report
+from broker_reports_gate1.validators import validate_safe_report
 
 
 class Pipe:
@@ -115,6 +130,11 @@ class Pipe:
         pdf_hybrid_max_context_bytes: int = Field(default=128 * 1024)
         pdf_hybrid_primary_dpi: int = Field(default=150)
         pdf_hybrid_escalation_dpi: int = Field(default=200)
+        pdf_structural_repair_shadow_enabled: bool = Field(default=False)
+        pdf_structural_repair_shadow_table_allowlist: str = Field(default="")
+        pdf_structural_repair_provider_profile: str = Field(default="google_gemini")
+        pdf_structural_repair_model_id: str = Field(default="models/gemini-3.5-flash")
+        pdf_structural_repair_max_tables: int = Field(default=8, ge=1, le=32)
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
@@ -177,6 +197,32 @@ class Pipe:
             },
             extra_private_markers=self._private_markers(file_refs),
         )
+        artifact_context = self._artifact_context(
+            user=__user__,
+            metadata=safe_metadata,
+            body=safe_body,
+            kwargs=kwargs,
+            normalization_run_id=result.package["normalization_run"]["run_id"],
+        )
+        artifact_store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=Path(self.valves.artifact_store_path),
+                payload_root=Path(self.valves.artifact_payload_root),
+            )
+        ).create()
+        structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
+            store=artifact_store,
+            result=result,
+            context=artifact_context,
+            retention_policy=retention_policy,
+            file_inputs=file_inputs,
+            request=__request__,
+        )
+        result = self._attach_pdf_structural_repair_shadow(
+            result=result,
+            shadow_result=structural_shadow,
+        )
         result = await self._maybe_run_passport_stage(
             result=result,
             user=__user__,
@@ -193,20 +239,6 @@ class Pipe:
             body=safe_body,
             event_emitter=__event_emitter__,
         )
-        artifact_context = self._artifact_context(
-            user=__user__,
-            metadata=safe_metadata,
-            body=safe_body,
-            kwargs=kwargs,
-            normalization_run_id=result.package["normalization_run"]["run_id"],
-        )
-        artifact_store = ArtifactStoreFactory(
-            ArtifactStoreConfig(
-                mode="sqlite",
-                sqlite_path=Path(self.valves.artifact_store_path),
-                payload_root=Path(self.valves.artifact_payload_root),
-            )
-        ).create()
         artifact_manifest = persist_gate1_result(
             store=artifact_store,
             result=result,
@@ -225,6 +257,7 @@ class Pipe:
         self.last_safe_report = result.safe_report
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
+            "pdf_structural_repair_shadow": structural_shadow,
             "pdf_hybrid_shadow": hybrid_shadow,
         }
 
@@ -253,6 +286,155 @@ class Pipe:
                 ]
             )
         return chat_content
+
+    def _maybe_run_pdf_structural_repair_shadow(
+        self,
+        *,
+        store,
+        result: NormalizationResult,
+        context: ArtifactAccessContext,
+        retention_policy,
+        file_inputs: list[FileInput],
+        request: Any,
+    ) -> dict[str, Any]:
+        if not self.valves.pdf_structural_repair_shadow_enabled:
+            runtime = PdfStructuralRepairShadowFactory(
+                PdfStructuralRepairShadowConfig(enabled=False)
+            ).create(provider=None)
+            return runtime.run(
+                store=store,
+                package=result.package,
+                context=context,
+                retention_policy=retention_policy,
+                pdf_bytes_by_sha256={},
+            )
+        pdf_bytes_by_sha256: dict[str, bytes] = {}
+        for file_input in file_inputs:
+            read = file_input.read_bytes()
+            if read.status != "available" or not isinstance(read.content_bytes, bytes):
+                continue
+            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = read.content_bytes
+        provider = None
+        try:
+            provider = PdfGridExperimentProviderFactory(
+                PdfGridProviderConfig(
+                    provider_profile=self.valves.pdf_structural_repair_provider_profile,
+                    model_id=self.valves.pdf_structural_repair_model_id,
+                    maximum_counted_input_tokens=20_000,
+                )
+            ).create_for_openwebui(request)
+        except (PdfGridProviderError, RuntimeError, ValueError):
+            provider = None
+        allowlist = tuple(
+            sorted(
+                {
+                    item.strip()
+                    for item in self.valves.pdf_structural_repair_shadow_table_allowlist.split(",")
+                    if item.strip()
+                }
+            )
+        )
+        try:
+            runtime = PdfStructuralRepairShadowFactory(
+                PdfStructuralRepairShadowConfig(
+                    enabled=True,
+                    maximum_tables=self.valves.pdf_structural_repair_max_tables,
+                    table_allowlist=allowlist,
+                ),
+                runtime_config=PdfStructuralRepairRuntimeConfig(
+                    provider_profile=self.valves.pdf_structural_repair_provider_profile,
+                    model_id=self.valves.pdf_structural_repair_model_id,
+                ),
+            ).create(provider=provider)
+            return runtime.run(
+                store=store,
+                package=result.package,
+                context=context,
+                retention_policy=retention_policy,
+                pdf_bytes_by_sha256=pdf_bytes_by_sha256,
+            )
+        except (PdfStructuralRepairShadowError, RuntimeError, ValueError):
+            return self._pdf_structural_repair_safe_fallback(result)
+
+    def _attach_pdf_structural_repair_shadow(
+        self,
+        *,
+        result: NormalizationResult,
+        shadow_result: dict[str, Any],
+    ) -> NormalizationResult:
+        summary = shadow_result.get("summary")
+        safe_projection = {
+            "enabled": shadow_result.get("enabled") is True,
+            "summary_ref": shadow_result.get("summary_ref"),
+            "summary": summary if isinstance(summary, dict) else None,
+            "authority_state": "non_authoritative",
+            "production_gate2_selection_changed": False,
+        }
+        result.package["pdf_structural_repair_shadow"] = safe_projection
+        safe_report = render_safe_report(result.package)
+        validation = validate_safe_report(
+            safe_report=safe_report,
+            private_markers=result.private_markers,
+            run_id=result.package["normalization_run"]["run_id"],
+        )
+        if validation.get("status") != "passed":
+            fallback = self._pdf_structural_repair_safe_fallback(result)
+            result.package["pdf_structural_repair_shadow"] = {
+                "enabled": True,
+                "summary_ref": None,
+                "summary": fallback["summary"],
+                "authority_state": "non_authoritative",
+                "production_gate2_selection_changed": False,
+            }
+            safe_report = render_safe_report(result.package)
+        return NormalizationResult(
+            package=result.package,
+            safe_report=safe_report,
+            private_markers=result.private_markers,
+        )
+
+    @staticmethod
+    def _pdf_structural_repair_safe_fallback(
+        result: NormalizationResult,
+    ) -> dict[str, Any]:
+        documents = [
+            item
+            for item in result.package.get("document_inventory", {}).get("documents", [])
+            if isinstance(item, dict) and item.get("container_format") == "pdf"
+        ]
+        outcomes = None
+        if documents:
+            service = FileProcessingOutcomeFactory().create()
+            records = [
+                service.partial(
+                    file_ref=str(item.get("document_id")),
+                    stage="processing",
+                    reason_code="internal_processing_failed",
+                )
+                for item in documents
+            ]
+            outcomes = service.batch(records).model_context()
+        return {
+            "enabled": True,
+            "artifact_refs": [],
+            "summary_ref": None,
+            "summary": {
+                "schema_version": "broker_reports_pdf_structural_repair_shadow_summary_v1",
+                "enabled": True,
+                "tables_discovered": 0,
+                "tables_selected": 0,
+                "accepted_unique_consensus_tables": 0,
+                "continuation_groups_discovered": 0,
+                "continuation_groups_accepted": 0,
+                "continuation_groups_failed": 0,
+                "continuation_group_outcomes": [],
+                "terminal_outcomes": {"internal_failure": len(documents)},
+                "file_processing_outcomes": outcomes,
+                "authority_state": "non_authoritative",
+                "production_ready": False,
+                "production_gate2_selection_changed": False,
+            },
+        }
 
     def _maybe_run_pdf_hybrid_shadow(
         self,

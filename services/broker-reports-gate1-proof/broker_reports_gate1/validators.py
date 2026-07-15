@@ -35,6 +35,8 @@ SAFE_REPORT_ALLOWED_KEYS = {
     "taxonomy_candidates",
     "normalization_blockers",
     "blockers",
+    "file_processing_outcomes",
+    "pdf_structural_repair_shadow",
     "document_source_eligibility",
     "source_eligibility_summary",
     "gate2_handoff",

@@ -31,9 +31,16 @@ FORBIDDEN = (
 
 
 class PdfGridProviderError(RuntimeError):
-    def __init__(self, code: str, failure_class: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        failure_class: str,
+        *,
+        safe_details: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
         self.failure_class = failure_class
+        self.safe_details = copy.deepcopy(safe_details or {})
         super().__init__(code)
 
 
@@ -166,7 +173,14 @@ class GeminiGridExperimentAdapter:
             )
         if total > self.config.maximum_counted_input_tokens:
             raise PdfGridProviderError(
-                "pdf_grid_provider_counted_input_budget_exceeded", "context_budget"
+                "pdf_grid_provider_counted_input_budget_exceeded",
+                "context_budget",
+                safe_details={
+                    "observed_total_tokens": total,
+                    "maximum_counted_input_tokens": (
+                        self.config.maximum_counted_input_tokens
+                    ),
+                },
             )
         return {
             "total_tokens": total,

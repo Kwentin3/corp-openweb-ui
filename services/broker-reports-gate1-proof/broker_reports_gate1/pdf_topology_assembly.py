@@ -1,0 +1,1595 @@
+from __future__ import annotations
+
+import copy
+import math
+from dataclasses import asdict, dataclass
+from typing import Any
+
+from .contracts import stable_digest
+from .pdf_dual_oracle_contracts import PdfDualOracleContractFactory
+from .pdf_hybrid_contracts import (
+    PDF_HYBRID_BINDING_OUTPUT_SCHEMA,
+    sha256_json,
+    validate_binding_output_shape,
+)
+from .pdf_parser_geometry import (
+    PdfParserGeometryFactory,
+    PdfParserGeometryRuntime,
+)
+from .pdf_visual_topology import (
+    PdfVisualTopologyFactory,
+    PdfVisualTopologyRuntime,
+)
+
+
+PDF_TOPOLOGY_ASSEMBLY_RESULT_SCHEMA = (
+    "broker_reports_pdf_topology_assembly_result_v4"
+)
+PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION = "pdf_topology_assembly_policy_v4"
+
+FACTORY_REQUIRED = (
+    "PdfTopologyAssemblyFactory.create is the only visual-topology to raw-atom "
+    "binding entrypoint"
+)
+FORBIDDEN = (
+    "The assembler must not read legacy cells or dimensions, invent or change "
+    "values, use nearest-cell fallback, or hide structural adjustments"
+)
+
+_FACTORY_TOKEN = object()
+_RESULT_KEYS = {
+    "schema_version",
+    "policy_version",
+    "policy_configuration_hash",
+    "result_id",
+    "package_id",
+    "package_hash",
+    "parser_observation_checksum",
+    "parser_geometry_observation_checksum",
+    "topology_response_checksum",
+    "reconstruction_status",
+    "certification_status",
+    "alternatives_complete",
+    "binding_hypotheses",
+    "rejected_evidence",
+    "regional_issues",
+    "structural_adjustments",
+    "source_accounting",
+    "value_mutation_performed",
+    "nearest_cell_fallback_used",
+    "legacy_grid_consumed",
+    "result_checksum",
+}
+
+
+class PdfTopologyAssemblyError(ValueError):
+    def __init__(self, code: str, subject: str = "") -> None:
+        self.code = code
+        self.subject = subject
+        super().__init__(code if not subject else f"{code}:{subject}")
+
+
+@dataclass(frozen=True)
+class PdfTopologyAssemblyConfig:
+    policy_version: str = PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION
+    boundary_epsilon: float = 1e-9
+    geometry_cluster_tolerance_normalized: float = 0.003
+    minimum_geometry_boundary_coverage_normalized: float = 0.35
+    minimum_span_separator_coverage_ratio: float = 0.80
+    maximum_span_gap_coverage_ratio: float = 0.10
+    atom_band_tolerance_normalized: float = 0.002
+    maximum_grid_positions: int = 4096
+
+
+class PdfTopologyAssemblyFactory:
+    def __init__(
+        self,
+        config: PdfTopologyAssemblyConfig | None = None,
+        *,
+        visual_topology: PdfVisualTopologyRuntime | None = None,
+        parser_geometry: PdfParserGeometryRuntime | None = None,
+    ) -> None:
+        self.config = config or PdfTopologyAssemblyConfig()
+        self.visual_topology = visual_topology
+        self.parser_geometry = parser_geometry
+
+    def create(self) -> "PdfTopologyAssemblyRuntime":
+        if self.config.policy_version != PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION:
+            raise PdfTopologyAssemblyError("pdf_topology_assembly_policy_invalid")
+        if (
+            self.config.boundary_epsilon < 0
+            or self.config.geometry_cluster_tolerance_normalized <= 0
+            or not 0
+            < self.config.minimum_geometry_boundary_coverage_normalized
+            <= 1
+            or not 0 < self.config.minimum_span_separator_coverage_ratio <= 1
+            or not 0
+            <= self.config.maximum_span_gap_coverage_ratio
+            < self.config.minimum_span_separator_coverage_ratio
+            or self.config.atom_band_tolerance_normalized < 0
+            or self.config.maximum_grid_positions < 1
+        ):
+            raise PdfTopologyAssemblyError("pdf_topology_assembly_config_invalid")
+        return PdfTopologyAssemblyRuntime(
+            self.config,
+            visual_topology=self.visual_topology
+            or PdfVisualTopologyFactory().create(),
+            parser_geometry=self.parser_geometry
+            or PdfParserGeometryFactory().create(),
+            _factory_token=_FACTORY_TOKEN,
+        )
+
+
+class PdfTopologyAssemblyRuntime:
+    def __init__(
+        self,
+        config: PdfTopologyAssemblyConfig,
+        *,
+        visual_topology: PdfVisualTopologyRuntime,
+        parser_geometry: PdfParserGeometryRuntime,
+        _factory_token: object | None = None,
+    ) -> None:
+        if _factory_token is not _FACTORY_TOKEN:
+            raise PdfTopologyAssemblyError("pdf_topology_assembly_factory_required")
+        self.config = config
+        self.visual_topology = visual_topology
+        self.parser_geometry = parser_geometry
+        self.contracts = PdfDualOracleContractFactory().create()
+
+    def assemble(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        topology_response: dict[str, Any],
+        attempt_evidence: dict[str, Any],
+        hypothesis_id_prefix: str,
+    ) -> dict[str, Any]:
+        parser_errors = self.contracts.validate_parser_observation(
+            parser_observation
+        )
+        package_errors = self.visual_topology.validate_package(
+            parser_observation=parser_observation,
+            package=visual_package,
+        )
+        geometry_errors = self.parser_geometry.validate_observation(
+            parser_geometry_observation
+        )
+        if parser_errors:
+            raise PdfTopologyAssemblyError(parser_errors[0])
+        if package_errors:
+            raise PdfTopologyAssemblyError(package_errors[0])
+        if geometry_errors:
+            raise PdfTopologyAssemblyError(geometry_errors[0])
+        if not self._same_parser_scope(
+            parser_observation=parser_observation,
+            parser_geometry_observation=parser_geometry_observation,
+        ):
+            raise PdfTopologyAssemblyError(
+                "pdf_topology_assembly_parser_geometry_scope_mismatch"
+            )
+        self._validate_attempt_evidence(attempt_evidence)
+        if not hypothesis_id_prefix:
+            raise PdfTopologyAssemblyError(
+                "pdf_topology_assembly_hypothesis_prefix_invalid"
+            )
+        raw_response_checksum = sha256_json(topology_response)
+        normalized_response, normalization_events = self._normalize_response(
+            topology_response,
+            parser_geometry_observation=parser_geometry_observation,
+        )
+        response = self.visual_topology.parse_response(
+            normalized_response,
+            expected_package_id=str(visual_package.get("package_id") or ""),
+        )
+
+        bindings: list[dict[str, Any]] = []
+        rejected: list[dict[str, Any]] = []
+        all_issues: list[dict[str, Any]] = []
+        all_adjustments: list[dict[str, Any]] = []
+        alternative_accounting: list[dict[str, Any]] = []
+        package_evidence = {
+            "package_id": visual_package.get("package_id"),
+            "crop_sha256": _object(visual_package.get("crop_identity")).get(
+                "crop_sha256"
+            ),
+            "candidate_dictionary_hash": visual_package.get(
+                "candidate_dictionary_hash"
+            ),
+        }
+
+        for index, hypothesis in enumerate(response.get("hypotheses") or []):
+            hypothesis_key = str(hypothesis.get("hypothesis_key") or "")
+            hypothesis_id = (
+                f"{hypothesis_id_prefix}_{index + 1}_{hypothesis_key}"
+            )
+            bound = self._bind_hypothesis(
+                parser_observation=parser_observation,
+                parser_geometry_observation=parser_geometry_observation,
+                visual_package=visual_package,
+                hypothesis=hypothesis,
+                hypothesis_id=hypothesis_id,
+            )
+            pre_adjustments = [
+                {
+                    "hypothesis_id": hypothesis_id,
+                    "operation": event["operation"],
+                    "axis": "span",
+                    "boundary_index": None,
+                    "before": copy.deepcopy(event["before"]),
+                    "after": copy.deepcopy(event["after"]),
+                    "delta": None,
+                    "row_or_column_count_changed": False,
+                    "candidate_assignment_change_allowed": event[
+                        "candidate_assignment_change_allowed"
+                    ],
+                    "source_value_change_allowed": False,
+                    "parser_separator_boundaries": copy.deepcopy(
+                        event["parser_separator_boundaries"]
+                    ),
+                }
+                for event in normalization_events.get(index, [])
+            ]
+            bound["structural_adjustments"] = [
+                *pre_adjustments,
+                *bound["structural_adjustments"],
+            ]
+            bound["accounting"]["structural_adjustments"] += len(
+                pre_adjustments
+            )
+            all_issues.extend(bound["regional_issues"])
+            all_adjustments.extend(bound["structural_adjustments"])
+            alternative_accounting.append(bound["accounting"])
+            if bound["binding_output"] is None:
+                reason_codes = sorted(
+                    {
+                        str(item.get("reason_code") or "")
+                        for item in bound["regional_issues"]
+                        if item.get("reason_code")
+                    }
+                ) or ["pdf_topology_assembly_binding_failed"]
+                rejected.append(
+                    {
+                        "evidence_id": hypothesis_id,
+                        "reason_codes": reason_codes,
+                    }
+                )
+                continue
+            bindings.append(
+                {
+                    "hypothesis_id": hypothesis_id,
+                    "binding_output": bound["binding_output"],
+                    "proposed_geometry": bound["proposed_geometry"],
+                    "evidence": {
+                        "attempt_id": attempt_evidence["attempt_id"],
+                        "attempt_number": attempt_evidence["attempt_number"],
+                        "evidence_revision": attempt_evidence[
+                            "evidence_revision"
+                        ],
+                        "provider": attempt_evidence["provider"],
+                        "model": attempt_evidence["model"],
+                        "provider_config_hash": attempt_evidence[
+                            "provider_config_hash"
+                        ],
+                        "packages": [package_evidence],
+                    },
+                    "continuation": {
+                        "required": False,
+                        "continuation_group_id": None,
+                        "fragment_order": 0,
+                        "fragment_count": 0,
+                        "shared_column_count": 0,
+                        "repeated_header_policy": None,
+                    },
+                }
+            )
+
+        top_uncertainty = [
+            str(item) for item in response.get("uncertainty_codes") or []
+        ]
+        hypothesis_uncertainty = [
+            str(item)
+            for item in response.get("hypotheses") or []
+            for item in item.get("uncertainty_codes") or []
+        ]
+        if response.get("decision") == "unsupported":
+            status = "unsupported"
+            all_issues.extend(
+                {
+                    "hypothesis_id": None,
+                    "axis": "table",
+                    "boundary_index": None,
+                    "reason_code": code,
+                    "retry_scope": "full_table_crop",
+                }
+                for code in top_uncertainty
+            )
+        elif rejected or top_uncertainty or hypothesis_uncertainty:
+            status = "regional_retry_required"
+        elif bindings:
+            status = "assembled"
+        else:
+            status = "regional_retry_required"
+
+        candidate_count = len(
+            parser_observation.get("candidate_order") or []
+        )
+        source_accounting = {
+            "expected_candidates": candidate_count,
+            "alternatives_received": len(response.get("hypotheses") or []),
+            "alternatives_bound": len(bindings),
+            "alternatives_rejected": len(rejected),
+            "all_bound_alternatives_exactly_once": bool(
+                bindings
+                and all(
+                    item.get("expected_candidates") == candidate_count
+                    and item.get("used_candidates") == candidate_count
+                    and item.get("unique_used_candidates") == candidate_count
+                    and not item.get("omitted_candidate_ids")
+                    and not item.get("extra_candidate_ids")
+                    and not item.get("duplicate_candidate_ids")
+                    for item in alternative_accounting
+                    if item.get("binding_created") is True
+                )
+            ),
+            "alternative_accounting": alternative_accounting,
+        }
+        result = {
+            "schema_version": PDF_TOPOLOGY_ASSEMBLY_RESULT_SCHEMA,
+            "policy_version": self.config.policy_version,
+            "policy_configuration_hash": sha256_json(asdict(self.config)),
+            "result_id": "pdftopoassembly_"
+            + stable_digest(
+                [
+                    visual_package.get("package_hash"),
+                    parser_geometry_observation.get("observation_checksum"),
+                    raw_response_checksum,
+                    attempt_evidence.get("attempt_id"),
+                    self.config.policy_version,
+                ],
+                length=24,
+            ),
+            "package_id": visual_package.get("package_id"),
+            "package_hash": visual_package.get("package_hash"),
+            "parser_observation_checksum": parser_observation.get(
+                "observation_checksum"
+            ),
+            "parser_geometry_observation_checksum": parser_geometry_observation.get(
+                "observation_checksum"
+            ),
+            "topology_response_checksum": raw_response_checksum,
+            "reconstruction_status": status,
+            "certification_status": "not_evaluated",
+            "alternatives_complete": response.get("alternatives_complete") is True,
+            "binding_hypotheses": bindings,
+            "rejected_evidence": rejected,
+            "regional_issues": sorted(
+                all_issues,
+                key=lambda item: (
+                    str(item.get("hypothesis_id") or ""),
+                    str(item.get("axis") or ""),
+                    int(item.get("boundary_index") or 0),
+                    str(item.get("reason_code") or ""),
+                ),
+            ),
+            "structural_adjustments": sorted(
+                all_adjustments,
+                key=lambda item: (
+                    str(item.get("hypothesis_id") or ""),
+                    str(item.get("axis") or ""),
+                    int(item.get("boundary_index") or 0),
+                ),
+            ),
+            "source_accounting": source_accounting,
+            "value_mutation_performed": False,
+            "nearest_cell_fallback_used": False,
+            "legacy_grid_consumed": False,
+        }
+        result["result_checksum"] = sha256_json(result)
+        validation_errors = self.validate_result(result)
+        if validation_errors:
+            raise PdfTopologyAssemblyError(validation_errors[0])
+        return result
+
+    def validate_result(self, value: Any) -> list[str]:
+        data = _object(value)
+        errors: list[str] = []
+        if set(data) != _RESULT_KEYS:
+            errors.append("pdf_topology_assembly_result_keys_invalid")
+        if data.get("schema_version") != PDF_TOPOLOGY_ASSEMBLY_RESULT_SCHEMA:
+            errors.append("pdf_topology_assembly_result_schema_invalid")
+        if data.get("policy_version") != self.config.policy_version:
+            errors.append("pdf_topology_assembly_result_policy_invalid")
+        if data.get("policy_configuration_hash") != sha256_json(
+            asdict(self.config)
+        ):
+            errors.append("pdf_topology_assembly_result_config_invalid")
+        if data.get("reconstruction_status") not in {
+            "assembled",
+            "regional_retry_required",
+            "unsupported",
+        }:
+            errors.append("pdf_topology_assembly_status_invalid")
+        if data.get("certification_status") != "not_evaluated":
+            errors.append("pdf_topology_assembly_certification_boundary_invalid")
+        if (
+            data.get("value_mutation_performed") is not False
+            or data.get("nearest_cell_fallback_used") is not False
+            or data.get("legacy_grid_consumed") is not False
+        ):
+            errors.append("pdf_topology_assembly_authority_boundary_invalid")
+        for item in _dicts(data.get("binding_hypotheses")):
+            binding_errors = validate_binding_output_shape(
+                _object(item.get("binding_output"))
+            )
+            if binding_errors:
+                errors.append(binding_errors[0])
+        unsigned = dict(data)
+        stored = unsigned.pop("result_checksum", None)
+        if stored != sha256_json(unsigned):
+            errors.append("pdf_topology_assembly_result_checksum_invalid")
+        return sorted(set(errors))
+
+    def _normalize_response(
+        self,
+        value: dict[str, Any],
+        *,
+        parser_geometry_observation: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[int, list[dict[str, Any]]]]:
+        normalized = copy.deepcopy(value)
+        events: dict[int, list[dict[str, Any]]] = {}
+        if not isinstance(normalized, dict):
+            return normalized, events
+        hypotheses = normalized.get("hypotheses")
+        if not isinstance(hypotheses, list):
+            return normalized, events
+        for index, hypothesis in enumerate(hypotheses):
+            if not isinstance(hypothesis, dict):
+                continue
+            rows = hypothesis.get("row_boundaries")
+            columns = hypothesis.get("column_boundaries")
+            spans = hypothesis.get("spans")
+            if (
+                not isinstance(rows, list)
+                or not isinstance(columns, list)
+                or not isinstance(spans, list)
+            ):
+                continue
+            row_count = len(rows) - 1
+            column_count = len(columns) - 1
+            canonical_rows = _geometry_boundaries_for_segments(
+                _dicts(parser_geometry_observation.get("horizontal_signals")),
+                expected_segments=row_count,
+                cluster_tolerance=self.config.geometry_cluster_tolerance_normalized,
+                minimum_coverage=self.config.minimum_geometry_boundary_coverage_normalized,
+            )
+            canonical_columns = _geometry_boundaries_for_segments(
+                _dicts(parser_geometry_observation.get("vertical_signals")),
+                expected_segments=column_count,
+                cluster_tolerance=self.config.geometry_cluster_tolerance_normalized,
+                minimum_coverage=self.config.minimum_geometry_boundary_coverage_normalized,
+            )
+            kept: list[Any] = []
+            hypothesis_events: list[dict[str, Any]] = []
+            for span in spans:
+                if not isinstance(span, dict) or set(span) != {
+                    "start_row",
+                    "end_row",
+                    "start_column",
+                    "end_column",
+                    "relation",
+                }:
+                    kept.append(span)
+                    continue
+                start_row = span.get("start_row")
+                end_row = span.get("end_row")
+                start_column = span.get("start_column")
+                end_column = span.get("end_column")
+                is_noop = bool(
+                    all(
+                        isinstance(item, int) and not isinstance(item, bool)
+                        for item in (
+                            start_row,
+                            end_row,
+                            start_column,
+                            end_column,
+                        )
+                    )
+                    and start_row == end_row
+                    and start_column == end_column
+                    and 1 <= int(start_row) <= row_count
+                    and 1 <= int(start_column) <= column_count
+                    and span.get("relation") in {"merged", "spanning_header"}
+                )
+                if is_noop:
+                    hypothesis_events.append(
+                        {
+                            "operation": "drop_degenerate_single_cell_span",
+                            "before": copy.deepcopy(span),
+                            "after": None,
+                            "candidate_assignment_change_allowed": False,
+                            "parser_separator_boundaries": [],
+                        }
+                    )
+                else:
+                    normalized_span = copy.deepcopy(span)
+                    conflicts: list[str] = []
+                    if (
+                        canonical_rows is not None
+                        and canonical_columns is not None
+                        and all(
+                            isinstance(item, int) and not isinstance(item, bool)
+                            for item in (
+                                start_row,
+                                end_row,
+                                start_column,
+                                end_column,
+                            )
+                        )
+                        and 1 <= int(start_row) <= int(end_row) <= row_count
+                        and 1
+                        <= int(start_column)
+                        <= int(end_column)
+                        <= column_count
+                    ):
+                        conflicts, _ = self._span_separator_states(
+                            span=normalized_span,
+                            row_boundaries=canonical_rows,
+                            column_boundaries=canonical_columns,
+                            horizontal_signals=_dicts(
+                                parser_geometry_observation.get(
+                                    "horizontal_signals"
+                                )
+                            ),
+                            vertical_signals=_dicts(
+                                parser_geometry_observation.get("vertical_signals")
+                            ),
+                        )
+                    if conflicts:
+                        trimmed = _trim_span_at_separators(
+                            normalized_span, conflicts
+                        )
+                        after = (
+                            None if _single_position_span(trimmed) else trimmed
+                        )
+                        hypothesis_events.append(
+                            {
+                                "operation": (
+                                    "drop_span_reduced_to_single_cell_by_parser_separator"
+                                    if after is None
+                                    else "trim_span_to_parser_separator"
+                                ),
+                                "before": copy.deepcopy(span),
+                                "after": copy.deepcopy(after),
+                                "candidate_assignment_change_allowed": True,
+                                "parser_separator_boundaries": conflicts,
+                            }
+                        )
+                        if after is not None:
+                            kept.append(after)
+                    else:
+                        kept.append(normalized_span)
+            hypothesis["spans"] = kept
+            if hypothesis_events:
+                events[index] = hypothesis_events
+        return normalized, events
+
+    def _bind_hypothesis(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+        visual_package: dict[str, Any],
+        hypothesis: dict[str, Any],
+        hypothesis_id: str,
+    ) -> dict[str, Any]:
+        neutral_map = _object(
+            visual_package.get("neutral_atom_to_candidate_id")
+        )
+        atoms = _dicts(_object(visual_package.get("model_facing")).get("atoms"))
+        boxes = {
+            str(neutral_map.get(str(atom.get("atom_id") or "")) or ""): [
+                float(value) for value in atom.get("bbox") or []
+            ]
+            for atom in atoms
+        }
+        source_order = {
+            str(item.get("candidate_id") or ""): int(
+                item.get("source_order") or 0
+            )
+            for item in _dicts(parser_observation.get("candidates"))
+        }
+        row_boundaries = [
+            float(item) for item in hypothesis.get("row_boundaries") or []
+        ]
+        column_boundaries = [
+            float(item) for item in hypothesis.get("column_boundaries") or []
+        ]
+        spans = copy.deepcopy(hypothesis.get("spans") or [])
+        row_count = len(row_boundaries) - 1
+        column_count = len(column_boundaries) - 1
+        issues: list[dict[str, Any]] = []
+        adjustments: list[dict[str, Any]] = []
+        if row_count * column_count > self.config.maximum_grid_positions:
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    "table",
+                    None,
+                    "pdf_topology_assembly_grid_budget_exceeded",
+                )
+            )
+
+        row_result = self._canonicalize_axis_from_parser_geometry(
+            axis="row",
+            visual_boundaries=row_boundaries,
+            signals=_dicts(
+                parser_geometry_observation.get("horizontal_signals")
+            ),
+            expected_segments=row_count,
+            hypothesis_id=hypothesis_id,
+        )
+        column_result = self._canonicalize_axis_from_parser_geometry(
+            axis="column",
+            visual_boundaries=column_boundaries,
+            signals=_dicts(
+                parser_geometry_observation.get("vertical_signals")
+            ),
+            expected_segments=column_count,
+            hypothesis_id=hypothesis_id,
+        )
+        issues.extend(row_result["issues"])
+        issues.extend(column_result["issues"])
+        adjustments.extend(row_result["adjustments"])
+        adjustments.extend(column_result["adjustments"])
+        canonical_rows = row_result["boundaries"]
+        canonical_columns = column_result["boundaries"]
+        positions, position_issues = self._positions(
+            boxes=boxes,
+            row_boundaries=canonical_rows,
+            column_boundaries=canonical_columns,
+            hypothesis_id=hypothesis_id,
+        )
+        issues.extend(position_issues)
+        issues.extend(
+            self._candidate_separator_issues(
+                boxes=boxes,
+                positions=positions,
+                row_boundaries=canonical_rows,
+                column_boundaries=canonical_columns,
+                horizontal_signals=_dicts(
+                    parser_geometry_observation.get("horizontal_signals")
+                ),
+                vertical_signals=_dicts(
+                    parser_geometry_observation.get("vertical_signals")
+                ),
+                hypothesis_id=hypothesis_id,
+            )
+        )
+
+        original_spans = copy.deepcopy(spans)
+        span_result = self._canonicalize_spans(
+            spans=spans,
+            positions=positions,
+            boxes=boxes,
+            source_order=source_order,
+            row_boundaries=canonical_rows,
+            column_boundaries=canonical_columns,
+            horizontal_signals=_dicts(
+                parser_geometry_observation.get("horizontal_signals")
+            ),
+            vertical_signals=_dicts(
+                parser_geometry_observation.get("vertical_signals")
+            ),
+            hypothesis_id=hypothesis_id,
+        )
+        spans = span_result["spans"]
+        adjustments.extend(span_result["adjustments"])
+        issues.extend(span_result["issues"])
+
+        hierarchy: list[dict[str, Any]] = []
+        for relation in hypothesis.get("header_hierarchy") or []:
+            operation = None
+            if (
+                relation.get("child_start_column")
+                == relation.get("child_end_column")
+                == relation.get("parent_column")
+            ):
+                operation = "drop_redundant_identity_header_relation"
+            elif not _relation_has_span(relation, spans):
+                if _relation_has_span(relation, span_result["contradicted_spans"]):
+                    operation = "drop_header_relation_with_contradicted_span"
+                elif _relation_has_span(relation, original_spans):
+                    issues.append(
+                        _issue(
+                            hypothesis_id,
+                            "header",
+                            None,
+                            "pdf_topology_assembly_header_relation_span_uncertified",
+                        )
+                    )
+                    continue
+                else:
+                    issues.append(
+                        _issue(
+                            hypothesis_id,
+                            "header",
+                            None,
+                            "pdf_topology_assembly_header_relation_span_missing",
+                        )
+                    )
+                    continue
+            if operation is not None:
+                adjustments.append(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "operation": operation,
+                        "axis": "header",
+                        "boundary_index": None,
+                        "before": copy.deepcopy(relation),
+                        "after": None,
+                        "delta": None,
+                        "row_or_column_count_changed": False,
+                        "candidate_assignment_change_allowed": False,
+                        "source_value_change_allowed": False,
+                    }
+                )
+            else:
+                hierarchy.append(copy.deepcopy(relation))
+
+        anchored_positions = copy.deepcopy(positions)
+        for candidate_id, position in positions.items():
+            covering = _covering_span(spans, position[0], position[1])
+            if covering is not None:
+                anchored_positions[candidate_id] = (
+                    int(covering["start_row"]),
+                    int(covering["start_column"]),
+                )
+
+        grid = [
+            [[] for _ in range(column_count)] for _ in range(row_count)
+        ]
+        for candidate_id in sorted(
+            anchored_positions,
+            key=lambda item: source_order.get(item, 0),
+        ):
+            row, column = anchored_positions[candidate_id]
+            if not (1 <= row <= row_count and 1 <= column <= column_count):
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "table",
+                        None,
+                        "pdf_topology_assembly_candidate_out_of_grid",
+                    )
+                )
+                continue
+            grid[row - 1][column - 1].append(candidate_id)
+
+        for span in spans:
+            anchor = grid[int(span["start_row"]) - 1][
+                int(span["start_column"]) - 1
+            ]
+            covered = [
+                grid[row - 1][column - 1]
+                for row in range(int(span["start_row"]), int(span["end_row"]) + 1)
+                for column in range(
+                    int(span["start_column"]), int(span["end_column"]) + 1
+                )
+                if (row, column)
+                != (int(span["start_row"]), int(span["start_column"]))
+            ]
+            if not anchor or any(covered):
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "span",
+                        None,
+                        "pdf_topology_assembly_span_anchor_invalid",
+                    )
+                )
+
+        used = [candidate_id for row in grid for cell in row for candidate_id in cell]
+        expected = list(parser_observation.get("candidate_order") or [])
+        omitted = sorted(set(expected) - set(used))
+        extra = sorted(set(used) - set(expected))
+        duplicates = sorted(
+            candidate_id for candidate_id in set(used) if used.count(candidate_id) > 1
+        )
+        if omitted:
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    "table",
+                    None,
+                    "pdf_topology_assembly_candidate_coverage_incomplete",
+                )
+            )
+        if extra:
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    "table",
+                    None,
+                    "pdf_topology_assembly_candidate_unknown",
+                )
+            )
+        if duplicates:
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    "table",
+                    None,
+                    "pdf_topology_assembly_candidate_ownership_duplicate",
+                )
+            )
+
+        uncertainty = list(hypothesis.get("uncertainty_codes") or [])
+        binding = None
+        if not issues:
+            header_count = int(hypothesis.get("header_row_count") or 0)
+            binding = {
+                "schema_version": PDF_HYBRID_BINDING_OUTPUT_SCHEMA,
+                "package_id": visual_package.get("package_id"),
+                "crop_sha256": _object(
+                    visual_package.get("crop_identity")
+                ).get("crop_sha256"),
+                "candidate_dictionary_hash": visual_package.get(
+                    "candidate_dictionary_hash"
+                ),
+                "decision": "ambiguous" if uncertainty else "bound",
+                "row_count": row_count,
+                "column_count": column_count,
+                "header_rows": list(range(1, header_count + 1)),
+                "header_hierarchy": hierarchy,
+                "rows": [
+                    {
+                        "row_ordinal": index,
+                        "row_kind": "header" if index <= header_count else "unknown",
+                        "cells": copy.deepcopy(cells),
+                    }
+                    for index, cells in enumerate(grid, start=1)
+                ],
+                "spans": spans,
+                "uncertainty_codes": uncertainty,
+            }
+            shape_errors = validate_binding_output_shape(binding)
+            if shape_errors:
+                issues.extend(
+                    _issue(
+                        hypothesis_id,
+                        "table",
+                        None,
+                        code,
+                    )
+                    for code in shape_errors
+                )
+                binding = None
+
+        accounting = {
+            "hypothesis_id": hypothesis_id,
+            "binding_created": binding is not None,
+            "expected_candidates": len(expected),
+            "used_candidates": len(used),
+            "unique_used_candidates": len(set(used)),
+            "omitted_candidate_ids": omitted,
+            "extra_candidate_ids": extra,
+            "duplicate_candidate_ids": duplicates,
+            "grid_positions": row_count * column_count,
+            "explicit_empty_positions": sum(not cell for row in grid for cell in row),
+            "structural_adjustments": len(adjustments),
+            "regional_issues": len(issues),
+        }
+        return {
+            "binding_output": binding,
+            "proposed_geometry": {
+                "rows": {
+                    "kind": "consensus_normalized_boundaries",
+                    "boundaries": canonical_rows,
+                },
+                "columns": {
+                    "kind": "consensus_normalized_boundaries",
+                    "boundaries": canonical_columns,
+                },
+            },
+            "regional_issues": issues,
+            "structural_adjustments": adjustments,
+            "accounting": accounting,
+        }
+
+    def _canonicalize_axis_from_parser_geometry(
+        self,
+        *,
+        axis: str,
+        visual_boundaries: list[float],
+        signals: list[dict[str, Any]],
+        expected_segments: int,
+        hypothesis_id: str,
+    ) -> dict[str, Any]:
+        issues: list[dict[str, Any]] = []
+        adjustments: list[dict[str, Any]] = []
+        vector_signals = [
+            item for item in signals if item.get("kind") == "vector_line"
+        ]
+        clusters = [
+            item
+            for item in _geometry_clusters(
+                vector_signals,
+                tolerance=self.config.geometry_cluster_tolerance_normalized,
+            )
+            if item["coverage"]
+            >= self.config.minimum_geometry_boundary_coverage_normalized
+        ]
+        if len(clusters) != expected_segments + 1:
+            return {
+                "boundaries": list(visual_boundaries),
+                "issues": [
+                    _issue(
+                        hypothesis_id,
+                        axis,
+                        None,
+                        "pdf_topology_assembly_parser_geometry_boundary_count_conflict",
+                    )
+                ],
+                "adjustments": [],
+            }
+        result = [float(item["position"]) for item in clusters]
+        edge_tolerance = self.config.geometry_cluster_tolerance_normalized * 2
+        if result[0] > edge_tolerance or 1.0 - result[-1] > edge_tolerance:
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    axis,
+                    None,
+                    "pdf_topology_assembly_parser_geometry_outer_boundary_missing",
+                )
+            )
+        result[0] = 0.0
+        result[-1] = 1.0
+        if any(left >= right for left, right in zip(result, result[1:])):
+            issues.append(
+                _issue(
+                    hypothesis_id,
+                    axis,
+                    None,
+                    "pdf_topology_assembly_parser_geometry_boundary_order_invalid",
+                )
+            )
+        for boundary_index, target in enumerate(result):
+            before = float(visual_boundaries[boundary_index])
+            if abs(target - before) > self.config.boundary_epsilon:
+                adjustments.append(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "operation": "replace_visual_boundary_with_parser_geometry",
+                        "axis": axis,
+                        "boundary_index": boundary_index,
+                        "before": before,
+                        "after": target,
+                        "delta": round(target - before, 9),
+                        "row_or_column_count_changed": False,
+                        "candidate_assignment_change_allowed": True,
+                        "source_value_change_allowed": False,
+                        "parser_geometry_coverage": round(
+                            float(clusters[boundary_index]["coverage"]), 9
+                        ),
+                    }
+                )
+        return {
+            "boundaries": result,
+            "issues": issues,
+            "adjustments": adjustments,
+        }
+
+    def _canonicalize_spans(
+        self,
+        *,
+        spans: list[dict[str, Any]],
+        positions: dict[str, tuple[int, int]],
+        boxes: dict[str, list[float]],
+        source_order: dict[str, int],
+        row_boundaries: list[float],
+        column_boundaries: list[float],
+        horizontal_signals: list[dict[str, Any]],
+        vertical_signals: list[dict[str, Any]],
+        hypothesis_id: str,
+    ) -> dict[str, Any]:
+        kept: list[dict[str, Any]] = []
+        contradicted: list[dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
+        adjustments: list[dict[str, Any]] = []
+        for source_span in spans:
+            span = copy.deepcopy(source_span)
+            separator_boundaries, ambiguous_boundaries = self._span_separator_states(
+                span=span,
+                row_boundaries=row_boundaries,
+                column_boundaries=column_boundaries,
+                horizontal_signals=horizontal_signals,
+                vertical_signals=vertical_signals,
+            )
+            if separator_boundaries:
+                trimmed = _trim_span_at_separators(span, separator_boundaries)
+                after = None if _single_position_span(trimmed) else trimmed
+                adjustments.append(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "operation": (
+                            "drop_span_reduced_to_single_cell_by_parser_separator"
+                            if after is None
+                            else "trim_span_to_parser_separator"
+                        ),
+                        "axis": "span",
+                        "boundary_index": None,
+                        "before": copy.deepcopy(source_span),
+                        "after": copy.deepcopy(after),
+                        "delta": None,
+                        "row_or_column_count_changed": False,
+                        "candidate_assignment_change_allowed": True,
+                        "source_value_change_allowed": False,
+                        "parser_separator_boundaries": separator_boundaries,
+                    }
+                )
+                contradicted.append(copy.deepcopy(source_span))
+                if after is None:
+                    continue
+                span = after
+                _, ambiguous_boundaries = self._span_separator_states(
+                    span=span,
+                    row_boundaries=row_boundaries,
+                    column_boundaries=column_boundaries,
+                    horizontal_signals=horizontal_signals,
+                    vertical_signals=vertical_signals,
+                )
+            if ambiguous_boundaries:
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "span",
+                        None,
+                        "pdf_topology_assembly_span_separator_evidence_ambiguous",
+                    )
+                )
+                continue
+
+            members = sorted(
+                (
+                    candidate_id
+                    for candidate_id, position in positions.items()
+                    if _span_contains(span, position[0], position[1])
+                ),
+                key=lambda item: source_order.get(item, -1),
+            )
+            if not members:
+                adjustments.append(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "operation": (
+                            "project_geometry_certified_empty_span_to_explicit_empty_cells"
+                        ),
+                        "axis": "span",
+                        "boundary_index": None,
+                        "before": copy.deepcopy(span),
+                        "after": None,
+                        "delta": None,
+                        "row_or_column_count_changed": False,
+                        "candidate_assignment_change_allowed": False,
+                        "source_value_change_allowed": False,
+                        "parser_separator_boundaries": [],
+                    }
+                )
+                continue
+
+            orders = [source_order.get(item, -1) for item in members]
+            contiguous = orders == list(range(min(orders), max(orders) + 1))
+            horizontal = int(span["end_column"]) > int(span["start_column"])
+            vertical = int(span["end_row"]) > int(span["start_row"])
+            coherent = True
+            if horizontal:
+                coherent = coherent and _common_band(
+                    [boxes[item][1:4:2] for item in members],
+                    tolerance=self.config.atom_band_tolerance_normalized,
+                )
+            if vertical:
+                coherent = coherent and _common_band(
+                    [boxes[item][0:3:2] for item in members],
+                    tolerance=self.config.atom_band_tolerance_normalized,
+                )
+            if not contiguous or not coherent:
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "span",
+                        None,
+                        (
+                            "pdf_topology_assembly_span_source_order_not_contiguous"
+                            if not contiguous
+                            else "pdf_topology_assembly_span_atom_band_incoherent"
+                        ),
+                    )
+                )
+                continue
+            kept.append(copy.deepcopy(span))
+        return {
+            "spans": kept,
+            "contradicted_spans": contradicted,
+            "issues": issues,
+            "adjustments": adjustments,
+        }
+
+    def _span_separator_states(
+        self,
+        *,
+        span: dict[str, Any],
+        row_boundaries: list[float],
+        column_boundaries: list[float],
+        horizontal_signals: list[dict[str, Any]],
+        vertical_signals: list[dict[str, Any]],
+    ) -> tuple[list[str], list[str]]:
+        conflicts: list[str] = []
+        ambiguous: list[str] = []
+        row_start = int(span["start_row"])
+        row_end = int(span["end_row"])
+        column_start = int(span["start_column"])
+        column_end = int(span["end_column"])
+        row_extent = [row_boundaries[row_start - 1], row_boundaries[row_end]]
+        column_extent = [
+            column_boundaries[column_start - 1],
+            column_boundaries[column_end],
+        ]
+        for boundary_index in range(row_start, row_end):
+            coverage = _separator_coverage(
+                signals=[
+                    item
+                    for item in horizontal_signals
+                    if item.get("kind") == "vector_line"
+                ],
+                position=row_boundaries[boundary_index],
+                target_extent=column_extent,
+                tolerance=self.config.geometry_cluster_tolerance_normalized,
+            )
+            if coverage >= self.config.minimum_span_separator_coverage_ratio:
+                conflicts.append(f"row:{boundary_index}")
+            elif coverage > self.config.maximum_span_gap_coverage_ratio:
+                ambiguous.append(f"row:{boundary_index}")
+        for boundary_index in range(column_start, column_end):
+            coverage = _separator_coverage(
+                signals=[
+                    item
+                    for item in vertical_signals
+                    if item.get("kind") == "vector_line"
+                ],
+                position=column_boundaries[boundary_index],
+                target_extent=row_extent,
+                tolerance=self.config.geometry_cluster_tolerance_normalized,
+            )
+            if coverage >= self.config.minimum_span_separator_coverage_ratio:
+                conflicts.append(f"column:{boundary_index}")
+            elif coverage > self.config.maximum_span_gap_coverage_ratio:
+                ambiguous.append(f"column:{boundary_index}")
+        return conflicts, ambiguous
+
+    def _candidate_separator_issues(
+        self,
+        *,
+        boxes: dict[str, list[float]],
+        positions: dict[str, tuple[int, int]],
+        row_boundaries: list[float],
+        column_boundaries: list[float],
+        horizontal_signals: list[dict[str, Any]],
+        vertical_signals: list[dict[str, Any]],
+        hypothesis_id: str,
+    ) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+        vector_horizontal = [
+            item for item in horizontal_signals if item.get("kind") == "vector_line"
+        ]
+        vector_vertical = [
+            item for item in vertical_signals if item.get("kind") == "vector_line"
+        ]
+        tolerance = self.config.atom_band_tolerance_normalized
+        for candidate_id, (row, column) in positions.items():
+            box = boxes[candidate_id]
+            row_extent = [row_boundaries[row - 1], row_boundaries[row]]
+            column_extent = [
+                column_boundaries[column - 1],
+                column_boundaries[column],
+            ]
+            for boundary_index, boundary in enumerate(
+                column_boundaries[1:-1], start=1
+            ):
+                if not box[0] + tolerance < boundary < box[2] - tolerance:
+                    continue
+                coverage = _separator_coverage(
+                    signals=vector_vertical,
+                    position=boundary,
+                    target_extent=row_extent,
+                    tolerance=self.config.geometry_cluster_tolerance_normalized,
+                )
+                if coverage >= self.config.minimum_span_separator_coverage_ratio:
+                    issues.append(
+                        _issue(
+                            hypothesis_id,
+                            "column",
+                            boundary_index,
+                            "pdf_topology_assembly_candidate_bbox_crosses_parser_separator",
+                        )
+                    )
+                    break
+            for boundary_index, boundary in enumerate(
+                row_boundaries[1:-1], start=1
+            ):
+                if not box[1] + tolerance < boundary < box[3] - tolerance:
+                    continue
+                coverage = _separator_coverage(
+                    signals=vector_horizontal,
+                    position=boundary,
+                    target_extent=column_extent,
+                    tolerance=self.config.geometry_cluster_tolerance_normalized,
+                )
+                if coverage >= self.config.minimum_span_separator_coverage_ratio:
+                    issues.append(
+                        _issue(
+                            hypothesis_id,
+                            "row",
+                            boundary_index,
+                            "pdf_topology_assembly_candidate_bbox_crosses_parser_separator",
+                        )
+                    )
+                    break
+        return issues
+
+    def _positions(
+        self,
+        *,
+        boxes: dict[str, list[float]],
+        row_boundaries: list[float],
+        column_boundaries: list[float],
+        hypothesis_id: str,
+    ) -> tuple[dict[str, tuple[int, int]], list[dict[str, Any]]]:
+        positions: dict[str, tuple[int, int]] = {}
+        issues: list[dict[str, Any]] = []
+        for candidate_id, box in boxes.items():
+            center_x = (box[0] + box[2]) / 2
+            center_y = (box[1] + box[3]) / 2
+            row = _segment(
+                center_y,
+                row_boundaries,
+                epsilon=self.config.boundary_epsilon,
+            )
+            column = _segment(
+                center_x,
+                column_boundaries,
+                epsilon=self.config.boundary_epsilon,
+            )
+            if row is None:
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "row",
+                        None,
+                        "pdf_topology_assembly_atom_on_row_boundary",
+                    )
+                )
+            if column is None:
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "column",
+                        None,
+                        "pdf_topology_assembly_atom_on_column_boundary",
+                    )
+                )
+            if row is not None and column is not None:
+                positions[candidate_id] = (row, column)
+        return positions, issues
+
+    def _same_parser_scope(
+        self,
+        *,
+        parser_observation: dict[str, Any],
+        parser_geometry_observation: dict[str, Any],
+    ) -> bool:
+        for key in (
+            "document_ref",
+            "pdf_sha256",
+            "page_ref",
+            "page_number",
+            "table_ref",
+        ):
+            if parser_observation.get(key) != parser_geometry_observation.get(key):
+                return False
+        parser_bbox = _bbox(
+            _object(parser_observation.get("coordinate_space")).get("table_bbox")
+        )
+        geometry_bbox = _bbox(
+            _object(parser_geometry_observation.get("coordinate_space")).get(
+                "table_bbox"
+            )
+        )
+        return parser_bbox is not None and geometry_bbox == parser_bbox
+
+    @staticmethod
+    def _validate_attempt_evidence(value: dict[str, Any]) -> None:
+        if set(value) != {
+            "attempt_id",
+            "attempt_number",
+            "evidence_revision",
+            "provider",
+            "model",
+            "provider_config_hash",
+        }:
+            raise PdfTopologyAssemblyError(
+                "pdf_topology_assembly_attempt_evidence_keys_invalid"
+            )
+        if (
+            not all(
+                isinstance(value.get(key), str) and bool(value.get(key))
+                for key in (
+                    "attempt_id",
+                    "evidence_revision",
+                    "provider",
+                    "model",
+                    "provider_config_hash",
+                )
+            )
+            or not isinstance(value.get("attempt_number"), int)
+            or isinstance(value.get("attempt_number"), bool)
+            or int(value.get("attempt_number") or 0) < 1
+        ):
+            raise PdfTopologyAssemblyError(
+                "pdf_topology_assembly_attempt_evidence_invalid"
+            )
+
+
+def _geometry_clusters(
+    signals: list[dict[str, Any]], *, tolerance: float
+) -> list[dict[str, Any]]:
+    groups: list[list[dict[str, Any]]] = []
+    for signal in sorted(
+        signals,
+        key=lambda item: (
+            float(item.get("position_normalized") or 0.0),
+            str(item.get("signal_id") or ""),
+        ),
+    ):
+        position = float(signal.get("position_normalized") or 0.0)
+        if not groups or position - float(
+            groups[-1][0].get("position_normalized") or 0.0
+        ) > tolerance:
+            groups.append([signal])
+        else:
+            groups[-1].append(signal)
+    result = []
+    for group in groups:
+        positions = sorted(
+            float(item.get("position_normalized") or 0.0) for item in group
+        )
+        midpoint = len(positions) // 2
+        position = (
+            positions[midpoint]
+            if len(positions) % 2
+            else (positions[midpoint - 1] + positions[midpoint]) / 2
+        )
+        result.append(
+            {
+                "position": round(position, 12),
+                "coverage": _union_length(
+                    [
+                        [float(value) for value in item.get("extent_normalized") or []]
+                        for item in group
+                    ]
+                ),
+                "signal_count": len(group),
+            }
+        )
+    return result
+
+
+def _geometry_boundaries_for_segments(
+    signals: list[dict[str, Any]],
+    *,
+    expected_segments: int,
+    cluster_tolerance: float,
+    minimum_coverage: float,
+) -> list[float] | None:
+    clusters = [
+        item
+        for item in _geometry_clusters(
+            [item for item in signals if item.get("kind") == "vector_line"],
+            tolerance=cluster_tolerance,
+        )
+        if float(item["coverage"]) >= minimum_coverage
+    ]
+    if len(clusters) != expected_segments + 1:
+        return None
+    result = [float(item["position"]) for item in clusters]
+    if result[0] > cluster_tolerance * 2 or 1.0 - result[-1] > cluster_tolerance * 2:
+        return None
+    result[0] = 0.0
+    result[-1] = 1.0
+    return (
+        result
+        if all(left < right for left, right in zip(result, result[1:]))
+        else None
+    )
+
+
+def _trim_span_at_separators(
+    span: dict[str, Any], separators: list[str]
+) -> dict[str, Any]:
+    result = copy.deepcopy(span)
+    row_boundaries = [
+        int(item.split(":", 1)[1])
+        for item in separators
+        if item.startswith("row:")
+    ]
+    column_boundaries = [
+        int(item.split(":", 1)[1])
+        for item in separators
+        if item.startswith("column:")
+    ]
+    if row_boundaries:
+        result["end_row"] = min(int(result["end_row"]), min(row_boundaries))
+    if column_boundaries:
+        result["end_column"] = min(
+            int(result["end_column"]), min(column_boundaries)
+        )
+    return result
+
+
+def _single_position_span(span: dict[str, Any]) -> bool:
+    return bool(
+        int(span.get("start_row") or 0) == int(span.get("end_row") or 0)
+        and int(span.get("start_column") or 0)
+        == int(span.get("end_column") or 0)
+    )
+
+
+def _separator_coverage(
+    *,
+    signals: list[dict[str, Any]],
+    position: float,
+    target_extent: list[float],
+    tolerance: float,
+) -> float:
+    length = target_extent[1] - target_extent[0]
+    if length <= 0:
+        return 0.0
+    intervals = []
+    for signal in signals:
+        if abs(float(signal.get("position_normalized") or 0.0) - position) > tolerance:
+            continue
+        extent = signal.get("extent_normalized")
+        if not isinstance(extent, list) or len(extent) != 2:
+            continue
+        start = max(float(extent[0]), target_extent[0])
+        end = min(float(extent[1]), target_extent[1])
+        if end > start:
+            intervals.append([start, end])
+    return _union_length(intervals) / length
+
+
+def _union_length(intervals: list[list[float]]) -> float:
+    ordered = sorted(
+        (
+            [float(item[0]), float(item[1])]
+            for item in intervals
+            if isinstance(item, list) and len(item) == 2 and item[1] > item[0]
+        ),
+        key=lambda item: (item[0], item[1]),
+    )
+    if not ordered:
+        return 0.0
+    total = 0.0
+    start, end = ordered[0]
+    for current_start, current_end in ordered[1:]:
+        if current_start <= end:
+            end = max(end, current_end)
+        else:
+            total += end - start
+            start, end = current_start, current_end
+    return total + end - start
+
+
+def _common_band(intervals: list[list[float]], *, tolerance: float) -> bool:
+    return bool(
+        intervals
+        and max(float(item[0]) for item in intervals)
+        <= min(float(item[1]) for item in intervals) + tolerance
+    )
+
+
+def _relation_has_span(
+    relation: dict[str, Any], spans: list[dict[str, Any]]
+) -> bool:
+    return any(
+        int(span.get("start_row") or 0) == int(relation.get("parent_row") or 0)
+        and int(span.get("start_column") or 0)
+        == int(relation.get("parent_column") or 0)
+        and int(span.get("end_column") or 0)
+        >= int(relation.get("child_end_column") or 0)
+        for span in spans
+    )
+
+
+def _segment(
+    value: float,
+    boundaries: list[float],
+    *,
+    epsilon: float,
+) -> int | None:
+    if not boundaries or value < boundaries[0] or value > boundaries[-1]:
+        return None
+    for boundary in boundaries[1:-1]:
+        if abs(value - boundary) <= epsilon:
+            return None
+    for index, (start, end) in enumerate(zip(boundaries, boundaries[1:]), start=1):
+        if start <= value < end or (
+            index == len(boundaries) - 1 and start <= value <= end
+        ):
+            return index
+    return None
+
+
+def _covering_span(
+    spans: list[dict[str, Any]], row: int, column: int
+) -> dict[str, Any] | None:
+    values = [span for span in spans if _span_contains(span, row, column)]
+    return values[0] if len(values) == 1 else None
+
+
+def _span_contains(span: dict[str, Any], row: int, column: int) -> bool:
+    return bool(
+        int(span.get("start_row") or 0)
+        <= row
+        <= int(span.get("end_row") or 0)
+        and int(span.get("start_column") or 0)
+        <= column
+        <= int(span.get("end_column") or 0)
+    )
+
+
+def _issue(
+    hypothesis_id: str,
+    axis: str,
+    boundary_index: int | None,
+    reason_code: str,
+) -> dict[str, Any]:
+    return {
+        "hypothesis_id": hypothesis_id,
+        "axis": axis,
+        "boundary_index": boundary_index,
+        "reason_code": reason_code,
+        "retry_scope": (
+            "local_boundary_or_span_region"
+            if axis in {"row", "column", "span"}
+            else "full_table_crop"
+        ),
+    }
+
+
+def _bbox(value: Any) -> list[float] | None:
+    if (
+        not isinstance(value, list)
+        or len(value) != 4
+        or any(
+            not isinstance(item, (int, float))
+            or isinstance(item, bool)
+            or not math.isfinite(float(item))
+            for item in value
+        )
+    ):
+        return None
+    result = [float(item) for item in value]
+    if result[2] <= result[0] or result[3] <= result[1]:
+        return None
+    return result
+
+
+def _object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _dicts(value: Any) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []

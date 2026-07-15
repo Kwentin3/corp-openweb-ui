@@ -81,6 +81,59 @@ def render_compact_report(report: dict) -> str:
         lines.extend(["", "Форматы:"])
         for key, count in sorted(container_counts.items()):
             lines.append(f"- {CONTAINER_LABELS.get(str(key), str(key))}: {count}")
+    processing_outcomes = report.get("file_processing_outcomes") or {}
+    if isinstance(processing_outcomes, dict) and processing_outcomes.get("outcomes"):
+        lines.extend(["", "Результат обработки файлов:"])
+        lines.append(f"- {processing_outcomes.get('user_message') or 'Обработка завершена.'}")
+        for outcome in processing_outcomes.get("outcomes", []):
+            if not isinstance(outcome, dict):
+                continue
+            lines.append(
+                f"- {outcome.get('file_ref')}: "
+                f"{outcome.get('user_message') or 'Требуется проверка результата.'}"
+            )
+    structural_shadow = report.get("pdf_structural_repair_shadow") or {}
+    structural_summary = (
+        structural_shadow.get("summary")
+        if isinstance(structural_shadow, dict)
+        else None
+    )
+    if isinstance(structural_summary, dict) and structural_summary.get("enabled") is True:
+        lines.extend(["", "Автоматическая проверка структуры PDF-таблиц:"])
+        lines.append(
+            "- Выбрано таблиц: "
+            f"{int(structural_summary.get('tables_selected') or 0)}; "
+            "согласовано двумя проверками: "
+            f"{int(structural_summary.get('accepted_unique_consensus_tables') or 0)}"
+        )
+        continuation_groups_discovered = int(
+            structural_summary.get("continuation_groups_discovered") or 0
+        )
+        continuation_groups_accepted = int(
+            structural_summary.get("continuation_groups_accepted") or 0
+        )
+        continuation_groups_failed = int(
+            structural_summary.get("continuation_groups_failed") or 0
+        )
+        if continuation_groups_discovered or continuation_groups_failed:
+            lines.append(
+                "- Продолжения таблиц на соседней странице: "
+                f"найдено {continuation_groups_discovered}; "
+                f"аккуратно объединено {continuation_groups_accepted}; "
+                f"требует проверки {continuation_groups_failed}."
+            )
+        lines.append("- Режим: проверочный shadow; основной результат Gate 2 не изменён.")
+        structural_batch = structural_summary.get("file_processing_outcomes") or {}
+        if isinstance(structural_batch, dict) and structural_batch.get("outcomes"):
+            lines.append(
+                f"- {structural_batch.get('user_message') or 'Проверка файлов завершена.'}"
+            )
+            for outcome in structural_batch.get("outcomes", []):
+                if isinstance(outcome, dict):
+                    lines.append(
+                        f"- {outcome.get('file_ref')}: "
+                        f"{outcome.get('user_message') or 'Требуется проверка результата.'}"
+                    )
     class_counts = report.get("document_class_counts") or {}
     if class_counts:
         lines.extend(["", "Найденные типы документов:"])
