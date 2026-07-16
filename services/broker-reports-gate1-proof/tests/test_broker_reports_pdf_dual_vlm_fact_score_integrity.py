@@ -130,6 +130,47 @@ def test_human_reference_rejects_duplicate_case_ids_and_ai_reviewer() -> None:
     assert ai_reviewer.value.code == "dual_vlm_human_reviewer_invalid"
 
 
+def test_reference_fact_accepts_explicitly_confirmed_header_absence() -> None:
+    crop_sha = "a" * 64
+    fact = _complete_reference_fact(crop_sha=crop_sha)
+    fact["header_path"] = []
+    fact["source_regions"]["header"] = []
+    fact["uncertainty"] = ["header_not_present_in_source"]
+
+    SCORE._validate_reference_fact(fact, crop_sha=crop_sha)
+
+
+def test_reference_fact_rejects_unclassified_empty_header_path() -> None:
+    crop_sha = "a" * 64
+    fact = _complete_reference_fact(crop_sha=crop_sha)
+    fact["header_path"] = []
+    fact["source_regions"]["header"] = []
+
+    with pytest.raises(SCORE.ScoreError) as error:
+        SCORE._validate_reference_fact(fact, crop_sha=crop_sha)
+
+    assert error.value.code == "dual_vlm_human_reference_fact_source_incomplete"
+
+
+def test_headerless_reference_support_does_not_enable_runtime_evidence() -> None:
+    runtime_fact = {
+        "observed": {
+            "row_label_exact": "Cash",
+            "header_path_exact": [],
+            "source_regions": {
+                "row_label_bbox": [0.1, 0.2, 0.3, 0.3],
+                "value_bbox": [0.7, 0.2, 0.9, 0.3],
+                "header_bboxes": [],
+            },
+        },
+        "interpreted": {"period": "2025"},
+        "evidence_request": {"requested_text": {"period_exact": "2025"}},
+    }
+
+    assert CONTRACTS._fact_evidence_prerequisites(runtime_fact) is False
+    assert CONTRACTS._source_regions_compatible(runtime_fact, runtime_fact) is False
+
+
 def test_crop_validation_replays_consensus_and_checks_provider_identity() -> None:
     manifest_case, case_input, candidate, crop = _valid_crop_fixture()
     SCORE._validate_terminal_crop(crop, candidate, manifest_case, case_input)
@@ -757,6 +798,40 @@ def _reference_fact(row: str, value: str) -> dict[str, Any]:
         "entity": None,
         "qualifiers": [],
         "source_regions": {},
+    }
+
+
+def _complete_reference_fact(*, crop_sha: str) -> dict[str, Any]:
+    def locator(text: str, bbox: list[float]) -> dict[str, Any]:
+        return {
+            "artifact_sha256": crop_sha,
+            "bbox_normalized": bbox,
+            "visible_text": text,
+        }
+
+    return {
+        "fact_id": "fact_cash",
+        "fact_type": "monetary_balance",
+        "row_label": "Cash",
+        "normalized_row_identity": "cash",
+        "header_path": ["Amount"],
+        "visible_value": "$ 100",
+        "numeric_value": "100",
+        "sign": "positive",
+        "period": None,
+        "currency": None,
+        "unit": None,
+        "scale": None,
+        "entity": None,
+        "qualifiers": [],
+        "source_regions": {
+            "row_label": locator("Cash", [0.05, 0.2, 0.35, 0.3]),
+            "header": [locator("Amount", [0.6, 0.05, 0.95, 0.15])],
+            "value": locator("$ 100", [0.65, 0.2, 0.95, 0.3]),
+            "context": [],
+        },
+        "uncertainty": [],
+        "alternative_interpretation": None,
     }
 
 

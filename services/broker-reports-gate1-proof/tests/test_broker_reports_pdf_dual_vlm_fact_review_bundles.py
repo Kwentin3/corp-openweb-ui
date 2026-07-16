@@ -101,6 +101,344 @@ def test_proposed_facts_are_explicitly_unreviewed_and_source_linked() -> None:
     assert "proposed_from_unreviewed_legacy_grid" in fact["uncertainty"]
 
 
+def test_proposed_facts_select_value_column_and_join_split_header_cells() -> None:
+    legacy_region = {
+        "region_id": "r1",
+        "header_rows": [1, 2],
+        "cells": [
+            ["", "Minimum Lease Payments", ""],
+            ["", "Office Space", "Retail Space"],
+            ["2026", "$ 446,880", "$ 338,333"],
+        ],
+    }
+    table = {
+        "physical": {
+            "cells": [
+                {
+                    "row_id": "header_1",
+                    "column_id": "col_1",
+                    "text": "Minimum",
+                    "bbox": [0.4, 0.1, 0.55, 0.15],
+                },
+                {
+                    "row_id": "header_2",
+                    "column_id": "col_1",
+                    "text": "Lease Payments",
+                    "bbox": [0.4, 0.15, 0.6, 0.2],
+                },
+                {
+                    "row_id": "header_3",
+                    "column_id": "col_1",
+                    "text": "Office Space",
+                    "bbox": [0.4, 0.2, 0.6, 0.25],
+                },
+                {
+                    "row_id": "header_3",
+                    "column_id": "col_2",
+                    "text": "Retail Space",
+                    "bbox": [0.7, 0.2, 0.9, 0.25],
+                },
+                {
+                    "row_id": "row_2026",
+                    "column_id": "col_0",
+                    "text": "2026",
+                    "bbox": [0.1, 0.3, 0.2, 0.4],
+                },
+                {
+                    "row_id": "row_2026",
+                    "column_id": "col_1",
+                    "text": "$",
+                    "bbox": [0.4, 0.3, 0.45, 0.4],
+                },
+                {
+                    "row_id": "row_2026",
+                    "column_id": "col_1",
+                    "text": "446,880",
+                    "bbox": [0.46, 0.3, 0.6, 0.4],
+                },
+                {
+                    "row_id": "row_2026",
+                    "column_id": "col_2",
+                    "text": "$",
+                    "bbox": [0.7, 0.3, 0.75, 0.4],
+                },
+                {
+                    "row_id": "row_2026",
+                    "column_id": "col_2",
+                    "text": "338,333",
+                    "bbox": [0.76, 0.3, 0.9, 0.4],
+                },
+            ]
+        }
+    }
+
+    facts = REFERENCE._proposed_facts(
+        legacy_region=legacy_region,
+        prior_tables=[table],
+        crop_bbox=[0.0, 0.0, 1.0, 1.0],
+        crop_sha256="a" * 64,
+    )
+
+    assert len(facts) == 2
+    office, retail = facts
+    assert office["source_regions"]["value"]["visible_text"] == "$ 446,880"
+    assert office["source_regions"]["value"]["bbox_normalized"] == [
+        0.4,
+        0.3,
+        0.6,
+        0.4,
+    ]
+    assert retail["source_regions"]["value"]["visible_text"] == "$ 338,333"
+    assert retail["source_regions"]["value"]["bbox_normalized"] == [
+        0.7,
+        0.3,
+        0.9,
+        0.4,
+    ]
+    assert [item["visible_text"] for item in office["source_regions"]["header"]] == [
+        "Minimum Lease Payments",
+        "Office Space",
+    ]
+    assert [item["visible_text"] for item in retail["source_regions"]["header"]] == [
+        "Retail Space"
+    ]
+    assert "source_locator_requires_human_correction" not in office["uncertainty"]
+    assert "source_locator_requires_human_correction" not in retail["uncertainty"]
+
+
+def test_proposed_headerless_fact_records_explicit_source_classification() -> None:
+    facts = REFERENCE._proposed_facts(
+        legacy_region={
+            "region_id": "r1",
+            "header_rows": [],
+            "cells": [["Cash", "$ 100"]],
+        },
+        prior_tables=[
+            {
+                "physical": {
+                    "cells": [
+                        {
+                            "row_id": "cash",
+                            "text": "Cash",
+                            "bbox": [0.1, 0.4, 0.4, 0.5],
+                        },
+                        {
+                            "row_id": "cash",
+                            "text": "$ 100",
+                            "bbox": [0.6, 0.4, 0.9, 0.5],
+                        },
+                    ]
+                }
+            }
+        ],
+        crop_bbox=[0.0, 0.0, 1.0, 1.0],
+        crop_sha256="a" * 64,
+    )
+
+    assert len(facts) == 1
+    assert facts[0]["header_path"] == []
+    assert facts[0]["source_regions"]["header"] == []
+    assert "header_not_present_in_source" in facts[0]["uncertainty"]
+
+
+def test_proposed_fact_uses_structural_value_column_only_with_human_warning() -> None:
+    facts = REFERENCE._proposed_facts(
+        legacy_region={
+            "region_id": "r1",
+            "header_rows": [1],
+            "cells": [
+                ["", "Office Space", "Retail Space"],
+                ["Interest", "(17,044)", "(849,477)"],
+            ],
+        },
+        prior_tables=[
+            {
+                "physical": {
+                    "cells": [
+                        {
+                            "row_id": "header",
+                            "column_id": "col_1",
+                            "text": "Office Space",
+                            "bbox": [0.4, 0.1, 0.6, 0.2],
+                        },
+                        {
+                            "row_id": "header",
+                            "column_id": "col_2",
+                            "text": "Retail Space",
+                            "bbox": [0.7, 0.1, 0.9, 0.2],
+                        },
+                        {
+                            "row_id": "interest",
+                            "column_id": "col_0",
+                            "text": "Interest",
+                            "bbox": [0.1, 0.3, 0.3, 0.4],
+                        },
+                        {
+                            "row_id": "interest",
+                            "column_id": "col_1",
+                            "text": "(17,044)",
+                            "bbox": [0.4, 0.3, 0.6, 0.4],
+                        },
+                        {
+                            "row_id": "interest",
+                            "column_id": "col_2",
+                            "text": "(849,777)",
+                            "bbox": [0.7, 0.3, 0.9, 0.4],
+                        },
+                    ]
+                }
+            }
+        ],
+        crop_bbox=[0.0, 0.0, 1.0, 1.0],
+        crop_sha256="a" * 64,
+    )
+
+    retail = facts[1]
+    assert retail["visible_value"] == "(849,477)"
+    assert retail["source_regions"]["value"]["bbox_normalized"] == [
+        0.7,
+        0.3,
+        0.9,
+        0.4,
+    ]
+    assert (
+        "source_locator_text_mismatch_requires_human_confirmation"
+        in retail["uncertainty"]
+    )
+    assert "source_locator_requires_human_correction" not in retail["uncertainty"]
+
+
+def test_exact_value_match_cannot_jump_to_another_physical_column() -> None:
+    facts = REFERENCE._proposed_facts(
+        legacy_region={
+            "region_id": "r1",
+            "header_rows": [],
+            "cells": [["Cash", "100", "100"]],
+        },
+        prior_tables=[
+            {
+                "physical": {
+                    "cells": [
+                        {
+                            "row_id": "cash",
+                            "column_id": "col_0",
+                            "text": "Cash",
+                            "bbox": [0.1, 0.3, 0.3, 0.4],
+                        },
+                        {
+                            "row_id": "cash",
+                            "column_id": "col_1",
+                            "text": "100",
+                            "bbox": [0.4, 0.3, 0.6, 0.4],
+                        },
+                        {
+                            "row_id": "cash",
+                            "column_id": "col_2",
+                            "text": "101",
+                            "bbox": [0.7, 0.3, 0.9, 0.4],
+                        },
+                    ]
+                }
+            }
+        ],
+        crop_bbox=[0.0, 0.0, 1.0, 1.0],
+        crop_sha256="a" * 64,
+    )
+
+    second_column = facts[1]
+    assert second_column["source_regions"]["value"]["bbox_normalized"] == [
+        0.7,
+        0.3,
+        0.9,
+        0.4,
+    ]
+    assert (
+        "source_locator_text_mismatch_requires_human_confirmation"
+        in second_column["uncertainty"]
+    )
+
+
+def test_expected_structural_locator_mismatch_set_is_frozen() -> None:
+    case_id, region_id, fact_id = next(
+        iter(REFERENCE.EXPECTED_STRUCTURAL_LOCATOR_TEXT_MISMATCHES)
+    ).split(":")
+    matching = [
+        {
+            "case_id": case_id,
+            "regions": [
+                {
+                    "region_id": region_id,
+                    "facts": [
+                        {
+                            "fact_id": fact_id,
+                            "uncertainty": [
+                                "source_locator_text_mismatch_requires_human_confirmation"
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    REFERENCE._require_expected_structural_locator_text_mismatches(matching)
+    matching[0]["regions"][0]["facts"].append(
+        {
+            "fact_id": "unexpected",
+            "uncertainty": ["source_locator_text_mismatch_requires_human_confirmation"],
+        }
+    )
+    with pytest.raises(
+        REFERENCE.ReferencePackError,
+        match="reference_pack_unexpected_locator_text_mismatch",
+    ):
+        REFERENCE._require_expected_structural_locator_text_mismatches(matching)
+
+
+def test_exact_value_match_wins_over_earlier_structural_fallback() -> None:
+    def table(value: str, x0: float) -> dict:
+        return {
+            "physical": {
+                "cells": [
+                    {
+                        "row_id": "row",
+                        "column_id": "col_0",
+                        "text": "Interest",
+                        "bbox": [0.1, 0.3, 0.3, 0.4],
+                    },
+                    {
+                        "row_id": "row",
+                        "column_id": "col_1",
+                        "text": value,
+                        "bbox": [x0, 0.3, x0 + 0.2, 0.4],
+                    },
+                ]
+            }
+        }
+
+    facts = REFERENCE._proposed_facts(
+        legacy_region={
+            "region_id": "r1",
+            "header_rows": [],
+            "cells": [["Interest", "218"]],
+        },
+        prior_tables=[table("219", 0.4), table("218", 0.7)],
+        crop_bbox=[0.0, 0.0, 1.0, 1.0],
+        crop_sha256="a" * 64,
+    )
+
+    assert facts[0]["source_regions"]["value"]["bbox_normalized"] == [
+        0.7,
+        0.3,
+        0.9,
+        0.4,
+    ]
+    assert (
+        "source_locator_text_mismatch_requires_human_confirmation"
+        not in facts[0]["uncertainty"]
+    )
+
+
 def test_operator_bundle_preserves_sealed_lineage_and_review_controls(
     tmp_path: Path,
 ) -> None:
@@ -133,8 +471,26 @@ def test_operator_bundle_preserves_sealed_lineage_and_review_controls(
                         "crop_artifact": "artifacts/case_1/crop.private.png",
                         "terminal_status": "completed",
                         "evidence_medium": "text_layer",
-                        "gemini": {"status": "completed", "output": {"facts": []}},
-                        "openai": {"status": "completed", "output": {"facts": []}},
+                        "gemini": {
+                            "status": "completed",
+                            "output": {"facts": []},
+                            "operation": {
+                                "attempt": {
+                                    "canonical_schema_hash": "d" * 64,
+                                    "adapted_schema_hash": "e" * 64,
+                                }
+                            },
+                        },
+                        "openai": {
+                            "status": "completed",
+                            "output": {"facts": []},
+                            "operation": {
+                                "attempt": {
+                                    "canonical_schema_hash": "f" * 64,
+                                    "adapted_schema_hash": "f" * 64,
+                                }
+                            },
+                        },
                         "consensus": {
                             "entries": [
                                 {
@@ -196,6 +552,17 @@ def test_operator_bundle_preserves_sealed_lineage_and_review_controls(
     assert '<html lang="ru">' in rendered
     assert "Проверка данных из таблиц PDF" in rendered
     assert "Ответ Gemini" in rendered and "Ответ OpenAI" in rendered
+    assert "Распарсенный ответ до проверки общего контракта" in rendered
+    assert "Служебные данные API и адаптации схемы Gemini" in rendered
+    assert "Служебные данные API и адаптации схемы OpenAI" in rendered
+    assert "Схема была адаптирована под API провайдера" in rendered
+    assert "Схема передана без адаптации" in rendered
+    assert "Полный служебный ответ API здесь не показан" in rendered
+    assert index["cards"][0]["gemini"]["output"] == {"facts": []}
+    assert index["cards"][0]["gemini"]["operation"]["attempt"] == {
+        "canonical_schema_hash": "d" * 64,
+        "adapted_schema_hash": "e" * 64,
+    }
     assert "Сравнение ответов моделей" in rendered
     assert "Проверка по исходному PDF" in rendered
     assert "Подтвердить" in rendered and "Неоднозначно" in rendered

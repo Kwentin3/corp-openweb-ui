@@ -1052,6 +1052,7 @@ def _validate_reference_fact(fact: dict[str, Any], *, crop_sha: str) -> None:
         "fact_id",
         "fact_type",
         "row_label",
+        "normalized_row_identity",
         "header_path",
         "visible_value",
         "numeric_value",
@@ -1095,9 +1096,14 @@ def _validate_reference_fact(fact: dict[str, Any], *, crop_sha: str) -> None:
         sources.get("row_label") is None
         or sources.get("value") is None
         or not isinstance(headers, list)
-        or not headers
         or len(headers) != len(fact["header_path"])
         or not isinstance(context, list)
+    ):
+        raise ScoreError("dual_vlm_human_reference_fact_source_incomplete")
+    if (
+        not headers
+        and not fact["header_path"]
+        and "header_not_present_in_source" not in fact["uncertainty"]
     ):
         raise ScoreError("dual_vlm_human_reference_fact_source_incomplete")
     locators = [sources["row_label"], *headers, sources["value"], *context]

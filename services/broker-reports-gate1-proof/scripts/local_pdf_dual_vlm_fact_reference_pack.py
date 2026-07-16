@@ -40,6 +40,9 @@ DEFAULT_CORPUS_ROOT = (
     / "broker_reports_pdf_structural_holdout_public_v5_2026-07-15"
     / "corpus"
 )
+EXPECTED_STRUCTURAL_LOCATOR_TEXT_MISMATCHES = frozenset(
+    {"moomoo_annual_p14:r2:r2_row_10_col_3"}
+)
 
 
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -226,6 +229,8 @@ def _prepare(args: argparse.Namespace) -> int:
             }
         )
 
+    _require_expected_structural_locator_text_mismatches(proposal_cases)
+
     proposed = {
         "schema_version": PROPOSED_REFERENCE_SCHEMA,
         "benchmark_id": str(manifest["benchmark_id"]),
@@ -374,15 +379,20 @@ def _proposed_facts(
             if numeric is None:
                 continue
             header_path = _header_path(rows, header_indices, column_index)
-            locators = _fact_locators(
+            locators, locator_uncertainty = _fact_locators(
                 prior_tables=prior_tables,
                 row_label=row_label,
                 visible_value=visible_value,
                 header_path=header_path,
+                value_column_index=column_index,
+                total_value_columns=len(row) - 1,
                 crop_bbox=crop_bbox,
                 crop_sha256=crop_sha256,
             )
             uncertainty = ["proposed_from_unreviewed_legacy_grid"]
+            uncertainty.extend(locator_uncertainty)
+            if not header_path:
+                uncertainty.append("header_not_present_in_source")
             if (
                 locators["row_label"] is None
                 or locators["value"] is None
@@ -415,37 +425,54 @@ def _proposed_facts(
     return facts
 
 
+def _require_expected_structural_locator_text_mismatches(
+    proposal_cases: list[dict[str, Any]],
+) -> None:
+    actual = {
+        f"{case['case_id']}:{region['region_id']}:{fact['fact_id']}"
+        for case in proposal_cases
+        for region in case["regions"]
+        for fact in region["facts"]
+        if "source_locator_text_mismatch_requires_human_confirmation"
+        in fact["uncertainty"]
+    }
+    if actual != EXPECTED_STRUCTURAL_LOCATOR_TEXT_MISMATCHES:
+        raise ReferencePackError("reference_pack_unexpected_locator_text_mismatch")
+
+
 def _fact_locators(
     *,
     prior_tables: list[dict[str, Any]],
     row_label: str,
     visible_value: str,
     header_path: list[str],
+    value_column_index: int,
+    total_value_columns: int,
     crop_bbox: list[float],
     crop_sha256: str,
-) -> dict[str, Any]:
-    row_match = _matching_prior_row(prior_tables, row_label, visible_value)
+) -> tuple[dict[str, Any], list[str]]:
+    row_match = _matching_prior_row(
+        prior_tables,
+        row_label,
+        visible_value,
+        value_column_index=value_column_index,
+        total_value_columns=total_value_columns,
+    )
     row_locator = None
     value_locator = None
     header_locators: list[dict[str, Any]] = []
+    uncertainty: list[str] = []
     if row_match is not None:
-        table, cells = row_match
-        row_cells = [
-            cell for cell in cells if _same_visible(cell.get("text"), row_label)
-        ]
-        value_cells = [
-            cell
-            for cell in cells
-            if cell not in row_cells and str(cell.get("text") or "").strip()
-        ]
+        table, row_cells, value_cells, value_text_matched = row_match
+        if not value_text_matched:
+            uncertainty.append(
+                "source_locator_text_mismatch_requires_human_confirmation"
+            )
         if row_cells:
             row_locator = _locator(
                 crop_sha256, row_label, _union_cell_bbox(row_cells), crop_bbox
             )
-        if value_cells and _same_visible(
-            " ".join(str(cell.get("text") or "") for cell in value_cells),
-            visible_value,
-        ):
+        if value_cells:
             value_locator = _locator(
                 crop_sha256,
                 visible_value,
@@ -453,32 +480,55 @@ def _fact_locators(
                 crop_bbox,
             )
         all_cells = (table.get("physical") or {}).get("cells") or []
+        target_column_ids = {
+            cell.get("column_id")
+            for cell in value_cells
+            if isinstance(cell.get("column_id"), str)
+        }
+        target_column_cells = [
+            cell for cell in all_cells if cell.get("column_id") in target_column_ids
+        ]
         for header in header_path:
-            candidates = [
-                cell
-                for cell in all_cells
-                if isinstance(cell, dict) and _same_visible(cell.get("text"), header)
-            ]
+            candidates = _matching_text_cells(target_column_cells, header)
+            if not candidates:
+                candidates = _matching_text_cells(all_cells, header)
             if candidates:
                 header_locators.append(
                     _locator(
                         crop_sha256,
                         header,
-                        [float(item) for item in candidates[0]["bbox"]],
+                        _union_cell_bbox(candidates),
                         crop_bbox,
                     )
                 )
-    return {
-        "row_label": row_locator,
-        "header": header_locators,
-        "value": value_locator,
-        "context": [],
-    }
+    return (
+        {
+            "row_label": row_locator,
+            "header": header_locators,
+            "value": value_locator,
+            "context": [],
+        },
+        uncertainty,
+    )
 
 
 def _matching_prior_row(
-    tables: list[dict[str, Any]], row_label: str, visible_value: str
-) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    tables: list[dict[str, Any]],
+    row_label: str,
+    visible_value: str,
+    *,
+    value_column_index: int,
+    total_value_columns: int,
+) -> (
+    tuple[
+        dict[str, Any],
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+        bool,
+    ]
+    | None
+):
+    positional_fallback = None
     for table in tables:
         cells = (table.get("physical") or {}).get("cells") or []
         grouped: dict[str, list[dict[str, Any]]] = {}
@@ -486,19 +536,131 @@ def _matching_prior_row(
             if isinstance(cell, dict) and isinstance(cell.get("row_id"), str):
                 grouped.setdefault(cell["row_id"], []).append(cell)
         for row_cells in grouped.values():
-            visible = [
-                str(cell.get("text") or "").strip()
-                for cell in row_cells
-                if str(cell.get("text") or "").strip()
+            label_cells = [
+                cell for cell in row_cells if _same_visible(cell.get("text"), row_label)
             ]
-            if not any(_same_visible(item, row_label) for item in visible):
+            if not label_cells:
                 continue
-            value_parts = [
-                item for item in visible if not _same_visible(item, row_label)
+            value_candidates = [
+                cell
+                for cell in row_cells
+                if cell not in label_cells and str(cell.get("text") or "").strip()
             ]
-            if _same_visible(" ".join(value_parts), visible_value):
-                return table, row_cells
-    return None
+            target_value_cells = _positional_value_cells(
+                value_candidates,
+                value_column_index=value_column_index,
+                total_value_columns=total_value_columns,
+            )
+            if not target_value_cells:
+                continue
+            matches = _matching_text_cell_groups(target_value_cells, visible_value)
+            if matches:
+                return table, label_cells, matches[0], True
+            if positional_fallback is None:
+                positional_fallback = (
+                    table,
+                    label_cells,
+                    target_value_cells,
+                    False,
+                )
+    return positional_fallback
+
+
+def _positional_value_cells(
+    cells: list[dict[str, Any]],
+    *,
+    value_column_index: int,
+    total_value_columns: int,
+) -> list[dict[str, Any]]:
+    if total_value_columns == 1:
+        return cells
+    by_column: dict[str, list[dict[str, Any]]] = {}
+    for cell in cells:
+        column_id = cell.get("column_id")
+        if not isinstance(column_id, str):
+            return []
+        by_column.setdefault(column_id, []).append(cell)
+    columns = sorted(
+        by_column.values(),
+        key=lambda items: min(_cell_horizontal_order(item) for item in items),
+    )
+    if len(columns) != total_value_columns or not 1 <= value_column_index <= len(
+        columns
+    ):
+        return []
+    return columns[value_column_index - 1]
+
+
+def _matching_text_cells(cells: Any, visible_text: str) -> list[dict[str, Any]]:
+    valid = [
+        cell
+        for cell in cells or []
+        if isinstance(cell, dict)
+        and isinstance(cell.get("bbox"), (list, tuple))
+        and len(cell["bbox"]) == 4
+        and str(cell.get("text") or "").strip()
+    ]
+    exact = [cell for cell in valid if _same_visible(cell.get("text"), visible_text)]
+    if len(exact) == 1:
+        return exact
+    if len(exact) > 1:
+        return []
+
+    by_column: dict[str, list[dict[str, Any]]] = {}
+    for cell in valid:
+        column_id = cell.get("column_id")
+        if isinstance(column_id, str):
+            by_column.setdefault(column_id, []).append(cell)
+    column_matches: list[list[dict[str, Any]]] = []
+    for column_cells in by_column.values():
+        matches = _matching_text_cell_groups(
+            column_cells,
+            visible_text,
+            order_key=_cell_reading_order,
+        )
+        if len(matches) > 1:
+            return []
+        if matches:
+            column_matches.append(matches[0])
+    if len(column_matches) == 1:
+        return column_matches[0]
+    if len(column_matches) > 1:
+        return []
+    matches = _matching_text_cell_groups(
+        valid,
+        visible_text,
+        order_key=_cell_reading_order,
+    )
+    return matches[0] if len(matches) == 1 else []
+
+
+def _matching_text_cell_groups(
+    cells: list[dict[str, Any]],
+    visible_text: str,
+    *,
+    order_key: Any = None,
+) -> list[list[dict[str, Any]]]:
+    if order_key is None:
+        order_key = _cell_horizontal_order
+    ordered = sorted(cells, key=order_key)
+    matches: list[list[dict[str, Any]]] = []
+    for start in range(len(ordered)):
+        for end in range(start + 1, len(ordered) + 1):
+            candidate = ordered[start:end]
+            rendered = " ".join(str(cell.get("text") or "") for cell in candidate)
+            if _same_visible(rendered, visible_text):
+                matches.append(candidate)
+    return sorted(matches, key=lambda items: order_key(items[0]))
+
+
+def _cell_horizontal_order(cell: dict[str, Any]) -> tuple[float, float]:
+    bbox = [float(item) for item in cell["bbox"]]
+    return (bbox[0], bbox[1])
+
+
+def _cell_reading_order(cell: dict[str, Any]) -> tuple[float, float]:
+    bbox = [float(item) for item in cell["bbox"]]
+    return (bbox[1], bbox[0])
 
 
 def _prior_tables(case: dict[str, Any]) -> list[dict[str, Any]]:

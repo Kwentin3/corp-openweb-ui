@@ -247,6 +247,47 @@ class PdfDualVlmFactReviewTests(unittest.TestCase):
             (self.root / "final" / "reference.human-reviewed.private.json").exists()
         )
 
+    def test_approved_fact_with_explicit_empty_header_path_can_finalize(self) -> None:
+        proposal = self._proposal()
+        fact = proposal["cases"][0]["regions"][0]["facts"][0]
+        fact["header_path"] = []
+        fact["source_regions"]["header"] = []
+        fact["uncertainty"].append("header_not_present_in_source")
+        review_index = self._generate(proposal)["review_index"]
+        decisions = self._decisions(review_index)
+
+        result = REVIEW.finalize_human_reference(
+            proposed_reference=proposal,
+            review_index=review_index,
+            review_decisions=decisions,
+            output_dir=self.root / "empty-header-final",
+        )
+
+        reviewed_fact = result["reference"]["cases"][0]["regions"][0]["facts"][0]
+        self.assertEqual(reviewed_fact["fact"]["header_path"], [])
+        self.assertEqual(reviewed_fact["fact"]["source_regions"]["header"], [])
+        self.assertTrue(reviewed_fact["accepted_for_scoring"])
+
+    def test_approved_empty_header_path_requires_explicit_source_classification(
+        self,
+    ) -> None:
+        proposal = self._proposal()
+        fact = proposal["cases"][0]["regions"][0]["facts"][0]
+        fact["header_path"] = []
+        fact["source_regions"]["header"] = []
+        review_index = self._generate(proposal)["review_index"]
+        decisions = self._decisions(review_index)
+
+        with self.assertRaisesRegex(
+            REVIEW.ReviewContractError, "review_accepted_fact_incomplete"
+        ):
+            REVIEW.finalize_human_reference(
+                proposed_reference=proposal,
+                review_index=review_index,
+                review_decisions=decisions,
+                output_dir=self.root / "unclassified-empty-header-final",
+            )
+
     def test_approved_fact_header_source_must_match_reviewed_header_path(self) -> None:
         proposal = self._proposal()
         proposal["cases"][0]["regions"][0]["facts"][0]["source_regions"]["header"][0][
@@ -263,6 +304,29 @@ class PdfDualVlmFactReviewTests(unittest.TestCase):
                 review_index=review_index,
                 review_decisions=decisions,
                 output_dir=self.root / "header-mismatch-final",
+            )
+
+    def test_approved_context_source_must_share_crop_lineage(self) -> None:
+        proposal = self._proposal()
+        fact = proposal["cases"][0]["regions"][0]["facts"][0]
+        fact["source_regions"]["context"] = [
+            {
+                "artifact_sha256": "d" * 64,
+                "bbox_normalized": [0.05, 0.05, 0.3, 0.12],
+                "visible_text": "Context",
+            }
+        ]
+        review_index = self._generate(proposal)["review_index"]
+        decisions = self._decisions(review_index)
+
+        with self.assertRaisesRegex(
+            REVIEW.ReviewContractError, "review_accepted_fact_incomplete"
+        ):
+            REVIEW.finalize_human_reference(
+                proposed_reference=proposal,
+                review_index=review_index,
+                review_decisions=decisions,
+                output_dir=self.root / "context-lineage-final",
             )
 
     def test_corrected_fact_is_explicit_and_becomes_scoring_reference(self) -> None:

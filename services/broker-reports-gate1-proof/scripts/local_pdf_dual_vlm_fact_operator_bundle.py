@@ -555,6 +555,9 @@ def _evidence_overlays(value: Any) -> str:
 def _render_provider(label: str, value: Any) -> str:
     if not isinstance(value, dict):
         summary = "Ответ отсутствует."
+        output = None
+        metadata = None
+        schema_summary = "Нет данных о схеме ответа."
     else:
         status = _mapped_label(
             value.get("status"),
@@ -571,10 +574,34 @@ def _render_provider(label: str, value: Any) -> str:
             f"Статус: {status}. Найдено показателей: {fact_count}. "
             f"Ошибок формата: {error_count}."
         )
+        metadata = {
+            "status": value.get("status"),
+            "contract_errors": copy.deepcopy(value.get("contract_errors") or []),
+            "operation": copy.deepcopy(value.get("operation")),
+        }
+        operation = value.get("operation")
+        operation = operation if isinstance(operation, dict) else {}
+        attempt = operation.get("attempt")
+        attempt = attempt if isinstance(attempt, dict) else {}
+        canonical_hash = attempt.get("canonical_schema_hash")
+        adapted_hash = attempt.get("adapted_schema_hash")
+        if isinstance(canonical_hash, str) and isinstance(adapted_hash, str):
+            schema_summary = (
+                "Схема передана без адаптации."
+                if canonical_hash == adapted_hash
+                else "Схема была адаптирована под API провайдера."
+            )
+        else:
+            schema_summary = "Нет данных о способе передачи схемы."
     return (
         f'<section class="summary"><h3>Ответ {html.escape(label)}</h3>'
         f"<p>{html.escape(summary)}</p>"
-        + _json_details(f"Технические данные {label}", value)
+        "<p>Обе модели должны вернуть данные в одном общем формате. Способ доставки "
+        "и схема, принятая API провайдера, могут отличаться. Полный служебный ответ "
+        "API здесь не показан.</p>"
+        f"<p><strong>Передача схемы:</strong> {html.escape(schema_summary)}</p>"
+        + _json_details("Распарсенный ответ до проверки общего контракта", output)
+        + _json_details(f"Служебные данные API и адаптации схемы {label}", metadata)
         + "</section>"
     )
 

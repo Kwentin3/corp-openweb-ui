@@ -735,18 +735,22 @@ def _validate_source_regions(
         return
     if row is None:
         errors.append(f"review_fact_row_source_missing:{path}.row_label")
-    if (
-        not isinstance(headers, list)
-        or not headers
-        or len(headers) != len(fact["header_path"])
-    ):
+    if not isinstance(headers, list) or len(headers) != len(fact["header_path"]):
         errors.append(f"review_fact_header_source_missing:{path}.header")
+    if (
+        isinstance(headers, list)
+        and not headers
+        and not fact["header_path"]
+        and "header_not_present_in_source" not in fact["uncertainty"]
+    ):
+        errors.append(f"review_fact_header_absence_unconfirmed:{path}.header")
     if fact_value is None:
         errors.append(f"review_fact_value_source_missing:{path}.value")
     locators = (
         ([row] if row is not None else [])
         + (headers if isinstance(headers, list) else [])
         + ([fact_value] if fact_value is not None else [])
+        + (context if isinstance(context, list) else [])
     )
     for locator in locators:
         if (
