@@ -1,0 +1,257 @@
+{
+  "schema_version": "broker_reports_pdf_table_strategy_benchmark_manifest_v1",
+  "benchmark_id": "pdf_table_strategy_v1",
+  "corpus_role": "development_benchmark",
+  "frozen": true,
+  "case_count": 8,
+  "source_corpus": {
+    "policy_id": "official_public_broker_pdf_2026_07_15_v5",
+    "repo_relative_root": "local/stage2/broker_reports_pdf_structural_holdout_public_v5_2026-07-15/corpus"
+  },
+  "rendering_contract": {
+    "dpi": 150,
+    "page_bbox_points": [
+      0.0,
+      0.0,
+      612.0,
+      792.0
+    ],
+    "pixel_format": "png",
+    "lossless": true
+  },
+  "provider_contract": {
+    "provider_profile": "google_gemini",
+    "model_id": "models/gemini-3.5-flash",
+    "maximum_counted_input_tokens": 24000,
+    "maximum_output_tokens": 16384,
+    "hidden_retry": false,
+    "provider_failover": false,
+    "pricing": {
+      "currency": "USD",
+      "input_usd_per_1m_tokens": 1.5,
+      "output_usd_per_1m_tokens": 9.0,
+      "effective_date": "2026-07-16",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing"
+    }
+  },
+  "prompt_contract_versions": {
+    "direct": "direct_v1",
+    "detection": "detection_v1",
+    "crop": "crop_v1"
+  },
+  "strategies": [
+    {
+      "strategy_id": "A",
+      "strategy_key": "direct_vlm_extraction",
+      "prompt_contracts": [
+        "direct_v1"
+      ]
+    },
+    {
+      "strategy_id": "B",
+      "strategy_key": "two_step_vlm_extraction",
+      "prompt_contracts": [
+        "detection_v1",
+        "crop_v1"
+      ]
+    },
+    {
+      "strategy_id": "C",
+      "strategy_key": "hybrid_evidence_validation",
+      "prompt_contracts": [
+        "detection_v1",
+        "crop_v1"
+      ]
+    }
+  ],
+  "scoring_policy": {
+    "detection_iou_threshold": 0.5,
+    "bbox_coordinate_space": "page_normalized_top_left"
+  },
+  "reference_access": "forbidden",
+  "reference_boundary": {
+    "runner_may_accept_reference_argument": false,
+    "provider_may_receive_reference_data": false,
+    "reference_may_be_opened_only_after_terminal_seal": true
+  },
+  "required_categories": [
+    "simple_ruled",
+    "borderless",
+    "sparse_financial",
+    "multi_row_header",
+    "currency_symbol",
+    "compound_page",
+    "without_text_layer",
+    "raster_image"
+  ],
+  "cases": [
+    {
+      "case_id": "betterment_p02",
+      "broker": "betterment",
+      "category_tags": [
+        "table_of_contents"
+      ],
+      "relative_pdf": "betterment-financial-condition-2024.pdf",
+      "source_url": "https://www.betterment.com/BrokerageFinancialStatement",
+      "pdf_sha256": "fbe6a299b05615643a0f0264568c65a64bd857b6b77752163b8c2e52bbcbf71e",
+      "pdf_bytes": 288909,
+      "page_number": 2,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "betterment_p04",
+      "broker": "betterment",
+      "category_tags": [
+        "simple_ruled",
+        "currency_symbol",
+        "physical_semantic_collision"
+      ],
+      "relative_pdf": "betterment-financial-condition-2024.pdf",
+      "source_url": "https://www.betterment.com/BrokerageFinancialStatement",
+      "pdf_sha256": "fbe6a299b05615643a0f0264568c65a64bd857b6b77752163b8c2e52bbcbf71e",
+      "pdf_bytes": 288909,
+      "page_number": 4,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "drivewealth_p07",
+      "broker": "drivewealth",
+      "category_tags": [
+        "borderless",
+        "alignment_based"
+      ],
+      "relative_pdf": "drivewealth-institutional-financial-condition-2024.pdf",
+      "source_url": "https://legal.drivewealth.com/s/DWI-LLC-Financial-Statements-Short-Final-2024-1.pdf",
+      "pdf_sha256": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
+      "pdf_bytes": 1496464,
+      "page_number": 7,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "drivewealth_p09",
+      "broker": "drivewealth",
+      "category_tags": [
+        "simple_ruled",
+        "sparse_financial",
+        "currency_symbol",
+        "physical_semantic_collision"
+      ],
+      "relative_pdf": "drivewealth-institutional-financial-condition-2024.pdf",
+      "source_url": "https://legal.drivewealth.com/s/DWI-LLC-Financial-Statements-Short-Final-2024-1.pdf",
+      "pdf_sha256": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
+      "pdf_bytes": 1496464,
+      "page_number": 9,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "moomoo_annual_p14",
+      "broker": "moomoo",
+      "category_tags": [
+        "compound_page",
+        "multi_row_header",
+        "sparse_financial",
+        "without_text_layer",
+        "raster_image"
+      ],
+      "relative_pdf": "moomoo-financial-condition-2025.pdf",
+      "source_url": "https://static.moomoo.com/upload/mfisof/Moomoo%20Financial%20Inc.%20PUBLIC%20Audited%20Financial%20Statements%20FY2025%20%281%29-ba8fb8625ef66452e039e2a473127926.pdf?_=1773715326030",
+      "pdf_sha256": "bad1e5fa045f0735f02487aca14236d84037f82fd2b1230ee3c56ba3420aee67",
+      "pdf_bytes": 1865552,
+      "page_number": 14,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "moomoo_midyear_p10",
+      "broker": "moomoo",
+      "category_tags": [
+        "compound_page",
+        "mixed_text_and_raster",
+        "without_text_layer",
+        "raster_image"
+      ],
+      "relative_pdf": "moomoo-financial-condition-midyear-2025.pdf",
+      "source_url": "https://static.moomoo.com/upload/000mfi/Unaudited%20Statement%20of%20Financial%20Condition%20-%20June%2030%202025-8d048206e45d5de503724062532fcad8.pdf?_=1759326419559",
+      "pdf_sha256": "766448b2bf8b9ebe9172e4a07b0392134787a3b642288a93fbe6c0f9999ed0d3",
+      "pdf_bytes": 233753,
+      "page_number": 10,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "ibkr_annual_p11",
+      "broker": "ibkr",
+      "category_tags": [
+        "simple_ruled",
+        "dense_text"
+      ],
+      "relative_pdf": "ibkr-financial-condition-2025.pdf",
+      "source_url": "https://www.interactivebrokers.com/download/IB_LLC_4Q25_Aud_Finls.pdf",
+      "pdf_sha256": "6486885e58867d382bd433228193e476a07b6cea2061ddbd74bef1dc6c65a118",
+      "pdf_bytes": 1238967,
+      "page_number": 11,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    },
+    {
+      "case_id": "ibkr_midyear_p03",
+      "broker": "ibkr",
+      "category_tags": [
+        "borderless",
+        "sparse_financial",
+        "retained_prefix"
+      ],
+      "relative_pdf": "ibkr-financial-condition-midyear-2025.pdf",
+      "source_url": "https://www.interactivebrokers.com/download/IB_LLC_2025_UnAud_Finls.pdf",
+      "pdf_sha256": "d635df4866a040ce665bfde0da74dbf4dc8933931337a1b023377bf02cf60c2c",
+      "pdf_bytes": 281480,
+      "page_number": 3,
+      "page_bbox_points": [
+        0.0,
+        0.0,
+        612.0,
+        792.0
+      ],
+      "render_dpi": 150
+    }
+  ]
+}

@@ -1,0 +1,1071 @@
+{
+  "schema_version": "broker_reports_pdf_table_strategy_benchmark_reference_v1",
+  "benchmark_id": "pdf_table_strategy_v1",
+  "manifest_sha256": "b2067197b1510729abdf9c05f0e4a3af02b80b48f298c1e279e776493c7e708c",
+  "case_count": 8,
+  "provenance": {
+    "authoring_method": "agent_visual_plus_existing_cell_reference",
+    "human_reviewed": false,
+    "source_reference_path": "local/stage2/broker_reports_pdf_vlm_guided_intake_e2e_2026-07-15/private/development.repair-b31c80f.reference.private.json",
+    "source_reference_sha256": "5ea28daf72115402ae07db13721c6d28ce582f87cd8fc2b11cfc3ac97af28af3",
+    "bbox_source": "frozen_physical_bbox_set_2026_07_16"
+  },
+  "coordinate_contract": {
+    "page_bbox_points": [
+      0.0,
+      0.0,
+      612.0,
+      792.0
+    ],
+    "normalized_bbox_order": [
+      "x0",
+      "y0",
+      "x1",
+      "y1"
+    ],
+    "normalized_origin": "top_left"
+  },
+  "cases": [
+    {
+      "case_id": "betterment_p02",
+      "broker": "betterment",
+      "expected_kind": "negative",
+      "expected_regions": 0,
+      "regions": []
+    },
+    {
+      "case_id": "betterment_p04",
+      "broker": "betterment",
+      "expected_kind": "table",
+      "expected_regions": 1,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            54.0,
+            145.56,
+            557.64,
+            453.76
+          ],
+          "bbox_normalized": [
+            0.088235294,
+            0.183787879,
+            0.911176471,
+            0.572929293
+          ],
+          "rows": 21,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [
+            {
+              "start_row": 1,
+              "end_row": 1,
+              "start_column": 1,
+              "end_column": 2,
+              "relation": "merged"
+            },
+            {
+              "start_row": 12,
+              "end_row": 12,
+              "start_column": 1,
+              "end_column": 2,
+              "relation": "merged"
+            },
+            {
+              "start_row": 13,
+              "end_row": 13,
+              "start_column": 1,
+              "end_column": 2,
+              "relation": "merged"
+            }
+          ],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Assets",
+              ""
+            ],
+            [
+              "Cash and cash equivalents",
+              "$ 24,435,440"
+            ],
+            [
+              "Cash segregated under federal and other regulations",
+              "4,549,632"
+            ],
+            [
+              "Receivable from Clearing Broker",
+              "4,100,630"
+            ],
+            [
+              "Customer held fractional shares",
+              "541,282,761"
+            ],
+            [
+              "Receivable from customers",
+              "256,035"
+            ],
+            [
+              "Deposits with Clearing Broker",
+              "1,010,238"
+            ],
+            [
+              "Receivable from affiliate",
+              "1,037,826"
+            ],
+            [
+              "Receivable from vendors",
+              "1,856,866"
+            ],
+            [
+              "Prepaid expenses and other assets",
+              "209,206"
+            ],
+            [
+              "Total assets",
+              "$ 578,738,634"
+            ],
+            [
+              "Liabilities and Member's equity",
+              ""
+            ],
+            [
+              "Liabilities:",
+              ""
+            ],
+            [
+              "Payable to customers",
+              "$ 182,634"
+            ],
+            [
+              "Repurchase obligations for customer investments",
+              "541,282,761"
+            ],
+            [
+              "Accounts payable and accrued expenses",
+              "963,797"
+            ],
+            [
+              "Payable to Parent",
+              "648,032"
+            ],
+            [
+              "Payable to affiliate",
+              "199,097"
+            ],
+            [
+              "Total liabilities",
+              "543,276,321"
+            ],
+            [
+              "Member's equity",
+              "35,462,313"
+            ],
+            [
+              "Total liabilities and Member's equity",
+              "$ 578,738,634"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "drivewealth_p07",
+      "broker": "drivewealth",
+      "expected_kind": "table",
+      "expected_regions": 1,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            40.98,
+            60.0,
+            548.6002,
+            372.0
+          ],
+          "bbox_normalized": [
+            0.066960784,
+            0.075757576,
+            0.896405556,
+            0.46969697
+          ],
+          "rows": 16,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Assets",
+              ""
+            ],
+            [
+              "Cash and cash equivalents",
+              "$ 8,265"
+            ],
+            [
+              "Receivables, net:",
+              ""
+            ],
+            [
+              "Other brokers and exchanges",
+              "8,022"
+            ],
+            [
+              "Clearing brokers",
+              "7,018"
+            ],
+            [
+              "Deposit accounts with clearing brokers",
+              "367"
+            ],
+            [
+              "Due from affiliates",
+              "7"
+            ],
+            [
+              "Other assets",
+              "57"
+            ],
+            [
+              "Total Assets",
+              "$ 23,736"
+            ],
+            [
+              "Liabilities and Member's Equity",
+              ""
+            ],
+            [
+              "Liabilities",
+              ""
+            ],
+            [
+              "Accounts payable, accrued expenses, and other",
+              "$ 1,821"
+            ],
+            [
+              "Due to affiliates",
+              "4,022"
+            ],
+            [
+              "Total Liabilities",
+              "$ 5,843"
+            ],
+            [
+              "Member's Equity",
+              "17,893"
+            ],
+            [
+              "Total Liabilities and Member's Equity",
+              "$ 23,736"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "drivewealth_p09",
+      "broker": "drivewealth",
+      "expected_kind": "table",
+      "expected_regions": 1,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            65.88,
+            429.06,
+            557.58,
+            481.9685
+          ],
+          "bbox_normalized": [
+            0.107647059,
+            0.541742424,
+            0.911078431,
+            0.608546086
+          ],
+          "rows": 4,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "December 31, 2023",
+              "$ 6"
+            ],
+            [
+              "Provision for credit loss",
+              "34"
+            ],
+            [
+              "Write-offs",
+              "(6)"
+            ],
+            [
+              "December 31, 2024",
+              "$ 34"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "period_or_description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "period",
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "moomoo_annual_p14",
+      "broker": "moomoo",
+      "expected_kind": "table",
+      "expected_regions": 2,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            139.536,
+            142.56,
+            410.04,
+            201.96
+          ],
+          "bbox_normalized": [
+            0.228,
+            0.18,
+            0.67,
+            0.255
+          ],
+          "rows": 4,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Assets",
+              ""
+            ],
+            [
+              "Lease right-of-use assets",
+              "$ 3,630,021"
+            ],
+            [
+              "Liabilities",
+              ""
+            ],
+            [
+              "Lease liabilities",
+              "$ 4,045,137"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        },
+        {
+          "region_id": "r2",
+          "bbox_points": [
+            139.536,
+            247.104,
+            447.984,
+            423.72
+          ],
+          "bbox_normalized": [
+            0.228,
+            0.312,
+            0.732,
+            0.535
+          ],
+          "rows": 11,
+          "columns": 3,
+          "header_rows": [
+            1,
+            2
+          ],
+          "spans": [
+            {
+              "start_row": 1,
+              "end_row": 1,
+              "start_column": 2,
+              "end_column": 3,
+              "relation": "spanning_header"
+            }
+          ],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "",
+              "Minimum Lease Payments",
+              ""
+            ],
+            [
+              "",
+              "Office Space",
+              "Retail Space"
+            ],
+            [
+              "2026",
+              "$ 446,880",
+              "$ 338,333"
+            ],
+            [
+              "2027",
+              "112,560",
+              "417,150"
+            ],
+            [
+              "2028",
+              "-",
+              "429,664"
+            ],
+            [
+              "2029",
+              "-",
+              "442,554"
+            ],
+            [
+              "2030",
+              "-",
+              "455,831"
+            ],
+            [
+              "2031 and thereafter",
+              "-",
+              "2,268,685"
+            ],
+            [
+              "Total undiscounted lease payments",
+              "559,440",
+              "4,352,218"
+            ],
+            [
+              "Less imputed interest",
+              "(17,044)",
+              "(849,477)"
+            ],
+            [
+              "Total lease liability",
+              "$ 542,396",
+              "$ 3,502,741"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "period_or_description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "period",
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "office_space_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              },
+              {
+                "logical_column_id": "retail_space_amount",
+                "physical_column_indices": [
+                  3
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "office_space_amount",
+                    "retail_space_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "moomoo_midyear_p10",
+      "broker": "moomoo",
+      "expected_kind": "table",
+      "expected_regions": 2,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            157.896,
+            209.088,
+            397.8,
+            265.32
+          ],
+          "bbox_normalized": [
+            0.258,
+            0.264,
+            0.65,
+            0.335
+          ],
+          "rows": 4,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Assets",
+              ""
+            ],
+            [
+              "Lease right-of-use assets",
+              "$ 387,349"
+            ],
+            [
+              "Liabilities",
+              ""
+            ],
+            [
+              "Lease liabilities",
+              "$ 745,422"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        },
+        {
+          "region_id": "r2",
+          "bbox_points": [
+            195.84,
+            315.216,
+            414.936,
+            418.176
+          ],
+          "bbox_normalized": [
+            0.32,
+            0.398,
+            0.678,
+            0.528
+          ],
+          "rows": 7,
+          "columns": 2,
+          "header_rows": [
+            1
+          ],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "",
+              "Minimum Lease Payments"
+            ],
+            [
+              "2025",
+              "$ 218,400.00"
+            ],
+            [
+              "2026",
+              "446,880.00"
+            ],
+            [
+              "2027",
+              "112,560.00"
+            ],
+            [
+              "Total undiscounted lease payments",
+              "$ 777,840.00"
+            ],
+            [
+              "Less imputed Interest",
+              "(32,417.53)"
+            ],
+            [
+              "Total lease liability",
+              "$ 745,422.47"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "period_or_description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "period",
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "ibkr_annual_p11",
+      "broker": "ibkr",
+      "expected_kind": "table",
+      "expected_regions": 1,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            36.0,
+            420.8647,
+            576.0,
+            558.27
+          ],
+          "bbox_normalized": [
+            0.058823529,
+            0.531394823,
+            0.941176471,
+            0.704886364
+          ],
+          "rows": 2,
+          "columns": 3,
+          "header_rows": [
+            1
+          ],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Standard",
+              "Summary of guidance",
+              "Effect on statement of financial condition"
+            ],
+            [
+              "Income Taxes (Topic 740) Issued December 2023",
+              "Requires public companies to disclose specific categories in the rate reconciliation and provide additional information for reconciling items that meet a quantitative threshold. Requires companies to disclose the amount of income taxes paid disaggregated by federal, state, and foreign taxes and amount of income taxes paid disaggregated by individual jurisdictions in which income taxes paid is equal to or greater than five percent of total income taxes paid.",
+              "Effective for annual periods beginning after December 15, 2024. The Company has determined that the requirements did not have a material impact on its statement of financial condition."
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "standard",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "unknown"
+                ]
+              },
+              {
+                "logical_column_id": "guidance_summary",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "financial_condition_effect",
+                "physical_column_indices": [
+                  3
+                ],
+                "roles": [
+                  "description"
+                ]
+              }
+            ],
+            "qualifiers": [],
+            "expected_currency_code_status": "not_applicable"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "ibkr_midyear_p03",
+      "broker": "ibkr",
+      "expected_kind": "table",
+      "expected_regions": 1,
+      "regions": [
+        {
+          "region_id": "r1",
+          "bbox_points": [
+            36.0,
+            115.764,
+            576.0,
+            590.0
+          ],
+          "bbox_normalized": [
+            0.058823529,
+            0.146166667,
+            0.941176471,
+            0.744949495
+          ],
+          "rows": 30,
+          "columns": 2,
+          "header_rows": [],
+          "spans": [],
+          "header_hierarchy": [],
+          "cells": [
+            [
+              "Assets",
+              ""
+            ],
+            [
+              "Cash and cash equivalents",
+              "$ 2,392"
+            ],
+            [
+              "Cash - segregated for regulatory purposes",
+              "3,653"
+            ],
+            [
+              "Securities - segregated for regulatory purposes",
+              "36,245"
+            ],
+            [
+              "Securities borrowed",
+              "9,747"
+            ],
+            [
+              "Securities purchased under agreements to resell",
+              "9,529"
+            ],
+            [
+              "Financial instruments owned, at fair value",
+              "3,176"
+            ],
+            [
+              "Receivables",
+              ""
+            ],
+            [
+              "Customers (net of allowance for credit losses accounts of $17)",
+              "65,694"
+            ],
+            [
+              "Brokers, dealers and clearing organizations",
+              "2,846"
+            ],
+            [
+              "Affiliates",
+              "228"
+            ],
+            [
+              "Interest",
+              "367"
+            ],
+            [
+              "Total receivables",
+              "69,135"
+            ],
+            [
+              "Other assets",
+              "366"
+            ],
+            [
+              "Total assets",
+              "$ 134,243"
+            ],
+            [
+              "Liabilities and members' equity",
+              ""
+            ],
+            [
+              "Liabilities",
+              ""
+            ],
+            [
+              "Short-term borrowings",
+              "$ 8"
+            ],
+            [
+              "Payables to customers",
+              "100,459"
+            ],
+            [
+              "Securities loaned",
+              "20,600"
+            ],
+            [
+              "Financial instruments sold, but not yet purchased, at fair value",
+              "348"
+            ],
+            [
+              "Other payables",
+              ""
+            ],
+            [
+              "Brokers, dealers and clearing organizations",
+              "983"
+            ],
+            [
+              "Accounts payable, accrued expenses and other liabilities",
+              "273"
+            ],
+            [
+              "Affiliates",
+              "113"
+            ],
+            [
+              "Interest",
+              "218"
+            ],
+            [
+              "Total other payables",
+              "1,587"
+            ],
+            [
+              "Total liabilities",
+              "123,002"
+            ],
+            [
+              "Members' capital",
+              "11,241"
+            ],
+            [
+              "Total liabilities and members' capital",
+              "$ 134,243"
+            ]
+          ],
+          "semantic_gold": {
+            "logical_columns": [
+              {
+                "logical_column_id": "description",
+                "physical_column_indices": [
+                  1
+                ],
+                "roles": [
+                  "description"
+                ]
+              },
+              {
+                "logical_column_id": "monetary_amount",
+                "physical_column_indices": [
+                  2
+                ],
+                "roles": [
+                  "amount"
+                ]
+              }
+            ],
+            "qualifiers": [
+              {
+                "kind": "currency_symbol",
+                "literal": "$",
+                "normalized_code": null,
+                "scope": {
+                  "role": "amount",
+                  "logical_column_ids": [
+                    "monetary_amount"
+                  ]
+                }
+              }
+            ],
+            "expected_currency_code_status": "unknown"
+          }
+        }
+      ]
+    }
+  ]
+}
