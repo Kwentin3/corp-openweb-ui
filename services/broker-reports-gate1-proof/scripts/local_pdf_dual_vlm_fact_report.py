@@ -62,6 +62,8 @@ def render_report(*, score_path: Path, output_path: Path) -> dict[str, Any]:
     conclusion = score.get("architectural_conclusion")
     if conclusion not in CONCLUSIONS:
         raise ReportError("dual_vlm_report_conclusion_invalid")
+    if not isinstance(score.get("provider_structured_output_comparability"), dict):
+        raise ReportError("dual_vlm_report_provider_comparability_required")
     rendered = _markdown(score).encode("utf-8")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     _write_new(output_path, rendered)
@@ -84,6 +86,9 @@ def _markdown(score: dict[str, Any]) -> str:
     raster = _object(facts.get("raster_separate"))
     agreement = _object(facts.get("raw_model_agreement"))
     operational = _object(score.get("operational"))
+    provider_comparability = _object(
+        score.get("provider_structured_output_comparability")
+    )
     reference_contract = _object(score.get("reference_contract"))
     previous_comparison = _object(score.get("previous_benchmark_comparison"))
     best = facts.get("best_single_provider") or "not established"
@@ -100,6 +105,7 @@ def _markdown(score: dict[str, Any]) -> str:
     unsupported_reference_types = reference_contract.get(
         "unsupported_reference_fact_types"
     )
+    comparability_lines = _structured_output_comparability_lines(provider_comparability)
     lines = [
         "TABLE_DETECTION_AND_CROPPING:",
         str(gates["TABLE_DETECTION_AND_CROPPING"]),
@@ -129,6 +135,7 @@ def _markdown(score: dict[str, Any]) -> str:
         "- Smallest justified next architecture: page detector -> immutable crop -> independent Gemini/OpenAI fact extraction -> deterministic consensus -> parser evidence for text-layer facts -> bounded independent OCR only where separately justified -> human review for every unresolved or vision-only result.",
         f"- Comparison with the frozen previous single-VLM benchmark: `{previous_comparison.get('status', 'not established')}`. The current material-improvement flag uses `{previous_comparison.get('current_material_improvement_comparator', 'an unspecified comparator')}` and is not evidence of improvement over the prior benchmark.",
         "",
+        *comparability_lines,
         "## Exact detection failures",
         "",
         "| Failure class | Case | Page | Region/candidate | Detail |",
@@ -189,6 +196,114 @@ def _markdown(score: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _structured_output_comparability_lines(value: dict[str, Any]) -> list[str]:
+    gemini = _object(value.get("gemini_extraction"))
+    openai = _object(value.get("openai_extraction"))
+    detection = _object(value.get("detection"))
+    same_inputs = bool(
+        value.get("complete_pair_coverage") is True
+        and value.get("identical_crop_sha256_for_all_pairs") is True
+        and value.get("identical_model_view_hash_for_all_pairs") is True
+        and value.get("identical_canonical_schema_hash_for_all_pairs") is True
+        and isinstance(value.get("shared_prompt_contract_version"), str)
+        and value.get("shared_prompt_contract_version")
+    )
+    schemas_differ = value.get("identical_adapted_schema_hash_for_all_pairs") is False
+    comparison_contract_valid = bool(
+        value.get("comparison_scope") == "model_provider_api_schema_adapter_bundle"
+        and value.get("schema_projection_causal_effect") == "not_established"
+        and _schema_summary_complete(gemini)
+        and _schema_summary_complete(openai)
+    )
+    if same_inputs and schemas_differ and comparison_contract_valid:
+        interpretation = (
+            "- Interpretation: both extraction arms received the same visual "
+            "evidence and business questions, but different provider-adapted "
+            "response schemas. This benchmark therefore compares `model + "
+            "provider API + schema adapter` bundles, not isolated model "
+            "capability. It does not establish that schema projection caused "
+            "any observed disagreement."
+        )
+    elif same_inputs and comparison_contract_valid:
+        interpretation = (
+            "- Interpretation: paired visual, semantic, and recorded schema "
+            "hashes are comparable, but equivalent provider enforcement beyond "
+            "those recorded hashes is not established."
+        )
+    else:
+        interpretation = (
+            "- Interpretation: model-only comparability is not established "
+            "because the checksummed paired-input or schema-projection metadata "
+            "is incomplete or contradictory."
+        )
+    return [
+        "## Provider-side structured-output comparability",
+        "",
+        f"- Paired crop extractions: `{value.get('paired_extraction_operations')}`; complete pair coverage: `{value.get('complete_pair_coverage')}`; identical crop SHA-256: `{value.get('identical_crop_sha256_for_all_pairs')}`; identical model-view hashes: `{value.get('identical_model_view_hash_for_all_pairs')}`; identical canonical schema hashes: `{value.get('identical_canonical_schema_hash_for_all_pairs')}`; identical provider-adapted schema hashes: `{value.get('identical_adapted_schema_hash_for_all_pairs')}`; shared prompt contract: `{value.get('shared_prompt_contract_version')}`.",
+        _schema_stage_line("Gemini extraction", gemini),
+        _schema_stage_line("OpenAI extraction", openai),
+        interpretation,
+        _schema_stage_line(
+            "Detection (Gemini-only; not a Gemini/OpenAI comparison arm)",
+            detection,
+        ),
+        "",
+    ]
+
+
+def _schema_summary_complete(value: dict[str, Any]) -> bool:
+    operations = value.get("operations")
+    histogram = value.get("schema_transform_count_histogram")
+    equal = value.get("canonical_schema_equals_adapted_operations")
+    different = value.get("canonical_schema_differs_from_adapted_operations")
+    histogram_valid = bool(
+        isinstance(histogram, dict)
+        and histogram
+        and all(
+            isinstance(key, str)
+            and key.isdigit()
+            and isinstance(count, int)
+            and not isinstance(count, bool)
+            and count > 0
+            for key, count in histogram.items()
+        )
+    )
+    return bool(
+        isinstance(operations, int)
+        and not isinstance(operations, bool)
+        and operations > 0
+        and value.get("schema_metadata_valid_operations") == operations
+        and value.get("schema_metadata_invalid_operations") == 0
+        and histogram_valid
+        and sum(histogram.values()) == operations
+        and isinstance(equal, int)
+        and not isinstance(equal, bool)
+        and isinstance(different, int)
+        and not isinstance(different, bool)
+        and equal + different == operations
+    )
+
+
+def _schema_stage_line(label: str, value: dict[str, Any]) -> str:
+    if not _schema_summary_complete(value):
+        return f"- {label}: schema-projection metadata incomplete or invalid."
+    operations = int(value["operations"])
+    equal = int(value["canonical_schema_equals_adapted_operations"])
+    different = int(value["canonical_schema_differs_from_adapted_operations"])
+    histogram = value["schema_transform_count_histogram"]
+    if equal == operations and histogram == {"0": operations}:
+        mode = "canonical schema unchanged"
+    elif different == operations:
+        mode = "provider-projected schema"
+    else:
+        mode = "mixed canonical/provider-projected schemas"
+    return (
+        f"- {label}: {mode}; per-operation recorded schema-keyword "
+        f"transformations `{json.dumps(histogram, ensure_ascii=False, sort_keys=True)}`; "
+        f"canonical/adapted schema hashes equal in `{equal}/{operations}` operations."
+    )
 
 
 def _detection_failure_rows(detection: dict[str, Any]) -> list[str]:

@@ -231,6 +231,39 @@ def test_crop_validation_replays_consensus_and_checks_provider_identity() -> Non
         )
     assert provider_error.value.code == "dual_vlm_terminal_provider_operation_invalid"
 
+    mismatched_projection = copy.deepcopy(crop)
+    mismatched_projection["gemini"]["operation"]["attempt"][
+        "schema_transform_count"
+    ] += 1
+    with pytest.raises(SCORE.ScoreError) as projection_error:
+        SCORE._validate_terminal_crop(
+            mismatched_projection, candidate, manifest_case, case_input
+        )
+    assert projection_error.value.code == "dual_vlm_terminal_provider_operation_invalid"
+
+    invalid_contract_output = copy.deepcopy(crop)
+    invalid_gemini_output = copy.deepcopy(invalid_contract_output["gemini"]["output"])
+    invalid_gemini_output["schema_version"] = "invalid"
+    invalid_contract_output["gemini"]["status"] = "contract_invalid"
+    invalid_contract_output["gemini"]["contract_errors"] = [
+        "dual_vlm_fact_schema_version_invalid"
+    ]
+    invalid_contract_output["gemini"]["output"] = invalid_gemini_output
+    invalid_contract_output["gemini"]["operation"]["json_output"] = (
+        invalid_gemini_output
+    )
+    invalid_contract_output["gemini"]["operation"]["attempt"].pop("adapted_schema_hash")
+    invalid_contract_output["consensus"] = None
+    invalid_contract_output["evidence"] = None
+    with pytest.raises(SCORE.ScoreError) as invalid_contract_error:
+        SCORE._validate_terminal_crop(
+            invalid_contract_output, candidate, manifest_case, case_input
+        )
+    assert (
+        invalid_contract_error.value.code
+        == "dual_vlm_terminal_provider_operation_invalid"
+    )
+
 
 def test_unmatched_and_raster_auto_acceptances_fail_safety_gate() -> None:
     correct_entry = _consensus_entry("consensus_correct", "cash", "1")
@@ -345,6 +378,107 @@ def test_operational_metrics_use_attempted_call_accounting_and_models() -> None:
     assert result["generate_calls"] == 0
     assert result["transport_failures"] == 1
     assert result["execution_contract_passed"] is False
+
+
+def test_provider_structured_output_comparability_exposes_schema_projection() -> None:
+    canonical_hash = "a" * 64
+    gemini_adapted_hash = "b" * 64
+    crop_hash = "c" * 64
+    model_view_hash = "d" * 64
+    gemini_operation = _projection_operation(
+        canonical_hash=canonical_hash,
+        adapted_hash=gemini_adapted_hash,
+        schema_transform_count=67,
+        crop_hash=crop_hash,
+        model_view_hash=model_view_hash,
+    )
+    openai_operation = _projection_operation(
+        canonical_hash=canonical_hash,
+        adapted_hash=canonical_hash,
+        schema_transform_count=0,
+        crop_hash=crop_hash,
+        model_view_hash=model_view_hash,
+    )
+    terminal = {
+        "cases": [
+            {
+                "crops": [
+                    {
+                        "gemini": {"operation": gemini_operation},
+                        "openai": {"operation": openai_operation},
+                    }
+                ]
+            }
+        ],
+        "parser_accounting": {},
+    }
+    manifest = _manifest()
+    operational = SCORE._operational_metrics(terminal, manifest)
+
+    result = SCORE._provider_structured_output_comparability(
+        terminal, manifest, operational
+    )
+
+    assert result["paired_extraction_operations"] == 1
+    assert result["identical_crop_sha256_for_all_pairs"] is True
+    assert result["identical_model_view_hash_for_all_pairs"] is True
+    assert result["identical_canonical_schema_hash_for_all_pairs"] is True
+    assert result["identical_adapted_schema_hash_for_all_pairs"] is False
+    assert result["shared_prompt_contract_version"] == "dual_vlm_fact_extraction_v1"
+    assert result["schema_projection_causal_effect"] == "not_established"
+    assert result["gemini_extraction"]["schema_transform_count_histogram"] == {"67": 1}
+    assert result["openai_extraction"]["schema_transform_count_histogram"] == {"0": 1}
+
+
+def test_invalid_schema_metadata_is_not_counted_as_zero_or_equal() -> None:
+    canonical_hash = "a" * 64
+    invalid_gemini = _projection_operation(
+        canonical_hash=canonical_hash,
+        adapted_hash="b" * 64,
+        schema_transform_count=67,
+        crop_hash="c" * 64,
+        model_view_hash="d" * 64,
+    )
+    invalid_gemini["attempt"].pop("adapted_schema_hash")
+    openai = _projection_operation(
+        canonical_hash=canonical_hash,
+        adapted_hash=canonical_hash,
+        schema_transform_count=0,
+        crop_hash="c" * 64,
+        model_view_hash="d" * 64,
+    )
+    terminal = {
+        "cases": [
+            {
+                "crops": [
+                    {
+                        "gemini": {
+                            "status": "contract_invalid",
+                            "operation": invalid_gemini,
+                        },
+                        "openai": {"status": "completed", "operation": openai},
+                    }
+                ]
+            }
+        ],
+        "parser_accounting": {},
+    }
+    manifest = _manifest()
+
+    operational = SCORE._operational_metrics(terminal, manifest)
+    gemini = operational["gemini_extraction"]
+    comparability = SCORE._provider_structured_output_comparability(
+        terminal, manifest, operational
+    )
+
+    assert gemini["schema_metadata_valid_operations"] == 0
+    assert gemini["schema_metadata_invalid_operations"] == 1
+    assert gemini["schema_transform_count_histogram"] == {}
+    assert gemini["canonical_schema_equals_adapted_operations"] == 0
+    assert gemini["canonical_schema_differs_from_adapted_operations"] == 0
+    assert comparability["complete_pair_coverage"] is False
+    assert comparability["identical_crop_sha256_for_all_pairs"] is None
+    assert comparability["identical_adapted_schema_hash_for_all_pairs"] is None
 
 
 def test_currency_code_reference_allows_explicit_visible_literal() -> None:
@@ -713,6 +847,8 @@ def _operation(
             "within_hard_guard": True,
             "model_requested": model,
             "canonical_schema_hash": schema_hash,
+            "adapted_schema_hash": schema_hash,
+            "schema_transform_count": 0,
         },
         "attempt": {
             "provider": provider,
@@ -723,6 +859,8 @@ def _operation(
             "crop_sha256": crop_sha,
             "model_view_hash": CONTRACTS.sha256_json(model_view),
             "canonical_schema_hash": schema_hash,
+            "adapted_schema_hash": schema_hash,
+            "schema_transform_count": 0,
             "terminal_failure_class": None,
             "hidden_retry": False,
             "provider_failover": False,
@@ -738,6 +876,43 @@ def _operation(
         "provider_failover": False,
         "provenance_verified": True,
         "provenance_errors": [],
+    }
+
+
+def _projection_operation(
+    *,
+    canonical_hash: str,
+    adapted_hash: str,
+    schema_transform_count: int,
+    crop_hash: str,
+    model_view_hash: str,
+) -> dict[str, Any]:
+    return {
+        "image_bytes": 1,
+        "model_view_bytes": 1,
+        "schema_bytes": 1,
+        "count_tokens": {
+            "total_tokens": 1,
+            "canonical_schema_hash": canonical_hash,
+            "adapted_schema_hash": adapted_hash,
+            "schema_transform_count": schema_transform_count,
+        },
+        "attempt": {
+            "provider": "unused",
+            "model_resolved": "unused",
+            "crop_sha256": crop_hash,
+            "model_view_hash": model_view_hash,
+            "canonical_schema_hash": canonical_hash,
+            "adapted_schema_hash": adapted_hash,
+            "schema_transform_count": schema_transform_count,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        },
+        "call_accounting": {
+            "count_or_preflight_calls_attempted": 1,
+            "count_or_preflight_calls_completed": 1,
+            "generate_calls_attempted": 1,
+            "generate_calls_completed": 1,
+        },
     }
 
 

@@ -26,6 +26,14 @@ This is a controlled development-corpus result. It does not establish production
 - Smallest justified next architecture: page detector -> immutable crop -> independent Gemini/OpenAI fact extraction -> deterministic consensus -> parser evidence for text-layer facts -> bounded independent OCR only where separately justified -> human review for every unresolved or vision-only result.
 - Comparison with the frozen previous single-VLM benchmark: `not_established`. The current material-improvement flag uses `current_provider_arms_only` and is not evidence of improvement over the prior benchmark.
 
+## Provider-side structured-output comparability
+
+- Paired crop extractions: `9`; complete pair coverage: `True`; identical crop SHA-256: `True`; identical model-view hashes: `True`; identical canonical schema hashes: `True`; identical provider-adapted schema hashes: `False`; shared prompt contract: `dual_vlm_fact_extraction_v1`.
+- Gemini extraction: provider-projected schema; per-operation recorded schema-keyword transformations `{"67": 9}`; canonical/adapted schema hashes equal in `0/9` operations.
+- OpenAI extraction: canonical schema unchanged; per-operation recorded schema-keyword transformations `{"0": 9}`; canonical/adapted schema hashes equal in `9/9` operations.
+- Interpretation: both extraction arms received the same visual evidence and business questions, but different provider-adapted response schemas. This benchmark therefore compares `model + provider API + schema adapter` bundles, not isolated model capability. It does not establish that schema projection caused any observed disagreement.
+- Detection (Gemini-only; not a Gemini/OpenAI comparison arm): provider-projected schema; per-operation recorded schema-keyword transformations `{"9": 8}`; canonical/adapted schema hashes equal in `0/8` operations.
+
 ## Exact detection failures
 
 | Failure class | Case | Page | Region/candidate | Detail |
@@ -84,4 +92,4 @@ This is a controlled development-corpus result. It does not establish production
 - Terminal SHA-256: `9ad8dde45a8560f7a609c932d8896fb19af5b761029d1fd9c437a05ee35257e2`.
 - Manifest SHA-256: `8186f9031ec55aa226bc68f5cdafcc4c6fb10b7672ec802d874afd3690beda9d`.
 - Human reference SHA-256: `ed1a846c2af8a8ffb9af2908398944679bd24b91e25d9f7764ae5202128e3c52`.
-- Score checksum: `5611d0c9f8d7d1aa6b3a111da6d55e3f5e52596858ee64109fc36494e7827190`.
+- Score checksum: `8855ae6941f287bd0c1d8f1f63a7f2c794e9a458705c6ffe61e1fd67b39e7396`.

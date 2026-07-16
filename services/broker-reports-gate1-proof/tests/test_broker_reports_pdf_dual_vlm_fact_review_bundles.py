@@ -649,6 +649,41 @@ def test_report_starts_with_three_independent_results_and_conclusion(
             ],
         },
         "operational": {},
+        "provider_structured_output_comparability": {
+            "comparison_scope": "model_provider_api_schema_adapter_bundle",
+            "paired_extraction_operations": 9,
+            "complete_pair_coverage": True,
+            "identical_crop_sha256_for_all_pairs": True,
+            "identical_model_view_hash_for_all_pairs": True,
+            "identical_canonical_schema_hash_for_all_pairs": True,
+            "identical_adapted_schema_hash_for_all_pairs": False,
+            "shared_prompt_contract_version": "dual_vlm_fact_extraction_v1",
+            "schema_projection_causal_effect": "not_established",
+            "detection": {
+                "operations": 8,
+                "schema_metadata_valid_operations": 8,
+                "schema_metadata_invalid_operations": 0,
+                "schema_transform_count_histogram": {"9": 8},
+                "canonical_schema_equals_adapted_operations": 0,
+                "canonical_schema_differs_from_adapted_operations": 8,
+            },
+            "gemini_extraction": {
+                "operations": 9,
+                "schema_metadata_valid_operations": 9,
+                "schema_metadata_invalid_operations": 0,
+                "schema_transform_count_histogram": {"67": 9},
+                "canonical_schema_equals_adapted_operations": 0,
+                "canonical_schema_differs_from_adapted_operations": 9,
+            },
+            "openai_extraction": {
+                "operations": 9,
+                "schema_metadata_valid_operations": 9,
+                "schema_metadata_invalid_operations": 0,
+                "schema_transform_count_histogram": {"0": 9},
+                "canonical_schema_equals_adapted_operations": 9,
+                "canonical_schema_differs_from_adapted_operations": 0,
+            },
+        },
         "reference_contract": {
             "reference_fact_type_counts": {"financial_numeric_fact": 83},
             "unsupported_reference_fact_types": ["financial_numeric_fact"],
@@ -686,6 +721,23 @@ def test_report_starts_with_three_independent_results_and_conclusion(
     assert "## Reference/scoring contract limitation" in rendered
     assert "zero provider precision/recall is contract-dominated" in rendered
     assert "not evidence of improvement over the prior benchmark" in rendered
+    assert "## Provider-side structured-output comparability" in rendered
+    assert "identical model-view hashes: `True`" in rendered
+    assert "identical provider-adapted schema hashes: `False`" in rendered
+    assert 'schema-keyword transformations `{"67": 9}`' in rendered
+    assert 'schema-keyword transformations `{"0": 9}`' in rendered
+    assert "not isolated model capability" in rendered
+    assert "does not establish that schema projection caused" in rendered
+    assert "Detection (Gemini-only" in rendered
+    assert 'schema-keyword transformations `{"9": 8}`' in rendered
+
+
+def test_report_does_not_claim_comparability_from_empty_metadata() -> None:
+    rendered = "\n".join(REPORT._structured_output_comparability_lines({}))
+
+    assert "model-only comparability is not established" in rendered
+    assert "same visual evidence and business questions" not in rendered
+    assert "schema-projection metadata incomplete or invalid" in rendered
 
 
 def test_report_refuses_blocked_human_reference_score(tmp_path: Path) -> None:
@@ -699,6 +751,33 @@ def test_report_refuses_blocked_human_reference_score(tmp_path: Path) -> None:
     with pytest.raises(
         REPORT.ReportError,
         match="dual_vlm_report_completed_score_required",
+    ):
+        REPORT.render_report(
+            score_path=score_path,
+            output_path=tmp_path / "report.md",
+        )
+
+
+def test_report_refuses_completed_score_without_provider_comparability(
+    tmp_path: Path,
+) -> None:
+    score = {
+        "schema_version": REPORT.SCORE_SCHEMA,
+        "scoring_status": "completed",
+        "gates": {
+            "TABLE_DETECTION_AND_CROPPING": "FAILED",
+            "DUAL_VLM_FINANCIAL_FACT_EXTRACTION": "FAILED",
+            "FACT_EVIDENCE_VERIFICATION": "FAILED",
+        },
+        "architectural_conclusion": "DUAL_VLM_FACT_ARCHITECTURE_NOT_JUSTIFIED",
+    }
+    score["score_checksum"] = REPORT._sha256_json(score)
+    score_path = tmp_path / "score.json"
+    score_path.write_bytes(REPORT._canonical_json(score))
+
+    with pytest.raises(
+        REPORT.ReportError,
+        match="dual_vlm_report_provider_comparability_required",
     ):
         REPORT.render_report(
             score_path=score_path,

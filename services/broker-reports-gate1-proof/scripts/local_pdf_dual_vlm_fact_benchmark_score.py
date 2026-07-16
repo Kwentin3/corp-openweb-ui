@@ -265,6 +265,9 @@ def score_run(
     # Contractual order: detection is complete before any fact extraction score.
     facts = _score_facts(terminal, reference, detection)
     operational = _operational_metrics(terminal, manifest)
+    provider_structured_output_comparability = (
+        _provider_structured_output_comparability(terminal, manifest, operational)
+    )
     detection_passed = bool(
         _detection_gate(detection, manifest)
         and operational["detection"]["execution_contract_passed"]
@@ -344,6 +347,9 @@ def score_run(
         "materially_better_than_single_vlm": material_improvement,
         "previous_benchmark_comparison": previous_benchmark_comparison,
         "reference_contract": reference_contract,
+        "provider_structured_output_comparability": (
+            provider_structured_output_comparability
+        ),
         "detection": detection,
         "facts": facts,
         "operational": operational,
@@ -581,9 +587,7 @@ def _validate_terminal_case(case: Any, manifest_case: dict[str, Any]) -> None:
         expected_document_id=case_id,
         expected_page_number=int(manifest_case["page_number"]),
     )
-    if detection.get("status") == "completed":
-        if detection_errors or detection.get("contract_errors") != []:
-            raise ScoreError("dual_vlm_terminal_detection_contract_invalid")
+    if detection.get("status") in {"completed", "contract_invalid"}:
         model_view = detection_model_view(
             document_id=case_id,
             page_number=int(manifest_case["page_number"]),
@@ -599,6 +603,9 @@ def _validate_terminal_case(case: Any, manifest_case: dict[str, Any]) -> None:
             expected_schema=detection_schema(),
             expected_output=detection_output,
         )
+    if detection.get("status") == "completed":
+        if detection_errors or detection.get("contract_errors") != []:
+            raise ScoreError("dual_vlm_terminal_detection_contract_invalid")
     elif not detection_errors and not detection.get("contract_errors"):
         raise ScoreError("dual_vlm_terminal_detection_failure_unexplained")
     candidates = (
@@ -695,19 +702,19 @@ def _validate_terminal_crop(
             raise ScoreError("dual_vlm_terminal_provider_arm_status_invalid")
         output = arm_value.get("output")
         errors = validate_fact_extraction_output(output, expected_identity=identity)
+        _require_completed_operation(
+            arm_value.get("operation"),
+            expected_kind=kind,
+            expected_provider=provider,
+            expected_model=model,
+            expected_crop_sha=crop_sha,
+            expected_model_view=model_view,
+            expected_schema=output_schema,
+            expected_output=output,
+        )
         if arm_value.get("status") == "completed":
             if errors or arm_value.get("contract_errors") != []:
                 raise ScoreError("dual_vlm_terminal_provider_output_invalid")
-            _require_completed_operation(
-                arm_value.get("operation"),
-                expected_kind=kind,
-                expected_provider=provider,
-                expected_model=model,
-                expected_crop_sha=crop_sha,
-                expected_model_view=model_view,
-                expected_schema=output_schema,
-                expected_output=output,
-            )
             completed_outputs[arm] = _object(output)
         elif not errors and not arm_value.get("contract_errors"):
             raise ScoreError("dual_vlm_terminal_provider_failure_unexplained")
@@ -751,6 +758,7 @@ def _require_completed_operation(
     count = _object(operation.get("count_tokens"))
     attempt = _object(operation.get("attempt"))
     accounting = _object(operation.get("call_accounting"))
+    schema_metadata = _schema_projection_metadata(operation)
     expected_schema_hash = sha256_json(expected_schema)
     expected_model_view_hash = sha256_json(expected_model_view)
     if (
@@ -778,6 +786,7 @@ def _require_completed_operation(
         or count.get("within_hard_guard") is not True
         or count.get("model_requested") != expected_model
         or count.get("canonical_schema_hash") != expected_schema_hash
+        or schema_metadata is None
         or attempt.get("provider") != expected_provider
         or attempt.get("model_requested") != expected_model
         or attempt.get("model_resolved") != expected_model
@@ -791,6 +800,32 @@ def _require_completed_operation(
         or attempt.get("provider_failover") is not False
     ):
         raise ScoreError("dual_vlm_terminal_provider_operation_invalid")
+
+
+def _schema_projection_metadata(operation: dict[str, Any]) -> dict[str, Any] | None:
+    count = _object(operation.get("count_tokens"))
+    attempt = _object(operation.get("attempt"))
+    canonical_hash = attempt.get("canonical_schema_hash")
+    adapted_hash = attempt.get("adapted_schema_hash")
+    transform_count = attempt.get("schema_transform_count")
+    if (
+        not isinstance(canonical_hash, str)
+        or not _HEX_64.fullmatch(canonical_hash)
+        or not isinstance(adapted_hash, str)
+        or not _HEX_64.fullmatch(adapted_hash)
+        or not isinstance(transform_count, int)
+        or isinstance(transform_count, bool)
+        or transform_count < 0
+        or count.get("canonical_schema_hash") != canonical_hash
+        or count.get("adapted_schema_hash") != adapted_hash
+        or count.get("schema_transform_count") != transform_count
+    ):
+        return None
+    return {
+        "canonical_schema_hash": canonical_hash,
+        "adapted_schema_hash": adapted_hash,
+        "schema_transform_count": transform_count,
+    }
 
 
 def _validate_evidence_lineage(
@@ -1910,6 +1945,11 @@ def _operational_metrics(
             "model_requested": (
                 provider_contracts[key]["model_id"] if key != "ocr" else None
             ),
+            "prompt_contract_version": (
+                provider_contracts[key]["prompt_contract_version"]
+                if key != "ocr"
+                else None
+            ),
             "models_resolved": [],
             "expected_operations": 0,
             "operations": 0,
@@ -1927,6 +1967,14 @@ def _operational_metrics(
             "malformed_outputs": 0,
             "transport_failures": 0,
             "operation_contract_failures": 0,
+            "schema_metadata_valid_operations": 0,
+            "schema_metadata_invalid_operations": 0,
+            "canonical_schema_hashes": [],
+            "adapted_schema_hashes": [],
+            "schema_transform_count_histogram": {},
+            "schema_transform_total": 0,
+            "canonical_schema_equals_adapted_operations": 0,
+            "canonical_schema_differs_from_adapted_operations": 0,
             "execution_contract_passed": False,
         }
         for key in ("detection", "gemini_extraction", "openai_extraction", "ocr")
@@ -1985,6 +2033,14 @@ def _operational_metrics(
     for key in ("detection", "gemini_extraction", "openai_extraction"):
         value = result[key]
         value["models_resolved"] = sorted(set(value["models_resolved"]))
+        value["canonical_schema_hashes"] = sorted(set(value["canonical_schema_hashes"]))
+        value["adapted_schema_hashes"] = sorted(set(value["adapted_schema_hashes"]))
+        value["schema_transform_count_histogram"] = dict(
+            sorted(
+                value["schema_transform_count_histogram"].items(),
+                key=lambda item: int(item[0]),
+            )
+        )
         value["execution_contract_passed"] = bool(
             value["operations"] == value["expected_operations"]
             and value["count_or_preflight_calls"] == value["expected_operations"]
@@ -2014,6 +2070,25 @@ def _add_operation(
         accounting.get("count_or_preflight_calls_completed")
     )
     attempt = _object(operation.get("attempt"))
+    schema_metadata = _schema_projection_metadata(operation)
+    if schema_metadata is None:
+        target["schema_metadata_invalid_operations"] += 1
+    else:
+        target["schema_metadata_valid_operations"] += 1
+        canonical_schema_hash = schema_metadata["canonical_schema_hash"]
+        adapted_schema_hash = schema_metadata["adapted_schema_hash"]
+        schema_transform_count = schema_metadata["schema_transform_count"]
+        target["canonical_schema_hashes"].append(canonical_schema_hash)
+        target["adapted_schema_hashes"].append(adapted_schema_hash)
+        transform_key = str(schema_transform_count)
+        target["schema_transform_count_histogram"][transform_key] = (
+            target["schema_transform_count_histogram"].get(transform_key, 0) + 1
+        )
+        target["schema_transform_total"] += schema_transform_count
+        if canonical_schema_hash == adapted_schema_hash:
+            target["canonical_schema_equals_adapted_operations"] += 1
+        else:
+            target["canonical_schema_differs_from_adapted_operations"] += 1
     target["generate_calls"] += _nonnegative(accounting.get("generate_calls_attempted"))
     target["generate_calls_completed"] += _nonnegative(
         accounting.get("generate_calls_completed")
@@ -2071,6 +2146,103 @@ def _add_operation(
     )
     cost += output_tokens * float(pricing["output_usd_per_1m_tokens"])
     target["estimated_cost_microusd"] += round(cost, 6)
+
+
+def _provider_structured_output_comparability(
+    terminal: dict[str, Any],
+    manifest: dict[str, Any],
+    operational: dict[str, Any],
+) -> dict[str, Any]:
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for case in terminal.get("cases") or []:
+        for crop in _object(case).get("crops") or []:
+            crop_value = _object(crop)
+            if crop_value.get("terminal_status") == "uncertain_not_extracted":
+                continue
+            gemini_operation = _object(
+                _object(crop_value.get("gemini")).get("operation")
+            )
+            openai_operation = _object(
+                _object(crop_value.get("openai")).get("operation")
+            )
+            if gemini_operation and openai_operation:
+                pairs.append(
+                    (
+                        _object(gemini_operation.get("attempt")),
+                        _object(openai_operation.get("attempt")),
+                    )
+                )
+
+    gemini_contract = _object(
+        _object(manifest.get("provider_contracts")).get("gemini_extraction")
+    )
+    openai_contract = _object(
+        _object(manifest.get("provider_contracts")).get("openai_extraction")
+    )
+    gemini_metrics = _object(operational.get("gemini_extraction"))
+    openai_metrics = _object(operational.get("openai_extraction"))
+    paired_operations = len(pairs)
+    complete_pair_coverage = bool(
+        paired_operations > 0
+        and paired_operations == gemini_metrics.get("expected_operations")
+        and paired_operations == openai_metrics.get("expected_operations")
+        and gemini_metrics.get("schema_metadata_valid_operations") == paired_operations
+        and openai_metrics.get("schema_metadata_valid_operations") == paired_operations
+        and gemini_metrics.get("schema_metadata_invalid_operations") == 0
+        and openai_metrics.get("schema_metadata_invalid_operations") == 0
+    )
+
+    def all_pairs_match(field: str) -> bool | None:
+        if not complete_pair_coverage:
+            return None
+        return all(gemini.get(field) == openai.get(field) for gemini, openai in pairs)
+
+    shared_prompt_contract = gemini_contract.get("prompt_contract_version")
+    if shared_prompt_contract != openai_contract.get("prompt_contract_version"):
+        shared_prompt_contract = None
+    return {
+        "comparison_scope": "model_provider_api_schema_adapter_bundle",
+        "paired_extraction_operations": paired_operations,
+        "complete_pair_coverage": complete_pair_coverage,
+        "identical_crop_sha256_for_all_pairs": all_pairs_match("crop_sha256"),
+        "identical_model_view_hash_for_all_pairs": all_pairs_match("model_view_hash"),
+        "identical_canonical_schema_hash_for_all_pairs": all_pairs_match(
+            "canonical_schema_hash"
+        ),
+        "identical_adapted_schema_hash_for_all_pairs": all_pairs_match(
+            "adapted_schema_hash"
+        ),
+        "shared_prompt_contract_version": shared_prompt_contract,
+        "schema_projection_causal_effect": "not_established",
+        "detection": _schema_constraint_summary(_object(operational.get("detection"))),
+        "gemini_extraction": _schema_constraint_summary(gemini_metrics),
+        "openai_extraction": _schema_constraint_summary(openai_metrics),
+    }
+
+
+def _schema_constraint_summary(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "expected_operations": value.get("expected_operations"),
+        "operations": value.get("operations"),
+        "schema_metadata_valid_operations": value.get(
+            "schema_metadata_valid_operations"
+        ),
+        "schema_metadata_invalid_operations": value.get(
+            "schema_metadata_invalid_operations"
+        ),
+        "schema_transform_count_histogram": value.get(
+            "schema_transform_count_histogram"
+        ),
+        "schema_transform_total": value.get("schema_transform_total"),
+        "canonical_schema_equals_adapted_operations": value.get(
+            "canonical_schema_equals_adapted_operations"
+        ),
+        "canonical_schema_differs_from_adapted_operations": value.get(
+            "canonical_schema_differs_from_adapted_operations"
+        ),
+        "canonical_schema_hashes": value.get("canonical_schema_hashes"),
+        "adapted_schema_hashes": value.get("adapted_schema_hashes"),
+    }
 
 
 def _complete_source_map(value: dict[str, Any]) -> bool:
