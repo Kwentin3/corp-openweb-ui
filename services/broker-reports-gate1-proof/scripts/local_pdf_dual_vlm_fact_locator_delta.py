@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a compact, source-only human review delta for fact locators."""
+"""Build and confirm a compact human review delta for fact locators."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import hashlib
 import html
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ import pdf_dual_vlm_fact_review as review  # noqa: E402
 
 BULK_ATTESTATION_SCHEMA = "broker_reports_pdf_dual_vlm_fact_bulk_attestation_v1"
 LOCATOR_DELTA_SCHEMA = "broker_reports_pdf_dual_vlm_fact_locator_delta_v1"
+LOCATOR_CONFIRMATION_SCHEMA = review.LOCATOR_CONFIRMATION_SCHEMA
 REFERENCE_PREPARATION_SCHEMA = (
     "broker_reports_pdf_dual_vlm_fact_reference_preparation_v1"
 )
@@ -34,6 +36,13 @@ CONFIRMATION_TEMPLATE = (
     "Подтверждаю locator-delta SHA-256: {payload_sha256}; "
     "все {changed_facts} изменений источника верны."
 )
+FROZEN_ROMAN_ATTESTATION_STATEMENTS = (
+    "Там слишком много флагов, но всё верно, претензий нет, "
+    "идентифицировал таблицы правильно, регион определил правильно, "
+    "интерпретировал их значения, перевёл обратно в текст из растра, тоже всё "
+    "правильно, замечаний нет, всё отлично.",
+    "betterment_p02 — это не таблица, а оглавление; проверяющий — Роман",
+)
 
 
 class LocatorDeltaError(RuntimeError):
@@ -42,16 +51,11 @@ class LocatorDeltaError(RuntimeError):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Build a compact source-only locator review delta"
+        description="Build or confirm a compact locator review delta"
     )
     commands = parser.add_subparsers(dest="command", required=True)
     build = commands.add_parser("build")
-    build.add_argument("--baseline-proposed", required=True)
-    build.add_argument("--baseline-review-index", required=True)
-    build.add_argument("--revised-proposed", required=True)
-    build.add_argument("--revised-review-index", required=True)
-    build.add_argument("--revised-preparation", required=True)
-    build.add_argument("--revised-artifact-root", required=True)
+    _add_lineage_arguments(build)
     build.add_argument("--output-dir", required=True)
     build.add_argument("--reviewer-identity", required=True)
     build.add_argument("--reviewed-at", required=True)
@@ -61,22 +65,51 @@ def main() -> int:
         choices=(ATTESTATION_SCOPE_ALL_VISIBLE,),
         required=True,
     )
+    confirm = commands.add_parser("confirm")
+    _add_lineage_arguments(confirm)
+    confirm.add_argument("--attestation", required=True)
+    confirm.add_argument("--delta", required=True)
+    confirm.add_argument("--confirmation", required=True)
+    confirm.add_argument("--confirmed-at", required=True)
+    confirm.add_argument("--output-dir", required=True)
     args = parser.parse_args()
-    result = build_locator_delta(
-        baseline_proposed_path=Path(args.baseline_proposed).resolve(),
-        baseline_review_index_path=Path(args.baseline_review_index).resolve(),
-        revised_proposed_path=Path(args.revised_proposed).resolve(),
-        revised_review_index_path=Path(args.revised_review_index).resolve(),
-        revised_preparation_path=Path(args.revised_preparation).resolve(),
-        revised_artifact_root=Path(args.revised_artifact_root).resolve(),
-        output_dir=Path(args.output_dir).resolve(),
-        reviewer_identity=args.reviewer_identity,
-        reviewed_at=args.reviewed_at,
-        statements=args.statement,
-        attestation_scope=args.attestation_scope,
-    )
+    lineage = {
+        "baseline_proposed_path": Path(args.baseline_proposed).resolve(),
+        "baseline_review_index_path": Path(args.baseline_review_index).resolve(),
+        "revised_proposed_path": Path(args.revised_proposed).resolve(),
+        "revised_review_index_path": Path(args.revised_review_index).resolve(),
+        "revised_preparation_path": Path(args.revised_preparation).resolve(),
+        "revised_artifact_root": Path(args.revised_artifact_root).resolve(),
+    }
+    if args.command == "build":
+        result = build_locator_delta(
+            **lineage,
+            output_dir=Path(args.output_dir).resolve(),
+            reviewer_identity=args.reviewer_identity,
+            reviewed_at=args.reviewed_at,
+            statements=args.statement,
+            attestation_scope=args.attestation_scope,
+        )
+    else:
+        result = confirm_locator_delta(
+            **lineage,
+            attestation_path=Path(args.attestation).resolve(),
+            delta_path=Path(args.delta).resolve(),
+            confirmation=args.confirmation,
+            confirmed_at=args.confirmed_at,
+            output_dir=Path(args.output_dir).resolve(),
+        )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
+
+
+def _add_lineage_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--baseline-proposed", required=True)
+    parser.add_argument("--baseline-review-index", required=True)
+    parser.add_argument("--revised-proposed", required=True)
+    parser.add_argument("--revised-review-index", required=True)
+    parser.add_argument("--revised-preparation", required=True)
+    parser.add_argument("--revised-artifact-root", required=True)
 
 
 def build_locator_delta(
@@ -137,6 +170,65 @@ def build_locator_delta(
         revised_index=revised_index,
         artifact_root=revised_artifact_root,
     )
+    delta = _locator_delta_value(
+        baseline=baseline,
+        baseline_index=baseline_index,
+        revised=revised,
+        revised_index=revised_index,
+        revised_preparation=revised_preparation,
+        revised_preparation_path=revised_preparation_path,
+        attestation=attestation,
+        changes=changes,
+        groups=groups,
+    )
+
+    attestation_path = output_dir / "review.bulk-attestation.private.json"
+    delta_path = output_dir / "locator-delta.private.json"
+    html_path = output_dir / "locator-delta.html"
+    rendered = _render(delta, image_data).encode("utf-8")
+    written: list[Path] = []
+    try:
+        _write_new(attestation_path, review.canonical_json_bytes(attestation))
+        written.append(attestation_path)
+        _write_new(delta_path, review.canonical_json_bytes(delta))
+        written.append(delta_path)
+        _write_new(html_path, rendered)
+        written.append(html_path)
+    except Exception:
+        for path in reversed(written):
+            path.unlink(missing_ok=True)
+        raise
+    return {
+        "status": (
+            "locator_delta_human_confirmation_required"
+            if changes
+            else "locator_delta_empty"
+        ),
+        "changed_facts": len(changes),
+        "groups": len(groups),
+        "payload_sha256": delta["payload_sha256"],
+        "attestation": str(attestation_path),
+        "attestation_checksum": attestation["attestation_checksum"],
+        "delta": str(delta_path),
+        "delta_checksum": delta["delta_checksum"],
+        "html": str(html_path),
+        "html_sha256": hashlib.sha256(rendered).hexdigest(),
+        "confirmation_text": delta["confirmation_text"],
+    }
+
+
+def _locator_delta_value(
+    *,
+    baseline: dict[str, Any],
+    baseline_index: dict[str, Any],
+    revised: dict[str, Any],
+    revised_index: dict[str, Any],
+    revised_preparation: dict[str, Any],
+    revised_preparation_path: Path,
+    attestation: dict[str, Any],
+    changes: list[dict[str, Any]],
+    groups: list[dict[str, Any]],
+) -> dict[str, Any]:
     delta = {
         "schema_version": LOCATOR_DELTA_SCHEMA,
         "benchmark_id": revised["benchmark_id"],
@@ -183,40 +275,274 @@ def build_locator_delta(
         changed_facts=len(changes),
     )
     delta["delta_checksum"] = review.sha256_json(delta)
+    return delta
 
-    attestation_path = output_dir / "review.bulk-attestation.private.json"
-    delta_path = output_dir / "locator-delta.private.json"
-    html_path = output_dir / "locator-delta.html"
-    rendered = _render(delta, image_data).encode("utf-8")
+
+def confirm_locator_delta(
+    *,
+    baseline_proposed_path: Path,
+    baseline_review_index_path: Path,
+    revised_proposed_path: Path,
+    revised_review_index_path: Path,
+    revised_preparation_path: Path,
+    revised_artifact_root: Path,
+    attestation_path: Path,
+    delta_path: Path,
+    confirmation: str,
+    confirmed_at: str,
+    output_dir: Path,
+) -> dict[str, Any]:
+    baseline = _json_object(
+        baseline_proposed_path, "locator_confirmation_baseline_invalid"
+    )
+    baseline_index = _json_object(
+        baseline_review_index_path, "locator_confirmation_baseline_index_invalid"
+    )
+    revised = _json_object(
+        revised_proposed_path, "locator_confirmation_revised_invalid"
+    )
+    revised_index = _json_object(
+        revised_review_index_path, "locator_confirmation_revised_index_invalid"
+    )
+    revised_preparation = _json_object(
+        revised_preparation_path,
+        "locator_confirmation_revised_preparation_invalid",
+    )
+    attestation = _json_object(
+        attestation_path, "locator_confirmation_attestation_invalid"
+    )
+    stored_delta = _json_object(delta_path, "locator_confirmation_delta_invalid")
+    _validate_inputs(baseline, baseline_index, revised, revised_index)
+    _validate_revised_preparation(
+        revised_preparation,
+        revised=revised,
+        revised_index=revised_index,
+    )
+    changes = _fact_changes(baseline, revised)
+    if not changes:
+        raise LocatorDeltaError("locator_confirmation_delta_empty")
+    changed_ids = {item["fact_key"] for item in changes}
+    _require_revised_sources_complete(revised, changed_ids)
+    expected_attestation = _validated_bulk_attestation(
+        attestation,
+        baseline=baseline,
+        baseline_index=baseline_index,
+        changes=changes,
+    )
+    groups, _image_data = _groups(
+        changes=changes,
+        revised_index=revised_index,
+        artifact_root=revised_artifact_root,
+    )
+    expected_delta = _locator_delta_value(
+        baseline=baseline,
+        baseline_index=baseline_index,
+        revised=revised,
+        revised_index=revised_index,
+        revised_preparation=revised_preparation,
+        revised_preparation_path=revised_preparation_path,
+        attestation=expected_attestation,
+        changes=changes,
+        groups=groups,
+    )
+    if review.sha256_json(stored_delta) != review.sha256_json(expected_delta):
+        raise LocatorDeltaError("locator_confirmation_delta_lineage_mismatch")
+    if confirmation != expected_delta["confirmation_text"]:
+        raise LocatorDeltaError("locator_confirmation_text_mismatch")
+
+    intent = _review_intent_from_confirmation(
+        revised_index=revised_index,
+        attestation=expected_attestation,
+        payload_sha256=expected_delta["payload_sha256"],
+        confirmed_at=confirmed_at,
+    )
+    decisions = review.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+        review_index=revised_index,
+        intent=intent,
+    )
+    confirmation_record = {
+        "schema_version": LOCATOR_CONFIRMATION_SCHEMA,
+        "locator_delta_payload_sha256": expected_delta["payload_sha256"],
+        "locator_delta_checksum": expected_delta["delta_checksum"],
+        "bulk_attestation_checksum": expected_attestation["attestation_checksum"],
+        "confirmation_text": confirmation,
+        "reviewer": copy.deepcopy(intent["reviewer"]),
+        "review_intent_sha256": review.sha256_json(intent),
+        "expected_review_decisions_sha256": review.sha256_json(decisions),
+        "authority": {
+            "final_decisions_must_use_review_decision_factory": True,
+            "final_reference_created_here": False,
+        },
+    }
+    confirmation_record["confirmation_checksum"] = review.sha256_json(
+        confirmation_record
+    )
+
+    _require_fresh(output_dir)
+    intent_path = output_dir / "review.intent.private.json"
+    confirmation_path = output_dir / "locator-confirmation.private.json"
     written: list[Path] = []
     try:
-        _write_new(attestation_path, review.canonical_json_bytes(attestation))
-        written.append(attestation_path)
-        _write_new(delta_path, review.canonical_json_bytes(delta))
-        written.append(delta_path)
-        _write_new(html_path, rendered)
-        written.append(html_path)
+        _write_new(intent_path, review.canonical_json_bytes(intent))
+        written.append(intent_path)
+        _write_new(
+            confirmation_path,
+            review.canonical_json_bytes(confirmation_record),
+        )
+        written.append(confirmation_path)
     except Exception:
         for path in reversed(written):
             path.unlink(missing_ok=True)
         raise
     return {
-        "status": (
-            "locator_delta_human_confirmation_required"
-            if changes
-            else "locator_delta_empty"
-        ),
-        "changed_facts": len(changes),
-        "groups": len(groups),
-        "payload_sha256": payload_sha,
-        "attestation": str(attestation_path),
-        "attestation_checksum": attestation["attestation_checksum"],
-        "delta": str(delta_path),
-        "delta_checksum": delta["delta_checksum"],
-        "html": str(html_path),
-        "html_sha256": hashlib.sha256(rendered).hexdigest(),
-        "confirmation_text": delta["confirmation_text"],
+        "status": "locator_confirmation_review_intent_ready",
+        "payload_sha256": expected_delta["payload_sha256"],
+        "review_intent": str(intent_path),
+        "review_intent_sha256": confirmation_record["review_intent_sha256"],
+        "expected_review_decisions_sha256": confirmation_record[
+            "expected_review_decisions_sha256"
+        ],
+        "confirmation_record": str(confirmation_path),
+        "confirmation_checksum": confirmation_record["confirmation_checksum"],
     }
+
+
+def _validated_bulk_attestation(
+    value: dict[str, Any],
+    *,
+    baseline: dict[str, Any],
+    baseline_index: dict[str, Any],
+    changes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    reviewer = value.get("reviewer")
+    statements = value.get("statements")
+    reported_scope = value.get("reported_scope")
+    if (
+        value.get("schema_version") != BULK_ATTESTATION_SCHEMA
+        or not isinstance(reviewer, dict)
+        or not isinstance(statements, list)
+        or any(not isinstance(item, str) or not item.strip() for item in statements)
+        or not isinstance(reported_scope, dict)
+        or not isinstance(reported_scope.get("scope_kind"), str)
+    ):
+        raise LocatorDeltaError("locator_confirmation_attestation_invalid")
+    review._require_human_reviewer(reviewer)
+    if (
+        reviewer.get("identity") != "Роман"
+        or tuple(statements) != FROZEN_ROMAN_ATTESTATION_STATEMENTS
+    ):
+        raise LocatorDeltaError("locator_confirmation_attestation_scope_unproven")
+    expected = _bulk_attestation(
+        baseline=baseline,
+        baseline_index=baseline_index,
+        reviewer=reviewer,
+        statements=statements,
+        changes=changes,
+        attestation_scope=reported_scope["scope_kind"],
+    )
+    if review.sha256_json(value) != review.sha256_json(expected):
+        raise LocatorDeltaError("locator_confirmation_attestation_lineage_mismatch")
+    return expected
+
+
+def _review_intent_from_confirmation(
+    *,
+    revised_index: dict[str, Any],
+    attestation: dict[str, Any],
+    payload_sha256: str,
+    confirmed_at: str,
+) -> dict[str, Any]:
+    scope = attestation["reported_scope"]
+    attested_at = _review_timestamp(attestation["reviewer"]["reviewed_at"])
+    confirmed_timestamp = _review_timestamp(confirmed_at)
+    if confirmed_timestamp < attested_at:
+        raise LocatorDeltaError("locator_confirmation_timestamp_precedes_review")
+    classifications = scope["human_reported_negative_classifications"]
+    expected_cards = {
+        *scope["human_reported_table_region_cards"],
+        *scope["human_reported_negative_cards"],
+    }
+    cards = {card["card_id"]: card for card in revised_index["cards"]}
+    if expected_cards != set(cards):
+        raise LocatorDeltaError("locator_confirmation_scope_mismatch")
+    entries = []
+    reviewer_identity = attestation["reviewer"]["identity"]
+    for card_id in sorted(cards):
+        card = cards[card_id]
+        region = card.get("region")
+        if card["card_kind"] == "negative_case":
+            classification = classifications.get(card["case_id"])
+            if classification == "table_of_contents_not_table":
+                note = (
+                    f"{reviewer_identity} подтвердил: страница является "
+                    "оглавлением, а не "
+                    f"таблицей; locator-delta SHA-256: {payload_sha256}."
+                )
+            elif classification == "not_table":
+                note = (
+                    f"{reviewer_identity} подтвердил: страница не содержит "
+                    "таблицы; "
+                    f"locator-delta SHA-256: {payload_sha256}."
+                )
+            else:
+                raise LocatorDeltaError(
+                    "locator_confirmation_negative_classification_invalid"
+                )
+            facts: list[dict[str, Any]] = []
+        else:
+            if not isinstance(region, dict):
+                raise LocatorDeltaError("locator_confirmation_region_missing")
+            note = (
+                f"{reviewer_identity} подтвердил регион, значения и привязки к PDF; "
+                f"locator-delta SHA-256: {payload_sha256}."
+            )
+            facts = region["facts"]
+        entries.append(
+            {
+                "card_id": card_id,
+                "region_decision": "approve",
+                "region_note": note,
+                "corrected_region": None,
+                "checklist": {key: "pass" for key in card["checklist_fields"]},
+                "fact_decisions": [
+                    {
+                        "fact_id": fact["fact_id"],
+                        "decision": "confirm",
+                        "note": (
+                            f"{reviewer_identity} подтвердил значение, "
+                            "интерпретацию и адрес "
+                            "источника; locator-delta SHA-256: "
+                            f"{payload_sha256}."
+                        ),
+                        "corrected_fact": None,
+                    }
+                    for fact in facts
+                ],
+            }
+        )
+    return {
+        "schema_version": review.REVIEW_INTENT_SCHEMA,
+        "review_index_sha256": revised_index["index_sha256"],
+        "proposed_reference_sha256": revised_index["proposed_reference_sha256"],
+        "reviewer": {
+            "kind": "human",
+            "identity": reviewer_identity,
+            "reviewed_at": confirmed_at,
+        },
+        "entries": entries,
+    }
+
+
+def _review_timestamp(value: Any) -> datetime:
+    if not isinstance(value, str):
+        raise LocatorDeltaError("locator_confirmation_timestamp_invalid")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise LocatorDeltaError("locator_confirmation_timestamp_invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise LocatorDeltaError("locator_confirmation_timestamp_invalid")
+    return parsed
 
 
 def _validate_inputs(

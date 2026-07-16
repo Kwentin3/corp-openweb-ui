@@ -16,6 +16,10 @@ PROPOSED_REFERENCE_SCHEMA = "broker_reports_pdf_dual_vlm_fact_proposed_reference
 REVIEW_INDEX_SCHEMA = "broker_reports_pdf_dual_vlm_fact_review_index_v1"
 REVIEW_INTENT_SCHEMA = "broker_reports_pdf_dual_vlm_fact_review_intent_v1"
 REVIEW_DECISIONS_SCHEMA = "broker_reports_pdf_dual_vlm_fact_review_decisions_v1"
+LOCATOR_CONFIRMATION_SCHEMA = "broker_reports_pdf_dual_vlm_fact_locator_confirmation_v1"
+LOCATOR_CONFIRMATION_REQUIRED_PROPOSAL_SHA256 = frozenset(
+    {"08e120544a17a18b04d0870e40aab6dc4fd29799abb2f917c13dfa7b808ad8f7"}
+)
 FINAL_REFERENCE_SCHEMA = "broker_reports_pdf_dual_vlm_fact_human_reference_v1"
 FINAL_REFERENCE_SEAL_SCHEMA = "broker_reports_pdf_dual_vlm_fact_human_reference_seal_v1"
 
@@ -363,6 +367,7 @@ def finalize_human_reference(
     review_index: dict[str, Any],
     review_decisions: dict[str, Any],
     output_dir: str | Path,
+    confirmation_record: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Finalize a human reference without consulting provider outputs.
 
@@ -380,9 +385,14 @@ def finalize_human_reference(
         validate_review_decisions(review_decisions, review_index),
         "review_decisions_invalid",
     )
+    proposal_sha = sha256_json(proposed_reference)
+    _require_locator_confirmation_record(
+        confirmation_record,
+        review_decisions=review_decisions,
+        required=(proposal_sha in LOCATOR_CONFIRMATION_REQUIRED_PROPOSAL_SHA256),
+    )
     if not review_index["cards"]:
         raise ReviewContractError("review_index_empty")
-    proposal_sha = sha256_json(proposed_reference)
     if proposal_sha != review_index["proposed_reference_sha256"]:
         raise ReviewContractError("review_proposed_reference_lineage_mismatch")
     if review_decisions["proposed_reference_sha256"] != proposal_sha:
@@ -1158,6 +1168,100 @@ def _require_review_intent(value: Any, review_index: dict[str, Any]) -> None:
         _validate_entries_for_index(value["entries"], review_index),
         "review_intent_entries_invalid",
     )
+
+
+def _require_locator_confirmation_record(
+    value: Any,
+    *,
+    review_decisions: dict[str, Any],
+    review_intent: dict[str, Any] | None = None,
+    required: bool = False,
+) -> None:
+    notes = []
+    for entry in review_decisions.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        notes.append(entry.get("region_note"))
+        notes.extend(
+            item.get("note")
+            for item in entry.get("fact_decisions") or []
+            if isinstance(item, dict)
+        )
+    marker = "locator-delta SHA-256:"
+    marked_notes = [note for note in notes if isinstance(note, str) and marker in note]
+    if not marked_notes:
+        if required:
+            raise ReviewContractError("review_locator_confirmation_required")
+        if value is not None:
+            raise ReviewContractError("review_locator_confirmation_unexpected")
+        return
+    if len(marked_notes) != len(notes):
+        raise ReviewContractError("review_locator_confirmation_notes_incomplete")
+    matches_by_note = [
+        re.findall(r"locator-delta SHA-256: ([0-9a-f]{64})", note)
+        for note in marked_notes
+    ]
+    if any(len(matches) != 1 for matches in matches_by_note):
+        raise ReviewContractError("review_locator_confirmation_notes_invalid")
+    payloads = {matches[0] for matches in matches_by_note}
+    if len(payloads) != 1:
+        raise ReviewContractError("review_locator_confirmation_notes_invalid")
+    if not isinstance(value, dict):
+        raise ReviewContractError("review_locator_confirmation_required")
+    expected_keys = {
+        "schema_version",
+        "locator_delta_payload_sha256",
+        "locator_delta_checksum",
+        "bulk_attestation_checksum",
+        "confirmation_text",
+        "reviewer",
+        "review_intent_sha256",
+        "expected_review_decisions_sha256",
+        "authority",
+        "confirmation_checksum",
+    }
+    if set(value) != expected_keys:
+        raise ReviewContractError("review_locator_confirmation_shape_invalid")
+    unsigned = copy.deepcopy(value)
+    checksum = unsigned.pop("confirmation_checksum")
+    payload_sha = value.get("locator_delta_payload_sha256")
+    if (
+        value.get("schema_version") != LOCATOR_CONFIRMATION_SCHEMA
+        or not isinstance(checksum, str)
+        or _HEX_64.fullmatch(checksum) is None
+        or sha256_json(unsigned) != checksum
+        or payload_sha not in payloads
+        or any(
+            not isinstance(value.get(key), str) or _HEX_64.fullmatch(value[key]) is None
+            for key in (
+                "locator_delta_payload_sha256",
+                "locator_delta_checksum",
+                "bulk_attestation_checksum",
+                "review_intent_sha256",
+                "expected_review_decisions_sha256",
+            )
+        )
+        or value.get("expected_review_decisions_sha256")
+        != sha256_json(review_decisions)
+        or value.get("reviewer") != review_decisions.get("reviewer")
+        or value.get("authority")
+        != {
+            "final_decisions_must_use_review_decision_factory": True,
+            "final_reference_created_here": False,
+        }
+        or re.fullmatch(
+            rf"Подтверждаю locator-delta SHA-256: {payload_sha}; "
+            r"все [1-9][0-9]* изменений источника верны\.",
+            str(value.get("confirmation_text") or ""),
+        )
+        is None
+    ):
+        raise ReviewContractError("review_locator_confirmation_invalid")
+    if review_intent is not None and (
+        value["review_intent_sha256"] != sha256_json(review_intent)
+        or value["reviewer"] != review_intent.get("reviewer")
+    ):
+        raise ReviewContractError("review_locator_confirmation_intent_mismatch")
 
 
 def _effective_region(

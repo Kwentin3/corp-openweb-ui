@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -83,10 +84,21 @@ def _markdown(score: dict[str, Any]) -> str:
     raster = _object(facts.get("raster_separate"))
     agreement = _object(facts.get("raw_model_agreement"))
     operational = _object(score.get("operational"))
+    reference_contract = _object(score.get("reference_contract"))
+    previous_comparison = _object(score.get("previous_benchmark_comparison"))
     best = facts.get("best_single_provider") or "not established"
+    best_display = (
+        json.dumps(best, ensure_ascii=False, sort_keys=True)
+        if isinstance(best, dict)
+        else str(best)
+    )
     consensus_recall_loss = _difference(
         max(_rate(gemini.get("recall")), _rate(openai.get("recall"))),
         _rate(consensus.get("recall")),
+    )
+    detection_failure_rows = _detection_failure_rows(detection)
+    unsupported_reference_types = reference_contract.get(
+        "unsupported_reference_fact_types"
     )
     lines = [
         "TABLE_DETECTION_AND_CROPPING:",
@@ -108,13 +120,29 @@ def _markdown(score: dict[str, Any]) -> str:
         "",
         f"- One-VLM detection/cropping: recall `{_fmt(detection.get('recall'))}`, precision `{_fmt(detection.get('precision'))}`, cut `{detection.get('cut_reference_tables')}`, merged `{detection.get('merged_reference_tables')}`, split `{detection.get('split_reference_tables')}`, reproducibility failures `{detection.get('crop_reproducibility_failures')}`.",
         f"- Raw Gemini/OpenAI agreement statuses: `{json.dumps(agreement, ensure_ascii=False, sort_keys=True)}`.",
-        f"- Gemini alone: precision `{_fmt(gemini.get('precision'))}`, recall `{_fmt(gemini.get('recall'))}`. OpenAI alone: precision `{_fmt(openai.get('precision'))}`, recall `{_fmt(openai.get('recall'))}`. Best single provider: `{best}`.",
+        f"- Gemini alone: precision `{_fmt(gemini.get('precision'))}`, recall `{_fmt(gemini.get('recall'))}`. OpenAI alone: precision `{_fmt(openai.get('precision'))}`, recall `{_fmt(openai.get('recall'))}`. Current-arm rank: `{best_display}`; an accuracy winner is not established while the reference fact-type contract is incompatible.",
         f"- Canonical consensus: precision `{_fmt(consensus.get('precision'))}`, recall `{_fmt(consensus.get('recall'))}`; recall loss versus the better single-provider recall `{_fmt(consensus_recall_loss)}`.",
         f"- Consensus plus source evidence: precision `{_fmt(accepted.get('precision'))}`, recall `{_fmt(accepted.get('recall'))}`, parser/OCR accepted facts `{accepted.get('accepted_facts')}`, false accepted facts `{accepted.get('false_accepted_facts')}`.",
         f"- Human-review-required rate: `{_fmt(accepted.get('human_review_rate'))}`; provenance coverage: `{_fmt(accepted.get('provenance_coverage'))}`.",
         f"- Raster-only path: reference facts `{raster.get('reference_facts')}`, vision-only agreements `{raster.get('models_agree_vision_only')}`, automatically accepted `{raster.get('automatic_acceptance_eligible')}`. Without independent OCR, vision agreement is not source verification.",
         "- Parser-based table construction is not justified by this slice: the parser is retained only for exact text, coordinate, and relation evidence.",
         "- Smallest justified next architecture: page detector -> immutable crop -> independent Gemini/OpenAI fact extraction -> deterministic consensus -> parser evidence for text-layer facts -> bounded independent OCR only where separately justified -> human review for every unresolved or vision-only result.",
+        f"- Comparison with the frozen previous single-VLM benchmark: `{previous_comparison.get('status', 'not established')}`. The current material-improvement flag uses `{previous_comparison.get('current_material_improvement_comparator', 'an unspecified comparator')}` and is not evidence of improvement over the prior benchmark.",
+        "",
+        "## Exact detection failures",
+        "",
+        "| Failure class | Case | Page | Region/candidate | Detail |",
+        "|---|---|---:|---|---|",
+        *detection_failure_rows,
+        "",
+        "## Reference/scoring contract limitation",
+        "",
+        f"- Human-reference fact types: `{json.dumps(reference_contract.get('reference_fact_type_counts'), ensure_ascii=False, sort_keys=True)}`.",
+        f"- Types outside the provider fact contract: `{json.dumps(unsupported_reference_types, ensure_ascii=False, sort_keys=True)}`.",
+        f"- Fact-type contract compatible: `{reference_contract.get('fact_type_contract_compatible')}`; provider precision/recall interpretation: `{reference_contract.get('provider_precision_recall_interpretation', 'not established')}`.",
+        "- The scorer requires exact fact-type equality for a true positive. In this run, the reviewed generic `financial_numeric_fact` type is outside the provider output enum, so zero provider precision/recall is contract-dominated and must not be presented as a clean measurement of visual reading accuracy.",
+        "- No post-review type mapping or semantic repair was applied. The reviewed reference remains immutable; a contract-compatible typed reference would require a separate human-reviewed benchmark revision.",
+        f"- Null reference-field counts: `{json.dumps(reference_contract.get('null_field_counts'), ensure_ascii=False, sort_keys=True)}`.",
         "",
         "## Prior omissions corrected",
         "",
@@ -161,6 +189,46 @@ def _markdown(score: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _detection_failure_rows(detection: dict[str, Any]) -> list[str]:
+    rows: list[str] = []
+    for item in detection.get("false_candidates") or []:
+        case_id = str(item.get("case_id") or "unknown")
+        rows.append(
+            "| false table | "
+            f"`{case_id}` | {_case_page(case_id)} | "
+            f"`{item.get('candidate_id')}` | negative page classified as a table |"
+        )
+    for item in detection.get("missed_regions") or []:
+        case_id = str(item.get("case_id") or "unknown")
+        rows.append(
+            "| missed table | "
+            f"`{case_id}` | {_case_page(case_id)} | "
+            f"`{item.get('reference_region_id')}` | reference region not detected |"
+        )
+    for item in detection.get("cut_regions") or []:
+        case_id = str(item.get("case_id") or "unknown")
+        rows.append(
+            "| cut reference table | "
+            f"`{case_id}` | {_case_page(case_id)} | "
+            f"`{item.get('reference_region_id')}` / `{item.get('candidate_id')}` | "
+            f"IoU `{item.get('iou')}` but crop does not contain the complete reference table |"
+        )
+    for item in detection.get("detection_contract_failure_details") or []:
+        case_id = str(item.get("case_id") or "unknown")
+        errors = ", ".join(str(error) for error in item.get("contract_errors") or [])
+        rows.append(
+            "| detection contract invalid | "
+            f"`{case_id}` | {_case_page(case_id)} | detection output | "
+            f"`{errors or item.get('status')}` |"
+        )
+    return rows or ["| none | — | — | — | no detection failure recorded |"]
+
+
+def _case_page(case_id: str) -> str:
+    match = re.search(r"_p([0-9]+)$", case_id)
+    return str(int(match.group(1))) if match is not None else "—"
 
 
 def _json_object(path: Path) -> dict[str, Any]:

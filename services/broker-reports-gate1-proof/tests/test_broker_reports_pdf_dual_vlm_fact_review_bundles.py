@@ -625,8 +625,41 @@ def test_report_starts_with_three_independent_results_and_conclusion(
             "DUAL_VLM_FACT_ARCHITECTURE_PROMISING_BUT_NOT_READY"
         ),
         "facts": {},
-        "detection": {},
+        "detection": {
+            "false_candidates": [
+                {"case_id": "betterment_p02", "candidate_id": "table_0"}
+            ],
+            "missed_regions": [
+                {"case_id": "ibkr_midyear_p03", "reference_region_id": "r1"}
+            ],
+            "cut_regions": [
+                {
+                    "case_id": "drivewealth_p07",
+                    "reference_region_id": "r1",
+                    "candidate_id": "table_1",
+                    "iou": 0.91,
+                }
+            ],
+            "detection_contract_failure_details": [
+                {
+                    "case_id": "ibkr_midyear_p03",
+                    "status": "contract_invalid",
+                    "contract_errors": ["dual_vlm_detection_candidate_0_bbox_invalid"],
+                }
+            ],
+        },
         "operational": {},
+        "reference_contract": {
+            "reference_fact_type_counts": {"financial_numeric_fact": 83},
+            "unsupported_reference_fact_types": ["financial_numeric_fact"],
+            "fact_type_contract_compatible": False,
+            "provider_precision_recall_interpretation": "contract_limited",
+            "null_field_counts": {"period": 83},
+        },
+        "previous_benchmark_comparison": {
+            "status": "not_established",
+            "current_material_improvement_comparator": "current_provider_arms_only",
+        },
     }
     score["score_checksum"] = REPORT._sha256_json(score)
     score_path = tmp_path / "score.json"
@@ -645,6 +678,14 @@ def test_report_starts_with_three_independent_results_and_conclusion(
         "DUAL_VLM_FACT_ARCHITECTURE_PROMISING_BUT_NOT_READY"
     )
     assert "does not establish production readiness" in rendered
+    assert "## Exact detection failures" in rendered
+    assert "`betterment_p02` | 2 | `table_0`" in rendered
+    assert "`ibkr_midyear_p03` | 3 | `r1`" in rendered
+    assert "`drivewealth_p07` | 7 | `r1` / `table_1`" in rendered
+    assert "dual_vlm_detection_candidate_0_bbox_invalid" in rendered
+    assert "## Reference/scoring contract limitation" in rendered
+    assert "zero provider precision/recall is contract-dominated" in rendered
+    assert "not evidence of improvement over the prior benchmark" in rendered
 
 
 def test_report_refuses_blocked_human_reference_score(tmp_path: Path) -> None:

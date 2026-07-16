@@ -58,7 +58,9 @@ from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
 )
 from pdf_dual_vlm_fact_review import (  # noqa: E402
     PROPOSED_REFERENCE_SCHEMA,
+    LOCATOR_CONFIRMATION_REQUIRED_PROPOSAL_SHA256,
     PdfDualVlmFactReviewDecisionFactory,
+    _require_locator_confirmation_record,
     canonical_json_bytes,
     finalize_human_reference,
     generate_review_pack,
@@ -88,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     finalize.add_argument("--proposed-reference", required=True)
     finalize.add_argument("--review-index", required=True)
     finalize.add_argument("--review-intent", required=True)
+    finalize.add_argument("--confirmation-record")
     finalize.add_argument("--prior-decisions")
     finalize.add_argument("--output-dir", required=True)
     args = parser.parse_args(argv)
@@ -284,6 +287,11 @@ def _finalize(args: argparse.Namespace) -> int:
     proposed = _json_object(Path(args.proposed_reference).resolve())
     review_index = _json_object(Path(args.review_index).resolve())
     intent = _json_object(Path(args.review_intent).resolve())
+    confirmation_record = (
+        _json_object(Path(args.confirmation_record).resolve())
+        if args.confirmation_record
+        else None
+    )
     prior = (
         _json_object(Path(args.prior_decisions).resolve())
         if args.prior_decisions
@@ -296,19 +304,38 @@ def _finalize(args: argparse.Namespace) -> int:
         intent=intent,
         prior_decisions=prior,
     )
+    _require_locator_confirmation_record(
+        confirmation_record,
+        review_decisions=decisions,
+        review_intent=intent,
+        required=(
+            review_index["proposed_reference_sha256"]
+            in LOCATOR_CONFIRMATION_REQUIRED_PROPOSAL_SHA256
+        ),
+    )
     decisions_path = output_dir / "review.decisions.private.json"
     decisions_path.write_bytes(canonical_json_bytes(decisions))
+    copied_confirmation_path = None
+    if confirmation_record is not None:
+        copied_confirmation_path = output_dir / "locator-confirmation.private.json"
+        copied_confirmation_path.write_bytes(canonical_json_bytes(confirmation_record))
     finalized = finalize_human_reference(
         proposed_reference=proposed,
         review_index=review_index,
         review_decisions=decisions,
         output_dir=output_dir,
+        confirmation_record=confirmation_record,
     )
     print(
         json.dumps(
             {
                 "status": "human_reference_sealed",
                 "review_decisions": str(decisions_path),
+                "confirmation_record": (
+                    str(copied_confirmation_path)
+                    if copied_confirmation_path is not None
+                    else None
+                ),
                 "reference": finalized["reference_path"],
                 "reference_seal": finalized["seal_path"],
                 "reference_sha256": finalized["seal"]["reference_sha256"],

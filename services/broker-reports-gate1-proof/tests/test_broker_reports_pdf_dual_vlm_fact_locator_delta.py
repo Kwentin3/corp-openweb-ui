@@ -26,10 +26,7 @@ def test_locator_delta_builds_hash_bound_russian_review_pack(tmp_path: Path) -> 
         output_dir=tmp_path / "delta",
         reviewer_identity="Роман",
         reviewed_at="2026-07-16T20:50:10+03:00",
-        statements=[
-            "Все видимые регионы, значения и интерпретации верны.",
-            "betterment_p02 — оглавление, не таблица.",
-        ],
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
         attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
     )
 
@@ -108,6 +105,333 @@ def test_locator_delta_builds_hash_bound_russian_review_pack(tmp_path: Path) -> 
     assert "Строка скопирована" in rendered
     assert "button:disabled" in rendered and ":focus-visible" in rendered
     assert "data:image/png;base64," in rendered
+
+
+def test_exact_confirmation_creates_factory_validated_review_intent(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+
+    confirmed = DELTA.confirm_locator_delta(
+        **inputs,
+        attestation_path=Path(built["attestation"]),
+        delta_path=Path(built["delta"]),
+        confirmation=built["confirmation_text"],
+        confirmed_at="2026-07-16T21:30:00+03:00",
+        output_dir=tmp_path / "confirmed",
+    )
+
+    intent = _read(Path(confirmed["review_intent"]))
+    record = _read(Path(confirmed["confirmation_record"]))
+    revised = _read(inputs["revised_proposed_path"])
+    revised_index = _read(inputs["revised_review_index_path"])
+    decisions = REVIEW.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+        review_index=revised_index,
+        intent=intent,
+    )
+    table_entry = next(
+        item for item in intent["entries"] if item["card_id"] == "region:example_p01:r1"
+    )
+    negative_entry = next(
+        item
+        for item in intent["entries"]
+        if item["card_id"] == "negative:betterment_p02"
+    )
+    assert confirmed["status"] == "locator_confirmation_review_intent_ready"
+    assert intent["reviewer"] == {
+        "identity": "Роман",
+        "kind": "human",
+        "reviewed_at": "2026-07-16T21:30:00+03:00",
+    }
+    assert table_entry["region_decision"] == "approve"
+    assert set(table_entry["checklist"].values()) == {"pass"}
+    assert table_entry["fact_decisions"][0]["decision"] == "confirm"
+    assert built["payload_sha256"] in table_entry["region_note"]
+    assert negative_entry["region_decision"] == "approve"
+    assert negative_entry["fact_decisions"] == []
+    assert "оглавлением, а не таблицей" in negative_entry["region_note"]
+    assert record["review_intent_sha256"] == REVIEW.sha256_json(intent)
+    assert record["expected_review_decisions_sha256"] == REVIEW.sha256_json(decisions)
+    unsigned_record = copy.deepcopy(record)
+    checksum = unsigned_record.pop("confirmation_checksum")
+    assert checksum == REVIEW.sha256_json(unsigned_record)
+    assert record["authority"] == {
+        "final_decisions_must_use_review_decision_factory": True,
+        "final_reference_created_here": False,
+    }
+    assert not (
+        tmp_path / "confirmed" / "reference.human-reviewed.private.json"
+    ).exists()
+
+    rejected_output = tmp_path / "missing-confirmation-record"
+    with pytest.raises(
+        REVIEW.ReviewContractError,
+        match="review_locator_confirmation_required",
+    ):
+        REVIEW.finalize_human_reference(
+            proposed_reference=revised,
+            review_index=revised_index,
+            review_decisions=decisions,
+            output_dir=rejected_output,
+        )
+    assert not (rejected_output / "reference.human-reviewed.private.json").exists()
+
+    finalized = REVIEW.finalize_human_reference(
+        proposed_reference=revised,
+        review_index=revised_index,
+        review_decisions=decisions,
+        output_dir=tmp_path / "finalized",
+        confirmation_record=record,
+    )
+    reference = finalized["reference"]
+    table_case = next(
+        item for item in reference["cases"] if item["case_id"] == "example_p01"
+    )
+    negative_case = next(
+        item for item in reference["cases"] if item["case_id"] == "betterment_p02"
+    )
+    assert reference["human_reviewed"] is True
+    assert table_case["regions"][0]["facts"][0]["accepted_for_scoring"] is True
+    assert negative_case["expected_kind"] == "negative"
+    assert negative_case["negative_review"]["decision"] == "approve"
+
+
+def test_locator_confirmation_rejects_nonmatching_text_before_writes(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+    output = tmp_path / "rejected-confirmation"
+
+    with pytest.raises(
+        DELTA.LocatorDeltaError,
+        match="locator_confirmation_text_mismatch",
+    ):
+        DELTA.confirm_locator_delta(
+            **inputs,
+            attestation_path=Path(built["attestation"]),
+            delta_path=Path(built["delta"]),
+            confirmation=built["confirmation_text"] + " altered",
+            confirmed_at="2026-07-16T21:30:00+03:00",
+            output_dir=output,
+        )
+    assert not output.exists()
+
+
+def test_locator_confirmation_rejects_delta_tamper_before_writes(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+    delta = _read(Path(built["delta"]))
+    delta["summary"]["changed_facts"] = 999
+    tampered_path = tmp_path / "tampered-delta.json"
+    tampered_path.write_bytes(REVIEW.canonical_json_bytes(delta))
+    output = tmp_path / "rejected-tamper"
+
+    with pytest.raises(
+        DELTA.LocatorDeltaError,
+        match="locator_confirmation_delta_lineage_mismatch",
+    ):
+        DELTA.confirm_locator_delta(
+            **inputs,
+            attestation_path=Path(built["attestation"]),
+            delta_path=tampered_path,
+            confirmation=built["confirmation_text"],
+            confirmed_at="2026-07-16T21:30:00+03:00",
+            output_dir=output,
+        )
+    assert not output.exists()
+
+
+def test_locator_confirmation_rejects_weak_bulk_statement_before_writes(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=["Всё верно."],
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+    output = tmp_path / "rejected-weak-attestation"
+
+    with pytest.raises(
+        DELTA.LocatorDeltaError,
+        match="locator_confirmation_attestation_scope_unproven",
+    ):
+        DELTA.confirm_locator_delta(
+            **inputs,
+            attestation_path=Path(built["attestation"]),
+            delta_path=Path(built["delta"]),
+            confirmation=built["confirmation_text"],
+            confirmed_at="2026-07-16T21:30:00+03:00",
+            output_dir=output,
+        )
+    assert not output.exists()
+
+
+def test_locator_confirmation_rejects_timestamp_before_attestation(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+    output = tmp_path / "rejected-early-time"
+
+    with pytest.raises(
+        DELTA.LocatorDeltaError,
+        match="locator_confirmation_timestamp_precedes_review",
+    ):
+        DELTA.confirm_locator_delta(
+            **inputs,
+            attestation_path=Path(built["attestation"]),
+            delta_path=Path(built["delta"]),
+            confirmation=built["confirmation_text"],
+            confirmed_at="2026-07-16T20:00:00+03:00",
+            output_dir=output,
+        )
+    assert not output.exists()
+
+
+def test_locator_confirmation_record_blocks_intent_and_note_bypasses(
+    tmp_path: Path,
+) -> None:
+    inputs = _review_inputs(tmp_path)
+    built = DELTA.build_locator_delta(
+        **inputs,
+        output_dir=tmp_path / "delta",
+        reviewer_identity="Роман",
+        reviewed_at="2026-07-16T20:50:10+03:00",
+        statements=list(DELTA.FROZEN_ROMAN_ATTESTATION_STATEMENTS),
+        attestation_scope=DELTA.ATTESTATION_SCOPE_ALL_VISIBLE,
+    )
+    confirmed = DELTA.confirm_locator_delta(
+        **inputs,
+        attestation_path=Path(built["attestation"]),
+        delta_path=Path(built["delta"]),
+        confirmation=built["confirmation_text"],
+        confirmed_at="2026-07-16T21:30:00+03:00",
+        output_dir=tmp_path / "confirmed",
+    )
+    intent = _read(Path(confirmed["review_intent"]))
+    record = _read(Path(confirmed["confirmation_record"]))
+    revised = _read(inputs["revised_proposed_path"])
+    revised_index = _read(inputs["revised_review_index_path"])
+
+    tampered_intent = copy.deepcopy(intent)
+    tampered_intent["entries"][0]["region_note"] += " altered"
+    tampered_decisions = (
+        REVIEW.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+            review_index=revised_index,
+            intent=tampered_intent,
+        )
+    )
+    with pytest.raises(
+        REVIEW.ReviewContractError,
+        match="review_locator_confirmation_invalid",
+    ):
+        REVIEW._require_locator_confirmation_record(
+            record,
+            review_decisions=tampered_decisions,
+            review_intent=tampered_intent,
+            required=True,
+        )
+
+    marker_removed_intent = copy.deepcopy(intent)
+    for entry in marker_removed_intent["entries"]:
+        entry["region_note"] = "Human confirmation marker removed."
+        for fact in entry["fact_decisions"]:
+            fact["note"] = "Human confirmation marker removed."
+    marker_removed_decisions = (
+        REVIEW.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+            review_index=revised_index,
+            intent=marker_removed_intent,
+        )
+    )
+    with pytest.raises(
+        REVIEW.ReviewContractError,
+        match="review_locator_confirmation_required",
+    ):
+        REVIEW._require_locator_confirmation_record(
+            None,
+            review_decisions=marker_removed_decisions,
+            review_intent=marker_removed_intent,
+            required=True,
+        )
+
+    malformed_intent = copy.deepcopy(intent)
+    malformed_intent["entries"][0]["region_note"] = (
+        "Роман подтвердил; locator-delta SHA-256: malformed."
+    )
+    malformed_decisions = (
+        REVIEW.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+            review_index=revised_index,
+            intent=malformed_intent,
+        )
+    )
+    with pytest.raises(
+        REVIEW.ReviewContractError,
+        match="review_locator_confirmation_notes_invalid",
+    ):
+        REVIEW._require_locator_confirmation_record(
+            record,
+            review_decisions=malformed_decisions,
+            review_intent=malformed_intent,
+            required=True,
+        )
+
+    forged_record = copy.deepcopy(record)
+    forged_record["expected_review_decisions_sha256"] = "f" * 64
+    forged_record.pop("confirmation_checksum")
+    forged_record["confirmation_checksum"] = REVIEW.sha256_json(forged_record)
+    decisions = REVIEW.PdfDualVlmFactReviewDecisionFactory().create_from_intent(
+        review_index=revised_index,
+        intent=intent,
+    )
+    output = tmp_path / "forged-record-final"
+    with pytest.raises(
+        REVIEW.ReviewContractError,
+        match="review_locator_confirmation_invalid",
+    ):
+        REVIEW.finalize_human_reference(
+            proposed_reference=revised,
+            review_index=revised_index,
+            review_decisions=decisions,
+            output_dir=output,
+            confirmation_record=forged_record,
+        )
+    assert not (output / "reference.human-reviewed.private.json").exists()
 
 
 def test_locator_delta_rejects_semantic_fact_change(tmp_path: Path) -> None:
@@ -277,13 +601,19 @@ def _review_inputs(tmp_path: Path, *, semantic_change: bool = False) -> dict[str
     revised_path.write_bytes(REVIEW.canonical_json_bytes(revised))
     baseline_pack = REVIEW.generate_review_pack(
         proposed_reference=baseline,
-        page_artifact_paths={"example_p01": page_path},
+        page_artifact_paths={
+            "betterment_p02": page_path,
+            "example_p01": page_path,
+        },
         crop_artifact_paths={"example_p01:r1": crop_path},
         output_dir=tmp_path / "baseline-review",
     )
     revised_pack = REVIEW.generate_review_pack(
         proposed_reference=revised,
-        page_artifact_paths={"example_p01": page_path},
+        page_artifact_paths={
+            "betterment_p02": page_path,
+            "example_p01": page_path,
+        },
         crop_artifact_paths={"example_p01:r1": crop_path},
         output_dir=tmp_path / "revised-review",
     )
@@ -377,7 +707,16 @@ def _proposal(png: bytes) -> dict[str, Any]:
                         "facts": [fact],
                     }
                 ],
-            }
+            },
+            {
+                "case_id": "betterment_p02",
+                "document_id": "betterment_p02",
+                "pdf_sha256": "d" * 64,
+                "page_number": 2,
+                "page_sha256": digest,
+                "expected_kind": "negative",
+                "regions": [],
+            },
         ],
     }
 

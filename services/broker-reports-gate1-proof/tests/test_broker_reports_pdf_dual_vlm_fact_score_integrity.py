@@ -171,6 +171,45 @@ def test_headerless_reference_support_does_not_enable_runtime_evidence() -> None
     assert CONTRACTS._source_regions_compatible(runtime_fact, runtime_fact) is False
 
 
+def test_reference_contract_diagnostics_expose_incompatible_fact_type() -> None:
+    reference = {
+        "cases": [
+            {
+                "regions": [
+                    {
+                        "facts": [
+                            {
+                                "accepted_for_scoring": True,
+                                "fact": {
+                                    "fact_type": "financial_numeric_fact",
+                                    "normalized_row_identity": None,
+                                    "period": None,
+                                    "currency": None,
+                                    "unit": None,
+                                    "scale": None,
+                                    "entity": None,
+                                },
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    diagnostics = SCORE._reference_contract_diagnostics(reference)
+
+    assert diagnostics["reference_facts"] == 1
+    assert diagnostics["reference_fact_type_counts"] == {"financial_numeric_fact": 1}
+    assert diagnostics["unsupported_reference_fact_types"] == ["financial_numeric_fact"]
+    assert diagnostics["fact_type_contract_compatible"] is False
+    assert diagnostics["provider_precision_recall_interpretation"] == (
+        "contract_limited"
+    )
+    assert set(diagnostics["provider_fact_types"]) == CONTRACTS.FACT_TYPES
+    assert set(diagnostics["null_field_counts"].values()) == {1}
+
+
 def test_crop_validation_replays_consensus_and_checks_provider_identity() -> None:
     manifest_case, case_input, candidate, crop = _valid_crop_fixture()
     SCORE._validate_terminal_crop(crop, candidate, manifest_case, case_input)

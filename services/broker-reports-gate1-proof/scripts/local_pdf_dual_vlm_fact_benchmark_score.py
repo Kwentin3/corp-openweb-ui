@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from pdf_dual_vlm_fact_contracts import (  # noqa: E402
     AGREEMENT_STATUSES,
+    FACT_TYPES,
     bbox_iou,
     canonical_json_bytes,
     canonicalize_fact,
@@ -275,6 +276,18 @@ def score_run(
     )
     evidence_passed = _evidence_gate(facts, manifest)
     material_improvement = _material_improvement(facts, manifest)
+    reference_contract = _reference_contract_diagnostics(reference)
+    base_benchmark = _object(manifest.get("base_benchmark"))
+    previous_benchmark_comparison = {
+        "status": "not_established",
+        "comparison_role": base_benchmark.get("comparison_role"),
+        "accepted_score_sha256": base_benchmark.get("accepted_score_sha256"),
+        "reason": (
+            "the scorer compares consensus-plus-evidence with the two current "
+            "provider arms and does not load the frozen prior benchmark score"
+        ),
+        "current_material_improvement_comparator": "current_provider_arms_only",
+    }
     conclusion = _conclusion(
         detection_passed=detection_passed,
         extraction_passed=extraction_passed,
@@ -329,6 +342,8 @@ def score_run(
         },
         "architectural_conclusion": conclusion,
         "materially_better_than_single_vlm": material_improvement,
+        "previous_benchmark_comparison": previous_benchmark_comparison,
+        "reference_contract": reference_contract,
         "detection": detection,
         "facts": facts,
         "operational": operational,
@@ -1522,6 +1537,45 @@ def _reference_index(
             ]
             result[(case_id, str(region["region_id"]))] = facts
     return result
+
+
+def _reference_contract_diagnostics(reference: dict[str, Any]) -> dict[str, Any]:
+    fact_type_counts: dict[str, int] = {}
+    null_field_counts = {
+        key: 0
+        for key in (
+            "normalized_row_identity",
+            "period",
+            "currency",
+            "unit",
+            "scale",
+            "entity",
+        )
+    }
+    fact_count = 0
+    for case in reference.get("cases") or []:
+        for region in case.get("regions") or []:
+            for reviewed in region.get("facts") or []:
+                fact = _object(reviewed.get("fact"))
+                fact_type = str(fact.get("fact_type") or "")
+                fact_type_counts[fact_type] = fact_type_counts.get(fact_type, 0) + 1
+                fact_count += 1
+                for key in null_field_counts:
+                    if fact.get(key) is None:
+                        null_field_counts[key] += 1
+    unsupported = sorted(set(fact_type_counts) - FACT_TYPES)
+    return {
+        "reference_facts": fact_count,
+        "reference_fact_type_counts": dict(sorted(fact_type_counts.items())),
+        "provider_fact_types": sorted(FACT_TYPES),
+        "unsupported_reference_fact_types": unsupported,
+        "fact_type_contract_compatible": not unsupported,
+        "exact_fact_type_match_required_for_true_positive": True,
+        "provider_precision_recall_interpretation": (
+            "contract_limited" if unsupported else "directly_comparable"
+        ),
+        "null_field_counts": null_field_counts,
+    }
 
 
 def _reference_region_medium(
