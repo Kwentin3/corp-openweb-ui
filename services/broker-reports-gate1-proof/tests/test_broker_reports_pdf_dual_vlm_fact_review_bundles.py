@@ -193,11 +193,19 @@ def test_operator_bundle_preserves_sealed_lineage_and_review_controls(
     assert index["terminal_sha256"] == seal["terminal_sha256"]
     assert index["reference_available"] is False
     assert index["cards"][0]["outcomes"][0]["automatic_acceptance_eligible"] is True
-    assert "Gemini result" in rendered
-    assert "OpenAI result" in rendered
-    assert "Parser/OCR evidence and source addresses" in rendered
-    assert "Confirm" in rendered and "Ambiguous" in rendered
-    assert "missing or invented facts" in rendered.casefold()
+    assert '<html lang="ru">' in rendered
+    assert "Проверка данных из таблиц PDF" in rendered
+    assert "Ответ Gemini" in rendered and "Ответ OpenAI" in rendered
+    assert "Сравнение ответов моделей" in rendered
+    assert "Проверка по исходному PDF" in rendered
+    assert "Подтвердить" in rendered and "Неоднозначно" in rendered
+    assert "Нет пропущенных или придуманных фактов" in rendered
+    assert "Загружаем карточки для проверки" in rendered
+    assert "Карточек для проверки нет" in rendered
+    assert "Не удалось открыть данные проверки" in rendered
+    assert "Готовим файл с решениями" in rendered
+    assert "button:disabled" in rendered and ":focus-visible" in rendered
+    assert 'value="confirm"' in rendered and 'value="ambiguous"' in rendered
 
 
 def test_operator_bundle_rejects_unsealed_terminal(tmp_path: Path) -> None:

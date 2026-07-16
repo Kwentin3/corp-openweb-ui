@@ -31,6 +31,88 @@ CHECKLIST = (
     "source_address",
     "missing_or_invented_facts",
 )
+CHECKLIST_LABELS = {
+    "crop_completeness": "Таблица попала в рамку целиком",
+    "row_label": "Подпись строки выбрана верно",
+    "value": "Значение прочитано верно",
+    "sign": "Знак числа указан верно",
+    "period": "Период указан верно",
+    "currency": "Валюта указана верно",
+    "scale": "Единицы и масштаб указаны верно",
+    "header_relationship": "Значение связано с правильным заголовком",
+    "source_address": "На изображении отмечено точное место источника",
+    "missing_or_invented_facts": "Нет пропущенных или придуманных фактов",
+}
+CHECKLIST_OPTION_LABELS = {
+    "pending": "Не проверено",
+    "pass": "Всё верно",
+    "issue": "Есть ошибка",
+    "uncertain": "Не уверен(а)",
+}
+DECISION_LABELS = {
+    "confirm": "Подтвердить",
+    "correct": "Исправить",
+    "ambiguous": "Неоднозначно",
+    "reject": "Отклонить",
+}
+PROVIDER_STATUS_LABELS = {
+    "completed": "ответ получен и прошёл проверку формата",
+    "contract_invalid": "ответ получен, но не прошёл проверку формата",
+    "failed": "ответ получить не удалось",
+    "blocked": "запрос был остановлен до получения ответа",
+}
+CONSENSUS_STATUS_LABELS = {
+    "models_exactly_agree": "модели полностью согласны",
+    "models_semantically_agree_physical_layout_differs": (
+        "модели согласны по смыслу, но по-разному отметили расположение"
+    ),
+    "models_partially_agree": "модели согласны только частично",
+    "model_conflict": "модели дали разные ответы",
+    "one_model_missing_fact": "факт найден только одной моделью",
+    "both_models_unknown": "обе модели не уверены",
+    "human_review_required": "нужна проверка человеком",
+    "provider_contract_invalid": "ответ одной из моделей не прошёл проверку",
+    "consensus_invalid": "сопоставление ответов не прошло проверку",
+    "evidence_invalid": "проверка источника не прошла проверку",
+    "uncertain_not_extracted": "таблица не была извлечена из-за неопределённости",
+    "completed": "обработка завершена",
+}
+DISPOSITION_LABELS = {
+    "evidence_eligible": "можно проверить по источнику",
+    "human_review_required": "нужна проверка человеком",
+}
+EVIDENCE_STATUS_LABELS = {
+    "parser_source_verified": "источник подтверждён текстовым слоем PDF",
+    "not_found": "точное место источника не найдено",
+    "ambiguous": "найдено несколько возможных мест источника",
+    "independent_ocr_unavailable": "для изображения нет независимого OCR",
+    "models_agree_vision_only": "модели согласны только по изображению",
+    "unverified": "источник не подтверждён",
+}
+EVIDENCE_MEDIUM_LABELS = {
+    "text_layer": "текстовый слой PDF",
+    "raster": "изображение без текстового слоя",
+    "mixed": "текстовый слой и изображение",
+}
+REASON_CODE_LABELS = {
+    "dual_vlm_detection_candidate_0_bbox_invalid": ("Рамка таблицы построена неверно."),
+    "no_crop": "На странице не найден фрагмент таблицы.",
+    "no_consensus": "Ответы моделей не удалось сопоставить.",
+}
+REASON_CODE_PATTERNS = (
+    (
+        re.compile(r"^dual_vlm_fact_\d+:observed_invalid$"),
+        "В описании видимого факта есть несогласованные поля.",
+    ),
+    (
+        re.compile(r"^dual_vlm_fact_\d+:evidence_request_invalid$"),
+        "Не указано точное место факта на изображении.",
+    ),
+    (
+        re.compile(r"^dual_vlm_fact_cell_\d+_invalid$"),
+        "Описание ячейки не прошло проверку формата.",
+    ),
+)
 
 
 class OperatorBundleError(RuntimeError):
@@ -250,9 +332,9 @@ def _render(index: dict[str, Any], image_data: dict[str, dict[str, str | None]])
     )
     embedded = json.dumps(index, ensure_ascii=False).replace("</", "<\\/")
     return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dual-VLM PDF financial fact operator review</title>
+<title>Проверка данных из таблиц PDF</title>
 <style>
 :root {{ font-family: system-ui,sans-serif; color-scheme:light dark }}
 body {{ margin:0 }} main {{ max-width:96rem; margin:auto; padding:1rem }}
@@ -266,96 +348,167 @@ fieldset {{ margin:1rem 0 }} label {{ display:block; margin:.35rem 0 }}
 textarea,select {{ width:min(100%,64rem); box-sizing:border-box }}
 pre {{ white-space:pre-wrap; overflow-wrap:anywhere; max-height:32rem; overflow:auto }}
 button {{ padding:.7rem 1rem; font-weight:700 }}
+button:disabled {{ cursor:not-allowed; opacity:.65 }}
 :focus-visible {{ outline:.25rem solid #ffbf47; outline-offset:.2rem }}
 .state {{ border-left:.35rem solid #1d70b8; padding:.75rem }}
+.state[data-state="error"] {{ border-color:#d4351c }}
+.state[data-state="empty"] {{ border-color:#f47738 }}
+.summary {{ border-left:.25rem solid #777; margin:1rem 0; padding-left:.75rem }}
+.help {{ color:#505a5f }}
 </style></head><body><main id="app" aria-busy="false">
-<h1>Dual-VLM PDF financial fact operator review</h1>
-<p>This sealed-run pack shows source images, both provider outputs, deterministic consensus,
-evidence, and exact rejection/review reasons. It exports operator intent only.</p>
-<section class="state" id="status" role="status" aria-live="polite">
-Loaded {len(index["cards"])} review cards. Human reference was not used.</section>
+<h1>Проверка данных из таблиц PDF</h1>
+<p>Здесь собраны исходные страницы, найденные таблицы, ответы Gemini и OpenAI,
+их сравнение и проверка по тексту PDF. Ответы, заранее проверенные человеком, не использовались.</p>
+<p><strong>Что делать:</strong> сравните каждый ответ с изображением, выберите решение
+по фактам и по таблице, затем скачайте файл с решениями. Эта страница сама ничего
+не принимает и не меняет результаты проверки.</p>
+<section class="state" id="status" data-state="loading" role="status" aria-live="polite">
+Загружаем карточки для проверки…</section>
 <form id="form"><section>{cards}</section>
-<button type="button" id="export">Export operator review intent JSON</button>
-<p id="feedback" role="status" aria-live="polite">No export attempted.</p></form>
+<button type="button" id="export" aria-busy="false" aria-describedby="feedback" disabled>
+Скачать файл с решениями (JSON)</button>
+<p id="feedback" role="status" aria-live="polite">Файл с решениями ещё не скачивали.</p></form>
 </main><script id="index" type="application/json">{embedded}</script>
-<script>(()=>{{'use strict';const index=JSON.parse(document.getElementById('index').textContent);
+<script>(()=>{{'use strict';const status=document.getElementById('status');
+const feedback=document.getElementById('feedback');const exportButton=document.getElementById('export');
+const app=document.getElementById('app');let index;
+try{{index=JSON.parse(document.getElementById('index').textContent);}}
+catch(error){{status.dataset.state='error';status.textContent='Не удалось открыть данные проверки.';
+ feedback.textContent='Файл с решениями недоступен: данные страницы повреждены.';return;}}
+if(index.cards.length===0){{status.dataset.state='empty';status.textContent='Карточек для проверки нет.';
+ feedback.textContent='Скачивать нечего: в наборе нет карточек.';return;}}
+status.dataset.state='success';status.textContent=`Карточки готовы: ${{index.cards.length}}. Ответы, заранее проверенные человеком, не использовались.`;
+exportButton.disabled=false;
 const safe=s=>s.replace(/[^A-Za-z0-9_-]/g,'_');
 const selected=name=>{{const x=document.querySelector(`input[name="${{CSS.escape(name)}}"]:checked`);return x?x.value:'pending'}};
-document.getElementById('export').addEventListener('click',()=>{{
- const entries=index.cards.map(card=>{{const id=safe(card.card_id);return{{card_id:card.card_id,
- decision:selected(`${{id}}-decision`),note:document.getElementById(`${{id}}-note`).value,
- corrected_json:document.getElementById(`${{id}}-corrected`).value.trim()||null,
- checklist:Object.fromEntries(card.checklist_fields.map(field=>[field,document.getElementById(`${{id}}-${{field}}`).value])),
- fact_decisions:card.outcomes.filter(x=>x.fact_id).map(x=>{{const f=safe(`${{id}}-${{x.fact_id}}`);return{{fact_id:x.fact_id,decision:selected(`${{f}}-decision`),note:document.getElementById(`${{f}}-note`).value}}}})}}}});
- const intent={{schema_version:{json.dumps(INTENT_SCHEMA)},terminal_sha256:index.terminal_sha256,index_sha256:index.index_sha256,entries}};
- const url=URL.createObjectURL(new Blob([JSON.stringify(intent,null,2)],{{type:'application/json'}}));
- const a=document.createElement('a');a.href=url;a.download='operator-review.intent.json';a.click();URL.revokeObjectURL(url);
- document.getElementById('feedback').textContent='Operator intent exported; no benchmark truth or acceptance was changed.';
+exportButton.addEventListener('click',()=>{{exportButton.disabled=true;exportButton.setAttribute('aria-busy','true');
+ app.setAttribute('aria-busy','true');feedback.textContent='Готовим файл с решениями…';
+ window.setTimeout(()=>{{let url=null;try{{
+  const entries=index.cards.map(card=>{{const id=safe(card.card_id);return{{card_id:card.card_id,
+  decision:selected(`${{id}}-decision`),note:document.getElementById(`${{id}}-note`).value,
+  corrected_json:document.getElementById(`${{id}}-corrected`).value.trim()||null,
+  checklist:Object.fromEntries(card.checklist_fields.map(field=>[field,document.getElementById(`${{id}}-${{field}}`).value])),
+  fact_decisions:card.outcomes.filter(x=>x.fact_id).map(x=>{{const f=safe(`${{id}}-${{x.fact_id}}`);return{{fact_id:x.fact_id,decision:selected(`${{f}}-decision`),note:document.getElementById(`${{f}}-note`).value}}}})}}}});
+  const intent={{schema_version:{json.dumps(INTENT_SCHEMA)},terminal_sha256:index.terminal_sha256,index_sha256:index.index_sha256,entries}};
+  url=URL.createObjectURL(new Blob([JSON.stringify(intent,null,2)],{{type:'application/json'}}));
+  const a=document.createElement('a');a.href=url;a.download='operator-review.intent.json';a.hidden=true;
+  document.body.appendChild(a);a.click();a.remove();
+  feedback.textContent='Файл с решениями сохранён. Ответы человека и результаты проверки не изменены.';
+ }}catch(error){{feedback.textContent='Не удалось подготовить файл. Обновите страницу и попробуйте ещё раз.';}}
+ finally{{if(url)URL.revokeObjectURL(url);exportButton.disabled=false;exportButton.setAttribute('aria-busy','false');
+  app.setAttribute('aria-busy','false');}}}},0);
 }});}})();</script></body></html>"""
 
 
 def _render_card(card: dict[str, Any], images: dict[str, str | None]) -> str:
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", card["card_id"])
-    page_overlay = _overlay(card.get("detected_bbox"), "box", "Detected bbox")
+    page_overlay = _overlay(card.get("detected_bbox"), "box", "Рамка найденной таблицы")
     crop_overlays = _evidence_overlays(card.get("evidence"))
-    page = _figure(images.get("page"), "Source page", page_overlay)
+    page = _figure(images.get("page"), "Исходная страница PDF", page_overlay)
     crop = _figure(
-        images.get("crop"), "Immutable crop with evidence regions", crop_overlays
+        images.get("crop"),
+        "Неизменённый фрагмент таблицы с отмеченными областями",
+        crop_overlays,
     )
     provider_sections = "".join(
-        _json_details(label, card.get(key))
-        for label, key in (("Gemini result", "gemini"), ("OpenAI result", "openai"))
+        _render_provider(label, card.get(key))
+        for label, key in (("Gemini", "gemini"), ("OpenAI", "openai"))
     )
-    consensus = _json_details("Canonical consensus", card.get("consensus"))
-    evidence = _json_details(
-        "Parser/OCR evidence and source addresses", card.get("evidence")
-    )
+    consensus = _render_consensus(card.get("consensus"))
+    evidence = _render_evidence(card.get("evidence"))
     outcomes = "".join(_render_outcome(safe, item) for item in card["outcomes"])
     checklist = "".join(
-        f'<label for="{safe}-{field}">{html.escape(field.replace("_", " ").title())}</label>'
-        f'<select id="{safe}-{field}"><option value="pending">Choose…</option>'
-        '<option value="pass">Pass</option><option value="issue">Issue</option>'
-        '<option value="uncertain">Uncertain</option></select>'
+        f'<label for="{safe}-{field}">{html.escape(CHECKLIST_LABELS[field])}</label>'
+        f'<select id="{safe}-{field}">'
+        + "".join(
+            f'<option value="{value}">{html.escape(label)}</option>'
+            for value, label in CHECKLIST_OPTION_LABELS.items()
+        )
+        + "</select>"
         for field in card["checklist_fields"]
+    )
+    medium = _mapped_label(
+        card.get("evidence_medium"),
+        EVIDENCE_MEDIUM_LABELS,
+        "не применяется",
+        "неизвестный тип источника",
     )
     return f"""<article aria-labelledby="{safe}-title"><h2 id="{safe}-title">
 {html.escape(card["case_id"])} · {html.escape(str(card.get("candidate_id") or card["card_kind"]))}</h2>
-<p>Page {html.escape(str(card.get("page_number")))} · PDF {html.escape(str(card.get("pdf_sha256")))}<br>
-Evidence medium: {html.escape(str(card.get("evidence_medium") or "not applicable"))}</p>
+<p>Страница {html.escape(str(card.get("page_number")))} · PDF {html.escape(str(card.get("pdf_sha256")))}<br>
+Источник для проверки: {html.escape(medium)}</p>
 <div class="images">{page}{crop}</div>{provider_sections}{consensus}{evidence}
-<section aria-label="Fact outcomes"><h3>Fact outcomes</h3>{outcomes}</section>
-<fieldset><legend>Table decision</legend>{_radios(safe, "decision")}
-<label for="{safe}-note">Decision note</label><textarea id="{safe}-note" rows="3"></textarea>
-<label for="{safe}-corrected">Corrected JSON when needed</label><textarea id="{safe}-corrected" rows="5"></textarea></fieldset>
-<fieldset><legend>Checklist</legend>{checklist}</fieldset></article>"""
+<section aria-label="Решения по показателям"><h3>Проверка показателей</h3>{outcomes}</section>
+<fieldset aria-describedby="{safe}-decision-help"><legend>Решение по таблице</legend>
+<p class="help" id="{safe}-decision-help">Выберите, верен ли результат для таблицы целиком.</p>
+{_radios(safe, "decision")}
+<label for="{safe}-note">Комментарий к решению</label>
+<p class="help" id="{safe}-note-help">Коротко объясните ошибку или сомнение.</p>
+<textarea id="{safe}-note" aria-describedby="{safe}-note-help" rows="3"></textarea>
+<label for="{safe}-corrected">Исправленный JSON, если он нужен</label>
+<p class="help" id="{safe}-corrected-help">Заполняйте только при выборе «Исправить».
+Названия полей и служебные номера оставьте без изменений.</p>
+<textarea id="{safe}-corrected" aria-describedby="{safe}-corrected-help" rows="5"></textarea></fieldset>
+<fieldset><legend>Что проверить</legend>{checklist}</fieldset></article>"""
 
 
 def _render_outcome(card_safe: str, value: dict[str, Any]) -> str:
     fact_id = value.get("fact_id")
     if not fact_id:
-        return _json_details("No canonical fact outcome", value)
+        reason = _reason_summary(value.get("reason_codes") or [])
+        return (
+            '<section class="summary"><h4>Нет сопоставленного показателя</h4>'
+            f"<p>{html.escape(reason)}</p>"
+            + _json_details("Технические данные", value)
+            + "</section>"
+        )
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{card_safe}-{fact_id}")
-    rendered = html.escape(json.dumps(value, ensure_ascii=False, indent=2))
-    return f"""<fieldset><legend>{html.escape(str(fact_id))}</legend>
-<pre>{rendered}</pre>{_radios(safe, "decision")}
-<label for="{safe}-note">Fact decision note</label><textarea id="{safe}-note" rows="2"></textarea></fieldset>"""
+    consensus = _mapped_label(
+        value.get("consensus_status"),
+        CONSENSUS_STATUS_LABELS,
+        "нет результата сравнения",
+        "неизвестный результат сравнения",
+    )
+    disposition = _mapped_label(
+        value.get("runtime_disposition"),
+        DISPOSITION_LABELS,
+        "решение не назначено",
+        "неизвестное дальнейшее действие",
+    )
+    evidence = _mapped_label(
+        value.get("evidence_status"),
+        EVIDENCE_STATUS_LABELS,
+        "источник не проверялся",
+        "неизвестный результат проверки источника",
+    )
+    acceptance = "да" if value.get("automatic_acceptance_eligible") is True else "нет"
+    reason = _reason_summary(value.get("reason_codes") or [])
+    return f"""<fieldset aria-describedby="{safe}-summary"><legend>Показатель {html.escape(str(fact_id))}</legend>
+<div class="summary" id="{safe}-summary"><p><strong>Сравнение моделей:</strong> {html.escape(consensus)}.<br>
+<strong>Что делать дальше:</strong> {html.escape(disposition)}.<br>
+<strong>Проверка по источнику:</strong> {html.escape(evidence)}.<br>
+<strong>Можно принять автоматически:</strong> {acceptance}.</p>
+<p><strong>Причина:</strong> {html.escape(reason)}</p></div>
+{_json_details("Технические данные по показателю", value)}{_radios(safe, "decision")}
+<label for="{safe}-note">Комментарий к решению по показателю</label>
+<p class="help" id="{safe}-note-help">Укажите, что именно верно, ошибочно или неоднозначно.</p>
+<textarea id="{safe}-note" aria-describedby="{safe}-note-help" rows="2"></textarea></fieldset>"""
 
 
 def _radios(prefix: str, field: str) -> str:
     return "".join(
         f'<label><input type="radio" name="{prefix}-{field}" value="{value}"> {label}</label>'
-        for value, label in (
-            ("confirm", "Confirm"),
-            ("correct", "Correct"),
-            ("ambiguous", "Ambiguous"),
-            ("reject", "Reject"),
-        )
+        for value, label in DECISION_LABELS.items()
     )
 
 
 def _figure(uri: str | None, caption: str, overlays: str) -> str:
     if uri is None:
-        return f"<figure><figcaption>{html.escape(caption)}</figcaption><p>Artifact unavailable.</p></figure>"
+        return (
+            f"<figure><figcaption>{html.escape(caption)}</figcaption>"
+            "<p>Изображение недоступно. Проверьте, что файлы набора не перемещали.</p>"
+            "</figure>"
+        )
     return (
         f"<figure><figcaption>{html.escape(caption)}</figcaption>"
         f'<span class="image-wrap"><img src="{uri}" alt="{html.escape(caption)}">'
@@ -381,14 +534,134 @@ def _evidence_overlays(value: Any) -> str:
         ):
             if isinstance(item, dict):
                 rendered.append(
-                    _overlay(item.get("crop_normalized_bbox"), f"box {role}", role)
+                    _overlay(
+                        item.get("crop_normalized_bbox"),
+                        f"box {role}",
+                        "Подпись строки" if role == "row" else "Значение",
+                    )
                 )
         for item in requests.get("headers") or []:
             if isinstance(item, dict):
                 rendered.append(
-                    _overlay(item.get("crop_normalized_bbox"), "box header", "header")
+                    _overlay(
+                        item.get("crop_normalized_bbox"),
+                        "box header",
+                        "Заголовок",
+                    )
                 )
     return "".join(rendered)
+
+
+def _render_provider(label: str, value: Any) -> str:
+    if not isinstance(value, dict):
+        summary = "Ответ отсутствует."
+    else:
+        status = _mapped_label(
+            value.get("status"),
+            PROVIDER_STATUS_LABELS,
+            "статус не указан",
+            "неизвестный статус",
+        )
+        output = value.get("output")
+        facts = output.get("facts") if isinstance(output, dict) else None
+        fact_count = len(facts) if isinstance(facts, list) else 0
+        errors = value.get("contract_errors")
+        error_count = len(errors) if isinstance(errors, list) else 0
+        summary = (
+            f"Статус: {status}. Найдено показателей: {fact_count}. "
+            f"Ошибок формата: {error_count}."
+        )
+    return (
+        f'<section class="summary"><h3>Ответ {html.escape(label)}</h3>'
+        f"<p>{html.escape(summary)}</p>"
+        + _json_details(f"Технические данные {label}", value)
+        + "</section>"
+    )
+
+
+def _render_consensus(value: Any) -> str:
+    entries = value.get("entries") if isinstance(value, dict) else None
+    entries = [item for item in entries or [] if isinstance(item, dict)]
+    if not entries:
+        summary = "Показатели из ответов моделей не удалось сопоставить."
+    else:
+        counts: dict[str, int] = {}
+        for entry in entries:
+            status = str(entry.get("status") or "")
+            counts[status] = counts.get(status, 0) + 1
+        parts = [
+            f"{_mapped_label(status, CONSENSUS_STATUS_LABELS, 'статус не указан', 'неизвестный результат')}: {count}"
+            for status, count in sorted(counts.items())
+        ]
+        summary = f"Сопоставлено показателей: {len(entries)}. " + "; ".join(parts) + "."
+    return (
+        '<section class="summary"><h3>Сравнение ответов моделей</h3>'
+        f"<p>{html.escape(summary)}</p>"
+        + _json_details("Технические данные сравнения", value)
+        + "</section>"
+    )
+
+
+def _render_evidence(value: Any) -> str:
+    source_maps = value.get("source_maps") if isinstance(value, dict) else None
+    source_maps = [item for item in source_maps or [] if isinstance(item, dict)]
+    if not source_maps:
+        summary = "Проверка точного места источника не выполнена."
+    else:
+        counts: dict[str, int] = {}
+        eligible = 0
+        for source_map in source_maps:
+            status = str(source_map.get("evidence_status") or "")
+            counts[status] = counts.get(status, 0) + 1
+            if source_map.get("automatic_acceptance_eligible") is True:
+                eligible += 1
+        parts = [
+            f"{_mapped_label(status, EVIDENCE_STATUS_LABELS, 'статус не указан', 'неизвестный результат')}: {count}"
+            for status, count in sorted(counts.items())
+        ]
+        summary = (
+            f"Проверено показателей: {len(source_maps)}. Можно принять автоматически: "
+            f"{eligible}. " + "; ".join(parts) + "."
+        )
+    return (
+        '<section class="summary"><h3>Проверка по исходному PDF</h3>'
+        f"<p>{html.escape(summary)}</p>"
+        + _json_details("Технические данные проверки источника", value)
+        + "</section>"
+    )
+
+
+def _mapped_label(
+    value: Any,
+    labels: dict[str, str],
+    empty_label: str,
+    unknown_label: str,
+) -> str:
+    if value is None or value == "":
+        return empty_label
+    key = str(value)
+    return labels.get(key, f"{unknown_label} ({key})")
+
+
+def _reason_summary(value: Any) -> str:
+    codes = [str(item) for item in value if item] if isinstance(value, list) else []
+    if not codes:
+        return "Дополнительных причин нет."
+    labels = []
+    for code in codes:
+        label = REASON_CODE_LABELS.get(code)
+        if label is None:
+            label = next(
+                (
+                    candidate
+                    for pattern, candidate in REASON_CODE_PATTERNS
+                    if pattern.fullmatch(code)
+                ),
+                f"Техническая причина: {code}.",
+            )
+        if label not in labels:
+            labels.append(label)
+    return " ".join(labels)
 
 
 def _overlay(bbox: Any, css_class: str, label: str) -> str:

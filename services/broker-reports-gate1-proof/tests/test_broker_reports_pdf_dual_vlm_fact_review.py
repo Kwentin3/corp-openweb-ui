@@ -74,10 +74,25 @@ class PdfDualVlmFactReviewTests(unittest.TestCase):
         self.assertIn('type="radio" value="ambiguous"', rendered)
         self.assertIn('type="radio" value="reject"', rendered)
         self.assertIn('type="radio" value="confirm"', rendered)
-        self.assertIn("Proposed evidence medium:</strong> text_layer", rendered)
+        self.assertIn('<html lang="ru">', rendered)
+        self.assertIn("Проверка таблиц и финансовых данных из PDF", rendered)
+        self.assertIn("Готовим файл с результатами проверки…", rendered)
+        self.assertIn("Материалы загружены.", rendered)
+        self.assertIn("Кто проверяет", rendered)
+        self.assertIn(
+            "Что можно проверить в PDF:</strong> текстовый слой PDF", rendered
+        )
+        self.assertIn('value="approve" required> Всё верно', rendered)
+        self.assertIn('value="correct" required> Нужно исправить', rendered)
+        self.assertIn('value="confirm" required> Подтвердить', rendered)
+        self.assertIn('<option value="pass">Да, всё верно</option>', rendered)
+        self.assertIn("Нет пропущенных или выдуманных фактов", rendered)
+        self.assertIn("Скачать результаты проверки (JSON)", rendered)
         self.assertIn("check-evidence_medium", rendered)
         self.assertIn("new Blob", rendered)
         self.assertIn(REVIEW.REVIEW_INTENT_SCHEMA, rendered)
+        self.assertIn("region_decision: regionDecision", rendered)
+        self.assertIn("fact_id: fact.fact_id", rendered)
         self.assertNotIn("human_reviewed", rendered)
         self.assertNotIn("accepted_for_scoring", rendered)
         self.assertNotIn("finalize_human_reference", rendered)
@@ -97,6 +112,8 @@ class PdfDualVlmFactReviewTests(unittest.TestCase):
         self.assertIn(
             'id="state-success" class="state" role="status" hidden>', rendered
         )
+        self.assertIn("Карточек для проверки нет.", rendered)
+        self.assertIn("Файл ещё не создан.", rendered)
         self.assertIn('id="export-intent" class="primary"', rendered)
         self.assertIn('aria-describedby="export-feedback" disabled', rendered)
 

@@ -47,6 +47,43 @@ EVIDENCE_MEDIA = {"text_layer", "mixed", "raster"}
 SIGN_VALUES = {"positive", "negative", "zero", "unknown", "not_applicable"}
 EXPECTED_KINDS = {"table", "negative"}
 CARD_KINDS = {"table_region", "negative_case"}
+
+REGION_DECISION_LABELS_RU = {
+    "approve": "Всё верно",
+    "correct": "Нужно исправить",
+    "ambiguous": "Не удалось однозначно проверить",
+    "reject": "Отклонить",
+}
+FACT_DECISION_LABELS_RU = {
+    "confirm": "Подтвердить",
+    "correct": "Исправить",
+    "ambiguous": "Не удалось однозначно проверить",
+    "reject": "Отклонить",
+}
+CHECKLIST_LABELS_RU = {
+    "crop_completeness": "Таблица попала в рамку целиком",
+    "row_label": "Название строки прочитано верно",
+    "value": "Значение прочитано верно",
+    "sign": "Знак числа указан верно",
+    "period": "Период или дата указаны верно",
+    "currency": "Валюта указана верно",
+    "scale": "Масштаб единиц (например, тысячи или миллионы) указан верно",
+    "header_relationship": "Значение связано с правильным заголовком",
+    "source_address": "Место факта на изображении указано верно",
+    "missing_or_invented_facts": "Нет пропущенных или выдуманных фактов",
+    "evidence_medium": "Тип источника подтверждения указан верно",
+}
+CHECKLIST_VALUE_LABELS_RU = {
+    "pending": "Выберите…",
+    "pass": "Да, всё верно",
+    "issue": "Есть проблема",
+    "uncertain": "Не уверен(а)",
+}
+EVIDENCE_MEDIUM_LABELS_RU = {
+    "text_layer": "текстовый слой PDF",
+    "mixed": "текст PDF и изображение",
+    "raster": "только изображение",
+}
 _HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _FORBIDDEN_REVIEWER_TOKENS = {
@@ -1248,11 +1285,11 @@ def _render_review_html(
     success_hidden = "" if cards else " hidden"
     embedded = json.dumps(review_index, ensure_ascii=False).replace("</", "<\\/")
     return f"""<!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF financial fact human review</title>
+  <title>Проверка таблиц и финансовых данных из PDF</title>
   <style>
     :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
     body {{ margin: 0; line-height: 1.5; }}
@@ -1280,32 +1317,32 @@ def _render_review_html(
 </head>
 <body>
 <main id="review-app" aria-busy="false">
-  <h1>PDF financial fact human review</h1>
-  <p>Review source pages and immutable crops. This form records human intent only.</p>
+  <h1>Проверка таблиц и финансовых данных из PDF</h1>
+  <p>Сверьте каждую таблицу и число с исходной страницей. Форма только сохраняет ваши решения в файл и ничего не решает за вас.</p>
   <section id="state-loading" class="state" role="status" aria-live="polite" hidden>
-    Preparing the review export…
+    Готовим файл с результатами проверки…
   </section>
   <section id="state-error" class="state error" role="alert" tabindex="-1" hidden></section>
   <section id="state-empty" class="state" role="status"{empty_hidden}>
-    No review cards are available. Check the proposed-reference input and regenerate the pack.
+    Карточек для проверки нет. Сообщите мне — нужно проверить исходные данные и пересобрать страницу.
   </section>
   <section id="state-success" class="state" role="status"{success_hidden}>
-    Review pack loaded successfully. Complete every decision, note, and checklist item.
+    Материалы загружены. Для каждой карточки выберите решение, заполните пояснение и все пункты проверки.
   </section>
   <form id="review-form" novalidate>
     <fieldset>
-      <legend>Human reviewer</legend>
+      <legend>Кто проверяет</legend>
       <input type="hidden" id="reviewer-kind" value="human">
-      <label for="reviewer-identity">Name or accountable identity</label>
-      <input id="reviewer-identity" name="reviewer-identity" type="text" required autocomplete="name">
-      <label for="reviewed-at">Review timestamp with timezone</label>
+      <label for="reviewer-identity">Имя или другой однозначный идентификатор</label>
+      <input id="reviewer-identity" name="reviewer-identity" type="text" required autocomplete="name" placeholder="Например: Роман Петров">
+      <label for="reviewed-at">Дата и время проверки с часовым поясом</label>
       <input id="reviewed-at" name="reviewed-at" type="text" required placeholder="2026-07-16T12:00:00+03:00">
     </fieldset>
-    <section id="review-cards" aria-label="Review cards">{rendered_cards}</section>
+    <section id="review-cards" aria-label="Карточки для проверки">{rendered_cards}</section>
     <button id="export-intent" class="primary" type="button" aria-describedby="export-feedback"{"" if cards else " disabled"}>
-      Export review intent JSON
+      Скачать результаты проверки (JSON)
     </button>
-    <p id="export-feedback" role="status" aria-live="polite" tabindex="-1">No export attempted.</p>
+    <p id="export-feedback" role="status" aria-live="polite" tabindex="-1">Файл ещё не создан.</p>
   </form>
 </main>
 <script id="review-index-data" type="application/json">{embedded}</script>
@@ -1330,7 +1367,7 @@ def _render_review_html(
     const raw = document.getElementById(id).value.trim();
     if (!raw) return null;
     try {{ return JSON.parse(raw); }}
-    catch (cause) {{ throw new Error(`${{label}} is not valid JSON.`); }}
+    catch (cause) {{ throw new Error(`${{label}}: неверный JSON. Проверьте запятые, кавычки и скобки.`); }}
   }}
 
   function collectCard(card) {{
@@ -1346,7 +1383,7 @@ def _render_review_html(
       region_decision: regionDecision,
       region_note: document.getElementById(`${{safe}}-region-note`).value,
       corrected_region: regionDecision === 'correct' ? parseOptionalJson(
-        `${{safe}}-corrected-region`, `Corrected region for ${{card.card_id}}`
+        `${{safe}}-corrected-region`, `Исправленная область ${{card.card_id}}`
       ) : null,
       checklist,
       fact_decisions: facts.map((fact) => {{
@@ -1357,7 +1394,7 @@ def _render_review_html(
           decision: factDecision,
           note: document.getElementById(`${{factSafe}}-note`).value,
           corrected_fact: factDecision === 'correct' ? parseOptionalJson(
-            `${{factSafe}}-corrected`, `Corrected fact ${{fact.fact_id}}`
+            `${{factSafe}}-corrected`, `Исправленный факт ${{fact.fact_id}}`
           ) : null
         }};
       }})
@@ -1389,14 +1426,14 @@ def _render_review_html(
       link.download = 'review.intent.json';
       link.click();
       URL.revokeObjectURL(url);
-      feedback.textContent = 'Review intent exported. Python validation and human finalization are still required.';
+      feedback.textContent = 'Файл review.intent.json создан. Пришлите его в чат — я проверю и завершу разметку.';
       success.hidden = false;
       feedback.focus();
     }} catch (cause) {{
-      const message = cause instanceof Error ? cause.message : 'Review export failed.';
+      const message = cause instanceof Error ? cause.message : 'Не удалось создать файл с результатами.';
       error.textContent = message;
       error.hidden = false;
-      feedback.textContent = 'Export failed. Correct the highlighted JSON or missing form intent.';
+      feedback.textContent = 'Файл не создан. Исправьте JSON или заполните пропущенные поля.';
       error.focus();
     }} finally {{
       loading.hidden = true;
@@ -1416,31 +1453,32 @@ def _render_card(card: dict[str, Any], images: dict[str, str | None]) -> str:
     card_id = card["card_id"]
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", card_id)
     title = (
-        f"Negative case {card['case_id']}"
+        f"Страница без таблицы — {card['case_id']}"
         if card["card_kind"] == "negative_case"
-        else f"Table {card['case_id']} / {card['region']['region_id']}"
+        else f"Таблица — {card['case_id']} / {card['region']['region_id']}"
     )
     crop = ""
     if images["crop"] is not None:
         crop = (
-            "<figure><figcaption>Immutable table crop</figcaption>"
-            f'<img src="{images["crop"]}" alt="Immutable crop for '
+            "<figure><figcaption>Вырезанная область с таблицей</figcaption>"
+            f'<img src="{images["crop"]}" alt="Вырезанная область для '
             f'{html.escape(title)}"></figure>'
         )
     facts = card["region"]["facts"] if card["region"] is not None else []
     facts_html = "".join(_render_fact_form(safe, fact) for fact in facts)
     checklist = "".join(
-        f'<label for="{safe}-check-{field}">{html.escape(field.replace("_", " ").title())}</label>'
+        f'<label for="{safe}-check-{field}">{html.escape(CHECKLIST_LABELS_RU[field])}</label>'
         f'<select id="{safe}-check-{field}" required>'
-        '<option value="pending">Choose…</option>'
-        '<option value="pass">Pass</option><option value="issue">Issue</option>'
-        '<option value="uncertain">Uncertain</option></select>'
+        f'<option value="pending">{CHECKLIST_VALUE_LABELS_RU["pending"]}</option>'
+        f'<option value="pass">{CHECKLIST_VALUE_LABELS_RU["pass"]}</option>'
+        f'<option value="issue">{CHECKLIST_VALUE_LABELS_RU["issue"]}</option>'
+        f'<option value="uncertain">{CHECKLIST_VALUE_LABELS_RU["uncertain"]}</option></select>'
         for field in card["checklist_fields"]
     )
     evidence_medium = (
-        card["region"]["evidence_medium"]
+        EVIDENCE_MEDIUM_LABELS_RU[card["region"]["evidence_medium"]]
         if card["region"] is not None
-        else "not applicable"
+        else "не применимо"
     )
     corrected_region = (
         html.escape(json.dumps(card["region"], ensure_ascii=False, indent=2))
@@ -1451,69 +1489,71 @@ def _render_card(card: dict[str, Any], images: dict[str, str | None]) -> str:
     if card["region"] is not None:
         x0, y0, x1, y1 = card["region"]["bbox_normalized"]
         overlay = (
-            '<span class="bbox-overlay" aria-label="Proposed table bounding box" '
+            '<span class="bbox-overlay" aria-label="Предложенные границы таблицы" '
             f'style="left:{x0 * 100:.6f}%;top:{y0 * 100:.6f}%;'
             f'width:{(x1 - x0) * 100:.6f}%;height:{(y1 - y0) * 100:.6f}%"></span>'
         )
     return f"""
 <article data-card-id="{html.escape(card_id)}" tabindex="-1" aria-labelledby="{safe}-title">
   <h2 id="{safe}-title">{html.escape(title)}</h2>
-  <p class="muted">Page {card["page_number"]} · PDF {html.escape(card["pdf_sha256"])}</p>
-  <p><strong>Proposed evidence medium:</strong> {html.escape(evidence_medium)}</p>
+  <p class="muted">Страница {card["page_number"]} · служебный идентификатор PDF: {html.escape(card["pdf_sha256"])}</p>
+  <p><strong>Что можно проверить в PDF:</strong> {html.escape(evidence_medium)}</p>
   <div class="images">
-    <figure><figcaption>Source page with candidate context</figcaption>
-      <span class="page-wrap"><img src="{images["page"]}" alt="Source page for {html.escape(title)}">
+    <figure><figcaption>Исходная страница. Красная рамка показывает найденную область</figcaption>
+      <span class="page-wrap"><img src="{images["page"]}" alt="Исходная страница для {html.escape(title)}">
         {overlay}
       </span>
     </figure>
     {crop}
   </div>
   <fieldset>
-    <legend>Region or negative-case decision</legend>
-    {_radio(safe, "region-decision", "approve", "Approve")}
-    {_radio(safe, "region-decision", "correct", "Correct")}
-    {_radio(safe, "region-decision", "ambiguous", "Ambiguous")}
-    {_radio(safe, "region-decision", "reject", "Reject")}
-    <label for="{safe}-region-note">Decision note</label>
+    <legend>Решение по таблице или странице без таблицы</legend>
+    {_radio(safe, "region-decision", "approve", REGION_DECISION_LABELS_RU["approve"])}
+    {_radio(safe, "region-decision", "correct", REGION_DECISION_LABELS_RU["correct"])}
+    {_radio(safe, "region-decision", "ambiguous", REGION_DECISION_LABELS_RU["ambiguous"])}
+    {_radio(safe, "region-decision", "reject", REGION_DECISION_LABELS_RU["reject"])}
+    <label for="{safe}-region-note">Коротко объясните решение</label>
     <textarea id="{safe}-region-note" rows="3" required></textarea>
-    <label for="{safe}-corrected-region">Corrected region JSON (required only for Correct)</label>
+    <label for="{safe}-corrected-region">Исправленные данные области — служебный JSON (только для решения «Нужно исправить»)</label>
+    <p class="muted">Не меняйте английские имена полей. Изменяйте только неверные значения.</p>
     <textarea id="{safe}-corrected-region" rows="6" spellcheck="false">{corrected_region}</textarea>
   </fieldset>
   <fieldset>
-    <legend>Review checklist</legend>
+    <legend>Что нужно проверить</legend>
     {checklist}
   </fieldset>
-  <section aria-label="Financial fact decisions">{facts_html}</section>
+  <section aria-label="Решения по финансовым фактам">{facts_html}</section>
 </article>
 """
 
 
 def _render_fact_form(card_safe: str, fact: dict[str, Any]) -> str:
     fact_safe = f"{card_safe}-{re.sub(r'[^A-Za-z0-9_-]', '_', fact['fact_id'])}"
-    header = " > ".join(fact["header_path"]) or "Unknown header"
+    header = " > ".join(fact["header_path"]) or "заголовок не указан"
     source_regions = html.escape(
         json.dumps(fact["source_regions"], ensure_ascii=False, indent=2)
     )
     corrected_fact = html.escape(json.dumps(fact, ensure_ascii=False, indent=2))
     return f"""
 <fieldset class="fact">
-  <legend>Fact {html.escape(fact["fact_id"])}</legend>
-  <p><strong>Row:</strong> {html.escape(fact["row_label"])}<br>
-     <strong>Header:</strong> {html.escape(header)}<br>
-     <strong>Visible value:</strong> {html.escape(fact["visible_value"])}<br>
-     <strong>Period:</strong> {html.escape(str(fact["period"] or "unknown"))}<br>
-     <strong>Currency / unit / scale:</strong>
-       {html.escape(str(fact["currency"] or "unknown"))} /
-       {html.escape(str(fact["unit"] or "unknown"))} /
-       {html.escape(str(fact["scale"] or "unknown"))}</p>
-  <details><summary>Proposed source addresses</summary><pre>{source_regions}</pre></details>
-  {_radio(fact_safe, "decision", "confirm", "Confirm")}
-  {_radio(fact_safe, "decision", "correct", "Correct")}
-  {_radio(fact_safe, "decision", "ambiguous", "Ambiguous")}
-  {_radio(fact_safe, "decision", "reject", "Reject")}
-  <label for="{fact_safe}-note">Fact decision note</label>
+  <legend>Факт: {html.escape(fact["fact_id"])}</legend>
+  <p><strong>Строка:</strong> {html.escape(fact["row_label"])}<br>
+     <strong>Заголовок столбца:</strong> {html.escape(header)}<br>
+     <strong>Значение в таблице:</strong> {html.escape(fact["visible_value"])}<br>
+     <strong>Период:</strong> {html.escape(str(fact["period"] or "не указан"))}<br>
+     <strong>Валюта / единица / масштаб:</strong>
+       {html.escape(str(fact["currency"] or "не указана"))} /
+       {html.escape(str(fact["unit"] or "не указана"))} /
+       {html.escape(str(fact["scale"] or "не указан"))}</p>
+  <details><summary>Где этот факт находится на изображении (технические координаты)</summary><pre>{source_regions}</pre></details>
+  {_radio(fact_safe, "decision", "confirm", FACT_DECISION_LABELS_RU["confirm"])}
+  {_radio(fact_safe, "decision", "correct", FACT_DECISION_LABELS_RU["correct"])}
+  {_radio(fact_safe, "decision", "ambiguous", FACT_DECISION_LABELS_RU["ambiguous"])}
+  {_radio(fact_safe, "decision", "reject", FACT_DECISION_LABELS_RU["reject"])}
+  <label for="{fact_safe}-note">Коротко объясните решение по факту</label>
   <textarea id="{fact_safe}-note" rows="3" required></textarea>
-  <label for="{fact_safe}-corrected">Corrected fact JSON (required only for Correct)</label>
+  <label for="{fact_safe}-corrected">Исправленные данные показателя — служебный JSON (только для решения «Исправить»)</label>
+  <p class="muted">Не меняйте английские имена полей. Сверьте строку, заголовок, значение, период и координаты.</p>
   <textarea id="{fact_safe}-corrected" rows="8" spellcheck="false">{corrected_fact}</textarea>
 </fieldset>
 """
