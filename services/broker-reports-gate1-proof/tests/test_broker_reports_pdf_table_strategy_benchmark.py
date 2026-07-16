@@ -231,6 +231,26 @@ class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
             CONTRACTS.validate_detection_output(uncertain_without_reason),
         )
 
+    def test_bbox_order_is_explicit_in_every_v2_prompt_and_schema(self) -> None:
+        expected_order = ["x0", "y0", "x1", "y1"]
+        views = (
+            CONTRACTS.direct_page_model_view(case_id="case_1", page_number=1),
+            CONTRACTS.detection_model_view(case_id="case_1", page_number=1),
+            CONTRACTS.crop_extraction_model_view(
+                case_id="case_1", page_number=1, region_index=1
+            ),
+        )
+        for view in views:
+            self.assertEqual(expected_order, view["rules"]["bbox_order"])
+            self.assertEqual("top_left", view["rules"]["bbox_origin"])
+            self.assertIn("[x0,y0,x1,y1]", view["task"])
+            self.assertTrue(view["prompt_contract_version"].endswith("_v2"))
+
+        bbox_schema = CONTRACTS.detection_schema()["properties"]["regions"][
+            "items"
+        ]["properties"]["bbox"]
+        self.assertIn("[x0,y0,x1,y1]", bbox_schema["description"])
+
     def test_unified_validator_enforces_closed_rectangular_and_explicit_empty(
         self,
     ) -> None:

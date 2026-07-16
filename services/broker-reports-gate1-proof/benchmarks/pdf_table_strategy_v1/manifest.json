@@ -35,32 +35,32 @@
     }
   },
   "prompt_contract_versions": {
-    "direct": "direct_v1",
-    "detection": "detection_v1",
-    "crop": "crop_v1"
+    "direct": "direct_v2",
+    "detection": "detection_v2",
+    "crop": "crop_v2"
   },
   "strategies": [
     {
       "strategy_id": "A",
       "strategy_key": "direct_vlm_extraction",
       "prompt_contracts": [
-        "direct_v1"
+        "direct_v2"
       ]
     },
     {
       "strategy_id": "B",
       "strategy_key": "two_step_vlm_extraction",
       "prompt_contracts": [
-        "detection_v1",
-        "crop_v1"
+        "detection_v2",
+        "crop_v2"
       ]
     },
     {
       "strategy_id": "C",
       "strategy_key": "hybrid_evidence_validation",
       "prompt_contracts": [
-        "detection_v1",
-        "crop_v1"
+        "detection_v2",
+        "crop_v2"
       ]
     }
   ],

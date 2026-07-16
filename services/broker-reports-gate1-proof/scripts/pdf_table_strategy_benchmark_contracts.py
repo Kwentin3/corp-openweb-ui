@@ -12,12 +12,12 @@ from typing import Any
 EXPERIMENT_VERSION = "broker_reports_pdf_table_strategy_benchmark_v1"
 PROMPT_CONTRACT_VERSION = "broker_reports_pdf_table_strategy_prompts_v1"
 MODEL_VIEW_SCHEMA_VERSION = "broker_reports_pdf_table_strategy_model_view_v1"
-DIRECT_PAGE_MODEL_VIEW_VERSION = "direct_v1"
-DETECTION_MODEL_VIEW_VERSION = "detection_v1"
-CROP_EXTRACTION_MODEL_VIEW_VERSION = "crop_v1"
-DETECTION_SCHEMA_VERSION = "broker_reports_pdf_table_strategy_detection_v1"
+DIRECT_PAGE_MODEL_VIEW_VERSION = "direct_v2"
+DETECTION_MODEL_VIEW_VERSION = "detection_v2"
+CROP_EXTRACTION_MODEL_VIEW_VERSION = "crop_v2"
+DETECTION_SCHEMA_VERSION = "broker_reports_pdf_table_strategy_detection_v2"
 UNIFIED_EXTRACTION_SCHEMA_VERSION = (
-    "broker_reports_pdf_table_strategy_unified_extraction_v1"
+    "broker_reports_pdf_table_strategy_unified_extraction_v2"
 )
 EVIDENCE_SCHEMA_VERSION = "broker_reports_pdf_table_strategy_evidence_v1"
 
@@ -93,7 +93,9 @@ DIRECT_PAGE_PROMPT = (
     "unified table extraction contract. Find every visible table on that page. "
     "Keep physical rows, columns, cells, empty cells, merged regions and geometry "
     "separate from semantic fields and qualifier relationships. Preserve visible "
-    "cell text exactly. Do not calculate, normalize, repair, mutate or invent any "
+    "cell text exactly. Every bbox array must use the exact top-left normalized "
+    "order [x0,y0,x1,y1]: horizontal x first, then vertical y. Do not calculate, "
+    "normalize, repair, mutate or invent any "
     "financial value. Do not force a single answer when physical or semantic "
     "structure is ambiguous; return explicit alternatives and uncertainty instead. "
     "A visible currency symbol is evidence only: never infer an ISO currency code "
@@ -106,7 +108,9 @@ DETECTION_PROMPT = (
     "detection, not table extraction. Return only presence plus bounded normalized "
     "regions with confidence, a possible table type and uncertainty codes. Do not "
     "return or infer rows, columns, cells, headers, merged cells, semantic roles, "
-    "currency meaning or financial values. Do not force presence, a type or a box "
+    "currency meaning or financial values. Every bbox array must use the exact "
+    "top-left normalized order [x0,y0,x1,y1]: horizontal x first, then vertical y. "
+    "Do not force presence, a type or a box "
     "when the image is uncertain. Return only the required JSON object."
 )
 
@@ -115,6 +119,8 @@ CROP_EXTRACTION_PROMPT = (
     "extraction contract. The crop boundary is already selected: do not rediscover "
     "the page, search outside the crop, expand or shrink the crop, or propose another "
     "page region. Use [0,0,1,1] as the table bbox in crop-normalized coordinates. "
+    "Every bbox array must use the exact top-left normalized order "
+    "[x0,y0,x1,y1]: horizontal x first, then vertical y. "
     "Keep physical structure separate from semantic fields and qualifier relations. "
     "Preserve visible text and explicit empty cells. Do not calculate, normalize, "
     "repair, mutate or invent financial values. Do not force a single answer when "
@@ -356,6 +362,8 @@ def direct_page_model_view(
             "forced_guessing_allowed": False,
             "currency_symbol_to_iso_inference_allowed": False,
             "physical_semantic_separation_required": True,
+            "bbox_order": ["x0", "y0", "x1", "y1"],
+            "bbox_origin": "top_left",
         },
     )
 
@@ -385,6 +393,8 @@ def detection_model_view(
             "financial_values_allowed": False,
             "forced_guessing_allowed": False,
             "region_coordinate_space": INPUT_IMAGE_NORMALIZED,
+            "bbox_order": ["x0", "y0", "x1", "y1"],
+            "bbox_origin": "top_left",
         },
     )
 
@@ -419,6 +429,8 @@ def crop_extraction_model_view(
             "forced_guessing_allowed": False,
             "currency_symbol_to_iso_inference_allowed": False,
             "physical_semantic_separation_required": True,
+            "bbox_order": ["x0", "y0", "x1", "y1"],
+            "bbox_origin": "top_left",
         },
     )
 
@@ -1043,6 +1055,10 @@ def _closed_object(properties: dict[str, Any]) -> dict[str, Any]:
 def _bbox_schema() -> dict[str, Any]:
     return {
         "type": "array",
+        "description": (
+            "Exact top-left normalized bbox order [x0,y0,x1,y1]; horizontal x "
+            "coordinates come before vertical y coordinates."
+        ),
         "minItems": 4,
         "maxItems": 4,
         "items": {"type": "number", "minimum": 0.0, "maximum": 1.0},

@@ -82,6 +82,7 @@ from pdf_table_strategy_benchmark_contracts import (  # noqa: E402
     CROP_EXTRACTION_MODEL_VIEW_VERSION,
     DETECTION_MODEL_VIEW_VERSION,
     DIRECT_PAGE_MODEL_VIEW_VERSION,
+    UNIFIED_EXTRACTION_SCHEMA_VERSION,
     crop_extraction_model_view,
     detection_model_view,
     detection_schema,
@@ -444,7 +445,7 @@ def _run_case(
         b_document_uncertainty.append("strategy_b_contract_invalid")
     b_extraction = {
         "schema_version": (
-            "broker_reports_pdf_table_strategy_unified_extraction_v1"
+            UNIFIED_EXTRACTION_SCHEMA_VERSION
         ),
         "document_status": (
             ("partial" if b_errors else "completed")
@@ -776,17 +777,23 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         {
             "strategy_id": "A",
             "strategy_key": "direct_vlm_extraction",
-            "prompt_contracts": ["direct_v1"],
+            "prompt_contracts": [DIRECT_PAGE_MODEL_VIEW_VERSION],
         },
         {
             "strategy_id": "B",
             "strategy_key": "two_step_vlm_extraction",
-            "prompt_contracts": ["detection_v1", "crop_v1"],
+            "prompt_contracts": [
+                DETECTION_MODEL_VIEW_VERSION,
+                CROP_EXTRACTION_MODEL_VIEW_VERSION,
+            ],
         },
         {
             "strategy_id": "C",
             "strategy_key": "hybrid_evidence_validation",
-            "prompt_contracts": ["detection_v1", "crop_v1"],
+            "prompt_contracts": [
+                DETECTION_MODEL_VIEW_VERSION,
+                CROP_EXTRACTION_MODEL_VIEW_VERSION,
+            ],
         },
     ]
     if strategies != expected_strategies:

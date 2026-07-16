@@ -1,7 +1,7 @@
 {
   "schema_version": "broker_reports_pdf_table_strategy_benchmark_reference_v1",
   "benchmark_id": "pdf_table_strategy_v1",
-  "manifest_sha256": "b2067197b1510729abdf9c05f0e4a3af02b80b48f298c1e279e776493c7e708c",
+  "manifest_sha256": "ddbde26c1eb49baeb8e25d35bd8ded97dc9af4e5d0ab37bd211cc7550e4a54ca",
   "case_count": 8,
   "provenance": {
     "authoring_method": "agent_visual_plus_existing_cell_reference",
