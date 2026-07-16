@@ -557,6 +557,88 @@ class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
         self.assertTrue(result["terminal_unchanged_during_scoring"])
         self.assertTrue(result["provisional"])
 
+    def test_two_step_detection_is_scored_when_crop_extraction_is_invalid(
+        self,
+    ) -> None:
+        empty_extraction = {
+            "schema_version": CONTRACTS.UNIFIED_EXTRACTION_SCHEMA_VERSION,
+            "document_status": "no_tables",
+            "tables": [],
+            "uncertainty_codes": [],
+        }
+        terminal = {
+            "target_manifest": {"provider_contract": {"pricing": {}}},
+            "parser_accounting": {
+                "unique_documents": [],
+                "total_duration_ms": 0,
+            },
+            "cases": [
+                {
+                    "case_id": "case_1",
+                    "page_bbox": [0.0, 0.0, 612.0, 792.0],
+                    "strategies": {
+                        "A": {
+                            "status": "failed",
+                            "extraction": None,
+                            "operations": [],
+                        },
+                        "B": {
+                            "status": "contract_invalid",
+                            "detection": _detection_fixture(),
+                            "extraction": empty_extraction,
+                            "contract_errors": [
+                                "benchmark_extraction_cell_count_mismatch"
+                            ],
+                            "operations": [],
+                        },
+                        "C": {
+                            "status": "upstream_contract_invalid",
+                            "extraction": copy.deepcopy(empty_extraction),
+                            "replayed_from_strategy": "B",
+                            "operations": [],
+                            "provider_calls": 0,
+                        },
+                    },
+                }
+            ],
+        }
+        reference = {
+            "cases": [
+                {
+                    "case_id": "case_1",
+                    "regions": [
+                        {
+                            "bbox_normalized": [0.1, 0.1, 0.9, 0.9],
+                            "rows": 1,
+                            "columns": 1,
+                            "cells": [["x"]],
+                            "spans": [],
+                            "header_rows": [],
+                            "header_hierarchy": [],
+                        }
+                    ],
+                }
+            ]
+        }
+        failures: list[dict[str, Any]] = []
+
+        result = SCORER._score_strategies(
+            terminal=terminal,
+            reference=reference,
+            iou_threshold=0.5,
+            failed_contracts=failures,
+            strategy_contract_errors={},
+        )
+
+        self.assertEqual(0, result["A"]["detection"]["found_existing_tables"])
+        self.assertEqual(1, result["B"]["detection"]["found_existing_tables"])
+        self.assertEqual(1, result["C"]["detection"]["found_existing_tables"])
+        self.assertEqual(1, result["B"]["safety"]["malformed_outputs"])
+        self.assertEqual(
+            "benchmark_extraction_cell_count_mismatch",
+            failures[0]["reason_code"],
+        )
+
     def test_runner_source_enforces_factory_route_and_has_no_retry_transport(
         self,
     ) -> None:

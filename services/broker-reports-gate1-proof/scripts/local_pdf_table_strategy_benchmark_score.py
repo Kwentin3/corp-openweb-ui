@@ -20,7 +20,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_PATH = Path(__file__).resolve()
+SCRIPT_DIR = SCRIPT_PATH.parent
+CONTRACTS_PATH = SCRIPT_DIR / "pdf_table_strategy_benchmark_contracts.py"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -34,7 +36,7 @@ from pdf_table_strategy_benchmark_contracts import (  # noqa: E402
 TERMINAL_SCHEMA = "broker_reports_pdf_table_strategy_benchmark_terminal_v1"
 SEAL_SCHEMA = "broker_reports_pdf_table_strategy_benchmark_terminal_seal_v1"
 REFERENCE_SCHEMA = "broker_reports_pdf_table_strategy_benchmark_reference_v1"
-SCORE_SCHEMA = "broker_reports_pdf_table_strategy_benchmark_score_v1"
+SCORE_SCHEMA = "broker_reports_pdf_table_strategy_benchmark_score_v2"
 EVIDENCE_SCHEMA = "broker_reports_pdf_table_strategy_evidence_v1"
 
 STRATEGIES = ("A", "B", "C")
@@ -231,6 +233,12 @@ def score_paths(
         "terminal_sha256": terminal_digest,
         "reference_sha256": reference_digest,
         "manifest_sha256": terminal.get("manifest_sha256"),
+        "scorer_implementation_sha256": hashlib.sha256(
+            SCRIPT_PATH.read_bytes()
+        ).hexdigest(),
+        "contracts_implementation_sha256": hashlib.sha256(
+            CONTRACTS_PATH.read_bytes()
+        ).hexdigest(),
         "terminal_verified_before_reference_access": True,
         "reference_accessed_after_terminal_verification": True,
         "terminal_unchanged_during_scoring": True,
@@ -241,7 +249,8 @@ def score_paths(
                 "maximum_cardinality_then_maximum_iou_one_to_one_within_case"
             ),
             "detection_iou_threshold": threshold,
-            "failed_or_malformed_strategy_output": "score_as_empty_prediction",
+            "failed_or_malformed_extraction": "score_as_empty_prediction",
+            "two_step_detection_scored_independently_from_extraction": True,
             "cell_text_normalization": "unicode_nfkc_plus_whitespace_collapse",
             "numeric_tolerance": "none",
             "physical_and_semantic_scores_separate": True,
@@ -806,6 +815,24 @@ def _score_strategies(
 
         for strategy in STRATEGIES:
             strategy_result = _object(strategies.get(strategy))
+            reported_status = str(strategy_result.get("status") or "").casefold()
+            if reported_status == "contract_invalid":
+                accumulators[strategy]["safety"]["malformed_outputs"] += 1
+                reported_errors = strategy_result.get("contract_errors")
+                reasons = (
+                    [str(value) for value in reported_errors if isinstance(value, str)]
+                    if isinstance(reported_errors, list)
+                    else []
+                )
+                for reason_code in reasons or [
+                    "benchmark_strategy_reported_contract_invalid"
+                ]:
+                    _contract_failure(
+                        failed_contracts,
+                        case_id,
+                        strategy,
+                        reason_code,
+                    )
             usable = _strategy_usable(strategy_result)
             independent_errors = strategy_contract_errors.get((case_id, strategy), [])
             if independent_errors:
@@ -839,16 +866,24 @@ def _score_strategies(
                 else None
             )
 
-            detection_value = (
-                _detection_for_strategy(
-                    strategy=strategy,
-                    strategy_result=strategy_result,
-                    b_result=b_result,
-                    extraction_tables=extraction_tables,
+            if strategy in {"B", "C"}:
+                raw_detection = b_result.get("detection")
+                detection_value = (
+                    raw_detection
+                    if not validate_detection_output(raw_detection)
+                    else {}
                 )
-                if usable
-                else {}
-            )
+            else:
+                detection_value = (
+                    _detection_for_strategy(
+                        strategy=strategy,
+                        strategy_result=strategy_result,
+                        b_result=b_result,
+                        extraction_tables=extraction_tables,
+                    )
+                    if usable
+                    else {}
+                )
             predicted_detection = _detection_regions(
                 detection_value,
                 page_bbox=page_bbox,
