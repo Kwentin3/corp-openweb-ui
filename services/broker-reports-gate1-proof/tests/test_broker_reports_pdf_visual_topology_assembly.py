@@ -126,12 +126,12 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
             ),
         )
 
-    def test_policy_v5_repairs_visual_contract_without_weakening_budgets(
+    def test_policy_v6_repairs_visual_contract_without_weakening_budgets(
         self,
     ) -> None:
         config = PdfVisualTopologyConfig()
 
-        self.assertEqual("pdf_visual_topology_policy_v5", config.policy_version)
+        self.assertEqual("pdf_visual_topology_policy_v6", config.policy_version)
         self.assertEqual(PDF_VISUAL_TOPOLOGY_POLICY_VERSION, config.policy_version)
         self.assertEqual(1_000, config.maximum_atoms)
         self.assertEqual(48 * 1024, config.maximum_model_json_bytes)
@@ -754,11 +754,11 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
         assembly = self._assemble(_response(self.package["package_id"]))
 
         self.assertEqual(
-            "broker_reports_pdf_topology_assembly_result_v5",
+            "broker_reports_pdf_topology_assembly_result_v6",
             assembly["schema_version"],
         )
         self.assertEqual(
-            "pdf_topology_assembly_policy_v5", assembly["policy_version"]
+            "pdf_topology_assembly_policy_v6", assembly["policy_version"]
         )
         self.assertEqual("assembled", assembly["reconstruction_status"])
         evidence = assembly["geometry_evidence"][0]
@@ -911,6 +911,163 @@ class PdfTopologyAssemblyTests(unittest.TestCase):
             assembly["binding_hypotheses"][0]["proposed_geometry"]["columns"][
                 "boundaries"
             ],
+        )
+        self.assertEqual(1, len(assembly["structural_adjustments"]))
+        self.assertEqual(
+            1,
+            assembly["source_accounting"]["alternative_accounting"][0][
+                "structural_adjustments"
+            ],
+        )
+
+        missing = copy.deepcopy(assembly)
+        missing["structural_adjustments"] = []
+        missing.pop("result_checksum")
+        missing["result_checksum"] = sha256_json(missing)
+        self.assertIn(
+            "pdf_topology_assembly_structural_adjustment_invalid",
+            self.assembler.validate_result(missing),
+        )
+
+        forged = copy.deepcopy(assembly)
+        adjustment = forged["structural_adjustments"][0]
+        adjustment["after"] = 0.51
+        adjustment["delta"] = round(
+            adjustment["after"] - adjustment["before"], 9
+        )
+        forged.pop("result_checksum")
+        forged["result_checksum"] = sha256_json(forged)
+        self.assertIn(
+            "pdf_topology_assembly_structural_adjustment_invalid",
+            self.assembler.validate_result(forged),
+        )
+
+    def test_cutting_internal_boundary_snaps_to_unique_source_atom_gap(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["vector_line_inventory"] = []
+        observation = _observation(self.contracts, projection=projection)
+        package = self.visual.build_package(
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(),
+        )
+        response = _response(package["package_id"])
+        response["hypotheses"][0]["row_boundaries"] = [0.0, 0.35, 1.0]
+
+        assembly = self.assembler.assemble(
+            parser_observation=observation,
+            parser_geometry_observation=_geometry_observation(
+                self.geometry, projection=projection
+            ),
+            visual_package=package,
+            topology_response=response,
+            attempt_evidence=_attempt_evidence(1),
+            hypothesis_id_prefix="source-gap-a1",
+        )
+
+        self.assertEqual("assembled", assembly["reconstruction_status"])
+        bound = assembly["binding_hypotheses"][0]
+        self.assertEqual(
+            [0.0, 0.5, 1.0],
+            bound["proposed_geometry"]["rows"]["boundaries"],
+        )
+        self.assertEqual(
+            observation["candidate_order"],
+            [
+                candidate_id
+                for row in bound["binding_output"]["rows"]
+                for cell in row["cells"]
+                for candidate_id in cell
+            ],
+        )
+        adjustment = next(
+            item
+            for item in assembly["structural_adjustments"]
+            if item.get("evidence_basis") == "unique_positive_source_atom_gap"
+        )
+        self.assertEqual(
+            "replace_visual_boundary_with_unique_source_atom_gap",
+            adjustment["operation"],
+        )
+        self.assertEqual("row", adjustment["axis"])
+        self.assertEqual(1, adjustment["boundary_index"])
+        self.assertEqual(0.35, adjustment["before"])
+        self.assertEqual(0.5, adjustment["after"])
+        self.assertEqual([0.4, 0.6], adjustment["source_atom_gap"])
+        self.assertTrue(adjustment["candidate_assignment_preserved"])
+        self.assertFalse(adjustment["candidate_assignment_change_allowed"])
+        self.assertEqual(2, len(adjustment["crossing_candidate_ids"]))
+
+        for mutate in (
+            lambda item: item.pop("source_atom_gap"),
+            lambda item: item.__setitem__(
+                "candidate_assignment_preserved", False
+            ),
+        ):
+            tampered = copy.deepcopy(assembly)
+            source_gap_adjustment = next(
+                item
+                for item in tampered["structural_adjustments"]
+                if item.get("operation")
+                == "replace_visual_boundary_with_unique_source_atom_gap"
+            )
+            mutate(source_gap_adjustment)
+            tampered.pop("result_checksum")
+            tampered["result_checksum"] = sha256_json(tampered)
+            self.assertIn(
+                "pdf_topology_assembly_structural_adjustment_invalid",
+                self.assembler.validate_result(tampered),
+            )
+
+    def test_result_validation_rejects_resealed_forged_structural_adjustment(
+        self,
+    ) -> None:
+        assembly = self._assemble(_response(self.package["package_id"]))
+        tampered = copy.deepcopy(assembly)
+        tampered["structural_adjustments"] = ["forged-unvalidated"]
+        tampered.pop("result_checksum")
+        tampered["result_checksum"] = sha256_json(tampered)
+
+        self.assertIn(
+            "pdf_topology_assembly_structural_adjustment_invalid",
+            self.assembler.validate_result(tampered),
+        )
+
+    def test_cutting_internal_boundary_without_unique_source_gap_fails_closed(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["vector_line_inventory"] = []
+        projection["bbox_inventory"][0]["bbox"] = [10.0, 10.0, 90.0, 60.0]
+        projection["bbox_inventory"][1]["bbox"] = [110.0, 10.0, 190.0, 60.0]
+        projection["bbox_inventory"][2]["bbox"] = [10.0, 40.0, 90.0, 90.0]
+        projection["bbox_inventory"][3]["bbox"] = [110.0, 40.0, 190.0, 90.0]
+        observation = _observation(self.contracts, projection=projection)
+        package = self.visual.build_package(
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(),
+        )
+
+        assembly = self.assembler.assemble(
+            parser_observation=observation,
+            parser_geometry_observation=_geometry_observation(
+                self.geometry, projection=projection
+            ),
+            visual_package=package,
+            topology_response=_response(package["package_id"]),
+            attempt_evidence=_attempt_evidence(1),
+            hypothesis_id_prefix="source-gap-overlap-a1",
+        )
+
+        self.assertEqual(
+            "regional_retry_required", assembly["reconstruction_status"]
+        )
+        self.assertEqual([], assembly["binding_hypotheses"])
+        self.assertEqual([], assembly["structural_adjustments"])
+        self.assertIn(
+            "pdf_topology_assembly_internal_boundary_source_gap_not_unique",
+            [item["reason_code"] for item in assembly["regional_issues"]],
         )
 
     def test_merged_header_atoms_are_anchored_and_covered_cell_is_explicit_empty(

@@ -86,6 +86,19 @@ class PdfVlmRegionProposalTests(unittest.TestCase):
         self.assertFalse(
             model["rules"]["exact_source_word_text_may_be_returned"]
         )
+        self.assertIn("continuation_required to false", model["task"])
+        self.assertIn("whitespace gutter", model["task"])
+        self.assertIn("distinct rows", model["task"])
+        self.assertIn("trailing whitespace", model["task"])
+        continuation_schema = package["output_schema"]["properties"][
+            "regions"
+        ]["items"]["properties"]["hypotheses"]["items"]["properties"][
+            "continuation_required"
+        ]
+        self.assertEqual([False], continuation_schema["enum"])
+        self.assertIn(
+            "descriptive metadata", continuation_schema["description"]
+        )
         for candidate_id in package["neutral_atom_to_candidate_id"].values():
             self.assertNotIn(candidate_id, rendered)
         self.assertEqual([], self.runtime.validate_region_proposal_package(package))

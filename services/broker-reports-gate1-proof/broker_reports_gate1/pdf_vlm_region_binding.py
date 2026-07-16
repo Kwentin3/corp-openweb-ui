@@ -21,6 +21,7 @@ from .pdf_parser_geometry import (
     PdfParserGeometryRuntime,
 )
 from .pdf_topology_assembly import (
+    PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS,
     PdfTopologyAssemblyFactory,
     PdfTopologyAssemblyRuntime,
 )
@@ -32,12 +33,15 @@ from .pdf_visual_topology import (
 
 
 PDF_VLM_REGION_BINDING_RESULT_SCHEMA = (
-    "broker_reports_pdf_vlm_region_binding_result_v1"
+    "broker_reports_pdf_vlm_region_binding_result_v2"
 )
 PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA = (
-    "broker_reports_pdf_vlm_region_reconciliation_plan_v1"
+    "broker_reports_pdf_vlm_region_reconciliation_plan_v2"
 )
-PDF_VLM_REGION_BINDING_POLICY_VERSION = "pdf_vlm_region_binding_policy_v1"
+PDF_VLM_REGION_BINDING_POLICY_VERSION = "pdf_vlm_region_binding_policy_v2"
+PDF_VLM_CANDIDATE_PARENT_SCOPE_EVIDENCE_SCHEMA = (
+    "broker_reports_pdf_vlm_candidate_parent_scope_evidence_v1"
+)
 
 FACTORY_REQUIRED = (
     "PdfVlmRegionBindingFactory.create is the only deterministic VLM-region "
@@ -112,6 +116,41 @@ _PARENT_ATOM_ACCOUNTING_KEYS = {
     "outside_parent_atoms",
     "parent_boundary_crossing_word_refs",
     "parent_boundary_preserved",
+    "candidate_parent_scope_evidence",
+}
+_CANDIDATE_PARENT_SCOPE_EVIDENCE_KEYS = {
+    "schema_version",
+    "candidate_table_ref",
+    "original_source_bbox",
+    "reconciled_source_bbox",
+    "completion_applied",
+    "adjustments",
+    "owned_word_refs",
+    "owned_word_refs_total",
+    "uncontained_owned_word_refs",
+    "all_owned_atoms_contained",
+    "unowned_contained_word_refs",
+    "adjacent_unowned_atom_evidence",
+    "adjacent_unowned_word_refs",
+    "candidate_parent_scope_complete",
+    "evidence_checksum",
+}
+_CANDIDATE_PARENT_ADJUSTMENT_KEYS = {
+    "edge",
+    "from_coordinate",
+    "to_coordinate",
+    "adjustment_code",
+    "word_refs",
+    "forcing_atom_bboxes",
+    "maximum_adjacent_gap_points",
+}
+_ADJACENT_UNOWNED_ATOM_KEYS = {
+    "edge",
+    "word_ref",
+    "source_bbox",
+    "gap_points",
+    "maximum_gap_points",
+    "orthogonal_overlap_points",
 }
 _BBOX_RECONCILIATION_KEYS = {
     "original_source_bbox",
@@ -271,6 +310,124 @@ class PdfVlmRegionBindingRuntime:
         self.assembler = topology_assembly
         self.materializer = materializer
 
+    def reconcile_candidate_parent_scope(
+        self,
+        *,
+        candidate_evidence: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        expected_page_ref: str,
+        page_source_bbox: list[float],
+    ) -> dict[str, Any]:
+        """Complete only source-owned atoms and record adjacent uncertainty."""
+
+        evidence = _candidate_parent_scope_evidence(
+            candidate=candidate_evidence,
+            projection=pdf_text_layer_projection,
+            expected_page_ref=expected_page_ref,
+            page_bbox=page_source_bbox,
+        )
+        if _candidate_parent_scope_evidence_invalid(evidence):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_scope_evidence_invalid"
+            )
+        return evidence
+
+    def assert_parent_atom_geometry(
+        self,
+        *,
+        proposal_package: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        parent_source_bbox: list[float],
+    ) -> None:
+        """Fail before provider execution when a parent splits source atoms."""
+
+        package_errors = self.visual.validate_region_proposal_package(
+            proposal_package
+        )
+        if package_errors:
+            raise PdfVlmRegionBindingError(package_errors[0])
+        parent_bbox = _bbox(parent_source_bbox)
+        package_parent_bbox = _bbox(
+            _object(proposal_package.get("crop_identity")).get(
+                "declared_table_bbox"
+            )
+        )
+        if (
+            parent_bbox is None
+            or parent_bbox[0] == parent_bbox[2]
+            or parent_bbox[1] == parent_bbox[3]
+            or package_parent_bbox != parent_bbox
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_bbox_mismatch"
+            )
+        _, _, parent_crossing, parent_outside = _page_words(
+            projection=pdf_text_layer_projection,
+            expected_page_ref=str(proposal_package.get("page_ref") or ""),
+            parent_bbox=parent_bbox,
+            effective_word_bboxes=_effective_candidate_word_bboxes(
+                proposal_package
+            ),
+        )
+        if parent_crossing:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_atom_crossing"
+            )
+        if (
+            proposal_package.get("proposal_scope") == "page_level"
+            and parent_outside
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_atom_outside_scope"
+            )
+
+    def _candidate_parent_scope_for_package(
+        self,
+        *,
+        proposal_package: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        parent_bbox: list[float],
+        page_ref: str,
+    ) -> dict[str, Any] | None:
+        if proposal_package.get("proposal_scope") != "candidate_crop":
+            return None
+        table_ref = str(proposal_package.get("table_ref") or "")
+        page_candidates = [
+            item
+            for item in _dicts(
+                pdf_text_layer_projection.get("table_candidate_inventory")
+            )
+            if item.get("page_ref") == page_ref
+        ]
+        if not page_candidates:
+            return None
+        candidates = [
+            item
+            for item in page_candidates
+            if item.get("table_candidate_ref") == table_ref
+        ]
+        page_bbox = _projection_page_bbox(
+            projection=pdf_text_layer_projection,
+            expected_page_ref=page_ref,
+        )
+        if len(candidates) != 1 or page_bbox is None:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_scope_evidence_invalid"
+            )
+        if "contributing_word_refs" not in candidates[0]:
+            return None
+        evidence = self.reconcile_candidate_parent_scope(
+            candidate_evidence=candidates[0],
+            pdf_text_layer_projection=pdf_text_layer_projection,
+            expected_page_ref=page_ref,
+            page_source_bbox=page_bbox,
+        )
+        if evidence.get("reconciled_source_bbox") != parent_bbox:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_scope_mismatch"
+            )
+        return evidence
+
     def reconcile_proposal_regions(
         self,
         *,
@@ -331,6 +488,9 @@ class PdfVlmRegionBindingRuntime:
             projection=pdf_text_layer_projection,
             expected_page_ref=str(proposal_package.get("page_ref") or ""),
             parent_bbox=parent_bbox,
+            effective_word_bboxes=_effective_candidate_word_bboxes(
+                proposal_package
+            ),
         )
         page_ref = str(proposal_package.get("page_ref") or inferred_page_ref)
         document_ref = str(proposal_package.get("document_ref") or "")
@@ -347,7 +507,7 @@ class PdfVlmRegionBindingRuntime:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_scope_identity_invalid"
             )
-        if scope == "page_level" and parent_crossing:
+        if parent_crossing:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_parent_atom_crossing"
             )
@@ -422,6 +582,14 @@ class PdfVlmRegionBindingRuntime:
                 }
             )
 
+        candidate_parent_scope_evidence = (
+            self._candidate_parent_scope_for_package(
+                proposal_package=proposal_package,
+                pdf_text_layer_projection=pdf_text_layer_projection,
+                parent_bbox=parent_bbox,
+                page_ref=page_ref,
+            )
+        )
         parent_accounting = {
             "page_atoms_total": (
                 len(words) + len(parent_crossing) + len(parent_outside)
@@ -431,6 +599,9 @@ class PdfVlmRegionBindingRuntime:
             "outside_parent_atoms": len(parent_outside),
             "parent_boundary_crossing_word_refs": sorted(parent_crossing),
             "parent_boundary_preserved": True,
+            "candidate_parent_scope_evidence": copy.deepcopy(
+                candidate_parent_scope_evidence
+            ),
         }
         result = {
             "schema_version": PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA,
@@ -607,6 +778,9 @@ class PdfVlmRegionBindingRuntime:
             projection=pdf_text_layer_projection,
             expected_page_ref=str(proposal_package.get("page_ref") or ""),
             parent_bbox=parent_bbox,
+            effective_word_bboxes=_effective_candidate_word_bboxes(
+                proposal_package
+            ),
         )
         page_ref = str(proposal_package.get("page_ref") or inferred_page_ref)
         if (
@@ -629,7 +803,7 @@ class PdfVlmRegionBindingRuntime:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_crop_set_mismatch"
             )
-        if scope == "page_level" and parent_crossing:
+        if parent_crossing:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_parent_atom_crossing"
             )
@@ -660,6 +834,11 @@ class PdfVlmRegionBindingRuntime:
             proposal_package=proposal_package,
             words=words,
         )
+        candidate_parent_scope_evidence = _object(
+            _object(reconciliation_plan.get("parent_atom_accounting")).get(
+                "candidate_parent_scope_evidence"
+            )
+        )
         region_results: list[dict[str, Any]] = []
         table_refs: set[str] = set()
         for region in regions:
@@ -686,6 +865,9 @@ class PdfVlmRegionBindingRuntime:
                 pdf_text_layer_projection=pdf_text_layer_projection,
                 words=words,
                 candidate_scope=candidate_scope,
+                candidate_parent_scope_evidence=(
+                    candidate_parent_scope_evidence
+                ),
                 document_ref=document_ref,
                 pdf_sha256=pdf_sha256,
                 page_ref=page_ref,
@@ -1002,6 +1184,11 @@ class PdfVlmRegionBindingRuntime:
                             proposal_package.get("page_ref") or ""
                         ),
                         parent_bbox=expected_parent_bbox,
+                        effective_word_bboxes=(
+                            _effective_candidate_word_bboxes(
+                                proposal_package
+                            )
+                        ),
                     )
                 )
             except PdfVlmRegionBindingError:
@@ -1159,7 +1346,8 @@ class PdfVlmRegionBindingRuntime:
                 not candidate_id
                 or len(word_refs) != 1
                 or word_refs[0] not in words
-                or candidate_bbox != words[word_refs[0]]["bbox"]
+                or candidate_bbox
+                != words[word_refs[0]]["original_bbox"]
             ):
                 raise PdfVlmRegionBindingError(
                     "pdf_vlm_region_binding_candidate_provenance_mismatch"
@@ -1180,6 +1368,7 @@ class PdfVlmRegionBindingRuntime:
         pdf_text_layer_projection: dict[str, Any],
         words: dict[str, dict[str, Any]],
         candidate_scope: dict[str, str],
+        candidate_parent_scope_evidence: dict[str, Any],
         document_ref: str,
         pdf_sha256: str,
         page_ref: str,
@@ -1208,6 +1397,17 @@ class PdfVlmRegionBindingRuntime:
         )
         table_ref = str(crop_manifest.get("table_ref") or "")
         reasons = list(crop_reasons)
+        if (
+            candidate_parent_scope_evidence
+            and candidate_parent_scope_evidence.get(
+                "candidate_parent_scope_complete"
+            )
+            is not True
+        ):
+            reasons.append(
+                "pdf_vlm_region_binding_parent_scope_incomplete_"
+                "adjacent_unowned_band"
+            )
         if crossing:
             reasons.append("pdf_vlm_region_binding_atom_crosses_region_boundary")
         if not included:
@@ -1393,6 +1593,11 @@ class PdfVlmRegionBindingRuntime:
             or assembly.get("regional_issues")
         ):
             reasons.append("pdf_vlm_region_binding_assembly_not_uniquely_bound")
+        reasons.extend(
+            str(item.get("reason_code") or "")
+            for item in _dicts(assembly.get("regional_issues"))
+            if item.get("reason_code")
+        )
         if _object(assembly.get("source_accounting")).get(
             "all_bound_alternatives_exactly_once"
         ) is not True:
@@ -1400,7 +1605,7 @@ class PdfVlmRegionBindingRuntime:
         adjustments = _dicts(assembly.get("structural_adjustments"))
         if any(
             item.get("operation")
-            != "replace_visual_boundary_with_parser_geometry"
+            not in PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS
             for item in adjustments
         ):
             reasons.append("pdf_vlm_region_binding_proposal_repair_forbidden")
@@ -1739,6 +1944,7 @@ def _page_words(
     projection: dict[str, Any],
     expected_page_ref: str,
     parent_bbox: list[float],
+    effective_word_bboxes: dict[str, dict[str, list[float]]],
 ) -> tuple[dict[str, dict[str, Any]], str, list[str], list[str]]:
     bbox_by_ref: dict[str, list[float]] = {}
     for item in _dicts(projection.get("bbox_inventory")):
@@ -1773,9 +1979,21 @@ def _page_words(
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_word_inventory_invalid"
             )
-        if _contained(bbox, parent_bbox):
-            words[word_ref] = {"source": item, "bbox": bbox}
-        elif _boxes_overlap(bbox, parent_bbox):
+        effective_geometry = effective_word_bboxes.get(word_ref)
+        effective_bbox = bbox
+        if effective_geometry is not None:
+            if bbox != effective_geometry["original_source_bbox"]:
+                raise PdfVlmRegionBindingError(
+                    "pdf_vlm_region_binding_candidate_provenance_mismatch"
+                )
+            effective_bbox = effective_geometry["reconciled_source_bbox"]
+        if _contained(effective_bbox, parent_bbox):
+            words[word_ref] = {
+                "source": item,
+                "original_bbox": bbox,
+                "bbox": effective_bbox,
+            }
+        elif _boxes_overlap(effective_bbox, parent_bbox):
             crossing.append(word_ref)
         else:
             outside.append(word_ref)
@@ -1784,6 +2002,52 @@ def _page_words(
             "pdf_vlm_region_binding_parent_word_scope_empty"
         )
     return words, page_ref, sorted(crossing), sorted(outside)
+
+
+def _effective_candidate_word_bboxes(
+    proposal_package: dict[str, Any],
+) -> dict[str, dict[str, list[float]]]:
+    if proposal_package.get("proposal_scope") != "candidate_crop":
+        return {}
+    dictionary = _object(proposal_package.get("private_candidate_dictionary"))
+    evidence = _dicts(
+        proposal_package.get("source_atom_geometry_evidence")
+    )
+    if len(evidence) != len(dictionary):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_provenance_mismatch"
+        )
+    result: dict[str, dict[str, list[float]]] = {}
+    candidate_ids: set[str] = set()
+    for geometry in evidence:
+        candidate_id = str(geometry.get("candidate_id") or "")
+        candidate = _object(dictionary.get(candidate_id))
+        word_refs = [str(item) for item in candidate.get("word_refs") or []]
+        original_bbox = _bbox(geometry.get("original_source_bbox"))
+        reconciled_bbox = _bbox(geometry.get("reconciled_source_bbox"))
+        if (
+            not candidate_id
+            or candidate_id in candidate_ids
+            or len(word_refs) != 1
+            or not word_refs[0]
+            or word_refs[0] in result
+            or original_bbox is None
+            or reconciled_bbox is None
+            or _bbox(candidate.get("source_bbox")) != original_bbox
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_provenance_mismatch"
+            )
+        candidate_ids.add(candidate_id)
+        result[word_refs[0]] = {
+            "original_source_bbox": original_bbox,
+            "reconciled_source_bbox": reconciled_bbox,
+        }
+    if candidate_ids != set(dictionary):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_provenance_mismatch"
+        )
+    return result
 
 
 def _partition_words(
@@ -1919,7 +2183,388 @@ def _reconcile_source_bbox(
     }
 
 
+def _projection_page_bbox(
+    *,
+    projection: dict[str, Any],
+    expected_page_ref: str,
+) -> list[float] | None:
+    pages = [
+        item
+        for item in _dicts(projection.get("page_inventory"))
+        if item.get("page_ref") == expected_page_ref
+    ]
+    if len(pages) != 1:
+        return None
+    width = pages[0].get("layout_page_width")
+    height = pages[0].get("layout_page_height")
+    if (
+        not _number(width)
+        or not _number(height)
+        or float(width) <= 0.0
+        or float(height) <= 0.0
+    ):
+        return None
+    return [0.0, 0.0, float(width), float(height)]
+
+
+def _candidate_parent_scope_evidence(
+    *,
+    candidate: dict[str, Any],
+    projection: dict[str, Any],
+    expected_page_ref: str,
+    page_bbox: list[float],
+) -> dict[str, Any]:
+    page_scope = _bbox(page_bbox)
+    table_ref = str(candidate.get("table_candidate_ref") or "")
+    candidate_page_ref = str(candidate.get("page_ref") or "")
+    refs = candidate.get("contributing_word_refs")
+    if (
+        page_scope is None
+        or page_scope[0] == page_scope[2]
+        or page_scope[1] == page_scope[3]
+        or not table_ref
+        or not expected_page_ref
+        or candidate_page_ref != expected_page_ref
+        or not isinstance(refs, list)
+        or not refs
+        or any(not isinstance(ref, str) or not ref for ref in refs)
+        or len(refs) != len(set(refs))
+    ):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+        )
+
+    bbox_by_ref: dict[str, list[float]] = {}
+    for item in _dicts(projection.get("bbox_inventory")):
+        bbox_ref = str(item.get("bbox_ref") or "")
+        bbox = _bbox(item.get("bbox"))
+        if not bbox_ref or bbox is None or bbox_ref in bbox_by_ref:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+            )
+        bbox_by_ref[bbox_ref] = bbox
+    original = bbox_by_ref.get(str(candidate.get("bbox_ref") or ""))
+    if original is None or not _contained(original, page_scope):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+        )
+
+    page_words: dict[str, list[float]] = {}
+    for word in _dicts(projection.get("word_inventory")):
+        if word.get("page_ref") != expected_page_ref:
+            continue
+        word_ref = str(word.get("word_ref") or "")
+        bbox = bbox_by_ref.get(str(word.get("bbox_ref") or ""))
+        if (
+            not word_ref
+            or bbox is None
+            or word_ref in page_words
+            or not _contained(bbox, page_scope)
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+            )
+        page_words[word_ref] = bbox
+    owned = {ref: page_words.get(ref) for ref in refs}
+    if any(bbox is None for bbox in owned.values()):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+        )
+    owned_boxes = {
+        ref: list(bbox)
+        for ref, bbox in owned.items()
+        if isinstance(bbox, list)
+    }
+    uncontained = {
+        ref: bbox
+        for ref, bbox in owned_boxes.items()
+        if not _contained(bbox, original)
+    }
+    if any(not _boxes_overlap(bbox, original) for bbox in uncontained.values()):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+        )
+
+    reconciled = [
+        min(original[0], *(bbox[0] for bbox in owned_boxes.values())),
+        min(original[1], *(bbox[1] for bbox in owned_boxes.values())),
+        max(original[2], *(bbox[2] for bbox in owned_boxes.values())),
+        max(original[3], *(bbox[3] for bbox in owned_boxes.values())),
+    ]
+    if not _contained(reconciled, page_scope) or any(
+        not _contained(bbox, reconciled) for bbox in owned_boxes.values()
+    ):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+        )
+
+    adjustments: list[dict[str, Any]] = []
+    for index, edge in enumerate(("left", "top", "right", "bottom")):
+        if reconciled[index] == original[index]:
+            continue
+        forcing_refs = sorted(
+            ref
+            for ref, bbox in owned_boxes.items()
+            if bbox[index] == reconciled[index]
+            and (
+                bbox[index] < original[index]
+                if index < 2
+                else bbox[index] > original[index]
+            )
+        )
+        if not forcing_refs:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+            )
+        normal_extent_index = (0, 2) if edge in {"left", "right"} else (1, 3)
+        maximum_gap = max(
+            owned_boxes[ref][normal_extent_index[1]]
+            - owned_boxes[ref][normal_extent_index[0]]
+            for ref in forcing_refs
+        )
+        if maximum_gap <= 0.0:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_candidate_parent_bbox_invalid"
+            )
+        adjustments.append(
+            {
+                "edge": edge,
+                "from_coordinate": original[index],
+                "to_coordinate": reconciled[index],
+                "adjustment_code": (
+                    "complete_routed_candidate_source_atom_boundary"
+                ),
+                "word_refs": forcing_refs,
+                "forcing_atom_bboxes": [
+                    copy.deepcopy(owned_boxes[ref]) for ref in forcing_refs
+                ],
+                "maximum_adjacent_gap_points": round(maximum_gap, 9),
+            }
+        )
+
+    owned_refs = set(owned_boxes)
+    unowned_contained = sorted(
+        ref
+        for ref, bbox in page_words.items()
+        if ref not in owned_refs and _contained(bbox, reconciled)
+    )
+    adjacent: list[dict[str, Any]] = []
+    for adjustment in adjustments:
+        edge = str(adjustment["edge"])
+        maximum_gap = float(adjustment["maximum_adjacent_gap_points"])
+        for word_ref, bbox in page_words.items():
+            if word_ref in owned_refs or _contained(bbox, reconciled):
+                continue
+            if edge == "left":
+                gap = reconciled[0] - bbox[2]
+                overlap = _interval_overlap(
+                    reconciled[1], reconciled[3], bbox[1], bbox[3]
+                )
+            elif edge == "top":
+                gap = reconciled[1] - bbox[3]
+                overlap = _interval_overlap(
+                    reconciled[0], reconciled[2], bbox[0], bbox[2]
+                )
+            elif edge == "right":
+                gap = bbox[0] - reconciled[2]
+                overlap = _interval_overlap(
+                    reconciled[1], reconciled[3], bbox[1], bbox[3]
+                )
+            else:
+                gap = bbox[1] - reconciled[3]
+                overlap = _interval_overlap(
+                    reconciled[0], reconciled[2], bbox[0], bbox[2]
+                )
+            if gap < 0.0 or gap > maximum_gap or overlap <= 0.0:
+                continue
+            adjacent.append(
+                {
+                    "edge": edge,
+                    "word_ref": word_ref,
+                    "source_bbox": copy.deepcopy(bbox),
+                    "gap_points": round(gap, 9),
+                    "maximum_gap_points": round(maximum_gap, 9),
+                    "orthogonal_overlap_points": round(overlap, 9),
+                }
+            )
+    edge_order = {"left": 0, "top": 1, "right": 2, "bottom": 3}
+    adjacent.sort(
+        key=lambda item: (
+            edge_order[str(item["edge"])],
+            float(item["gap_points"]),
+            str(item["word_ref"]),
+        )
+    )
+    adjacent_refs = sorted(
+        {str(item["word_ref"]) for item in adjacent}
+    )
+    completion_applied = bool(adjustments)
+    evidence = {
+        "schema_version": PDF_VLM_CANDIDATE_PARENT_SCOPE_EVIDENCE_SCHEMA,
+        "candidate_table_ref": table_ref,
+        "original_source_bbox": copy.deepcopy(original),
+        "reconciled_source_bbox": copy.deepcopy(reconciled),
+        "completion_applied": completion_applied,
+        "adjustments": adjustments,
+        "owned_word_refs": sorted(owned_refs),
+        "owned_word_refs_total": len(owned_refs),
+        "uncontained_owned_word_refs": sorted(uncontained),
+        "all_owned_atoms_contained": True,
+        "unowned_contained_word_refs": unowned_contained,
+        "adjacent_unowned_atom_evidence": adjacent,
+        "adjacent_unowned_word_refs": adjacent_refs,
+        "candidate_parent_scope_complete": bool(
+            not completion_applied
+            or not unowned_contained
+            and not adjacent_refs
+        ),
+    }
+    evidence["evidence_checksum"] = sha256_json(evidence)
+    return evidence
+
+
+def _candidate_parent_scope_evidence_invalid(value: Any) -> bool:
+    if not isinstance(value, dict) or set(value) != (
+        _CANDIDATE_PARENT_SCOPE_EVIDENCE_KEYS
+    ):
+        return True
+    unsigned = copy.deepcopy(value)
+    stored_checksum = unsigned.pop("evidence_checksum", None)
+    original = _bbox(value.get("original_source_bbox"))
+    reconciled = _bbox(value.get("reconciled_source_bbox"))
+    owned_refs = value.get("owned_word_refs")
+    uncontained_refs = value.get("uncontained_owned_word_refs")
+    unowned_contained_refs = value.get("unowned_contained_word_refs")
+    adjacent_refs = value.get("adjacent_unowned_word_refs")
+    adjustments = _dicts(value.get("adjustments"))
+    adjacent = _dicts(value.get("adjacent_unowned_atom_evidence"))
+    if (
+        value.get("schema_version")
+        != PDF_VLM_CANDIDATE_PARENT_SCOPE_EVIDENCE_SCHEMA
+        or not isinstance(value.get("candidate_table_ref"), str)
+        or not value.get("candidate_table_ref")
+        or original is None
+        or reconciled is None
+        or reconciled[0] > original[0]
+        or reconciled[1] > original[1]
+        or reconciled[2] < original[2]
+        or reconciled[3] < original[3]
+        or not _unique_strings(owned_refs)
+        or not owned_refs
+        or not _unique_strings(uncontained_refs)
+        or not set(uncontained_refs).issubset(set(owned_refs))
+        or not _unique_strings(unowned_contained_refs)
+        or set(unowned_contained_refs) & set(owned_refs)
+        or not _unique_strings(adjacent_refs)
+        or set(adjacent_refs) & set(owned_refs)
+        or value.get("owned_word_refs_total") != len(owned_refs)
+        or value.get("all_owned_atoms_contained") is not True
+        or not isinstance(value.get("completion_applied"), bool)
+        or not isinstance(value.get("candidate_parent_scope_complete"), bool)
+        or not isinstance(value.get("adjustments"), list)
+        or len(adjustments) != len(value.get("adjustments") or [])
+        or not isinstance(value.get("adjacent_unowned_atom_evidence"), list)
+        or len(adjacent)
+        != len(value.get("adjacent_unowned_atom_evidence") or [])
+        or stored_checksum != sha256_json(unsigned)
+    ):
+        return True
+
+    current = list(original)
+    edge_index = {"left": 0, "top": 1, "right": 2, "bottom": 3}
+    observed_edges: list[str] = []
+    for adjustment in adjustments:
+        edge = str(adjustment.get("edge") or "")
+        index = edge_index.get(edge)
+        word_refs = adjustment.get("word_refs")
+        forcing_bboxes = adjustment.get("forcing_atom_bboxes")
+        if (
+            set(adjustment) != _CANDIDATE_PARENT_ADJUSTMENT_KEYS
+            or index is None
+            or edge in observed_edges
+            or observed_edges
+            and edge_index[observed_edges[-1]] >= index
+            or adjustment.get("adjustment_code")
+            != "complete_routed_candidate_source_atom_boundary"
+            or not _number(adjustment.get("from_coordinate"))
+            or not _number(adjustment.get("to_coordinate"))
+            or float(adjustment["from_coordinate"]) != current[index]
+            or index < 2
+            and float(adjustment["to_coordinate"]) >= current[index]
+            or index >= 2
+            and float(adjustment["to_coordinate"]) <= current[index]
+            or not _unique_strings(word_refs)
+            or not word_refs
+            or not set(word_refs).issubset(set(owned_refs))
+            or not isinstance(forcing_bboxes, list)
+            or len(forcing_bboxes) != len(word_refs)
+            or any(_bbox(bbox) is None for bbox in forcing_bboxes)
+            or not _number(adjustment.get("maximum_adjacent_gap_points"))
+            or float(adjustment["maximum_adjacent_gap_points"]) <= 0.0
+        ):
+            return True
+        current[index] = float(adjustment["to_coordinate"])
+        observed_edges.append(edge)
+    if (
+        current != reconciled
+        or bool(adjustments) != value.get("completion_applied")
+    ):
+        return True
+
+    observed_adjacent_refs: set[str] = set()
+    previous_key: tuple[int, float, str] | None = None
+    for item in adjacent:
+        edge = str(item.get("edge") or "")
+        key = (
+            edge_index.get(edge, -1),
+            float(item.get("gap_points") or 0.0),
+            str(item.get("word_ref") or ""),
+        )
+        if (
+            set(item) != _ADJACENT_UNOWNED_ATOM_KEYS
+            or edge not in observed_edges
+            or not isinstance(item.get("word_ref"), str)
+            or not item.get("word_ref")
+            or item.get("word_ref") in owned_refs
+            or _bbox(item.get("source_bbox")) is None
+            or not _number(item.get("gap_points"))
+            or float(item["gap_points"]) < 0.0
+            or not _number(item.get("maximum_gap_points"))
+            or float(item["maximum_gap_points"]) <= 0.0
+            or float(item["gap_points"]) > float(item["maximum_gap_points"])
+            or not _number(item.get("orthogonal_overlap_points"))
+            or float(item["orthogonal_overlap_points"]) <= 0.0
+            or previous_key is not None
+            and key < previous_key
+        ):
+            return True
+        observed_adjacent_refs.add(str(item["word_ref"]))
+        previous_key = key
+    expected_complete = bool(
+        not adjustments
+        or not unowned_contained_refs
+        and not observed_adjacent_refs
+    )
+    return bool(
+        sorted(observed_adjacent_refs) != adjacent_refs
+        or value.get("candidate_parent_scope_complete")
+        is not expected_complete
+    )
+
+
+def _interval_overlap(
+    first_start: float,
+    first_end: float,
+    second_start: float,
+    second_end: float,
+) -> float:
+    return max(0.0, min(first_end, second_end) - max(first_start, second_start))
+
+
 def _parent_atom_accounting_invalid(value: dict[str, Any]) -> bool:
+    candidate_parent_scope_evidence = value.get(
+        "candidate_parent_scope_evidence"
+    )
     if (
         set(value) != _PARENT_ATOM_ACCOUNTING_KEYS
         or not all(
@@ -1933,6 +2578,10 @@ def _parent_atom_accounting_invalid(value: dict[str, Any]) -> bool:
         )
         or not _unique_strings(value.get("parent_boundary_crossing_word_refs"))
         or value.get("parent_boundary_preserved") is not True
+        or candidate_parent_scope_evidence is not None
+        and _candidate_parent_scope_evidence_invalid(
+            candidate_parent_scope_evidence
+        )
     ):
         return True
     return bool(

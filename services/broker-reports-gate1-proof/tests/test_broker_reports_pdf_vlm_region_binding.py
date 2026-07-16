@@ -162,6 +162,111 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
         self.assertEqual(["word-1", "word-3"], region["included_word_refs"])
         self.assertEqual(["word-2", "word-4"], region["excluded_word_refs"])
 
+    def test_candidate_precision_reconciliation_remains_effective_in_binding(
+        self,
+    ) -> None:
+        projection = copy.deepcopy(self.projection)
+        original_bbox = [10.0, 60.0, 90.0, 100.0043]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox-3"
+        )["bbox"] = original_bbox
+        observation = (
+            PdfDualOracleContractFactory()
+            .create()
+            .build_parser_observation_from_word_atoms(
+                document_ref="document-1",
+                pdf_sha256="pdf-sha",
+                page_ref="page-1",
+                page_number=1,
+                table_ref="table-1",
+                table_bbox=[0.0, 0.0, 200.0, 100.0],
+                pdf_text_layer_projection=projection,
+            )
+        )
+        parent_crop = _crop_manifest(
+            table_ref="table-1",
+            bbox=[0.0, 0.0, 200.0, 100.0],
+            crop_id="candidate-parent-precision",
+            png_sha256="candidate-parent-precision-sha",
+        )
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=observation,
+            crop_manifest=parent_crop,
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="candidate_crop",
+                regions=[_region("candidate", [0.0, 0.0, 1.0, 1.0])],
+            )
+        )
+
+        plan = self.runtime.reconcile_proposal_regions(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+        )
+        result = self.runtime.bind(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+            region_crop_manifests={"candidate": parent_crop},
+        )
+
+        geometry = next(
+            item
+            for item in package["source_atom_geometry_evidence"]
+            if item["original_source_bbox"] == original_bbox
+        )
+        self.assertEqual(
+            "source_precision_overshoot_reconciled",
+            geometry["classification"],
+        )
+        self.assertEqual(original_bbox, geometry["original_source_bbox"])
+        self.assertEqual(
+            [10.0, 60.0, 90.0, 100.0],
+            geometry["reconciled_source_bbox"],
+        )
+        self.assertEqual(4, plan["parent_atom_accounting"]["all_parent_atoms"])
+        self.assertEqual(
+            0,
+            plan["parent_atom_accounting"]["parent_boundary_crossing_atoms"],
+        )
+        self.assertEqual(
+            "accepted_physical_structure",
+            result["runtime_terminal_status"],
+        )
+        region = result["region_results"][0]
+        self.assertEqual(
+            ["word-1", "word-2", "word-3", "word-4"],
+            region["included_word_refs"],
+        )
+        self.assertEqual([], region["crossing_word_refs"])
+        self.assertEqual(original_bbox, observation["candidates"][2]["bbox"])
+        self.assertEqual(
+            original_bbox,
+            package["private_candidate_dictionary"][
+                observation["candidate_order"][2]
+            ]["source_bbox"],
+        )
+        self.assertEqual([], self.runtime.validate_result(result))
+        self.assertEqual(
+            [],
+            self.runtime.validate_result_against_inputs(
+                result,
+                proposal_package=package,
+                proposal=proposal,
+                pdf_text_layer_projection=projection,
+                parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+                region_crop_manifests={"candidate": parent_crop},
+            ),
+        )
+
     def test_region_boundary_crossing_atoms_expand_to_exact_source_edges(
         self,
     ) -> None:
@@ -301,7 +406,7 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
         )
         self.assertEqual([], evidence["crossing_word_refs_after"])
 
-    def test_candidate_parent_crossing_atom_is_explicitly_unowned(self) -> None:
+    def test_candidate_parent_crossing_atom_fails_closed(self) -> None:
         projection = copy.deepcopy(self.projection)
         projection["bbox_inventory"].append(
             {"bbox_ref": "bbox-parent-crossing", "bbox": [195.0, 20.0, 205.0, 30.0]}
@@ -349,25 +454,16 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
             )
         )
 
-        plan = self.runtime.reconcile_proposal_regions(
-            proposal_package=package,
-            proposal=proposal,
-            pdf_text_layer_projection=projection,
-            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
-        )
-
-        accounting = plan["parent_atom_accounting"]
-        self.assertEqual(4, accounting["all_parent_atoms"])
-        self.assertEqual(1, accounting["parent_boundary_crossing_atoms"])
-        self.assertEqual(
-            ["word-parent-crossing"],
-            accounting["parent_boundary_crossing_word_refs"],
-        )
-        self.assertTrue(accounting["parent_boundary_preserved"])
-        self.assertEqual(
-            [0.0, 0.0, 200.0, 100.0],
-            plan["regions"][0]["reconciled_source_bbox"],
-        )
+        with self.assertRaisesRegex(
+            PdfVlmRegionBindingError,
+            "pdf_vlm_region_binding_parent_atom_crossing",
+        ):
+            self.runtime.reconcile_proposal_regions(
+                proposal_package=package,
+                proposal=proposal,
+                pdf_text_layer_projection=projection,
+                parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+            )
 
     def test_arbitrary_crop_expansion_is_not_accepted_as_reconciliation(
         self,

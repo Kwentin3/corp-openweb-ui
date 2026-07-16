@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import importlib.util
 import sys
@@ -65,6 +66,28 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         for name in list(sys.modules):
             if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
                 del sys.modules[name]
+
+    def test_bundled_guided_runtime_modules_match_maintainable_sources(self):
+        module = load_bundle_module()
+        for name in (
+            "contracts",
+            "pdf_visual_topology",
+            "pdf_topology_assembly",
+            "pdf_vlm_region_binding",
+            "pdf_structural_repair_runtime",
+            "pdf_structural_repair_shadow",
+        ):
+            source = (ROOT / "broker_reports_gate1" / f"{name}.py").read_text(
+                encoding="utf-8"
+            )
+            self.assertEqual(
+                ast.dump(ast.parse(source), include_attributes=False),
+                ast.dump(
+                    ast.parse(module._BUNDLED_MODULES[name]),
+                    include_attributes=False,
+                ),
+                name,
+            )
 
     def test_bundled_pipe_runs_backend_normalizer_without_repo_package_import(self):
         source = BUNDLE.read_text(encoding="utf-8")

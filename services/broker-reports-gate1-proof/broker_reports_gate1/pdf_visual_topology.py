@@ -26,9 +26,9 @@ PDF_VISUAL_TOPOLOGY_WINDOW_PACKAGE_SCHEMA = (
 PDF_VISUAL_TOPOLOGY_LEDGER_PACKAGE_SCHEMA = (
     "broker_reports_pdf_visual_topology_ledger_package_v1"
 )
-PDF_VISUAL_TOPOLOGY_POLICY_VERSION = "pdf_visual_topology_policy_v5"
+PDF_VISUAL_TOPOLOGY_POLICY_VERSION = "pdf_visual_topology_policy_v6"
 PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION = (
-    "pdf_visual_topology_region_proposal_v1"
+    "pdf_visual_topology_region_proposal_v2"
 )
 PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS = 0.75
 PDF_VISUAL_TOPOLOGY_PRE_PROVIDER_GEOMETRY_ERROR_CODES = frozenset(
@@ -298,6 +298,14 @@ class PdfVisualTopologyRuntime:
         "For each region report border evidence, visual density, continuation "
         "likelihood, header depth, normalized row and column boundaries, physical "
         "spans, header relations, alternatives, and precise uncertainty codes. "
+        "Continuation likelihood is descriptive region metadata: every hypothesis "
+        "MUST set continuation_required to false because this bounded intake never "
+        "requests an adjacent page or crop. Put every internal boundary in a visible "
+        "whitespace gutter; do not round to equal-sized bands when that would cut an "
+        "atom box. Preserve visibly separated line-item bands as distinct rows even "
+        "when some cells are empty, and do not collapse them into one sparse row. "
+        "Do not create a narrow or empty column from trailing whitespace; a column "
+        "requires repeated visible alignment or content evidence. "
         "Never return source text, values, source identifiers, business facts, "
         "acceptance thresholds, validator bypasses, or parser configuration. The "
         "proposal is untrusted: a deterministic parser and validator will reselect "
@@ -2008,7 +2016,15 @@ class PdfVisualTopologyRuntime:
                         "single-column identity relations."
                     ),
                 },
-                "continuation_required": {"type": "boolean", "enum": [False]},
+                "continuation_required": {
+                    "type": "boolean",
+                    "enum": [False],
+                    "description": (
+                        "Always false for this bounded request. Use the enclosing "
+                        "region's continuation_likelihood as descriptive metadata; "
+                        "never request an adjacent page or crop."
+                    ),
+                },
                 "uncertainty_codes": {
                     "type": "array",
                     "items": {"type": "string"},

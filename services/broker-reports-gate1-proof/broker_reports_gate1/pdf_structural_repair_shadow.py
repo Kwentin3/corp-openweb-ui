@@ -29,7 +29,10 @@ from .pdf_table_intake_contracts import PdfTableIntakeContractFactory
 from .pdf_table_raster import PdfTableRasterConfig, PdfTableRasterFactory
 from .pdf_visual_topology import PdfVisualTopologyFactory
 from .pdf_vlm_product_routing import PdfVlmProductRouterFactory
-from .pdf_vlm_region_binding import PdfVlmRegionBindingFactory
+from .pdf_vlm_region_binding import (
+    PdfVlmRegionBindingError,
+    PdfVlmRegionBindingFactory,
+)
 
 
 PDF_STRUCTURAL_REPAIR_SHADOW_SUMMARY_SCHEMA = (
@@ -2166,14 +2169,59 @@ class PdfStructuralRepairShadowRuntime:
                         ),
                     )
                     route = str(routing["route"])
+                    candidate_bbox_reconciliation: dict[str, Any] | None = None
+                    if route == "candidate_crop" and routed_candidate is not None:
+                        try:
+                            candidate_bbox_reconciliation = (
+                                self.vlm_region_binding.reconcile_candidate_parent_scope(
+                                    candidate_evidence=routed_candidate,
+                                    pdf_text_layer_projection=projection,
+                                    expected_page_ref=page_ref,
+                                    page_source_bbox=[
+                                        0.0,
+                                        0.0,
+                                        page.get("layout_page_width"),
+                                        page.get("layout_page_height"),
+                                    ],
+                                )
+                            )
+                        except (
+                            PdfStructuralRepairShadowError,
+                            PdfVlmRegionBindingError,
+                        ) as exc:
+                            reason_code = _error_code(
+                                exc,
+                                "pdf_vlm_guided_candidate_parent_bbox_invalid",
+                            )
+                            if reason_code.startswith(
+                                "pdf_vlm_region_binding_candidate_parent_"
+                            ):
+                                reason_code = (
+                                    "pdf_vlm_guided_candidate_parent_bbox_invalid"
+                                )
+                            routing = self.product_router.route(
+                                page_evidence=page,
+                                candidate_evidence=routed_candidate,
+                                page_words=words_by_page.get(page_ref) or [],
+                                bbox_inventory=bbox_inventory,
+                                upstream_failure_reason_codes=[reason_code],
+                            )
+                            self.product_router.validate_result(routing)
+                            route = "upstream_failure"
                     if route == "candidate_crop" and routed_candidate is not None:
                         candidate = routed_candidate
                         table_ref = str(
                             candidate.get("table_candidate_ref") or ""
                         )
                         ordinal = candidate_ordinals.get(table_ref, 0)
+                        if candidate_bbox_reconciliation is None:
+                            raise PdfStructuralRepairShadowError(
+                                "pdf_vlm_guided_candidate_parent_bbox_invalid"
+                            )
                         table_bbox = copy.deepcopy(
-                            bboxes.get(str(candidate.get("bbox_ref") or ""))
+                            candidate_bbox_reconciliation[
+                                "reconciled_source_bbox"
+                            ]
                         )
                         candidate_rank_on_page = next(
                             (
@@ -2247,6 +2295,10 @@ class PdfStructuralRepairShadowRuntime:
                         "pdf_text_layer_projection": projection,
                         "product_routing": copy.deepcopy(routing),
                     }
+                    if candidate_bbox_reconciliation is not None:
+                        descriptor["candidate_bbox_reconciliation"] = (
+                            copy.deepcopy(candidate_bbox_reconciliation)
+                        )
                     if route == "upstream_failure":
                         descriptor["guided_upstream_reason_code"] = str(
                             (routing.get("reason_codes") or [
@@ -2478,6 +2530,16 @@ class PdfStructuralRepairShadowRuntime:
                     crop_manifest=_object(rendered.get("manifest")),
                 )
             )
+        if guided_intake:
+            if self.vlm_region_binding is None:
+                raise PdfStructuralRepairShadowError(
+                    "pdf_structural_repair_shadow_intake_factory_missing"
+                )
+            self.vlm_region_binding.assert_parent_atom_geometry(
+                proposal_package=visual_package,
+                pdf_text_layer_projection=projection,
+                parent_source_bbox=table_bbox,
+            )
         intake_decisions: dict[str, Any] | None = None
         if guided_intake:
             if self.intake_contracts is None:
@@ -2570,6 +2632,13 @@ class PdfStructuralRepairShadowRuntime:
         if product_routing is not None:
             self.product_router.validate_result(product_routing)
             target_state["product_routing"] = copy.deepcopy(product_routing)
+        candidate_parent_scope_evidence = package_descriptor.get(
+            "candidate_bbox_reconciliation"
+        )
+        if candidate_parent_scope_evidence is not None:
+            target_state["candidate_parent_scope_evidence"] = copy.deepcopy(
+                candidate_parent_scope_evidence
+            )
         if intake_decisions is not None:
             target_state["intake_decisions"] = copy.deepcopy(
                 intake_decisions
@@ -5428,8 +5497,10 @@ class PdfStructuralRepairShadowRuntime:
     ) -> dict[str, Any]:
         candidates = _dicts(parser_observation.get("candidates"))
         coordinate_bboxes = [
-            copy.deepcopy(candidate.get("bbox"))
-            for candidate in candidates
+            copy.deepcopy(geometry.get("reconciled_source_bbox"))
+            for geometry in _dicts(
+                visual_package.get("source_atom_geometry_evidence")
+            )
         ]
         construction = _object(
             parser_observation.get("candidate_construction")
@@ -5512,6 +5583,9 @@ class PdfStructuralRepairShadowRuntime:
             image_bytes=len(png_bytes),
             metadata={
                 **_intake_morphology_metadata(package_descriptor),
+                **_candidate_parent_scope_intake_metadata(
+                    package_descriptor.get("candidate_bbox_reconciliation")
+                ),
                 **(
                     {
                         "product_routing_checksum": product_routing.get(
@@ -6157,6 +6231,24 @@ def _safe_exception_terminal(exc: BaseException) -> str:
     return code if code in allowed else "structural_repair_target_failed"
 
 
+def _finite_positive_area_bbox(value: Any) -> list[float] | None:
+    if (
+        not isinstance(value, list)
+        or len(value) != 4
+        or any(
+            not isinstance(item, (int, float))
+            or isinstance(item, bool)
+            or not math.isfinite(float(item))
+            for item in value
+        )
+    ):
+        return None
+    bbox = [float(item) for item in value]
+    if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        return None
+    return bbox
+
+
 def _page_bbox(descriptor: dict[str, Any]) -> list[float] | None:
     width = descriptor.get("page_width")
     height = descriptor.get("page_height")
@@ -6473,6 +6565,38 @@ def _intake_morphology_metadata(
         elif value is None:
             morphology[key] = None
     return {"parser_morphology": morphology}
+
+
+def _candidate_parent_scope_intake_metadata(value: Any) -> dict[str, Any]:
+    evidence = _object(value)
+    if not evidence:
+        return {}
+    return {
+        "candidate_parent_geometry": {
+            "original_source_bbox": copy.deepcopy(
+                evidence.get("original_source_bbox")
+            ),
+            "reconciled_source_bbox": copy.deepcopy(
+                evidence.get("reconciled_source_bbox")
+            ),
+            "completion_applied": evidence.get("completion_applied") is True,
+            "owned_atoms_total": _strict_nonnegative_int(
+                evidence.get("owned_word_refs_total")
+            ),
+            "uncontained_owned_atoms_total": len(
+                evidence.get("uncontained_owned_word_refs") or []
+            ),
+            "unowned_contained_atoms_total": len(
+                evidence.get("unowned_contained_word_refs") or []
+            ),
+            "adjacent_unowned_atoms_total": len(
+                evidence.get("adjacent_unowned_word_refs") or []
+            ),
+            "scope_complete": (
+                evidence.get("candidate_parent_scope_complete") is True
+            ),
+        }
+    }
 
 
 def _safe_intake_metadata(value: dict[str, Any]) -> dict[str, Any]:

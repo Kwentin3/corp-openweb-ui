@@ -23,9 +23,15 @@ from .pdf_visual_topology import (
 
 
 PDF_TOPOLOGY_ASSEMBLY_RESULT_SCHEMA = (
-    "broker_reports_pdf_topology_assembly_result_v5"
+    "broker_reports_pdf_topology_assembly_result_v6"
 )
-PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION = "pdf_topology_assembly_policy_v5"
+PDF_TOPOLOGY_ASSEMBLY_POLICY_VERSION = "pdf_topology_assembly_policy_v6"
+PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS = frozenset(
+    {
+        "replace_visual_boundary_with_parser_geometry",
+        "replace_visual_boundary_with_unique_source_atom_gap",
+    }
+)
 
 FACTORY_REQUIRED = (
     "PdfTopologyAssemblyFactory.create is the only visual-topology to raw-atom "
@@ -79,6 +85,40 @@ _GEOMETRY_EVIDENCE_ITEM_KEYS = {
     "observed_count",
     "required_count",
     "reason_codes",
+}
+_STRUCTURAL_ADJUSTMENT_BASE_KEYS = {
+    "hypothesis_id",
+    "operation",
+    "axis",
+    "boundary_index",
+    "before",
+    "after",
+    "delta",
+    "row_or_column_count_changed",
+    "candidate_assignment_change_allowed",
+    "source_value_change_allowed",
+}
+_PARSER_GEOMETRY_ADJUSTMENT_KEYS = _STRUCTURAL_ADJUSTMENT_BASE_KEYS | {
+    "parser_geometry_coverage"
+}
+_SOURCE_GAP_ADJUSTMENT_KEYS = _STRUCTURAL_ADJUSTMENT_BASE_KEYS | {
+    "evidence_basis",
+    "source_atom_gap",
+    "crossing_candidate_ids",
+    "candidate_assignment_preserved",
+}
+_SPAN_ADJUSTMENT_KEYS = _STRUCTURAL_ADJUSTMENT_BASE_KEYS | {
+    "parser_separator_boundaries"
+}
+_SPAN_ADJUSTMENT_OPERATIONS = {
+    "drop_degenerate_single_cell_span",
+    "drop_span_reduced_to_single_cell_by_parser_separator",
+    "trim_span_to_parser_separator",
+    "project_geometry_certified_empty_span_to_explicit_empty_cells",
+}
+_HEADER_ADJUSTMENT_OPERATIONS = {
+    "drop_redundant_identity_header_relation",
+    "drop_header_relation_with_contradicted_span",
 }
 
 
@@ -514,6 +554,21 @@ class PdfTopologyAssemblyRuntime:
                     errors.append(
                         "pdf_topology_assembly_geometry_evidence_invalid"
                     )
+        structural_adjustments_valid = _structural_adjustments_valid(
+            data.get("structural_adjustments"),
+            expected_hypothesis_ids=expected_evidence_ids,
+        )
+        if not structural_adjustments_valid or not (
+            _structural_adjustments_consistent(
+                adjustments=data.get("structural_adjustments"),
+                source_accounting=data.get("source_accounting"),
+                binding_hypotheses=data.get("binding_hypotheses"),
+                expected_hypothesis_ids=expected_evidence_ids,
+            )
+        ):
+            errors.append(
+                "pdf_topology_assembly_structural_adjustment_invalid"
+            )
         unsigned = dict(data)
         stored = unsigned.pop("result_checksum", None)
         if stored != sha256_json(unsigned):
@@ -734,12 +789,58 @@ class PdfTopologyAssemblyRuntime:
         adjustments.extend(column_result["adjustments"])
         canonical_rows = row_result["boundaries"]
         canonical_columns = column_result["boundaries"]
-        positions, position_issues = self._positions(
+        baseline_positions, baseline_position_issues = self._positions(
             boxes=boxes,
             row_boundaries=canonical_rows,
             column_boundaries=canonical_columns,
             hypothesis_id=hypothesis_id,
         )
+        if not baseline_position_issues:
+            row_gap_result = self._reconcile_internal_axis_boundaries(
+                axis="row",
+                boundaries=canonical_rows,
+                boxes=boxes,
+                baseline_positions=baseline_positions,
+                spans=spans,
+                geometry_status=str(row_result["evidence"]["status"]),
+                hypothesis_id=hypothesis_id,
+            )
+            column_gap_result = self._reconcile_internal_axis_boundaries(
+                axis="column",
+                boundaries=canonical_columns,
+                boxes=boxes,
+                baseline_positions=baseline_positions,
+                spans=spans,
+                geometry_status=str(column_result["evidence"]["status"]),
+                hypothesis_id=hypothesis_id,
+            )
+            canonical_rows = row_gap_result["boundaries"]
+            canonical_columns = column_gap_result["boundaries"]
+            adjustments.extend(row_gap_result["adjustments"])
+            adjustments.extend(column_gap_result["adjustments"])
+            issues.extend(row_gap_result["issues"])
+            issues.extend(column_gap_result["issues"])
+            positions, position_issues = self._positions(
+                boxes=boxes,
+                row_boundaries=canonical_rows,
+                column_boundaries=canonical_columns,
+                hypothesis_id=hypothesis_id,
+            )
+            if not position_issues and positions != baseline_positions:
+                position_issues.append(
+                    _issue(
+                        hypothesis_id,
+                        "table",
+                        None,
+                        (
+                            "pdf_topology_assembly_source_gap_"
+                            "candidate_assignment_changed"
+                        ),
+                    )
+                )
+        else:
+            positions = baseline_positions
+            position_issues = baseline_position_issues
         issues.extend(position_issues)
         candidate_separator_result = self._candidate_separator_issues(
             boxes=boxes,
@@ -993,6 +1094,151 @@ class PdfTopologyAssemblyRuntime:
             "structural_adjustments": adjustments,
             "geometry_evidence": geometry_evidence,
             "accounting": accounting,
+        }
+
+    def _reconcile_internal_axis_boundaries(
+        self,
+        *,
+        axis: str,
+        boundaries: list[float],
+        boxes: dict[str, list[float]],
+        baseline_positions: dict[str, tuple[int, int]],
+        spans: list[dict[str, Any]],
+        geometry_status: str,
+        hypothesis_id: str,
+    ) -> dict[str, Any]:
+        """Snap a cutting visual separator to one source-owned atom gap.
+
+        Certified parser geometry remains authoritative.  This fallback is
+        available only when independent line geometry is insufficient and the
+        current center-based segment assignment already exists.  A replacement
+        is accepted only when exactly one positive gap preserves every center
+        assignment and the existing segment order.
+        """
+
+        result = list(boundaries)
+        issues: list[dict[str, Any]] = []
+        adjustments: list[dict[str, Any]] = []
+        if (
+            axis not in {"row", "column"}
+            or geometry_status != "insufficient_evidence"
+        ):
+            return {
+                "boundaries": result,
+                "issues": issues,
+                "adjustments": adjustments,
+            }
+
+        start_index, end_index = (1, 3) if axis == "row" else (0, 2)
+        position_index = 0 if axis == "row" else 1
+        tolerance = self.config.atom_band_tolerance_normalized
+        epsilon = self.config.boundary_epsilon
+        merged_intervals = _merged_axis_intervals(
+            boxes=boxes,
+            start_index=start_index,
+            end_index=end_index,
+        )
+        source_gaps = [
+            [left[1], right[0]]
+            for left, right in zip(merged_intervals, merged_intervals[1:])
+            if right[0] - left[1] > epsilon
+        ]
+
+        for boundary_index in range(1, len(result) - 1):
+            boundary = result[boundary_index]
+            crossing_candidate_ids = sorted(
+                candidate_id
+                for candidate_id, box in boxes.items()
+                if box[start_index] + tolerance
+                < boundary
+                < box[end_index] - tolerance
+            )
+            if not crossing_candidate_ids:
+                continue
+            if any(
+                _span_crosses_axis_boundary(
+                    span,
+                    axis=axis,
+                    boundary_index=boundary_index,
+                )
+                for span in spans
+            ):
+                continue
+
+            valid_gaps: list[tuple[list[float], float]] = []
+            for gap in source_gaps:
+                midpoint = round((gap[0] + gap[1]) / 2.0, 9)
+                if (
+                    not gap[0] < midpoint < gap[1]
+                    or not result[boundary_index - 1]
+                    < midpoint
+                    < result[boundary_index + 1]
+                ):
+                    continue
+                trial = list(result)
+                trial[boundary_index] = midpoint
+                assignments = {
+                    candidate_id: _segment(
+                        (box[start_index] + box[end_index]) / 2.0,
+                        trial,
+                        epsilon=epsilon,
+                    )
+                    for candidate_id, box in boxes.items()
+                }
+                if any(value is None for value in assignments.values()):
+                    continue
+                if any(
+                    assignments.get(candidate_id)
+                    != baseline_positions.get(candidate_id, (0, 0))[
+                        position_index
+                    ]
+                    for candidate_id in boxes
+                ):
+                    continue
+                valid_gaps.append((list(gap), midpoint))
+
+            if len(valid_gaps) != 1:
+                issues.append(
+                    _issue(
+                        hypothesis_id,
+                        axis,
+                        boundary_index,
+                        (
+                            "pdf_topology_assembly_internal_boundary_"
+                            "source_gap_not_unique"
+                        ),
+                    )
+                )
+                continue
+
+            gap, midpoint = valid_gaps[0]
+            before = boundary
+            result[boundary_index] = midpoint
+            adjustments.append(
+                {
+                    "hypothesis_id": hypothesis_id,
+                    "operation": (
+                        "replace_visual_boundary_with_unique_source_atom_gap"
+                    ),
+                    "axis": axis,
+                    "boundary_index": boundary_index,
+                    "before": before,
+                    "after": midpoint,
+                    "delta": round(midpoint - before, 9),
+                    "row_or_column_count_changed": False,
+                    "candidate_assignment_change_allowed": False,
+                    "source_value_change_allowed": False,
+                    "evidence_basis": "unique_positive_source_atom_gap",
+                    "source_atom_gap": gap,
+                    "crossing_candidate_ids": crossing_candidate_ids,
+                    "candidate_assignment_preserved": True,
+                }
+            )
+
+        return {
+            "boundaries": result,
+            "issues": issues,
+            "adjustments": adjustments,
         }
 
     def _canonicalize_axis_from_parser_geometry(
@@ -1484,6 +1730,46 @@ class PdfTopologyAssemblyRuntime:
             )
 
 
+def _merged_axis_intervals(
+    *,
+    boxes: dict[str, list[float]],
+    start_index: int,
+    end_index: int,
+) -> list[list[float]]:
+    intervals = sorted(
+        (
+            [float(box[start_index]), float(box[end_index])]
+            for box in boxes.values()
+        ),
+        key=lambda item: (item[0], item[1]),
+    )
+    merged: list[list[float]] = []
+    for start, end in intervals:
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+    return merged
+
+
+def _span_crosses_axis_boundary(
+    span: dict[str, Any], *, axis: str, boundary_index: int
+) -> bool:
+    if axis == "row":
+        start = span.get("start_row")
+        end = span.get("end_row")
+    else:
+        start = span.get("start_column")
+        end = span.get("end_column")
+    return bool(
+        isinstance(start, int)
+        and not isinstance(start, bool)
+        and isinstance(end, int)
+        and not isinstance(end, bool)
+        and start <= boundary_index < end
+    )
+
+
 def _geometry_clusters(
     signals: list[dict[str, Any]], *, tolerance: float
 ) -> list[dict[str, Any]]:
@@ -1664,6 +1950,357 @@ def _geometry_evidence_item(
         "required_count": int(required_count),
         "reason_codes": sorted(set(reason_codes)),
     }
+
+
+def _structural_adjustments_valid(
+    value: Any,
+    *,
+    expected_hypothesis_ids: set[str],
+) -> bool:
+    if not isinstance(value, list) or any(
+        not isinstance(item, dict) for item in value
+    ):
+        return False
+    return all(
+        _structural_adjustment_valid(
+            item,
+            expected_hypothesis_ids=expected_hypothesis_ids,
+        )
+        for item in value
+    )
+
+
+def _structural_adjustments_consistent(
+    *,
+    adjustments: Any,
+    source_accounting: Any,
+    binding_hypotheses: Any,
+    expected_hypothesis_ids: set[str],
+) -> bool:
+    if not isinstance(adjustments, list):
+        return False
+    accounting = _object(source_accounting)
+    alternatives_value = accounting.get("alternative_accounting")
+    alternatives = _dicts(alternatives_value)
+    if (
+        not isinstance(alternatives_value, list)
+        or len(alternatives) != len(alternatives_value)
+    ):
+        return False
+
+    adjustment_counts = {
+        hypothesis_id: 0 for hypothesis_id in expected_hypothesis_ids
+    }
+    for adjustment in adjustments:
+        hypothesis_id = str(_object(adjustment).get("hypothesis_id") or "")
+        if hypothesis_id not in adjustment_counts:
+            return False
+        adjustment_counts[hypothesis_id] += 1
+
+    alternative_by_id: dict[str, dict[str, Any]] = {}
+    for alternative in alternatives:
+        hypothesis_id = str(alternative.get("hypothesis_id") or "")
+        recorded = alternative.get("structural_adjustments")
+        if (
+            hypothesis_id not in expected_hypothesis_ids
+            or hypothesis_id in alternative_by_id
+            or not _nonnegative_integer(recorded)
+            or recorded != adjustment_counts[hypothesis_id]
+        ):
+            return False
+        alternative_by_id[hypothesis_id] = alternative
+    if set(alternative_by_id) != expected_hypothesis_ids:
+        return False
+
+    binding_values = binding_hypotheses
+    bindings = _dicts(binding_values)
+    if not isinstance(binding_values, list) or len(bindings) != len(
+        binding_values
+    ):
+        return False
+    binding_by_id: dict[str, dict[str, Any]] = {}
+    for binding in bindings:
+        hypothesis_id = str(binding.get("hypothesis_id") or "")
+        if (
+            hypothesis_id not in expected_hypothesis_ids
+            or hypothesis_id in binding_by_id
+        ):
+            return False
+        binding_by_id[hypothesis_id] = binding
+
+    for adjustment in adjustments:
+        item = _object(adjustment)
+        axis = item.get("axis")
+        if axis not in {"row", "column"}:
+            continue
+        binding = binding_by_id.get(str(item.get("hypothesis_id") or ""))
+        if binding is None:
+            continue
+        proposed_geometry = _object(binding.get("proposed_geometry"))
+        geometry_axis = _object(
+            proposed_geometry.get("rows" if axis == "row" else "columns")
+        )
+        boundaries = geometry_axis.get("boundaries")
+        boundary_index = item.get("boundary_index")
+        if (
+            geometry_axis.get("kind")
+            != "consensus_normalized_boundaries"
+            or not isinstance(boundaries, list)
+            or not isinstance(boundary_index, int)
+            or isinstance(boundary_index, bool)
+            or boundary_index < 0
+            or boundary_index >= len(boundaries)
+            or not _normalized_number(boundaries[boundary_index])
+            or float(boundaries[boundary_index]) != float(item.get("after"))
+        ):
+            return False
+    return True
+
+
+def _structural_adjustment_valid(
+    item: dict[str, Any],
+    *,
+    expected_hypothesis_ids: set[str],
+) -> bool:
+    hypothesis_id = item.get("hypothesis_id")
+    operation = item.get("operation")
+    if (
+        not isinstance(hypothesis_id, str)
+        or not hypothesis_id
+        or hypothesis_id not in expected_hypothesis_ids
+        or not isinstance(operation, str)
+        or item.get("row_or_column_count_changed") is not False
+        or item.get("source_value_change_allowed") is not False
+        or not isinstance(
+            item.get("candidate_assignment_change_allowed"), bool
+        )
+    ):
+        return False
+
+    if operation == "replace_visual_boundary_with_parser_geometry":
+        return bool(
+            set(item) == _PARSER_GEOMETRY_ADJUSTMENT_KEYS
+            and _boundary_adjustment_common_valid(item, internal=False)
+            and item.get("candidate_assignment_change_allowed") is True
+            and _normalized_number(item.get("parser_geometry_coverage"))
+        )
+
+    if operation == "replace_visual_boundary_with_unique_source_atom_gap":
+        gap = item.get("source_atom_gap")
+        crossing_ids = item.get("crossing_candidate_ids")
+        return bool(
+            set(item) == _SOURCE_GAP_ADJUSTMENT_KEYS
+            and _boundary_adjustment_common_valid(item, internal=True)
+            and item.get("candidate_assignment_change_allowed") is False
+            and item.get("candidate_assignment_preserved") is True
+            and item.get("evidence_basis")
+            == "unique_positive_source_atom_gap"
+            and isinstance(gap, list)
+            and len(gap) == 2
+            and all(_normalized_number(current) for current in gap)
+            and float(gap[0]) < float(item["after"]) < float(gap[1])
+            and float(item["after"])
+            == round((float(gap[0]) + float(gap[1])) / 2.0, 9)
+            and isinstance(crossing_ids, list)
+            and bool(crossing_ids)
+            and all(
+                isinstance(candidate_id, str) and bool(candidate_id)
+                for candidate_id in crossing_ids
+            )
+            and crossing_ids == sorted(set(crossing_ids))
+        )
+
+    if operation in _SPAN_ADJUSTMENT_OPERATIONS:
+        return _span_adjustment_valid(item)
+
+    if operation in _HEADER_ADJUSTMENT_OPERATIONS:
+        before = item.get("before")
+        identity = bool(
+            isinstance(before, dict)
+            and before.get("child_start_column")
+            == before.get("child_end_column")
+            == before.get("parent_column")
+        )
+        return bool(
+            set(item) == _STRUCTURAL_ADJUSTMENT_BASE_KEYS
+            and item.get("axis") == "header"
+            and item.get("boundary_index") is None
+            and item.get("after") is None
+            and item.get("delta") is None
+            and item.get("candidate_assignment_change_allowed") is False
+            and _header_relation_valid(before)
+            and (
+                operation == "drop_redundant_identity_header_relation"
+                and identity
+                or operation == "drop_header_relation_with_contradicted_span"
+                and not identity
+            )
+        )
+
+    return False
+
+
+def _boundary_adjustment_common_valid(
+    item: dict[str, Any],
+    *,
+    internal: bool,
+) -> bool:
+    boundary_index = item.get("boundary_index")
+    before = item.get("before")
+    after = item.get("after")
+    delta = item.get("delta")
+    return bool(
+        item.get("axis") in {"row", "column"}
+        and isinstance(boundary_index, int)
+        and not isinstance(boundary_index, bool)
+        and boundary_index >= (1 if internal else 0)
+        and _normalized_number(before)
+        and _normalized_number(after)
+        and float(before) != float(after)
+        and _finite_number(delta)
+        and float(delta) == round(float(after) - float(before), 9)
+    )
+
+
+def _span_adjustment_valid(item: dict[str, Any]) -> bool:
+    if (
+        set(item) != _SPAN_ADJUSTMENT_KEYS
+        or item.get("axis") != "span"
+        or item.get("boundary_index") is not None
+        or item.get("delta") is not None
+        or not _span_value_valid(item.get("before"), allow_single_cell=True)
+    ):
+        return False
+    operation = str(item.get("operation") or "")
+    before = item["before"]
+    after = item.get("after")
+    separators = item.get("parser_separator_boundaries")
+    if not _separator_boundaries_valid(separators, span=before):
+        return False
+    trimmed = _trim_span_at_separators(before, separators)
+    if operation == "drop_degenerate_single_cell_span":
+        return bool(
+            _single_position_span(before)
+            and after is None
+            and separators == []
+            and item.get("candidate_assignment_change_allowed") is False
+        )
+    if operation == "drop_span_reduced_to_single_cell_by_parser_separator":
+        return bool(
+            not _single_position_span(before)
+            and after is None
+            and bool(separators)
+            and _single_position_span(trimmed)
+            and item.get("candidate_assignment_change_allowed") is True
+        )
+    if operation == "trim_span_to_parser_separator":
+        return bool(
+            not _single_position_span(before)
+            and _span_value_valid(after, allow_single_cell=False)
+            and after == trimmed
+            and bool(separators)
+            and item.get("candidate_assignment_change_allowed") is True
+        )
+    if operation == (
+        "project_geometry_certified_empty_span_to_explicit_empty_cells"
+    ):
+        return bool(
+            not _single_position_span(before)
+            and after is None
+            and separators == []
+            and item.get("candidate_assignment_change_allowed") is False
+        )
+    return False
+
+
+def _span_value_valid(value: Any, *, allow_single_cell: bool) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "start_row",
+        "end_row",
+        "start_column",
+        "end_column",
+        "relation",
+    }:
+        return False
+    coordinates = [
+        value.get("start_row"),
+        value.get("end_row"),
+        value.get("start_column"),
+        value.get("end_column"),
+    ]
+    if any(
+        not isinstance(current, int)
+        or isinstance(current, bool)
+        or current < 1
+        for current in coordinates
+    ):
+        return False
+    return bool(
+        int(value["start_row"]) <= int(value["end_row"])
+        and int(value["start_column"]) <= int(value["end_column"])
+        and value.get("relation") in {"merged", "spanning_header"}
+        and (allow_single_cell or not _single_position_span(value))
+    )
+
+
+def _separator_boundaries_valid(value: Any, *, span: dict[str, Any]) -> bool:
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) for item in value
+    ):
+        return False
+    if len(value) != len(set(value)):
+        return False
+    for item in value:
+        axis, separator, raw_index = item.partition(":")
+        if (
+            separator != ":"
+            or axis not in {"row", "column"}
+            or not raw_index.isdigit()
+        ):
+            return False
+        index = int(raw_index)
+        if axis == "row" and not (
+            int(span["start_row"]) <= index < int(span["end_row"])
+        ):
+            return False
+        if axis == "column" and not (
+            int(span["start_column"]) <= index < int(span["end_column"])
+        ):
+            return False
+    return True
+
+
+def _header_relation_valid(value: Any) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "parent_row",
+        "parent_column",
+        "child_start_column",
+        "child_end_column",
+    }:
+        return False
+    coordinates = list(value.values())
+    return bool(
+        all(
+            isinstance(current, int)
+            and not isinstance(current, bool)
+            and current >= 1
+            for current in coordinates
+        )
+        and int(value["child_start_column"])
+        <= int(value["child_end_column"])
+    )
+
+
+def _finite_number(value: Any) -> bool:
+    return bool(
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _normalized_number(value: Any) -> bool:
+    return bool(_finite_number(value) and 0.0 <= float(value) <= 1.0)
 
 
 def _nonnegative_integer(value: Any) -> bool:

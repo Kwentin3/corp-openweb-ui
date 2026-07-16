@@ -430,6 +430,138 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertFalse(guided["production_gate2_selection_changed"])
         self.assertNotIn("private-provider-response", repr(result["summary"]))
 
+    def test_guided_intake_uses_validated_reconciled_atom_geometry(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        original_bbox = [10.0, 60.0, 90.0, 100.0043]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_word_3"
+        )["bbox"] = original_bbox
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        target_outcome = result["summary"]["target_outcomes"][0]
+        self.assertEqual(
+            "accepted_physical_structure",
+            target_outcome["terminal_status"],
+        )
+        self.assertIsNone(target_outcome["reason_code"])
+        self.assertEqual(1, result["summary"]["accepted_physical_structure_tables"])
+        state_record = self.store.list_by_type(
+            self.context.normalization_run_id,
+            "broker_reports_pdf_structural_repair_target_state_v1",
+        )[0]
+        state = self.store.read_payload(state_record)
+        intake = state["intake_decisions"]
+        self.assertEqual("processable", intake["processability"]["decision"])
+        self.assertEqual([], intake["processability"]["reason_codes"])
+        facts = intake["technical_facts"]
+        self.assertEqual(4, facts["coordinate_bboxes_total"])
+        self.assertEqual(
+            0,
+            facts["out_of_scope_coordinate_bboxes_total"],
+        )
+        raw_candidate_bboxes = [
+            candidate["bbox"]
+            for candidate in state["parser_observation"]["candidates"]
+        ]
+        self.assertIn(
+            original_bbox,
+            raw_candidate_bboxes,
+        )
+        geometry = next(
+            item
+            for item in state["visual_package"]["source_atom_geometry_evidence"]
+            if item["original_source_bbox"] == original_bbox
+        )
+        self.assertEqual(
+            "source_precision_overshoot_reconciled",
+            geometry["classification"],
+        )
+        self.assertEqual(original_bbox, geometry["original_source_bbox"])
+        self.assertEqual(
+            [10.0, 60.0, 90.0, 100.0],
+            geometry["reconciled_source_bbox"],
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(intake),
+        )
+
+    def test_guided_intake_keeps_atom_beyond_precision_envelope_fail_closed(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+        package = _package(self.pdf_sha256)
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_word_3"
+        )["bbox"] = [10.0, 60.0, 90.0, 100.7501]
+
+        result = self._run(runtime, package)
+
+        self.assertEqual(
+            (1, 0, 0),
+            (
+                provider.qualification_calls,
+                provider.count_calls,
+                provider.generate_calls,
+            ),
+        )
+        target_outcome = result["summary"]["target_outcomes"][0]
+        self.assertEqual(
+            "guided_upstream_blocked",
+            target_outcome["terminal_status"],
+        )
+        self.assertEqual(
+            "pdf_vlm_region_binding_parent_atom_crossing",
+            target_outcome["reason_code"],
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self.assertEqual(
+            "pdf_vlm_region_binding_parent_atom_crossing",
+            terminal["reason_code"],
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"],
+            count_calls=0,
+            generate_calls=0,
+        )
+        self.assertEqual(
+            {"detection", "processability", "holdout"},
+            {
+                key
+                for key in terminal["finalized_intake_decisions"]
+                if key in {"detection", "processability", "holdout"}
+            },
+        )
+
     def test_product_router_candidate_route_is_factory_owned_and_persisted(
         self,
     ) -> None:
@@ -471,6 +603,237 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         unsigned = copy.deepcopy(state["product_routing"])
         checksum = unsigned.pop("routing_checksum")
         self.assertEqual(checksum, sha256_json(unsigned))
+
+    def test_product_router_completes_source_owned_crossing_band(self) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+        package = _product_routing_package(
+            self.pdf_sha256,
+            route="candidate_crop",
+        )
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_table"
+        )["bbox"] = [0.0, 0.0, 200.0, 80.0]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_word_4"
+        )["bbox"] = [110.0, 45.0, 190.0, 70.0]
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(
+            "accepted_physical_structure",
+            result["summary"]["target_outcomes"][0]["terminal_status"],
+        )
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        evidence = state["candidate_parent_scope_evidence"]
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 80.0],
+            evidence["original_source_bbox"],
+        )
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 90.0],
+            evidence["reconciled_source_bbox"],
+        )
+        self.assertTrue(evidence["completion_applied"])
+        self.assertTrue(evidence["all_owned_atoms_contained"])
+        self.assertTrue(evidence["candidate_parent_scope_complete"])
+        self.assertEqual(
+            ["word_3"], evidence["uncontained_owned_word_refs"]
+        )
+        self.assertEqual(
+            ["word_3"],
+            evidence["adjustments"][0]["word_refs"],
+        )
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 90.0],
+            state["private_raster"]["manifest"]["declared_table_bbox"],
+        )
+        self.assertEqual(4, len(state["parser_observation"]["candidates"]))
+        runtime_result = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual(
+            evidence,
+            runtime_result["binding_result"]["parent_atom_accounting"][
+                "candidate_parent_scope_evidence"
+            ],
+        )
+
+    def test_product_router_keeps_incomplete_crossing_band_fail_closed(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+        package = _product_routing_package(
+            self.pdf_sha256,
+            route="candidate_crop",
+        )
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        bboxes = {
+            item["bbox_ref"]: item
+            for item in projection["bbox_inventory"]
+        }
+        bboxes["bbox_table"]["bbox"] = [0.0, 0.0, 200.0, 80.0]
+        bboxes["bbox_word_4"]["bbox"] = [110.0, 45.0, 190.0, 70.0]
+        projection["bbox_inventory"].append(
+            {
+                "bbox_ref": "bbox_word_5",
+                "bbox": [110.0, 92.0, 190.0, 99.0],
+            }
+        )
+        projection["word_inventory"].append(
+            {
+                "parser_ordinal": 5,
+                "word_ref": "word_5",
+                "page_ref": "page_1",
+                "bbox_ref": "bbox_word_5",
+                "text": "adjacent-private",
+                "geometry_reading_order": 5,
+                "text_checksum_ref": "text_checksum_5",
+                "source_value_ref": "source_value_5",
+            }
+        )
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        outcome = result["summary"]["target_outcomes"][0]
+        self.assertEqual("validation_blocked", outcome["terminal_status"])
+        self.assertEqual("parser_failed", outcome["reason_code"])
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        evidence = state["candidate_parent_scope_evidence"]
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 80.0],
+            evidence["original_source_bbox"],
+        )
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 90.0],
+            evidence["reconciled_source_bbox"],
+        )
+        self.assertTrue(evidence["completion_applied"])
+        self.assertTrue(evidence["all_owned_atoms_contained"])
+        self.assertFalse(evidence["candidate_parent_scope_complete"])
+        self.assertEqual(
+            ["word_3"], evidence["uncontained_owned_word_refs"]
+        )
+        self.assertEqual(
+            ["word_5"], evidence["adjacent_unowned_word_refs"]
+        )
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 90.0],
+            state["private_raster"]["manifest"]["declared_table_bbox"],
+        )
+        self.assertEqual(4, len(state["parser_observation"]["candidates"]))
+        runtime_result = self.store.read_payload(
+            self.store.get_record_unchecked(result["runtime_result_refs"][0])
+        )
+        self.assertEqual(
+            evidence,
+            runtime_result["binding_result"]["parent_atom_accounting"][
+                "candidate_parent_scope_evidence"
+            ],
+        )
+        self.assertEqual(
+            [
+                "pdf_vlm_region_binding_parent_scope_incomplete_"
+                "adjacent_unowned_band"
+            ],
+            runtime_result["binding_result"]["reason_codes"],
+        )
+
+    def test_product_router_invalid_parent_bbox_gets_one_typed_terminal(
+        self,
+    ) -> None:
+        provider = _ProviderBoundary()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+        package = _product_routing_package(
+            self.pdf_sha256,
+            route="candidate_crop",
+        )
+        projection = package["private_normalized_source_payloads"][0][
+            "pdf_text_layer_projection"
+        ]
+        next(
+            item
+            for item in projection["bbox_inventory"]
+            if item["bbox_ref"] == "bbox_table"
+        )["bbox"] = [-1.0, 0.0, 200.0, 100.0]
+
+        result = self._run(runtime, package)
+
+        self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        self.assertEqual([], result["runtime_result_refs"])
+        outcome = result["summary"]["target_outcomes"][0]
+        self.assertEqual("guided_upstream_blocked", outcome["terminal_status"])
+        self.assertEqual(
+            "pdf_vlm_guided_candidate_parent_bbox_invalid",
+            outcome["reason_code"],
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=0, generate_calls=0
+        )
+        decisions = terminal["finalized_intake_decisions"]
+        self.assertEqual(
+            {"detection", "processability", "holdout"},
+            {
+                key
+                for key in decisions
+                if key in {"detection", "processability", "holdout"}
+            },
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(decisions),
+        )
 
     def test_product_router_page_route_reaches_full_page_flow(self) -> None:
         provider = _ProviderBoundary()
@@ -1196,7 +1559,7 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual([0.0, 0.0, 90.0, 100.0], region["source_bbox"])
         self.assertIsNone(payload["materialization"])
         self.assertIn(
-            "pdf_vlm_region_binding_atom_bbox_crosses_proposed_boundary",
+            "pdf_topology_assembly_internal_boundary_source_gap_not_unique",
             payload["reason_codes"],
         )
 

@@ -748,7 +748,9 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
 
         self.assertEqual((0, 0), (provider.count_calls, provider.generate_calls))
 
-    def test_guided_candidate_blocks_boundary_that_cuts_through_atoms(self) -> None:
+    def test_guided_candidate_reconciles_cutting_boundary_to_unique_gap(
+        self,
+    ) -> None:
         response = _region_proposal_response(
             "",
             scope="candidate_crop",
@@ -788,13 +790,21 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
             provider_qualification=runtime.qualify_provider(),
         )
 
-        self.assertEqual("validation_blocked", result["runtime_terminal_status"])
-        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
-        self.assertIsNone(result["materialization"])
-        self.assertIn(
-            "pdf_vlm_guided_intake_atom_bbox_crosses_proposed_boundary",
-            result["post_validation"]["reason_codes"],
+        self.assertEqual(
+            "accepted_physical_structure", result["runtime_terminal_status"]
         )
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertIsNotNone(result["materialization"])
+        self.assertTrue(result["post_validation"]["passed"])
+        adjustment = next(
+            item
+            for item in result["assembly"]["structural_adjustments"]
+            if item.get("evidence_basis") == "unique_positive_source_atom_gap"
+        )
+        self.assertEqual("column", adjustment["axis"])
+        self.assertEqual(0.3, adjustment["before"])
+        self.assertEqual(0.5, adjustment["after"])
+        self.assertTrue(adjustment["candidate_assignment_preserved"])
         self.assertEqual([], runtime.validate_result(result))
 
     def test_counted_input_budget_blocks_before_generate(self) -> None:

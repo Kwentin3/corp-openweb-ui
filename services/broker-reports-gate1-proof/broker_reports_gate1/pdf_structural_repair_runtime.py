@@ -18,7 +18,10 @@ from .pdf_structural_row_windows import (
     PdfStructuralRowWindowError,
     PdfStructuralRowWindowFactory,
 )
-from .pdf_topology_assembly import PdfTopologyAssemblyFactory
+from .pdf_topology_assembly import (
+    PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS,
+    PdfTopologyAssemblyFactory,
+)
 from .pdf_visual_topology import (
     PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
     PdfVisualTopologyConfig,
@@ -2855,7 +2858,7 @@ class PdfStructuralRepairRuntime:
             item
             for item in adjustments
             if item.get("operation")
-            != "replace_visual_boundary_with_parser_geometry"
+            not in PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS
         ]
         if forbidden_adjustments:
             reasons.append("pdf_vlm_guided_intake_proposal_repair_forbidden")
@@ -3159,7 +3162,7 @@ class PdfStructuralRepairRuntime:
             and not assembled.get("regional_issues")
             and all(
                 item.get("operation")
-                == "replace_visual_boundary_with_parser_geometry"
+                in PDF_TOPOLOGY_SAFE_BOUNDARY_RECONCILIATION_OPERATIONS
                 for item in adjustments
             )
         )

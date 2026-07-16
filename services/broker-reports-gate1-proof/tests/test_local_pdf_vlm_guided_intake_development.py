@@ -910,7 +910,7 @@ def _runner_provider_fixture():
     decisions = _decisions("plausible", "processable", "selected")
     proposal = {
         "schema_version": "broker_reports_pdf_visual_topology_response_v1",
-        "contract_revision": "pdf_visual_topology_region_proposal_v1",
+        "contract_revision": "pdf_visual_topology_region_proposal_v2",
         "package_id": "pdfvisualpkg_test",
         "proposal_scope": "candidate_crop",
         "table_presence": "present",
