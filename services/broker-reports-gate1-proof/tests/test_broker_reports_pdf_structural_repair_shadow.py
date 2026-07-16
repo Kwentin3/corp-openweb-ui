@@ -83,6 +83,14 @@ class _ProviderBoundary:
         return {
             "total_tokens": 100,
             "model_requested": "models/gemini-3.5-flash",
+            "request_hash": sha256_json(
+                {
+                    "operation": "count_tokens",
+                    "model_view": kwargs.get("model_view"),
+                    "output_schema": kwargs.get("output_schema"),
+                    "crop_sha256": kwargs.get("crop_sha256"),
+                }
+            ),
             "within_hard_guard": True,
         }
 
@@ -133,8 +141,19 @@ class _ProviderBoundary:
                 "attempt_id": attempt_id,
                 "attempt_number": attempt_number,
                 "attempt_lineage": list(attempt_lineage),
+                "provider_profile": "google_gemini",
+                "provider_profile_revision": "test_google_gemini_v1",
                 "model_requested": "models/gemini-3.5-flash",
                 "model_resolved": "models/gemini-3.5-flash",
+                "request_hash": sha256_json(
+                    {
+                        "operation": "generate",
+                        "task_id": task_id,
+                        "model_view": model_view,
+                        "crop_sha256": kwargs.get("crop_sha256"),
+                    }
+                ),
+                "crop_sha256": kwargs.get("crop_sha256"),
                 "started_at": f"2026-07-14T00:00:0{attempt_number}Z",
                 "usage": {
                     "input_tokens": 100,
@@ -166,6 +185,34 @@ class _QualificationFailureProvider(_ProviderBoundary):
     def qualify(self) -> dict:
         self.qualification_calls += 1
         raise RuntimeError("private-qualification-failure")
+
+
+class _InvalidCandidateProposalProvider(_ProviderBoundary):
+    def invoke(self, **kwargs) -> dict:
+        result = super().invoke(**kwargs)
+        result["json_output"].pop("alternatives_complete")
+        return result
+
+
+class _PageCrossingProposalProvider(_ProviderBoundary):
+    def invoke(self, **kwargs) -> dict:
+        result = super().invoke(**kwargs)
+        if kwargs["model_view"].get("proposal_scope") != "page_level":
+            return result
+        template = result["json_output"]["regions"][0]
+        result["json_output"]["regions"] = [
+            {
+                **copy.deepcopy(template),
+                "region_key": "region_1",
+                "bbox": [0.0, 0.0, 1.0, 0.65],
+            },
+            {
+                **copy.deepcopy(template),
+                "region_key": "region_2",
+                "bbox": [0.0, 0.65, 1.0, 1.0],
+            },
+        ]
+        return result
 
 
 class PdfStructuralRepairShadowTests(unittest.TestCase):
@@ -462,6 +509,97 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         self.assertEqual("page_level", state["product_routing"]["route"])
         self.assertEqual(state["product_routing"], terminal["product_routing"])
 
+    def test_page_provider_failure_seals_one_state_and_one_terminal(self) -> None:
+        provider = _ProviderBoundary(fail_message="private-page-provider-failure")
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _product_routing_package(self.pdf_sha256, route="page_level"),
+        )
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        missing_journal_reason = (
+            "pdf_vlm_guided_intake_runtime_journal_missing_"
+            "after_provider_call"
+        )
+        self.assertEqual(missing_journal_reason, terminal["reason_code"])
+        self.assertEqual("missing", terminal["proposal_outcome"]["status"])
+        self.assertEqual(
+            state["provider_accounting"], terminal["provider_accounting"]
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=1, generate_calls=1
+        )
+
+    def test_page_binding_failure_preserves_specific_reason_with_journal(
+        self,
+    ) -> None:
+        provider = _PageCrossingProposalProvider()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+                vlm_guided_product_routing_enabled=True,
+                maximum_tables=1,
+                page_allowlist=("document_1::page_1",),
+            )
+        ).create(provider=provider)
+
+        result = self._run(
+            runtime,
+            _product_routing_package(self.pdf_sha256, route="page_level"),
+        )
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        expected_reason = "pdf_vlm_region_binding_reconciled_region_overlap"
+        self.assertEqual(expected_reason, terminal["reason_code"])
+        self.assertEqual(
+            [expected_reason], terminal["binding_outcome"]["reason_codes"]
+        )
+        self.assertEqual(
+            "attempted_failed", terminal["binding_outcome"]["status"]
+        )
+        self.assertEqual(
+            state["provider_accounting"], terminal["provider_accounting"]
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=1, generate_calls=1
+        )
+
     def test_product_router_skip_is_closed_and_uses_zero_provider_calls(
         self,
     ) -> None:
@@ -513,9 +651,8 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "skipped_obvious_non_table",
             terminal["runtime_terminal_status"],
         )
-        self.assertEqual(
-            {"count_token_calls": 0, "generate_calls": 0},
-            terminal["provider_accounting"],
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=0, generate_calls=0
         )
         self.assertEqual(
             "processable",
@@ -574,9 +711,8 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "skip_obvious_non_table",
             terminal["product_routing"]["route"],
         )
-        self.assertEqual(
-            {"count_token_calls": 0, "generate_calls": 0},
-            terminal["provider_accounting"],
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=0, generate_calls=0
         )
 
     def test_product_router_limit_does_not_discard_later_skip(self) -> None:
@@ -641,24 +777,36 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "unsupported",
             decisions["processability"]["decision"],
         )
+        missing_journal_reason = (
+            "pdf_vlm_guided_intake_runtime_journal_missing_"
+            "after_provider_call"
+        )
         self.assertEqual(
-            ["pdf_vlm_guided_intake_unexpected_processing_error"],
-            decisions["technical_facts"][
-                "upstream_failure_reason_codes"
-            ],
+            [missing_journal_reason],
+            decisions["technical_facts"]["upstream_failure_reason_codes"],
         )
         terminal = self.store.read_payload(
             self.store.get_record_unchecked(
                 result["guided_upstream_terminal_refs"][0]
             )
         )
-        self.assertEqual(
-            "pdf_vlm_guided_intake_unexpected_processing_error",
-            terminal["reason_code"],
+        self.assertEqual(missing_journal_reason, terminal["reason_code"])
+        state = self.store.read_payload(state_record)
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        self.assertEqual("missing", terminal["proposal_outcome"]["status"])
+        evidence_keys = (
+            "proposal_result",
+            "proposal_outcome",
+            "binding_outcome",
+            "provider_accounting",
         )
         self.assertEqual(
-            {"count_token_calls": 1, "generate_calls": 1},
-            terminal["provider_accounting"],
+            {key: state[key] for key in evidence_keys},
+            {key: terminal[key] for key in evidence_keys},
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=1, generate_calls=1
         )
         self.assertEqual(
             [],
@@ -699,9 +847,8 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "pdf_vlm_guided_intake_provider_qualification_failed",
             terminal["reason_code"],
         )
-        self.assertEqual(
-            {"count_token_calls": 0, "generate_calls": 0},
-            terminal["provider_accounting"],
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=0, generate_calls=0
         )
         self.assertIn(
             terminal["private_diagnostic_ref"],
@@ -733,6 +880,86 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             PdfTableIntakeContractFactory().create().validate_decisions(decisions),
         )
         self.assertNotIn("private-qualification-failure", repr(result["summary"]))
+
+    def test_invalid_candidate_proposal_has_one_state_and_one_terminal(
+        self,
+    ) -> None:
+        provider = _InvalidCandidateProposalProvider()
+        runtime = PdfStructuralRepairShadowFactory(
+            PdfStructuralRepairShadowConfig(
+                enabled=True,
+                vlm_guided_intake_enabled=True,
+            )
+        ).create(provider=provider)
+
+        result = self._run(runtime, _package(self.pdf_sha256))
+
+        self.assertEqual((1, 1), (provider.count_calls, provider.generate_calls))
+        self.assertEqual([], result["runtime_result_refs"])
+        self.assertEqual(1, len(result["private_target_state_refs"]))
+        self.assertEqual(1, len(result["guided_upstream_terminal_refs"]))
+        state = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["private_target_state_refs"][0]
+            )
+        )
+        terminal = self.store.read_payload(
+            self.store.get_record_unchecked(
+                result["guided_upstream_terminal_refs"][0]
+            )
+        )
+        evidence_keys = (
+            "proposal_result",
+            "proposal_outcome",
+            "binding_outcome",
+            "provider_accounting",
+        )
+        self.assertEqual(
+            {key: state[key] for key in evidence_keys},
+            {key: terminal[key] for key in evidence_keys},
+        )
+        self.assertEqual("invalid", terminal["proposal_outcome"]["status"])
+        self.assertIsNone(terminal["proposal_outcome"]["proposal_checksum"])
+        self.assertIsNotNone(
+            terminal["proposal_outcome"]["raw_proposal_checksum"]
+        )
+        self.assertEqual(
+            "not_applicable", terminal["binding_outcome"]["status"]
+        )
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=1, generate_calls=1
+        )
+        accounting = terminal["provider_accounting"]
+        for key in (
+            "counted_input_tokens",
+            "actual_input_tokens",
+            "output_tokens",
+            "package_id",
+            "package_hash",
+            "request_hash",
+            "task_id",
+            "attempt_id",
+            "provider_profile",
+            "provider_profile_revision",
+            "model_requested",
+            "model_resolved",
+            "image_sha256",
+            "image_bytes",
+        ):
+            self.assertIsNotNone(accounting[key], key)
+        decisions = terminal["finalized_intake_decisions"]
+        self.assertEqual(
+            {"detection", "processability", "holdout"},
+            {
+                key
+                for key in decisions
+                if key in {"detection", "processability", "holdout"}
+            },
+        )
+        self.assertEqual(
+            [],
+            PdfTableIntakeContractFactory().create().validate_decisions(decisions),
+        )
 
     def test_guided_known_raster_failure_keeps_exact_safe_reason(self) -> None:
         provider = _ProviderBoundary()
@@ -957,10 +1184,19 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
         record = self.store.get_record_unchecked(result["runtime_result_refs"][0])
         payload = self.store.read_payload(record)
         region = payload["binding_result"]["region_results"][0]
-        self.assertGreater(len(region["crossing_word_refs"]), 0)
+        self.assertEqual([], region["crossing_word_refs"])
+        reconciliation = region["bbox_reconciliation"]
+        self.assertGreater(
+            len(reconciliation["crossing_word_refs_before"]), 0
+        )
+        self.assertEqual([], reconciliation["crossing_word_refs_after"])
+        self.assertEqual(
+            [0.0, 0.0, 50.0, 100.0], region["original_source_bbox"]
+        )
+        self.assertEqual([0.0, 0.0, 90.0, 100.0], region["source_bbox"])
         self.assertIsNone(payload["materialization"])
         self.assertIn(
-            "pdf_vlm_region_binding_atom_crosses_region_boundary",
+            "pdf_vlm_region_binding_atom_bbox_crosses_proposed_boundary",
             payload["reason_codes"],
         )
 
@@ -1545,9 +1781,8 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             "pdf_table_raster_full_page_identity_mismatch",
             terminal["reason_code"],
         )
-        self.assertEqual(
-            {"count_token_calls": 0, "generate_calls": 0},
-            terminal["provider_accounting"],
+        self._assert_provider_accounting(
+            terminal["provider_accounting"], count_calls=0, generate_calls=0
         )
 
     def test_unverified_full_page_manifest_persists_truthful_blocked_state(
@@ -2236,6 +2471,46 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
             retention_policy=self.retention,
             pdf_bytes_by_sha256={self.pdf_sha256: self.pdf_bytes},
         )
+
+    def _assert_provider_accounting(
+        self,
+        accounting: dict,
+        *,
+        count_calls: int,
+        generate_calls: int,
+    ) -> None:
+        expected_keys = {
+            "count_token_calls",
+            "generate_calls",
+            "journal_count_token_calls",
+            "journal_generate_calls",
+            "counted_input_tokens",
+            "actual_input_tokens",
+            "output_tokens",
+            "package_id",
+            "package_hash",
+            "request_hash",
+            "task_id",
+            "attempt_id",
+            "provider_profile",
+            "provider_profile_revision",
+            "model_requested",
+            "model_resolved",
+            "image_sha256",
+            "image_bytes",
+            "hidden_retry",
+            "provider_failover",
+            "journal_checksum",
+            "accounting_checksum",
+        }
+        self.assertEqual(expected_keys, set(accounting))
+        self.assertEqual(count_calls, accounting["count_token_calls"])
+        self.assertEqual(generate_calls, accounting["generate_calls"])
+        self.assertFalse(accounting["hidden_retry"])
+        self.assertFalse(accounting["provider_failover"])
+        unsigned = copy.deepcopy(accounting)
+        stored = unsigned.pop("accounting_checksum")
+        self.assertEqual(sha256_json(unsigned), stored)
 
 
 def _topology_response(

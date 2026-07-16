@@ -71,6 +71,16 @@ _FACTORY_TOKEN = object()
 _ATTEMPTS = (1, 2)
 _GUIDED_INTAKE_EXECUTION_CONTRACT = "candidate_crop_one_call_v1"
 _PAGE_PROPOSAL_EXECUTION_CONTRACT = "page_level_one_call_shadow_v1"
+_CLASSIFIED_PRE_PROVIDER_PACKAGE_ERRORS = frozenset(
+    {
+        "pdf_visual_topology_atom_bbox_invalid",
+        "pdf_visual_topology_atom_contract_invalid",
+        "pdf_visual_topology_atom_normalization_defect",
+        "pdf_visual_topology_atom_outside_selected_source_region",
+        "pdf_visual_topology_coordinate_transform_defect",
+        "pdf_visual_topology_provider_package_construction_invalid",
+    }
+)
 _PAGE_PROPOSAL_RESULT_KEYS = {
     "schema_version",
     "policy_version",
@@ -2693,6 +2703,16 @@ class PdfStructuralRepairRuntime:
         package_errors = self.visual.validate_region_proposal_package(
             visual_package
         )
+        classified_error = next(
+            (
+                code
+                for code in package_errors
+                if code in _CLASSIFIED_PRE_PROVIDER_PACKAGE_ERRORS
+            ),
+            None,
+        )
+        if classified_error is not None:
+            raise PdfStructuralRepairRuntimeError(classified_error)
         crop = _object(visual_package.get("crop_identity"))
         accounting = _object(visual_package.get("component_accounting"))
         model_view = _object(visual_package.get("model_facing"))
@@ -2749,6 +2769,16 @@ class PdfStructuralRepairRuntime:
         package_errors = self.visual.validate_region_proposal_package(
             visual_package
         )
+        classified_error = next(
+            (
+                code
+                for code in package_errors
+                if code in _CLASSIFIED_PRE_PROVIDER_PACKAGE_ERRORS
+            ),
+            None,
+        )
+        if classified_error is not None:
+            raise PdfStructuralRepairRuntimeError(classified_error)
         if (
             visual_package.get("proposal_scope") == "candidate_crop"
             and not package_errors
@@ -2866,6 +2896,11 @@ class PdfStructuralRepairRuntime:
                 crop.get("declared_table_bbox")
             ),
             "rendered_bbox": copy.deepcopy(crop.get("rendered_bbox")),
+            "source_coordinate_space": crop.get("source_coordinate_space"),
+            "pixel_coordinate_space": crop.get("pixel_coordinate_space"),
+            "source_to_pixel_transform": copy.deepcopy(
+                crop.get("source_to_pixel_transform")
+            ),
             "page_rotation": crop.get("page_rotation"),
             "applied_rotation": 0,
             "padding_points": crop.get("padding_points"),
@@ -2882,6 +2917,9 @@ class PdfStructuralRepairRuntime:
                 crop_manifest=crop_manifest,
             )
         except ValueError as exc:
+            error_code = getattr(exc, "code", None)
+            if error_code in _CLASSIFIED_PRE_PROVIDER_PACKAGE_ERRORS:
+                raise PdfStructuralRepairRuntimeError(error_code) from exc
             raise PdfStructuralRepairRuntimeError(
                 "pdf_structural_repair_input_invalid"
             ) from exc

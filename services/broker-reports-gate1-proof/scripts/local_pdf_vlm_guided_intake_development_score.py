@@ -24,6 +24,37 @@ SCORE_SCHEMA = "broker_reports_pdf_vlm_guided_intake_development_score_v1"
 PASS_LINE = "WORKS_ON_DEVELOPMENT_CORPUS"
 FAIL_LINE = "DOES_NOT_WORK_ON_DEVELOPMENT_CORPUS"
 PROVIDER_ROUTES = {"candidate_crop", "page_level"}
+PRE_PROVIDER_ZERO_CALL_REASONS = {
+    "pdf_visual_topology_atom_bbox_invalid",
+    "pdf_visual_topology_atom_contract_invalid",
+    "pdf_visual_topology_atom_normalization_defect",
+    "pdf_visual_topology_atom_outside_selected_source_region",
+    "pdf_visual_topology_coordinate_transform_defect",
+    "pdf_visual_topology_provider_package_construction_invalid",
+}
+PROVIDER_ACCOUNTING_FIELDS = (
+    "count_token_calls",
+    "generate_calls",
+    "journal_count_token_calls",
+    "journal_generate_calls",
+    "counted_input_tokens",
+    "actual_input_tokens",
+    "output_tokens",
+    "package_id",
+    "package_hash",
+    "request_hash",
+    "task_id",
+    "attempt_id",
+    "provider_profile",
+    "provider_profile_revision",
+    "model_requested",
+    "model_resolved",
+    "image_sha256",
+    "image_bytes",
+    "hidden_retry",
+    "provider_failover",
+    "journal_checksum",
+)
 GENERIC_INTERNAL_CODES = {
     "internal_processing_failed",
     "pdf_vlm_guided_intake_internal_processing_failed",
@@ -228,6 +259,9 @@ def _evaluate_conditions(
         for item in reference.get("cases") or []
         if isinstance(item, dict)
     }
+    provider_contract = _object(
+        _object(terminal.get("target_manifest")).get("provider_contract")
+    )
 
     for case_id in sorted(expected):
         ref = expected[case_id]
@@ -344,46 +378,22 @@ def _evaluate_conditions(
                         region_key=region.get("region_key"),
                     )
 
+        provider_failures = _provider_accounting_failures(
+            target,
+            provider_routed=route in PROVIDER_ROUTES,
+            provider_contract=provider_contract,
+        )
         if route in PROVIDER_ROUTES:
-            if (
-                count_calls != 1
-                or not isinstance(generate_calls, int)
-                or isinstance(generate_calls, bool)
-                or generate_calls not in {0, 1}
-                or target.get("hidden_retry") is not False
-                or target.get("provider_failover") is not False
-                or not _provider_accounting_verified(target, provider_routed=True)
-            ):
-                _fail(
-                    failures,
-                    9,
-                    case_id,
-                    "development_provider_accounting_invalid",
-                )
-        elif kind == "negative" and not _provider_accounting_verified(
-            target, provider_routed=False
-        ):
-            _fail(
-                failures,
-                3,
-                case_id,
-                "development_negative_provider_accounting_unsealed",
-            )
+            for code in provider_failures:
+                _fail(failures, 9, case_id, code)
+        elif kind == "negative":
+            for code in provider_failures:
+                _fail(failures, 3, case_id, code)
 
         decisions = _object(target.get("intake_decisions"))
-        if (
-            not target.get("terminal_status")
-            or target.get("terminal_cardinality_verified") is not True
-            or not _decision(decisions, "detection")
-            or not _decision(decisions, "processability")
-            or not _decision(decisions, "holdout")
-        ):
-            _fail(
-                failures,
-                10,
-                case_id,
-                "development_terminal_or_intake_decisions_missing",
-            )
+        cardinality_failures = _terminal_cardinality_failures(target, decisions)
+        for code in cardinality_failures:
+            _fail(failures, 10, case_id, code)
 
         reason_codes = set(_strings(target.get("reason_codes")))
         if (
@@ -398,7 +408,9 @@ def _evaluate_conditions(
             )
 
     correct_regions_by_case = {
-        case_id: _correctly_accepted_regions(observed.get(case_id), ref)
+        case_id: _correctly_accepted_regions(
+            observed.get(case_id), ref, provider_contract=provider_contract
+        )
         for case_id, ref in expected.items()
         if ref.get("expected_kind") == "table"
     }
@@ -520,7 +532,10 @@ def _evaluate_conditions(
 
 
 def _correctly_accepted_regions(
-    case: Any, reference: dict[str, Any]
+    case: Any,
+    reference: dict[str, Any],
+    *,
+    provider_contract: dict[str, Any],
 ) -> list[dict[str, Any]]:
     terminal = _object(_object(case).get("target_terminal"))
     if (
@@ -533,6 +548,11 @@ def _correctly_accepted_regions(
         or _object(terminal.get("proposal")).get("table_presence") != "present"
         or terminal.get("hidden_retry") is not False
         or terminal.get("provider_failover") is not False
+        or _provider_accounting_failures(
+            terminal,
+            provider_routed=True,
+            provider_contract=provider_contract,
+        )
     ):
         return []
     expected = reference.get("regions")
@@ -703,48 +723,259 @@ def _routing_evidence_verified(target: dict[str, Any]) -> bool:
     )
 
 
-def _provider_accounting_verified(
-    target: dict[str, Any], *, provider_routed: bool
-) -> bool:
+def _provider_accounting_failures(
+    target: dict[str, Any],
+    *,
+    provider_routed: bool,
+    provider_contract: dict[str, Any],
+) -> list[str]:
+    failures: list[str] = []
     accounting = _object(target.get("provider_accounting"))
+    expected_fields = {*PROVIDER_ACCOUNTING_FIELDS, "accounting_checksum"}
+    if set(accounting) != expected_fields:
+        failures.append("development_provider_accounting_projection_invalid")
     unsigned = dict(accounting)
     stored = unsigned.pop("accounting_checksum", None)
     if not isinstance(stored, str) or stored != _sha256_json(unsigned):
-        return False
+        failures.append("development_provider_accounting_checksum_invalid")
+    verification = _object(target.get("provider_accounting_verification"))
+    verification_unsigned = dict(verification)
+    verification_stored = verification_unsigned.pop("verification_checksum", None)
+    if not isinstance(verification_stored, str) or verification_stored != _sha256_json(
+        verification_unsigned
+    ):
+        failures.append("development_provider_accounting_verification_checksum_invalid")
+    for code in _strings(verification.get("failure_codes")):
+        failures.append(code)
+    if verification.get("verified") is not True:
+        failures.append("development_provider_accounting_cross_view_unverified")
+    observed_views = verification.get("views_observed")
+    view_checksums = _object(verification.get("view_checksums"))
+    required_views = {"terminal", "state"}
+    count_calls = target.get("count_tokens_calls")
+    generate_calls = target.get("generate_calls")
+    if count_calls or generate_calls:
+        required_views.add("journal")
+    if not isinstance(observed_views, list) or set(observed_views) != required_views:
+        failures.append("development_provider_accounting_required_view_missing")
+    if verification.get("unique_views_total") != 1:
+        failures.append("development_provider_accounting_view_conflict")
+    if accounting and (
+        set(view_checksums) != required_views
+        or any(value != stored for value in view_checksums.values())
+    ):
+        failures.append("development_provider_accounting_view_checksum_conflict")
     if (
-        accounting.get("count_tokens_calls") != target.get("count_tokens_calls")
+        accounting.get("count_token_calls") != count_calls
         or accounting.get("generate_calls") != target.get("generate_calls")
-        or accounting.get("journal_count_tokens_calls")
-        != target.get("count_tokens_calls")
+        or accounting.get("journal_count_token_calls") != count_calls
         or accounting.get("journal_generate_calls") != target.get("generate_calls")
         or accounting.get("hidden_retry") is not False
         or accounting.get("provider_failover") is not False
+        or target.get("hidden_retry") is not False
+        or target.get("provider_failover") is not False
     ):
-        return False
+        failures.append("development_provider_accounting_counter_mismatch")
     if not provider_routed:
-        return bool(
-            accounting.get("count_tokens_calls") == 0
+        if not (
+            accounting.get("count_token_calls") == 0
             and accounting.get("generate_calls") == 0
-            and accounting.get("counted_input_tokens") == []
-            and accounting.get("actual_input_tokens") == []
-            and accounting.get("output_tokens") == []
-        )
+            and accounting.get("counted_input_tokens") is None
+            and accounting.get("actual_input_tokens") is None
+            and accounting.get("output_tokens") is None
+        ):
+            failures.append("development_provider_zero_call_contract_invalid")
+        return sorted(set(failures))
+
+    pre_provider = _pre_provider_zero_call_allowed(target)
+    if count_calls == 0 or generate_calls == 0 and count_calls != 1:
+        if not pre_provider:
+            failures.append("development_provider_pre_provider_reason_invalid")
+        elif verification.get("pre_provider_zero_call_allowed") is not True:
+            failures.append("development_provider_pre_provider_projection_invalid")
+        if not (
+            accounting.get("count_token_calls") == 0
+            and accounting.get("generate_calls") == 0
+            and accounting.get("journal_count_token_calls") == 0
+            and accounting.get("journal_generate_calls") == 0
+            and accounting.get("counted_input_tokens") is None
+            and accounting.get("actual_input_tokens") is None
+            and accounting.get("output_tokens") is None
+        ):
+            failures.append("development_provider_zero_call_contract_invalid")
+        return sorted(set(failures))
+
+    if count_calls != 1:
+        failures.append("development_provider_count_token_call_cardinality_invalid")
+    if generate_calls not in {0, 1}:
+        failures.append("development_provider_generate_call_cardinality_invalid")
     counted = accounting.get("counted_input_tokens")
     image_bytes = accounting.get("image_bytes")
     image_sha256 = accounting.get("image_sha256")
+    if not isinstance(counted, int) or isinstance(counted, bool) or counted <= 0:
+        failures.append("development_provider_counted_input_tokens_missing")
+    if generate_calls == 1:
+        actual = accounting.get("actual_input_tokens")
+        output = accounting.get("output_tokens")
+        if not isinstance(actual, int) or isinstance(actual, bool) or actual <= 0:
+            failures.append("development_provider_actual_input_tokens_missing")
+        elif actual != counted:
+            failures.append("development_provider_input_token_count_mismatch")
+        if not isinstance(output, int) or isinstance(output, bool) or output < 0:
+            failures.append("development_provider_output_tokens_missing")
+        if not _nonempty(accounting.get("attempt_id")):
+            failures.append("development_provider_attempt_identity_missing")
+        if any(
+            not _nonempty(accounting.get(field))
+            for field in ("provider_profile", "provider_profile_revision")
+        ):
+            failures.append("development_provider_identity_missing")
+        if not _nonempty(accounting.get("model_resolved")):
+            failures.append("development_provider_model_identity_missing")
+    elif (
+        accounting.get("actual_input_tokens") is not None
+        or accounting.get("output_tokens") is not None
+    ):
+        failures.append("development_provider_unexpected_generate_usage")
+    for fields, code in (
+        (
+            ("package_id", "package_hash"),
+            "development_provider_package_identity_missing",
+        ),
+        (("request_hash", "task_id"), "development_provider_request_identity_missing"),
+        (("model_requested",), "development_provider_model_identity_missing"),
+    ):
+        if any(not _nonempty(accounting.get(field)) for field in fields):
+            failures.append(code)
+    if (
+        not isinstance(image_bytes, int)
+        or isinstance(image_bytes, bool)
+        or image_bytes <= 0
+        or not isinstance(image_sha256, str)
+        or len(image_sha256) != 64
+    ):
+        failures.append("development_provider_image_identity_missing")
+    expected_profile = provider_contract.get("provider_profile")
+    expected_model = provider_contract.get("model_id")
+    if generate_calls == 1 and (
+        not expected_profile or accounting.get("provider_profile") != expected_profile
+    ):
+        failures.append("development_provider_manifest_profile_mismatch")
+    if not expected_model or (
+        accounting.get("model_requested") != expected_model
+        or (generate_calls == 1 and accounting.get("model_resolved") != expected_model)
+    ):
+        failures.append("development_provider_manifest_model_mismatch")
+    return sorted(set(failures))
+
+
+def _pre_provider_zero_call_allowed(target: dict[str, Any]) -> bool:
+    reason_codes = set(_strings(target.get("reason_codes")))
     return bool(
-        isinstance(counted, list)
-        and len(counted) == 1
-        and isinstance(counted[0], int)
-        and not isinstance(counted[0], bool)
-        and counted[0] >= 0
-        and isinstance(image_bytes, int)
-        and not isinstance(image_bytes, bool)
-        and image_bytes > 0
-        and isinstance(image_sha256, str)
-        and len(image_sha256) == 64
-        and isinstance(accounting.get("model_id"), str)
-        and bool(accounting.get("model_id"))
+        target.get("route_selected") in PROVIDER_ROUTES
+        and target.get("terminal_status") == "guided_upstream_blocked"
+        and target.get("count_tokens_calls") == 0
+        and target.get("generate_calls") == 0
+        and reason_codes
+        and reason_codes <= PRE_PROVIDER_ZERO_CALL_REASONS
+    )
+
+
+def _terminal_cardinality_failures(
+    target: dict[str, Any], decisions: dict[str, Any]
+) -> list[str]:
+    failures = _strings(target.get("cardinality_failure_codes"))
+    if not target.get("terminal_status"):
+        failures.append("development_terminal_status_missing")
+    expected_counts = {
+        "target_outcomes_total": (1, "development_target_outcome_cardinality_invalid"),
+        "terminal_payloads_total": (1, "development_terminal_cardinality_invalid"),
+        "target_state_payloads_total": (
+            1,
+            "development_target_state_cardinality_invalid",
+        ),
+        "proposal_outcomes_total": (
+            1,
+            "development_proposal_outcome_cardinality_invalid",
+        ),
+        "proposal_outcome_views_total": (
+            2,
+            "development_proposal_outcome_view_cardinality_invalid",
+        ),
+        "binding_outcomes_total": (
+            1,
+            "development_binding_outcome_cardinality_invalid",
+        ),
+        "binding_outcome_views_total": (
+            2,
+            "development_binding_outcome_view_cardinality_invalid",
+        ),
+        "detection_decisions_total": (
+            1,
+            "development_detection_decision_cardinality_invalid",
+        ),
+        "processability_decisions_total": (
+            1,
+            "development_processability_decision_cardinality_invalid",
+        ),
+        "holdout_decisions_total": (
+            1,
+            "development_holdout_decision_cardinality_invalid",
+        ),
+    }
+    for field, (expected, code) in expected_counts.items():
+        if target.get(field) != expected:
+            failures.append(code)
+    if not _outcome_verified(
+        target.get("proposal_outcome"),
+        expected_keys={
+            "status",
+            "proposal_scope",
+            "proposal_checksum",
+            "raw_proposal_checksum",
+            "reason_codes",
+            "outcome_checksum",
+        },
+        statuses={"not_attempted", "persisted", "invalid", "missing"},
+    ):
+        failures.append("development_proposal_outcome_checksum_invalid")
+    if not _outcome_verified(
+        target.get("binding_outcome"),
+        expected_keys={
+            "status",
+            "binding_checksum",
+            "reason_codes",
+            "outcome_checksum",
+        },
+        statuses={"not_applicable", "attempted_failed", "completed"},
+    ):
+        failures.append("development_binding_outcome_checksum_invalid")
+    for name in ("detection", "processability", "holdout"):
+        if not _decision(decisions, name):
+            failures.append(f"development_{name}_decision_missing")
+    if target.get("terminal_cardinality_verified") is not True and not failures:
+        failures.append("development_terminal_cardinality_unverified")
+    return sorted(set(failures))
+
+
+def _nonempty(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _outcome_verified(
+    value: Any, *, expected_keys: set[str], statuses: set[str]
+) -> bool:
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        return False
+    unsigned = dict(value)
+    stored = unsigned.pop("outcome_checksum", None)
+    reasons = value.get("reason_codes")
+    return bool(
+        value.get("status") in statuses
+        and isinstance(reasons, list)
+        and reasons == sorted(set(str(item) for item in reasons))
+        and isinstance(stored, str)
+        and stored == _sha256_json(unsigned)
     )
 
 

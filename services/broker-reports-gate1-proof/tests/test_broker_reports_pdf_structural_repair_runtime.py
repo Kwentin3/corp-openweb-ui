@@ -436,6 +436,15 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
 
     def test_guided_candidate_consumes_full_scope_region_proposal(self) -> None:
         region_atoms = self.candidate_region_package["model_facing"]["atoms"]
+        for field in (
+            "source_coordinate_space",
+            "pixel_coordinate_space",
+            "source_to_pixel_transform",
+        ):
+            self.assertEqual(
+                self.crop[field],
+                self.candidate_region_package["crop_identity"][field],
+            )
         self.assertTrue(
             all(
                 set(atom) == {"atom_id", "bbox", "order", "text"}
@@ -483,10 +492,60 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
         self.assertTrue(result["post_validation"]["passed"])
         self.assertEqual([], runtime.validate_result(result))
 
+    def test_guided_inputs_classify_transform_tamper_before_provider_calls(
+        self,
+    ) -> None:
+        cases = (
+            ("candidate", self.candidate_region_package),
+            ("page", self.page_package),
+        )
+        visual = PdfVisualTopologyFactory().create()
+        for label, source_package in cases:
+            with self.subTest(scope=label):
+                package = copy.deepcopy(source_package)
+                package["crop_identity"]["source_to_pixel_transform"][
+                    "scale_x"
+                ] = 1.5
+                _reseal_region_package(package)
+                self.assertEqual(
+                    ["pdf_visual_topology_coordinate_transform_defect"],
+                    visual.validate_region_proposal_package(package),
+                )
+                provider = _Provider()
+                provider.package_id = package["package_id"]
+                runtime = PdfStructuralRepairRuntimeFactory().create(
+                    provider=provider
+                )
+
+                with self.assertRaisesRegex(
+                    PdfStructuralRepairRuntimeError,
+                    "^pdf_visual_topology_coordinate_transform_defect$",
+                ):
+                    if label == "candidate":
+                        runtime.run_candidate_once(
+                            target_id="guided_candidate_transform_tamper",
+                            parser_observation=self.observation,
+                            parser_geometry_observation=self.geometry,
+                            visual_package=package,
+                            png_bytes=self.png_bytes,
+                            provider_qualification=runtime.qualify_provider(),
+                        )
+                    else:
+                        runtime.run_page_proposal_once(
+                            target_id="guided_page_transform_tamper",
+                            visual_package=package,
+                            png_bytes=self.png_bytes,
+                            provider_qualification=runtime.qualify_provider(),
+                        )
+
+                self.assertEqual(
+                    (0, 0), (provider.count_calls, provider.generate_calls)
+                )
+
     def test_guided_region_bridge_rejects_resealed_text_or_atom_identity_drift(
         self,
     ) -> None:
-        cases: list[tuple[str, dict]] = []
+        cases: list[tuple[str, dict, list[str]]] = []
 
         text_drift = copy.deepcopy(self.candidate_region_package)
         first_atom = text_drift["model_facing"]["atoms"][0]
@@ -497,7 +556,7 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
         text_drift["private_candidate_dictionary"][first_candidate_id][
             "exact_source_span"
         ] = "invented-source-word"
-        cases.append(("text_drift", _reseal_region_package(text_drift)))
+        cases.append(("text_drift", _reseal_region_package(text_drift), []))
 
         identity_drift = copy.deepcopy(self.candidate_region_package)
         neutral_map = identity_drift["neutral_atom_to_candidate_id"]
@@ -512,12 +571,21 @@ class PdfStructuralRepairRuntimeTests(unittest.TestCase):
             atom["text"] = dictionary[neutral_map[atom["atom_id"]]][
                 "exact_source_span"
             ]
-        cases.append(("atom_identity_drift", _reseal_region_package(identity_drift)))
+        cases.append(
+            (
+                "atom_identity_drift",
+                _reseal_region_package(identity_drift),
+                ["pdf_visual_topology_region_atom_geometry_evidence_invalid"],
+            )
+        )
 
         visual = PdfVisualTopologyFactory().create()
-        for label, package in cases:
+        for label, package, expected_visual_errors in cases:
             with self.subTest(case=label):
-                self.assertEqual([], visual.validate_region_proposal_package(package))
+                self.assertEqual(
+                    expected_visual_errors,
+                    visual.validate_region_proposal_package(package),
+                )
                 provider = _Provider()
                 provider.package_id = package["package_id"]
                 runtime = PdfStructuralRepairRuntimeFactory().create(

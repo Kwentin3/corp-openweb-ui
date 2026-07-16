@@ -17,15 +17,16 @@ RUNNER_PATH = ROOT / "scripts" / "local_pdf_vlm_guided_intake_development.py"
 SCORER_PATH = ROOT / "scripts" / "local_pdf_vlm_guided_intake_development_score.py"
 
 
-def _load_runner():
-    spec = importlib.util.spec_from_file_location("development_runner", RUNNER_PATH)
+def _load_script(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-RUNNER = _load_runner()
+RUNNER = _load_script("development_runner", RUNNER_PATH)
+SCORER = _load_script("development_scorer", SCORER_PATH)
 MANIFEST_SHA = "a" * 64
 
 
@@ -87,7 +88,9 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
     def test_gate_preserves_runner_failure_without_starting_scorer(self) -> None:
         fake_runner = self.root / "fake_failed_runner.py"
         fake_scorer = self.root / "fake_probe_scorer.py"
-        fake_runner.write_text(_fake_incomplete_runner_source(exit_code=7), encoding="utf-8")
+        fake_runner.write_text(
+            _fake_incomplete_runner_source(exit_code=7), encoding="utf-8"
+        )
         fake_scorer.write_text(_fake_probe_scorer_source(), encoding="utf-8")
         reference = self.root / "reference.json"
         reference.write_text('{"human": "reference"}', encoding="utf-8")
@@ -269,6 +272,187 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
         self.assertIn("condition_1 target=betterment_p4", completed.stdout)
         self.assertIn("reason=development_positive_route_mismatch", completed.stdout)
 
+    def test_generated_call_without_actual_tokens_fails_exact_accounting_contract(
+        self,
+    ) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target["provider_accounting"]["actual_input_tokens"] = None
+        _reseal_provider_projection(target)
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_9 target=betterment_p4", completed.stdout)
+        self.assertIn(
+            "reason=development_provider_actual_input_tokens_missing",
+            completed.stdout,
+        )
+
+    def test_resolved_model_drift_fails_exact_manifest_contract(self) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target["provider_accounting"]["model_resolved"] = "models/other"
+        _reseal_provider_projection(target)
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn(
+            "reason=development_provider_manifest_model_mismatch",
+            completed.stdout,
+        )
+
+    def test_specific_pre_provider_geometry_block_allows_exact_zero_calls(
+        self,
+    ) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target.update(
+            {
+                "terminal_status": "guided_upstream_blocked",
+                "reason_codes": ["pdf_visual_topology_atom_bbox_invalid"],
+                "count_tokens_calls": 0,
+                "generate_calls": 0,
+                "hidden_retry": False,
+                "provider_failover": False,
+                "provider_accounting": _provider_accounting(calls=0, image=False),
+            }
+        )
+        target["provider_accounting_verification"] = _provider_verification(
+            target["provider_accounting"],
+            journal=False,
+            pre_provider_zero_call_allowed=True,
+        )
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_1 target=betterment_p4", completed.stdout)
+        self.assertNotIn("condition_9 target=betterment_p4", completed.stdout)
+
+    def test_pre_provider_geometry_reason_allowlist_matches_runtime_classes(
+        self,
+    ) -> None:
+        expected = {
+            "pdf_visual_topology_atom_bbox_invalid",
+            "pdf_visual_topology_atom_contract_invalid",
+            "pdf_visual_topology_atom_normalization_defect",
+            "pdf_visual_topology_atom_outside_selected_source_region",
+            "pdf_visual_topology_coordinate_transform_defect",
+            "pdf_visual_topology_provider_package_construction_invalid",
+        }
+
+        self.assertEqual(expected, RUNNER.PRE_PROVIDER_ZERO_CALL_REASONS)
+        self.assertEqual(expected, SCORER.PRE_PROVIDER_ZERO_CALL_REASONS)
+
+    def test_count_only_route_accepts_exact_transport_accounting(self) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target["generate_calls"] = 0
+        target["proposal"] = None
+        accounting = target["provider_accounting"]
+        accounting.update(
+            {
+                "generate_calls": 0,
+                "journal_generate_calls": 0,
+                "actual_input_tokens": None,
+                "output_tokens": None,
+                "attempt_id": None,
+                "provider_profile": None,
+                "provider_profile_revision": None,
+                "model_resolved": None,
+            }
+        )
+        _reseal_provider_projection(target)
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_1 target=betterment_p4", completed.stdout)
+        self.assertNotIn("condition_9 target=betterment_p4", completed.stdout)
+
+    def test_post_provider_binding_failure_cannot_claim_zero_calls(self) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target.update(
+            {
+                "terminal_status": "guided_upstream_blocked",
+                "reason_codes": ["pdf_vlm_region_binding_parent_atom_crossing"],
+                "count_tokens_calls": 0,
+                "generate_calls": 0,
+                "hidden_retry": False,
+                "provider_failover": False,
+                "provider_accounting": _provider_accounting(calls=0, image=False),
+            }
+        )
+        target["provider_accounting_verification"] = _provider_verification(
+            target["provider_accounting"], journal=False
+        )
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_9 target=betterment_p4", completed.stdout)
+        self.assertIn(
+            "reason=development_provider_pre_provider_reason_invalid",
+            completed.stdout,
+        )
+
+    def test_duplicate_target_state_emits_specific_cardinality_failure(self) -> None:
+        terminal, reference = _passing_fixture()
+        positive = next(
+            item for item in terminal["cases"] if item["case_id"] == "betterment_p4"
+        )
+        target = positive["target_terminal"]
+        target["target_state_payloads_total"] = 2
+        target["terminal_cardinality_verified"] = False
+        target["cardinality_failure_codes"] = [
+            "development_target_state_cardinality_invalid"
+        ]
+        terminal_path, seal_path, reference_path, output_path = self._write_fixture(
+            terminal, reference
+        )
+
+        completed = _score(terminal_path, seal_path, reference_path, output_path)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("condition_10 target=betterment_p4", completed.stdout)
+        self.assertIn(
+            "reason=development_target_state_cardinality_invalid",
+            completed.stdout,
+        )
+
     def test_all_twelve_conditions_emit_exact_success_and_zero_exit(self) -> None:
         terminal, reference = _passing_fixture()
         terminal_path, seal_path, reference_path, output_path = self._write_fixture(
@@ -397,6 +581,23 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
     def test_dedicated_skip_terminal_is_the_single_observed_terminal(self) -> None:
         routing = _routing("skip_obvious_non_table", "implausible")
         decisions = _decisions("implausible", "unsupported", "not_selected")
+        accounting = _provider_accounting(calls=0, image=False)
+        proposal_outcome = _sealed_outcome(
+            {
+                "status": "not_attempted",
+                "proposal_scope": "page_level",
+                "proposal_checksum": None,
+                "raw_proposal_checksum": None,
+                "reason_codes": [],
+            }
+        )
+        binding_outcome = _sealed_outcome(
+            {
+                "status": "not_applicable",
+                "binding_checksum": None,
+                "reason_codes": [],
+            }
+        )
         result = {
             "summary": {
                 "target_outcomes": [
@@ -424,6 +625,9 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
                     "target_id": "target_skip",
                     "product_routing": routing,
                     "intake_decisions": decisions,
+                    "proposal_outcome": proposal_outcome,
+                    "binding_outcome": binding_outcome,
+                    "provider_accounting": accounting,
                 }
             },
             {
@@ -434,11 +638,11 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
                     "target_id": "target_skip",
                     "runtime_terminal_status": "skipped_obvious_non_table",
                     "reason_code": "objective_table_signal_absent",
+                    "product_routing": routing,
                     "finalized_intake_decisions": decisions,
-                    "provider_accounting": {
-                        "count_token_calls": 0,
-                        "generate_calls": 0,
-                    },
+                    "proposal_outcome": proposal_outcome,
+                    "binding_outcome": binding_outcome,
+                    "provider_accounting": accounting,
                 }
             },
         ]
@@ -453,6 +657,163 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
         self.assertEqual(0, terminal["count_tokens_calls"])
         self.assertEqual(0, terminal["generate_calls"])
         self.assertEqual(["artifact_skip"], terminal["routing_terminal_refs"])
+
+    def test_runner_rejects_duplicate_target_state_without_selecting_one(self) -> None:
+        result, artifacts = _runner_skip_fixture()
+        duplicate = json.loads(json.dumps(artifacts[0]))
+        duplicate["payload"]["intake_decisions"]["holdout"]["decision"] = "conflicting"
+        artifacts.append(duplicate)
+
+        terminal = RUNNER._target_terminal(result=result, artifacts=artifacts)
+
+        self.assertFalse(terminal["terminal_cardinality_verified"])
+        self.assertEqual(2, terminal["target_state_payloads_total"])
+        self.assertIn(
+            "development_target_state_cardinality_invalid",
+            terminal["cardinality_failure_codes"],
+        )
+        self.assertIn(
+            "development_proposal_outcome_view_cardinality_invalid",
+            terminal["cardinality_failure_codes"],
+        )
+        self.assertEqual(
+            ["terminal"],
+            terminal["provider_accounting_verification"]["views_observed"],
+        )
+
+    def test_runner_rejects_each_cross_view_intake_decision_conflict(self) -> None:
+        conflicting_decisions = {
+            "detection": "plausible",
+            "processability": "processable",
+            "holdout": "selected",
+        }
+        for name, conflicting in conflicting_decisions.items():
+            with self.subTest(decision=name):
+                result, artifacts = _runner_skip_fixture()
+                artifacts[0]["payload"]["intake_decisions"][name][
+                    "decision"
+                ] = conflicting
+
+                terminal = RUNNER._target_terminal(
+                    result=result,
+                    artifacts=artifacts,
+                )
+
+                self.assertFalse(terminal["terminal_cardinality_verified"])
+                self.assertEqual(2, terminal[f"{name}_decisions_total"])
+                self.assertNotIn(name, terminal["intake_decisions"])
+                self.assertIn(
+                    f"development_{name}_decision_cardinality_invalid",
+                    terminal["cardinality_failure_codes"],
+                )
+                self.assertIn(
+                    "development_intake_decision_cross_view_conflict",
+                    terminal["cardinality_failure_codes"],
+                )
+
+    def test_runner_rejects_conflicting_provider_views_without_first_value_fallback(
+        self,
+    ) -> None:
+        result, artifacts = _runner_skip_fixture()
+        state_accounting = artifacts[0]["payload"]["provider_accounting"]
+        state_accounting["count_token_calls"] = 1
+        state_accounting["journal_count_token_calls"] = 1
+        state_accounting.pop("accounting_checksum")
+        state_accounting["accounting_checksum"] = hashlib.sha256(
+            _json_bytes(state_accounting)
+        ).hexdigest()
+
+        terminal = RUNNER._target_terminal(result=result, artifacts=artifacts)
+
+        self.assertIsNone(terminal["count_tokens_calls"])
+        self.assertIsNone(terminal["provider_accounting"])
+        self.assertFalse(terminal["provider_accounting_verification"]["verified"])
+        self.assertIn(
+            "development_provider_accounting_view_conflict",
+            terminal["provider_accounting_verification"]["failure_codes"],
+        )
+        self.assertIn(
+            "development_provider_accounting_count_token_view_conflict",
+            terminal["provider_accounting_verification"]["failure_codes"],
+        )
+
+    def test_runner_derives_byte_equal_provider_view_from_transport_journal(
+        self,
+    ) -> None:
+        result, artifacts, provider_contract = _runner_provider_fixture()
+
+        terminal = RUNNER._target_terminal(
+            result=result,
+            artifacts=artifacts,
+            provider_contract=provider_contract,
+        )
+
+        self.assertTrue(terminal["terminal_cardinality_verified"])
+        self.assertTrue(terminal["provider_accounting_verification"]["verified"])
+        self.assertEqual(
+            ["journal", "state", "terminal"],
+            terminal["provider_accounting_verification"]["views_observed"],
+        )
+        self.assertEqual(
+            ["state", "terminal"],
+            terminal["provider_accounting_verification"][
+                "journal_views_observed"
+            ],
+        )
+        self.assertEqual(
+            1,
+            terminal["provider_accounting_verification"][
+                "journal_unique_views_total"
+            ],
+        )
+        self.assertEqual(120, terminal["provider_accounting"]["counted_input_tokens"])
+        self.assertEqual(120, terminal["provider_accounting"]["actual_input_tokens"])
+        self.assertEqual("c" * 64, terminal["provider_accounting"]["request_hash"])
+
+    def test_runner_rejects_conflicting_state_and_terminal_provider_journals(
+        self,
+    ) -> None:
+        result, artifacts, provider_contract = _runner_provider_fixture()
+        state_journal = artifacts[0]["payload"]["proposal_result"]["journal"]
+        state_journal[0]["provider_attempt"]["usage"]["output_tokens"] = 31
+
+        terminal = RUNNER._target_terminal(
+            result=result,
+            artifacts=artifacts,
+            provider_contract=provider_contract,
+        )
+
+        verification = terminal["provider_accounting_verification"]
+        self.assertIsNone(terminal["provider_accounting"])
+        self.assertFalse(verification["verified"])
+        self.assertEqual(["state", "terminal"], verification["journal_views_observed"])
+        self.assertEqual(2, verification["journal_unique_views_total"])
+        self.assertIn(
+            "development_provider_accounting_journal_view_conflict",
+            verification["failure_codes"],
+        )
+
+    def test_runner_requires_provider_journal_in_state_and_terminal(self) -> None:
+        for artifact_index, label in ((0, "state"), (1, "terminal")):
+            with self.subTest(missing_view=label):
+                result, artifacts, provider_contract = _runner_provider_fixture()
+                artifacts[artifact_index]["payload"]["proposal_result"][
+                    "journal"
+                ] = []
+
+                terminal = RUNNER._target_terminal(
+                    result=result,
+                    artifacts=artifacts,
+                    provider_contract=provider_contract,
+                )
+
+                verification = terminal["provider_accounting_verification"]
+                self.assertIsNone(terminal["provider_accounting"])
+                self.assertFalse(verification["verified"])
+                self.assertIn(
+                    f"development_provider_accounting_{label}_journal_view_missing",
+                    verification["failure_codes"],
+                )
 
     def _write_fixture(self, terminal, reference):
         terminal_path = self.root / "terminal.private.json"
@@ -474,6 +835,233 @@ class LocalPdfVlmGuidedIntakeDevelopmentTests(unittest.TestCase):
         )
         reference_path.write_bytes(_json_bytes(reference))
         return terminal_path, seal_path, reference_path, output_path
+
+
+def _runner_skip_fixture():
+    routing = _routing("skip_obvious_non_table", "implausible")
+    decisions = _decisions("implausible", "unsupported", "not_selected")
+    accounting = _provider_accounting(calls=0, image=False)
+    proposal_outcome = _sealed_outcome(
+        {
+            "status": "not_attempted",
+            "proposal_scope": "page_level",
+            "proposal_checksum": None,
+            "raw_proposal_checksum": None,
+            "reason_codes": [],
+        }
+    )
+    binding_outcome = _sealed_outcome(
+        {
+            "status": "not_applicable",
+            "binding_checksum": None,
+            "reason_codes": [],
+        }
+    )
+    result = {
+        "summary": {
+            "target_outcomes": [
+                {
+                    "target_id": "target_skip",
+                    "terminal_status": "guided_skip_terminal",
+                    "reason_code": "objective_table_signal_absent",
+                    "count_token_calls": 0,
+                    "generate_calls": 0,
+                }
+            ]
+        },
+        "private_diagnostic_refs": [],
+        "runtime_result_refs": [],
+        "guided_upstream_terminal_refs": [],
+        "guided_skip_terminal_refs": ["artifact_skip"],
+        "private_target_state_refs": ["artifact_state"],
+    }
+    artifacts = [
+        {
+            "payload": {
+                "schema_version": "broker_reports_pdf_structural_repair_target_state_v1",
+                "target_id": "target_skip",
+                "product_routing": routing,
+                "intake_decisions": json.loads(json.dumps(decisions)),
+                "proposal_outcome": proposal_outcome,
+                "binding_outcome": binding_outcome,
+                "provider_accounting": json.loads(json.dumps(accounting)),
+            }
+        },
+        {
+            "payload": {
+                "schema_version": "broker_reports_pdf_vlm_guided_skip_terminal_v1",
+                "target_id": "target_skip",
+                "runtime_terminal_status": "skipped_obvious_non_table",
+                "reason_code": "objective_table_signal_absent",
+                "product_routing": routing,
+                "finalized_intake_decisions": json.loads(json.dumps(decisions)),
+                "proposal_outcome": proposal_outcome,
+                "binding_outcome": binding_outcome,
+                "provider_accounting": json.loads(json.dumps(accounting)),
+            }
+        },
+    ]
+    return result, artifacts
+
+
+def _runner_provider_fixture():
+    provider_contract = _manifest_fixture()["provider_contract"]
+    routing = _routing("candidate_crop", "plausible")
+    decisions = _decisions("plausible", "processable", "selected")
+    proposal = {
+        "schema_version": "broker_reports_pdf_visual_topology_response_v1",
+        "contract_revision": "pdf_visual_topology_region_proposal_v1",
+        "package_id": "pdfvisualpkg_test",
+        "proposal_scope": "candidate_crop",
+        "table_presence": "present",
+        "regions": [],
+        "uncertainty_codes": [],
+        "alternatives_complete": True,
+    }
+    journal = [
+        {
+            "provider_count_token_call_performed": True,
+            "provider_generate_call_performed": True,
+            "count_tokens": {
+                "total_tokens": 120,
+                "request_hash": "c" * 64,
+                "model_requested": "models/gemini-3.5-flash",
+            },
+            "provider_attempt": {
+                "attempt_id": "pdfvlmtask_test_a1",
+                "task_id": "pdfvlmtask_test",
+                "request_hash": "9" * 64,
+                "provider_profile": "google_gemini",
+                "provider_profile_revision": "d" * 64,
+                "model_requested": "models/gemini-3.5-flash",
+                "model_resolved": "models/gemini-3.5-flash",
+                "crop_sha256": "e" * 64,
+                "hidden_retry": False,
+                "provider_failover": False,
+                "usage": {
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                },
+            },
+            "task_id": "pdfvlmtask_test",
+            "topology_response": proposal,
+        }
+    ]
+    proposal_result = {
+        "package_id": "pdfvisualpkg_test",
+        "package_hash": "b" * 64,
+        "new_provider_count_token_calls": 1,
+        "new_provider_generate_calls": 1,
+        "journal": journal,
+    }
+    visual = {
+        "package_id": "pdfvisualpkg_test",
+        "package_hash": "b" * 64,
+        "proposal_scope": "candidate_crop",
+        "crop_identity": {
+            "crop_sha256": "e" * 64,
+            "png_bytes": 2048,
+        },
+    }
+    accounting = {
+        "count_token_calls": 1,
+        "generate_calls": 1,
+        "journal_count_token_calls": 1,
+        "journal_generate_calls": 1,
+        "counted_input_tokens": 120,
+        "actual_input_tokens": 120,
+        "output_tokens": 30,
+        "package_id": "pdfvisualpkg_test",
+        "package_hash": "b" * 64,
+        "request_hash": "c" * 64,
+        "task_id": "pdfvlmtask_test",
+        "attempt_id": "pdfvlmtask_test_a1",
+        "provider_profile": "google_gemini",
+        "provider_profile_revision": "d" * 64,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "image_sha256": "e" * 64,
+        "image_bytes": 2048,
+        "hidden_retry": False,
+        "provider_failover": False,
+        "journal_checksum": hashlib.sha256(_json_bytes(journal)).hexdigest(),
+    }
+    accounting["accounting_checksum"] = hashlib.sha256(
+        _json_bytes(accounting)
+    ).hexdigest()
+    proposal_outcome = _sealed_outcome(
+        {
+            "status": "persisted",
+            "proposal_scope": "candidate_crop",
+            "proposal_checksum": hashlib.sha256(_json_bytes(proposal)).hexdigest(),
+            "raw_proposal_checksum": hashlib.sha256(_json_bytes(proposal)).hexdigest(),
+            "reason_codes": [],
+        }
+    )
+    binding_outcome = _sealed_outcome(
+        {
+            "status": "completed",
+            "binding_checksum": "2" * 64,
+            "reason_codes": [],
+        }
+    )
+    result = {
+        "summary": {
+            "target_outcomes": [
+                {
+                    "target_id": "target_provider",
+                    "terminal_status": "accepted_physical_structure",
+                    "count_token_calls": 1,
+                    "generate_calls": 1,
+                }
+            ]
+        },
+        "private_diagnostic_refs": [],
+        "runtime_result_refs": ["artifact_result"],
+        "guided_upstream_terminal_refs": [],
+        "guided_skip_terminal_refs": [],
+        "private_target_state_refs": ["artifact_state"],
+    }
+    artifacts = [
+        {
+            "payload": {
+                "schema_version": "broker_reports_pdf_structural_repair_target_state_v1",
+                "target_id": "target_provider",
+                "product_routing": routing,
+                "intake_decisions": json.loads(json.dumps(decisions)),
+                "visual_package": visual,
+                "proposal_result": json.loads(json.dumps(proposal_result)),
+                "proposal_outcome": proposal_outcome,
+                "binding_outcome": binding_outcome,
+                "provider_accounting": accounting,
+            }
+        },
+        {
+            "payload": {
+                "schema_version": "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
+                "target_id": "target_provider",
+                "proposal_scope": "candidate_crop",
+                "product_routing": routing,
+                "finalized_intake_decisions": json.loads(json.dumps(decisions)),
+                "visual_package": visual,
+                "proposal_result": proposal_result,
+                "proposal": proposal,
+                "binding_result": {
+                    "result_checksum": "2" * 64,
+                    "reason_codes": [],
+                },
+                "runtime_terminal_status": "accepted_physical_structure",
+                "reason_codes": [],
+                "new_provider_count_token_calls": 1,
+                "new_provider_generate_calls": 1,
+                "safe_summary": {
+                    "count_token_calls": 1,
+                    "generate_calls": 1,
+                },
+            }
+        },
+    ]
+    return result, artifacts, provider_contract
 
 
 def _score(terminal: Path, seal: Path, reference: Path, output: Path):
@@ -574,6 +1162,9 @@ def _passing_fixture():
         },
         "reference_accessed": False,
         "manifest_sha256": MANIFEST_SHA,
+        "target_manifest": {
+            "provider_contract": _manifest_fixture()["provider_contract"],
+        },
         "manifest_case_ids": [item["case_id"] for item in references],
         "cases": cases,
         "failures": [],
@@ -653,6 +1244,22 @@ def _accepted_target(case_id: str, *, route: str, regions: int):
         )
     routing = _routing(route, "plausible")
     provider_accounting = _provider_accounting(calls=1, image=True)
+    proposal_outcome = _sealed_outcome(
+        {
+            "status": "persisted",
+            "proposal_scope": route,
+            "proposal_checksum": "1" * 64,
+            "raw_proposal_checksum": "1" * 64,
+            "reason_codes": [],
+        }
+    )
+    binding_outcome = _sealed_outcome(
+        {
+            "status": "completed",
+            "binding_checksum": "2" * 64,
+            "reason_codes": [],
+        }
+    )
     return {
         "target_id": f"target_{case_id}",
         "target_outcomes_total": 1,
@@ -660,6 +1267,16 @@ def _accepted_target(case_id: str, *, route: str, regions: int):
         "routing_terminal_payloads_total": 0,
         "terminal_payloads_total": 1,
         "target_state_payloads_total": 1,
+        "proposal_outcomes_total": 1,
+        "proposal_outcome_views_total": 2,
+        "proposal_outcome": proposal_outcome,
+        "binding_outcomes_total": 1,
+        "binding_outcome_views_total": 2,
+        "binding_outcome": binding_outcome,
+        "detection_decisions_total": 1,
+        "processability_decisions_total": 1,
+        "holdout_decisions_total": 1,
+        "cardinality_failure_codes": [],
         "terminal_cardinality_verified": True,
         "terminal_status": "accepted_physical_structure",
         "reason_codes": [],
@@ -671,6 +1288,9 @@ def _accepted_target(case_id: str, *, route: str, regions: int):
         "hidden_retry": False,
         "provider_failover": False,
         "provider_accounting": provider_accounting,
+        "provider_accounting_verification": _provider_verification(
+            provider_accounting, journal=True
+        ),
         "proposal": {"table_presence": "present"},
         "binding_result": {
             "parent_source_bbox": parent_bbox,
@@ -690,6 +1310,22 @@ def _accepted_target(case_id: str, *, route: str, regions: int):
 def _negative_target(case_id: str):
     routing = _routing("skip_obvious_non_table", "implausible")
     provider_accounting = _provider_accounting(calls=0, image=False)
+    proposal_outcome = _sealed_outcome(
+        {
+            "status": "not_attempted",
+            "proposal_scope": "page_level",
+            "proposal_checksum": None,
+            "raw_proposal_checksum": None,
+            "reason_codes": [],
+        }
+    )
+    binding_outcome = _sealed_outcome(
+        {
+            "status": "not_applicable",
+            "binding_checksum": None,
+            "reason_codes": [],
+        }
+    )
     return {
         "target_id": f"target_{case_id}",
         "target_outcomes_total": 1,
@@ -697,6 +1333,16 @@ def _negative_target(case_id: str):
         "routing_terminal_payloads_total": 0,
         "terminal_payloads_total": 1,
         "target_state_payloads_total": 1,
+        "proposal_outcomes_total": 1,
+        "proposal_outcome_views_total": 2,
+        "proposal_outcome": proposal_outcome,
+        "binding_outcomes_total": 1,
+        "binding_outcome_views_total": 2,
+        "binding_outcome": binding_outcome,
+        "detection_decisions_total": 1,
+        "processability_decisions_total": 1,
+        "holdout_decisions_total": 1,
+        "cardinality_failure_codes": [],
         "terminal_cardinality_verified": True,
         "terminal_status": "skipped_obvious_non_table",
         "reason_codes": ["pdf_guided_intake_obvious_non_table"],
@@ -708,6 +1354,9 @@ def _negative_target(case_id: str):
         "hidden_retry": False,
         "provider_failover": False,
         "provider_accounting": provider_accounting,
+        "provider_accounting_verification": _provider_verification(
+            provider_accounting, journal=False
+        ),
         "binding_result": {
             "parent_source_bbox": [0.0, 0.0, 100.0, 100.0],
             "region_results": [],
@@ -776,21 +1425,80 @@ def _decisions(detection: str, processability: str, holdout: str):
 
 def _provider_accounting(*, calls: int, image: bool):
     value = {
-        "count_tokens_calls": calls,
+        "count_token_calls": calls,
         "generate_calls": calls,
-        "journal_count_tokens_calls": calls,
+        "journal_count_token_calls": calls,
         "journal_generate_calls": calls,
-        "counted_input_tokens": [120] if calls else [],
-        "actual_input_tokens": [120] if calls else [],
-        "output_tokens": [30] if calls else [],
-        "image_bytes": 2048 if image else None,
+        "counted_input_tokens": 120 if calls else None,
+        "actual_input_tokens": 120 if calls else None,
+        "output_tokens": 30 if calls else None,
+        "package_id": "pdfvisualpkg_test" if calls else None,
+        "package_hash": "b" * 64 if calls else None,
+        "request_hash": "c" * 64 if calls else None,
+        "task_id": "pdfvlmtask_test" if calls else None,
+        "attempt_id": "pdfvlmtask_test_a1" if calls else None,
+        "provider_profile": "google_gemini" if calls else None,
+        "provider_profile_revision": "d" * 64 if calls else None,
+        "model_requested": "models/gemini-3.5-flash" if calls else None,
+        "model_resolved": "models/gemini-3.5-flash" if calls else None,
         "image_sha256": "e" * 64 if image else None,
-        "model_id": "models/gemini-3.5-flash" if calls else None,
+        "image_bytes": 2048 if image else None,
         "hidden_retry": False,
         "provider_failover": False,
         "journal_checksum": "f" * 64,
     }
     value["accounting_checksum"] = hashlib.sha256(_json_bytes(value)).hexdigest()
+    return value
+
+
+def _provider_verification(
+    accounting: dict,
+    *,
+    journal: bool,
+    pre_provider_zero_call_allowed: bool = False,
+):
+    checksum = accounting["accounting_checksum"]
+    views = ["state", "terminal"]
+    if journal:
+        views.insert(0, "journal")
+    value = {
+        "schema_version": (
+            "broker_reports_pdf_vlm_guided_provider_accounting_verification_v1"
+        ),
+        "views_observed": views,
+        "view_checksums": {name: checksum for name in views},
+        "unique_views_total": 1,
+        "pre_provider_zero_call_allowed": pre_provider_zero_call_allowed,
+        "failure_codes": [],
+        "verified": True,
+    }
+    value["verification_checksum"] = hashlib.sha256(_json_bytes(value)).hexdigest()
+    return value
+
+
+def _reseal_provider_projection(target: dict):
+    accounting = target["provider_accounting"]
+    accounting.pop("accounting_checksum", None)
+    accounting["accounting_checksum"] = hashlib.sha256(
+        _json_bytes(accounting)
+    ).hexdigest()
+    verification = target["provider_accounting_verification"]
+    checksum = accounting["accounting_checksum"]
+    verification["view_checksums"] = {
+        name: checksum for name in verification["views_observed"]
+    }
+    verification["unique_views_total"] = 1
+    verification["failure_codes"] = []
+    verification["verified"] = True
+    verification.pop("verification_checksum", None)
+    verification["verification_checksum"] = hashlib.sha256(
+        _json_bytes(verification)
+    ).hexdigest()
+
+
+def _sealed_outcome(value: dict):
+    value = dict(value)
+    value["outcome_checksum"] = hashlib.sha256(_json_bytes(value)).hexdigest()
     return value
 
 

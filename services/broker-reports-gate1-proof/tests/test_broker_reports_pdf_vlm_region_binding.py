@@ -13,7 +13,10 @@ from broker_reports_gate1.pdf_visual_topology import (
     PdfVisualTopologyFactory,
 )
 from broker_reports_gate1.pdf_vlm_region_binding import (
+    FACTORY_REQUIRED,
+    FORBIDDEN,
     PDF_VLM_REGION_BINDING_RESULT_SCHEMA,
+    PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA,
     PdfVlmRegionBindingError,
     PdfVlmRegionBindingFactory,
 )
@@ -33,6 +36,23 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
             png_sha256="page-crop-sha",
             page_ref="page-1",
         )
+
+    def test_factory_and_reconciliation_anti_drift_contract(self) -> None:
+        self.assertIn("PdfVlmRegionBindingFactory.create", FACTORY_REQUIRED)
+        self.assertIn("must not call a provider", FORBIDDEN)
+        self.assertIn("split crossing atoms", FORBIDDEN)
+        with self.assertRaisesRegex(
+            PdfVlmRegionBindingError,
+            "pdf_vlm_region_binding_factory_required",
+        ):
+            type(self.runtime)(
+                self.runtime.config,
+                contracts=self.runtime.contracts,
+                parser_geometry=self.runtime.parser_geometry,
+                visual_topology=self.runtime.visual,
+                topology_assembly=self.runtime.assembler,
+                materializer=self.runtime.materializer,
+            )
 
     def test_page_region_reselects_exact_atoms_and_materializes_source_only(
         self,
@@ -142,7 +162,9 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
         self.assertEqual(["word-1", "word-3"], region["included_word_refs"])
         self.assertEqual(["word-2", "word-4"], region["excluded_word_refs"])
 
-    def test_region_boundary_crossing_atom_blocks_materialization(self) -> None:
+    def test_region_boundary_crossing_atoms_expand_to_exact_source_edges(
+        self,
+    ) -> None:
         package = self.visual.build_region_proposal_package(
             proposal_scope="page_level",
             crop_manifest=self.parent_crop,
@@ -159,32 +181,278 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
                 )
             ],
         )
+        parsed = self.visual.parse_region_proposal_response(proposal)
+        plan = self.runtime.reconcile_proposal_regions(
+            proposal_package=package,
+            proposal=parsed,
+            pdf_text_layer_projection=self.projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+        )
+        planned = plan["regions"][0]
+        evidence = planned["bbox_reconciliation"]
+        self.assertEqual(
+            PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA,
+            plan["schema_version"],
+        )
+        self.assertEqual([0.0, 0.0, 50.0, 100.0], planned["original_source_bbox"])
+        self.assertEqual([0.0, 0.0, 90.0, 100.0], planned["reconciled_source_bbox"])
+        self.assertEqual(
+            ["word-1", "word-3"], evidence["crossing_word_refs_before"]
+        )
+        self.assertEqual([], evidence["crossing_word_refs_after"])
+        self.assertEqual(0, evidence["crossing_atoms"])
+        self.assertEqual(
+            evidence["all_parent_atoms"],
+            evidence["included_atoms"]
+            + evidence["excluded_atoms"]
+            + evidence["crossing_atoms"],
+        )
+        self.assertEqual(
+            [
+                {
+                    "iteration": 1,
+                    "edge": "right",
+                    "from_coordinate": 50.0,
+                    "to_coordinate": 90.0,
+                    "reason_code": "complete_crossing_source_atom_boundary",
+                    "word_refs": ["word-1", "word-3"],
+                }
+            ],
+            evidence["adjustments"],
+        )
+        self.assertEqual([], self.runtime.validate_reconciliation_plan(plan))
         crop = _crop_manifest(
             table_ref="cut-table",
-            bbox=[0.0, 0.0, 50.0, 100.0],
+            bbox=planned["reconciled_source_bbox"],
             crop_id="cut-crop",
             png_sha256="cut-crop-sha",
         )
 
         result = self.runtime.bind(
             proposal_package=package,
-            proposal=self.visual.parse_region_proposal_response(proposal),
+            proposal=parsed,
             pdf_text_layer_projection=self.projection,
             parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
             region_crop_manifests={"cut_word": crop},
         )
 
         region = result["region_results"][0]
-        self.assertEqual("validation_blocked", region["runtime_terminal_status"])
-        self.assertIn("word-1", region["crossing_word_refs"])
-        self.assertIn("word-3", region["crossing_word_refs"])
-        self.assertIn(
+        self.assertEqual([0.0, 0.0, 50.0, 100.0], region["original_source_bbox"])
+        self.assertEqual([0.0, 0.0, 90.0, 100.0], region["source_bbox"])
+        self.assertEqual([], region["crossing_word_refs"])
+        self.assertNotIn(
             "pdf_vlm_region_binding_atom_crosses_region_boundary",
             region["reason_codes"],
         )
-        self.assertIsNone(region["accepted_binding"])
-        self.assertIsNone(region["materialization"])
+        self.assertEqual(evidence, region["bbox_reconciliation"])
         self.assertEqual([], self.runtime.validate_result(result))
+
+    def test_reconciliation_is_a_least_fixed_point_not_one_pass_padding(
+        self,
+    ) -> None:
+        projection = copy.deepcopy(self.projection)
+        projection["bbox_inventory"].append(
+            {"bbox_ref": "bbox-bridge", "bbox": [89.0, 20.0, 120.0, 30.0]}
+        )
+        projection["word_inventory"].append(
+            {
+                "parser_ordinal": 5,
+                "word_ref": "word-bridge",
+                "page_ref": "page-1",
+                "bbox_ref": "bbox-bridge",
+                "text": "bridge-private",
+                "geometry_reading_order": 5,
+                "text_checksum_ref": "checksum-bridge",
+                "source_value_ref": "source-bridge",
+            }
+        )
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="page_level",
+            crop_manifest=self.parent_crop,
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="page_level",
+                regions=[_region("closure", [0.0, 0.0, 0.25, 1.0])],
+            )
+        )
+
+        plan = self.runtime.reconcile_proposal_regions(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+        )
+
+        evidence = plan["regions"][0]["bbox_reconciliation"]
+        self.assertEqual([0.0, 0.0, 190.0, 100.0], evidence["reconciled_source_bbox"])
+        self.assertEqual(
+            [(1, 50.0, 90.0), (2, 90.0, 120.0), (3, 120.0, 190.0)],
+            [
+                (
+                    item["iteration"],
+                    item["from_coordinate"],
+                    item["to_coordinate"],
+                )
+                for item in evidence["adjustments"]
+                if item["edge"] == "right"
+            ],
+        )
+        self.assertEqual([], evidence["crossing_word_refs_after"])
+
+    def test_candidate_parent_crossing_atom_is_explicitly_unowned(self) -> None:
+        projection = copy.deepcopy(self.projection)
+        projection["bbox_inventory"].append(
+            {"bbox_ref": "bbox-parent-crossing", "bbox": [195.0, 20.0, 205.0, 30.0]}
+        )
+        projection["word_inventory"].append(
+            {
+                "parser_ordinal": 5,
+                "word_ref": "word-parent-crossing",
+                "page_ref": "page-1",
+                "bbox_ref": "bbox-parent-crossing",
+                "text": "outside-parent-private",
+                "geometry_reading_order": 5,
+                "text_checksum_ref": "checksum-parent-crossing",
+                "source_value_ref": "source-parent-crossing",
+            }
+        )
+        observation = (
+            PdfDualOracleContractFactory()
+            .create()
+            .build_parser_observation_from_word_atoms(
+                document_ref="document-1",
+                pdf_sha256="pdf-sha",
+                page_ref="page-1",
+                page_number=1,
+                table_ref="table-1",
+                table_bbox=[0.0, 0.0, 200.0, 100.0],
+                pdf_text_layer_projection=projection,
+            )
+        )
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=observation,
+            crop_manifest=_crop_manifest(
+                table_ref="table-1",
+                bbox=[0.0, 0.0, 200.0, 100.0],
+                crop_id="candidate-parent-crossing",
+                png_sha256="candidate-parent-crossing-sha",
+            ),
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="candidate_crop",
+                regions=[_region("candidate", [0.0, 0.0, 1.0, 1.0])],
+            )
+        )
+
+        plan = self.runtime.reconcile_proposal_regions(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+        )
+
+        accounting = plan["parent_atom_accounting"]
+        self.assertEqual(4, accounting["all_parent_atoms"])
+        self.assertEqual(1, accounting["parent_boundary_crossing_atoms"])
+        self.assertEqual(
+            ["word-parent-crossing"],
+            accounting["parent_boundary_crossing_word_refs"],
+        )
+        self.assertTrue(accounting["parent_boundary_preserved"])
+        self.assertEqual(
+            [0.0, 0.0, 200.0, 100.0],
+            plan["regions"][0]["reconciled_source_bbox"],
+        )
+
+    def test_arbitrary_crop_expansion_is_not_accepted_as_reconciliation(
+        self,
+    ) -> None:
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="page_level",
+            crop_manifest=self.parent_crop,
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="page_level",
+                regions=[_region("cut_word", [0.0, 0.0, 0.25, 1.0])],
+            )
+        )
+        arbitrary_crop = _crop_manifest(
+            table_ref="cut-table",
+            bbox=[0.0, 0.0, 100.0, 100.0],
+            crop_id="arbitrary-crop",
+            png_sha256="arbitrary-crop-sha",
+        )
+
+        result = self.runtime.bind(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=self.projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+            region_crop_manifests={"cut_word": arbitrary_crop},
+        )
+
+        region = result["region_results"][0]
+        self.assertEqual("validation_blocked", region["runtime_terminal_status"])
+        self.assertIn(
+            "pdf_vlm_region_binding_crop_geometry_mismatch",
+            region["reason_codes"],
+        )
+        self.assertEqual([0.0, 0.0, 90.0, 100.0], region["source_bbox"])
+
+    def test_no_word_region_preserves_exact_zero_intersection_evidence(
+        self,
+    ) -> None:
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="page_level",
+            crop_manifest=self.parent_crop,
+        )
+        proposal = self.visual.parse_region_proposal_response(
+            _proposal(
+                package_id=package["package_id"],
+                scope="page_level",
+                regions=[_region("whitespace", [0.45, 0.45, 0.55, 0.55])],
+            )
+        )
+        plan = self.runtime.reconcile_proposal_regions(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=self.projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+        )
+        planned = plan["regions"][0]
+        crop = _crop_manifest(
+            table_ref="whitespace-table",
+            bbox=planned["reconciled_source_bbox"],
+            crop_id="whitespace-crop",
+            png_sha256="whitespace-crop-sha",
+        )
+
+        result = self.runtime.bind(
+            proposal_package=package,
+            proposal=proposal,
+            pdf_text_layer_projection=self.projection,
+            parent_source_bbox=[0.0, 0.0, 200.0, 100.0],
+            region_crop_manifests={"whitespace": crop},
+        )
+
+        region = result["region_results"][0]
+        evidence = region["bbox_reconciliation"]
+        self.assertEqual(0, evidence["included_atoms"])
+        self.assertEqual(4, evidence["excluded_atoms"])
+        self.assertEqual(0, evidence["crossing_atoms"])
+        self.assertEqual(4, evidence["all_parent_atoms"])
+        self.assertEqual([], evidence["adjustments"])
+        self.assertIn(
+            "pdf_vlm_region_binding_region_has_no_word_atoms",
+            region["reason_codes"],
+        )
 
     def test_multiple_hypotheses_remain_ambiguous_and_never_materialize(self) -> None:
         package = self.visual.build_region_proposal_package(
@@ -474,7 +742,10 @@ class PdfVlmRegionBindingTests(unittest.TestCase):
         _reseal(tampered)
 
         self.assertEqual("validation_blocked", region["runtime_terminal_status"])
-        self.assertEqual([], self.runtime.validate_result(tampered))
+        self.assertIn(
+            "pdf_vlm_region_binding_reconciliation_accounting_invalid",
+            self.runtime.validate_result(tampered),
+        )
         self.assertIn(
             "pdf_vlm_region_binding_partition_anchor_invalid",
             self.runtime.validate_result_against_inputs(

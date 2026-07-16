@@ -2370,8 +2370,8 @@ def _window_crop_manifest(
         "source_to_pixel_transform": {
             "scale_x": 2.0,
             "scale_y": 2.0,
-            "translate_source_x": crop_bbox[0],
-            "translate_source_y": crop_bbox[1],
+            "translate_source_x": -crop_bbox[0],
+            "translate_source_y": -crop_bbox[1],
         },
         "renderer": "pymupdf",
         "renderer_version": "1.26.5",

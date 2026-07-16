@@ -6,6 +6,7 @@ import runpy
 import unittest
 from pathlib import Path
 
+from broker_reports_gate1.contracts import stable_digest
 from broker_reports_gate1.pdf_dual_oracle_consensus import (
     PdfDualOracleConsensusFactory,
 )
@@ -31,6 +32,7 @@ from broker_reports_gate1.pdf_topology_assembly import (
 from broker_reports_gate1.pdf_visual_topology import (
     PDF_VISUAL_TOPOLOGY_POLICY_VERSION,
     PDF_VISUAL_TOPOLOGY_RESPONSE_SCHEMA,
+    PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS,
     PdfVisualTopologyConfig,
     PdfVisualTopologyError,
     PdfVisualTopologyFactory,
@@ -135,6 +137,10 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
         self.assertEqual(48 * 1024, config.maximum_model_json_bytes)
         self.assertEqual(18_000, config.maximum_static_input_tokens)
         self.assertEqual(20_000, config.maximum_counted_input_tokens)
+        self.assertEqual(
+            0.75,
+            PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS,
+        )
         with self.assertRaisesRegex(
             PdfVisualTopologyError,
             "pdf_visual_topology_policy_invalid",
@@ -144,6 +150,263 @@ class PdfVisualTopologyPackageTests(unittest.TestCase):
                     policy_version="pdf_visual_topology_policy_v4"
                 )
             ).create()
+
+    def test_source_atom_bottom_precision_overshoot_is_reconciled_and_audited(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["bbox_inventory"][2]["bbox"] = [
+            10.0,
+            60.0,
+            90.0,
+            100.0043,
+        ]
+        observation = _observation(self.contracts, projection=projection)
+
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=observation,
+            crop_manifest=self.crop,
+        )
+
+        atom = package["model_facing"]["atoms"][2]
+        candidate_id = package["neutral_atom_to_candidate_id"]["a0003"]
+        source = package["private_candidate_dictionary"][candidate_id]
+        geometry = package["source_atom_geometry_evidence"][2]
+        unsigned_geometry = dict(geometry)
+        stored_checksum = unsigned_geometry.pop("evidence_checksum")
+        self.assertEqual(
+            {
+                "atom_id": "a0003",
+                "candidate_id": candidate_id,
+                "classification": "source_precision_overshoot_reconciled",
+                "original_source_bbox": [10.0, 60.0, 90.0, 100.0043],
+                "reconciled_source_bbox": [10.0, 60.0, 90.0, 100.0],
+                "normalized_bbox": [0.05, 0.6, 0.45, 1.0],
+                "selected_source_region_bbox": [0.0, 0.0, 200.0, 100.0],
+                "maximum_overshoot_points": 0.75,
+                "adjustments": [
+                    {
+                        "edge": "bottom",
+                        "from_coordinate": 100.0043,
+                        "to_coordinate": 100.0,
+                        "overshoot_points": 0.0043,
+                        "reason_code": (
+                            "pdf_visual_topology_source_atom_precision_"
+                            "overshoot_reconciled"
+                        ),
+                    }
+                ],
+            },
+            unsigned_geometry,
+        )
+        self.assertEqual(sha256_json(unsigned_geometry), stored_checksum)
+        self.assertEqual([0.05, 0.6, 0.45, 1.0], atom["bbox"])
+        self.assertNotIn("source_geometry", source)
+        self.assertEqual(
+            sha256_json(package["source_atom_geometry_evidence"]),
+            package["source_atom_geometry_evidence_hash"],
+        )
+        contained_geometry = package["source_atom_geometry_evidence"][0]
+        self.assertEqual(
+            "within_selected_source_region",
+            contained_geometry["classification"],
+        )
+        self.assertEqual([], contained_geometry["adjustments"])
+        self.assertEqual(
+            [],
+            self.visual.validate_region_proposal_package(package),
+        )
+
+    def test_source_atom_geometry_evidence_is_recomputed_during_validation(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["bbox_inventory"][2]["bbox"] = [
+            10.0,
+            60.0,
+            90.0,
+            100.0043,
+        ]
+        observation = _observation(self.contracts, projection=projection)
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=observation,
+            crop_manifest=self.crop,
+        )
+        tampered = copy.deepcopy(package)
+        geometry = tampered["source_atom_geometry_evidence"][2]
+        geometry["classification"] = "within_selected_source_region"
+        unsigned_geometry = dict(geometry)
+        unsigned_geometry.pop("evidence_checksum")
+        geometry["evidence_checksum"] = sha256_json(unsigned_geometry)
+        tampered["source_atom_geometry_evidence_hash"] = sha256_json(
+            tampered["source_atom_geometry_evidence"]
+        )
+        _reseal_region_package(tampered)
+
+        self.assertEqual(
+            ["pdf_visual_topology_region_atom_geometry_evidence_invalid"],
+            self.visual.validate_region_proposal_package(tampered),
+        )
+
+    def test_genuinely_invalid_source_bbox_is_classified_during_validation(
+        self,
+    ) -> None:
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=self.observation,
+            crop_manifest=self.crop,
+        )
+        tampered = copy.deepcopy(package)
+        candidate_id = tampered["neutral_atom_to_candidate_id"]["a0003"]
+        tampered["private_candidate_dictionary"][candidate_id]["source_bbox"] = [
+            10.0,
+            60.0,
+            10.0,
+            90.0,
+        ]
+        tampered["candidate_dictionary_hash"] = sha256_json(
+            tampered["private_candidate_dictionary"]
+        )
+        _reseal_region_package(tampered)
+
+        self.assertEqual(
+            ["pdf_visual_topology_atom_bbox_invalid"],
+            self.visual.validate_region_proposal_package(tampered),
+        )
+
+    def test_atom_outside_selected_source_region_is_not_precision_reconciled(
+        self,
+    ) -> None:
+        projection = _projection()
+        projection["bbox_inventory"][2]["bbox"] = [
+            199.8,
+            60.0,
+            200.4,
+            90.0,
+        ]
+        observation = _observation(self.contracts, projection=projection)
+
+        with self.assertRaisesRegex(
+            PdfVisualTopologyError,
+            "^pdf_visual_topology_atom_outside_selected_source_region$",
+        ):
+            self.visual.build_region_proposal_package(
+                proposal_scope="candidate_crop",
+                parser_observation=observation,
+                crop_manifest=self.crop,
+            )
+
+    def test_normalization_collapse_is_classified_before_provider_package(self) -> None:
+        projection = _projection()
+        projection["bbox_inventory"][2]["bbox"] = [
+            10.0,
+            60.0,
+            10.000000001,
+            90.0,
+        ]
+        observation = _observation(self.contracts, projection=projection)
+
+        with self.assertRaisesRegex(
+            PdfVisualTopologyError,
+            "^pdf_visual_topology_atom_normalization_defect$",
+        ):
+            self.visual.build_region_proposal_package(
+                proposal_scope="candidate_crop",
+                parser_observation=observation,
+                crop_manifest=self.crop,
+            )
+
+    def test_coordinate_transform_defect_is_classified_before_atoms_are_built(
+        self,
+    ) -> None:
+        crop = copy.deepcopy(self.crop)
+        crop["source_to_pixel_transform"]["scale_x"] = 1.5
+        crop.pop("manifest_hash")
+        crop["manifest_hash"] = sha256_json(crop)
+
+        with self.assertRaisesRegex(
+            PdfVisualTopologyError,
+            "^pdf_visual_topology_coordinate_transform_defect$",
+        ):
+            self.visual.build_region_proposal_package(
+                proposal_scope="candidate_crop",
+                parser_observation=self.observation,
+                crop_manifest=crop,
+            )
+
+    def test_malformed_normalized_atom_is_provider_package_construction_error(
+        self,
+    ) -> None:
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=self.observation,
+            crop_manifest=self.crop,
+        )
+        tampered = copy.deepcopy(package)
+        tampered["model_facing"]["atoms"][2]["bbox"] = [
+            0.05,
+            0.6,
+            0.05,
+            0.9,
+        ]
+        tampered["neutral_atom_manifest_hash"] = sha256_json(
+            tampered["model_facing"]["atoms"]
+        )
+        _reseal_region_package(tampered)
+
+        self.assertEqual(
+            ["pdf_visual_topology_provider_package_construction_invalid"],
+            self.visual.validate_region_proposal_package(tampered),
+        )
+
+    def test_source_atom_overshoot_beyond_parser_allowance_fails_closed(self) -> None:
+        package = self.visual.build_region_proposal_package(
+            proposal_scope="candidate_crop",
+            parser_observation=self.observation,
+            crop_manifest=self.crop,
+        )
+        tampered = copy.deepcopy(package)
+        candidate_id = tampered["neutral_atom_to_candidate_id"]["a0003"]
+        source = tampered["private_candidate_dictionary"][candidate_id]
+        source["source_bbox"] = [10.0, 60.0, 90.0, 100.7501]
+        geometry = tampered["source_atom_geometry_evidence"][2]
+        geometry.update(
+            {
+                "classification": "source_precision_overshoot_reconciled",
+                "original_source_bbox": [10.0, 60.0, 90.0, 100.7501],
+                "reconciled_source_bbox": [10.0, 60.0, 90.0, 100.0],
+                "normalized_bbox": [0.05, 0.6, 0.45, 1.0],
+                "adjustments": [
+                    {
+                        "edge": "bottom",
+                        "from_coordinate": 100.7501,
+                        "to_coordinate": 100.0,
+                        "overshoot_points": 0.7501,
+                        "reason_code": (
+                            "pdf_visual_topology_source_atom_precision_"
+                            "overshoot_reconciled"
+                        ),
+                    }
+                ],
+            }
+        )
+        unsigned_geometry = dict(geometry)
+        unsigned_geometry.pop("evidence_checksum")
+        geometry["evidence_checksum"] = sha256_json(unsigned_geometry)
+        tampered["source_atom_geometry_evidence_hash"] = sha256_json(
+            tampered["source_atom_geometry_evidence"]
+        )
+        tampered["candidate_dictionary_hash"] = sha256_json(
+            tampered["private_candidate_dictionary"]
+        )
+        _reseal_region_package(tampered)
+
+        self.assertEqual(
+            ["pdf_visual_topology_atom_outside_selected_source_region"],
+            self.visual.validate_region_proposal_package(tampered),
+        )
 
     def test_default_policy_accepts_exposed_330_atom_regression_shape(self) -> None:
         observation = _observation(
@@ -1611,6 +1874,26 @@ def _crop_manifest() -> dict:
     }
     value["manifest_hash"] = sha256_json(value)
     return value
+
+
+def _reseal_region_package(package: dict) -> None:
+    package_id = "pdfvisualregionpkg_" + stable_digest(
+        [
+            package["pdf_sha256"],
+            package["page_number"],
+            package["crop_identity"]["manifest_hash"],
+            package["proposal_scope"],
+            package["neutral_atom_manifest_hash"],
+            package["policy_version"],
+            package["contract_revision"],
+        ],
+        length=24,
+    )
+    package["package_id"] = package_id
+    package["model_facing"]["identity"]["package_id"] = package_id
+    unsigned = dict(package)
+    unsigned.pop("package_hash")
+    package["package_hash"] = sha256_json(unsigned)
 
 
 def _response(package_id: str, *, split: float = 0.5) -> dict:

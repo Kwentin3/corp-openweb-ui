@@ -30,6 +30,16 @@ PDF_VISUAL_TOPOLOGY_POLICY_VERSION = "pdf_visual_topology_policy_v5"
 PDF_VISUAL_TOPOLOGY_REGION_PROPOSAL_REVISION = (
     "pdf_visual_topology_region_proposal_v1"
 )
+PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS = 0.75
+PDF_VISUAL_TOPOLOGY_PRE_PROVIDER_GEOMETRY_ERROR_CODES = frozenset(
+    {
+        "pdf_visual_topology_atom_bbox_invalid",
+        "pdf_visual_topology_coordinate_transform_defect",
+        "pdf_visual_topology_atom_normalization_defect",
+        "pdf_visual_topology_atom_outside_selected_source_region",
+        "pdf_visual_topology_provider_package_construction_invalid",
+    }
+)
 
 FACTORY_REQUIRED = (
     "PdfVisualTopologyFactory.create is the only topology-neutral visual "
@@ -70,6 +80,8 @@ _PACKAGE_KEYS = {
     "crop_identity",
     "neutral_atom_manifest_hash",
     "neutral_atom_to_candidate_id",
+    "source_atom_geometry_evidence",
+    "source_atom_geometry_evidence_hash",
     "candidate_dictionary_hash",
     "private_candidate_dictionary",
     "model_facing",
@@ -146,6 +158,9 @@ _CROP_IDENTITY_KEYS = {
     "png_bytes",
     "declared_table_bbox",
     "rendered_bbox",
+    "source_coordinate_space",
+    "pixel_coordinate_space",
+    "source_to_pixel_transform",
     "page_rotation",
     "padding_points",
 }
@@ -171,6 +186,25 @@ _HEADER_RELATION_KEYS = {
     "parent_column",
     "child_start_column",
     "child_end_column",
+}
+_SOURCE_ATOM_GEOMETRY_KEYS = {
+    "atom_id",
+    "candidate_id",
+    "classification",
+    "original_source_bbox",
+    "reconciled_source_bbox",
+    "normalized_bbox",
+    "selected_source_region_bbox",
+    "maximum_overshoot_points",
+    "adjustments",
+    "evidence_checksum",
+}
+_SOURCE_ATOM_ADJUSTMENT_KEYS = {
+    "edge",
+    "from_coordinate",
+    "to_coordinate",
+    "overshoot_points",
+    "reason_code",
 }
 
 
@@ -314,22 +348,34 @@ class PdfVisualTopologyRuntime:
 
         atoms: list[dict[str, Any]] = []
         neutral_map: dict[str, str] = {}
+        source_atom_geometry_evidence: list[dict[str, Any]] = []
         dictionary: dict[str, dict[str, Any]] = {}
         for order, candidate in enumerate(candidates):
             candidate_id = str(candidate.get("candidate_id") or "")
             bbox = _bbox(candidate.get("bbox"))
-            if not candidate_id or bbox is None:
+            if not candidate_id:
                 raise PdfVisualTopologyError(
                     "pdf_visual_topology_atom_contract_invalid"
                 )
+            if bbox is None:
+                raise PdfVisualTopologyError(
+                    "pdf_visual_topology_atom_bbox_invalid"
+                )
             neutral_id = f"a{order + 1:04d}"
+            source_geometry = _source_atom_geometry_evidence(
+                atom_id=neutral_id,
+                candidate_id=candidate_id,
+                source_bbox=bbox,
+                selected_source_region_bbox=table_bbox,
+            )
             atoms.append(
                 {
                     "atom_id": neutral_id,
-                    "bbox": _normalized_bbox(bbox, table_bbox),
+                    "bbox": copy.deepcopy(source_geometry["normalized_bbox"]),
                     "order": order,
                 }
             )
+            source_atom_geometry_evidence.append(source_geometry)
             neutral_map[neutral_id] = candidate_id
             dictionary[candidate_id] = {
                 "candidate_id": candidate_id,
@@ -351,6 +397,9 @@ class PdfVisualTopologyRuntime:
             }
 
         atom_manifest_hash = sha256_json(atoms)
+        source_atom_geometry_evidence_hash = sha256_json(
+            source_atom_geometry_evidence
+        )
         dictionary_hash = sha256_json(dictionary)
         crop_hash = str(crop_manifest.get("png_sha256") or "")
         package_id = "pdfvisualtopopkg_" + stable_digest(
@@ -429,6 +478,15 @@ class PdfVisualTopologyRuntime:
                 crop_manifest.get("declared_table_bbox")
             ),
             "rendered_bbox": copy.deepcopy(crop_manifest.get("rendered_bbox")),
+            "source_coordinate_space": crop_manifest.get(
+                "source_coordinate_space"
+            ),
+            "pixel_coordinate_space": crop_manifest.get(
+                "pixel_coordinate_space"
+            ),
+            "source_to_pixel_transform": copy.deepcopy(
+                crop_manifest.get("source_to_pixel_transform")
+            ),
             "page_rotation": crop_manifest.get("page_rotation"),
             "padding_points": crop_manifest.get("padding_points"),
         }
@@ -449,6 +507,10 @@ class PdfVisualTopologyRuntime:
             "crop_identity": crop_identity,
             "neutral_atom_manifest_hash": atom_manifest_hash,
             "neutral_atom_to_candidate_id": neutral_map,
+            "source_atom_geometry_evidence": source_atom_geometry_evidence,
+            "source_atom_geometry_evidence_hash": (
+                source_atom_geometry_evidence_hash
+            ),
             "candidate_dictionary_hash": dictionary_hash,
             "private_candidate_dictionary": dictionary,
             "model_facing": model_view,
@@ -504,6 +566,9 @@ class PdfVisualTopologyRuntime:
             atoms = copy.deepcopy(base["model_facing"]["atoms"])
             crop_identity = copy.deepcopy(base["crop_identity"])
             neutral_map = copy.deepcopy(base["neutral_atom_to_candidate_id"])
+            source_atom_geometry_evidence = copy.deepcopy(
+                base["source_atom_geometry_evidence"]
+            )
             dictionary = copy.deepcopy(base["private_candidate_dictionary"])
             for atom in atoms:
                 candidate_id = neutral_map.get(str(atom.get("atom_id") or ""))
@@ -539,6 +604,7 @@ class PdfVisualTopologyRuntime:
             atoms = []
             crop_identity = self._region_crop_identity(crop_manifest)
             neutral_map = {}
+            source_atom_geometry_evidence = []
             dictionary = {}
             metadata = {
                 "document_ref": crop_manifest.get("document_ref"),
@@ -553,6 +619,9 @@ class PdfVisualTopologyRuntime:
             source_values_exposed = False
 
         atom_manifest_hash = sha256_json(atoms)
+        source_atom_geometry_evidence_hash = sha256_json(
+            source_atom_geometry_evidence
+        )
         dictionary_hash = sha256_json(dictionary)
         package_id = "pdfvisualregionpkg_" + stable_digest(
             [
@@ -616,6 +685,10 @@ class PdfVisualTopologyRuntime:
             "crop_identity": crop_identity,
             "neutral_atom_manifest_hash": atom_manifest_hash,
             "neutral_atom_to_candidate_id": neutral_map,
+            "source_atom_geometry_evidence": source_atom_geometry_evidence,
+            "source_atom_geometry_evidence_hash": (
+                source_atom_geometry_evidence_hash
+            ),
             "candidate_dictionary_hash": dictionary_hash,
             "private_candidate_dictionary": dictionary,
             "model_facing": model_view,
@@ -742,6 +815,7 @@ class PdfVisualTopologyRuntime:
             not atoms or len(atoms) > self.config.maximum_atoms
         ):
             errors.append("pdf_visual_topology_atom_budget_exceeded")
+        atom_geometry_contract_valid = isinstance(atoms, list)
         if isinstance(atoms, list):
             for order, atom in enumerate(atoms):
                 expected_keys = (
@@ -754,13 +828,19 @@ class PdfVisualTopologyRuntime:
                     or set(atom) != expected_keys
                     or atom.get("atom_id") != f"a{order + 1:04d}"
                     or atom.get("order") != order
-                    or not _normalized_box(atom.get("bbox"))
                     or (
                         scope == "candidate_crop"
                         and not isinstance(atom.get("text"), str)
                     )
                 ):
                     errors.append("pdf_visual_topology_region_atom_contract_invalid")
+                    atom_geometry_contract_valid = False
+                    break
+                if not _normalized_box(atom.get("bbox")):
+                    errors.append(
+                        "pdf_visual_topology_provider_package_construction_invalid"
+                    )
+                    atom_geometry_contract_valid = False
                     break
         if data.get("neutral_atom_manifest_hash") != sha256_json(atoms):
             errors.append("pdf_visual_topology_region_atom_manifest_invalid")
@@ -782,6 +862,8 @@ class PdfVisualTopologyRuntime:
             )
         ):
             errors.append("pdf_visual_topology_region_dictionary_invalid")
+        crop = _object(data.get("crop_identity"))
+        selected_source_region_bbox = _bbox(crop.get("declared_table_bbox"))
         if scope == "candidate_crop" and isinstance(atoms, list):
             for atom in atoms:
                 candidate_id = neutral_map.get(str(atom.get("atom_id") or ""))
@@ -807,16 +889,40 @@ class PdfVisualTopologyRuntime:
                         "pdf_visual_topology_region_atom_text_derivation_invalid"
                     )
                     break
+        source_bboxes_by_candidate_id = {
+            str(candidate_id): _object(source).get("source_bbox")
+            for candidate_id, source in dictionary.items()
+        }
+        if atom_geometry_contract_valid:
+            geometry_error = _source_atom_geometry_evidence_error(
+                atoms=atoms,
+                neutral_atom_to_candidate_id=neutral_map,
+                source_bboxes_by_candidate_id=source_bboxes_by_candidate_id,
+                selected_source_region_bbox=selected_source_region_bbox,
+                evidence=data.get("source_atom_geometry_evidence"),
+                evidence_hash=data.get("source_atom_geometry_evidence_hash"),
+            )
+            if geometry_error:
+                errors.append(
+                    "pdf_visual_topology_region_atom_geometry_evidence_invalid"
+                    if geometry_error
+                    == "pdf_visual_topology_provider_package_construction_invalid"
+                    else geometry_error
+                )
         identity = _object(model_view.get("identity"))
-        crop = _object(data.get("crop_identity"))
-        if (
+        crop_identity_invalid = (
             set(crop) != _CROP_IDENTITY_KEYS
             or _bbox(crop.get("declared_table_bbox")) is None
             or crop.get("rendered_bbox") != crop.get("declared_table_bbox")
             or crop.get("page_rotation") != 0
             or crop.get("padding_points") != 0.0
-        ):
+        )
+        if crop_identity_invalid:
             errors.append("pdf_visual_topology_region_crop_identity_invalid")
+        elif not _source_to_pixel_transform_valid(
+            crop, crop.get("declared_table_bbox")
+        ):
+            errors.append("pdf_visual_topology_coordinate_transform_defect")
         if identity != {"package_id": data.get("package_id")}:
             errors.append("pdf_visual_topology_region_model_identity_invalid")
         expected_package_id = "pdfvisualregionpkg_" + stable_digest(
@@ -1016,6 +1122,7 @@ class PdfVisualTopologyRuntime:
 
         atoms: list[dict[str, Any]] = []
         neutral_map: dict[str, str] = {}
+        source_atom_geometry_evidence: list[dict[str, Any]] = []
         dictionary: dict[str, dict[str, Any]] = {}
         for order, candidate_id in enumerate(owner_ids):
             candidate = candidate_by_id[candidate_id]
@@ -1028,13 +1135,20 @@ class PdfVisualTopologyRuntime:
                     "pdf_visual_topology_window_atom_outside_crop"
                 )
             neutral_id = f"a{order + 1:04d}"
+            source_geometry = _source_atom_geometry_evidence(
+                atom_id=neutral_id,
+                candidate_id=candidate_id,
+                source_bbox=bbox,
+                selected_source_region_bbox=crop_bbox,
+            )
             atoms.append(
                 {
                     "atom_id": neutral_id,
-                    "bbox": _normalized_bbox(bbox, crop_bbox),
+                    "bbox": copy.deepcopy(source_geometry["normalized_bbox"]),
                     "order": order,
                 }
             )
+            source_atom_geometry_evidence.append(source_geometry)
             neutral_map[neutral_id] = candidate_id
             dictionary[candidate_id] = {
                 "candidate_id": candidate_id,
@@ -1056,6 +1170,9 @@ class PdfVisualTopologyRuntime:
             }
 
         atom_manifest_hash = sha256_json(atoms)
+        source_atom_geometry_evidence_hash = sha256_json(
+            source_atom_geometry_evidence
+        )
         dictionary_hash = sha256_json(dictionary)
         crop_hash = str(crop_manifest.get("png_sha256") or "")
         package_id = "pdfvisualtopowinpkg_" + stable_digest(
@@ -1162,6 +1279,15 @@ class PdfVisualTopologyRuntime:
                 crop_manifest.get("declared_table_bbox")
             ),
             "rendered_bbox": copy.deepcopy(crop_manifest.get("rendered_bbox")),
+            "source_coordinate_space": crop_manifest.get(
+                "source_coordinate_space"
+            ),
+            "pixel_coordinate_space": crop_manifest.get(
+                "pixel_coordinate_space"
+            ),
+            "source_to_pixel_transform": copy.deepcopy(
+                crop_manifest.get("source_to_pixel_transform")
+            ),
             "page_rotation": crop_manifest.get("page_rotation"),
             "padding_points": crop_manifest.get("padding_points"),
         }
@@ -1186,6 +1312,10 @@ class PdfVisualTopologyRuntime:
             "crop_identity": crop_identity,
             "neutral_atom_manifest_hash": atom_manifest_hash,
             "neutral_atom_to_candidate_id": neutral_map,
+            "source_atom_geometry_evidence": source_atom_geometry_evidence,
+            "source_atom_geometry_evidence_hash": (
+                source_atom_geometry_evidence_hash
+            ),
             "candidate_dictionary_hash": dictionary_hash,
             "private_candidate_dictionary": dictionary,
             "model_facing": model_view,
@@ -1304,6 +1434,25 @@ class PdfVisualTopologyRuntime:
             or any(candidate_id not in candidates for candidate_id in owner_ids)
         ):
             errors.append("pdf_visual_topology_window_dictionary_invalid")
+        source_bboxes_by_candidate_id = {
+            candidate_id: _object(candidate).get("bbox")
+            for candidate_id, candidate in candidates.items()
+        }
+        geometry_error = _source_atom_geometry_evidence_error(
+            atoms=atoms,
+            neutral_atom_to_candidate_id=neutral_map,
+            source_bboxes_by_candidate_id=source_bboxes_by_candidate_id,
+            selected_source_region_bbox=_bbox(window.get("crop_bbox")),
+            evidence=data.get("source_atom_geometry_evidence"),
+            evidence_hash=data.get("source_atom_geometry_evidence_hash"),
+        )
+        if geometry_error:
+            errors.append(
+                "pdf_visual_topology_window_atom_geometry_evidence_invalid"
+                if geometry_error
+                == "pdf_visual_topology_provider_package_construction_invalid"
+                else geometry_error
+            )
         identity = _object(model_view.get("identity"))
         crop = _object(data.get("crop_identity"))
         if identity != {
@@ -1431,6 +1580,9 @@ class PdfVisualTopologyRuntime:
             str(item.get("candidate_id") or ""): item
             for item in _dicts(parser_observation.get("candidates"))
         }
+        table_bbox = _bbox(
+            _object(parser_observation.get("coordinate_space")).get("table_bbox")
+        )
         for candidate_id in candidate_order:
             source = _object(dictionary.get(candidate_id))
             candidate = _object(candidates.get(candidate_id))
@@ -1461,8 +1613,40 @@ class PdfVisualTopologyRuntime:
             ):
                 errors.append("pdf_visual_topology_candidate_derivation_invalid")
                 break
+        source_bboxes_by_candidate_id = {
+            candidate_id: _object(candidate).get("bbox")
+            for candidate_id, candidate in candidates.items()
+        }
+        geometry_error = _source_atom_geometry_evidence_error(
+            atoms=atoms,
+            neutral_atom_to_candidate_id=neutral_map,
+            source_bboxes_by_candidate_id=source_bboxes_by_candidate_id,
+            selected_source_region_bbox=table_bbox,
+            evidence=data.get("source_atom_geometry_evidence"),
+            evidence_hash=data.get("source_atom_geometry_evidence_hash"),
+        )
+        if geometry_error:
+            errors.append(
+                "pdf_visual_topology_atom_geometry_evidence_invalid"
+                if geometry_error
+                == "pdf_visual_topology_provider_package_construction_invalid"
+                else geometry_error
+            )
         identity = _object(model_view.get("identity"))
         crop = _object(data.get("crop_identity"))
+        crop_identity_invalid = (
+            set(crop) != _CROP_IDENTITY_KEYS
+            or _bbox(crop.get("declared_table_bbox")) is None
+            or crop.get("rendered_bbox") != crop.get("declared_table_bbox")
+            or crop.get("page_rotation") != 0
+            or crop.get("padding_points") != 0.0
+        )
+        if crop_identity_invalid:
+            errors.append("pdf_visual_topology_crop_identity_invalid")
+        elif not _source_to_pixel_transform_valid(
+            crop, crop.get("declared_table_bbox")
+        ):
+            errors.append("pdf_visual_topology_coordinate_transform_defect")
         if (
             identity
             != {
@@ -2024,6 +2208,10 @@ class PdfVisualTopologyRuntime:
             raise PdfVisualTopologyError(
                 "pdf_visual_topology_region_crop_identity_invalid"
             )
+        if not _source_to_pixel_transform_valid(crop_manifest, declared):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_coordinate_transform_defect"
+            )
 
     @staticmethod
     def _region_crop_identity(
@@ -2041,6 +2229,15 @@ class PdfVisualTopologyRuntime:
                 crop_manifest.get("declared_table_bbox")
             ),
             "rendered_bbox": copy.deepcopy(crop_manifest.get("rendered_bbox")),
+            "source_coordinate_space": crop_manifest.get(
+                "source_coordinate_space"
+            ),
+            "pixel_coordinate_space": crop_manifest.get(
+                "pixel_coordinate_space"
+            ),
+            "source_to_pixel_transform": copy.deepcopy(
+                crop_manifest.get("source_to_pixel_transform")
+            ),
             "page_rotation": crop_manifest.get("page_rotation"),
             "padding_points": crop_manifest.get("padding_points"),
         }
@@ -2071,6 +2268,10 @@ class PdfVisualTopologyRuntime:
         ):
             raise PdfVisualTopologyError(
                 "pdf_visual_topology_crop_identity_invalid"
+            )
+        if not _source_to_pixel_transform_valid(crop_manifest, declared):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_coordinate_transform_defect"
             )
 
     @staticmethod
@@ -2106,6 +2307,10 @@ class PdfVisualTopologyRuntime:
         ):
             raise PdfVisualTopologyError(
                 "pdf_visual_topology_window_crop_identity_invalid"
+            )
+        if not _source_to_pixel_transform_valid(crop_manifest, declared):
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_coordinate_transform_defect"
             )
 
 
@@ -2296,6 +2501,136 @@ def _codes(value: Any) -> list[str]:
     return list(value)
 
 
+def _source_atom_geometry_evidence(
+    *,
+    atom_id: str,
+    candidate_id: str,
+    source_bbox: Any,
+    selected_source_region_bbox: Any,
+) -> dict[str, Any]:
+    original = _bbox(source_bbox)
+    scope = _bbox(selected_source_region_bbox)
+    if original is None:
+        raise PdfVisualTopologyError("pdf_visual_topology_atom_bbox_invalid")
+    if scope is None:
+        raise PdfVisualTopologyError("pdf_visual_topology_table_bbox_invalid")
+    if not _boxes_overlap(original, scope):
+        raise PdfVisualTopologyError(
+            "pdf_visual_topology_atom_outside_selected_source_region"
+        )
+
+    reconciled = list(original)
+    adjustments: list[dict[str, Any]] = []
+    edge_specs = (
+        ("left", 0, scope[0] - original[0]),
+        ("top", 1, scope[1] - original[1]),
+        ("right", 2, original[2] - scope[2]),
+        ("bottom", 3, original[3] - scope[3]),
+    )
+    for edge, coordinate_index, raw_overshoot in edge_specs:
+        if raw_overshoot <= 0.0:
+            continue
+        if raw_overshoot > PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS:
+            raise PdfVisualTopologyError(
+                "pdf_visual_topology_atom_outside_selected_source_region"
+            )
+        from_coordinate = original[coordinate_index]
+        to_coordinate = scope[coordinate_index]
+        reconciled[coordinate_index] = to_coordinate
+        adjustments.append(
+            {
+                "edge": edge,
+                "from_coordinate": from_coordinate,
+                "to_coordinate": to_coordinate,
+                "overshoot_points": round(float(raw_overshoot), 9),
+                "reason_code": (
+                    "pdf_visual_topology_source_atom_precision_overshoot_reconciled"
+                ),
+            }
+        )
+
+    if adjustments and not _bbox_midpoint_inside(original, scope):
+        raise PdfVisualTopologyError(
+            "pdf_visual_topology_atom_outside_selected_source_region"
+        )
+    if _bbox(reconciled) is None:
+        raise PdfVisualTopologyError("pdf_visual_topology_atom_bbox_invalid")
+    normalized = _normalized_bbox(reconciled, scope)
+    evidence = {
+        "atom_id": atom_id,
+        "candidate_id": candidate_id,
+        "classification": (
+            "source_precision_overshoot_reconciled"
+            if adjustments
+            else "within_selected_source_region"
+        ),
+        "original_source_bbox": list(original),
+        "reconciled_source_bbox": reconciled,
+        "normalized_bbox": normalized,
+        "selected_source_region_bbox": list(scope),
+        "maximum_overshoot_points": (
+            PDF_VISUAL_TOPOLOGY_SOURCE_ATOM_TOLERANCE_POINTS
+        ),
+        "adjustments": adjustments,
+    }
+    evidence["evidence_checksum"] = sha256_json(evidence)
+    return evidence
+
+
+def _source_atom_geometry_evidence_error(
+    *,
+    atoms: Any,
+    neutral_atom_to_candidate_id: Any,
+    source_bboxes_by_candidate_id: dict[str, Any],
+    selected_source_region_bbox: Any,
+    evidence: Any,
+    evidence_hash: Any,
+) -> str | None:
+    if not isinstance(atoms, list) or not isinstance(evidence, list):
+        return "pdf_visual_topology_provider_package_construction_invalid"
+    if len(evidence) != len(atoms):
+        return "pdf_visual_topology_provider_package_construction_invalid"
+    try:
+        if evidence_hash != sha256_json(evidence):
+            return "pdf_visual_topology_provider_package_construction_invalid"
+    except (TypeError, ValueError):
+        return "pdf_visual_topology_provider_package_construction_invalid"
+
+    neutral_map = _object(neutral_atom_to_candidate_id)
+    expected_evidence: list[dict[str, Any]] = []
+    for atom, stored_evidence in zip(atoms, evidence, strict=True):
+        if not isinstance(atom, dict) or not isinstance(stored_evidence, dict):
+            return "pdf_visual_topology_provider_package_construction_invalid"
+        if set(stored_evidence) != _SOURCE_ATOM_GEOMETRY_KEYS:
+            return "pdf_visual_topology_provider_package_construction_invalid"
+        adjustments = stored_evidence.get("adjustments")
+        if not isinstance(adjustments, list) or any(
+            not isinstance(adjustment, dict)
+            or set(adjustment) != _SOURCE_ATOM_ADJUSTMENT_KEYS
+            for adjustment in adjustments
+        ):
+            return "pdf_visual_topology_provider_package_construction_invalid"
+        atom_id = str(atom.get("atom_id") or "")
+        candidate_id = neutral_map.get(atom_id)
+        if not isinstance(candidate_id, str) or not candidate_id:
+            return "pdf_visual_topology_provider_package_construction_invalid"
+        try:
+            expected = _source_atom_geometry_evidence(
+                atom_id=atom_id,
+                candidate_id=candidate_id,
+                source_bbox=source_bboxes_by_candidate_id.get(candidate_id),
+                selected_source_region_bbox=selected_source_region_bbox,
+            )
+        except PdfVisualTopologyError as exc:
+            return str(exc)
+        if atom.get("bbox") != expected["normalized_bbox"]:
+            return "pdf_visual_topology_provider_package_construction_invalid"
+        expected_evidence.append(expected)
+    if evidence != expected_evidence:
+        return "pdf_visual_topology_provider_package_construction_invalid"
+    return None
+
+
 def _normalized_bbox(value: list[float], scope: list[float]) -> list[float]:
     width = scope[2] - scope[0]
     height = scope[3] - scope[1]
@@ -2308,8 +2643,15 @@ def _normalized_bbox(value: list[float], scope: list[float]) -> list[float]:
         (value[3] - scope[1]) / height,
     ]
     if not _normalized_box(result):
-        raise PdfVisualTopologyError("pdf_visual_topology_atom_bbox_invalid")
-    return [round(item, 9) for item in result]
+        raise PdfVisualTopologyError(
+            "pdf_visual_topology_atom_normalization_defect"
+        )
+    rounded = [round(item, 9) for item in result]
+    if not _normalized_box(rounded):
+        raise PdfVisualTopologyError(
+            "pdf_visual_topology_atom_normalization_defect"
+        )
+    return rounded
 
 
 def _normalized_box(value: Any) -> bool:
@@ -2341,6 +2683,59 @@ def _boxes_overlap(left: list[float], right: list[float]) -> bool:
         min(left[2], right[2]) > max(left[0], right[0])
         and min(left[3], right[3]) > max(left[1], right[1])
     )
+
+
+def _bbox_midpoint_inside(value: list[float], scope: list[float]) -> bool:
+    midpoint_x = (value[0] + value[2]) / 2.0
+    midpoint_y = (value[1] + value[3]) / 2.0
+    return bool(
+        scope[0] <= midpoint_x <= scope[2]
+        and scope[1] <= midpoint_y <= scope[3]
+    )
+
+
+def _source_to_pixel_transform_valid(
+    crop_manifest: dict[str, Any], source_bbox: Any
+) -> bool:
+    bbox = _bbox(source_bbox)
+    transform = crop_manifest.get("source_to_pixel_transform")
+    width = crop_manifest.get("width")
+    height = crop_manifest.get("height")
+    if (
+        bbox is None
+        or crop_manifest.get("source_coordinate_space")
+        != "pdf_top_left_points"
+        or crop_manifest.get("pixel_coordinate_space")
+        != "crop_top_left_pixels"
+        or not isinstance(transform, dict)
+        or set(transform)
+        != {
+            "scale_x",
+            "scale_y",
+            "translate_source_x",
+            "translate_source_y",
+        }
+        or not isinstance(width, int)
+        or isinstance(width, bool)
+        or width <= 0
+        or not isinstance(height, int)
+        or isinstance(height, bool)
+        or height <= 0
+        or any(
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(float(value))
+            for value in transform.values()
+        )
+    ):
+        return False
+    expected = {
+        "scale_x": round(width / (bbox[2] - bbox[0]), 9),
+        "scale_y": round(height / (bbox[3] - bbox[1]), 9),
+        "translate_source_x": round(-bbox[0], 9),
+        "translate_source_y": round(-bbox[1], 9),
+    }
+    return transform == expected
 
 
 def _bbox(value: Any) -> list[float] | None:

@@ -34,6 +34,9 @@ from .pdf_visual_topology import (
 PDF_VLM_REGION_BINDING_RESULT_SCHEMA = (
     "broker_reports_pdf_vlm_region_binding_result_v1"
 )
+PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA = (
+    "broker_reports_pdf_vlm_region_reconciliation_plan_v1"
+)
 PDF_VLM_REGION_BINDING_POLICY_VERSION = "pdf_vlm_region_binding_policy_v1"
 
 FACTORY_REQUIRED = (
@@ -62,7 +65,9 @@ _RESULT_KEYS = {
     "page_ref",
     "page_number",
     "parent_source_bbox",
+    "parent_atom_accounting",
     "projection_checksum",
+    "reconciliation_plan_hash",
     "table_presence",
     "alternatives_complete",
     "region_results",
@@ -81,7 +86,9 @@ _REGION_KEYS = {
     "region_key",
     "table_ref",
     "normalized_bbox",
+    "original_source_bbox",
     "source_bbox",
+    "bbox_reconciliation",
     "crop_manifest_hash",
     "crop_sha256",
     "included_word_refs",
@@ -97,6 +104,62 @@ _REGION_KEYS = {
     "materialization",
     "runtime_terminal_status",
     "reason_codes",
+}
+_PARENT_ATOM_ACCOUNTING_KEYS = {
+    "page_atoms_total",
+    "all_parent_atoms",
+    "parent_boundary_crossing_atoms",
+    "outside_parent_atoms",
+    "parent_boundary_crossing_word_refs",
+    "parent_boundary_preserved",
+}
+_BBOX_RECONCILIATION_KEYS = {
+    "original_source_bbox",
+    "reconciled_source_bbox",
+    "adjustments",
+    "included_word_refs_before",
+    "excluded_word_refs_before",
+    "crossing_word_refs_before",
+    "included_word_refs_after",
+    "excluded_word_refs_after",
+    "crossing_word_refs_after",
+    "included_atoms",
+    "excluded_atoms",
+    "crossing_atoms",
+    "all_parent_atoms",
+    "every_parent_atom_accounted",
+}
+_BBOX_ADJUSTMENT_KEYS = {
+    "iteration",
+    "edge",
+    "from_coordinate",
+    "to_coordinate",
+    "reason_code",
+    "word_refs",
+}
+_RECONCILIATION_PLAN_KEYS = {
+    "schema_version",
+    "policy_version",
+    "proposal_package_id",
+    "proposal_package_hash",
+    "proposal_checksum",
+    "projection_checksum",
+    "proposal_scope",
+    "document_ref",
+    "pdf_sha256",
+    "page_ref",
+    "page_number",
+    "parent_source_bbox",
+    "parent_atom_accounting",
+    "regions",
+    "plan_checksum",
+}
+_RECONCILIATION_PLAN_REGION_KEYS = {
+    "region_key",
+    "normalized_bbox",
+    "original_source_bbox",
+    "reconciled_source_bbox",
+    "bbox_reconciliation",
 }
 _CANDIDATE_ACCOUNTING_KEYS = {
     "scope_candidates_total",
@@ -208,6 +271,280 @@ class PdfVlmRegionBindingRuntime:
         self.assembler = topology_assembly
         self.materializer = materializer
 
+    def reconcile_proposal_regions(
+        self,
+        *,
+        proposal_package: dict[str, Any],
+        proposal: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        parent_source_bbox: list[float],
+    ) -> dict[str, Any]:
+        """Return the deterministic atom-complete crop plan for a proposal.
+
+        The plan is deliberately provider-free and contains no crop bytes.  A
+        caller must render each ``reconciled_source_bbox`` through the existing
+        raster factory and then pass those exact crop manifests to ``bind``.
+        ``bind`` independently rebuilds the plan, so a caller cannot substitute
+        a wider or otherwise unanchored crop.
+        """
+
+        package_errors = self.visual.validate_region_proposal_package(
+            proposal_package
+        )
+        if package_errors:
+            raise PdfVlmRegionBindingError(package_errors[0])
+        scope = str(proposal_package.get("proposal_scope") or "")
+        try:
+            parsed = self.visual.parse_region_proposal_response(
+                proposal,
+                expected_package_id=str(
+                    proposal_package.get("package_id") or ""
+                ),
+                expected_proposal_scope=scope,
+            )
+        except ValueError as exc:
+            raise PdfVlmRegionBindingError(
+                _error_code(exc, "pdf_vlm_region_binding_proposal_invalid")
+            ) from exc
+        if parsed != proposal:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_proposal_not_canonical"
+            )
+
+        parent_bbox = _bbox(parent_source_bbox)
+        package_parent_bbox = _bbox(
+            _object(proposal_package.get("crop_identity")).get(
+                "declared_table_bbox"
+            )
+        )
+        if (
+            parent_bbox is None
+            or parent_bbox[0] == parent_bbox[2]
+            or parent_bbox[1] == parent_bbox[3]
+            or package_parent_bbox != parent_bbox
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_bbox_mismatch"
+            )
+
+        words, inferred_page_ref, parent_crossing, parent_outside = _page_words(
+            projection=pdf_text_layer_projection,
+            expected_page_ref=str(proposal_package.get("page_ref") or ""),
+            parent_bbox=parent_bbox,
+        )
+        page_ref = str(proposal_package.get("page_ref") or inferred_page_ref)
+        document_ref = str(proposal_package.get("document_ref") or "")
+        pdf_sha256 = str(proposal_package.get("pdf_sha256") or "")
+        page_number = proposal_package.get("page_number")
+        if (
+            not document_ref
+            or not pdf_sha256
+            or not page_ref
+            or not isinstance(page_number, int)
+            or isinstance(page_number, bool)
+            or page_number < 1
+        ):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_scope_identity_invalid"
+            )
+        if scope == "page_level" and parent_crossing:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_atom_crossing"
+            )
+        if scope == "page_level" and parent_outside:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_parent_atom_outside_scope"
+            )
+        self._candidate_scope(
+            proposal_package=proposal_package,
+            words=words,
+        )
+
+        return self._build_reconciliation_plan(
+            proposal_package=proposal_package,
+            proposal=parsed,
+            pdf_text_layer_projection=pdf_text_layer_projection,
+            parent_bbox=parent_bbox,
+            words=words,
+            parent_crossing=parent_crossing,
+            parent_outside=parent_outside,
+            document_ref=document_ref,
+            pdf_sha256=pdf_sha256,
+            page_ref=page_ref,
+            page_number=page_number,
+        )
+
+    def _build_reconciliation_plan(
+        self,
+        *,
+        proposal_package: dict[str, Any],
+        proposal: dict[str, Any],
+        pdf_text_layer_projection: dict[str, Any],
+        parent_bbox: list[float],
+        words: dict[str, dict[str, Any]],
+        parent_crossing: list[str],
+        parent_outside: list[str],
+        document_ref: str,
+        pdf_sha256: str,
+        page_ref: str,
+        page_number: int,
+    ) -> dict[str, Any]:
+        regions: list[dict[str, Any]] = []
+        reconciled_boxes: list[list[float]] = []
+        for region in _dicts(proposal.get("regions")):
+            original_bbox = _source_bbox(
+                normalized_bbox=region.get("bbox"),
+                parent_bbox=parent_bbox,
+                precision=self.config.source_coordinate_precision,
+            )
+            evidence = _reconcile_source_bbox(
+                words=words,
+                original_bbox=original_bbox,
+                parent_bbox=parent_bbox,
+                precision=self.config.source_coordinate_precision,
+            )
+            reconciled_bbox = evidence["reconciled_source_bbox"]
+            if any(
+                _boxes_overlap(reconciled_bbox, prior)
+                for prior in reconciled_boxes
+            ):
+                raise PdfVlmRegionBindingError(
+                    "pdf_vlm_region_binding_reconciled_region_overlap"
+                )
+            reconciled_boxes.append(reconciled_bbox)
+            regions.append(
+                {
+                    "region_key": str(region.get("region_key") or ""),
+                    "normalized_bbox": copy.deepcopy(region.get("bbox")),
+                    "original_source_bbox": original_bbox,
+                    "reconciled_source_bbox": reconciled_bbox,
+                    "bbox_reconciliation": evidence,
+                }
+            )
+
+        parent_accounting = {
+            "page_atoms_total": (
+                len(words) + len(parent_crossing) + len(parent_outside)
+            ),
+            "all_parent_atoms": len(words),
+            "parent_boundary_crossing_atoms": len(parent_crossing),
+            "outside_parent_atoms": len(parent_outside),
+            "parent_boundary_crossing_word_refs": sorted(parent_crossing),
+            "parent_boundary_preserved": True,
+        }
+        result = {
+            "schema_version": PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA,
+            "policy_version": self.config.policy_version,
+            "proposal_package_id": proposal_package.get("package_id"),
+            "proposal_package_hash": proposal_package.get("package_hash"),
+            "proposal_checksum": sha256_json(proposal),
+            "projection_checksum": sha256_json(pdf_text_layer_projection),
+            "proposal_scope": proposal_package.get("proposal_scope"),
+            "document_ref": document_ref,
+            "pdf_sha256": pdf_sha256,
+            "page_ref": page_ref,
+            "page_number": page_number,
+            "parent_source_bbox": copy.deepcopy(parent_bbox),
+            "parent_atom_accounting": parent_accounting,
+            "regions": regions,
+        }
+        result["plan_checksum"] = sha256_json(result)
+        errors = self.validate_reconciliation_plan(result)
+        if errors:
+            raise PdfVlmRegionBindingError(errors[0])
+        return result
+
+    def validate_reconciliation_plan(self, value: Any) -> list[str]:
+        data = _object(value)
+        errors: list[str] = []
+        if set(data) != _RECONCILIATION_PLAN_KEYS:
+            return ["pdf_vlm_region_binding_reconciliation_plan_keys_invalid"]
+        if (
+            data.get("schema_version")
+            != PDF_VLM_REGION_RECONCILIATION_PLAN_SCHEMA
+            or data.get("policy_version") != self.config.policy_version
+            or data.get("proposal_scope")
+            not in {"candidate_crop", "page_level"}
+            or _bbox(data.get("parent_source_bbox")) is None
+        ):
+            errors.append(
+                "pdf_vlm_region_binding_reconciliation_plan_contract_invalid"
+            )
+        if not all(
+            isinstance(data.get(key), str) and bool(data.get(key))
+            for key in (
+                "proposal_package_id",
+                "proposal_package_hash",
+                "proposal_checksum",
+                "projection_checksum",
+                "document_ref",
+                "pdf_sha256",
+                "page_ref",
+            )
+        ) or not _positive_int(data.get("page_number")):
+            errors.append(
+                "pdf_vlm_region_binding_reconciliation_plan_identity_invalid"
+            )
+        if _parent_atom_accounting_invalid(
+            _object(data.get("parent_atom_accounting"))
+        ):
+            errors.append(
+                "pdf_vlm_region_binding_parent_atom_accounting_invalid"
+            )
+        regions = _dicts(data.get("regions"))
+        if (
+            not isinstance(data.get("regions"), list)
+            or len(regions) != len(data.get("regions") or [])
+            or len(regions)
+            > (1 if data.get("proposal_scope") == "candidate_crop" else 2)
+        ):
+            errors.append(
+                "pdf_vlm_region_binding_reconciliation_regions_invalid"
+            )
+        region_keys: set[str] = set()
+        reconciled_boxes: list[list[float]] = []
+        for region in regions:
+            if set(region) != _RECONCILIATION_PLAN_REGION_KEYS:
+                errors.append(
+                    "pdf_vlm_region_binding_reconciliation_region_keys_invalid"
+                )
+                continue
+            region_key = str(region.get("region_key") or "")
+            original_bbox = _bbox(region.get("original_source_bbox"))
+            reconciled_bbox = _bbox(region.get("reconciled_source_bbox"))
+            if (
+                not region_key
+                or region_key in region_keys
+                or _bbox(region.get("normalized_bbox"), normalized=True)
+                is None
+                or original_bbox is None
+                or reconciled_bbox is None
+                or any(
+                    _boxes_overlap(reconciled_bbox, prior)
+                    for prior in reconciled_boxes
+                )
+            ):
+                errors.append(
+                    "pdf_vlm_region_binding_reconciliation_region_invalid"
+                )
+            region_keys.add(region_key)
+            if reconciled_bbox is not None:
+                reconciled_boxes.append(reconciled_bbox)
+            errors.extend(
+                _bbox_reconciliation_errors(
+                    _object(region.get("bbox_reconciliation")),
+                    expected_original_bbox=original_bbox,
+                    expected_reconciled_bbox=reconciled_bbox,
+                )
+            )
+        unsigned = dict(data)
+        stored = unsigned.pop("plan_checksum", None)
+        if stored != sha256_json(unsigned):
+            errors.append(
+                "pdf_vlm_region_binding_reconciliation_plan_checksum_invalid"
+            )
+        return sorted(set(errors))
+
     def bind(
         self,
         *,
@@ -292,7 +629,7 @@ class PdfVlmRegionBindingRuntime:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_crop_set_mismatch"
             )
-        if parent_crossing:
+        if scope == "page_level" and parent_crossing:
             raise PdfVlmRegionBindingError(
                 "pdf_vlm_region_binding_parent_atom_crossing"
             )
@@ -301,30 +638,50 @@ class PdfVlmRegionBindingRuntime:
                 "pdf_vlm_region_binding_parent_atom_outside_scope"
             )
 
+        reconciliation_plan = self._build_reconciliation_plan(
+            proposal_package=proposal_package,
+            proposal=parsed,
+            pdf_text_layer_projection=pdf_text_layer_projection,
+            parent_bbox=parent_bbox,
+            words=words,
+            parent_crossing=parent_crossing,
+            parent_outside=parent_outside,
+            document_ref=document_ref,
+            pdf_sha256=pdf_sha256,
+            page_ref=page_ref,
+            page_number=page_number,
+        )
+        planned_regions = {
+            str(item.get("region_key") or ""): item
+            for item in _dicts(reconciliation_plan.get("regions"))
+        }
+
         candidate_scope = self._candidate_scope(
             proposal_package=proposal_package,
             words=words,
         )
         region_results: list[dict[str, Any]] = []
-        source_boxes: list[list[float]] = []
         table_refs: set[str] = set()
         for region in regions:
             region_key = str(region.get("region_key") or "")
-            source_bbox = _source_bbox(
-                normalized_bbox=region.get("bbox"),
-                parent_bbox=parent_bbox,
-                precision=self.config.source_coordinate_precision,
+            planned_region = _object(planned_regions.get(region_key))
+            original_source_bbox = _bbox(
+                planned_region.get("original_source_bbox")
             )
-            if any(_boxes_overlap(source_bbox, prior) for prior in source_boxes):
+            source_bbox = _bbox(planned_region.get("reconciled_source_bbox"))
+            if original_source_bbox is None or source_bbox is None:
                 raise PdfVlmRegionBindingError(
-                    "pdf_vlm_region_binding_region_overlap"
+                    "pdf_vlm_region_binding_reconciliation_plan_invalid"
                 )
-            source_boxes.append(source_bbox)
             result = self._bind_region(
                 proposal_package=proposal_package,
                 proposal=parsed,
                 region=region,
+                original_source_bbox=original_source_bbox,
                 source_bbox=source_bbox,
+                bbox_reconciliation=_object(
+                    planned_region.get("bbox_reconciliation")
+                ),
                 crop_manifest=region_crop_manifests[region_key],
                 pdf_text_layer_projection=pdf_text_layer_projection,
                 words=words,
@@ -396,6 +753,7 @@ class PdfVlmRegionBindingRuntime:
                     proposal_package.get("package_hash"),
                     proposal_checksum,
                     projection_checksum,
+                    reconciliation_plan.get("plan_checksum"),
                     [item.get("crop_manifest_hash") for item in region_results],
                     self.config.policy_version,
                 ],
@@ -410,7 +768,13 @@ class PdfVlmRegionBindingRuntime:
             "page_ref": page_ref,
             "page_number": page_number,
             "parent_source_bbox": parent_bbox,
+            "parent_atom_accounting": copy.deepcopy(
+                reconciliation_plan["parent_atom_accounting"]
+            ),
             "projection_checksum": projection_checksum,
+            "reconciliation_plan_hash": reconciliation_plan.get(
+                "plan_checksum"
+            ),
             "table_presence": parsed.get("table_presence"),
             "alternatives_complete": parsed.get("alternatives_complete") is True,
             "region_results": region_results,
@@ -464,6 +828,7 @@ class PdfVlmRegionBindingRuntime:
                     "pdf_sha256",
                     "page_ref",
                     "projection_checksum",
+                    "reconciliation_plan_hash",
                 )
             )
             or not _positive_int(data.get("page_number"))
@@ -483,6 +848,11 @@ class PdfVlmRegionBindingRuntime:
             errors.append("pdf_vlm_region_binding_authority_invalid")
         if not _reason_codes(data.get("reason_codes")):
             errors.append("pdf_vlm_region_binding_reason_codes_invalid")
+        parent_accounting = _object(data.get("parent_atom_accounting"))
+        if _parent_atom_accounting_invalid(parent_accounting):
+            errors.append(
+                "pdf_vlm_region_binding_parent_atom_accounting_invalid"
+            )
         region_results = _dicts(data.get("region_results"))
         if (
             not isinstance(data.get("region_results"), list)
@@ -520,6 +890,10 @@ class PdfVlmRegionBindingRuntime:
             accounting=accounting,
             region_results=region_results,
             accepted=accepted,
+        ):
+            errors.append("pdf_vlm_region_binding_source_accounting_invalid")
+        if accounting.get("parent_word_refs_total") != parent_accounting.get(
+            "all_parent_atoms"
         ):
             errors.append("pdf_vlm_region_binding_source_accounting_invalid")
         terminal = data.get("runtime_terminal_status")
@@ -570,6 +944,17 @@ class PdfVlmRegionBindingRuntime:
             errors.append("pdf_vlm_region_binding_input_anchor_invalid")
             return sorted(set(errors))
 
+        expected_plan: dict[str, Any] = {}
+        try:
+            expected_plan = self.reconcile_proposal_regions(
+                proposal_package=proposal_package,
+                proposal=parsed,
+                pdf_text_layer_projection=pdf_text_layer_projection,
+                parent_source_bbox=parent_source_bbox,
+            )
+        except PdfVlmRegionBindingError:
+            errors.append("pdf_vlm_region_binding_input_anchor_invalid")
+
         expected_parent_bbox = _bbox(parent_source_bbox)
         package_parent_bbox = _bbox(
             _object(proposal_package.get("crop_identity")).get(
@@ -593,6 +978,10 @@ class PdfVlmRegionBindingRuntime:
             "page_number": proposal_package.get("page_number"),
             "table_presence": parsed.get("table_presence"),
             "alternatives_complete": parsed.get("alternatives_complete") is True,
+            "parent_atom_accounting": expected_plan.get(
+                "parent_atom_accounting"
+            ),
+            "reconciliation_plan_hash": expected_plan.get("plan_checksum"),
         }
         if any(data.get(key) != expected for key, expected in expected_top.items()):
             errors.append("pdf_vlm_region_binding_proposal_binding_mismatch")
@@ -624,9 +1013,8 @@ class PdfVlmRegionBindingRuntime:
                     errors.append(
                         "pdf_vlm_region_binding_scope_identity_mismatch"
                     )
-                if parent_crossing or (
-                    proposal_package.get("proposal_scope") == "page_level"
-                    and parent_outside
+                if proposal_package.get("proposal_scope") == "page_level" and (
+                    parent_crossing or parent_outside
                 ):
                     errors.append("pdf_vlm_region_binding_input_anchor_invalid")
 
@@ -664,24 +1052,29 @@ class PdfVlmRegionBindingRuntime:
         result_by_key = {
             str(item.get("region_key") or ""): item for item in region_results
         }
+        planned_by_key = {
+            str(item.get("region_key") or ""): item
+            for item in _dicts(expected_plan.get("regions"))
+        }
         for region in proposed_regions:
             region_key = str(region.get("region_key") or "")
             result_region = _object(result_by_key.get(region_key))
+            planned_region = _object(planned_by_key.get(region_key))
             crop_manifest = _object(region_crop_manifests.get(region_key))
-            expected_source_bbox = None
-            if expected_parent_bbox is not None:
-                try:
-                    expected_source_bbox = _source_bbox(
-                        normalized_bbox=region.get("bbox"),
-                        parent_bbox=expected_parent_bbox,
-                        precision=self.config.source_coordinate_precision,
-                    )
-                except PdfVlmRegionBindingError:
-                    errors.append("pdf_vlm_region_binding_input_anchor_invalid")
+            expected_original_bbox = planned_region.get(
+                "original_source_bbox"
+            )
+            expected_source_bbox = planned_region.get(
+                "reconciled_source_bbox"
+            )
             if (
                 not result_region
                 or result_region.get("normalized_bbox") != region.get("bbox")
+                or result_region.get("original_source_bbox")
+                != expected_original_bbox
                 or result_region.get("source_bbox") != expected_source_bbox
+                or result_region.get("bbox_reconciliation")
+                != planned_region.get("bbox_reconciliation")
             ):
                 errors.append("pdf_vlm_region_binding_proposal_binding_mismatch")
             if words and expected_source_bbox is not None and result_region:
@@ -724,6 +1117,7 @@ class PdfVlmRegionBindingRuntime:
                 proposal_package.get("package_hash"),
                 sha256_json(parsed),
                 projection_checksum,
+                expected_plan.get("plan_checksum"),
                 [
                     _object(region_crop_manifests.get(key)).get(
                         "manifest_hash"
@@ -779,7 +1173,9 @@ class PdfVlmRegionBindingRuntime:
         proposal_package: dict[str, Any],
         proposal: dict[str, Any],
         region: dict[str, Any],
+        original_source_bbox: list[float],
         source_bbox: list[float],
+        bbox_reconciliation: dict[str, Any],
         crop_manifest: dict[str, Any],
         pdf_text_layer_projection: dict[str, Any],
         words: dict[str, dict[str, Any]],
@@ -960,7 +1356,9 @@ class PdfVlmRegionBindingRuntime:
             "region_key": region_key,
             "table_ref": table_ref,
             "normalized_bbox": copy.deepcopy(region.get("bbox")),
+            "original_source_bbox": copy.deepcopy(original_source_bbox),
             "source_bbox": source_bbox,
+            "bbox_reconciliation": copy.deepcopy(bbox_reconciliation),
             "crop_manifest_hash": crop_manifest.get("manifest_hash"),
             "crop_sha256": crop_manifest.get("png_sha256"),
             "included_word_refs": sorted(included),
@@ -1045,6 +1443,7 @@ class PdfVlmRegionBindingRuntime:
             return ["pdf_vlm_region_binding_region_keys_invalid"]
         if (
             _bbox(value.get("normalized_bbox"), normalized=True) is None
+            or _bbox(value.get("original_source_bbox")) is None
             or _bbox(value.get("source_bbox")) is None
             or value.get("runtime_terminal_status") not in _REGION_TERMINALS
             or not _reason_codes(value.get("reason_codes"))
@@ -1061,6 +1460,25 @@ class PdfVlmRegionBindingRuntime:
             or set(excluded) & set(crossing)
         ):
             errors.append("pdf_vlm_region_binding_word_accounting_invalid")
+        reconciliation = _object(value.get("bbox_reconciliation"))
+        errors.extend(
+            _bbox_reconciliation_errors(
+                reconciliation,
+                expected_original_bbox=_bbox(
+                    value.get("original_source_bbox")
+                ),
+                expected_reconciled_bbox=_bbox(value.get("source_bbox")),
+            )
+        )
+        if (
+            crossing != []
+            or reconciliation.get("included_word_refs_after") != included
+            or reconciliation.get("excluded_word_refs_after") != excluded
+            or reconciliation.get("crossing_word_refs_after") != crossing
+        ):
+            errors.append(
+                "pdf_vlm_region_binding_reconciliation_accounting_invalid"
+            )
         candidate = _object(value.get("candidate_accounting"))
         if (
             set(candidate) != _CANDIDATE_ACCOUNTING_KEYS
@@ -1136,11 +1554,17 @@ def _region_scope_binding_errors(
 ) -> list[str]:
     errors: list[str] = []
     parent_bbox = _bbox(result.get("parent_source_bbox"))
+    original_source_bbox = _bbox(region_result.get("original_source_bbox"))
     source_bbox = _bbox(region_result.get("source_bbox"))
     normalized_bbox = _bbox(
         region_result.get("normalized_bbox"), normalized=True
     )
-    if parent_bbox is None or source_bbox is None or normalized_bbox is None:
+    if (
+        parent_bbox is None
+        or original_source_bbox is None
+        or source_bbox is None
+        or normalized_bbox is None
+    ):
         return ["pdf_vlm_region_binding_scope_identity_mismatch"]
     try:
         expected_source_bbox = _source_bbox(
@@ -1151,7 +1575,7 @@ def _region_scope_binding_errors(
     except PdfVlmRegionBindingError:
         expected_source_bbox = None
     if (
-        expected_source_bbox != source_bbox
+        expected_source_bbox != original_source_bbox
         or not _contained(source_bbox, parent_bbox)
     ):
         errors.append("pdf_vlm_region_binding_scope_identity_mismatch")
@@ -1377,6 +1801,261 @@ def _partition_words(
         else:
             excluded.add(word_ref)
     return included, excluded, crossing
+
+
+def _reconcile_source_bbox(
+    *,
+    words: dict[str, dict[str, Any]],
+    original_bbox: list[float],
+    parent_bbox: list[float],
+    precision: int,
+) -> dict[str, Any]:
+    """Compute the least atom-complete expansion inside ``parent_bbox``."""
+
+    del precision  # Source atom edges stay exact; only proposal conversion rounds.
+    if not _contained(original_bbox, parent_bbox):
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_reconciliation_parent_boundary_invalid"
+        )
+    included_before, excluded_before, crossing_before = _partition_words(
+        words, original_bbox
+    )
+    current = list(original_bbox)
+    adjustments: list[dict[str, Any]] = []
+    for iteration in range(1, len(words) + 2):
+        _, _, crossing = _partition_words(words, current)
+        if not crossing:
+            break
+        crossing_boxes = {
+            word_ref: words[word_ref]["bbox"]
+            for word_ref in sorted(crossing)
+        }
+        next_bbox = [
+            min([current[0], *[bbox[0] for bbox in crossing_boxes.values()]]),
+            min([current[1], *[bbox[1] for bbox in crossing_boxes.values()]]),
+            max([current[2], *[bbox[2] for bbox in crossing_boxes.values()]]),
+            max([current[3], *[bbox[3] for bbox in crossing_boxes.values()]]),
+        ]
+        if next_bbox == current:
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_reconciliation_stalled"
+            )
+        if not _contained(next_bbox, parent_bbox):
+            raise PdfVlmRegionBindingError(
+                "pdf_vlm_region_binding_reconciliation_parent_boundary_invalid"
+            )
+        edge_specs = (
+            (0, "left"),
+            (1, "top"),
+            (2, "right"),
+            (3, "bottom"),
+        )
+        for index, edge in edge_specs:
+            if next_bbox[index] == current[index]:
+                continue
+            if index < 2:
+                forcing = sorted(
+                    word_ref
+                    for word_ref, bbox in crossing_boxes.items()
+                    if bbox[index] == next_bbox[index]
+                    and bbox[index] < current[index]
+                )
+            else:
+                forcing = sorted(
+                    word_ref
+                    for word_ref, bbox in crossing_boxes.items()
+                    if bbox[index] == next_bbox[index]
+                    and bbox[index] > current[index]
+                )
+            if not forcing:
+                raise PdfVlmRegionBindingError(
+                    "pdf_vlm_region_binding_reconciliation_adjustment_invalid"
+                )
+            adjustments.append(
+                {
+                    "iteration": iteration,
+                    "edge": edge,
+                    "from_coordinate": current[index],
+                    "to_coordinate": next_bbox[index],
+                    "reason_code": (
+                        "complete_crossing_source_atom_boundary"
+                    ),
+                    "word_refs": forcing,
+                }
+            )
+        current = next_bbox
+    else:
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_reconciliation_not_converged"
+        )
+
+    included_after, excluded_after, crossing_after = _partition_words(
+        words, current
+    )
+    all_parent_atoms = len(words)
+    every_accounted = (
+        len(included_after) + len(excluded_after) + len(crossing_after)
+        == all_parent_atoms
+    )
+    if crossing_after or not every_accounted:
+        raise PdfVlmRegionBindingError(
+            "pdf_vlm_region_binding_reconciliation_accounting_invalid"
+        )
+    return {
+        "original_source_bbox": copy.deepcopy(original_bbox),
+        "reconciled_source_bbox": copy.deepcopy(current),
+        "adjustments": adjustments,
+        "included_word_refs_before": sorted(included_before),
+        "excluded_word_refs_before": sorted(excluded_before),
+        "crossing_word_refs_before": sorted(crossing_before),
+        "included_word_refs_after": sorted(included_after),
+        "excluded_word_refs_after": sorted(excluded_after),
+        "crossing_word_refs_after": sorted(crossing_after),
+        "included_atoms": len(included_after),
+        "excluded_atoms": len(excluded_after),
+        "crossing_atoms": len(crossing_after),
+        "all_parent_atoms": all_parent_atoms,
+        "every_parent_atom_accounted": every_accounted,
+    }
+
+
+def _parent_atom_accounting_invalid(value: dict[str, Any]) -> bool:
+    if (
+        set(value) != _PARENT_ATOM_ACCOUNTING_KEYS
+        or not all(
+            _nonnegative_int(value.get(key))
+            for key in (
+                "page_atoms_total",
+                "all_parent_atoms",
+                "parent_boundary_crossing_atoms",
+                "outside_parent_atoms",
+            )
+        )
+        or not _unique_strings(value.get("parent_boundary_crossing_word_refs"))
+        or value.get("parent_boundary_preserved") is not True
+    ):
+        return True
+    return bool(
+        value.get("page_atoms_total")
+        != value.get("all_parent_atoms")
+        + value.get("parent_boundary_crossing_atoms")
+        + value.get("outside_parent_atoms")
+        or value.get("parent_boundary_crossing_atoms")
+        != len(value.get("parent_boundary_crossing_word_refs") or [])
+    )
+
+
+def _bbox_reconciliation_errors(
+    value: dict[str, Any],
+    *,
+    expected_original_bbox: list[float] | None,
+    expected_reconciled_bbox: list[float] | None,
+) -> list[str]:
+    errors: list[str] = []
+    if set(value) != _BBOX_RECONCILIATION_KEYS:
+        return ["pdf_vlm_region_binding_bbox_reconciliation_keys_invalid"]
+    original_bbox = _bbox(value.get("original_source_bbox"))
+    reconciled_bbox = _bbox(value.get("reconciled_source_bbox"))
+    if (
+        original_bbox is None
+        or reconciled_bbox is None
+        or original_bbox != expected_original_bbox
+        or reconciled_bbox != expected_reconciled_bbox
+        or reconciled_bbox[0] > original_bbox[0]
+        or reconciled_bbox[1] > original_bbox[1]
+        or reconciled_bbox[2] < original_bbox[2]
+        or reconciled_bbox[3] < original_bbox[3]
+    ):
+        errors.append("pdf_vlm_region_binding_bbox_reconciliation_invalid")
+
+    ref_keys = (
+        "included_word_refs_before",
+        "excluded_word_refs_before",
+        "crossing_word_refs_before",
+        "included_word_refs_after",
+        "excluded_word_refs_after",
+        "crossing_word_refs_after",
+    )
+    if not all(_unique_strings(value.get(key)) for key in ref_keys):
+        errors.append(
+            "pdf_vlm_region_binding_reconciliation_accounting_invalid"
+        )
+    before = [set(value.get(key) or []) for key in ref_keys[:3]]
+    after = [set(value.get(key) or []) for key in ref_keys[3:]]
+    if (
+        any(
+            left & right
+            for partitions in (before, after)
+            for index, left in enumerate(partitions)
+            for right in partitions[index + 1 :]
+        )
+        or set().union(*before) != set().union(*after)
+        or value.get("included_atoms") != len(after[0])
+        or value.get("excluded_atoms") != len(after[1])
+        or value.get("crossing_atoms") != len(after[2])
+        or value.get("all_parent_atoms") != len(set().union(*after))
+        or value.get("all_parent_atoms")
+        != len(after[0]) + len(after[1]) + len(after[2])
+        or value.get("crossing_atoms") != 0
+        or value.get("crossing_word_refs_after") != []
+        or value.get("every_parent_atom_accounted") is not True
+    ):
+        errors.append(
+            "pdf_vlm_region_binding_reconciliation_accounting_invalid"
+        )
+
+    adjustments = _dicts(value.get("adjustments"))
+    if (
+        not isinstance(value.get("adjustments"), list)
+        or len(adjustments) != len(value.get("adjustments") or [])
+    ):
+        errors.append("pdf_vlm_region_binding_bbox_adjustments_invalid")
+        adjustments = []
+    current = list(original_bbox or [])
+    edge_index = {"left": 0, "top": 1, "right": 2, "bottom": 3}
+    previous_order = (0, -1)
+    for adjustment in adjustments:
+        edge = adjustment.get("edge")
+        index = edge_index.get(str(edge))
+        order = (
+            adjustment.get("iteration")
+            if _positive_int(adjustment.get("iteration"))
+            else 0,
+            index if index is not None else -1,
+        )
+        if (
+            set(adjustment) != _BBOX_ADJUSTMENT_KEYS
+            or index is None
+            or not _positive_int(adjustment.get("iteration"))
+            or order <= previous_order
+            or not _number(adjustment.get("from_coordinate"))
+            or not _number(adjustment.get("to_coordinate"))
+            or adjustment.get("reason_code")
+            != "complete_crossing_source_atom_boundary"
+            or not _unique_strings(adjustment.get("word_refs"))
+            or not adjustment.get("word_refs")
+            or len(current) != 4
+            or float(adjustment.get("from_coordinate")) != current[index]
+            or (
+                index < 2
+                and float(adjustment.get("to_coordinate"))
+                >= current[index]
+            )
+            or (
+                index >= 2
+                and float(adjustment.get("to_coordinate"))
+                <= current[index]
+            )
+        ):
+            errors.append("pdf_vlm_region_binding_bbox_adjustments_invalid")
+            continue
+        current[index] = float(adjustment["to_coordinate"])
+        previous_order = order
+    if reconciled_bbox is not None and current != reconciled_bbox:
+        errors.append("pdf_vlm_region_binding_bbox_adjustments_invalid")
+    if bool(adjustments) != (original_bbox != reconciled_bbox):
+        errors.append("pdf_vlm_region_binding_bbox_adjustments_invalid")
+    return sorted(set(errors))
 
 
 def _candidate_partition(

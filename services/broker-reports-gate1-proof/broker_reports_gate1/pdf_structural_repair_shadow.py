@@ -540,6 +540,7 @@ class PdfStructuralRepairShadowRuntime:
                 private_diagnostic_ref=diagnostic_ref,
                 count_token_calls=0,
                 generate_calls=0,
+                proposal_result=None,
                 existing_state_ref=None,
                 existing_decisions=None,
             )
@@ -638,6 +639,7 @@ class PdfStructuralRepairShadowRuntime:
                         private_diagnostic_ref=diagnostic_ref,
                         count_token_calls=0,
                         generate_calls=0,
+                        proposal_result=None,
                         existing_state_ref=existing_state_ref,
                         existing_decisions=existing_decisions,
                     )
@@ -746,6 +748,7 @@ class PdfStructuralRepairShadowRuntime:
                                 private_diagnostic_ref=diagnostic_ref,
                                 count_token_calls=0,
                                 generate_calls=0,
+                                proposal_result=None,
                                 existing_state_ref=None,
                                 existing_decisions=None,
                             )
@@ -821,6 +824,7 @@ class PdfStructuralRepairShadowRuntime:
                         context=context,
                         retention_policy=retention_policy,
                         pdf_bytes_by_sha256=pdf_bytes_by_sha256,
+                        guided_calls_before=guided_calls_before,
                     )
                     target_state_refs.append(state_ref)
                     runtime_refs.append(runtime_ref)
@@ -1072,6 +1076,7 @@ class PdfStructuralRepairShadowRuntime:
                                 private_diagnostic_ref=diagnostic_ref,
                                 count_token_calls=guided_count_calls,
                                 generate_calls=guided_generate_calls,
+                                proposal_result=partial_result or None,
                                 existing_state_ref=persisted_state_ref,
                                 existing_decisions=existing_decisions,
                             )
@@ -2375,6 +2380,7 @@ class PdfStructuralRepairShadowRuntime:
         context: ArtifactAccessContext,
         retention_policy: RetentionPolicy,
         pdf_bytes_by_sha256: dict[str, bytes],
+        guided_calls_before: tuple[int, int] | None,
     ) -> tuple[
         dict[str, Any],
         str,
@@ -2391,6 +2397,7 @@ class PdfStructuralRepairShadowRuntime:
                 context=context,
                 retention_policy=retention_policy,
                 pdf_bytes_by_sha256=pdf_bytes_by_sha256,
+                guided_calls_before=guided_calls_before,
             )
         document_ref = str(package_descriptor["document_ref"])
         pdf_sha256 = str(package_descriptor["pdf_sha256"])
@@ -2567,6 +2574,16 @@ class PdfStructuralRepairShadowRuntime:
             target_state["intake_decisions"] = copy.deepcopy(
                 intake_decisions
             )
+        if guided_intake:
+            target_state.update(
+                self._guided_execution_evidence(
+                    proposal_result=None,
+                    visual_package=visual_package,
+                    proposal_scope="candidate_crop",
+                    count_token_calls=0,
+                    generate_calls=0,
+                )
+            )
         if window_plan is not None:
             target_state["window_plan"] = copy.deepcopy(window_plan)
             target_state["private_window_rasters"] = copy.deepcopy(
@@ -2663,6 +2680,28 @@ class PdfStructuralRepairShadowRuntime:
         except Exception as exc:
             if guided_intake and intake_decisions is not None:
                 upstream_reason = _guided_upstream_reason_from_exception(exc)
+                failed_call_delta = self._guided_provider_call_delta(
+                    guided_calls_before
+                )
+                failed_count_calls = (
+                    failed_call_delta[0]
+                    if failed_call_delta is not None
+                    else None
+                )
+                failed_generate_calls = (
+                    failed_call_delta[1]
+                    if failed_call_delta is not None
+                    else None
+                )
+                if (
+                    not isinstance(result, dict)
+                    and failed_call_delta is not None
+                    and sum(failed_call_delta) > 0
+                ):
+                    upstream_reason = (
+                        "pdf_vlm_guided_intake_runtime_journal_missing_"
+                        "after_provider_call"
+                    )
                 counted_tokens = (
                     _guided_runtime_intake_observations(result)[0]
                     if isinstance(result, dict)
@@ -2677,6 +2716,18 @@ class PdfStructuralRepairShadowRuntime:
                 )
                 target_state["intake_decisions"] = copy.deepcopy(
                     finalized_intake
+                )
+                target_state.update(
+                    self._guided_execution_evidence(
+                        proposal_result=(
+                            result if isinstance(result, dict) else None
+                        ),
+                        visual_package=visual_package,
+                        proposal_scope="candidate_crop",
+                        failure_reason=upstream_reason,
+                        count_token_calls=failed_count_calls,
+                        generate_calls=failed_generate_calls,
+                    )
                 )
                 state_ref = self._persist_target_state(
                     store=store,
@@ -2720,6 +2771,17 @@ class PdfStructuralRepairShadowRuntime:
             target_state["intake_decisions"] = copy.deepcopy(
                 finalized_intake
             )
+            target_state.update(
+                self._guided_execution_evidence(
+                    proposal_result=result,
+                    visual_package=visual_package,
+                    proposal_scope="candidate_crop",
+                    failure_reason=(
+                        str(upstream_reasons[0]) if upstream_reasons else None
+                    ),
+                    binding_result=candidate_binding,
+                )
+            )
             state_ref = self._persist_target_state(
                 store=store,
                 context=context,
@@ -2729,22 +2791,34 @@ class PdfStructuralRepairShadowRuntime:
                 visual_package=visual_package,
                 intake_decisions=finalized_intake,
             )
-            result = self._candidate_intake_result(
-                target_id=str(package_descriptor["target_id"]),
-                table_ref=table_ref,
-                page_ref=page_ref,
-                page_number=page_number,
-                parent_bbox=table_bbox,
-                parent_manifest=_object(rendered.get("manifest")),
-                pdf_text_layer_projection=projection,
-                visual_package=visual_package,
-                proposal_result=result,
-                proposal=candidate_proposal,
-                binding_result=candidate_binding,
-                region_crop_manifests=candidate_region_manifests,
-                finalized_intake_decisions=finalized_intake,
-                product_routing=product_routing,
-            )
+            proposal_runtime_result = result
+            try:
+                result = self._candidate_intake_result(
+                    target_id=str(package_descriptor["target_id"]),
+                    table_ref=table_ref,
+                    page_ref=page_ref,
+                    page_number=page_number,
+                    parent_bbox=table_bbox,
+                    parent_manifest=_object(rendered.get("manifest")),
+                    pdf_text_layer_projection=projection,
+                    visual_package=visual_package,
+                    proposal_result=proposal_runtime_result,
+                    proposal=candidate_proposal,
+                    binding_result=candidate_binding,
+                    region_crop_manifests=candidate_region_manifests,
+                    finalized_intake_decisions=finalized_intake,
+                    product_routing=product_routing,
+                )
+            except Exception as exc:
+                raise _TargetExecutionError(
+                    _error_code(
+                        exc,
+                        "pdf_vlm_guided_candidate_intake_terminal_invalid",
+                    ),
+                    private_cause=exc,
+                    target_state_ref=state_ref,
+                    runtime_result=proposal_runtime_result,
+                ) from exc
         if state_ref is None:
             raise PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_target_state_missing"
@@ -2765,18 +2839,30 @@ class PdfStructuralRepairShadowRuntime:
             or _object(result.get("safe_summary")).get("hidden_retry") is not False
             or _object(result.get("safe_summary")).get("provider_failover") is not False
         ):
-            raise PdfStructuralRepairShadowError(
+            error = PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_provider_accounting_invalid"
             )
+            raise _TargetExecutionError(
+                error.code,
+                private_cause=error,
+                target_state_ref=state_ref,
+                runtime_result=result,
+            ) from error
         if terminal == "accepted_physical_structure" and (
             result.get("new_provider_count_token_calls") != 1
             or result.get("new_provider_generate_calls") != 1
             or _object(result.get("safe_summary")).get("hidden_retry") is not False
             or _object(result.get("safe_summary")).get("provider_failover") is not False
         ):
-            raise PdfStructuralRepairShadowError(
+            error = PdfStructuralRepairShadowError(
                 "pdf_structural_repair_shadow_provider_accounting_invalid"
             )
+            raise _TargetExecutionError(
+                error.code,
+                private_cause=error,
+                target_state_ref=state_ref,
+                runtime_result=result,
+            ) from error
         repeat_history: dict[str, Any] = {}
         repeat_history_ref: str | None = None
         if not guided_intake:
@@ -3015,6 +3101,14 @@ class PdfStructuralRepairShadowRuntime:
             "production_ready": False,
             "production_gate2_selection_changed": False,
         }
+        execution_evidence = self._guided_execution_evidence(
+            proposal_result=None,
+            visual_package=visual_package,
+            proposal_scope="page_level",
+            count_token_calls=0,
+            generate_calls=0,
+        )
+        state.update(copy.deepcopy(execution_evidence))
         state_ref = self._persist_target_state(
             store=store,
             context=context,
@@ -3032,10 +3126,7 @@ class PdfStructuralRepairShadowRuntime:
             "reason_codes": copy.deepcopy(routing["reason_codes"]),
             "product_routing": copy.deepcopy(routing),
             "finalized_intake_decisions": copy.deepcopy(decisions),
-            "provider_accounting": {
-                "count_token_calls": 0,
-                "generate_calls": 0,
-            },
+            **copy.deepcopy(execution_evidence),
             "new_provider_count_token_calls": 0,
             "new_provider_generate_calls": 0,
             "target_state_ref": state_ref,
@@ -3111,8 +3202,6 @@ class PdfStructuralRepairShadowRuntime:
             or routing.get("provider_call_allowed") is not False
             or data.get("new_provider_count_token_calls") != 0
             or data.get("new_provider_generate_calls") != 0
-            or data.get("provider_accounting")
-            != {"count_token_calls": 0, "generate_calls": 0}
             or data.get("authority_state") != "shadow_non_authoritative"
             or data.get("default_enabled") is not False
             or data.get("production_ready") is not False
@@ -3130,8 +3219,366 @@ class PdfStructuralRepairShadowRuntime:
             != "processable"
         ):
             errors.append("pdf_vlm_guided_skip_decisions_drift")
+        errors.extend(self._validate_guided_execution_evidence(data))
         if stored != sha256_json(data):
             errors.append("pdf_vlm_guided_skip_checksum_invalid")
+        return sorted(set(errors))
+
+    def _guided_execution_evidence(
+        self,
+        *,
+        proposal_result: dict[str, Any] | None,
+        visual_package: dict[str, Any],
+        proposal_scope: str,
+        failure_reason: str | None = None,
+        binding_result: dict[str, Any] | None = None,
+        count_token_calls: int | None = None,
+        generate_calls: int | None = None,
+    ) -> dict[str, Any]:
+        supplied_result = _object(proposal_result)
+        runtime_result = _object(supplied_result.get("proposal_result")) or supplied_result
+        journal = _dicts(runtime_result.get("journal"))
+        journal_entry = journal[0] if len(journal) == 1 else {}
+        counted = _object(journal_entry.get("count_tokens"))
+        attempt = _object(journal_entry.get("provider_attempt"))
+        usage = _object(attempt.get("usage"))
+        package = _object(visual_package)
+        crop = _object(package.get("crop_identity"))
+
+        counted_calls = _optional_nonnegative_int(
+            runtime_result.get("new_provider_count_token_calls")
+        )
+        generated_calls = _optional_nonnegative_int(
+            runtime_result.get("new_provider_generate_calls")
+        )
+        if not runtime_result:
+            counted_calls = count_token_calls
+            generated_calls = generate_calls
+        journal_counted_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        journal_generated_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        accounting = {
+            "count_token_calls": counted_calls,
+            "generate_calls": generated_calls,
+            "journal_count_token_calls": journal_counted_calls,
+            "journal_generate_calls": journal_generated_calls,
+            "counted_input_tokens": _optional_nonnegative_int(
+                counted.get("total_tokens")
+            ),
+            "actual_input_tokens": _optional_nonnegative_int(
+                usage.get("input_tokens")
+            ),
+            "output_tokens": _optional_nonnegative_int(usage.get("output_tokens")),
+            "package_id": runtime_result.get("package_id")
+            or package.get("package_id"),
+            "package_hash": runtime_result.get("package_hash")
+            or package.get("package_hash"),
+            "request_hash": counted.get("request_hash")
+            or attempt.get("request_hash"),
+            "task_id": journal_entry.get("task_id") or attempt.get("task_id"),
+            "attempt_id": attempt.get("attempt_id"),
+            "provider_profile": attempt.get("provider_profile"),
+            "provider_profile_revision": attempt.get(
+                "provider_profile_revision"
+            ),
+            "model_requested": attempt.get("model_requested")
+            or counted.get("model_requested"),
+            "model_resolved": attempt.get("model_resolved"),
+            "image_sha256": attempt.get("crop_sha256")
+            or crop.get("crop_sha256"),
+            "image_bytes": _optional_nonnegative_int(crop.get("png_bytes")),
+            "hidden_retry": (
+                attempt.get("hidden_retry")
+                if attempt
+                else False
+            ),
+            "provider_failover": (
+                attempt.get("provider_failover")
+                if attempt
+                else False
+            ),
+            "journal_checksum": sha256_json(journal),
+        }
+        accounting["accounting_checksum"] = sha256_json(accounting)
+
+        normalized_scope = (
+            "candidate_crop"
+            if proposal_scope == "candidate_crop"
+            else (
+                "page_level"
+                if proposal_scope == "page_level"
+                else proposal_scope
+            )
+        )
+        raw_proposal = _object(journal_entry.get("topology_response"))
+        proposal = _object(runtime_result.get("proposal"))
+        if not proposal and raw_proposal:
+            try:
+                proposal = self.visual.parse_region_proposal_response(
+                    raw_proposal,
+                    expected_package_id=str(
+                        runtime_result.get("package_id")
+                        or package.get("package_id")
+                        or ""
+                    ),
+                    expected_proposal_scope=normalized_scope,
+                )
+            except ValueError as exc:
+                proposal_error = _error_code(
+                    exc, "pdf_vlm_guided_intake_proposal_invalid"
+                )
+            else:
+                proposal_error = None
+        else:
+            proposal_error = None
+        if proposal:
+            proposal_status = "persisted"
+            proposal_reasons: list[str] = []
+        elif proposal_error:
+            proposal_status = "invalid"
+            proposal_reasons = [proposal_error]
+        elif generated_calls == 1:
+            proposal_status = "missing"
+            proposal_reasons = [
+                failure_reason or "pdf_vlm_guided_intake_proposal_missing"
+            ]
+        else:
+            proposal_status = "not_attempted"
+            proposal_reasons = [failure_reason] if failure_reason else []
+        proposal_outcome = {
+            "status": proposal_status,
+            "proposal_scope": normalized_scope,
+            "proposal_checksum": sha256_json(proposal) if proposal else None,
+            "raw_proposal_checksum": (
+                sha256_json(raw_proposal) if raw_proposal else None
+            ),
+            "reason_codes": sorted(set(proposal_reasons)),
+        }
+        proposal_outcome["outcome_checksum"] = sha256_json(proposal_outcome)
+
+        binding = _object(binding_result)
+        if binding:
+            binding_status = "completed"
+            binding_reasons = [
+                str(item) for item in binding.get("reason_codes") or []
+            ]
+        elif isinstance(failure_reason, str) and failure_reason.startswith(
+            "pdf_vlm_region_binding_"
+        ):
+            binding_status = "attempted_failed"
+            binding_reasons = [failure_reason]
+        else:
+            binding_status = "not_applicable"
+            binding_reasons = [failure_reason] if failure_reason else []
+        binding_outcome = {
+            "status": binding_status,
+            "binding_checksum": (
+                binding.get("result_checksum") or sha256_json(binding)
+                if binding
+                else None
+            ),
+            "reason_codes": sorted(set(binding_reasons)),
+        }
+        binding_outcome["outcome_checksum"] = sha256_json(binding_outcome)
+        return {
+            "proposal_result": copy.deepcopy(runtime_result) or None,
+            "proposal_outcome": proposal_outcome,
+            "binding_outcome": binding_outcome,
+            "provider_accounting": accounting,
+        }
+
+    def _validate_guided_execution_evidence(
+        self, value: dict[str, Any]
+    ) -> list[str]:
+        errors: list[str] = []
+        proposal_outcome = _object(value.get("proposal_outcome"))
+        binding_outcome = _object(value.get("binding_outcome"))
+        accounting = _object(value.get("provider_accounting"))
+        if (
+            set(proposal_outcome)
+            != {
+                "status",
+                "proposal_scope",
+                "proposal_checksum",
+                "raw_proposal_checksum",
+                "reason_codes",
+                "outcome_checksum",
+            }
+            or proposal_outcome.get("status")
+            not in {"not_attempted", "persisted", "invalid", "missing"}
+            or not _sorted_unique_strings(proposal_outcome.get("reason_codes"))
+        ):
+            errors.append("pdf_vlm_guided_intake_proposal_outcome_invalid")
+        else:
+            unsigned = dict(proposal_outcome)
+            stored = unsigned.pop("outcome_checksum", None)
+            if stored != sha256_json(unsigned):
+                errors.append(
+                    "pdf_vlm_guided_intake_proposal_outcome_checksum_invalid"
+                )
+        if (
+            set(binding_outcome)
+            != {
+                "status",
+                "binding_checksum",
+                "reason_codes",
+                "outcome_checksum",
+            }
+            or binding_outcome.get("status")
+            not in {"not_applicable", "attempted_failed", "completed"}
+            or not _sorted_unique_strings(binding_outcome.get("reason_codes"))
+        ):
+            errors.append("pdf_vlm_guided_intake_binding_outcome_invalid")
+        else:
+            unsigned = dict(binding_outcome)
+            stored = unsigned.pop("outcome_checksum", None)
+            if stored != sha256_json(unsigned):
+                errors.append(
+                    "pdf_vlm_guided_intake_binding_outcome_checksum_invalid"
+                )
+
+        accounting_keys = {
+            "count_token_calls",
+            "generate_calls",
+            "journal_count_token_calls",
+            "journal_generate_calls",
+            "counted_input_tokens",
+            "actual_input_tokens",
+            "output_tokens",
+            "package_id",
+            "package_hash",
+            "request_hash",
+            "task_id",
+            "attempt_id",
+            "provider_profile",
+            "provider_profile_revision",
+            "model_requested",
+            "model_resolved",
+            "image_sha256",
+            "image_bytes",
+            "hidden_retry",
+            "provider_failover",
+            "journal_checksum",
+            "accounting_checksum",
+        }
+        if set(accounting) != accounting_keys:
+            errors.append("pdf_vlm_guided_intake_upstream_accounting_invalid")
+            return sorted(set(errors))
+        unsigned_accounting = dict(accounting)
+        accounting_checksum = unsigned_accounting.pop("accounting_checksum", None)
+        if accounting_checksum != sha256_json(unsigned_accounting):
+            errors.append(
+                "pdf_vlm_guided_intake_upstream_accounting_checksum_invalid"
+            )
+        result = _object(value.get("proposal_result"))
+        journal = _dicts(result.get("journal"))
+        if accounting.get("journal_checksum") != sha256_json(journal):
+            errors.append("pdf_vlm_guided_intake_upstream_journal_checksum_invalid")
+        expected_counted_calls = sum(
+            item.get("provider_count_token_call_performed") is True
+            for item in journal
+        )
+        expected_generated_calls = sum(
+            item.get("provider_generate_call_performed") is True
+            for item in journal
+        )
+        if result:
+            if (
+                len(journal) != 1
+                or accounting.get("count_token_calls")
+                != result.get("new_provider_count_token_calls")
+                or accounting.get("generate_calls")
+                != result.get("new_provider_generate_calls")
+                or accounting.get("journal_count_token_calls")
+                != expected_counted_calls
+                or accounting.get("journal_generate_calls")
+                != expected_generated_calls
+                or accounting.get("package_id") != result.get("package_id")
+                or accounting.get("package_hash") != result.get("package_hash")
+            ):
+                errors.append(
+                    "pdf_vlm_guided_intake_upstream_accounting_conflict"
+                )
+            entry = journal[0] if len(journal) == 1 else {}
+            counted = _object(entry.get("count_tokens"))
+            attempt = _object(entry.get("provider_attempt"))
+            usage = _object(attempt.get("usage"))
+            if (
+                accounting.get("counted_input_tokens")
+                != _optional_nonnegative_int(counted.get("total_tokens"))
+                or accounting.get("actual_input_tokens")
+                != _optional_nonnegative_int(usage.get("input_tokens"))
+                or accounting.get("output_tokens")
+                != _optional_nonnegative_int(usage.get("output_tokens"))
+                or accounting.get("request_hash")
+                != (counted.get("request_hash") or attempt.get("request_hash"))
+                or accounting.get("task_id")
+                != (entry.get("task_id") or attempt.get("task_id"))
+                or accounting.get("attempt_id") != attempt.get("attempt_id")
+                or accounting.get("provider_profile")
+                != attempt.get("provider_profile")
+                or accounting.get("provider_profile_revision")
+                != attempt.get("provider_profile_revision")
+                or accounting.get("model_requested")
+                != (
+                    attempt.get("model_requested")
+                    or counted.get("model_requested")
+                )
+                or accounting.get("model_resolved")
+                != attempt.get("model_resolved")
+                or accounting.get("image_sha256")
+                != attempt.get("crop_sha256")
+                or accounting.get("hidden_retry")
+                != (attempt.get("hidden_retry") if attempt else False)
+                or accounting.get("provider_failover")
+                != (attempt.get("provider_failover") if attempt else False)
+            ):
+                errors.append(
+                    "pdf_vlm_guided_intake_upstream_accounting_conflict"
+                )
+            if accounting.get("generate_calls") == 1 and (
+                not attempt
+                or not all(
+                    isinstance(accounting.get(key), str)
+                    and bool(accounting.get(key))
+                    for key in (
+                        "package_id",
+                        "package_hash",
+                        "request_hash",
+                        "task_id",
+                        "attempt_id",
+                        "provider_profile",
+                        "model_requested",
+                        "model_resolved",
+                        "image_sha256",
+                    )
+                )
+                or not all(
+                    _nonnegative_integer(accounting.get(key))
+                    for key in (
+                        "counted_input_tokens",
+                        "actual_input_tokens",
+                        "output_tokens",
+                        "image_bytes",
+                    )
+                )
+                or accounting.get("hidden_retry") is not False
+                or accounting.get("provider_failover") is not False
+            ):
+                errors.append(
+                    "pdf_vlm_guided_intake_upstream_generate_evidence_missing"
+                )
+        elif (
+            accounting.get("journal_count_token_calls") != 0
+            or accounting.get("journal_generate_calls") != 0
+            or accounting.get("journal_checksum") != sha256_json([])
+        ):
+            errors.append("pdf_vlm_guided_intake_upstream_accounting_conflict")
         return sorted(set(errors))
 
     def _persist_guided_upstream_terminal(
@@ -3145,6 +3592,7 @@ class PdfStructuralRepairShadowRuntime:
         private_diagnostic_ref: str | None,
         count_token_calls: int | None,
         generate_calls: int | None,
+        proposal_result: dict[str, Any] | None,
         existing_state_ref: str | None,
         existing_decisions: dict[str, Any] | None,
     ) -> tuple[str, str]:
@@ -3168,6 +3616,53 @@ class PdfStructuralRepairShadowRuntime:
         )
 
         state_ref = existing_state_ref
+        existing_state: dict[str, Any] = {}
+        if state_ref is not None:
+            existing_state = _object(
+                store.read_payload(store.get_record_unchecked(state_ref))
+            )
+        execution_evidence = self._guided_execution_evidence(
+            proposal_result=proposal_result,
+            visual_package=_object(existing_state.get("visual_package")),
+            proposal_scope=str(package_descriptor.get("target_scope") or ""),
+            failure_reason=reason_code,
+            count_token_calls=count_token_calls,
+            generate_calls=generate_calls,
+        )
+        evidence_keys = (
+            "proposal_result",
+            "proposal_outcome",
+            "binding_outcome",
+            "provider_accounting",
+        )
+        if existing_state and all(key in existing_state for key in evidence_keys):
+            state_evidence = {
+                key: copy.deepcopy(existing_state.get(key))
+                for key in evidence_keys
+            }
+            state_accounting = _object(state_evidence.get("provider_accounting"))
+            normalized_partial = _object(
+                _object(proposal_result).get("proposal_result")
+            ) or _object(proposal_result)
+            if (
+                state_evidence.get("proposal_result")
+                != (normalized_partial or None)
+                or (
+                    count_token_calls is not None
+                    and state_accounting.get("count_token_calls")
+                    != count_token_calls
+                )
+                or (
+                    generate_calls is not None
+                    and state_accounting.get("generate_calls")
+                    != generate_calls
+                )
+            ):
+                raise PdfStructuralRepairShadowError(
+                    "pdf_vlm_guided_intake_upstream_state_evidence_conflict"
+                )
+            execution_evidence = state_evidence
+
         product_routing = copy.deepcopy(
             package_descriptor.get("product_routing")
         )
@@ -3188,11 +3683,11 @@ class PdfStructuralRepairShadowRuntime:
                 "upstream_terminal": {
                     "reason_code": reason_code,
                     "private_diagnostic_ref": private_diagnostic_ref,
-                    "provider_accounting": {
-                        "count_token_calls": count_token_calls,
-                        "generate_calls": generate_calls,
-                    },
+                    "provider_accounting": copy.deepcopy(
+                        execution_evidence["provider_accounting"]
+                    ),
                 },
+                **copy.deepcopy(execution_evidence),
                 "authority_state": "non_authoritative",
                 "production_ready": False,
                 "production_gate2_selection_changed": False,
@@ -3218,10 +3713,7 @@ class PdfStructuralRepairShadowRuntime:
             "terminal_status": "guided_upstream_blocked",
             "reason_code": reason_code,
             "finalized_intake_decisions": copy.deepcopy(decisions),
-            "provider_accounting": {
-                "count_token_calls": count_token_calls,
-                "generate_calls": generate_calls,
-            },
+            **copy.deepcopy(execution_evidence),
             "target_state_ref": state_ref,
             "private_diagnostic_ref": private_diagnostic_ref,
             "authority_state": "non_authoritative",
@@ -3329,7 +3821,8 @@ class PdfStructuralRepairShadowRuntime:
         required_keys = {
             "schema_version", "target_id", "target_scope",
             "terminal_status", "reason_code",
-            "finalized_intake_decisions", "provider_accounting",
+            "finalized_intake_decisions", "proposal_result",
+            "proposal_outcome", "binding_outcome", "provider_accounting",
             "target_state_ref", "private_diagnostic_ref",
             "authority_state", "production_ready",
             "production_gate2_selection_changed",
@@ -3388,25 +3881,7 @@ class PdfStructuralRepairShadowRuntime:
                 or processability.get("decision") != "unsupported"
             ):
                 errors.append("pdf_vlm_guided_intake_upstream_reason_drift")
-        accounting = _object(data.get("provider_accounting"))
-        if set(accounting) != {"count_token_calls", "generate_calls"}:
-            errors.append("pdf_vlm_guided_intake_upstream_accounting_invalid")
-        else:
-            count_calls = accounting.get("count_token_calls")
-            generate_calls = accounting.get("generate_calls")
-            if not (
-                (
-                    count_calls is None
-                    and generate_calls is None
-                )
-                or (
-                    _nonnegative_integer(count_calls)
-                    and _nonnegative_integer(generate_calls)
-                )
-            ):
-                errors.append(
-                    "pdf_vlm_guided_intake_upstream_accounting_invalid"
-                )
+        errors.extend(self._validate_guided_execution_evidence(data))
         diagnostic_ref = data.get("private_diagnostic_ref")
         if not isinstance(diagnostic_ref, str) or not diagnostic_ref:
             errors.append("pdf_vlm_guided_intake_upstream_diagnostic_invalid")
@@ -3426,6 +3901,12 @@ class PdfStructuralRepairShadowRuntime:
         intake_decisions: dict[str, Any] | None,
     ) -> str:
         sealed_state = copy.deepcopy(target_state)
+        if sealed_state.get("vlm_guided_intake_enabled") is True:
+            evidence_errors = self._validate_guided_execution_evidence(
+                sealed_state
+            )
+            if evidence_errors:
+                raise PdfStructuralRepairShadowError(evidence_errors[0])
         sealed_state.pop("target_state_checksum", None)
         sealed_state["target_state_checksum"] = sha256_json(sealed_state)
         page_state = sealed_state.get("target_scope") == "page_level"
@@ -3527,16 +4008,33 @@ class PdfStructuralRepairShadowRuntime:
                 expected_package_id=str(visual_package.get("package_id") or ""),
                 expected_proposal_scope="candidate_crop",
             )
-        except ValueError:
-            return None, None, {}
+        except ValueError as exc:
+            raise PdfStructuralRepairShadowError(
+                _error_code(
+                    exc,
+                    "pdf_vlm_guided_candidate_intake_proposal_invalid",
+                )
+            ) from exc
         manifests: dict[str, dict[str, Any]] = {}
         if proposal.get("table_presence") == "present":
-            for region in _dicts(proposal.get("regions")):
-                region_key = str(region.get("region_key") or "")
-                source_bbox = _source_bbox_from_normalized(
-                    region.get("bbox"),
-                    parent_bbox,
+            reconciliation_plan = (
+                self.vlm_region_binding.reconcile_proposal_regions(
+                    proposal_package=visual_package,
+                    proposal=proposal,
+                    pdf_text_layer_projection=pdf_text_layer_projection,
+                    parent_source_bbox=parent_bbox,
                 )
+            )
+            for planned_region in _dicts(
+                reconciliation_plan.get("regions")
+            ):
+                region_key = str(planned_region.get("region_key") or "")
+                source_bbox = [
+                    float(item)
+                    for item in planned_region.get(
+                        "reconciled_source_bbox"
+                    )
+                ]
                 if source_bbox == [float(item) for item in parent_bbox]:
                     manifest = copy.deepcopy(parent_manifest)
                 else:
@@ -3911,6 +4409,7 @@ class PdfStructuralRepairShadowRuntime:
         context: ArtifactAccessContext,
         retention_policy: RetentionPolicy,
         pdf_bytes_by_sha256: dict[str, bytes],
+        guided_calls_before: tuple[int, int] | None,
     ) -> tuple[
         dict[str, Any],
         str,
@@ -4074,6 +4573,15 @@ class PdfStructuralRepairShadowRuntime:
         }
         if product_routing is not None:
             target_state["product_routing"] = copy.deepcopy(product_routing)
+        target_state.update(
+            self._guided_execution_evidence(
+                proposal_result=None,
+                visual_package=visual_package,
+                proposal_scope="page_level",
+                count_token_calls=0,
+                generate_calls=0,
+            )
+        )
         state_ref: str | None = None
         if _object(intake_decisions.get("processability")).get(
             "decision"
@@ -4112,6 +4620,35 @@ class PdfStructuralRepairShadowRuntime:
             )
         except Exception as exc:
             upstream_reason = _guided_upstream_reason_from_exception(exc)
+            failed_call_delta = self._guided_provider_call_delta(
+                guided_calls_before
+            )
+            if (
+                failed_call_delta is not None
+                and sum(failed_call_delta) > 0
+            ):
+                upstream_reason = (
+                    "pdf_vlm_guided_intake_runtime_journal_missing_"
+                    "after_provider_call"
+                )
+            target_state.update(
+                self._guided_execution_evidence(
+                    proposal_result=None,
+                    visual_package=visual_package,
+                    proposal_scope="page_level",
+                    failure_reason=upstream_reason,
+                    count_token_calls=(
+                        failed_call_delta[0]
+                        if failed_call_delta is not None
+                        else None
+                    ),
+                    generate_calls=(
+                        failed_call_delta[1]
+                        if failed_call_delta is not None
+                        else None
+                    ),
+                )
+            )
             state_ref = self._persist_page_upstream_state(
                 store=store,
                 context=context,
@@ -4174,11 +4711,26 @@ class PdfStructuralRepairShadowRuntime:
         try:
             if proposal_is_unambiguous:
                 if proposal.get("table_presence") == "present":
-                    for region in _dicts(proposal.get("regions")):
-                        region_key = str(region.get("region_key") or "")
-                        source_bbox = _source_bbox_from_normalized(
-                            region.get("bbox"), parent_bbox
+                    reconciliation_plan = (
+                        self.vlm_region_binding.reconcile_proposal_regions(
+                            proposal_package=visual_package,
+                            proposal=proposal,
+                            pdf_text_layer_projection=projection,
+                            parent_source_bbox=parent_bbox,
                         )
+                    )
+                    for planned_region in _dicts(
+                        reconciliation_plan.get("regions")
+                    ):
+                        region_key = str(
+                            planned_region.get("region_key") or ""
+                        )
+                        source_bbox = [
+                            float(item)
+                            for item in planned_region.get(
+                                "reconciled_source_bbox"
+                            )
+                        ]
                         region_rendered = self.raster.render(
                             pdf_bytes=pdf_bytes,
                             pdf_sha256=pdf_sha256,
@@ -4203,6 +4755,43 @@ class PdfStructuralRepairShadowRuntime:
                 )
         except Exception as exc:
             upstream_reason = _guided_upstream_reason_from_exception(exc)
+            failed_call_delta = self._guided_provider_call_delta(
+                guided_calls_before
+            )
+            proposal_journal_present = bool(
+                len(_dicts(proposal_result.get("journal"))) == 1
+            )
+            if (
+                failed_call_delta is not None
+                and sum(failed_call_delta) > 0
+                and not proposal_journal_present
+            ):
+                upstream_reason = (
+                    "pdf_vlm_guided_intake_runtime_journal_missing_"
+                    "after_provider_call"
+                )
+            target_state.update(
+                self._guided_execution_evidence(
+                    proposal_result=(
+                        proposal_result if proposal_journal_present else None
+                    ),
+                    visual_package=visual_package,
+                    proposal_scope="page_level",
+                    failure_reason=upstream_reason,
+                    count_token_calls=(
+                        failed_call_delta[0]
+                        if not proposal_journal_present
+                        and failed_call_delta is not None
+                        else None
+                    ),
+                    generate_calls=(
+                        failed_call_delta[1]
+                        if not proposal_journal_present
+                        and failed_call_delta is not None
+                        else None
+                    ),
+                )
+            )
             state_ref = self._persist_page_upstream_state(
                 store=store,
                 context=context,
@@ -4246,6 +4835,17 @@ class PdfStructuralRepairShadowRuntime:
         )
         target_state["intake_decisions"] = copy.deepcopy(
             finalized_intake_decisions
+        )
+        target_state.update(
+            self._guided_execution_evidence(
+                proposal_result=proposal_result,
+                visual_package=visual_package,
+                proposal_scope="page_level",
+                failure_reason=(
+                    str(upstream_reasons[0]) if upstream_reasons else None
+                ),
+                binding_result=binding_result,
+            )
         )
         state_ref = self._persist_target_state(
             store=store,
@@ -5445,6 +6045,12 @@ def _guided_upstream_reason_from_exception(exc: BaseException) -> str:
     return "pdf_vlm_guided_intake_unexpected_processing_error"
 
 
+def _error_code(exc: BaseException, fallback: str) -> str:
+    explicit = getattr(exc, "code", None)
+    candidate = explicit if isinstance(explicit, str) else str(exc)
+    return candidate if _safe_guided_reason_code(candidate) else fallback
+
+
 def _safe_guided_reason_code(value: Any) -> bool:
     return bool(
         isinstance(value, str)
@@ -6025,6 +6631,14 @@ def _positive_integer(value: Any) -> bool:
 
 def _nonnegative_integer(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _sorted_unique_strings(value: Any) -> bool:
+    return bool(
+        isinstance(value, list)
+        and all(isinstance(item, str) and item for item in value)
+        and value == sorted(set(value))
+    ) or value == []
 
 
 def _strict_nonnegative_int(value: Any) -> int:
