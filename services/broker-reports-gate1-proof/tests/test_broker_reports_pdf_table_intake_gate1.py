@@ -120,6 +120,18 @@ class PdfTableDetectionContractTest(unittest.TestCase):
             ),
         )
 
+    def test_detector_request_requires_outer_boundary_not_data_only_box(self):
+        model_view = PdfTableIntakeRuntimeFactory(
+            PdfTableIntakeConfig(enabled=True)
+        ).create_with_provider(StaticDetectorProvider([]))._model_view(
+            request_id="request-1", page_number=1
+        )
+        instructions = " ".join(model_view["instructions"])
+        self.assertIn("OUTER boundary", instructions)
+        self.assertIn("leftmost row label or first column", instructions)
+        self.assertIn("complete visible continuation", instructions)
+        self.assertIn("padding is only a safety margin", instructions)
+
     def test_detector_rejects_semantics_uncertainty_and_ambiguous_regions(self):
         base = {
             "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,

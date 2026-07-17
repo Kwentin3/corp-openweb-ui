@@ -23,11 +23,11 @@ from .pdf_table_raster import (
 )
 
 
-PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v1"
+PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v2"
 PDF_TABLE_DETECTION_RESPONSE_SCHEMA = "broker_reports_pdf_table_detection_response_v1"
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
-PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v1"
+PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v2"
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -449,8 +449,14 @@ class PdfTableIntakeRuntime:
             "instructions": [
                 "Inspect the entire page image and return every visible table region.",
                 "A table can be ruled or borderless. Sparse but aligned content is evidence of rows or columns.",
-                "Include titles, multi-row headers, footnotes, currency symbols, and edge labels that visually belong to the table.",
-                "Return tight normalized page coordinates for the complete visual table; deterministic code adds padding later.",
+                "Return the OUTER boundary of the complete table, never an interior numeric or data-only rectangle.",
+                "The left boundary must include the leftmost row label or first column, and the right boundary must include the rightmost label, value, or border.",
+                "Include the complete title, all header rows, all visible data rows, totals, footnotes, currency symbols, and edge labels that visually belong to the table.",
+                "For a continued multi-page table, include the complete visible continuation from its repeated header through its last visible row or total on this page.",
+                "Do not split one physical table into arbitrary panels. Separate only side-by-side tables that have independent headings or outer borders.",
+                "If a table border, header, row label, or row content reaches a page edge, use coordinate 0 or 1 for that edge.",
+                "Before answering, verify that no title, header, first label, last label, outer border, continuation row, or total lies outside the bbox.",
+                "Return normalized page coordinates for the complete visual table. Deterministic padding is only a safety margin and must not compensate for an incomplete boundary.",
                 "Do not read, normalize, summarize, translate, or interpret cell values.",
                 "Do not infer rows, columns, cells, financial meaning, or a canonical table.",
                 "If a table boundary cannot be located reliably, return table_presence=uncertain and no regions.",

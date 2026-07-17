@@ -34,7 +34,7 @@
 
 ## Контракты
 
-- `broker_reports_pdf_table_detection_request_v1`;
+- `broker_reports_pdf_table_detection_request_v2`;
 - `broker_reports_pdf_table_detection_response_v1`;
 - `broker_reports_pdf_table_detection_attempt_v1`;
 - `broker_reports_pdf_table_candidate_v1`;
@@ -54,6 +54,14 @@ Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate
 - bundle собирается из репозиторных модулей, включая `pdf_table_intake_runtime`.
 
 Тесты реально рендерят PDF через PyMuPDF, проверяют точные поля, clamping, повторяемость PNG, строгий отказ на лишнюю семантику, отсутствие success-кандидата после невалидного ответа, приватное сохранение и ссылки в handoff.
+
+## Stage iteration 1: автоматический pass, визуальный fail
+
+Ревизия `f3145ef31ab5b6eaf4c2a4d20e842ff375e827b5` была доставлена на stage. Gate 1 scoped parity прошёл; реальный публичный `bny-pershing-tax-sample.pdf` дал 13 кандидатов на 8 страницах без технических ошибок. Все SHA, ArtifactStore records, detector attempts и handoff refs совпали.
+
+Тем не менее product acceptance не была принята. Визуальный осмотр показал, что кандидаты `005`, `007`, `009`, `010`, `011`, `012` и `013` обрезали крайние левые подписи; `011` дополнительно обрывал продолжение таблицы по высоте. 8-процентный padding был рассчитан правильно, но входной bbox Gemini описывал внутреннюю область данных вместо внешней границы.
+
+Это доказало, что hash/contract pass недостаточен без operator review. Detector request повышен до v2: теперь он явно требует внешний контур, крайние подписи и колонки, полный заголовок, все видимые continuation-строки и итоги. Padding объявлен только резервом, а не заменой корректной границы. После этой правки требуется повтор того же stage PDF.
 
 ## Factory и closed-world boundary
 

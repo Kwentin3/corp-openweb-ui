@@ -428,7 +428,7 @@ class Pipe:
     ) -> dict[str, Any]:
         summary = {
             "schema_version": "broker_reports_pdf_table_intake_run_v1",
-            "policy_version": "pdf_table_intake_policy_v1",
+            "policy_version": "pdf_table_intake_policy_v2",
             "enabled": config.enabled,
             "status": "failed",
             "documents_total": documents_total,
