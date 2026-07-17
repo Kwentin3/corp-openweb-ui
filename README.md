@@ -195,6 +195,8 @@ bash scripts/smoke-test.sh --strict-tls
 - PRD-1 changelog:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md)
 - Stage 2 engineering domain: [docs/stage2/README.md](docs/stage2/README.md)
+- Broker Reports PDF Table Intake maintained architecture:
+  [docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md](docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
 - Stage 2 roadmap: [docs/stage2/ROADMAP.md](docs/stage2/ROADMAP.md)
 - Stage 2 context index: [docs/stage2/CONTEXT_INDEX.md](docs/stage2/CONTEXT_INDEX.md)
 - Stage 2 context usage rules:

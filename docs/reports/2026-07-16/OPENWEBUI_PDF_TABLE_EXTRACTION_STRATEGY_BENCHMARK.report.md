@@ -1,5 +1,11 @@
 ﻿# OpenWebUI PDF Table Extraction Strategy Benchmark
 
+Authority: `HISTORICAL_RESEARCH_NON_NORMATIVE`. Этот benchmark сохраняет
+development evidence и отвергнутые варианты; он не определяет текущий
+production runtime. Поддерживаемый путь описан в
+[architecture entry](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+и [versioned contract](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+
 Дата: 2026-07-16
 Статус: завершённый development benchmark, результат provisional
 Финальный вывод: `CURRENT_APPROACH_NOT_JUSTIFIED`

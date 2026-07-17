@@ -4,17 +4,31 @@
 
 Статус отчёта: финальный; Gate 1 закрыт, stage delivery и operator visual review подтверждены.
 
+Authority: это датированное evidence/closure record для repository и live
+revision, а не текущая runtime specification. Поддерживаемые границы и
+терминологию определяет
+[architecture entry](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md),
+а поведение — [versioned contract](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+История трёх stage iterations ниже сохранена как доказательство и не
+переопределяет текущие контракты.
+
 ## Короткий вывод
 
-Реализован отдельный поддерживаемый Gate 1, который решает только одну задачу: находит области таблиц в PDF и превращает их в воспроизводимые приватные PNG-кандидаты с глобальными полями `8 %` по X и `8 %` по Y с каждой стороны.
+Реализована поддерживаемая локальная возможность `PDF Table Intake Gate 1`
+внутри global Broker Reports Gate 1. Она решает одну задачу: находит области
+таблиц в PDF и превращает их в воспроизводимые приватные PNG-кандидаты с
+глобальными полями `8 %` по X и `8 %` по Y с каждой стороны.
 
-Этот контур намеренно не строит строки, столбцы, ячейки или canonical JSON таблицы, не интерпретирует финансовые значения и не сравнивает две VLM. Dual-VLM материалы сохранены как исследовательский слой для следующих ворот.
+Этот контур намеренно не строит строки, столбцы, ячейки или canonical JSON
+таблицы, не интерпретирует финансовые значения и не сравнивает две VLM.
+Downstream table normalization и global Gate 2 source-fact extraction остаются
+отдельными границами. Dual-VLM материалы сохранены как non-normative research.
 
 Формальное закрытие подтверждено live stage proof и визуальным осмотром всех полученных кропов.
 
 ## Реализованный путь
 
-`OpenWebUI file refs -> broker_reports_gate1_pipe -> PdfTableIntakeRuntimeFactory -> page raster -> configured Gemini detector -> strict bbox validator -> deterministic 8 % crop -> ArtifactStore -> Gate 2 handoff refs`.
+`OpenWebUI file refs -> broker_reports_gate1_pipe -> PdfTableIntakeRuntimeFactory -> page raster -> configured Gemini detector -> strict bbox validator -> deterministic 8 % crop -> ArtifactStore -> raster-candidate refs for downstream table normalizer`.
 
 Поддерживаемый VLM-контракт допускает только:
 
@@ -39,9 +53,14 @@
 - `broker_reports_pdf_table_detection_attempt_v1`;
 - `broker_reports_pdf_table_candidate_v1`;
 - `broker_reports_pdf_table_intake_run_v1`;
+- `pdf_table_intake_policy_v3`;
 - `pdf_table_candidate_raster_policy_v1`.
 
-Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate_refs_by_document` и `pdf_table_intake_contract`. PNG остаются private-case артефактами и не попадают в чат.
+Совместимый `gate2_handoff_v0` дополнен `pdf_table_candidate_refs`,
+`pdf_table_candidate_refs_by_document` и `pdf_table_intake_contract`. В этом
+контексте `gate2_boundary_ready` означает только готовность raster refs, а не
+global document eligibility или завершение global Gate 2. PNG остаются
+private-case артефактами и не попадают в чат.
 
 ## Local proof
 
@@ -85,7 +104,12 @@ Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate
 
 Именованные координаты устранили перестановку осей. На странице 3 четыре самостоятельные таблицы получили правильные левые границы около `x=0.034/0.488`; глобальный padding `0.08` довёл крайние кропы до страницы без per-table tuning. На страницах 4–8 больше нет отдельных заголовочных fragments, а continuation-таблицы содержат колонки, все видимые строки и итоги.
 
-Оператор открыл все 11 PNG. Кандидаты признаны пригодными для downstream VLM: крайние подписи и числовые значения читаемы, totals не потеряны, боковые таблицы не склеены. На первом листе 1099-B (`candidate-009`) первая строка формового заголовка частично осталась за пределом кропа, но табличные заголовки колонок, все строки и итог сохранены. Это записано как известное ограничение визуального детектора, а не скрытое изменение 8-процентной политики.
+Оператор открыл все 11 PNG. Кандидаты признаны пригодными для downstream table
+normalizer: крайние подписи и числовые значения читаемы, totals не потеряны,
+боковые таблицы не склеены. На первом листе 1099-B (`candidate-009`) первая
+строка формового заголовка частично осталась за пределом crop, но табличные
+заголовки колонок, все строки и итог сохранены. Это записано как известное
+ограничение visual detector, а не скрытое изменение 8-процентной политики.
 
 Candidate identity и PNG SHA-256:
 
@@ -113,6 +137,7 @@ Candidate identity и PNG SHA-256:
 
 ## Документация
 
+- [архитектурный вход](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md);
 - [версионный контракт](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md);
 - [operator runbook](../../stage2/operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md);
 - ссылки добавлены в Stage 2 README, context index, roadmap и Broker Reports blueprint.
@@ -120,10 +145,17 @@ Candidate identity и PNG SHA-256:
 ## Known limitations и соседние границы
 
 - VLM detection остаётся вероятностным: строгая схема ловит malformed output, но не гарантирует идеальную геометрию на любом новом шаблоне. Поэтому runbook сохраняет обязательный visual review для новых representative formats.
-- Stage proof подтверждает Gate 1 raster-candidate boundary, а не качество будущего canonical table JSON.
+- Stage proof подтверждает локальную PDF Table Intake raster-candidate boundary
+  на одном representative PDF, а не универсальную detection quality и не
+  качество будущего canonical table JSON.
 - Полный `--scope all` verifier ранее обнаружил независимый repo/live drift соседних Gate 2 source/domain bundles. Этот delivery его не менял и не объявляет full Stage 2 parity; Gate 1 scoped parity подтверждён отдельно.
-- Metadata/source eligibility handoff для canary PDF остался blocked из-за `encrypted_file`, но `pdf_table_intake_contract.gate2_boundary_ready=true` и все 11 raster refs доступны. Это разные границы: таблицы готовы для Gate 2 normalizer, документ не объявлен пригодным для source-fact extraction.
-- Dual-VLM consensus, canonical table JSON и финансовая интерпретация отложены в Gate 2 и не входят в это закрытие.
+- Metadata/source eligibility handoff для canary PDF остался blocked из-за
+  `encrypted_file`, но `pdf_table_intake_contract.gate2_boundary_ready=true` и
+  все 11 raster refs доступны. Это разные границы: raster candidates готовы для
+  downstream table normalizer, а документ не объявлен пригодным для global
+  Gate 2 source-fact extraction.
+- Dual-VLM consensus, canonical table JSON и финансовая интерпретация являются
+  отдельной downstream работой и не входят в это закрытие.
 
 ## Финальные статусы
 
@@ -131,4 +163,5 @@ Candidate identity и PNG SHA-256:
 - `PRODUCT_OWNER_ACCEPTED: TRUE`
 - `PRODUCT_ACCEPTANCE: ACCEPTED`
 - `STAGE_DELIVERY: PROVEN`
-- `DOWNSTREAM_BOUNDARY: READY_FOR_GATE_2`
+- `DOWNSTREAM_RASTER_CANDIDATE_BOUNDARY: READY`
+- `GLOBAL_GATE_2_SOURCE_ELIGIBILITY: NOT_CLAIMED`

@@ -1,5 +1,11 @@
 ﻿# PDF table: 8% padding и dual-VLM canonical JSON
 
+Authority: `HISTORICAL_RESEARCH_NON_NORMATIVE`. Этот report сохраняет
+исследовательские результаты downstream canonical/dual-VLM гипотез и не
+определяет текущий production runtime. Поддерживаемый PDF Table Intake описан в
+[architecture entry](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+и [versioned contract](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+
 Дата: 2026-07-17
 
 Обновлено после дополнительных прогонов sparse/bounds prompt, двух широких таблиц и literal-complete prompt v4.

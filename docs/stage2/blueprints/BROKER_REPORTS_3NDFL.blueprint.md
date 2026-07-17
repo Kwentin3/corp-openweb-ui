@@ -3,7 +3,7 @@
 Date: 2026-07-11
 
 Status: bounded technical contour implemented and deployed with repo/live
-parity; PDF Table Intake Gate 1 is implemented with region-only VLM detection
+parity; the local PDF Table Intake Gate 1 child capability is implemented with region-only VLM detection
 and deterministic `8 %` page-relative crop padding and was formally closed by
 the 2026-07-17 stage operator proof; the full customer pilot remains a separate gate.
 
@@ -47,9 +47,11 @@ prompt/template, получает structured draft, видит warnings and unce
 
 ## 6. Integration / custom implementation path
 
-- Supported PDF Table Intake Gate 1 through the native OpenWebUI Function:
+- Supported local PDF Table Intake Gate 1 child capability through the native OpenWebUI Function:
   page rasterization, configured VLM region detection, strict validation and
   deterministic private PNG candidates. See the
+  [architecture and gate mapping](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+  and
   [versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
 - Deterministic normalized-table projection for supported native tables and
   mechanically accepted PDF text-layer candidates.
@@ -68,7 +70,8 @@ policy. Manual anonymization may be required until future masking subsystem exis
 
 ## 8. Dependencies
 
-- [PDF Table Intake Gate 1](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
+- [PDF Table Intake architecture and gate mapping](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+- [PDF Table Intake runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [DOCUMENTS_OCR_EXCEL](DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [Gate 2 source-fact extraction](BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
 - [Normalized table projection](../contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)

@@ -17,6 +17,12 @@ DUAL_VLM_LITERAL_EXTRACTION_PROMISING_BUT_NOT_READY
 
 # PDF table detection padding and dual-VLM literal key-value benchmark
 
+Authority: `HISTORICAL_RESEARCH_NON_NORMATIVE`. Этот benchmark сохраняет
+development evidence раннего padding/dual-VLM подхода и не определяет текущий
+production runtime. Поддерживаемый PDF Table Intake описан в
+[architecture entry](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+и [versioned contract](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+
 This is a controlled development-corpus diagnostic. It does not migrate production, change Gate 1 or Gate 2 authority, patch OpenWebUI core, construct tables with the parser, classify financial meaning, or establish production readiness.
 
 ## Plain conclusion

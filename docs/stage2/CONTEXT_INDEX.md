@@ -503,11 +503,15 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
-PDF Table Intake Gate 1 note, 2026-07-17: the supported native Function route
-is deliberately narrower than the earlier structural shadows. It detects table
+PDF Table Intake Gate 1 note, 2026-07-17: this is a local child capability
+inside global Broker Reports Gate 1, not a Stage 2 implementation gate or a
+renumbering of the product pipeline. The supported native Function route is
+deliberately narrower than the earlier structural shadows. It detects table
 regions only, adds global `8 %` X/Y page-relative padding, persists versioned
-private PNG candidates and hands candidate refs to Gate 2. Cell reconstruction,
-financial semantics and dual-VLM consensus remain downstream work.
+private PNG candidates and hands candidate refs to the downstream table
+normalizer. `gate2_boundary_ready` means raster-ref readiness only. Cell
+reconstruction, global source eligibility, financial semantics and dual-VLM
+consensus remain downstream work.
 The gate is formally closed by revision `7a96022`, live bundle parity and the
 dated 8-page / 11-candidate operator proof.
 
@@ -537,8 +541,10 @@ bbox and accepted structure must bind completely to exact source atoms.
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
-- [Supported PDF Table Intake Gate 1 contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
+- [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+- [Supported PDF Table Intake runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
+- [PDF Table Intake closure evidence](../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md)
 - [PDF structural repair consensus contract](contracts/BROKER_REPORTS_PDF_STRUCTURAL_REPAIR_CONSENSUS.v2.md)
 - [PDF VLM-guided intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md)
 - [PDF semantic header projection contract](contracts/BROKER_REPORTS_PDF_SEMANTIC_HEADER_PROJECTION.v1.md)

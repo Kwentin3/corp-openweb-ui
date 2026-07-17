@@ -290,13 +290,16 @@ Finding:
 - Broker-report PDFs with a text layer now have a bounded deterministic
   normalization/table path; corpus-wide acceptance still waits for customer
   samples.
-- A separate supported PDF Table Intake Gate 1 now performs page rasterization,
+- A separate supported local PDF Table Intake Gate 1 child capability now performs page rasterization,
   VLM region-only detection and deterministic candidate crops with global
   `8 %` page-width/page-height padding per side. It persists versioned private
-  PNG candidates and exposes only their refs to Gate 2; it does not infer
-  rows, cells or financial meaning. See the
-  [Gate 1 contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md) and
-  [operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md).
+  PNG candidates and exposes only their refs to the downstream table normalizer;
+  it does not infer rows, cells or financial meaning. Start with the
+  [architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md),
+  then use the
+  [runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md),
+  [operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
+  and [closure evidence](../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md).
 - The PDF intake/physical-table and semantic-header shadows remain default-off
   and non-authoritative. Intake separates detection, technical processability
   and holdout selection; inventory overflow preserves the completed parser

@@ -11,6 +11,12 @@ DUAL_VLM_FACT_ARCHITECTURE_NOT_JUSTIFIED
 
 # PDF table dual-VLM fact and evidence benchmark
 
+Authority: `HISTORICAL_RESEARCH_NON_NORMATIVE`. Этот benchmark сохраняет
+development evidence и не определяет текущий production runtime. Поддерживаемый
+PDF Table Intake заканчивается на raster candidates и описан в
+[architecture entry](../../stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+и [versioned contract](../../stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+
 This is a controlled development-corpus result. It does not establish production readiness, change Gate 1 or Gate 2 authority, patch OpenWebUI core, or use RAG/vector retrieval.
 
 ## Direct answers

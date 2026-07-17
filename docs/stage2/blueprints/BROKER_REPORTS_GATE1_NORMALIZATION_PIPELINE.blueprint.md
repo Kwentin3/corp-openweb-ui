@@ -1,8 +1,15 @@
 # Broker Reports Gate 1 Normalization Pipeline Blueprint
 
-Status: GATE1_NORMALIZATION_PIPELINE_BLUEPRINT_READY
-Date: 2026-07-07
+Status: `MAINTAINED_GLOBAL_GATE1_ARCHITECTURE`; runtime implementation delivered
+Date: 2026-07-07; status reconciled 2026-07-17
 Scope: Stage 2 Broker Reports / XLS NDFL, Gate 1 "Document Intake & Normalization"
+
+Authority note: this document defines the broader global Broker Reports Gate 1.
+The narrower
+[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md) is a child
+capability inside it. Original implementation slices and 2026-07-07 readiness
+language are retained as design history; current runtime behavior is governed
+by versioned contracts, not by those planning markers.
 
 ## 1. Executive Decision
 
@@ -27,7 +34,10 @@ The native Action/button path stays as a debug or secondary proof path. The DOM/
 
 ## 2. Problem And Risk
 
-The current Pipe proof confirms same-request file-ref visibility, but it is still a stub. It returns safe counts from refs and does not yet prove original-byte hashing, parser-backed format profiling, bounded private slices, taxonomy candidate generation, or contract validation.
+At the time of this blueprint, the Pipe proof confirmed same-request file-ref
+visibility but was still a stub. Subsequent implementation delivered the
+global Gate 1 runtime and its versioned artifacts; this paragraph records the
+original risk that drove the pipeline design, not current runtime status.
 
 The main risk is mixing two different jobs:
 
@@ -146,7 +156,12 @@ Collect:
 
 Preferred candidates: `pypdf` for basic page/text proof or `PyMuPDF` for stronger text-layer/raster signals. `pdfplumber` is optional if table fidelity becomes a proof requirement.
 
-Raster PDF does not trigger OCR in Gate 1. It creates `raster_requires_ocr_or_review`.
+General OCR is not implicit in global Gate 1. A separate supported child path,
+[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md), may rasterize
+PDF pages and use a qualified VLM only to detect table regions. It produces
+private raster candidates; it does not read cells or perform source-fact
+extraction. Other raster content continues to create
+`raster_requires_ocr_or_review` unless another approved contract applies.
 
 ### HTML and TXT
 
@@ -288,9 +303,10 @@ Minimum checks:
 - chat-visible report contains only whitelisted fields;
 - Gate 2 handoff is blocked until validation passes.
 
-## 12. Implementation Slices
+## 12. Original implementation slices
 
-Implementation should proceed in these slices:
+The 2026-07-07 implementation plan used these slices. It is retained for design
+traceability and is not a current work queue:
 
 1. Pipe receives files and creates inventory/hash/container counts.
 2. CSV/TXT profiling and private slices.
@@ -314,10 +330,22 @@ Deferred to Gate 2 or later:
 - ledgers;
 - declaration model population;
 - XLS/XLSX export;
-- OCR/VLM provider integration;
+- general OCR/VLM provider integration outside the supported PDF Table Intake
+  region-detection contract;
 - Knowledge population policy for customer samples.
 
 ## 14. Status
+
+Current maintained status:
+
+```text
+GLOBAL_GATE1_ARCHITECTURE: MAINTAINED
+GLOBAL_GATE1_RUNTIME: IMPLEMENTED
+PDF_TABLE_INTAKE_LOCAL_GATE: CLOSED_CHILD_CAPABILITY
+SOURCE_FACT_EXTRACTION: GLOBAL_GATE2_BOUNDARY
+```
+
+Historical planning markers from 2026-07-07:
 
 ```text
 GATE1_NORMALIZATION_PIPELINE_BLUEPRINT_READY

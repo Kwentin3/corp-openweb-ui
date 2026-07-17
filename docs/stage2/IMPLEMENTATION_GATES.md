@@ -2,6 +2,12 @@
 
 ## 1. Purpose
 
+Naming note: the gates in this file are repository-wide Stage 2 governance and
+implementation conditions. They are not the numbered Broker Reports product
+pipeline. In particular, `PDF Table Intake Gate 1` is a local child-capability
+name documented in
+[Broker Reports PDF Table Intake](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md).
+
 Implementation gates защищают проект от начала кодинга до того, как закрыты
 policy, backend boundaries, runtime proof and customer test data.
 

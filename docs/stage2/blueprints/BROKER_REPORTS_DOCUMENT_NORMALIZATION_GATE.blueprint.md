@@ -1,8 +1,16 @@
 ﻿# Broker Reports Document Normalization Gate Blueprint
 
-Status: GATE1_BLUEPRINT_READY
+Status: `SUPERSEDED_HISTORICAL_ARCHITECTURE`
 Date: 2026-07-06
 Scope: Stage 2 Broker Reports / XLS NDFL, Gate 1 "Document Intake & Normalization"
+
+Authority note: this early decision blueprint is preserved for architecture
+history. It is superseded for current routing by the
+[global Gate 1 Normalization Pipeline](BROKER_REPORTS_GATE1_NORMALIZATION_PIPELINE.blueprint.md)
+and, for the supported PDF child capability, by
+[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md). Open questions,
+trigger recommendations and readiness markers below are historical and do not
+govern current runtime behavior.
 
 ## 1. Purpose
 
@@ -234,7 +242,7 @@ Gate 1 must pass these validation gates before the runtime proof can be accepted
 10. Case package can reference the normalization run without embedding child artifacts.
 11. Validation rules pass or fail closed.
 
-## 16. Open Questions
+## 16. Historical open questions
 
 - Which OpenWebUI runtime trigger path can reliably access selected chat file ids: Action, Tool or OpenAPI Tool Server?
 - Will the helper read original bytes through OpenWebUI APIs or through an internal file-store boundary?
@@ -243,7 +251,7 @@ Gate 1 must pass these validation gates before the runtime proof can be accepted
 - What archive policy is acceptable for ZIP members with signatures/XML/PDF payloads?
 - Is external OCR allowed for customer documents, or is raster handling review-only for the first proof?
 
-## 17. Readiness
+## 17. Historical readiness marker
 
 ```text
 GATE1_BLUEPRINT_READY
