@@ -76,7 +76,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_pdf_table_intake_v2",
+            "gate1_csv_supported_profile_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)

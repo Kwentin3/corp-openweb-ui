@@ -3,6 +3,14 @@ from .artifact_resolver import ArtifactResolver
 from .artifact_retention import RetentionPolicyError, build_retention_policy
 from .artifact_store import ArtifactStoreConfig, ArtifactStoreError, ArtifactStoreFactory
 from .contracts import NORMALIZER_VERSION, SAFE_REPORT_SCHEMA, SAFETY_STATEMENT
+from .csv_profile import (
+    CSV_PARSER_POLICY_VERSION,
+    CSV_SUPPORTED_PROFILE_ID,
+    CsvSupportedParseResult,
+    CsvSupportedProfileConfig,
+    CsvSupportedProfileError,
+    CsvSupportedProfileFactory,
+)
 from .clarification import (
     ClarificationError,
     ClarificationManagedPrompt,
@@ -249,6 +257,15 @@ from .gate2_domain_runtime import (
     Gate2DomainSourceFactRuntimeFactory,
     Gate2DomainSourceFactRuntimeResult,
 )
+from .gate3_context_manifest import (
+    GATE3_CONTEXT_MANIFEST_POLICY_VERSION,
+    GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION,
+    Gate3ContextManifestError,
+    Gate3ContextManifestFactory,
+    Gate3ContextManifestResult,
+    recompute_gate3_input_status,
+    validate_gate3_context_manifest,
+)
 from .gate2_candidate_binding import (
     BINDING_OUTPUT_SCHEMA_VERSION,
     BINDING_PROFILE_SCHEMA_VERSION,
@@ -338,6 +355,12 @@ __all__ = [
     "ArtifactStoreError",
     "ArtifactStoreFactory",
     "BytesUnavailable",
+    "CSV_PARSER_POLICY_VERSION",
+    "CSV_SUPPORTED_PROFILE_ID",
+    "CsvSupportedParseResult",
+    "CsvSupportedProfileConfig",
+    "CsvSupportedProfileError",
+    "CsvSupportedProfileFactory",
     "ClarificationError",
     "ClarificationManagedPrompt",
     "ClarificationPromptConfig",
@@ -522,6 +545,11 @@ __all__ = [
     "Gate2DomainSourceFactRuntimeConfig",
     "Gate2DomainSourceFactRuntimeFactory",
     "Gate2DomainSourceFactRuntimeResult",
+    "GATE3_CONTEXT_MANIFEST_POLICY_VERSION",
+    "GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION",
+    "Gate3ContextManifestError",
+    "Gate3ContextManifestFactory",
+    "Gate3ContextManifestResult",
     "BINDING_OUTPUT_SCHEMA_VERSION",
     "BINDING_PROFILE_SCHEMA_VERSION",
     "CANDIDATE_SET_SCHEMA_VERSION",
@@ -557,6 +585,8 @@ __all__ = [
     "validate_source_fact_stitch_result",
     "validate_source_unit_domain_route",
     "validate_source_unit_segmentation",
+    "recompute_gate3_input_status",
+    "validate_gate3_context_manifest",
     "TABLE_PROJECTION_SCHEMA_VERSION",
     "TABLE_COVERAGE_SCHEMA_VERSION",
     "TABLE_QUALITY_SCHEMA_VERSION",

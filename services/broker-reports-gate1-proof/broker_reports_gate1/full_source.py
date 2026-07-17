@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import copy
-import csv
 import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from io import BytesIO, StringIO
+from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any
 from zipfile import BadZipFile, ZipFile
 
 from .contracts import stable_digest
+from .csv_profile import CsvSupportedProfileError, CsvSupportedProfileFactory
 from .pdf_text_layer import (
     PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION,
     PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
@@ -333,14 +333,15 @@ class FullSourceArtifactBuilder:
         return [], ["format_not_supported_for_full_source"]
 
     def _extract_csv(self, content_bytes: bytes) -> list[dict[str, Any]]:
-        decoded, encoding, error = decode_text_bytes(content_bytes)
-        if decoded is None:
-            return [self._blocked_descriptor("table_rows", "python_stdlib_csv", error or "decode_failed")]
         try:
-            delimiter = _detect_delimiter(decoded)
-            rows = list(csv.reader(StringIO(decoded), delimiter=delimiter))
-        except csv.Error:
-            return [self._blocked_descriptor("table_rows", "python_stdlib_csv", "csv_parse_failed")]
+            parsed = CsvSupportedProfileFactory().create().parse(content_bytes)
+        except CsvSupportedProfileError as exc:
+            return [
+                self._blocked_descriptor(
+                    "table_rows", "python_stdlib_csv", exc.code
+                )
+            ]
+        rows = parsed.rows
         return [
             {
                 "logical_identity": "csv_table_001",
@@ -353,7 +354,9 @@ class FullSourceArtifactBuilder:
                     "kind": "csv_rows",
                     "start_row": 1 if rows else 0,
                     "end_row": len(rows),
-                    "encoding": encoding,
+                    "encoding": parsed.encoding,
+                    "delimiter": parsed.delimiter,
+                    "supported_csv_profile_id": "broker_reports_csv_supported_profile_v1",
                 },
                 "cells": rows,
             }
@@ -1653,14 +1656,6 @@ class _FullHtmlExtractor(HTMLParser):
             if clean:
                 lines.append(clean)
         return "\n".join(lines)
-
-
-def _detect_delimiter(decoded: str) -> str:
-    sample = decoded[:8192]
-    try:
-        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
-    except csv.Error:
-        return max((",", ";", "\t", "|"), key=sample.count)
 
 
 def _xlsx_relationships(archive: ZipFile) -> dict[str, str]:

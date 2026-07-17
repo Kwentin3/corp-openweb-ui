@@ -30,6 +30,7 @@ from broker_reports_gate1 import (
     Gate2ManagedPromptResolverFactory,
     Gate2DomainSourceFactRuntimeConfig,
     Gate2DomainSourceFactRuntimeFactory,
+    Gate3ContextManifestFactory,
     Gate2PromptConfig,
     Gate2PromptError,
     Gate2PromptUserContext,
@@ -259,6 +260,42 @@ class NarrowDomainBoundaryModel(RuntimeBoundaryModel):
             len(item["linked_issue_refs"]) for item in candidate["facts"]
         )
         return Gate2StructuredModelResult(content=candidate)
+
+
+class ResolvedNarrowDomainBoundaryModel(NarrowDomainBoundaryModel):
+    @staticmethod
+    def execution_contract(model_id: str) -> Gate2ProviderExecutionMetadata:
+        return ResolvedNarrowDomainBoundaryModel._metadata(model_id)
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        result = await super().extract(
+            prompt=prompt,
+            package=package,
+            model_id=model_id,
+            response_format=response_format,
+        )
+        return Gate2StructuredModelResult(
+            content=result.content,
+            execution_metadata=self._metadata(model_id),
+        )
+
+    @staticmethod
+    def _metadata(model_id: str) -> Gate2ProviderExecutionMetadata:
+        return Gate2ProviderExecutionMetadata(
+            provider_id="openai",
+            provider_profile_id="openai_gpt",
+            provider_profile_revision="test-gate3-provider-profile-revision",
+            adapter_id="openai_response_format",
+            adapter_version="1.0.0",
+            requested_model_id=model_id,
+            resolved_model_id=model_id,
+            structured_output_mode="openwebui_response_format_json_schema",
+            response_format_type="json_schema",
+            response_format_schema_mode="strict_json_schema",
+            canonical_request_schema_hash="test-canonical-request-schema-hash",
+            adapted_request_schema_hash="test-adapted-request-schema-hash",
+            finish_reason="stop",
+        )
 
 
 class CandidateBindingBoundaryModel:
@@ -636,6 +673,114 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
         self.assertEqual({item["domain"] for item in model.calls}, {"trade_operation"})
 
+    def test_csv_gate3_manifest_is_authoritative_private_safe_and_lifecycle_closed(self):
+        model = ResolvedNarrowDomainBoundaryModel()
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"trade_operation": self._domain_prompt("trade_operation")}
+            ),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-gate3-model",
+                provider_profile_id="openai_gpt",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=True,
+                source_segment_start=1,
+                source_segment_limit=1,
+                domain_allowlist=("trade_operation",),
+                max_repair_attempts=0,
+                gate3_context_manifest_enabled=True,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=self.context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertIsNotNone(result.gate3_context_manifest_ref)
+        self.assertEqual(
+            result.gate3_context_manifest_summary["gate3_input_status"],
+            "ready",
+            result.gate3_context_manifest_summary,
+        )
+        service = Gate3ContextManifestFactory(store=self.store).create()
+        manifest = service.resolve_for_gate3(
+            manifest_ref=str(result.gate3_context_manifest_ref),
+            context=self.context,
+        )
+        record = self.store.get_record_unchecked(
+            str(result.gate3_context_manifest_ref)
+        )
+        self.assertEqual(record.visibility, "safe_internal")
+        self.assertEqual(record.storage_backend, "project_artifact_store")
+        self.assertEqual(manifest["gate3_input_status"], "ready")
+        self.assertEqual(
+            manifest["declared_scope"]["scope_kind"],
+            "bounded_deterministic_csv_segments",
+        )
+        self.assertEqual(manifest["terminal_gate2"]["typed_facts_total"], 1)
+        self.assertEqual(
+            manifest["terminal_gate2"]["rejected_packages_total"], 0
+        )
+        self.assertEqual(manifest["zero_loss_reconciliation"]["status"], "reconciled")
+        self.assertEqual(manifest["decision_metrics"]["uncovered_total"], 0)
+        self.assertEqual(manifest["decision_metrics"]["conflict_total"], 0)
+        self.assertEqual(manifest["decision_metrics"]["repair_attempts_total"], 0)
+        self.assertEqual(manifest["decision_metrics"]["fallback_attempts_total"], 0)
+        self.assertTrue(manifest["retention"]["coherent_descendant_horizon"])
+        self.assertFalse(manifest["knowledge_vector_guard"]["knowledge_rag_used"])
+        serialized = json.dumps(manifest, ensure_ascii=False)
+        self.assertNotIn("100.00", serialized)
+        self.assertNotIn("synthetic_gate2_value_refs.csv", serialized)
+
+        private_facts = ArtifactResolver(self.store).resolve(
+            manifest["artifact_roots"]["validated_source_fact_refs"][0],
+            self.context,
+        )["payload"]
+        self.assertTrue(private_facts["facts"])
+        for changed in (
+            {"user_id": "wrong-user"},
+            {"case_id": "wrong-case"},
+            {"workspace_model_id": "wrong-workspace"},
+        ):
+            wrong = ArtifactAccessContext(
+                **{**self.context.__dict__, **changed}
+            )
+            with self.assertRaises(ArtifactStoreError) as denied:
+                service.resolve_for_gate3(
+                    manifest_ref=str(result.gate3_context_manifest_ref),
+                    context=wrong,
+                )
+            self.assertEqual(denied.exception.code, "artifact_access_denied")
+
+        self.store.expire_artifacts(
+            datetime.now(timezone.utc) + timedelta(days=2)
+        )
+        with self.assertRaises(ArtifactStoreError) as expired:
+            service.resolve_for_gate3(
+                manifest_ref=str(result.gate3_context_manifest_ref),
+                context=self.context,
+            )
+        self.assertEqual(expired.exception.code, "artifact_expired")
+        self.store.purge_run(self.context.normalization_run_id)
+        with self.assertRaises(ArtifactStoreError) as purged:
+            service.resolve_for_gate3(
+                manifest_ref=str(result.gate3_context_manifest_ref),
+                context=self.context,
+            )
+        self.assertEqual(purged.exception.code, "artifact_purged")
+
     def test_domain_runtime_opt_in_consumes_validated_table_projection(self):
         readiness = Gate2InputReadinessFactory(
             store=self.store,
@@ -726,6 +871,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 max_repair_attempts=0,
                 prefer_table_projections=True,
                 candidate_binding_enabled=True,
+                gate3_context_manifest_enabled=True,
             ),
         ).create()
         result = asyncio.run(
@@ -915,6 +1061,27 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 record.storage_backend != "openwebui_knowledge"
                 for record in self.store.list_by_run(self.context.normalization_run_id)
             )
+        )
+        manifest = Gate3ContextManifestFactory(store=self.store).create().resolve_for_gate3(
+            manifest_ref=str(result.gate3_context_manifest_ref),
+            context=self.context,
+        )
+        roots = manifest["artifact_roots"]
+        self.assertEqual(
+            roots["source_value_candidate_set_refs"],
+            result.source_value_candidate_set_refs,
+        )
+        self.assertEqual(
+            roots["candidate_relation_set_refs"],
+            result.candidate_relation_set_refs,
+        )
+        self.assertEqual(
+            roots["candidate_binding_validation_refs"],
+            result.candidate_binding_validation_refs,
+        )
+        self.assertEqual(
+            manifest["terminal_gate2"]["candidate_binding_validations_total"],
+            1,
         )
 
     def test_domain_runtime_accepts_explicit_provider_qualification_mode(self):

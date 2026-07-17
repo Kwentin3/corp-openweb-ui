@@ -33,6 +33,7 @@ MODULE_ORDER = [
     "file_processing_outcomes",
     "inputs",
     "detectors",
+    "csv_profile",
     "profilers_csv_txt",
     "profilers_docx",
     "profilers_image",
@@ -74,6 +75,7 @@ MODULE_ORDER = [
     "gate2_source_fact_validation",
     "gate2_source_fact_runtime",
     "gate2_source_fact_stitching",
+    "gate3_context_manifest",
     "gate2_domain_runtime",
     "gate2_handoff",
     "compact_report",
@@ -142,8 +144,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.15.0-pdf-table-intake-gate1-bundled",
-            package_version="gate1_pdf_table_intake_v2",
+            version="0.16.0-csv-supported-profile-v1-bundled",
+            package_version="gate1_csv_supported_profile_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
@@ -161,8 +163,8 @@ def main() -> None:
             modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
-            version="0.3.0-provider-adapters-metadata-runtime-bundled",
-            package_version="gate2_provider_adapters_metadata_runtime_v1",
+            version="0.4.0-csv-supported-profile-v1-bundled",
+            package_version="gate2_csv_supported_profile_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
         )
@@ -181,8 +183,8 @@ def main() -> None:
             modules=gate2_domain_modules,
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
-            version="0.5.0-domain-provider-adapters-metadata-runtime-bundled",
-            package_version="gate2_domain_provider_adapters_metadata_runtime_v1",
+            version="0.6.0-csv-pre-gate3-context-bundled",
+            package_version="gate2_domain_csv_pre_gate3_context_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
         )
@@ -280,6 +282,18 @@ def assert_gate2_bundle_contract(
         "model_requests_module": '"gate2_model_requests"',
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
+        "csv_profile_module": '"csv_profile"',
+        "gate3_context_manifest_module": '"gate3_context_manifest"',
+        "csv_profile_factory": "CsvSupportedProfileFactory(",
+        "csv_profile_factory_anchor": (
+            "CsvSupportedProfileFactory.create is the only production "
+            "supported-CSV parser entrypoint"
+        ),
+        "gate3_context_manifest_factory": "Gate3ContextManifestFactory(",
+        "gate3_context_manifest_factory_anchor": (
+            "Gate3ContextManifestFactory.create is the only production Gate 3 "
+            "context-manifest build and resolution entrypoint"
+        ),
         "provider_adapter_factory": "Gate2ProviderAdapterFactory(",
         "anthropic_native_adapter": "Gate2AnthropicNativeMessagesAdapter",
         "native_transport_config": "Gate2NativeProviderTransportConfig(",

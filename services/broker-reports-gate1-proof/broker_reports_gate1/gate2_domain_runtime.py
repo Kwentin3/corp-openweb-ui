@@ -74,6 +74,7 @@ from .gate2_source_unit_segmentation import (
     mark_segmentation_selection,
 )
 from .gate2_source_fact_validation import Gate2SourceFactValidatorFactory
+from .gate3_context_manifest import Gate3ContextManifestFactory
 
 
 DOMAIN_RUN_SCHEMA_VERSION = "broker_reports_domain_source_fact_extraction_run_v0"
@@ -116,6 +117,7 @@ class Gate2DomainSourceFactRuntimeConfig:
     text_max_chars: int = 6000
     prefer_table_projections: bool = False
     candidate_binding_enabled: bool = False
+    gate3_context_manifest_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,6 +138,8 @@ class Gate2DomainSourceFactRuntimeResult:
     validation_refs: list[str]
     raw_output_refs: list[str]
     stitch_result_refs: list[str]
+    gate3_context_manifest_ref: str | None
+    gate3_context_manifest_summary: dict[str, Any] | None
     safe_summary: dict[str, Any]
     compact_russian_summary: str
 
@@ -582,6 +586,33 @@ class Gate2DomainSourceFactRuntimeService:
                 "rejected_packages": total_rejected,
             },
         )
+        gate3_manifest = None
+        if self.config.gate3_context_manifest_enabled:
+            gate3_manifest = Gate3ContextManifestFactory(
+                store=self.store
+            ).create().build_and_persist(
+                extraction_run_ref=extraction_run_ref,
+                context=context,
+            )
+            run_payload["gate3_context_manifest_ref"] = (
+                gate3_manifest.manifest_ref
+            )
+            self._replace_run_record(
+                artifact_id=extraction_run_ref,
+                payload=run_payload,
+                context=context,
+                retention_policy=retention_policy,
+                safe_metadata={
+                    "run_status": terminal_status,
+                    "wave": self.config.wave,
+                    "selected_parent_units": len(selected_base_packages),
+                    "selected_units": len(execution_packages),
+                    "accepted_packages": sum(accepted_counts.values()),
+                    "rejected_packages": total_rejected,
+                    "gate3_context_manifest_ref": gate3_manifest.manifest_ref,
+                    "gate3_input_status": gate3_manifest.gate3_input_status,
+                },
+            )
         compact = render_domain_compact_russian_summary(
             stitch_results=stitch_results,
             accepted_domains=dict(accepted_counts),
@@ -596,6 +627,12 @@ class Gate2DomainSourceFactRuntimeService:
                 segmentation_stats.get("pending_parent_remainder_total") or 0
             ),
         )
+        if gate3_manifest is not None:
+            compact += (
+                " Gate 3 context manifest: "
+                f"{gate3_manifest.gate3_input_status.upper()} "
+                f"({gate3_manifest.manifest_ref})."
+            )
         return Gate2DomainSourceFactRuntimeResult(
             extraction_run_ref=extraction_run_ref,
             extraction_run_id=extraction_run_id,
@@ -617,6 +654,12 @@ class Gate2DomainSourceFactRuntimeService:
             validation_refs=list(refs["validation_refs"]),
             raw_output_refs=list(refs["raw_output_refs"]),
             stitch_result_refs=list(refs["stitch_result_refs"]),
+            gate3_context_manifest_ref=(
+                gate3_manifest.manifest_ref if gate3_manifest else None
+            ),
+            gate3_context_manifest_summary=(
+                gate3_manifest.safe_summary if gate3_manifest else None
+            ),
             safe_summary=summary,
             compact_russian_summary=compact,
         )
@@ -1417,6 +1460,7 @@ class Gate2DomainSourceFactRuntimeService:
             "domain_source_facts_refs": [],
             "stitch_result_refs": [],
             "summary_ref": None,
+            "gate3_context_manifest_ref": None,
             "started_at": started_at,
             "finished_at": None,
         }
@@ -1565,6 +1609,30 @@ class Gate2DomainSourceFactRuntimeService:
             retention_policy=retention_policy,
             safe_metadata={"run_status": "blocked", "error_code": error_code, "wave": self.config.wave},
         )
+        gate3_manifest = None
+        if self.config.gate3_context_manifest_enabled:
+            gate3_manifest = Gate3ContextManifestFactory(
+                store=self.store
+            ).create().build_and_persist(
+                extraction_run_ref=extraction_run_ref,
+                context=context,
+            )
+            run_payload["gate3_context_manifest_ref"] = (
+                gate3_manifest.manifest_ref
+            )
+            self._replace_run_record(
+                artifact_id=extraction_run_ref,
+                payload=run_payload,
+                context=context,
+                retention_policy=retention_policy,
+                safe_metadata={
+                    "run_status": "blocked",
+                    "error_code": error_code,
+                    "wave": self.config.wave,
+                    "gate3_context_manifest_ref": gate3_manifest.manifest_ref,
+                    "gate3_input_status": gate3_manifest.gate3_input_status,
+                },
+            )
         return Gate2DomainSourceFactRuntimeResult(
             extraction_run_ref=extraction_run_ref,
             extraction_run_id=extraction_run_id,
@@ -1582,6 +1650,12 @@ class Gate2DomainSourceFactRuntimeService:
             validation_refs=[],
             raw_output_refs=[],
             stitch_result_refs=[],
+            gate3_context_manifest_ref=(
+                gate3_manifest.manifest_ref if gate3_manifest else None
+            ),
+            gate3_context_manifest_summary=(
+                gate3_manifest.safe_summary if gate3_manifest else None
+            ),
             safe_summary=summary,
             compact_russian_summary="Gate 2 заблокирован: безопасное извлечение не начато.",
         )

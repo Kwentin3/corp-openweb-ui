@@ -54,6 +54,7 @@ class Pipe:
         segmentation_enabled: bool = Field(default=True)
         prefer_table_projections: bool = Field(default=False)
         candidate_binding_enabled: bool = Field(default=False)
+        gate3_context_manifest_enabled: bool = Field(default=False)
         default_source_segment_limit: int = Field(default=1)
         table_segment_max_refs: int = Field(default=8)
         text_segment_max_refs: int = Field(default=12)
@@ -189,6 +190,10 @@ class Pipe:
                     candidate_binding_enabled=self._config_bool(
                         config.get("candidate_binding_enabled"),
                         default=self.valves.candidate_binding_enabled,
+                    ),
+                    gate3_context_manifest_enabled=self._config_bool(
+                        config.get("gate3_context_manifest_enabled"),
+                        default=self.valves.gate3_context_manifest_enabled,
                     ),
                     source_segment_start=int(
                         config.get("source_segment_start") or 0

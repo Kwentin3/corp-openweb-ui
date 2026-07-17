@@ -135,6 +135,7 @@ ARTIFACT_TYPES = {
     "broker_reports_source_fact_stitch_result_v0",
     "broker_reports_domain_source_fact_extraction_run_v0",
     "broker_reports_domain_source_fact_extraction_summary_v0",
+    "broker_reports_gate3_context_manifest_v0",
     "broker_reports_document_extraction_packet_v0",
     "broker_reports_source_value_candidate_set_v0",
     "broker_reports_candidate_relation_set_v0",

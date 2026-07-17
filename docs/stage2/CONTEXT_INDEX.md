@@ -503,6 +503,15 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
+CSV pre-Gate-3 note, 2026-07-17: CSV is the first format with a maintained
+complete path from private `process=false` intake through complete whole-file
+normalization, bounded terminal Gate 2 facts and the authoritative
+`broker_reports_gate3_context_manifest_v0`. Readiness applies only to the
+declared deterministic segment; all other segments remain explicit deferred
+scope. Gate 3 must consume the manifest root and resolve private facts through
+the existing ArtifactResolver. This does not authorize ledgers,
+cross-document reconciliation, tax, declaration or XLS/XLSX work.
+
 PDF Table Intake Gate 1 note, 2026-07-17: this is a local child capability
 inside global Broker Reports Gate 1, not a Stage 2 implementation gate or a
 renumbering of the product pipeline. The supported native Function route is
@@ -541,6 +550,7 @@ bbox and accepted structure must bind completely to exact source atoms.
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
+- [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
 - [Supported PDF Table Intake runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import csv
 from html.parser import HTMLParser
-from io import StringIO
 
 from .blockers import parser_failed
 from .contracts import profile_id, slice_id
+from .csv_profile import (
+    CSV_SUPPORTED_PROFILE_ID,
+    CsvSupportedProfileError,
+    CsvSupportedProfileFactory,
+)
 
 
 def decode_text_bytes(content_bytes: bytes) -> tuple[str | None, str | None, str | None]:
@@ -18,17 +21,25 @@ def decode_text_bytes(content_bytes: bytes) -> tuple[str | None, str | None, str
 
 
 def profile_csv(run_id: str, document_id: str, content_bytes: bytes) -> tuple[dict, list[dict], list[dict]]:
-    decoded, encoding, error = decode_text_bytes(content_bytes)
-    if decoded is None:
-        blocker = parser_failed(run_id, document_id, error or "decode_failed")
-        return _blocked_profile(document_id, "csv", [blocker["blocker_id"]]), [], [blocker]
-
     try:
-        delimiter = _detect_delimiter(decoded)
-        rows = list(csv.reader(StringIO(decoded), delimiter=delimiter))
-    except csv.Error as exc:
-        blocker = parser_failed(run_id, document_id, f"csv_parse_failed:{exc.__class__.__name__}")
-        return _blocked_profile(document_id, "csv", [blocker["blocker_id"]]), [], [blocker]
+        parsed = CsvSupportedProfileFactory().create().parse(content_bytes)
+    except CsvSupportedProfileError as exc:
+        blocker = parser_failed(run_id, document_id, exc.code)
+        blocked = _blocked_profile(
+            document_id, "csv", [blocker["blocker_id"]]
+        )
+        blocked.update(
+            {
+                "supported_csv_profile_id": CSV_SUPPORTED_PROFILE_ID,
+                "supported_csv_profile_status": "rejected",
+                "supported_csv_profile_reason_codes": [exc.code],
+            }
+        )
+        return blocked, [], [blocker]
+
+    rows = parsed.rows
+    encoding = parsed.encoding
+    delimiter = parsed.delimiter
 
     columns_count = max((len(row) for row in rows), default=0)
     header_candidate = _looks_like_header(rows)
@@ -75,6 +86,9 @@ def profile_csv(run_id: str, document_id: str, content_bytes: bytes) -> tuple[di
         "rows_count": len(rows),
         "columns_count": columns_count,
         "header_candidate": header_candidate,
+        "supported_csv_profile_id": CSV_SUPPORTED_PROFILE_ID,
+        "supported_csv_profile_status": "accepted",
+        "supported_csv_profile": parsed.safe_profile(),
         "slice_truncated": private_slice["truncated"],
         "normalized_slice_refs": [private_slice["slice_id"]],
         "warnings": [] if rows else ["empty_csv"],
@@ -206,16 +220,6 @@ def profile_txt(
         "blocker_refs": [],
     }
     return profile, private_slices, []
-
-
-def _detect_delimiter(decoded: str) -> str:
-    sample = decoded[:8192]
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-        return dialect.delimiter
-    except csv.Error:
-        candidates = [",", ";", "\t", "|"]
-        return max(candidates, key=lambda item: sample.count(item))
 
 
 def _looks_like_header(rows: list[list[str]]) -> bool:
