@@ -99,6 +99,7 @@ def main() -> int:
     parser.add_argument("--env-file", default=str(ROOT / ".env"))
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--ssh-target", default=None)
+    parser.add_argument("--scope", choices=("all", "gate1"), default="all")
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))
@@ -114,6 +115,14 @@ def main() -> int:
     session.headers.update({"Authorization": f"Bearer {token}"})
 
     expected_prompts = expected_prompt_contracts()
+    if args.scope == "gate1":
+        expected_prompts = {
+            prompt_id: expected_prompts[prompt_id]
+            for prompt_id in (
+                gate1_update.PROMPT_ID,
+                gate1_update.CLARIFICATION_PROMPT_ID,
+            )
+        }
     live_prompts = _read_live_prompt_state(
         ssh_target=ssh_target,
         prompt_ids=sorted(expected_prompts),
@@ -122,12 +131,17 @@ def main() -> int:
         evaluate_prompt_contract(expected_prompts[prompt_id], live_prompts.get(prompt_id))
         for prompt_id in sorted(expected_prompts)
     ]
+    function_contracts = (
+        FUNCTION_CONTRACTS[:1]
+        if args.scope == "gate1"
+        else FUNCTION_CONTRACTS
+    )
     function_checks = [
         evaluate_function_contract(
             contract,
             _get_live_function(session, base_url, contract.function_id),
         )
-        for contract in FUNCTION_CONTRACTS
+        for contract in function_contracts
     ]
     gate1_valves = _get_live_function_valves(
         session,
@@ -230,6 +244,7 @@ def main() -> int:
     output = {
         "status": "passed" if all(checks.values()) else "failed",
         "schema_version": "broker_reports_stage2_live_delivery_parity_v0",
+        "scope": args.scope,
         "checks": checks,
         "functions": function_checks,
         "managed_prompts": prompt_checks,

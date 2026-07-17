@@ -18,10 +18,12 @@
 ```powershell
 python services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py --target gate1
 python services/broker-reports-gate1-proof/scripts/live_update_function_and_passport_prompt.py
-python services/broker-reports-gate1-proof/scripts/live_verify_broker_reports_stage2_delivery.py
+python services/broker-reports-gate1-proof/scripts/live_verify_broker_reports_stage2_delivery.py --scope gate1
 ```
 
 Update-скрипт публикует собранный Function bundle, проверяет совпадение SHA и явно выставляет рабочие valves Gate 1. Старые structural/semantic shadows остаются выключенными.
+
+Режим `--scope gate1` намеренно не объявляет parity соседних Gate 2 Functions. Полный режим без `--scope` остаётся отдельной общей проверкой и может обнаружить их независимый дрейф.
 
 ## Operator proof на реальном PDF
 
