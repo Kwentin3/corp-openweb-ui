@@ -53,6 +53,10 @@ FUNCTION_CONTRACTS = (
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
             "PdfGridExperimentProviderFactory",
+            "PdfTableIntakeRuntimeFactory",
+            "broker_reports_pdf_table_detection_response_v1",
+            "broker_reports_pdf_table_candidate_v1",
+            "pdf_table_candidate_raster_policy_v1",
             "PdfContinuationDiscoveryFactory",
             "PdfStructuralRowWindowFactory",
             "PdfStructuralRepairRuntimeFactory",
@@ -207,6 +211,21 @@ def main() -> int:
         "gate1_structural_runtime_dependency_ready": gate1_operational_state[
             "fitz_version_match"
         ],
+        "gate1_pdf_table_intake_enabled": gate1_operational_state[
+            "table_intake_enabled"
+        ],
+        "gate1_pdf_table_intake_provider_configured": gate1_operational_state[
+            "table_intake_provider_configured"
+        ],
+        "gate1_pdf_table_intake_model_configured": gate1_operational_state[
+            "table_intake_model_configured"
+        ],
+        "gate1_pdf_table_intake_dpi_configured": gate1_operational_state[
+            "table_intake_dpi_configured"
+        ],
+        "gate1_pdf_table_intake_padding_configured": gate1_operational_state[
+            "table_intake_padding_configured"
+        ],
     }
     output = {
         "status": "passed" if all(checks.values()) else "failed",
@@ -350,12 +369,32 @@ def evaluate_gate1_operational_state(
         "pdf_vlm_guided_intake_shadow_page_allowlist", ""
     )
     semantic_value = valves.get("pdf_semantic_header_shadow_enabled", False)
+    table_intake_enabled = valves.get("pdf_table_intake_enabled", False)
+    table_intake_provider = valves.get("pdf_table_intake_provider_profile")
+    table_intake_model = valves.get("pdf_table_intake_model_id")
+    table_intake_dpi = valves.get("pdf_table_intake_dpi")
+    table_intake_horizontal_padding = valves.get(
+        "pdf_table_intake_horizontal_padding_fraction"
+    )
+    table_intake_vertical_padding = valves.get(
+        "pdf_table_intake_vertical_padding_fraction"
+    )
     return {
         "structural_shadow_disabled": shadow_value is False,
         "guided_intake_shadow_disabled": guided_value is False,
         "guided_page_allowlist_empty": isinstance(page_allowlist, str)
         and not page_allowlist.strip(),
         "semantic_header_shadow_disabled": semantic_value is False,
+        "table_intake_enabled": table_intake_enabled is True,
+        "table_intake_provider_configured": table_intake_provider
+        == "google_gemini",
+        "table_intake_model_configured": table_intake_model
+        == "models/gemini-3.5-flash",
+        "table_intake_dpi_configured": table_intake_dpi == 150,
+        "table_intake_padding_configured": (
+            table_intake_horizontal_padding == 0.08
+            and table_intake_vertical_padding == 0.08
+        ),
         "fitz_version": fitz_version,
         "required_fitz_version": REQUIRED_FITZ_VERSION,
         "fitz_version_match": fitz_version == REQUIRED_FITZ_VERSION,
@@ -389,6 +428,15 @@ def evaluate_prompt_contract(
 
 
 def repository_factory_boundary_checks() -> dict[str, bool]:
+    gate1_pipe = (
+        SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe.py"
+    ).read_text(encoding="utf-8")
+    table_intake_runtime = (
+        SERVICE_ROOT / "broker_reports_gate1/pdf_table_intake_runtime.py"
+    ).read_text(encoding="utf-8")
+    table_intake_operator = (
+        SERVICE_ROOT / "scripts/live_pdf_table_intake_gate1_operator_proof.py"
+    ).read_text(encoding="utf-8")
     source_pipe = (
         SERVICE_ROOT / "openwebui_actions/broker_reports_gate2_source_fact_pipe.py"
     ).read_text(encoding="utf-8")
@@ -416,6 +464,30 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
     )
     smoke_sources = [path.read_text(encoding="utf-8") for path in smoke_paths]
     return {
+        "gate1_pipe_uses_pdf_table_intake_factory": (
+            "PdfTableIntakeRuntimeFactory(config)" in gate1_pipe
+        ),
+        "gate1_pipe_does_not_construct_detector_adapter": (
+            "GeminiGridExperimentAdapter(" not in gate1_pipe
+        ),
+        "pdf_table_intake_runtime_declares_factory_boundary": (
+            "FACTORY_REQUIRED" in table_intake_runtime
+            and "FORBIDDEN" in table_intake_runtime
+        ),
+        "pdf_table_intake_operator_uses_function_boundary": (
+            "workspace_model.get(\"base_model_id\") != FUNCTION_ID"
+            in table_intake_operator
+            and '"/api/chat/completions"' in table_intake_operator
+        ),
+        "pdf_table_intake_operator_does_not_call_provider": all(
+            marker not in table_intake_operator
+            for marker in (
+                "PdfGridExperimentProviderFactory",
+                "GeminiGridExperimentAdapter",
+                "generate_chat_completion",
+                "generate_chat_completions",
+            )
+        ),
         "source_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in source_pipe,
         "domain_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in domain_pipe,
         "pipes_do_not_import_openwebui_completion": all(

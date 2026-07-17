@@ -76,7 +76,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_pdf_structural_semantic_shadow_v1",
+            "gate1_pdf_table_intake_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
@@ -101,6 +101,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_vlm_region_binding", module._BUNDLED_MODULES)
         self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
         self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
+        self.assertIn("pdf_table_intake_runtime", module._BUNDLED_MODULES)
         self.assertIn("pdf_continuation_discovery", module._BUNDLED_MODULES)
         self.assertIn("pdf_structural_repair_runtime", module._BUNDLED_MODULES)
         self.assertIn("pdf_semantic_header_contracts", module._BUNDLED_MODULES)
@@ -147,6 +148,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             hasattr(bundled_package, "Gate2StructuredModelClientFactory")
         )
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
+        self.assertTrue(
+            hasattr(bundled_package, "PdfTableIntakeRuntimeFactory")
+        )
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
         self.assertTrue(
             hasattr(bundled_package, "PdfStructuralRowWindowFactory")
@@ -241,6 +245,13 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         pipe.valves.artifact_store_path = str(root / "compact.sqlite3")
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
+        self.assertFalse(pipe.valves.pdf_table_intake_enabled)
+        self.assertEqual(
+            0.08, pipe.valves.pdf_table_intake_horizontal_padding_fraction
+        )
+        self.assertEqual(
+            0.08, pipe.valves.pdf_table_intake_vertical_padding_fraction
+        )
         self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
         self.assertFalse(pipe.valves.pdf_structural_repair_shadow_enabled)
         self.assertFalse(pipe.valves.pdf_vlm_guided_intake_shadow_enabled)

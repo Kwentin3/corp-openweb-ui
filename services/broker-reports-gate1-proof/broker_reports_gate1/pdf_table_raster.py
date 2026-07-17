@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,8 +12,15 @@ from .pdf_hybrid_contracts import sha256_json
 
 PDF_TABLE_CROP_SCHEMA = "broker_reports_pdf_table_crop_v1"
 PDF_TABLE_RASTER_POLICY_VERSION = "pdf_table_raster_policy_v1"
-FACTORY_REQUIRED = "PdfTableRasterFactory.create is the only hybrid crop renderer entrypoint"
-FORBIDDEN = "Callers must not silently resize, render whole PDFs, or publish crop bytes"
+PDF_TABLE_CANDIDATE_SCHEMA = "broker_reports_pdf_table_candidate_v1"
+PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION = "pdf_table_candidate_raster_policy_v1"
+FACTORY_REQUIRED = (
+    "PdfTableRasterFactory.create is the only table crop renderer entrypoint"
+)
+FORBIDDEN = (
+    "Callers must not silently resize, override global padding per table, "
+    "render whole PDFs as candidates, or publish crop bytes"
+)
 
 
 class PdfTableRasterError(ValueError):
@@ -26,6 +34,8 @@ class PdfTableRasterConfig:
     renderer: str = "pymupdf"
     renderer_version: str = "1.26.5"
     padding_points: float = 2.0
+    horizontal_padding_fraction: float = 0.08
+    vertical_padding_fraction: float = 0.08
     maximum_width: int = 4096
     maximum_height: int = 4096
     maximum_pixels: int = 16_000_000
@@ -37,6 +47,12 @@ class PdfTableRasterFactory:
         self.config = config or PdfTableRasterConfig()
 
     def create(self) -> "PdfTableRasterRenderer":
+        for value in (
+            self.config.horizontal_padding_fraction,
+            self.config.vertical_padding_fraction,
+        ):
+            if not math.isfinite(value) or value < 0 or value > 0.25:
+                raise PdfTableRasterError("pdf_table_raster_padding_fraction_invalid")
         try:
             import fitz
         except ImportError as exc:
@@ -63,6 +79,120 @@ class PdfTableRasterRenderer:
         dpi: int,
         escalation_reason: str | None = None,
     ) -> dict[str, Any]:
+        return self._render_pdf_bbox(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=pdf_sha256,
+            document_ref=document_ref,
+            page_number=page_number,
+            table_ref=table_ref,
+            table_bbox=table_bbox,
+            dpi=dpi,
+            padding_x_points=self.config.padding_points,
+            padding_y_points=self.config.padding_points,
+            escalation_reason=escalation_reason,
+            schema_version=PDF_TABLE_CROP_SCHEMA,
+            policy_version=PDF_TABLE_RASTER_POLICY_VERSION,
+            manifest_extras={"padding_points": self.config.padding_points},
+            crop_id_prefix="pdfcrop_",
+        )
+
+    def render_detected_region(
+        self,
+        *,
+        pdf_bytes: bytes,
+        pdf_sha256: str,
+        document_ref: str,
+        page_number: int,
+        candidate_ref: str,
+        detected_bbox_normalized: list[float],
+        detector_contract_version: str,
+        detector_identity: dict[str, Any],
+        dpi: int = 150,
+    ) -> dict[str, Any]:
+        """Render one validated detector box with global page-relative padding."""
+
+        if len(detected_bbox_normalized) != 4 or not all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(float(value))
+            for value in detected_bbox_normalized
+        ):
+            raise PdfTableRasterError("pdf_table_raster_normalized_bbox_invalid")
+        x0, y0, x1, y1 = [float(value) for value in detected_bbox_normalized]
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+            raise PdfTableRasterError("pdf_table_raster_normalized_bbox_invalid")
+        document = self.fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            if page_number < 1 or page_number > len(document):
+                raise PdfTableRasterError("pdf_table_raster_page_invalid")
+            page_bbox = document[page_number - 1].rect
+            table_bbox = [
+                page_bbox.x0 + x0 * page_bbox.width,
+                page_bbox.y0 + y0 * page_bbox.height,
+                page_bbox.x0 + x1 * page_bbox.width,
+                page_bbox.y0 + y1 * page_bbox.height,
+            ]
+            padding_x_points = (
+                page_bbox.width * self.config.horizontal_padding_fraction
+            )
+            padding_y_points = (
+                page_bbox.height * self.config.vertical_padding_fraction
+            )
+            page_points = [round(float(value), 6) for value in page_bbox]
+        finally:
+            document.close()
+        return self._render_pdf_bbox(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=pdf_sha256,
+            document_ref=document_ref,
+            page_number=page_number,
+            table_ref=candidate_ref,
+            table_bbox=table_bbox,
+            dpi=dpi,
+            padding_x_points=padding_x_points,
+            padding_y_points=padding_y_points,
+            escalation_reason=None,
+            schema_version=PDF_TABLE_CANDIDATE_SCHEMA,
+            policy_version=PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION,
+            manifest_extras={
+                "candidate_ref": candidate_ref,
+                "detected_bbox_normalized": [
+                    round(value, 9) for value in detected_bbox_normalized
+                ],
+                "page_bbox_points": page_points,
+                "padding_basis": "page_dimensions_per_side",
+                "horizontal_padding_fraction": (
+                    self.config.horizontal_padding_fraction
+                ),
+                "vertical_padding_fraction": self.config.vertical_padding_fraction,
+                "padding_x_points": round(padding_x_points, 6),
+                "padding_y_points": round(padding_y_points, 6),
+                "detector_contract_version": detector_contract_version,
+                "detector_identity": detector_identity,
+                "downstream_contract": "gate2_raster_candidate",
+                "semantic_interpretation_performed": False,
+            },
+            crop_id_prefix="pdftablecandidate_",
+        )
+
+    def _render_pdf_bbox(
+        self,
+        *,
+        pdf_bytes: bytes,
+        pdf_sha256: str,
+        document_ref: str,
+        page_number: int,
+        table_ref: str,
+        table_bbox: list[float],
+        dpi: int,
+        padding_x_points: float,
+        padding_y_points: float,
+        escalation_reason: str | None,
+        schema_version: str,
+        policy_version: str,
+        manifest_extras: dict[str, Any],
+        crop_id_prefix: str,
+    ) -> dict[str, Any]:
         if hashlib.sha256(pdf_bytes).hexdigest() != pdf_sha256:
             raise PdfTableRasterError("pdf_table_raster_pdf_checksum_mismatch")
         if dpi not in {150, 200}:
@@ -79,13 +209,14 @@ class PdfTableRasterRenderer:
             declared = self.fitz.Rect(table_bbox)
             if declared.is_empty or declared.is_infinite:
                 raise PdfTableRasterError("pdf_table_raster_bbox_invalid")
-            padding = self.config.padding_points
             padded = self.fitz.Rect(
-                max(page.rect.x0, declared.x0 - padding),
-                max(page.rect.y0, declared.y0 - padding),
-                min(page.rect.x1, declared.x1 + padding),
-                min(page.rect.y1, declared.y1 + padding),
+                max(page.rect.x0, declared.x0 - padding_x_points),
+                max(page.rect.y0, declared.y0 - padding_y_points),
+                min(page.rect.x1, declared.x1 + padding_x_points),
+                min(page.rect.y1, declared.y1 + padding_y_points),
             )
+            if padded.is_empty or padded.is_infinite:
+                raise PdfTableRasterError("pdf_table_raster_padded_bbox_invalid")
             pixmap = page.get_pixmap(dpi=dpi, clip=padded, alpha=False)
             width, height = int(pixmap.width), int(pixmap.height)
             if (
@@ -98,13 +229,13 @@ class PdfTableRasterRenderer:
             if len(png) > self.config.maximum_png_bytes:
                 raise PdfTableRasterError("pdf_table_raster_encoded_budget_exceeded")
             png_sha256 = hashlib.sha256(png).hexdigest()
-            crop_id = "pdfcrop_" + stable_digest(
+            crop_id = crop_id_prefix + stable_digest(
                 [pdf_sha256, page_number, table_ref, list(padded), dpi, png_sha256],
                 length=24,
             )
             manifest = {
-                "schema_version": PDF_TABLE_CROP_SCHEMA,
-                "policy_version": PDF_TABLE_RASTER_POLICY_VERSION,
+                "schema_version": schema_version,
+                "policy_version": policy_version,
                 "crop_id": crop_id,
                 "document_ref": document_ref,
                 "pdf_sha256": pdf_sha256,
@@ -124,7 +255,6 @@ class PdfTableRasterRenderer:
                 "renderer_version": self.config.renderer_version,
                 "page_rotation": int(page.rotation),
                 "applied_rotation": 0,
-                "padding_points": padding,
                 "dpi": dpi,
                 "dpi_revision_reason": escalation_reason or "primary_150_dpi",
                 "width": width,
@@ -134,6 +264,7 @@ class PdfTableRasterRenderer:
                 "png_sha256": png_sha256,
                 "lossless": True,
                 "silent_resize_performed": False,
+                **manifest_extras,
             }
             manifest["manifest_hash"] = sha256_json(manifest)
             return {

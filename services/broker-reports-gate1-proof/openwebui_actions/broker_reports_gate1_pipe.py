@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.13.0-pdf-structural-semantic-shadow
+version: 0.14.0-pdf-table-intake-gate1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -60,6 +60,9 @@ from broker_reports_gate1 import (
     render_chat_content,
     validate_document_metadata_passport,
     validation_error_summary,
+    PdfTableIntakeConfig,
+    PdfTableIntakeError,
+    PdfTableIntakeRuntimeFactory,
 )
 from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
@@ -122,6 +125,20 @@ class Pipe:
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
         pdf_compact_canonical_dual_write: bool = Field(default=False)
+        pdf_table_intake_enabled: bool = Field(default=False)
+        pdf_table_intake_provider_profile: str = Field(default="google_gemini")
+        pdf_table_intake_model_id: str = Field(default="models/gemini-3.5-flash")
+        pdf_table_intake_dpi: int = Field(default=150)
+        pdf_table_intake_maximum_pages: int = Field(default=64, ge=1, le=512)
+        pdf_table_intake_maximum_candidates_per_page: int = Field(
+            default=32, ge=1, le=64
+        )
+        pdf_table_intake_horizontal_padding_fraction: float = Field(
+            default=0.08, ge=0, le=0.25
+        )
+        pdf_table_intake_vertical_padding_fraction: float = Field(
+            default=0.08, ge=0, le=0.25
+        )
         pdf_hybrid_shadow_enabled: bool = Field(default=False)
         pdf_hybrid_shadow_table_allowlist: str = Field(default="")
         pdf_hybrid_provider_profile: str = Field(default="google_gemini")
@@ -197,6 +214,15 @@ class Pipe:
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
                 ),
+                "pdf_table_intake_enabled": bool(
+                    self.valves.pdf_table_intake_enabled
+                ),
+                "pdf_table_intake_horizontal_padding_fraction": (
+                    self.valves.pdf_table_intake_horizontal_padding_fraction
+                ),
+                "pdf_table_intake_vertical_padding_fraction": (
+                    self.valves.pdf_table_intake_vertical_padding_fraction
+                ),
                 "pdf_semantic_header_shadow_enabled": bool(
                     self.valves.pdf_semantic_header_shadow_enabled
                 ),
@@ -220,6 +246,18 @@ class Pipe:
                 payload_root=Path(self.valves.artifact_payload_root),
             )
         ).create()
+        table_intake = self._maybe_run_pdf_table_intake(
+            result=result,
+            file_inputs=file_inputs,
+            request=__request__,
+        )
+        result.package["pdf_table_intake"] = table_intake["safe_summary"]
+        result.package["private_pdf_table_candidates"] = table_intake[
+            "private_candidates"
+        ]
+        result.package["private_pdf_table_detection_attempts"] = table_intake[
+            "private_detection_attempts"
+        ]
         structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
             store=artifact_store,
             result=result,
@@ -266,6 +304,7 @@ class Pipe:
         self.last_safe_report = result.safe_report
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
+            "pdf_table_intake": table_intake["safe_summary"],
             "pdf_structural_repair_shadow": structural_shadow,
             "pdf_semantic_header_shadow": self._semantic_shadow_manifest(
                 structural_shadow
@@ -298,6 +337,127 @@ class Pipe:
                 ]
             )
         return chat_content
+
+    def _maybe_run_pdf_table_intake(
+        self,
+        *,
+        result: NormalizationResult,
+        file_inputs: list[FileInput],
+        request: Any,
+    ) -> dict[str, Any]:
+        config = PdfTableIntakeConfig(
+            enabled=bool(self.valves.pdf_table_intake_enabled),
+            detector_provider_profile=self.valves.pdf_table_intake_provider_profile,
+            detector_model_id=self.valves.pdf_table_intake_model_id,
+            dpi=self.valves.pdf_table_intake_dpi,
+            maximum_pages=self.valves.pdf_table_intake_maximum_pages,
+            maximum_candidates_per_page=(
+                self.valves.pdf_table_intake_maximum_candidates_per_page
+            ),
+            horizontal_padding_fraction=(
+                self.valves.pdf_table_intake_horizontal_padding_fraction
+            ),
+            vertical_padding_fraction=(
+                self.valves.pdf_table_intake_vertical_padding_fraction
+            ),
+        )
+        factory = PdfTableIntakeRuntimeFactory(config)
+        if not config.enabled:
+            disabled = factory.create_with_provider(None).run([])
+            return {
+                "safe_summary": disabled.safe_summary,
+                "private_candidates": [],
+                "private_detection_attempts": [],
+            }
+        inventory = {
+            str(item.get("sha256") or ""): item
+            for item in result.package.get("document_inventory", {}).get(
+                "documents", []
+            )
+            if isinstance(item, dict) and item.get("container_format") == "pdf"
+        }
+        if not inventory:
+            empty = factory.create_with_provider(None).run([])
+            return {
+                "safe_summary": empty.safe_summary,
+                "private_candidates": [],
+                "private_detection_attempts": [],
+            }
+        documents = []
+        for file_input in file_inputs:
+            read = file_input.read_bytes()
+            if read.status != "available" or not isinstance(read.content_bytes, bytes):
+                continue
+            digest = hashlib.sha256(read.content_bytes).hexdigest()
+            document = inventory.get(digest)
+            if document is None:
+                continue
+            documents.append(
+                {
+                    "document_ref": str(document.get("document_id") or ""),
+                    "pdf_bytes": read.content_bytes,
+                    "pdf_sha256": digest,
+                }
+            )
+        if len(documents) != len(inventory):
+            return self._pdf_table_intake_failure(
+                config,
+                "pdf_table_intake_source_bytes_unavailable",
+                documents_total=len(inventory),
+            )
+        try:
+            outcome = factory.create_for_openwebui(request).run(documents)
+            return {
+                "safe_summary": outcome.safe_summary,
+                "private_candidates": outcome.private_candidates,
+                "private_detection_attempts": outcome.private_detection_attempts,
+            }
+        except (PdfTableIntakeError, RuntimeError, ValueError) as exc:
+            return self._pdf_table_intake_failure(
+                config,
+                str(getattr(exc, "code", "pdf_table_intake_runtime_failed")),
+                documents_total=len(documents),
+            )
+
+    @staticmethod
+    def _pdf_table_intake_failure(
+        config: PdfTableIntakeConfig,
+        failure_code: str,
+        *,
+        documents_total: int,
+    ) -> dict[str, Any]:
+        summary = {
+            "schema_version": "broker_reports_pdf_table_intake_run_v1",
+            "policy_version": "pdf_table_intake_policy_v1",
+            "enabled": config.enabled,
+            "status": "failed",
+            "documents_total": documents_total,
+            "pages_total": 0,
+            "candidates_total": 0,
+            "failed_pages_total": 0,
+            "failed_pages": [],
+            "terminal_failure_code": failure_code,
+            "detector_contract_version": (
+                "broker_reports_pdf_table_detection_response_v1"
+            ),
+            "candidate_contract_version": "broker_reports_pdf_table_candidate_v1",
+            "raster_policy_version": "pdf_table_candidate_raster_policy_v1",
+            "detector_provider_profile": config.detector_provider_profile,
+            "detector_model_id": config.detector_model_id,
+            "dpi": config.dpi,
+            "horizontal_padding_fraction": config.horizontal_padding_fraction,
+            "vertical_padding_fraction": config.vertical_padding_fraction,
+            "padding_basis": "page_dimensions_per_side",
+            "detector_qualification": None,
+            "gate2_boundary_ready": False,
+            "rows_columns_cells_inferred": False,
+            "financial_semantics_inferred": False,
+        }
+        return {
+            "safe_summary": summary,
+            "private_candidates": [],
+            "private_detection_attempts": [],
+        }
 
     def _maybe_run_pdf_structural_repair_shadow(
         self,

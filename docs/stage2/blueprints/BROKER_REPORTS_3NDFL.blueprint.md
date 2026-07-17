@@ -3,8 +3,9 @@
 Date: 2026-07-11
 
 Status: bounded technical contour implemented and deployed with repo/live
-parity; synthetic semantic acceptance passed for `gpt-5.6-sol` and
-`models/gemini-3.5-flash`; the full customer pilot remains a separate gate.
+parity; PDF Table Intake Gate 1 is implemented with region-only VLM detection
+and deterministic `8 %` page-relative crop padding, with formal closure pending
+its dated stage operator proof; the full customer pilot remains a separate gate.
 
 ## 1. Purpose
 
@@ -46,6 +47,10 @@ prompt/template, получает structured draft, видит warnings and unce
 
 ## 6. Integration / custom implementation path
 
+- Supported PDF Table Intake Gate 1 through the native OpenWebUI Function:
+  page rasterization, configured VLM region detection, strict validation and
+  deterministic private PNG candidates. See the
+  [versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
 - Deterministic normalized-table projection for supported native tables and
   mechanically accepted PDF text-layer candidates.
 - Bounded candidate/value relations, narrow domain binding and strict
@@ -63,6 +68,7 @@ policy. Manual anonymization may be required until future masking subsystem exis
 
 ## 8. Dependencies
 
+- [PDF Table Intake Gate 1](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [DOCUMENTS_OCR_EXCEL](DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [Gate 2 source-fact extraction](BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
 - [Normalized table projection](../contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)

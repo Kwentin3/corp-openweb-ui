@@ -24,6 +24,8 @@ class Gate1ArtifactManifest:
     private_slice_refs: list[str]
     private_source_payload_refs: list[str]
     private_source_unit_refs: list[str]
+    pdf_table_candidate_refs: list[str]
+    pdf_table_detection_attempt_refs: list[str]
     blocker_refs: list[str]
     artifact_refs_by_type: dict[str, list[str]]
 
@@ -35,6 +37,10 @@ class Gate1ArtifactManifest:
             "private_slice_refs": list(self.private_slice_refs),
             "private_source_payload_refs": list(self.private_source_payload_refs),
             "private_source_unit_refs": list(self.private_source_unit_refs),
+            "pdf_table_candidate_refs": list(self.pdf_table_candidate_refs),
+            "pdf_table_detection_attempt_refs": list(
+                self.pdf_table_detection_attempt_refs
+            ),
             "blocker_refs": list(self.blocker_refs),
             "artifact_refs_by_type": {key: list(value) for key, value in self.artifact_refs_by_type.items()},
         }
@@ -62,6 +68,9 @@ def persist_gate1_result(
     private_source_payload_refs_by_doc: dict[str, list[str]] = {}
     private_source_unit_refs: list[str] = []
     private_source_unit_refs_by_doc: dict[str, list[str]] = {}
+    pdf_table_candidate_refs: list[str] = []
+    pdf_table_candidate_refs_by_doc: dict[str, list[str]] = {}
+    pdf_table_detection_attempt_refs: list[str] = []
     table_projection_refs_by_doc: dict[str, list[str]] = {}
     clarification_resolution_refs: list[str] = []
     passport_refs_by_doc: dict[str, str] = {}
@@ -118,6 +127,11 @@ def persist_gate1_result(
         ("gate1_issue_ledger_v0", package.get("gate1_issue_ledger"), None),
         ("document_usage_classification_v0", package.get("document_usage_classification"), None),
         ("domain_context_packet_v0", package.get("domain_context_packet"), None),
+        (
+            "broker_reports_pdf_table_intake_run_v1",
+            package.get("pdf_table_intake"),
+            None,
+        ),
         ("validation_result_v0", package["validation_result"], None),
         ("chat_visible_normalization_report_v0", safe_report, "openwebui_chat"),
     ]
@@ -144,6 +158,86 @@ def persist_gate1_result(
             blocker_refs.append(record.artifact_id)
         else:
             safe_refs.append(record.artifact_id)
+
+    for candidate in package.get("private_pdf_table_candidates", []):
+        manifest = candidate.get("manifest") if isinstance(candidate, dict) else {}
+        document_id = manifest.get("document_ref") if isinstance(manifest, dict) else None
+        candidate_status = (
+            "validated"
+            if manifest.get("schema_version") == "broker_reports_pdf_table_candidate_v1"
+            and manifest.get("png_sha256")
+            and candidate.get("private_png_base64")
+            else "blocked"
+        )
+        record = put(
+            _record(
+                artifact_type="broker_reports_pdf_table_candidate_v1",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=candidate_status,
+                payload=candidate,
+                safe_metadata={
+                    "schema_version": manifest.get("schema_version"),
+                    "policy_version": manifest.get("policy_version"),
+                    "candidate_ref": manifest.get("candidate_ref"),
+                    "document_ref": document_id,
+                    "page_number": manifest.get("page_number"),
+                    "png_sha256": manifest.get("png_sha256"),
+                    "manifest_hash": manifest.get("manifest_hash"),
+                    "horizontal_padding_fraction": manifest.get(
+                        "horizontal_padding_fraction"
+                    ),
+                    "vertical_padding_fraction": manifest.get(
+                        "vertical_padding_fraction"
+                    ),
+                    "downstream_contract": manifest.get("downstream_contract"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+        pdf_table_candidate_refs.append(record.artifact_id)
+        pdf_table_candidate_refs_by_doc.setdefault(str(document_id), []).append(
+            record.artifact_id
+        )
+
+    for attempt in package.get("private_pdf_table_detection_attempts", []):
+        document_id = attempt.get("document_ref") if isinstance(attempt, dict) else None
+        attempt_status = (
+            "validated"
+            if attempt.get("terminal_status") == "validated"
+            else "blocked"
+        )
+        record = put(
+            _record(
+                artifact_type="broker_reports_pdf_table_detection_attempt_v1",
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status=attempt_status,
+                payload=attempt,
+                safe_metadata={
+                    "schema_version": attempt.get("schema_version"),
+                    "request_id": attempt.get("request_id"),
+                    "document_ref": document_id,
+                    "page_number": attempt.get("page_number"),
+                    "provider_response_hash": attempt.get(
+                        "provider_response_hash"
+                    ),
+                    "terminal_status": attempt.get("terminal_status"),
+                    "hidden_retry": attempt.get("hidden_retry"),
+                    "provider_failover": attempt.get("provider_failover"),
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+        pdf_table_detection_attempt_refs.append(record.artifact_id)
 
     for private_slice in package.get("private_normalized_slices", []):
         artifact_type = (
@@ -803,6 +897,27 @@ def persist_gate1_result(
         "safe_refs": safe_refs,
         "private_slice_refs": included_private_refs,
         "private_source_unit_refs": included_source_unit_refs,
+        "pdf_table_intake_status": _object(package.get("pdf_table_intake")).get(
+            "status"
+        ),
+        "pdf_table_intake_contract": {
+            "run_schema_version": _object(package.get("pdf_table_intake")).get(
+                "schema_version"
+            ),
+            "detector_contract_version": _object(
+                package.get("pdf_table_intake")
+            ).get("detector_contract_version"),
+            "candidate_contract_version": _object(
+                package.get("pdf_table_intake")
+            ).get("candidate_contract_version"),
+            "gate2_boundary_ready": _object(package.get("pdf_table_intake")).get(
+                "gate2_boundary_ready"
+            ),
+        },
+        "pdf_table_candidate_refs": list(pdf_table_candidate_refs),
+        "pdf_table_candidate_refs_by_document": copy.deepcopy(
+            pdf_table_candidate_refs_by_doc
+        ),
         "private_source_unit_refs_by_next_stage_bucket": _private_slice_refs_by_next_stage_bucket(
             next_stage_refs,
             private_source_unit_refs_by_doc,
@@ -858,6 +973,8 @@ def persist_gate1_result(
         private_slice_refs=private_refs,
         private_source_payload_refs=private_source_payload_refs,
         private_source_unit_refs=private_source_unit_refs,
+        pdf_table_candidate_refs=pdf_table_candidate_refs,
+        pdf_table_detection_attempt_refs=pdf_table_detection_attempt_refs,
         blocker_refs=blocker_refs,
         artifact_refs_by_type=refs_by_type,
     )

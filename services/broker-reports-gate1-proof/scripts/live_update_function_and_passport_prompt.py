@@ -81,6 +81,27 @@ def main() -> int:
     live_sha = hashlib.sha256(str(after.get("content") or "").encode("utf-8")).hexdigest()
     if live_sha != bundle_sha:
         raise RuntimeError("live_function_bundle_hash_mismatch")
+    current_valves = _get_function_valves(session, base_url)
+    desired_valves = {
+        **current_valves,
+        "pdf_table_intake_enabled": True,
+        "pdf_table_intake_provider_profile": "google_gemini",
+        "pdf_table_intake_model_id": "models/gemini-3.5-flash",
+        "pdf_table_intake_dpi": 150,
+        "pdf_table_intake_maximum_pages": 64,
+        "pdf_table_intake_maximum_candidates_per_page": 32,
+        "pdf_table_intake_horizontal_padding_fraction": 0.08,
+        "pdf_table_intake_vertical_padding_fraction": 0.08,
+        "pdf_structural_repair_shadow_enabled": False,
+        "pdf_vlm_guided_intake_shadow_enabled": False,
+        "pdf_vlm_guided_intake_shadow_page_allowlist": "",
+        "pdf_semantic_header_shadow_enabled": False,
+    }
+    _update_function_valves(session, base_url, desired_valves)
+    live_valves = _get_function_valves(session, base_url)
+    for key, expected in desired_valves.items():
+        if key.startswith("pdf_table_intake_") and live_valves.get(key) != expected:
+            raise RuntimeError(f"live_function_valve_mismatch:{key}")
 
     prompt_summary = _seed_passport_prompt(
         ssh_target=ssh_target,
@@ -109,6 +130,11 @@ def main() -> int:
             "live_content_sha256": live_sha,
             "contains_document_passport": "DocumentPassportPromptResolverFactory" in str(after.get("content") or ""),
             "contains_metadata_clarification": "ClarificationPromptResolverFactory" in str(after.get("content") or ""),
+            "pdf_table_intake_valves": {
+                key: live_valves.get(key)
+                for key in sorted(live_valves)
+                if key.startswith("pdf_table_intake_")
+            },
         },
         "managed_prompt": prompt_summary,
         "managed_clarification_prompt": clarification_prompt_summary,
@@ -148,6 +174,33 @@ def _update_function(
     response = session.post(
         _url(base_url, f"/api/v1/functions/id/{FUNCTION_ID}/update"),
         json=payload,
+        timeout=60,
+    )
+    response.raise_for_status()
+
+
+def _get_function_valves(
+    session: requests.Session, base_url: str
+) -> dict[str, Any]:
+    response = session.get(
+        _url(base_url, f"/api/v1/functions/id/{FUNCTION_ID}/valves"),
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        raise RuntimeError("function_valves_response_invalid")
+    return data
+
+
+def _update_function_valves(
+    session: requests.Session,
+    base_url: str,
+    valves: dict[str, Any],
+) -> None:
+    response = session.post(
+        _url(base_url, f"/api/v1/functions/id/{FUNCTION_ID}/valves/update"),
+        json=valves,
         timeout=60,
     )
     response.raise_for_status()

@@ -503,6 +503,12 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
+PDF Table Intake Gate 1 note, 2026-07-17: the supported native Function route
+is deliberately narrower than the earlier structural shadows. It detects table
+regions only, adds global `8 %` X/Y page-relative padding, persists versioned
+private PNG candidates and hands candidate refs to Gate 2. Cell reconstruction,
+financial semantics and dual-VLM consensus remain downstream work.
+
 Current routing note, 2026-07-12: the bounded Gate 1/Gate 2 technical contour is
 implemented and deployed with repo/live parity. A bounded real `income` target
 passed the same candidate-binding contract through Gemini
@@ -529,6 +535,8 @@ bbox and accepted structure must bind completely to exact source atoms.
 Read first:
 
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
+- [Supported PDF Table Intake Gate 1 contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
+- [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
 - [PDF structural repair consensus contract](contracts/BROKER_REPORTS_PDF_STRUCTURAL_REPAIR_CONSENSUS.v2.md)
 - [PDF VLM-guided intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md)
 - [PDF semantic header projection contract](contracts/BROKER_REPORTS_PDF_SEMANTIC_HEADER_PROJECTION.v1.md)
@@ -553,6 +561,7 @@ Additional context:
 - [PDF table intake filter audit](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_FILTER_AUDIT.report.md)
 - [PDF VLM-guided intake E2E closeout](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_CLOSEOUT.report.md)
 - [PDF VLM-guided intake refactor report](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_REFACTOR.report.md)
+- [Dual-VLM canonical-table research](../reports/2026-07-17/OPENWEBUI_PDF_TABLE_DUAL_VLM_CANONICAL_TABLE_RESEARCH.report.md)
 
 Skip unless needed:
 

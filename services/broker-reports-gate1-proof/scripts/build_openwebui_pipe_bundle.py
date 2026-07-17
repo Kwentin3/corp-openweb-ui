@@ -106,6 +106,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_vlm_product_routing",
     "pdf_vlm_region_binding",
     "pdf_grid_experiment_provider",
+    "pdf_table_intake_runtime",
     "pdf_continuation_discovery",
     "pdf_structural_repair_runtime",
     "pdf_semantic_header_contracts",
@@ -141,8 +142,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.13.0-pdf-structural-semantic-shadow-bundled",
-            package_version="gate1_pdf_structural_semantic_shadow_v1",
+            version="0.14.0-pdf-table-intake-gate1-bundled",
+            package_version="gate1_pdf_table_intake_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
