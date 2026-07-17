@@ -1,0 +1,173 @@
+{
+  "schema_version": "broker_reports_pdf_dual_vlm_literal_manifest_v1",
+  "benchmark_id": "pdf_dual_vlm_literal_v1",
+  "corpus_role": "controlled_development_benchmark",
+  "frozen": true,
+  "case_count": 8,
+  "expected_reference_tables": 9,
+  "source_case_manifest": {
+    "path": "services/broker-reports-gate1-proof/benchmarks/pdf_dual_vlm_fact_v1/manifest.json",
+    "file_sha256": "2cf2a8f4ccedf5c711b1da17e46a6a9e7bceb24d2700bbcb6732e65cd3e83c91",
+    "case_fields_imported": [
+      "case_id",
+      "broker",
+      "category_tags",
+      "relative_pdf",
+      "source_url",
+      "pdf_sha256",
+      "pdf_bytes",
+      "page_number",
+      "page_bbox_points",
+      "render_dpi"
+    ]
+  },
+  "historical_context": {
+    "primary_report": "docs/reports/2026-07-16/OPENWEBUI_PDF_TABLE_DUAL_VLM_FACT_AND_EVIDENCE_BENCHMARK.report.md",
+    "sealed_fact_terminal": "local/stage2/broker_reports_pdf_dual_vlm_fact_benchmark_2026-07-16/run1/terminal.private.json",
+    "human_reviewed_fact_reference": "local/stage2/broker_reports_pdf_dual_vlm_fact_benchmark_2026-07-16/human-reference-final-ru2/reference.human-reviewed.private.json",
+    "human_reviewed_fact_reference_sha256": "ed1a846c2af8a8ffb9af2908398944679bd24b91e25d9f7764ae5202128e3c52",
+    "structural_reference": "services/broker-reports-gate1-proof/benchmarks/pdf_table_strategy_v1/reference.private.json",
+    "structural_reference_file_sha256": "0865544f42aac951f11809173e1035f7237058684ef6f793a2b546a89c181a66",
+    "semantic_fact_scoring_reused": false,
+    "semantic_type_mapping_allowed": false
+  },
+  "rendering_contract": {
+    "dpi": 150,
+    "pixel_format": "png",
+    "lossless": true,
+    "silent_resize_allowed": false,
+    "crop_reproducibility_renders": 2,
+    "padding_fraction_per_page_side_variants": [0.0, 0.005, 0.01, 0.02, 0.03],
+    "padding_is_global": true,
+    "detected_bbox_immutable": true,
+    "clamp_to_page": true
+  },
+  "provider_contracts": {
+    "detection": {
+      "provider_profile": "google_gemini",
+      "provider": "google",
+      "model_id": "models/gemini-3.5-flash",
+      "prompt_contract_version": "dual_vlm_literal_table_detection_v2",
+      "schema_version": "broker_reports_pdf_dual_vlm_literal_detection_v2",
+      "maximum_counted_input_tokens": 24000,
+      "maximum_output_tokens": 4096,
+      "temperature": 0,
+      "thinking_level": "minimal",
+      "input_usd_per_1m_tokens": 1.5,
+      "output_usd_per_1m_tokens": 9.0,
+      "pricing_snapshot_date": "2026-07-16"
+    },
+    "gemini_extraction": {
+      "provider_profile": "google_gemini",
+      "provider": "google",
+      "model_id": "models/gemini-3.5-flash",
+      "prompt_contract_version": "dual_vlm_literal_table_extraction_v2",
+      "schema_version": "broker_reports_pdf_dual_vlm_literal_observations_v2",
+      "maximum_counted_input_tokens": 24000,
+      "maximum_output_tokens": 16384,
+      "temperature": 0,
+      "thinking_level": "minimal",
+      "input_usd_per_1m_tokens": 1.5,
+      "output_usd_per_1m_tokens": 9.0,
+      "pricing_snapshot_date": "2026-07-16"
+    },
+    "openai_extraction": {
+      "provider_profile": "openai_gpt",
+      "provider": "openai",
+      "model_id": "gpt-5.4-mini-2026-03-17",
+      "prompt_contract_version": "dual_vlm_literal_table_extraction_v2",
+      "schema_version": "broker_reports_pdf_dual_vlm_literal_observations_v2",
+      "maximum_counted_input_tokens": 24000,
+      "maximum_output_tokens": 16384,
+      "temperature": 0,
+      "image_detail": "high",
+      "input_usd_per_1m_tokens": 0.75,
+      "cached_input_usd_per_1m_tokens": 0.075,
+      "output_usd_per_1m_tokens": 4.5,
+      "pricing_snapshot_date": "2026-07-16"
+    }
+  },
+  "execution_policy": {
+    "preflight_calls_per_supported_operation": 1,
+    "generate_calls_per_operation": 1,
+    "hidden_retry": false,
+    "provider_failover": false,
+    "third_llm_arbiter": false,
+    "same_crop_bytes_for_extractors": true,
+    "same_resize_policy_for_extractors": true,
+    "reference_available_to_detection_or_extraction_runner": false,
+    "parser_text_available_to_provider": false,
+    "other_provider_result_available_to_provider": false,
+    "malformed_output_repair": false
+  },
+  "literal_lexical_policy": {
+    "unicode_normalization": "NFKC_for_comparison_only",
+    "raw_visible_text_preserved": true,
+    "empty_markers": ["", "-", "–", "—", "−", "--", "N/A", "n/a"],
+    "parentheses_indicate_mechanical_negative": true,
+    "ordinary_thousands_separators_normalized_for_numeric_comparison": true,
+    "translation_or_synonym_mapping": false,
+    "silent_spelling_correction": false
+  },
+  "reference_policy": {
+    "schema_version": "broker_reports_pdf_table_literal_reference_v1",
+    "human_reviewed_required": true,
+    "separate_version_and_checksum": true,
+    "allowed_entry_decisions": ["confirmed", "corrected", "ambiguous", "excluded"],
+    "seal_before_provider_scoring": true,
+    "reference_opened_only_by_scoring_process": true
+  },
+  "evidence_policy": {
+    "parser_role": "passive_literal_and_spatial_evidence_only",
+    "parser_table_construction": false,
+    "independent_ocr_adapter": "unavailable",
+    "raster_no_ocr_status": "vision_only_no_independent_text_evidence",
+    "vision_only_auto_accept": false,
+    "supported_statuses": [
+      "parser_literal_verified",
+      "parser_value_verified_binding_ambiguous",
+      "parser_text_partial",
+      "parser_no_matching_text",
+      "parser_not_applicable_raster",
+      "vision_only_no_independent_text_evidence"
+    ]
+  },
+  "gate_thresholds": {
+    "detection_recall_minimum": 1.0,
+    "detection_precision_minimum": 0.9,
+    "cut_tables_maximum": 0,
+    "merged_tables_maximum": 0,
+    "split_tables_maximum": 0,
+    "invalid_bboxes_maximum": 0,
+    "adjacent_table_inclusion_maximum": 0,
+    "crop_reproducibility_failures_maximum": 0,
+    "provider_exact_visible_value_accuracy_minimum": 0.95,
+    "provider_canonical_numeric_accuracy_minimum": 0.98,
+    "provider_row_value_binding_accuracy_minimum": 0.95,
+    "provider_header_value_binding_accuracy_minimum": 0.95,
+    "provider_invented_entries_maximum": 0,
+    "false_accepted_entries_maximum": 0,
+    "accepted_entry_source_coverage_minimum": 1.0
+  },
+  "detection_regressions": {
+    "false_candidate_case_ids": ["betterment_p02"],
+    "missed_reference_table_case_ids": ["ibkr_midyear_p03"],
+    "invalid_bbox_case_ids": ["ibkr_midyear_p03"],
+    "previously_cut_reference_tables": [
+      "drivewealth_p07:r1",
+      "moomoo_annual_p14:r1",
+      "moomoo_annual_p14:r2",
+      "moomoo_midyear_p10:r1",
+      "moomoo_midyear_p10:r2"
+    ],
+    "all_reference_tables_must_be_checked": true
+  },
+  "required_artifacts": {
+    "literal_reference": "OPENWEBUI_PDF_TABLE_LITERAL_REFERENCE.v1.json",
+    "padding_experiment": "OPENWEBUI_PDF_TABLE_CROP_PADDING_EXPERIMENT.v1.json",
+    "terminal": "OPENWEBUI_PDF_TABLE_DUAL_VLM_LITERAL_TERMINAL.v1.json",
+    "diffs": "OPENWEBUI_PDF_TABLE_DUAL_VLM_LITERAL_DIFFS.v1.json",
+    "review_bundle": "OPENWEBUI_PDF_TABLE_DUAL_VLM_LITERAL_DIFF_REVIEW",
+    "report": "OPENWEBUI_PDF_TABLE_DUAL_VLM_LITERAL_KEY_VALUE_BENCHMARK.report.md"
+  }
+}

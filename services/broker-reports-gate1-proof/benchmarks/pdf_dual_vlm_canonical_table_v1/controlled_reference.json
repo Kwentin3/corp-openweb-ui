@@ -1,0 +1,162 @@
+{
+  "schema_version": "broker_reports_pdf_dual_vlm_canonical_table_controlled_reference_v1",
+  "benchmark_id": "pdf_dual_vlm_canonical_table_v1",
+  "authority": {
+    "kind": "controlled_source_exact_ground_truth",
+    "accuracy_scoring_allowed": true,
+    "human_review_required": false,
+    "provider_or_consensus_used_as_truth": false
+  },
+  "rendering": {
+    "renderer": "pymupdf",
+    "renderer_version": "1.26.5",
+    "page_width_points": 800,
+    "page_height_points": 600,
+    "render_dpi": 150,
+    "detected_table_bbox_normalized": [
+      0.16,
+      0.18,
+      0.84,
+      0.82
+    ],
+    "padding_fraction_per_page_side": 0.08,
+    "padded_crop_bbox_normalized": [
+      0.08,
+      0.1,
+      0.92,
+      0.9
+    ],
+    "font": "helv",
+    "font_size": 13
+  },
+  "cases": [
+    {
+      "case_id": "controlled_simple_ruled",
+      "category_tags": [
+        "simple_ruled",
+        "punctuation",
+        "parentheses"
+      ],
+      "visual_style": "ruled",
+      "table": {
+        "schema_version": "broker_reports_canonical_table_v1",
+        "table_id": "controlled_simple_ruled",
+        "row_count": 3,
+        "column_count": 3,
+        "cells": [
+          {"row_index": 0, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Item"},
+          {"row_index": 0, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "2024"},
+          {"row_index": 0, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "2025"},
+          {"row_index": 1, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Cash"},
+          {"row_index": 1, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "1,000"},
+          {"row_index": 1, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "1,250"},
+          {"row_index": 2, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Fees"},
+          {"row_index": 2, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "(50)"},
+          {"row_index": 2, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "(75)"}
+        ]
+      }
+    },
+    {
+      "case_id": "controlled_merged_header",
+      "category_tags": [
+        "merged_cell",
+        "multi_level_layout"
+      ],
+      "visual_style": "ruled",
+      "table": {
+        "schema_version": "broker_reports_canonical_table_v1",
+        "table_id": "controlled_merged_header",
+        "row_count": 4,
+        "column_count": 3,
+        "cells": [
+          {"row_index": 0, "column_index": 0, "row_span": 1, "column_span": 3, "content_state": "present", "source_text": "Summary"},
+          {"row_index": 1, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Line"},
+          {"row_index": 1, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Q1"},
+          {"row_index": 1, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Q2"},
+          {"row_index": 2, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Alpha"},
+          {"row_index": 2, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "10"},
+          {"row_index": 2, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "20"},
+          {"row_index": 3, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Beta"},
+          {"row_index": 3, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "30"},
+          {"row_index": 3, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "40"}
+        ]
+      }
+    },
+    {
+      "case_id": "controlled_sparse_empty",
+      "category_tags": [
+        "explicit_empty_cells",
+        "sparse"
+      ],
+      "visual_style": "ruled",
+      "table": {
+        "schema_version": "broker_reports_canonical_table_v1",
+        "table_id": "controlled_sparse_empty",
+        "row_count": 4,
+        "column_count": 3,
+        "cells": [
+          {"row_index": 0, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Name"},
+          {"row_index": 0, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Left"},
+          {"row_index": 0, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Right"},
+          {"row_index": 1, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "A"},
+          {"row_index": 1, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "empty", "source_text": ""},
+          {"row_index": 1, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "7"},
+          {"row_index": 2, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "B"},
+          {"row_index": 2, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "3"},
+          {"row_index": 2, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "empty", "source_text": ""},
+          {"row_index": 3, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "C"},
+          {"row_index": 3, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "empty", "source_text": ""},
+          {"row_index": 3, "column_index": 2, "row_span": 1, "column_span": 1, "content_state": "empty", "source_text": ""}
+        ]
+      }
+    },
+    {
+      "case_id": "controlled_borderless_raw_format",
+      "category_tags": [
+        "borderless",
+        "raw_format",
+        "date_like_text",
+        "currency_mark"
+      ],
+      "visual_style": "borderless",
+      "table": {
+        "schema_version": "broker_reports_canonical_table_v1",
+        "table_id": "controlled_borderless_raw_format",
+        "row_count": 4,
+        "column_count": 2,
+        "cells": [
+          {"row_index": 0, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Printed text"},
+          {"row_index": 0, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Value"},
+          {"row_index": 1, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Date as printed"},
+          {"row_index": 1, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "01/02/25"},
+          {"row_index": 2, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Price as printed"},
+          {"row_index": 2, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "$20.00"},
+          {"row_index": 3, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Words"},
+          {"row_index": 3, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Cash - pending"}
+        ]
+      }
+    },
+    {
+      "case_id": "controlled_unreadable",
+      "category_tags": [
+        "explicit_unreadable_cell",
+        "obscured_source"
+      ],
+      "visual_style": "ruled",
+      "table": {
+        "schema_version": "broker_reports_canonical_table_v1",
+        "table_id": "controlled_unreadable",
+        "row_count": 3,
+        "column_count": 2,
+        "cells": [
+          {"row_index": 0, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Field"},
+          {"row_index": 0, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Value"},
+          {"row_index": 1, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Readable"},
+          {"row_index": 1, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "ABC"},
+          {"row_index": 2, "column_index": 0, "row_span": 1, "column_span": 1, "content_state": "present", "source_text": "Obscured"},
+          {"row_index": 2, "column_index": 1, "row_span": 1, "column_span": 1, "content_state": "unreadable", "source_text": ""}
+        ]
+      }
+    }
+  ]
+}

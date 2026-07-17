@@ -1,0 +1,98 @@
+{
+  "schema_version": "broker_reports_pdf_dual_vlm_canonical_table_manifest_v1",
+  "benchmark_id": "pdf_dual_vlm_canonical_table_v1",
+  "corpus_role": "controlled_research_benchmark",
+  "frozen": true,
+  "production_authority": false,
+  "canonical_contract": {
+    "schema_version": "broker_reports_canonical_table_v1",
+    "prompt_contract_version": "dual_vlm_canonical_table_normalizer_v4",
+    "grid_index_origin": 0,
+    "merged_cell_representation": "one_top_left_anchor_with_spans",
+    "content_states": [
+      "empty",
+      "present",
+      "unreadable"
+    ],
+    "coordinates_allowed": false,
+    "cell_roles_allowed": false,
+    "content_types_allowed": false,
+    "financial_semantics_allowed": false
+  },
+  "padding_policy": {
+    "policy_id": "global_page_side_padding_v1",
+    "fraction_per_page_side": 0.08,
+    "meaning": "subtract/add 8 percent of full page width or height on each detected bbox side",
+    "global_for_every_table": true,
+    "per_table_tuning": false,
+    "detected_bbox_immutable": true,
+    "clamp_to_page": true,
+    "render_dpi": 150,
+    "pixel_format": "png",
+    "lossless": true,
+    "silent_resize_allowed": false
+  },
+  "upstream_detection": {
+    "detector_count": 1,
+    "provider": "google",
+    "model_id": "models/gemini-3.5-flash",
+    "prompt_contract_version": "dual_vlm_literal_table_detection_v2",
+    "schema_version": "broker_reports_pdf_dual_vlm_literal_detection_v2",
+    "frozen_terminal_sha256": "301a328a70ac90e228e1bdc01d010381f226479c37f9fbe85c15537df24bd65a",
+    "reference_available_to_detector": false
+  },
+  "provider_contracts": {
+    "gemini": {
+      "provider_profile": "google_gemini",
+      "provider": "google",
+      "model_id": "models/gemini-3.5-flash",
+      "maximum_counted_input_tokens": 24000,
+      "maximum_output_tokens": 16384,
+      "temperature": 0,
+      "thinking_level": "minimal"
+    },
+    "openai": {
+      "provider_profile": "openai_gpt",
+      "provider": "openai",
+      "model_id": "gpt-5.4-mini-2026-03-17",
+      "maximum_counted_input_tokens": 24000,
+      "maximum_output_tokens": 16384,
+      "temperature": 0,
+      "image_detail": "high"
+    }
+  },
+  "execution_policy": {
+    "same_crop_bytes_for_both_providers": true,
+    "same_logical_prompt_and_canonical_schema": true,
+    "one_generate_call_per_provider_per_crop": true,
+    "hidden_retry": false,
+    "provider_failover": false,
+    "third_vlm": false,
+    "reference_available_to_providers": false,
+    "other_provider_answer_available_to_provider": false,
+    "parser_table_structure_available_to_providers": false
+  },
+  "corpora": {
+    "controlled": {
+      "reference": "controlled_reference.json",
+      "case_count": 5,
+      "authority": "exact_source_defined_ground_truth",
+      "accuracy_scoring_allowed": true
+    },
+    "real_pdf": {
+      "case_manifest": "../pdf_table_strategy_v1/manifest.json",
+      "historical_reference": "../pdf_table_strategy_v1/reference.private.json",
+      "expected_table_count": 9,
+      "historical_reference_human_reviewed": false,
+      "accuracy_scoring_allowed": false,
+      "allowed_use": "consensus diagnostics and clearly labelled bbox containment diagnostic only"
+    }
+  },
+  "acceptance_policy": {
+    "automatic_acceptance_requires_full_table_consensus": true,
+    "false_consensus_allowed": 0,
+    "accuracy_claim_requires_authoritative_truth": true,
+    "real_pdf_accuracy_without_review_forbidden": true,
+    "production_readiness_claim_forbidden": true
+  }
+}
