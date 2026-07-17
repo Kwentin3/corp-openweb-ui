@@ -2,7 +2,7 @@
 
 Дата: 2026-07-17
 
-Статус: реализован и локально проверен; формальное закрытие зависит от stage operator proof.
+Статус: `CLOSED`; реализация, stage parity и operator proof подтверждены 2026-07-17.
 
 ## Что делает Gate 1
 
@@ -90,3 +90,14 @@ Dual-VLM сравнение остаётся отдельным исследов
 Поддерживаемый entrypoint — `PdfTableIntakeRuntimeFactory.create_for_openwebui`. Pipe не создаёт provider adapter и renderer напрямую. Live proof обязан идти через Workspace Model, чей `base_model_id` равен `broker_reports_gate1_pipe`, и через `/api/chat/completions` с обычными OpenWebUI file refs.
 
 Операционная инструкция: [BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK](../operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md).
+
+## Закрывающее доказательство
+
+- repository revision: `7a960228ff8a3d1a3816c6d9b4c8f8c0c2c03750`;
+- live bundle SHA-256: `20d2924386bd4950bda5990d834747c910a2f969d3b1e3f3208d7372c44f529b`;
+- representative PDF SHA-256: `c26a89cf4b1e8950eac7fdcff8000b450caeee8c4711418713ab70d51269cce2`;
+- 8 страниц, 11 приватных кандидатов, 0 failed pages;
+- все 13 автоматических operator checks прошли;
+- оператор просмотрел все 11 PNG и подтвердил пригодность строк, колонок, крайних подписей и итогов для Gate 2.
+
+Датированный итог: [closure report](../../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md).

@@ -508,6 +508,8 @@ is deliberately narrower than the earlier structural shadows. It detects table
 regions only, adds global `8 %` X/Y page-relative padding, persists versioned
 private PNG candidates and hands candidate refs to Gate 2. Cell reconstruction,
 financial semantics and dual-VLM consensus remain downstream work.
+The gate is formally closed by revision `7a96022`, live bundle parity and the
+dated 8-page / 11-candidate operator proof.
 
 Current routing note, 2026-07-12: the bounded Gate 1/Gate 2 technical contour is
 implemented and deployed with repo/live parity. A bounded real `income` target

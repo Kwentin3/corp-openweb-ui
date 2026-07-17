@@ -4,8 +4,8 @@ Date: 2026-07-11
 
 Status: bounded technical contour implemented and deployed with repo/live
 parity; PDF Table Intake Gate 1 is implemented with region-only VLM detection
-and deterministic `8 %` page-relative crop padding, with formal closure pending
-its dated stage operator proof; the full customer pilot remains a separate gate.
+and deterministic `8 %` page-relative crop padding and was formally closed by
+the 2026-07-17 stage operator proof; the full customer pilot remains a separate gate.
 
 ## 1. Purpose
 

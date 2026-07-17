@@ -2,7 +2,7 @@
 
 Дата: 2026-07-17
 
-Статус отчёта: implementation и local regression завершены; stage delivery и operator visual review ещё не внесены.
+Статус отчёта: финальный; Gate 1 закрыт, stage delivery и operator visual review подтверждены.
 
 ## Короткий вывод
 
@@ -10,7 +10,7 @@
 
 Этот контур намеренно не строит строки, столбцы, ячейки или canonical JSON таблицы, не интерпретирует финансовые значения и не сравнивает две VLM. Dual-VLM материалы сохранены как исследовательский слой для следующих ворот.
 
-Формальное закрытие нельзя объявлять до live stage proof и визуального осмотра полученных кропов.
+Формальное закрытие подтверждено live stage proof и визуальным осмотром всех полученных кропов.
 
 ## Реализованный путь
 
@@ -45,9 +45,9 @@ Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate
 
 ## Local proof
 
-- новый Gate 1 набор: `8 passed`;
+- новый Gate 1 набор: `10 passed`;
 - Pipe/bundle и связанные проверки: `46 passed` в целевом наборе;
-- полный сервисный регресс: `879 passed, 5 warnings`;
+- полный сервисный регресс: `881 passed, 5 warnings`;
 - предупреждения относятся к SWIG/PyMuPDF deprecation и не являются падениями;
 - Ruff для изменённых Python-файлов: passed;
 - compileall: passed;
@@ -71,6 +71,38 @@ Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate
 
 Это не ошибка 8-процентного padding и не основание для скрытого увеличения полей. Детекторный контракт повышен до request v3 / response v2: позиционный bbox-массив удалён, а оси передаются только именованными полями `left_x`, `top_y`, `right_x`, `bottom_y`. Legacy-массив теперь даёт явный contract failure. Следующий stage proof должен подтвердить исправление на изображениях; до него формальный статус остаётся pending.
 
+## Stage iteration 3: accepted operator proof
+
+- repository revision: `7a960228ff8a3d1a3816c6d9b4c8f8c0c2c03750`;
+- live Function bundle SHA-256: `20d2924386bd4950bda5990d834747c910a2f969d3b1e3f3208d7372c44f529b`;
+- input: `bny-pershing-tax-sample.pdf`, SHA-256 `c26a89cf4b1e8950eac7fdcff8000b450caeee8c4711418713ab70d51269cce2`, 351004 bytes;
+- Workspace Model: `test`, `base_model_id=broker_reports_gate1_pipe`;
+- configured detector: `google_gemini / models/gemini-3.5-flash`, exact model match;
+- `pdf_table_intake_policy_v3`, response contract v2;
+- 8 страниц, 11 кандидатов, 0 failed pages;
+- все 13 operator checks: passed;
+- repo/live scoped Gate 1 parity: passed.
+
+Именованные координаты устранили перестановку осей. На странице 3 четыре самостоятельные таблицы получили правильные левые границы около `x=0.034/0.488`; глобальный padding `0.08` довёл крайние кропы до страницы без per-table tuning. На страницах 4–8 больше нет отдельных заголовочных fragments, а continuation-таблицы содержат колонки, все видимые строки и итоги.
+
+Оператор открыл все 11 PNG. Кандидаты признаны пригодными для downstream VLM: крайние подписи и числовые значения читаемы, totals не потеряны, боковые таблицы не склеены. На первом листе 1099-B (`candidate-009`) первая строка формового заголовка частично осталась за пределом кропа, но табличные заголовки колонок, все строки и итог сохранены. Это записано как известное ограничение визуального детектора, а не скрытое изменение 8-процентной политики.
+
+Candidate identity и PNG SHA-256:
+
+| Page | Candidate | PNG SHA-256 |
+| --- | --- | --- |
+| 2 | `pdftable_42dbea662fc41eb8a6e42b6d` | `0bdb2eb8d2851b65a1500ef4afcda35db7ea70de54991040a829d94267d3eb8b` |
+| 3 | `pdftable_b7d5e60b252b9f6d3ce5c504` | `628d31d941e4bfeed738a9108a12218a1cba5bd9d38d4aba2efe85658b07b09f` |
+| 3 | `pdftable_b15c204bb093a0669857270a` | `b9ffdd1c2d4b13887b068795932974f5d9279f5ce83799735c3ddf19c50cc3f4` |
+| 3 | `pdftable_fac29e833a0151f9053b2f58` | `49d68a8357ed117edaa77e93f21c22962b70e106dbd93ee168fb1a03957c38d7` |
+| 3 | `pdftable_6fb8d4179bb2bc51f79323d1` | `cb80e1abe07b1141c84e8a8c48127f8bd96ddf784fa2d2a071d5bbece5ee3c18` |
+| 4 | `pdftable_41f3bf9206b3ad2238212b78` | `8dc46d8539682da3fc34e4f9d7c85c701eaa4cb00ab2cc4e4d02b82436cb28df` |
+| 4 | `pdftable_4a3f2151f2d4f0ee27f9a6d0` | `345a3509bfcdb926531f938e8c2ebf539a8fcf1a3c372ae1753305c4016c5578` |
+| 5 | `pdftable_519983679de77f14727ae272` | `091bf128701aa428bf234dee9566af51ea30fe0af634ce4647c76b3c482bc279` |
+| 6 | `pdftable_d36e3d7335cd67f691185330` | `c896777feffb15e4667f22470b89c6b866fe89e903d2fb100adea0af1c3ef945` |
+| 7 | `pdftable_1b32268e8c968e0720917cd8` | `3ca28172a0961f83c24fcc96386fb85f466d9e7c11d6ecb88e9948572e14116c` |
+| 8 | `pdftable_b975bd3cf7f09eb894f999d9` | `bdee7d026cada0c5b8005f2f4a5bb310e5c130d89a3e93de1cad89b382f210d4` |
+
 ## Factory и closed-world boundary
 
 - Pipe использует `PdfTableIntakeRuntimeFactory`;
@@ -85,22 +117,18 @@ Gate 2 handoff дополнен `pdf_table_candidate_refs`, `pdf_table_candidate
 - [operator runbook](../../stage2/operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md);
 - ссылки добавлены в Stage 2 README, context index, roadmap и Broker Reports blueprint.
 
-## Незакрытые доказательства
+## Known limitations и соседние границы
 
-До финального статуса нужны:
+- VLM detection остаётся вероятностным: строгая схема ловит malformed output, но не гарантирует идеальную геометрию на любом новом шаблоне. Поэтому runbook сохраняет обязательный visual review для новых representative formats.
+- Stage proof подтверждает Gate 1 raster-candidate boundary, а не качество будущего canonical table JSON.
+- Полный `--scope all` verifier ранее обнаружил независимый repo/live drift соседних Gate 2 source/domain bundles. Этот delivery его не менял и не объявляет full Stage 2 parity; Gate 1 scoped parity подтверждён отдельно.
+- Metadata/source eligibility handoff для canary PDF остался blocked из-за `encrypted_file`, но `pdf_table_intake_contract.gate2_boundary_ready=true` и все 11 raster refs доступны. Это разные границы: таблицы готовы для Gate 2 normalizer, документ не объявлен пригодным для source-fact extraction.
+- Dual-VLM consensus, canonical table JSON и финансовая интерпретация отложены в Gate 2 и не входят в это закрытие.
 
-1. commit и push implementation revision;
-2. обновление live OpenWebUI Function;
-3. repo/live bundle SHA parity;
-4. явные stage valves с `0.08/0.08`;
-5. operator proof через Workspace Model и реальные PDF;
-6. сохранённые candidate/attempt/handoff артефакты;
-7. ручной визуальный осмотр PNG-кандидатов;
-8. финальный parity check из чистого дерева.
+## Финальные статусы
 
-## Текущие формальные статусы
-
-- `GATE_1_TABLE_DETECTION_AND_CROPPING: PENDING_STAGE_PROOF`
-- `PRODUCT_ACCEPTANCE: PENDING_OPERATOR_REVIEW`
-- `STAGE_DELIVERY: NOT_YET_PROVEN`
-- `DOWNSTREAM_BOUNDARY: LOCALLY_VERIFIED`
+- `GATE_1_TABLE_DETECTION_AND_CROPPING: CLOSED`
+- `PRODUCT_OWNER_ACCEPTED: TRUE`
+- `PRODUCT_ACCEPTANCE: ACCEPTED`
+- `STAGE_DELIVERY: PROVEN`
+- `DOWNSTREAM_BOUNDARY: READY_FOR_GATE_2`
