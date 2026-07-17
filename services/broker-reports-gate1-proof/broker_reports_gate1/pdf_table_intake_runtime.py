@@ -23,11 +23,11 @@ from .pdf_table_raster import (
 )
 
 
-PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v2"
-PDF_TABLE_DETECTION_RESPONSE_SCHEMA = "broker_reports_pdf_table_detection_response_v1"
+PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v3"
+PDF_TABLE_DETECTION_RESPONSE_SCHEMA = "broker_reports_pdf_table_detection_response_v2"
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
-PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v2"
+PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v3"
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -85,9 +85,7 @@ class PdfTableIntakeRuntimeFactory:
     def _create(self, provider: Any) -> "PdfTableIntakeRuntime":
         raster = PdfTableRasterFactory(
             PdfTableRasterConfig(
-                horizontal_padding_fraction=(
-                    self.config.horizontal_padding_fraction
-                ),
+                horizontal_padding_fraction=(self.config.horizontal_padding_fraction),
                 vertical_padding_fraction=self.config.vertical_padding_fraction,
             )
         ).create()
@@ -112,7 +110,9 @@ class PdfTableIntakeRuntimeFactory:
 
 
 class PdfTableIntakeRuntime:
-    def __init__(self, config: PdfTableIntakeConfig, provider: Any, raster: Any) -> None:
+    def __init__(
+        self, config: PdfTableIntakeConfig, provider: Any, raster: Any
+    ) -> None:
         self.config = config
         self.provider = provider
         self.raster = raster
@@ -148,7 +148,9 @@ class PdfTableIntakeRuntime:
         try:
             qualification = self.provider.qualify()
         except Exception as exc:
-            raise PdfTableIntakeError("pdf_table_detector_qualification_failed") from exc
+            raise PdfTableIntakeError(
+                "pdf_table_detector_qualification_failed"
+            ) from exc
         if qualification.get("status") != "qualified":
             raise PdfTableIntakeError("pdf_table_detector_not_qualified")
 
@@ -170,7 +172,11 @@ class PdfTableIntakeRuntime:
                     )
                     candidates.extend(page_candidates)
                     attempts.append(attempt)
-                except (PdfTableIntakeError, PdfTableRasterError, PdfGridProviderError) as exc:
+                except (
+                    PdfTableIntakeError,
+                    PdfTableRasterError,
+                    PdfGridProviderError,
+                ) as exc:
                     code = getattr(exc, "code", "pdf_table_intake_page_failed")
                     failures.append(
                         {
@@ -420,7 +426,9 @@ class PdfTableIntakeRuntime:
         try:
             import fitz
         except ImportError as exc:
-            raise PdfTableIntakeError("pdf_table_intake_dependency_unavailable") from exc
+            raise PdfTableIntakeError(
+                "pdf_table_intake_dependency_unavailable"
+            ) from exc
         document = fitz.open(stream=pdf_bytes, filetype="pdf")
         try:
             if len(document) < 1:
@@ -447,13 +455,14 @@ class PdfTableIntakeRuntime:
             "page_number": page_number,
             "task": "detect_table_regions_only",
             "instructions": [
-                "Inspect the entire page image and return every visible table region.",
+                "Inspect the entire page image and return every complete visible table region.",
                 "A table can be ruled or borderless. Sparse but aligned content is evidence of rows or columns.",
                 "Return the OUTER boundary of the complete table, never an interior numeric or data-only rectangle.",
                 "The left boundary must include the leftmost row label or first column, and the right boundary must include the rightmost label, value, or border.",
                 "Include the complete title, all header rows, all visible data rows, totals, footnotes, currency symbols, and edge labels that visually belong to the table.",
                 "For a continued multi-page table, include the complete visible continuation from its repeated header through its last visible row or total on this page.",
                 "Do not split one physical table into arbitrary panels. Separate only side-by-side tables that have independent headings or outer borders.",
+                "A document identity header, table title strip, data-only fragment, or isolated note is not a complete table region and must not be returned by itself.",
                 "If a table border, header, row label, or row content reaches a page edge, use coordinate 0 or 1 for that edge.",
                 "Before answering, verify that no title, header, first label, last label, outer border, continuation row, or total lies outside the bbox.",
                 "Return normalized page coordinates for the complete visual table. Deterministic padding is only a safety margin and must not compensate for an incomplete boundary.",
@@ -463,7 +472,13 @@ class PdfTableIntakeRuntime:
             ],
             "coordinate_contract": {
                 "space": "normalized_page_top_left",
-                "order": ["x0", "y0", "x1", "y1"],
+                "representation": "named_fields_not_positional_array",
+                "fields": {
+                    "left_x": "horizontal left edge",
+                    "top_y": "vertical top edge",
+                    "right_x": "horizontal right edge",
+                    "bottom_y": "vertical bottom edge",
+                },
                 "range": [0, 1],
             },
         }
@@ -494,13 +509,35 @@ def table_detection_output_schema() -> dict[str, Any]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["bbox_normalized"],
+                    "required": ["outer_bbox_normalized"],
                     "properties": {
-                        "bbox_normalized": {
-                            "type": "array",
-                            "minItems": 4,
-                            "maxItems": 4,
-                            "items": {"type": "number", "minimum": 0, "maximum": 1},
+                        "outer_bbox_normalized": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "left_x",
+                                "top_y",
+                                "right_x",
+                                "bottom_y",
+                            ],
+                            "properties": {
+                                "left_x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "top_y": {"type": "number", "minimum": 0, "maximum": 1},
+                                "right_x": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                                "bottom_y": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1,
+                                },
+                            },
                         }
                     },
                 },
@@ -544,19 +581,26 @@ def validate_table_detection_output(
         raise PdfTableIntakeError("pdf_table_detector_candidate_count_invalid")
     regions: list[list[float]] = []
     for region in raw_regions:
-        if not isinstance(region, dict) or set(region) != {"bbox_normalized"}:
+        if not isinstance(region, dict) or set(region) != {"outer_bbox_normalized"}:
             raise PdfTableIntakeError("pdf_table_detector_region_shape_invalid")
-        bbox = region.get("bbox_normalized")
-        if not isinstance(bbox, list) or len(bbox) != 4:
+        bbox = region.get("outer_bbox_normalized")
+        expected_bbox_keys = {"left_x", "top_y", "right_x", "bottom_y"}
+        if not isinstance(bbox, dict) or set(bbox) != expected_bbox_keys:
             raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")
+        ordered_bbox = [
+            bbox["left_x"],
+            bbox["top_y"],
+            bbox["right_x"],
+            bbox["bottom_y"],
+        ]
         if not all(
             isinstance(item, (int, float))
             and not isinstance(item, bool)
             and math.isfinite(float(item))
-            for item in bbox
+            for item in ordered_bbox
         ):
             raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")
-        normalized = [round(float(item), 9) for item in bbox]
+        normalized = [round(float(item), 9) for item in ordered_bbox]
         x0, y0, x1, y1 = normalized
         if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
             raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")

@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.14.0-pdf-table-intake-gate1
+version: 0.15.0-pdf-table-intake-gate1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -428,7 +428,7 @@ class Pipe:
     ) -> dict[str, Any]:
         summary = {
             "schema_version": "broker_reports_pdf_table_intake_run_v1",
-            "policy_version": "pdf_table_intake_policy_v2",
+            "policy_version": "pdf_table_intake_policy_v3",
             "enabled": config.enabled,
             "status": "failed",
             "documents_total": documents_total,
@@ -438,7 +438,7 @@ class Pipe:
             "failed_pages": [],
             "terminal_failure_code": failure_code,
             "detector_contract_version": (
-                "broker_reports_pdf_table_detection_response_v1"
+                "broker_reports_pdf_table_detection_response_v2"
             ),
             "candidate_contract_version": "broker_reports_pdf_table_candidate_v1",
             "raster_policy_version": "pdf_table_candidate_raster_policy_v1",

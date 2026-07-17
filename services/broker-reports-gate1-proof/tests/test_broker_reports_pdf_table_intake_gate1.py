@@ -14,7 +14,10 @@ sys.path.insert(0, str(ROOT))
 
 from broker_reports_gate1.artifact_models import ArtifactAccessContext
 from broker_reports_gate1.artifact_retention import build_retention_policy
-from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.artifact_store import (
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
+)
 from broker_reports_gate1.gate2_handoff import persist_gate1_result
 from broker_reports_gate1.inputs import FileInput
 from broker_reports_gate1.normalizer import Gate1Normalizer
@@ -30,6 +33,7 @@ from broker_reports_gate1.pdf_table_raster import (
     PdfTableRasterError,
     PdfTableRasterFactory,
 )
+
 
 def _single_page_pdf(*, width: float = 100, height: float = 200) -> bytes:
     document = fitz.open()
@@ -79,7 +83,15 @@ class StaticDetectorProvider:
             "request_id": request_id,
             "table_presence": "present" if self.regions else "absent",
             "regions": [
-                {"bbox_normalized": list(region)} for region in self.regions
+                {
+                    "outer_bbox_normalized": {
+                        "left_x": region[0],
+                        "top_y": region[1],
+                        "right_x": region[2],
+                        "bottom_y": region[3],
+                    }
+                }
+                for region in self.regions
             ],
         }
         if self.malformed:
@@ -109,8 +121,22 @@ class PdfTableDetectionContractTest(unittest.TestCase):
             "request_id": "request-1",
             "table_presence": "present",
             "regions": [
-                {"bbox_normalized": [0.5, 0.6, 0.9, 0.9]},
-                {"bbox_normalized": [0.1, 0.1, 0.4, 0.3]},
+                {
+                    "outer_bbox_normalized": {
+                        "left_x": 0.5,
+                        "top_y": 0.6,
+                        "right_x": 0.9,
+                        "bottom_y": 0.9,
+                    }
+                },
+                {
+                    "outer_bbox_normalized": {
+                        "left_x": 0.1,
+                        "top_y": 0.1,
+                        "right_x": 0.4,
+                        "bottom_y": 0.3,
+                    }
+                },
             ],
         }
         self.assertEqual(
@@ -121,23 +147,36 @@ class PdfTableDetectionContractTest(unittest.TestCase):
         )
 
     def test_detector_request_requires_outer_boundary_not_data_only_box(self):
-        model_view = PdfTableIntakeRuntimeFactory(
-            PdfTableIntakeConfig(enabled=True)
-        ).create_with_provider(StaticDetectorProvider([]))._model_view(
-            request_id="request-1", page_number=1
+        model_view = (
+            PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+            .create_with_provider(StaticDetectorProvider([]))
+            ._model_view(request_id="request-1", page_number=1)
         )
         instructions = " ".join(model_view["instructions"])
         self.assertIn("OUTER boundary", instructions)
         self.assertIn("leftmost row label or first column", instructions)
         self.assertIn("complete visible continuation", instructions)
         self.assertIn("padding is only a safety margin", instructions)
+        self.assertEqual(
+            "named_fields_not_positional_array",
+            model_view["coordinate_contract"]["representation"],
+        )
 
     def test_detector_rejects_semantics_uncertainty_and_ambiguous_regions(self):
         base = {
             "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
             "request_id": "request-1",
             "table_presence": "present",
-            "regions": [{"bbox_normalized": [0.1, 0.1, 0.8, 0.8]}],
+            "regions": [
+                {
+                    "outer_bbox_normalized": {
+                        "left_x": 0.1,
+                        "top_y": 0.1,
+                        "right_x": 0.8,
+                        "bottom_y": 0.8,
+                    }
+                }
+            ],
         }
         with self.assertRaisesRegex(
             PdfTableIntakeError, "pdf_table_detector_output_shape_invalid"
@@ -160,12 +199,40 @@ class PdfTableDetectionContractTest(unittest.TestCase):
                 {
                     **base,
                     "regions": [
-                        {"bbox_normalized": [0.1, 0.1, 0.8, 0.8]},
-                        {"bbox_normalized": [0.11, 0.11, 0.79, 0.79]},
+                        {
+                            "outer_bbox_normalized": {
+                                "left_x": 0.1,
+                                "top_y": 0.1,
+                                "right_x": 0.8,
+                                "bottom_y": 0.8,
+                            }
+                        },
+                        {
+                            "outer_bbox_normalized": {
+                                "left_x": 0.11,
+                                "top_y": 0.11,
+                                "right_x": 0.79,
+                                "bottom_y": 0.79,
+                            }
+                        },
                     ],
                 },
                 request_id="request-1",
                 maximum_candidates=8,
+            )
+
+    def test_detector_rejects_legacy_positional_bbox_array(self):
+        value = {
+            "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+            "request_id": "request-1",
+            "table_presence": "present",
+            "regions": [{"bbox_normalized": [0.1, 0.2, 0.8, 0.9]}],
+        }
+        with self.assertRaisesRegex(
+            PdfTableIntakeError, "pdf_table_detector_region_shape_invalid"
+        ):
+            validate_table_detection_output(
+                value, request_id="request-1", maximum_candidates=8
             )
 
 
@@ -222,7 +289,9 @@ class PdfTableRasterCandidateTest(unittest.TestCase):
             detector_contract_version=PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
             detector_identity={"model": "test"},
         )
-        self.assertEqual([12.0, 32.0, 88.0, 168.0], rendered["manifest"]["rendered_bbox"])
+        self.assertEqual(
+            [12.0, 32.0, 88.0, 168.0], rendered["manifest"]["rendered_bbox"]
+        )
         with self.assertRaisesRegex(
             PdfTableRasterError, "pdf_table_raster_padding_fraction_invalid"
         ):
@@ -301,20 +370,20 @@ class PdfTableIntakeRuntimeTest(unittest.TestCase):
             entrypoint="unit_test",
             trigger_type="unit_test",
         )
-        intake = PdfTableIntakeRuntimeFactory(
-            PdfTableIntakeConfig(enabled=True)
-        ).create_with_provider(
-            StaticDetectorProvider([[0.2, 0.2, 0.8, 0.8]])
-        ).run(
-            [
-                {
-                    "document_ref": result.package["document_inventory"]["documents"][0][
-                        "document_id"
-                    ],
-                    "pdf_bytes": pdf_bytes,
-                    "pdf_sha256": pdf_sha256,
-                }
-            ]
+        intake = (
+            PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+            .create_with_provider(StaticDetectorProvider([[0.2, 0.2, 0.8, 0.8]]))
+            .run(
+                [
+                    {
+                        "document_ref": result.package["document_inventory"][
+                            "documents"
+                        ][0]["document_id"],
+                        "pdf_bytes": pdf_bytes,
+                        "pdf_sha256": pdf_sha256,
+                    }
+                ]
+            )
         )
         result.package["pdf_table_intake"] = intake.safe_summary
         result.package["private_pdf_table_candidates"] = intake.private_candidates
@@ -370,7 +439,9 @@ class PdfTableIntakeRuntimeTest(unittest.TestCase):
             handoff_record = store.get_record_unchecked(manifest.gate2_handoff_ref)
             self.assertIsNotNone(handoff_record)
             handoff = store.read_payload(handoff_record)
-            self.assertTrue(handoff["pdf_table_intake_contract"]["gate2_boundary_ready"])
+            self.assertTrue(
+                handoff["pdf_table_intake_contract"]["gate2_boundary_ready"]
+            )
             self.assertEqual(
                 manifest.pdf_table_candidate_refs,
                 handoff["pdf_table_candidate_refs"],

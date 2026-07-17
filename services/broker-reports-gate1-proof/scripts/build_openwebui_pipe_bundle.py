@@ -142,8 +142,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.14.0-pdf-table-intake-gate1-bundled",
-            package_version="gate1_pdf_table_intake_v1",
+            version="0.15.0-pdf-table-intake-gate1-bundled",
+            package_version="gate1_pdf_table_intake_v2",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )

@@ -54,7 +54,7 @@ FUNCTION_CONTRACTS = (
             "gate2_provider_execution_metadata_v1",
             "PdfGridExperimentProviderFactory",
             "PdfTableIntakeRuntimeFactory",
-            "broker_reports_pdf_table_detection_response_v1",
+            "broker_reports_pdf_table_detection_response_v2",
             "broker_reports_pdf_table_candidate_v1",
             "pdf_table_candidate_raster_policy_v1",
             "PdfContinuationDiscoveryFactory",

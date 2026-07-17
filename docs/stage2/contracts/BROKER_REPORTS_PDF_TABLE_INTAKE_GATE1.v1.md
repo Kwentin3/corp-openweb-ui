@@ -41,14 +41,14 @@ VLM в этом этапе не читает значения таблицы и 
 
 ## Версии контрактов
 
-- запрос детектору: `broker_reports_pdf_table_detection_request_v2`;
-- ответ детектора: `broker_reports_pdf_table_detection_response_v1`;
+- запрос детектору: `broker_reports_pdf_table_detection_request_v3`;
+- ответ детектора: `broker_reports_pdf_table_detection_response_v2`;
 - журнал попытки: `broker_reports_pdf_table_detection_attempt_v1`;
 - PNG-кандидат: `broker_reports_pdf_table_candidate_v1`;
 - запуск Gate 1: `broker_reports_pdf_table_intake_run_v1`;
 - политика рендера: `pdf_table_candidate_raster_policy_v1`.
 
-Request v2 требует именно внешнюю границу: крайние подписи и колонки, полный заголовок, все видимые continuation-строки и итоги. Padding остаётся резервом и не считается заменой правильной границы.
+Request v3 требует именно внешнюю границу: крайние подписи и колонки, полный заголовок, все видимые continuation-строки и итоги. Response v2 запрещает позиционный массив координат: каждая внешняя граница передаётся четырьмя именованными полями `left_x`, `top_y`, `right_x`, `bottom_y`. Это исключает неоднозначность порядка осей. Padding остаётся резервом и не считается заменой правильной границы.
 
 PNG-кандидат хранит исходный документ и страницу, найденный и итоговый прямоугольники, применённые поля, DPI, размеры, SHA-256 PNG, версию рендера и идентичность детектора. Байты PNG остаются приватным артефактом и не попадают в чат.
 
