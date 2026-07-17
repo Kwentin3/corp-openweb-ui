@@ -545,6 +545,7 @@ Read first:
 - [Supported PDF Table Intake runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
 - [PDF Table Intake closure evidence](../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md)
+- [Pre-Gate-3 context readiness audit](../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PRE_GATE3_CONTEXT_READINESS_AUDIT.report.md)
 - [PDF structural repair consensus contract](contracts/BROKER_REPORTS_PDF_STRUCTURAL_REPAIR_CONSENSUS.v2.md)
 - [PDF VLM-guided intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md)
 - [PDF semantic header projection contract](contracts/BROKER_REPORTS_PDF_SEMANTIC_HEADER_PROJECTION.v1.md)
