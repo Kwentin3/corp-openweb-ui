@@ -524,9 +524,9 @@ text-layer/layout memory. All supported adapters converge on one safe
 `broker_reports_gate1_document_memory_manifest_v1` root over private payload,
 unit and normalized-table refs; Gate 2 resolves that root through the public
 contract only. XLSX/ZIP/image-only and mixed-image PDF remain explicitly outside
-v1. Local synthetic mixed-format proof is green, but global product closure is
-still withheld until accessible actual HTML/PDF source bytes support a
-representative stage run and operator acceptance.
+v1. Local and stage-container synthetic mixed-format proofs are green, but
+global product closure is still withheld until accessible actual HTML/PDF
+source bytes support a representative stage run and operator acceptance.
 
 CSV pre-Gate-3 note, 2026-07-17: CSV is the first format with a maintained
 complete path from private `process=false` intake through complete whole-file
@@ -580,6 +580,7 @@ Read first:
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)
 - [Gate 1 document memory v1](contracts/BROKER_REPORTS_GATE1_DOCUMENT_MEMORY.v1.md)
 - [Gate 1 document-memory operator acceptance v1](operations/BROKER_REPORTS_GATE1_DOCUMENT_MEMORY_OPERATOR_ACCEPTANCE.v1.md)
+- [Global Gate 1 document-memory closure v1 report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GLOBAL_GATE1_DOCUMENT_MEMORY_CLOSURE_V1.report.md)
 - [Gate architecture/domain ownership finalization report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_ARCHITECTURE_AND_DOMAIN_OWNERSHIP_FINALIZATION.report.md)
 - [Gate contract isolation audit and enforcement report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_CONTRACT_ISOLATION_AUDIT_AND_ENFORCEMENT.report.md)
 - [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
