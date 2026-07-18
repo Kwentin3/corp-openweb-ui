@@ -1,6 +1,6 @@
 # Broker Reports Gate 1 document memory v1
 
-Status: authoritative public-boundary refinement
+Status: authoritative public-boundary contract; actual-corpus validated
 
 Root schema: `broker_reports_gate1_document_memory_manifest_v1`
 
@@ -10,112 +10,135 @@ Profile: `broker_reports_gate1_source_evidence_profile_v1`
 
 ## Decision
 
-The document-memory root is a small safe manifest over the maintained Gate 1
-artifact graph. It does not replace DCP, the issue ledger, source payloads,
-source units, normalized-table projections or ArtifactStore. It gives those
-existing artifacts one authoritative cohesion and completeness root.
+The document-memory root is the safe cohesion and completeness authority over
+the maintained Gate 1 artifact graph. It does not replace private normalized
+payloads, source units, table projections, the issue ledger, DCP or
+ArtifactStore. It links them without exposing customer values.
 
 ```text
-case scope
-  -> source file ref
-     -> one v1 logical document ref
-        -> private normalized source payload refs
-        -> private normalized source unit refs
-        -> private normalized table projection refs
-        -> source scope and counts
-        -> issue refs
-        -> completeness/accounting status
+case / normalization run
+  -> source file
+     -> optional archive-container lineage
+        -> promoted member source file
+     -> logical document
+        -> normalized payload refs
+        -> text / table / visual source-unit refs
+        -> validated table-projection refs
+        -> declared and normalized scope
+        -> issue refs and restrictions
+        -> terminal/accounting/zero-loss status
 ```
 
-The root is persisted as `safe_internal`. Customer source values and normalized
-content remain `private_case` and are resolved only through scoped
-`ArtifactResolver` access.
+The root is `safe_internal`. Customer text, rows, cells, media and normalized
+private values remain `private_case` and are accessible only through scoped
+`ArtifactResolver` calls.
 
 ## Identity and cohesion
 
-For every source file entry the root records:
+Every entry records a safe source/checksum identity, producing run/profile,
+logical-document policy, normalized artifact refs, scope counts, issue refs,
+terminal status and Gate 2 scope readiness.
 
-- `source_file_ref` and a checksum-derived safe reference;
-- exactly one deterministic `logical_document_ref` for profile v1;
-- the producing `normalization_run_id` and profile variant;
-- typed refs to all normalized payloads, source units and table projections;
-- a deterministic source-scope reference and declared/normalized counts;
-- linked issue ids, terminal status and zero-silent-loss result;
-- Gate 2 readiness without exposing private values.
+- A non-ZIP source record has exactly one deterministic logical-document ref.
+- A ZIP container has zero logical documents and `lineage_only` readiness.
+- Each promoted ZIP member is a new source record with exactly one logical
+  document and explicit parent/member lineage.
+- Every unit points to one parent payload.
+- Every safe artifact ref is unique and resolvable in its run/context.
 
-The validator rejects missing or duplicate source identities, a logical-document
-count other than one, duplicate normalized-artifact refs, private field names in
-the safe root, a changed integrity hash, and any root that cannot be rebuilt
-exactly from the maintained package graph.
+The validator rejects missing/duplicate identities, invalid logical-document
+counts, orphan units, duplicate artifact refs, private fields, integrity-hash
+drift or any root that cannot be rebuilt from the maintained package graph.
 
-One source file may produce many private payloads/units/projections, but none is
-an orphan: each unit points to its parent payload and every public ref remains
-traversable through source file, logical document, run and scoped ArtifactStore
-context.
+## Normalized scopes
+
+The root accounts for:
+
+- source files and logical documents;
+- archive members, promoted members and signature sidecars;
+- text characters and DOM/content order;
+- rows, cells and normalized tables;
+- PDF pages, page text/layout and bounded visual pages;
+- HTML bounded visual-media items;
+- neutral ordered XML events;
+- validated projections and explicitly unavailable canonical scopes.
+
+Visual units are memory, but require a visual-aware consumer. Neutral XML
+memory is structurally ready, but does not claim financial semantics. A
+blocked table projection is not published as canonical; the underlying
+text/layout/visual lineage and restriction remain explicit.
 
 ## Completeness and zero silent loss
 
-The declared scope counts source files, logical documents, content artifacts,
-rows, cells, text characters, PDF pages and normalized tables. The accounting
-validator additionally proves:
+Only `complete` and `review_required` are profile-accepted. Both require
+`accounting_status=passed` and `zero_silent_loss=passed`. Otherwise the entry
+is downgraded to `partial` and its Gate 2 memory is blocked.
 
-- payload and source-unit counts match the full-source summary;
-- the set of payload-declared unit refs exactly equals the persisted unit set;
-- every unit has an existing parent payload;
-- selected refs have no unaccounted or duplicate members;
-- every table projection passes its coverage validator;
-- every native CSV/HTML table unit has a common table projection;
-- row, cell and text-character counts match for non-PDF containers;
-- PDF page count equals pages-with-text plus pages-without-text;
-- no artifact ref is duplicated in the document graph.
+Accounting proves at least:
 
-Only `complete` and `review_required` can be profile-accepted. Either state must
-also have `accounting_status=passed` and `zero_silent_loss=passed`; otherwise the
-root is downgraded to `partial` and Gate 2 is blocked.
+- payload/unit counts equal full-source declarations;
+- payload-declared unit refs equal the persisted unit set;
+- every unit has a parent payload;
+- selected refs have no unaccounted or duplicated members;
+- native CSV/HTML/XML tables have common projections;
+- rows, cells, text, visual items and archive members match declared scope;
+- PDF page count and text/visual coverage reconcile;
+- every published table projection passes its own validator;
+- no source or normalized artifact is silently omitted.
 
-`review_required` is intentionally narrow: the source memory and fallback
-lineage are complete, while a structural interpretation such as PDF table
-topology remains unresolved. It does not authorize financial interpretation or
-pretend that an unvalidated table is canonical.
+`review_required` is not a degraded success label. It is a precise contract:
+the memory is complete, while a named interpretation scope remains restricted.
 
-## Public Gate 1 to Gate 2 handoff
+## Public Gate 1 -> Gate 2 handoff
 
-The DCP contains a `document_memory_boundary` referring to the persisted root.
-Gate 2 input readiness receives the DCP ref and an access context, then:
+DCP carries `document_memory_boundary` with manifest schema/id/integrity hash,
+profile id, resolver requirement and
+`format_specific_parser_required_by_gate2=false`.
 
-1. resolves DCP and root through `ArtifactResolver`;
-2. validates the root using only `gate1_public_contracts`;
-3. denies incomplete/unsupported documents and propagates issue/scope context;
-4. discovers typed source units and table projections by refs;
-5. emits bounded Gate 2 packages without importing a format parser.
+The required public audit:
 
-Gate 2 must not import CSV, HTML, PDF, spreadsheet or concrete store internals.
-The architecture test treats `document_memory.py` as Gate 1 private
-implementation and enforces the public-contract/resolver dependency direction.
+1. resolves DCP and the memory root through `ArtifactResolver`;
+2. validates manifest integrity and profile enforcement;
+3. reads only typed refs and per-scope readiness;
+4. denies blocked/unready scopes;
+5. never imports CSV, HTML, PDF, XML or ZIP parsers into Gate 2;
+6. leaves the Gate 1 ArtifactStore catalog unchanged.
 
-## Immutability, lifecycle and data policy
+The actual-corpus proof passed all boundary checks for 104 source records. A
+full mass build of every optional Gate 2 package was not part of the Gate 1
+acceptance boundary. Its previously observed long runtime is recorded as a
+separate bounded-performance debt; it is not evidence of Gate 1 data loss.
 
-- Artifact records are append-only/immutable. Gate 2 adds its own artifacts and
-  cannot rewrite the Gate 1 root or private payloads.
-- Access is scoped by user, case-or-chat, workspace model, run, lifecycle and
-  retention context; wrong context fails closed.
-- Source deletion purges source-linked private artifacts while retaining only
-  approved safe metadata required for audit/lifecycle evidence.
+## Immutability, lifecycle and privacy
+
+- Artifact records are immutable and append-only.
+- Access is scoped by user, case/chat, workspace model, run, lifecycle and
+  retention context; a wrong context fails closed.
+- Source deletion purges source-linked private artifacts under the maintained
+  lifecycle policy while retaining approved safe audit metadata.
 - Case purge makes the root unresolvable.
-- No source values are persisted in chat history, Knowledge/RAG/vector storage,
-  logs or the safe root.
-- The integrity hash covers the complete safe manifest except the hash field
-  itself.
+- No source values are stored in chat history, safe reports,
+  Knowledge/RAG/vector storage or Git.
+- The manifest integrity hash covers the safe root except its own hash field.
 
-## What each supported adapter contributes
+## Adapter contributions
 
-| Adapter | Private memory | Common public consumption |
+| Adapter | Private memory | Public consumption |
 | --- | --- | --- |
-| CSV | whole-file tabular payload, ordered row-window units, source values/cells | validated normalized-table refs plus scope/issues |
-| static HTML | ordered text/table payloads and units | normalized text units and validated normalized-table refs |
-| text-layer PDF | page/text payload, layout/line/table-candidate units and validated projections where possible | format-independent text/table units with page/layout provenance and explicit unresolved issues |
+| CSV | ordered row/source-value units | validated table refs and scope |
+| HTML | DOM-ordered text/table blocks and bounded visual media | text/table refs, visual restriction and issues |
+| PDF | page text/layout, table candidates and bounded visual pages | page/text/table scopes with provenance and explicit fallback |
+| XML | ordered neutral event rows | neutral-structure scope; canonical financial table unavailable |
+| ZIP | safe member inventory and promoted-member lineage | lineage-only container plus ordinary member document roots |
 
-Gate 1 records technical representation only. Income, trade, commission, tax,
-deduction and declaration-field classification remain exclusively Gate 2 or
-later responsibilities.
+Gate 1 owns representation. Income, trade, fee, tax, deduction and declaration
+semantics remain Gate 2 or later responsibilities.
 
+## Evidence
+
+- Actual proof run: `normrun_e1855c54126bce9c`.
+- Accepted source records: 104.
+- Logical documents: 80.
+- Terminal states: 26 `complete`, 78 `review_required`, zero other states.
+- Safe evidence:
+  `docs/reports/2026-07-18/BROKER_REPORTS_GATE1_ACTUAL_CUSTOMER_CORPUS_ACCEPTANCE.v1.safe.json`.

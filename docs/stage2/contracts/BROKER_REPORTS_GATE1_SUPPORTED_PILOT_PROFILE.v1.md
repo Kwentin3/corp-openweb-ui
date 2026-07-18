@@ -1,6 +1,6 @@
 # Broker Reports Gate 1 supported pilot profile v1
 
-Status: authoritative bounded contract
+Status: authoritative bounded contract; actual-corpus accepted
 
 Runtime profile id: `broker_reports_gate1_source_evidence_profile_v1`
 
@@ -10,112 +10,127 @@ Owner: Gate 1 — Source Intake And Representation Normalization
 
 ## Purpose and boundary
 
-This profile defines the source-evidence document variants that Gate 1 may mark
-as accepted for the current Broker Reports pilot. It is deliberately bounded to
-the required source-evidence classes recorded in the approved safe document
-registry. It is not a claim of universal CSV, HTML, PDF, spreadsheet or office
-document support.
+This contract defines the exact source representations that Gate 1 accepts for
+the current Broker Reports pilot. It is not universal document support. Gate 1
+preserves source bytes as normalized memory, order, structure, lineage,
+provenance, completeness and unresolved scope. It does not assign financial or
+tax meaning.
 
-Gate 1 preserves source representation, order, scope, provenance, structural
-uncertainty and completeness. It must not assign financial or tax meaning.
+Content detection and maintained parser evidence are authoritative. An
+extension alone cannot promote a malformed or unsupported container.
 
-Content detection and maintained parser evidence are authoritative. A filename
-extension alone cannot promote an unsupported or malformed container into the
-profile.
+## Actual-corpus basis
+
+The authoritative customer corpus was recovered and reconciled against the
+approved safe registry:
+
+- 63 physical files and 18,872,606 bytes;
+- authoritative-source, private-copy and registry SHA-256 multisets match;
+- two duplicate groups, each with one extra copy, remain explicitly represented;
+- 56 top-level inputs are required source evidence for Gate 1;
+- 24 of those inputs are ZIP containers;
+- the ZIPs promote 48 required PDF/XML members and account for 24 P7S sidecars;
+- the accepted graph contains 104 source records and 80 logical documents.
+
+The two XLSX workbooks are formula-heavy derived calculation workbooks. Five
+additional PDFs are derived tax-calculation outputs. They are not relabelled as
+unsupported to obtain closure; they are excluded from the source-evidence pool
+because actual-container/content inspection confirms that they are downstream
+outputs rather than source evidence.
 
 ## Supported formats and limits
 
-| Container | Supported variant | Hard profile limits | Normalized memory | Complete/review conditions |
-| --- | --- | --- | --- | --- |
-| CSV | `broker_reports_csv_supported_profile_v1`; UTF-8 with/without BOM or CP1251; comma, semicolon, tab or pipe delimiter | 5,000,000 input bytes; 10,000 rows; 256 columns; 100,000 cells; 32,000 characters per field; 20,000,000 materialized JSON bytes | private source payloads and row-window source units; validated `broker_reports_normalized_table_projection_v0` | `complete` only when the existing strict CSV profile and full-source/accounting validators pass |
-| HTML | `static_html_text_and_tables_v1`; UTF-8 with/without BOM or CP1251 | 5,000,000 input bytes; 65 logical units; 10,000 rows and 100,000 cells per table; 200,000 text characters per unit | ordered private text/table payloads and source units; validated common table projections | static text/tables may be `complete`; scripts, embedded media, nested tables or other counted structural uncertainty produce `review_required`; unsupported encoding is `unsupported` |
-| PDF | `complete_text_layer_and_layout_v1`; text-only visible content with a usable text layer | 50,000,000 input bytes; 2,000 pages; 10,000,000 content-stream bytes per page; 200,000 text characters, 50,000 layout characters, 10,000 words and 2,000 lines per page; 75,000 layout objects per document | private page/text payload, ordered layout units, table candidates and validated common table projections where deterministic | both text-layer and layout projections and page accounting must be complete; a table without a validated projection remains `review_required` with text fallback lineage, never a silently accepted canonical table |
+| Container | Supported variant | Hard limits | Memory and acceptance rule |
+| --- | --- | --- | --- |
+| CSV | `broker_reports_csv_supported_profile_v1`; UTF-8/BOM/CP1251; comma, semicolon, tab or pipe | 5 MB; 10,000 rows; 256 columns; 100,000 cells; 32,000 chars/field; 20 MB materialized JSON | Ordered rows/source values plus validated common table projection. `complete` only after strict profile and accounting validation. |
+| static HTML | `static_html_text_and_tables_v1`; UTF-8/BOM/CP1251 | 5 MB; 65 logical units; 10,000 rows and 100,000 cells/table; 200,000 text chars/unit; 16 embedded data images; 2 MB/image; 10 MB images/document | DOM-ordered text/table blocks, common table projections and bounded visual-media units. Captured images require `review_required`; scripts, nested tables, external/unbounded media or exceeded budgets fail closed. |
+| PDF | `text_layout_and_bounded_visual_fallback_v1` | 50 MB; 2,000 pages; 10 MB content stream/page; 200,000 text chars/page; 50,000 layout chars, 10,000 words and 2,000 lines/page; 75,000 layout objects/document | Page text/layout plus bounded rendered visual-page memory where needed. A validated table may be canonical; unresolved topology remains `review_required` with explicit text/visual fallback scope. |
+| XML | `neutral_ordered_xml_event_memory_v1` | 5 MB; depth 64; 100,000 events; 100,000 attributes; DTD/entities forbidden | Ordered neutral element/attribute/text-event memory and neutral event table. Financial semantics and canonical financial table scope remain unavailable, so accepted XML is `review_required`. |
+| ZIP | `bounded_source_container_v1` | 10 MB archive; 100 members; 20 MB/member; 50 MB expanded total; ratio 100:1 | ZIP is a lineage container, not a financial document. PDF/XML members are promoted to normal Gate 1 processing; P7S is an accounted sidecar. The container has zero logical documents; promoted members each have one. |
 
-For v1, each physical source file is exactly one logical document. One file
-containing several logical documents, one logical document spread across
-several files, and multi-sheet workbook semantics are outside this profile.
+Runtime values in `document_memory.py` are the executable authority when a
+summary in this document becomes stale.
 
-### HTML structural rules
+## ZIP safety contract
 
-- Ordinary static markup, text order and non-nested tables are supported.
-- Style elements are excluded as non-content and counted.
-- Comments, scripts, embedded media and nested tables are detected and
-  accounted. They are not silently executed or materialized.
-- Script/media/nested-table content prevents an unqualified `complete` claim
-  and requires explicit review.
-- Broken or truncated markup follows the parser completeness result; a bounded
-  prefix is not promoted to complete memory.
+The archive factory must reject or explicitly account for:
 
-### PDF structural rules
+- relative traversal and absolute member paths;
+- symlinks, devices and other special files;
+- encrypted members;
+- nested archive recursion;
+- excessive members, member size, expanded size or compression ratio;
+- duplicate/case-colliding member names;
+- unsupported member formats;
+- any member without an explicit promoted, sidecar or blocked disposition.
 
-- Every page is counted as with-text or without-text. The sum must equal the
-  declared page count.
-- Image-only pages and mixed text/image pages are outside the complete
-  text-only variant. OCR/VL output is not accepted as canonical memory in v1.
-- Embedded attachments are detected and force explicit review; attachment
-  bytes are not silently ignored as part of a complete claim.
-- Text-layer tables converge on the common normalized-table contract only when
-  geometry and coverage validation pass.
-- When table topology remains unresolved, Gate 1 preserves the text/layout
-  lineage and returns `review_required`; downstream code must not treat a
-  raster candidate or unvalidated structure as a canonical table.
-- The accepted PDF Table Intake child boundary remains unchanged. Its private
-  raster candidates are evidence/lineage, not by themselves complete document
-  memory.
+No archive member may disappear silently. The actual 24-archive pool passed
+these checks: 72 members were accounted, 48 were promoted and 24 were P7S
+sidecars; there were no blocked or omitted members.
+
+## Logical-document rules
+
+- A supported non-ZIP source file is one logical document.
+- A ZIP container is lineage-only and has zero logical documents.
+- Every promoted PDF/XML member is one logical document with parent archive,
+  member-index and safe member-reference lineage.
+- An exact duplicate remains a separate source identity until downstream code
+  selects a canonical copy. Gate 1 must not silently drop or double-interpret it.
+
+## Scope readiness
+
+`review_required` means that source memory is complete and accounted, not that
+every artifact is canonical. The public root independently reports:
+
+- text scope readiness;
+- visual scope readiness and visual-consumer requirement;
+- canonical table scope;
+- unresolved table topology;
+- neutral XML structure scope;
+- archive lineage scope;
+- restrictions on financial interpretation.
+
+Gate 2 cannot infer `document review_required -> every table is canonical`.
 
 ## Explicitly outside v1
 
-| Class | v1 behavior | Reason |
+| Class | Behavior | Reason |
 | --- | --- | --- |
-| XLSX | `unsupported` / not accepted into Gate 2 memory | The two approved-pool workbooks are methodology/output artifacts, not source-evidence candidates. Formula, cached-value, merge, hidden-content and embedded-object memory is not closed. |
-| ZIP | archive inventory only; members are not source memory | The approved registry marks archives conditional. Promotion and recursive unpacking require a separate approved contract. |
-| Image-only PDF | `partial` or `review_required`, never complete | Canonical OCR/VL memory is not closed. |
-| Mixed text/image PDF | `partial` or `review_required`, never complete | Visible image content is not fully normalized. |
+| XLSX | not accepted into Gate 1 source memory | The actual pilot workbooks are derived formula-heavy calculation outputs; formula/cached-value/merge/object memory is not closed. |
+| derived calculation PDF | excluded from the approved source-evidence set | Actual-content inspection identifies downstream tax-calculation output, not missing parser support. |
 | DOCX | not accepted | Existing body-only projection is partial. |
-| TXT, XML, XLS | `unsupported` | No required source-evidence class exists in the approved pilot registry. |
+| TXT and legacy XLS | not accepted | No required source-evidence class exists in the approved pilot pool. |
+| ZIP members other than PDF/XML/P7S | blocked and accounted | No other member format is approved by this version. |
 
-If any excluded class becomes mandatory for the agreed pilot, this profile must
-be versioned and that adapter must independently prove full-source accounting,
-cohesion, persistence and lifecycle behavior before the class is called
-supported.
+If a future required customer source falls outside these variants, this profile
+must be versioned and the new adapter must independently prove bounded intake,
+full-source accounting, persistence, lifecycle and operator acceptance.
 
 ## Terminal states
 
-| State | Contract meaning | Gate 2 memory readiness |
+| State | Meaning | Gate 2 readiness |
 | --- | --- | --- |
-| `complete` | All declared profile scope is normalized and accounted, and the deterministic validator passes. | ready |
-| `review_required` | Source memory and fallback lineage are complete, but structural interpretation remains explicitly unresolved. | ready with issues/restrictions; not a claim that an unresolved table is canonical |
-| `partial` | Some declared source scope is not normalized or a completeness/accounting invariant failed. | blocked |
-| `blocked` | Gate 1 could not produce usable bounded memory. | blocked |
-| `unsupported` | The container or material variant is outside this versioned profile. | blocked |
-| `unreadable` | Approved source bytes are unavailable or unreadable. | blocked |
+| `complete` | All declared scope is normalized/accounted and validators pass. | ready for declared scopes |
+| `review_required` | Memory and fallback lineage are complete; structural interpretation remains explicit. | ready only for named scopes/restrictions |
+| `partial` | Some declared scope or an accounting invariant is missing. | blocked |
+| `blocked` | No usable bounded memory was produced. | blocked |
+| `unsupported` | Container/variant is outside this version. | blocked |
+| `unreadable` | Approved bytes are unavailable or unreadable. | blocked |
 
-There is no implicit fallback from a blocked state to `complete`. Over-limit,
-unsupported, unreadable and unresolved scope is counted and accompanied by
-reason codes.
+There is no fallback from a blocked state to `complete`.
 
-## Actual-pool basis and proof boundary
+## Proof authority
 
-The approved safe registry records 63 items: 2 CSV, 4 static HTML documents,
-31 PDFs, 2 formula-bearing XLSX workbooks and 24 ZIP archives. Its declared
-source-evidence subset is 2 CSV + 4 HTML + 18 text-layer PDFs. XLSX is marked
-non-source methodology/output; ZIP is conditional. This is why v1 supports the
-three source-evidence classes above and excludes the others.
-
-The safe registry does not publish private payload paths. It is contract and
-scope evidence, not a substitute for an executable representative corpus.
-Current product closure therefore still requires an approved mixed-format
-stage run and operator acceptance over accessible actual source bytes.
-
-## Runtime authority
-
-- Profile, state and limit authority:
+- Safe actual-corpus result:
+  `docs/reports/2026-07-18/BROKER_REPORTS_GATE1_ACTUAL_CUSTOMER_CORPUS_ACCEPTANCE.v1.safe.json`.
+- Closure report:
+  `docs/reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GLOBAL_GATE1_DOCUMENT_MEMORY_CLOSURE_V1.report.md`.
+- Runtime profile and state authority:
   `broker_reports_gate1/document_memory.py`.
-- Factory-only root construction:
-  `Gate1DocumentMemoryFactory.create()`.
-- Public validation and Gate 2 boundary:
-  `broker_reports_gate1/gate1_public_contracts.py`.
-- Regression proof:
-  `tests/test_broker_reports_gate1_document_memory_v1.py` and the maintained
-  mixed-profile proof script.
-
+- ZIP/XML/visual factories:
+  `archive_intake.py`, `xml_source.py`, `pdf_visual_memory.py`.
+- Actual-corpus proof tool:
+  `scripts/prove_gate1_actual_customer_corpus.py`.
+- Regression coverage:
+  `tests/test_broker_reports_gate1_archive_xml_visual_v1.py` and
+  `tests/test_broker_reports_gate1_document_memory_v1.py`.

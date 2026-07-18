@@ -1,265 +1,216 @@
-﻿# Broker Reports Global Gate 1 — Multi-Format Document Memory Closure v1
+# Broker Reports Global Gate 1 — Multi-Format Document Memory Closure v1
 
 Дата: 2026-07-18
 
 Репозиторий: `Kwentin3/corp-openweb-ui`
 
-Runtime-ревизия: `47255bf`
+Runtime-ревизия: `a8d8b1f`
 
-Proof/docs-ревизия перед этим отчётом: `79e2da9`
+Private-corpus ignore protection: `2b60c8b`
 
-Итог: `NOT_CLOSED`
+Итог: `CLOSED_FOR_SUPPORTED_PILOT_PROFILE_V1`
 
 ## 1. Вывод простыми словами
 
-Техническое ядро Gate 1 собрано в одну систему. CSV, статический HTML и PDF с
-полноценным текстовым слоем теперь проходят через общий профиль, сохраняются
-как связная память документа и передаются в Gate 2 через один публичный
-контракт. Gate 2 больше не должен знать, каким парсером был прочитан исходный
-файл.
+Реальный клиентский корпус найден. Предыдущий вывод «исходных файлов нет» был
+неверным: устарели сохранённые рабочие пути, а не сами документы.
 
-Код, тесты, синтетический mixed-format proof внутри stage-контейнера и
-repo/live parity прошли. Но продуктовый Gate 1 пока нельзя честно назвать
-закрытым: доступный реальный stage proof содержит только CSV. Исходные байты
-разрешённых HTML и PDF из реестра сейчас недоступны, поэтому не выполнены
-обязательный реальный смешанный прогон и операторское сравнение нормализованной
-памяти с оригиналами.
+Все 63 исходных файла сверены по SHA-256 с безопасным реестром и скопированы в
+стабильное приватное хранилище вне Git. Из них 56 являются обязательными
+верхнеуровневыми источниками. Внутри 24 ZIP действительно лежат нужные PDF и
+XML, поэтому ZIP нельзя было оставить «условным» или просить пользователя
+распаковывать вручную. Добавлена ограниченная безопасная ZIP-поддержка.
 
-Это не скрытая ошибка реализации CSV/HTML/PDF. Это незакрытый обязательный
-контур доказательства и приёмки.
+Полный фактический прогон обработал 104 source records: 56 исходных входов и
+48 promoted PDF/XML members. Это 80 логических документов, потому что ZIP —
+контейнер происхождения, а не отдельный финансовый документ.
 
-## 2. Зафиксированный профиль v1
+Итоговые состояния: 26 `complete`, 78 `review_required`, ни одного `partial`,
+`blocked`, `unsupported` или `unreadable`. Во всех 104 случаях accounting и
+zero-silent-loss прошли. Агентская техническая ревизия также прошла 104/104.
 
-Профиль: `broker_reports_gate1_source_evidence_profile_v1`.
+`review_required` здесь означает не потерю данных, а честное ограничение:
+память документа полна, но конкретную таблицу, XML-структуру, визуальный слой
+или дубль нельзя автоматически объявлять каноническим финансовым фактом.
 
-| Формат | Поддержанный вариант | Что создаёт Gate 1 | Статус реализации |
-| --- | --- | --- | --- |
-| CSV | строгий CSV v1; UTF-8/BOM/CP1251; `,`, `;`, tab, `|`; документ в пределах versioned limits | private whole-source payload, row-window units, единая validated table projection | реализовано и протестировано |
-| HTML | статический текст и ненестированные таблицы; UTF-8/BOM/CP1251 | ordered text/table payloads и units, единая validated table projection | реализовано и протестировано; scripts/media/nested tables дают явный review |
-| PDF | text-only PDF с пригодным text layer и полным layout/page accounting | page/text payload, layout/line/table-candidate units, validated common table projection либо review с text fallback | реализовано и протестировано |
+## 2. Что показала фактическая ревизия корпуса
 
-`complete` выдаётся только после проверки полного declared scope и accounting.
-`review_required` разрешён только когда сама память и fallback lineage полны, но
-структура, например геометрия PDF-таблицы, остаётся неоднозначной. `partial`,
-`blocked`, `unsupported` и `unreadable` не допускаются в Gate 2 memory.
+| Факт | Результат |
+| --- | ---: |
+| Физические файлы / общий размер | 63 / 18,872,606 bytes |
+| SHA-мультимножества original / private copy / safe registry | совпадают |
+| Duplicate groups / extra copies | 2 / 2 |
+| Обязательные top-level sources | 56 |
+| ZIP containers | 24 |
+| ZIP members | 72 |
+| Promoted PDF/XML members | 48 |
+| Accounted P7S sidecars | 24 |
+| Source records в Gate 1 | 104 |
+| Logical documents | 80 |
 
-Полные лимиты и правила зафиксированы в
-`BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md` и продублированы в runtime
-profile authority `document_memory.py`.
+Два XLSX — 20-листовые формульные расчётные книги. Ещё пять PDF — производные
+налоговые расчёты. Они исключены не из-за отсутствия реализации и не ради
+зелёного статуса: проверка фактического содержимого показала, что это
+downstream outputs, а не первичные source-evidence документы.
 
-## 3. Что явно не входит в v1
+## 3. Уточнённый профиль v1
 
-| Класс | Причина исключения | Безопасное поведение |
+| Формат | Что поддержано | Что получает Gate 2 |
 | --- | --- | --- |
-| XLSX | Два workbook из approved pool имеют по 20 листов и формулы, но реестр относит их к methodology/output, а не source evidence. Formula/cached-value/merge/object memory не закрыта. | явный `unsupported`, Gate 2 blocked |
-| ZIP | 24 архива имеют conditional status; их members не promoted в source evidence | только inventory/review, не document memory |
-| image-only и mixed-image PDF | canonical OCR/VL memory не закрыта | `partial`/review, но не `complete` |
-| DOCX | текущая body-only projection частична | не принимается |
-| TXT, XML, XLS | обязательного source-evidence класса в approved pool нет | `unsupported` |
+| CSV | строгий CSV с versioned limits | ordered rows/source values и validated table projection |
+| static HTML | DOM-ordered text/tables и bounded data images | text/table scopes; visual units с обязательным visual consumer |
+| PDF | page text/layout и bounded rendered visual fallback | page/text/table scopes, provenance и явные ограничения |
+| XML | ordered neutral events без DTD/entities | neutral structure; canonical financial table unavailable |
+| ZIP | bounded extraction PDF/XML, P7S sidecar accounting | lineage-only container и обычная memory каждого promoted member |
 
-Если любой из этих классов станет обязательным для пилота, потребуется новая
-версия профиля и отдельное доказательство полного scope/accounting. Текущий v1
-не маскирует такое расширение общей формулировкой «поддерживаем документы».
+ZIP factory запрещает traversal, absolute paths, symlinks/special files,
+encryption, nested archives, member-name collisions и превышение budget/ratio.
+Ни один member не может исчезнуть без disposition.
 
-## 4. Единая память документа
+## 4. Реальные дефекты, найденные и исправленные proof gate
 
-Новый safe root — `broker_reports_gate1_document_memory_manifest_v1`.
+Первый полный запуск сохранил данные, но честно оставил девять `partial`:
+PDF требовали явного text/visual fallback, а четыре HTML содержали встроенные
+изображения. Добавлены bounded PDF visual-page memory и HTML visual-media
+memory.
 
-```text
-case
-  -> source file
-     -> logical document
-        -> private normalized payload refs
-        -> private source-unit refs
-        -> private normalized-table refs
-        -> scope/counts
-        -> issue refs
-        -> completeness/accounting
-```
+Следующий operator review поймал ещё один настоящий дефект: значения четырёх
+HTML были сохранены, но внешний текст и таблицы группировались и теряли общий
+DOM-порядок. Production extractor исправлен: text/table blocks теперь идут в
+исходной последовательности, таблицы сохраняют собственный ordinal, а media
+сверяется по checksum. После регресса на четырёх реальных HTML весь corpus proof
+повторён с нуля и прошёл.
 
-Для v1 действует правило «один физический файл — один логический документ».
-Root хранит только безопасные refs, hashes, counts, scope, статусы и issue ids.
-Исходные и нормализованные клиентские значения остаются в `private_case`.
+## 5. Actual-corpus execution и operator acceptance
 
-Validator пересобирает ожидаемый root из maintained package graph и проверяет:
-
-- уникальность source/logical/artifact refs;
-- parent-связи payload -> unit;
-- совпадение declared и persisted payload/unit counts;
-- отсутствие unaccounted и duplicate refs;
-- полноту native CSV/HTML table projections;
-- rows/cells/text-character accounting;
-- PDF page accounting;
-- integrity hash и отсутствие private fields в safe root.
-
-При любом accounting-разрыве документ не может остаться `complete` или
-`review_required`: он понижается до `partial`, а Gate 2 блокируется.
-
-## 5. Gate 1 -> Gate 2
-
-DCP содержит `document_memory_boundary`. Gate 2 получает DCP ref и access
-context, разрешает root через `ArtifactResolver`, проверяет его через
-`gate1_public_contracts.py` и строит формат-независимые bounded packages.
-
-Gate 2 не импортирует CSV/HTML/PDF parsers, layout modules, spreadsheet
-internals или конкретный SQLite adapter. Архитектурный тест считает
-`document_memory.py` приватной реализацией Gate 1 и запрещает обход публичной
-границы.
-
-Gate 2 execution не меняет ранее созданные Gate 1 artifacts. Store остаётся
-append-only; wrong user/case/chat/workspace/run/lifecycle context закрывается с
-ошибкой.
-
-## 6. Автоматическое доказательство
-
-### Локально
-
-Полный набор сервиса: `898 passed`, 5 dependency deprecation warnings, ошибок
-нет.
-
-Смешанный factory proof использовал безопасные синтетические CSV + HTML + PDF
-в одном case:
+Safe proof:
+`BROKER_REPORTS_GATE1_ACTUAL_CUSTOMER_CORPUS_ACCEPTANCE.v1.safe.json`.
 
 | Проверка | Результат |
-| --- | ---: |
-| source files / logical documents | 3 / 3 |
-| normalized artifacts | 12 |
-| accepted terminal states | `complete: 3` |
-| Gate 2 packages | 5 |
-| duplicate refs | 0 |
-| zero silent loss | passed for all accepted documents |
-| Knowledge/RAG/vector records | 0 |
-| wrong-context denial | `artifact_access_denied` |
-| Gate 1 artifacts after Gate 2 | unchanged |
-| source-delete private cascade | passed |
-| case-purge denial | `artifact_purged` |
+| --- | --- |
+| Normalization run | `normrun_e1855c54126bce9c` |
+| Package validation | passed |
+| Terminal source records | 104/104 |
+| `complete` / `review_required` | 26 / 78 |
+| Accounting | passed for all accepted records |
+| Zero silent loss | passed for all accepted records |
+| Archive profile | 24/24 containers, 72/72 members accounted |
+| Agent operator review | passed, 104/104 |
+| Human customer acceptance | not performed |
+| Knowledge/RAG/vector | not used |
 
-### В stage-контейнере
+Ревизия сравнивала реальные bytes с resolver-доступной private memory: SHA и
+размер, начало/середину/конец, страницы, таблицы, строки/ячейки/значения,
+PDF provenance, HTML order, XML events, ZIP lineage, unresolved scopes и
+отсутствие ложного `complete`.
 
-`live_gate1_document_memory_v1_synthetic_proof.py` выполнил тот же bundled
-factory path внутри контейнера `openwebui`. Результат снова `passed` со всеми
-показателями выше.
+## 6. Публичная граница Gate 1 -> Gate 2
 
-Proof намеренно сохраняет честные признаки:
+DCP ссылается на `broker_reports_gate1_document_memory_manifest_v1` по schema,
+manifest id и integrity hash. Gate 2 получает память только через
+`ArtifactResolver` и typed refs. Проверено:
 
-- `customer_documents_used=false`;
-- `operator_acceptance_performed=false`;
-- `product_representative_stage_proof=false`.
+- manifest validator passed;
+- profile enforcement required;
+- resolver required;
+- format-specific parser в Gate 2 не требуется;
+- scope readiness и restrictions присутствуют;
+- public audit не изменяет ArtifactStore;
+- private payloads не встроены в safe root.
 
-Поэтому этот прогон подтверждает bundle/runtime/dependency mechanics, но не
-заменяет требуемую продуктовую приёмку на реальном пуле.
+Полная массовая сборка всех опциональных Gate 2 packages не является условием
+Gate 1 closure. Ранее она показала длительное небounded-время и вынесена в
+отдельный performance debt. Это не дефект сохранности document memory.
 
-## 7. Repo/live delivery
+## 7. Тесты и live alignment
 
-Maintained update scripts поставили три Function bundles. Последующая read-only
-проверка завершилась `status=passed`:
+Локальный сервисный набор: `903 passed`, 5 dependency deprecation warnings.
+
+После runtime-коммита обновлены все три автономных Functions. Read-only parity
+proof завершился `status=passed`:
 
 | Function | Repo/live SHA-256 |
 | --- | --- |
-| `broker_reports_gate1_pipe` | `7d584553ccd41f53c288e6e0b3182c267c25edb59a86bad9d9efdf1b13147cef` |
-| `broker_reports_gate2_source_fact_pipe` | `1ec573b36f31ebd040c6b6ce3be23f4d5f03564a3bcedb9b2c20c5791e9d58db` |
-| `broker_reports_gate2_domain_source_fact_pipe` | `8f8d02f9f956a5e4af3070bb697788a56786acfddcb334494e310d6912d7ba08` |
+| `broker_reports_gate1_pipe` | `99ed3acf67b650444c5919f1030155ce89d5bbdbddb447bfb8671856913f39df` |
+| `broker_reports_gate2_source_fact_pipe` | `6ca9969c1ddd768cf5677259211cc40cb3fd352eb36c96e5a9bbf7c0c9c98645` |
+| `broker_reports_gate2_domain_source_fact_pipe` | `829dcc885828df206f228a2151752339f0647a8be6d3b0ed1a872931f67d9679` |
 
-Managed Prompts: `12/12` совпадают. Required `fitz=1.26.5`, PDF Table Intake
-valves и disabled research shadows проверены. Перед созданием отчёта
-`HEAD == origin/main == 79e2da9`; последующий report commit является docs-only
-и не требует повторной Function-поставки.
+Managed Prompts: 12/12 совпадают. `fitz=1.26.5`. Factory-boundary audit passed.
+Stage-container synthetic mixed-format proof на поставленном Gate 1 bundle
+также прошёл. Клиентские документы на stage не загружались: фактический corpus
+proof выполнен parity-equivalent backend core в приватной среде.
 
-## 8. Почему Gate 1 всё ещё не закрыт
+## 8. Приватность и Git isolation
 
-Approved safe registry содержит 63 позиции:
+- Original corpus не изменялся.
+- Private copy, extracted members, local registry, ArtifactStore и proof work
+  находятся вне репозитория.
+- Maintained code не содержит абсолютного пути к клиентскому корпусу.
+- Local path config игнорируется Git.
+- Safe JSON не содержит private paths, filenames, source values или media.
+- Customer documents не загружались в Knowledge/RAG/vector storage.
+- Git получает только код, тесты, contracts и safe evidence.
 
-- 2 CSV;
-- 4 static HTML;
-- 31 PDF;
-- 2 XLSX;
-- 24 ZIP.
+Дополнительно рассчитаны Git-compatible blob ids всех 63 исходников: это 61
+уникальный blob с учётом двух duplicate copies. Совпадений с текущим Git index
+и со всей достижимой историей репозитория — `0 / 0`.
 
-В обязательный source-evidence subset входят 24 документа: 2 CSV + 4 HTML +
-18 PDF. Все 18 PDF имеют text layer, не требуют OCR по зарегистрированному
-профилю и суммарно содержат 449 страниц. Это именно тот фактический контур, на
-котором профиль v1 был определён.
+## 9. Что закрытие не утверждает
 
-Но private registry сейчас даёт `63` записей и `0` существующих source paths:
-все `63` пути отсутствуют в текущем workspace. Safe registry намеренно не
-публикует private payload paths и не может заменить исходные байты.
+Gate 1 закрыт только для поддержанного профиля v1. Это не означает:
 
-Сохранённый реальный stage proof
-`customer_case_group_002_process_false_gate1_20260717204732` содержит только
-один CSV. Он доказывает CSV vertical, но не mixed CSV + HTML + PDF document
-memory. Доступного реального mixed run с новым root нет.
+- human customer acceptance — оно не выполнялось;
+- канонический выбор двух duplicate groups;
+- каноничность каждой unresolved PDF/HTML/XML таблицы;
+- готовность финансовой/налоговой семантики Gate 2/3;
+- устранение performance debt массового Gate 2 package builder;
+- универсальную поддержку XLSX/DOCX/TXT/XLS или новых ZIP member formats.
 
-Следовательно, сейчас нельзя проверить на фактическом разнообразии:
+Эти ограничения сохранены явно и не отменяют доказанную полноту Gate 1 memory.
 
-- начало/середину/конец HTML и PDF;
-- сохранность material table context и page/layout provenance;
-- корректность review-состояний реальных PDF-таблиц;
-- отсутствие необъяснённой потери во всех 24 source-evidence документах;
-- операторскую пригодность памяти для дальнейшей интерпретации.
-
-Это материально, потому что задача прямо запрещает заменять heterogeneous
-representative stage proof набором изолированных synthetic fixtures.
-
-## 9. Acceptance matrix
+## 10. Acceptance matrix
 
 | Критерий | Состояние |
 | --- | --- |
-| Explicit versioned supported profile | passed |
-| CSV/HTML/text-layer PDF implementation | passed |
-| One document-memory contract family | passed |
-| Cohesion and public Gate 2 handoff | passed in automated proof |
-| Code isolation | passed |
-| ArtifactStore/resolver/lifecycle/immutability | passed in automated proof |
-| Zero silent loss | passed for synthetic declared profile; not proven on actual 24-doc subset |
-| Mixed-format stage mechanics | passed synthetically inside stage container |
-| Representative actual mixed-format stage proof | not performed |
-| Operator acceptance | not performed |
-| Repository/live Function and Prompt parity | passed |
-
-## 10. Узкая оставшаяся работа
-
-1. Восстановить approved private bytes для фактического пула либо создать новый
-   approved stage case минимум с одним реальным CSV, одним реальным static HTML
-   и одним реальным text-layer PDF с material table context. Синтетика не
-   подходит для этого пункта.
-2. Запустить maintained `process=false` Gate 1 path на уже поставленном bundle и
-   сохранить safe aggregate evidence нового document-memory root.
-3. Выполнить чек-лист
-   `BROKER_REPORTS_GATE1_DOCUMENT_MEMORY_OPERATOR_ACCEPTANCE.v1.md`: сравнить
-   source с resolver-доступной private memory без публикации значений.
-4. Зафиксировать per-document verdict, mixed-case zero-loss, stage run/case ids
-   и повторную repo/live parity. Если все документы приняты, заменить статус
-   этого отчёта на closure status отдельным подтверждённым коммитом.
-
-Новые адаптеры или изменение архитектуры для этих четырёх шагов не требуются,
-если фактические документы соответствуют объявленным вариантам v1. Если
-реальный файл выявит image-only/mixed-image PDF либо обязательный XLSX, это уже
-не proof-only работа, а новый versioned profile slice.
+| Authoritative corpus recovered/reconciled | passed |
+| Required source-evidence set approved | passed |
+| Bounded ZIP source-container profile | implemented and proven |
+| Every required source/member terminal | passed |
+| Accounting and zero silent loss | passed for actual accepted corpus |
+| Scope-level restrictions | passed |
+| Public Gate 1 handoff | stable and validated |
+| Agent-operated acceptance | passed |
+| Human customer acceptance | not performed, not required for technical closure |
+| Repository/live parity | passed |
+| Private corpus Git isolation | passed |
 
 ## 11. Обязательный финальный статус
 
 ```text
 BROKER_REPORTS_GLOBAL_GATE_1:
-NOT_CLOSED
+CLOSED_FOR_SUPPORTED_PILOT_PROFILE_V1
 
-EXACT_UNSUPPORTED_REQUIRED_SOURCE_CLASS:
-NO IMPLEMENTATION-UNSUPPORTED CLASS INSIDE DECLARED PROFILE V1.
-THE CLOSURE-BLOCKING REQUIRED PROOF CLASSES ARE APPROVED ACTUAL STATIC HTML
-AND TEXT-LAYER PDF SOURCE BYTES; THEY ARE NOT AVAILABLE IN THE CURRENT
-WORKSPACE OR CURRENT REAL STAGE CASE.
+ACTUAL_CUSTOMER_CORPUS:
+RECOVERED_AND_RECONCILED
 
-EXACT_CONTRACT_OR_IMPLEMENTATION_GAP:
-THE REQUIRED REPRESENTATIVE ACTUAL MIXED-FORMAT STAGE PROOF AND OPERATOR
-ACCEPTANCE HAVE NOT BEEN PERFORMED. SYNTHETIC STAGE PROOF CANNOT SATISFY THIS
-PRODUCT ACCEPTANCE CONDITION.
+ACTUAL_CORPUS_GATE_1_EXECUTION:
+PASSED
 
-MATERIAL_EVIDENCE:
-THE APPROVED SOURCE-EVIDENCE SUBSET IS 2 CSV + 4 HTML + 18 TEXT-LAYER PDF
-(449 PDF PAGES). THE PRIVATE REGISTRY HAS 63 ENTRIES BUT 0 EXISTING SOURCE
-PATHS. THE AVAILABLE REAL STAGE CASE CONTAINS ONLY ONE CSV.
+AGENT_OPERATOR_ACCEPTANCE:
+PASSED
 
-NARROWEST_REMAINING_WORK:
-RESTORE OR RE-APPROVE ACCESSIBLE ACTUAL HTML/PDF BYTES; RUN ONE MIXED
-PROCESS=FALSE STAGE CASE THROUGH THE DEPLOYED GATE 1; COMPLETE THE OPERATOR
-CHECKLIST; RECORD ZERO-LOSS AND REPO/LIVE PARITY EVIDENCE.
+ZIP_SOURCE_CONTAINER_PROFILE:
+IMPLEMENTED_AND_PROVEN
+
+ZERO_SILENT_LOSS:
+PROVEN_FOR_ACTUAL_ACCEPTED_CORPUS
+
+PRIVATE_CORPUS_GIT_ISOLATION:
+PROVEN
+
+GATE_1_PUBLIC_HANDOFF:
+STABLE_AND_VALIDATED
+
+REPOSITORY_LIVE_ALIGNMENT:
+PROVEN
 ```

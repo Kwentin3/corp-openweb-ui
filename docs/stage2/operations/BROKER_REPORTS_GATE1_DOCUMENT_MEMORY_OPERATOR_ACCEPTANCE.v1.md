@@ -1,56 +1,95 @@
 # Broker Reports Gate 1 document-memory operator acceptance v1
 
-Status: required, not yet performed for the actual mixed-format pilot corpus
+Status: performed and passed for the actual approved pilot corpus on 2026-07-18
 
-## Acceptance corpus
+Reviewer role: `agent_operated_technical_reviewer`
 
-Use one approved stage case containing accessible actual source bytes for at
-least:
+Human customer acceptance: `not_performed`
 
-- one supported CSV;
-- one supported static HTML document with material text and a table;
-- one supported text-layer PDF with page/layout provenance and a material
-  table or an explicit table-review outcome.
+## Accepted corpus
 
-Do not upload customer documents to Knowledge/RAG/vector storage. Use the
-maintained `process=false` artifact intake and the Gate 1 factory path.
+The operator review used the recovered, hash-reconciled private customer corpus
+outside Git. The executed Gate 1 graph contained:
+
+- 56 required top-level inputs;
+- 24 bounded ZIP containers;
+- 48 promoted PDF/XML members and 24 accounted P7S sidecars;
+- 104 source records;
+- 80 logical documents.
+
+The full source corpus, extracted members, normalized values, local registry,
+ArtifactStore and proof workspace stayed in the private local corpus root.
+Nothing was uploaded to Knowledge/RAG/vector storage.
 
 ## Automated preconditions
 
-- Repository tests and bundle tests are green at the delivered revision.
-- Stage Gate 1, Gate 2 source and Gate 2 domain Function bundle SHA-256 values
-  match the repository.
-- Managed Prompt versions/hashes match where those prompts changed.
-- Mixed case has one source-file identity and one logical-document identity per
-  v1 source file.
-- Every accepted document reports validator-passed accounting and
-  zero-silent-loss.
-- Gate 2 input readiness resolves only the DCP/document-memory public boundary.
-- Wrong-context, source-delete and case-purge checks fail closed as contracted.
+| Check | Result |
+| --- | --- |
+| Authoritative source, private copy and safe registry hash reconciliation | passed, 63/63 |
+| Required top-level pool | passed, 56 |
+| Gate 1 package validation | passed |
+| Terminal state for every source record | passed, 104/104 |
+| Accounting and zero silent loss for accepted records | passed, 104/104 |
+| ZIP safety/member accounting | passed, 24/24 containers and 72/72 members |
+| Public DCP/document-memory boundary | passed |
+| ArtifactStore unchanged by public boundary audit | passed |
+| Knowledge/RAG/vector guard | passed |
+| Repository tests | 903 passed, 5 dependency deprecation warnings |
+| Stage Function/Prompt parity | passed, 3/3 Functions and 12/12 Prompts |
+| Stage synthetic mixed-format execution | passed |
 
-## Operator review
+## Review contract
 
-For each document, compare the original approved source with resolver-accessed
-private memory and record pass/fail for:
+Every required source record received an automated per-document verdict. The
+agent directly compared source containers with resolver-accessed normalized
+private memory for:
 
-1. document identity and obvious metadata;
-2. beginning, middle and end order/context;
-3. every declared sheet/page/table/section in the profile scope;
-4. material table headers, row order, cell boundaries and source values;
-5. PDF page provenance and readable table context;
-6. explicit issues for anything unresolved, excluded or unreadable;
-7. absence of a false `complete` state when material content is missing;
-8. sufficiency of preserved context for later Gate 2 interpretation without
-   reading the original container directly.
+1. SHA/size identity and material metadata;
+2. beginning, middle and end ordering;
+3. declared pages, tables, sections and archive members;
+4. material table headers, row order, cells and source values;
+5. PDF page/text/layout/visual provenance;
+6. HTML DOM text/table order and embedded-media checksums;
+7. XML ordered neutral-event coverage;
+8. ZIP parent/member index, size, disposition and promoted lineage;
+9. explicit restrictions for unresolved or non-canonical scopes;
+10. absence of false `complete` states;
+11. parser-independent sufficiency of accepted memory for Gate 2.
 
-Record reviewer id/role, stage case id, run id, source document refs, bundle
-hashes, timestamp, per-document verdict and a redacted reason for every failure.
-Do not copy private source values into the operator report.
+All 78 `review_required` documents were reviewed. The 26 `complete` records
+received the same automated identity/accounting/source comparison; material
+CSV and ZIP scope received direct structural checks. There were no `partial`,
+`blocked`, `unsupported` or `unreadable` records in the required pool.
 
-## Acceptance rule
+## Findings and repairs
 
-Global Gate 1 may be product-accepted only when all automated preconditions pass
-and the operator accepts every supported document in the representative case.
-Synthetic fixtures may prove mechanics but cannot replace this actual-pool
-acceptance.
+The first actual run found nine honest `partial` records:
 
+- PDF text/layout variants without an explicit accepted fallback;
+- four HTML documents with embedded data images.
+
+The implementation added bounded PDF visual memory and bounded HTML visual
+media. A subsequent full reviewer caught one additional real defect: HTML
+values were present, but outside text and tables were grouped rather than
+preserving global DOM order. Production extraction was repaired to emit
+ordered content blocks, a real-corpus four-document regression was added, and
+the full proof was repeated.
+
+The final run produced:
+
+- 26 `complete`;
+- 78 `review_required`;
+- 0 other terminal states;
+- 104/104 operator verdicts passed;
+- 104/104 accounting and zero-silent-loss passed.
+
+## Meaning of acceptance
+
+This acceptance proves technical document memory, lineage, accounting,
+resolver access and public handoff for the supported pilot profile. It does not
+claim that every unresolved table is canonical, that duplicate source copies
+have been canonically selected, that Gate 3 tax logic is complete, or that a
+human customer approved financial interpretation.
+
+Safe per-document evidence is stored in:
+`docs/reports/2026-07-18/BROKER_REPORTS_GATE1_ACTUAL_CUSTOMER_CORPUS_ACCEPTANCE.v1.safe.json`.
