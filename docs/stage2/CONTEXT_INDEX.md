@@ -518,6 +518,16 @@ id fails closed. Architecture tests enforce import direction, factory routing
 and the future Gate 3 manifest-only entry boundary. Runtime revision `b61b509`
 is deployed with 3/3 Function and 12/12 managed-Prompt parity.
 
+Global Gate 1 document-memory note, 2026-07-18: the bounded v1 implementation
+supports strict CSV, static HTML text/tables and complete text-only PDF
+text-layer/layout memory. All supported adapters converge on one safe
+`broker_reports_gate1_document_memory_manifest_v1` root over private payload,
+unit and normalized-table refs; Gate 2 resolves that root through the public
+contract only. XLSX/ZIP/image-only and mixed-image PDF remain explicitly outside
+v1. Local synthetic mixed-format proof is green, but global product closure is
+still withheld until accessible actual HTML/PDF source bytes support a
+representative stage run and operator acceptance.
+
 CSV pre-Gate-3 note, 2026-07-17: CSV is the first format with a maintained
 complete path from private `process=false` intake through complete whole-file
 normalization, bounded terminal Gate 2 facts and the authoritative
@@ -567,6 +577,9 @@ Read first:
 - [Canonical Broker Reports global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
+- [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)
+- [Gate 1 document memory v1](contracts/BROKER_REPORTS_GATE1_DOCUMENT_MEMORY.v1.md)
+- [Gate 1 document-memory operator acceptance v1](operations/BROKER_REPORTS_GATE1_DOCUMENT_MEMORY_OPERATOR_ACCEPTANCE.v1.md)
 - [Gate architecture/domain ownership finalization report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_ARCHITECTURE_AND_DOMAIN_OWNERSHIP_FINALIZATION.report.md)
 - [Gate contract isolation audit and enforcement report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_CONTRACT_ISOLATION_AUDIT_AND_ENFORCEMENT.report.md)
 - [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
