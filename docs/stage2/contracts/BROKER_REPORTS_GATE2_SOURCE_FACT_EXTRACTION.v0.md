@@ -150,6 +150,12 @@ Terminal statuses are `completed`, `completed_with_rejections`, `blocked`, `fail
 
 `completed_with_rejections` means accepted facts may exist, but at least one package/fact was rejected and its coverage is explicit. It never implies full document or case completeness.
 
+`created`, `inputs_validated`, `packages_built`, `extracting` and `validating`
+are valid in-process states. The maintained runtime persists the extraction-run
+artifact exactly once in a terminal state. It must not overwrite a previously
+persisted run artifact to publish progress or attach a later manifest ref.
+Retries and scope expansion create a new run ref.
+
 ### 5.3 Source-ready decision entry
 
 Every DCP `source_fact_ready_ref` has one entry:
@@ -579,7 +585,7 @@ hardcoding.
 
 | Artifact | Default visibility | Storage backend | Validation requirement |
 | --- | --- | --- | --- |
-| extraction run | `safe_internal` | `project_artifact_store` | input validation before `inputs_validated` |
+| extraction run | `safe_internal` | `project_artifact_store` | one terminal append after deterministic input/output validation; intermediate states remain in process memory |
 | input package | `private_case` | `project_artifact_payload` | validated Gate 1 refs and resolver scope |
 | segmentation plan | `safe_internal` | `project_artifact_store` | exact parent-ref partition and explicit remainder status |
 | selected derived source unit | `private_case` | `project_artifact_payload` | preserved provenance/checksums and complete bounded coverage |
@@ -624,6 +630,11 @@ For a supported ready scope, Gate 3 receives one
 Gate 2 exit boundary, indexes the terminal ArtifactStore refs below and is
 resolved under the same authorized context. A raw fact ref, DCP, run or
 readiness boolean is not an alternative Gate 3 root.
+
+The manifest ref is planned deterministically from its schema, normalization
+run and terminal extraction-run ref, recorded in that terminal run, then
+persisted exactly once. The manifest validator re-resolves the declared graph
+and recomputes scope/readiness; compatibility booleans do not authorize it.
 
 Gate 2 does not emit intermediate ledger rows, consolidated facts,
 case-level profit/loss, tax base, tax, declaration fields, filing status or

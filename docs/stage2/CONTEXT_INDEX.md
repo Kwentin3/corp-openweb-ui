@@ -510,6 +510,14 @@ output preparation. Local capability gates, Stage 2 implementation gates and
 vertical proof labels are separate namespaces. Start with the
 [canonical global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
 
+Code-isolation enforcement, 2026-07-18: Gate 2 now consumes Gate 1 through
+`gate1_public_contracts.py` and resolver-authorized versioned artifacts, not
+format-specific parser modules or SQLite inspection. Gate 2 run and Gate 3
+manifest records are append-only; semantic overwrite of any existing artifact
+id fails closed. Architecture tests enforce import direction, factory routing
+and the future Gate 3 manifest-only entry boundary. Runtime revision `b61b509`
+is deployed with 3/3 Function and 12/12 managed-Prompt parity.
+
 CSV pre-Gate-3 note, 2026-07-17: CSV is the first format with a maintained
 complete path from private `process=false` intake through complete whole-file
 normalization, bounded terminal Gate 2 facts and the authoritative
@@ -560,6 +568,7 @@ Read first:
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate architecture/domain ownership finalization report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_ARCHITECTURE_AND_DOMAIN_OWNERSHIP_FINALIZATION.report.md)
+- [Gate contract isolation audit and enforcement report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_CONTRACT_ISOLATION_AUDIT_AND_ENFORCEMENT.report.md)
 - [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
 - [Supported PDF Table Intake runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)

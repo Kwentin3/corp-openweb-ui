@@ -206,6 +206,24 @@ manifest.
 No maintained component has two business owners. Cross-cutting platform
 services own mechanics only; the calling gate owns the business contract.
 
+### Physical code-isolation boundary
+
+The maintained Python implementation enforces the ownership map as follows:
+
+| Boundary | Maintained code surface | Enforced rule |
+| --- | --- | --- |
+| Gate 1 -> Gate 2 | `gate1_public_contracts.py`, versioned DCP/handoff artifacts and `ArtifactResolver` | Gate 2 may import the public Gate 1 surface and resolve validated refs; it may not import format-parser internals or inspect SQLite directly. |
+| Gate 2-owned table packages | `gate2_table_packages.py` | Financial/source-fact package construction and validation belong to Gate 2. `table_projection.py` keeps only a lazy compatibility export for older imports. |
+| Gate 2 -> Gate 3 | `gate3_context_manifest.py` | The Gate 2 exit factory creates one immutable, validator-recomputed manifest ref. Future Gate 3 code must start from this manifest, not from Gate 1 or Gate 2 internals. |
+| Cross-cutting persistence | `ArtifactStorePort`, `ArtifactResolver`, SQLite adapter | Gate runtimes depend on the domain-neutral port/resolver. The adapter permits idempotent replay of identical content but rejects semantic overwrite of an existing artifact id. |
+| Gate execution history | terminal Gate 2 run artifacts | Intermediate run states remain in process memory; one terminal run record is appended. Scope expansion or rerun creates new artifact ids. |
+| Delivery | bundle builder, architecture test and parity verifier | Bundles include the same public boundary modules; tests fail on private cross-gate imports, store bypass, reverse dependencies or overwrite paths. |
+
+The historical package name `broker_reports_gate1` and top-level compatibility
+exports are not ownership authority. They remain to avoid a destructive public
+rename; the module-level imports, factories, contracts and artifact writers are
+the enforced boundary.
+
 ## 6. Readiness and closure model
 
 The allowed status vocabulary is:
@@ -275,7 +293,8 @@ reports remain in place and are not deleted.
 
 ## 9. Migration and future assignment
 
-This architecture finalization is compatibility-safe:
+The original architecture finalization was documentation-only and
+compatibility-safe:
 
 - no runtime behavior changes;
 - no deployed Function bundle changes;
@@ -283,6 +302,13 @@ This architecture finalization is compatibility-safe:
 - no schema migration;
 - no validator weakening;
 - no Gate 3 or Gate 4 financial functionality.
+
+The subsequent code-isolation enforcement in revision `b61b509` changed
+runtime internals and Function bundles without changing public/versioned
+schemas or business meaning. It extracted the public Gate 1 surface, moved the
+Gate 2 table-package implementation to its owner, routed Gate 2 reads through
+the resolver and made artifact creation append-only/immutable. The dated code
+audit below is the authority for that enforcement and its stage proof.
 
 Maintained documentation must link to this entry point and use the four-gate
 ownership split. Historical names remain aliases with the meanings above.
@@ -309,6 +335,10 @@ mapping or export.
 Current verification and the exact documentation refinements are recorded in
 the
 [2026-07-18 architecture/domain ownership finalization report](../../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_ARCHITECTURE_AND_DOMAIN_OWNERSHIP_FINALIZATION.report.md).
+
+Physical implementation isolation, the violation register, mutation proof and
+post-refactor stage evidence are recorded in the
+[2026-07-18 gate contract isolation audit](../../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_CONTRACT_ISOLATION_AUDIT_AND_ENFORCEMENT.report.md).
 
 Bounded closure evidence remains separate:
 

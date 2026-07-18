@@ -117,6 +117,14 @@ Status meaning:
 
 No transition out of `purged` may restore payload. A new run must create new artifact ids.
 
+Artifact identity is semantically immutable. `put_record` may return the
+existing record only for an idempotent replay whose contract fields, scope,
+visibility, retention, source ref, safe metadata and payload are identical.
+Different content under an existing `artifact_id` fails closed with
+`artifact_immutable`; it must be written under a new id. Explicit lifecycle,
+expiry, source-deletion and purge operations remain the only allowed metadata
+mutations and cannot replace business payload.
+
 ## 5. Artifact Types
 
 Allowed Gate 1 artifact types:
@@ -237,6 +245,7 @@ Resolver and persistence code should use typed failure codes:
 - `artifact_access_denied`;
 - `artifact_expired`;
 - `artifact_purged`;
+- `artifact_immutable`;
 - `artifact_blocked`;
 - `artifact_privacy_failed`;
 - `artifact_scope_unverified`;
