@@ -15,6 +15,8 @@ def extension_from_name(filename: Any, mime_type: str) -> str:
         return "txt"
     if mime.startswith("text/html"):
         return "html"
+    if mime in {"application/xml", "text/xml"}:
+        return "xml"
     if mime == "application/pdf":
         return "pdf"
     if "spreadsheetml.sheet" in mime:
@@ -63,6 +65,8 @@ def detect_container(
         return {"container_format": "html_text", "confidence": "medium", "basis": "metadata_html_text"}
     if ext == "txt" or mime.startswith("text/plain"):
         return {"container_format": "txt", "confidence": "medium", "basis": "metadata_text"}
+    if ext == "xml" or mime in {"application/xml", "text/xml"}:
+        return {"container_format": "xml", "confidence": "medium", "basis": "metadata_xml"}
     if ext == "docx" or "wordprocessingml.document" in mime:
         return {"container_format": "docx", "confidence": "medium", "basis": "metadata_docx"}
     if ext in {"png", "jpg", "jpeg", "webp", "tif", "tiff"} or mime.startswith("image/"):
@@ -75,7 +79,7 @@ def detect_container(
 def machine_readable_baseline(container: str) -> str:
     if container in {"csv", "xlsx", "xls"}:
         return "conditional"
-    if container in {"txt", "html_text", "zip", "docx"}:
+    if container in {"txt", "html_text", "xml", "zip", "docx"}:
         return "conditional"
     if container == "pdf":
         return "unknown"

@@ -160,11 +160,21 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertEqual(first.summary["pdf_pages_total"], 2)
         self.assertEqual(first.summary["pdf_pages_with_text"], 1)
         self.assertEqual(first.summary["pdf_pages_without_text"], 1)
-        self.assertEqual(len(first.units), 1)
+        self.assertEqual(len(first.units), 2)
         payload = first.payloads[0]
-        unit = first.units[0]
+        unit = next(
+            item for item in first.units if item["pdf_unit_type"] == "pdf_page_text_unit"
+        )
+        visual_unit = next(
+            item for item in first.units if item["pdf_unit_type"] == "pdf_visual_page_unit"
+        )
         second_payload = second.payloads[0]
-        second_unit = second.units[0]
+        second_unit = next(
+            item for item in second.units if item["pdf_unit_type"] == "pdf_page_text_unit"
+        )
+        second_visual_unit = next(
+            item for item in second.units if item["pdf_unit_type"] == "pdf_visual_page_unit"
+        )
 
         self.assertEqual(
             payload["pdf_text_layer_projection"]["schema_version"],
@@ -173,7 +183,7 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertEqual(payload["text_layer_projection_status"], "complete")
         self.assertEqual(payload["semantic_reconstruction_status"], "not_claimed")
         self.assertFalse(payload["ocr_vlm_used"])
-        self.assertFalse(payload["page_rendering_used_for_extraction"])
+        self.assertTrue(payload["page_rendering_used_for_extraction"])
         self.assertEqual(
             payload["pdf_text_layer_projection"]["page_checksum_refs"],
             second_payload["pdf_text_layer_projection"]["page_checksum_refs"],
@@ -183,6 +193,10 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertEqual(unit["text_segment_refs"], second_unit["text_segment_refs"])
         self.assertEqual(unit["character_span_refs"], second_unit["character_span_refs"])
         self.assertEqual(unit["source_value_refs"], second_unit["source_value_refs"])
+        self.assertEqual(
+            visual_unit["source_unit_checksum_ref"],
+            second_visual_unit["source_unit_checksum_ref"],
+        )
         self.assertEqual(unit["pdf_unit_type"], "pdf_page_text_unit")
         self.assertTrue(unit["declared_range_complete"])
         self.assertFalse(unit["source_slice_truncated"])
@@ -240,15 +254,15 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         )
 
         image_only = self._build(_pdf_bytes(pages=[("image", [])]))
-        self.assertEqual(image_only.summary["parser_completeness_status"], "partial")
-        self.assertEqual(image_only.units, [])
-        self.assertIn(
-            "pdf_image_only_no_text_layer",
-            image_only.summary["parser_completeness_reason_codes"],
+        self.assertEqual(image_only.summary["parser_completeness_status"], "complete")
+        self.assertEqual(
+            [unit["pdf_unit_type"] for unit in image_only.units],
+            ["pdf_visual_page_unit"],
         )
+        self.assertEqual(image_only.summary["parser_completeness_reason_codes"], [])
         self.assertEqual(
             image_only.payloads[0]["visible_content_coverage_status"],
-            "partial_out_of_scope",
+            "complete_with_visual_fallback",
         )
 
         encrypted = self._build(

@@ -42,6 +42,7 @@ PDF_SOURCE_UNIT_TYPES = {
     "pdf_page_text_unit",
     "pdf_line_cluster_unit",
     "pdf_table_candidate_unit",
+    "pdf_visual_page_unit",
 }
 
 
@@ -480,6 +481,14 @@ def pdf_page_checksum_ref(page: dict[str, Any], parser_ref: str) -> str:
                 page.get("text_showing_operators_total") or 0
             ),
             "image_objects_total": int(page.get("image_objects_total") or 0),
+            "visual_page_ref": page.get("visual_page_ref"),
+            "visual_media_ref": page.get("visual_media_ref"),
+            "visual_media_checksum_ref": page.get("visual_media_checksum_ref"),
+            "visual_width_pixels": page.get("visual_width_pixels"),
+            "visual_height_pixels": page.get("visual_height_pixels"),
+            "page_rendering_used_for_extraction": bool(
+                page.get("page_rendering_used_for_extraction")
+            ),
         },
     )
 
@@ -558,6 +567,11 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
                 projection.get("layout_coverage")
             ).get("coverage_ref"),
             "layout_unit_config_ref": projection.get("layout_unit_config_ref"),
+            "visual_fallback_status": projection.get("visual_fallback_status"),
+            "visual_page_refs": [
+                str(item.get("visual_page_ref") or "")
+                for item in _dict_list(projection.get("visual_page_inventory"))
+            ],
         },
     )
 
@@ -576,11 +590,12 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(_error("pdf_projection_engine_version_mismatch", payload_ref))
     if payload.get("ocr_vlm_used") is not False or projection.get("ocr_vlm_used") is not False:
         errors.append(_error("pdf_projection_ocr_guard_failed", payload_ref))
-    if (
-        payload.get("page_rendering_used_for_extraction") is not False
-        or projection.get("page_rendering_used_for_extraction") is not False
-    ):
-        errors.append(_error("pdf_projection_rendering_guard_failed", payload_ref))
+    visual_status = str(projection.get("visual_fallback_status") or "not_required")
+    rendering_used = bool(projection.get("page_rendering_used_for_extraction"))
+    if bool(payload.get("page_rendering_used_for_extraction")) != rendering_used:
+        errors.append(_error("pdf_projection_rendering_status_mismatch", payload_ref))
+    if rendering_used != (visual_status == "complete"):
+        errors.append(_error("pdf_projection_visual_fallback_status_invalid", payload_ref))
 
     pages = _dict_list(projection.get("page_inventory"))
     declared = _object(projection.get("declared_page_range"))
@@ -610,6 +625,35 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(_error("pdf_projection_page_checksum_mismatch", payload_ref))
     if list(projection.get("page_checksum_refs") or []) != actual_page_checksums:
         errors.append(_error("pdf_projection_page_checksum_inventory_mismatch", payload_ref))
+    visual_inventory = _dict_list(projection.get("visual_page_inventory"))
+    visual_page_refs = [str(item.get("visual_page_ref") or "") for item in visual_inventory]
+    visual_media_refs = [str(item.get("media_ref") or "") for item in visual_inventory]
+    if visual_status == "complete":
+        if not visual_inventory:
+            errors.append(_error("pdf_visual_inventory_empty", payload_ref))
+        if not all(visual_page_refs) or len(visual_page_refs) != len(set(visual_page_refs)):
+            errors.append(_error("pdf_visual_page_ref_invalid", payload_ref))
+        if not all(visual_media_refs) or len(visual_media_refs) != len(set(visual_media_refs)):
+            errors.append(_error("pdf_visual_media_ref_invalid", payload_ref))
+        inventory_by_page = {
+            int(item.get("page_number") or 0): item for item in visual_inventory
+        }
+        for page in pages:
+            page_number = int(page.get("page_number") or 0)
+            visual = inventory_by_page.get(page_number)
+            needs_visual = (
+                not str(page.get("text") or "").strip()
+                or int(page.get("image_objects_total") or 0) > 0
+            )
+            if needs_visual and visual is None:
+                errors.append(_error("pdf_visual_page_coverage_incomplete", page_number))
+            if visual is not None and (
+                page.get("visual_page_ref") != visual.get("visual_page_ref")
+                or page.get("visual_media_ref") != visual.get("media_ref")
+                or page.get("visual_media_checksum_ref")
+                != visual.get("media_checksum_ref")
+            ):
+                errors.append(_error("pdf_visual_page_inventory_mismatch", page_number))
 
     layout_requested = projection.get("layout_requested_capability")
     if layout_requested is not None:
@@ -775,7 +819,10 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("payload_checksum_ref") != expected_payload_checksum:
         errors.append(_error("pdf_projection_payload_checksum_mismatch", payload_ref))
     if payload.get("parser_completeness_status") == "complete":
-        if projection.get("text_layer_projection_status") != "complete":
+        if (
+            projection.get("text_layer_projection_status") != "complete"
+            and visual_status != "complete"
+        ):
             errors.append(_error("pdf_projection_complete_status_mismatch", payload_ref))
         if payload.get("parser_completeness_reason_codes"):
             errors.append(_error("pdf_projection_complete_has_reasons", payload_ref))
@@ -803,15 +850,25 @@ def validate_pdf_source_unit(
         errors.append(_error("pdf_source_unit_type_invalid", unit_ref))
     if unit.get("pdf_projection_schema_version") != PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION:
         errors.append(_error("pdf_source_unit_projection_schema_mismatch", unit_ref))
+    visual_unit = unit.get("pdf_unit_type") == "pdf_visual_page_unit"
     if unit.get("ocr_vlm_used") is not False:
         errors.append(_error("pdf_source_unit_ocr_guard_failed", unit_ref))
-    if unit.get("page_rendering_used_for_extraction") is not False:
+    if visual_unit:
+        if unit.get("page_rendering_used_for_extraction") is not True:
+            errors.append(_error("pdf_visual_source_unit_rendering_missing", unit_ref))
+        if unit.get("media_type") != "image/png":
+            errors.append(_error("pdf_visual_source_unit_media_type_invalid", unit_ref))
+        if not unit.get("media_ref") or not unit.get("media_checksum_ref"):
+            errors.append(_error("pdf_visual_source_unit_media_ref_missing", unit_ref))
+        if unit.get("financial_interpretation_restricted") is not True:
+            errors.append(_error("pdf_visual_source_unit_scope_not_restricted", unit_ref))
+    elif unit.get("page_rendering_used_for_extraction") is not False:
         errors.append(_error("pdf_source_unit_rendering_guard_failed", unit_ref))
     if unit.get("parent_source_slice_truncated") is not False:
         errors.append(_error("pdf_source_unit_parent_truncated", unit_ref))
     if not list(unit.get("page_refs") or []):
         errors.append(_error("pdf_source_unit_page_ref_missing", unit_ref))
-    if not list(unit.get("text_segment_refs") or []):
+    if not visual_unit and not list(unit.get("text_segment_refs") or []):
         errors.append(_error("pdf_source_unit_text_refs_missing", unit_ref))
     coverage = _object(unit.get("coverage"))
     if coverage.get("selected_total") != coverage.get("accounted_total"):

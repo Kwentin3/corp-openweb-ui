@@ -1,109 +1,73 @@
 from __future__ import annotations
 
-from collections import Counter
-from io import BytesIO
-from pathlib import PurePosixPath
-from zipfile import BadZipFile, ZipFile
+from typing import Any
 
-from .blockers import corrupt_file, encrypted_file, zip_requires_review
-from .contracts import profile_id, stable_digest
-
-OVERSIZED_ZIP_MEMBER_SIZE = 20_000_000
+from .archive_intake import Gate1ArchiveIntakeFactory
+from .blockers import corrupt_file, zip_requires_review
+from .contracts import profile_id
 
 
-def profile_zip(run_id: str, document_id: str, content_bytes: bytes) -> tuple[dict, list[dict], list[dict]]:
+def profile_zip(
+    run_id: str,
+    document_id: str,
+    content_bytes: bytes,
+    *,
+    archive_manifest: dict[str, Any] | None = None,
+) -> tuple[dict, list[dict], list[dict]]:
+    manifest = archive_manifest
+    if manifest is None:
+        manifest = Gate1ArchiveIntakeFactory().create().inspect_and_expand(
+            normalization_run_id=run_id,
+            parent_document_ref=document_id,
+            content_bytes=content_bytes,
+        ).manifest
+    complete = (
+        manifest.get("terminal_status") == "complete"
+        and manifest.get("all_members_accounted") is True
+        and int(manifest.get("blocked_members_total") or 0) == 0
+    )
     blockers = []
-    try:
-        with ZipFile(BytesIO(content_bytes)) as archive:
-            infos = archive.infolist()
-            corrupt_member = archive.testzip()
-    except BadZipFile:
-        blocker = corrupt_file(run_id, document_id, "bad_zip_file")
-        return _blocked_profile(document_id, [blocker["blocker_id"]]), [], [blocker]
-
-    extension_counts: Counter[str] = Counter()
-    encrypted_count = 0
-    nested_archive_count = 0
-    oversized_member_count = 0
-    member_summaries = []
-    for index, info in enumerate(infos, start=1):
-        suffix = PurePosixPath(info.filename).suffix.lower().lstrip(".") or "none"
-        extension_counts[suffix] += 1
-        is_encrypted = bool(info.flag_bits & 0x1)
-        if is_encrypted:
-            encrypted_count += 1
-        if suffix in {"zip", "7z", "rar"}:
-            nested_archive_count += 1
-        if info.file_size > OVERSIZED_ZIP_MEMBER_SIZE:
-            oversized_member_count += 1
-        member_summaries.append(
-            {
-                "member_index": index,
-                "safe_member_id": f"zipmem_{stable_digest([document_id, info.filename], length=12)}",
-                "extension": suffix,
-                "compressed_size": int(info.compress_size),
-                "file_size": int(info.file_size),
-                "is_dir": info.is_dir(),
-                "encrypted": is_encrypted,
-            }
-        )
-
-    review_blocker = zip_requires_review(run_id, document_id)
-    blockers.append(review_blocker)
-    if encrypted_count:
-        blockers.append(encrypted_file(run_id, document_id))
-    if corrupt_member:
-        blockers.append(corrupt_file(run_id, document_id, "zip_member_failed_crc"))
-
+    if not complete:
+        if "zip_container_unreadable" in (manifest.get("reason_codes") or []):
+            blockers.append(corrupt_file(run_id, document_id, "bad_zip_container"))
+        blockers.append(zip_requires_review(run_id, document_id))
+    extension_counts: dict[str, int] = {}
+    for member in manifest.get("member_inventory") or []:
+        if not isinstance(member, dict):
+            continue
+        extension = str(member.get("extension") or "none")
+        extension_counts[extension] = extension_counts.get(extension, 0) + 1
     profile = {
         "profile_id": profile_id(document_id),
         "document_id": document_id,
         "container_format": "zip",
-        "parser": "python_stdlib_zipfile",
+        "parser": "broker_reports_bounded_zip_source_container",
         "parser_version": "1",
-        "profile_status": "profiled_with_review",
-        "machine_readable": "conditional",
+        "profile_status": "profiled" if complete else "blocked",
+        "machine_readable": "yes" if complete else "conditional",
         "machine_readable_table": False,
-        "member_count": len(infos),
-        "members_count": len(infos),
+        "member_count": int(manifest.get("members_total") or 0),
+        "members_count": int(manifest.get("members_total") or 0),
         "extension_counts": dict(sorted(extension_counts.items())),
         "member_extension_counts": dict(sorted(extension_counts.items())),
-        "nested_archive_count": nested_archive_count,
-        "encrypted_count": encrypted_count,
-        "encrypted_member_count": encrypted_count,
-        "oversized_member_count": oversized_member_count,
-        "corrupt_member_detected": bool(corrupt_member),
-        "policy_status": "requires_review",
-        "member_inventory": member_summaries,
+        "nested_archive_count": sum(
+            count
+            for extension, count in extension_counts.items()
+            if extension in {"7z", "gz", "rar", "tar", "tgz", "zip"}
+        ),
+        "promoted_members_total": int(
+            manifest.get("promoted_members_total") or 0
+        ),
+        "signature_sidecars_total": int(
+            manifest.get("signature_sidecars_total") or 0
+        ),
+        "blocked_members_total": int(manifest.get("blocked_members_total") or 0),
+        "policy_status": "accepted_source_container" if complete else "blocked",
+        "archive_manifest_ref": manifest.get("archive_ref"),
+        "all_members_accounted": manifest.get("all_members_accounted") is True,
+        "member_inventory": manifest.get("member_inventory") or [],
         "normalized_slice_refs": [],
-        "warnings": ["zip_requires_review"],
-        "blocker_refs": [blocker["blocker_id"] for blocker in blockers],
+        "warnings": [] if complete else list(manifest.get("reason_codes") or []),
+        "blocker_refs": [item["blocker_id"] for item in blockers],
     }
     return profile, [], blockers
-
-
-def _blocked_profile(document_id: str, blocker_refs: list[str]) -> dict:
-    return {
-        "profile_id": profile_id(document_id),
-        "document_id": document_id,
-        "container_format": "zip",
-        "parser": "python_stdlib_zipfile",
-        "parser_version": "1",
-        "profile_status": "blocked",
-        "machine_readable": "unknown",
-        "machine_readable_table": False,
-        "member_count": 0,
-        "members_count": 0,
-        "extension_counts": {},
-        "member_extension_counts": {},
-        "nested_archive_count": 0,
-        "encrypted_count": 0,
-        "encrypted_member_count": 0,
-        "oversized_member_count": 0,
-        "corrupt_member_detected": True,
-        "policy_status": "blocked",
-        "member_inventory": [],
-        "normalized_slice_refs": [],
-        "warnings": ["corrupt_file"],
-        "blocker_refs": blocker_refs,
-    }

@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from . import blockers as blocker_factory
+from .archive_intake import Gate1ArchiveIntakeFactory
 from .contracts import (
     NORMALIZER_VERSION,
     SUPPORTED_CONTRACTS,
@@ -28,6 +29,7 @@ from .profilers_docx import profile_docx
 from .profilers_image import profile_image
 from .profilers_pdf import profile_pdf
 from .profilers_xlsx import profile_xlsx
+from .profilers_xml import profile_xml
 from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
 from .source_provenance import NormalizedSliceProvenanceFactory
@@ -60,6 +62,10 @@ class Gate1Normalizer:
         for item in file_inputs:
             private_markers.extend(item.private_markers())
         private_markers.extend(extra_private_markers or [])
+        processing_inputs: list[tuple[FileInput, int]] = [
+            (item, index)
+            for index, item in enumerate(file_inputs, start=1)
+        ]
 
         documents: list[dict] = []
         profiles: list[dict] = []
@@ -72,6 +78,7 @@ class Gate1Normalizer:
         table_projection_runtime_seconds = 0.0
         table_projection_runtime_seconds_max = 0.0
         full_source_document_summaries: list[dict] = []
+        archive_source_manifests: list[dict] = []
         taxonomy_candidates: list[dict] = []
         blockers: list[dict] = []
         sha_to_first_doc: dict[str, str] = {}
@@ -86,11 +93,14 @@ class Gate1Normalizer:
             )
         ).create()
         table_projection_builder = NormalizedTableProjectionFactory().create()
+        archive_intake = Gate1ArchiveIntakeFactory().create()
 
         if not file_inputs:
             blockers.append(blocker_factory.no_files(run_id))
 
-        for index, file_input in enumerate(file_inputs, start=1):
+        for index, (file_input, root_input_ordinal) in enumerate(
+            processing_inputs, start=1
+        ):
             extension = extension_from_name(file_input.original_filename_private, file_input.mime_type)
             read_result = file_input.read_bytes()
             content_bytes = read_result.content_bytes if read_result.status == "available" else None
@@ -108,6 +118,37 @@ class Gate1Normalizer:
                 content_bytes=content_bytes,
             )
             container = detection["container_format"]
+
+            archive_manifest = None
+            if container == "zip" and content_bytes is not None:
+                archive_result = archive_intake.inspect_and_expand(
+                    normalization_run_id=run_id,
+                    parent_document_ref=doc_id,
+                    content_bytes=content_bytes,
+                )
+                archive_manifest = copy.deepcopy(archive_result.manifest)
+                archive_source_manifests.append(archive_manifest)
+                for member in archive_result.promoted_members:
+                    child_input = FileInput(
+                        private_ref=(
+                            f"{file_input.private_ref}::archive_member::"
+                            f"{member.member_index}"
+                        ),
+                        original_filename_private=member.private_filename,
+                        mime_type=self._archive_member_mime(member.extension),
+                        source_kind="archive_member_private",
+                        declared_size_bytes=len(member.content_bytes),
+                        bytes_provider=(
+                            lambda content=member.content_bytes: content
+                        ),
+                        provider_label="bounded_zip_member_bytes",
+                        root_input_ordinal=root_input_ordinal,
+                        archive_parent_document_ref=doc_id,
+                        archive_member_ref=member.safe_member_ref,
+                        archive_member_index=member.member_index,
+                    )
+                    processing_inputs.append((child_input, root_input_ordinal))
+                    private_markers.extend(child_input.private_markers())
 
             doc_blockers: list[dict] = []
             if content_sha256:
@@ -148,7 +189,16 @@ class Gate1Normalizer:
                         text_subtype="html_text",
                     )
                 elif container == "zip":
-                    profile, new_slices, profile_blockers = profile_zip(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_zip(
+                        run_id,
+                        doc_id,
+                        content_bytes,
+                        archive_manifest=archive_manifest,
+                    )
+                elif container == "xml":
+                    profile, new_slices, profile_blockers = profile_xml(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "xlsx":
                     profile, new_slices, profile_blockers = profile_xlsx(run_id, doc_id, content_bytes)
                 elif container == "pdf":
@@ -176,7 +226,11 @@ class Gate1Normalizer:
             private_slices.extend(new_slices)
             doc_private_slices[doc_id].extend(new_slices)
 
-            if content_bytes is not None and content_sha256:
+            if (
+                content_bytes is not None
+                and content_sha256
+                and container != "zip"
+            ):
                 full_source_result = full_source_builder.build(
                     normalization_run_id=run_id,
                     document_id=doc_id,
@@ -203,12 +257,64 @@ class Gate1Normalizer:
                 private_table_projections.extend(table_projection_result.projections)
                 table_projection_decisions.extend(table_projection_result.decisions)
                 table_projection_summaries.append(table_projection_result.safe_summary)
+            elif container == "zip" and archive_manifest is not None:
+                archive_complete = (
+                    archive_manifest.get("terminal_status") == "complete"
+                    and archive_manifest.get("all_members_accounted") is True
+                )
+                full_source_document_summaries.append(
+                    {
+                        "schema_version": "full_source_coverage_summary_v0",
+                        "document_ref": doc_id,
+                        "container_format": "zip",
+                        "parser_completeness_status": (
+                            "complete" if archive_complete else "blocked"
+                        ),
+                        "parser_completeness_reason_codes": list(
+                            archive_manifest.get("reason_codes") or []
+                        ),
+                        "payloads_total": 0,
+                        "extraction_units_total": 0,
+                        "rows_total": 0,
+                        "cells_total": 0,
+                        "text_characters_total": 0,
+                        "text_segments_total": 0,
+                        "full_coverage_available": archive_complete,
+                        "archive_manifest_ref": archive_manifest.get(
+                            "archive_ref"
+                        ),
+                        "archive_members_total": int(
+                            archive_manifest.get("members_total") or 0
+                        ),
+                        "archive_members_promoted_total": int(
+                            archive_manifest.get("promoted_members_total") or 0
+                        ),
+                        "archive_signature_sidecars_total": int(
+                            archive_manifest.get("signature_sidecars_total") or 0
+                        ),
+                        "archive_all_members_accounted": archive_manifest.get(
+                            "all_members_accounted"
+                        )
+                        is True,
+                        "preview_artifacts_are_coverage_authority": False,
+                        "knowledge_rag_used": False,
+                        "vectorization_performed": False,
+                    }
+                )
 
             declared_size = file_input.declared_size_bytes
             size_bytes = len(content_bytes) if content_bytes is not None else declared_size
             document = {
                 "document_id": doc_id,
                 "source_kind": file_input.source_kind,
+                "root_input_ordinal": (
+                    file_input.root_input_ordinal or root_input_ordinal
+                ),
+                "archive_parent_document_ref": (
+                    file_input.archive_parent_document_ref
+                ),
+                "archive_member_ref": file_input.archive_member_ref,
+                "archive_member_index": file_input.archive_member_index,
                 "sha256": content_sha256,
                 "size_bytes": size_bytes,
                 "bytes_status": read_result.status,
@@ -227,6 +333,23 @@ class Gate1Normalizer:
                 "blocker_refs": [item["blocker_id"] for item in doc_blockers],
             }
             documents.append(document)
+
+        archive_member_document_refs = {
+            str(document.get("archive_member_ref") or ""): str(
+                document.get("document_id") or ""
+            )
+            for document in documents
+            if document.get("archive_member_ref")
+        }
+        for manifest in archive_source_manifests:
+            for member in manifest.get("member_inventory") or []:
+                if not isinstance(member, dict):
+                    continue
+                member_ref = str(member.get("safe_member_ref") or "")
+                if member.get("disposition") == "promoted_source_document":
+                    member["promoted_document_ref"] = (
+                        archive_member_document_refs.get(member_ref)
+                    )
 
         blockers_by_doc: dict[str, list[dict]] = defaultdict(list)
         for blocker in blockers:
@@ -302,6 +425,12 @@ class Gate1Normalizer:
             "normalizer_version": NORMALIZER_VERSION,
             "run_status": run_status,
             "files_total": len(file_inputs),
+            "document_sources_total": len(documents),
+            "archive_containers_total": len(archive_source_manifests),
+            "archive_promoted_members_total": sum(
+                int(item.get("promoted_members_total") or 0)
+                for item in archive_source_manifests
+            ),
             "artifacts_created": list(artifact_refs.keys()),
             "privacy_validation_status": "pending",
             "gate2_handoff_status": gate2_handoff_status,
@@ -327,6 +456,7 @@ class Gate1Normalizer:
                 "documents": documents,
             },
             "technical_readability_profiles": profiles,
+            "archive_source_manifests": archive_source_manifests,
             "private_normalized_slices": private_slices,
             "private_normalized_source_payloads": private_source_payloads,
             "private_normalized_source_units": private_source_units,
@@ -451,6 +581,14 @@ class Gate1Normalizer:
             "extension": extension,
             "mime_type": file_input.mime_type,
         }
+
+    @staticmethod
+    def _archive_member_mime(extension: str) -> str:
+        if extension == "pdf":
+            return "application/pdf"
+        if extension == "xml":
+            return "application/xml"
+        return "application/octet-stream"
 
     def _source_policy_context(self, input_context: dict) -> dict:
         value = input_context.get("source_policy")

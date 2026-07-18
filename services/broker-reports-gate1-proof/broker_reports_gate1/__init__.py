@@ -2,6 +2,12 @@ from .artifact_models import ArtifactAccessContext
 from .artifact_resolver import ArtifactResolver
 from .artifact_retention import RetentionPolicyError, build_retention_policy
 from .artifact_store import ArtifactStoreConfig, ArtifactStoreError, ArtifactStoreFactory
+from .archive_intake import (
+    ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION,
+    ARCHIVE_SOURCE_PROFILE_ID,
+    ArchiveIntakeConfig,
+    Gate1ArchiveIntakeFactory,
+)
 from .contracts import NORMALIZER_VERSION, SAFE_REPORT_SCHEMA, SAFETY_STATEMENT
 from .csv_profile import (
     CSV_PARSER_POLICY_VERSION,
@@ -331,6 +337,16 @@ from .pdf_structural_repair_shadow import (
     PdfStructuralRepairShadowFactory,
 )
 from .inputs import BytesUnavailable, FileInput
+from .pdf_visual_memory import (
+    PDF_VISUAL_MEMORY_PROFILE_ID,
+    PdfVisualMemoryConfig,
+    PdfVisualMemoryFactory,
+)
+from .xml_source import (
+    XML_NEUTRAL_PROFILE_ID,
+    XmlNeutralMemoryConfig,
+    XmlNeutralMemoryFactory,
+)
 from .normalizer import Gate1Normalizer
 from .safe_report import render_chat_content
 from .source_provenance import (
@@ -366,6 +382,9 @@ __all__ = [
     "ArtifactStoreConfig",
     "ArtifactStoreError",
     "ArtifactStoreFactory",
+    "ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION",
+    "ARCHIVE_SOURCE_PROFILE_ID",
+    "ArchiveIntakeConfig",
     "BytesUnavailable",
     "CSV_PARSER_POLICY_VERSION",
     "CSV_SUPPORTED_PROFILE_ID",
@@ -387,6 +406,7 @@ __all__ = [
     "FileProcessingOutcomeError",
     "FileProcessingOutcomeFactory",
     "Gate1Normalizer",
+    "Gate1ArchiveIntakeFactory",
     "Gate1ArtifactManifest",
     "FullSourceArtifactConfig",
     "FullSourceArtifactFactory",
@@ -394,7 +414,13 @@ __all__ = [
     "SOURCE_PAYLOAD_SCHEMA_VERSION",
     "FULL_SOURCE_UNIT_SCHEMA_VERSION",
     "PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION",
+    "PDF_VISUAL_MEMORY_PROFILE_ID",
+    "PdfVisualMemoryConfig",
+    "PdfVisualMemoryFactory",
     "PYPDF_PINNED_VERSION",
+    "XML_NEUTRAL_PROFILE_ID",
+    "XmlNeutralMemoryConfig",
+    "XmlNeutralMemoryFactory",
     "PDFPLUMBER_PINNED_VERSION",
     "PDFMINER_PINNED_VERSION",
     "PDF_LAYOUT_POLICY_VERSION",

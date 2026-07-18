@@ -9,6 +9,7 @@ SUPPORTED_CLASSES = {
     "fees_report",
     "withholding_report",
     "currency_rate_table",
+    "tax_source_document",
     "calculation_template",
     "tax_base_calculation",
     "explanation_template",

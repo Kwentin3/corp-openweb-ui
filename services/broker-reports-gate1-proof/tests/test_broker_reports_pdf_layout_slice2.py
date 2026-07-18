@@ -283,7 +283,7 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertTrue(first.units)
         self.assertEqual(
             {unit["pdf_unit_type"] for unit in first.units},
-            {"pdf_line_cluster_unit"},
+            {"pdf_line_cluster_unit", "pdf_visual_page_unit"},
         )
 
         payload = first.payloads[0]
@@ -332,10 +332,13 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
                 )["validator_status"],
                 "passed",
             )
-            for ref in unit["pdf_layout_source_value_refs"]:
+            for ref in unit.get("pdf_layout_source_value_refs", []):
                 self.assertIsInstance(resolve_pdf_layout_unit_source_value(unit, ref), str)
             self.assertFalse(unit["ocr_vlm_used"])
-            self.assertFalse(unit["page_rendering_used_for_extraction"])
+            self.assertEqual(
+                unit["page_rendering_used_for_extraction"],
+                unit["pdf_unit_type"] == "pdf_visual_page_unit",
+            )
 
     def test_ruled_and_aligned_candidates_are_non_semantic_and_ambiguous_falls_back(self):
         ruled = self._build(_ruled_table_pdf())
@@ -405,7 +408,7 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertEqual(word_budget.summary["pdf_layout_projection_status"], "partial")
         self.assertEqual(
             {unit["pdf_unit_type"] for unit in word_budget.units},
-            {"pdf_page_text_unit"},
+            {"pdf_page_text_unit", "pdf_visual_page_unit"},
         )
         self.assertIn(
             "pdf_layout_word_budget_exceeded",
@@ -434,7 +437,7 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         )
         self.assertEqual(
             {unit["pdf_unit_type"] for unit in cluster_budget.units},
-            {"pdf_page_text_unit"},
+            {"pdf_page_text_unit", "pdf_visual_page_unit"},
         )
 
     def test_document_inventory_overflow_preserves_completed_prefix_and_accounts_tail(self):

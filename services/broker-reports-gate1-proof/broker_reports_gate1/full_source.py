@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import base64
 import hashlib
 import json
 import re
@@ -29,6 +30,10 @@ from .pdf_text_layer import (
     validate_pdf_source_unit,
     validate_pdf_text_layer_payload,
 )
+from .pdf_visual_memory import (
+    PdfVisualMemoryError,
+    PdfVisualMemoryFactory,
+)
 from .pdf_layout import (
     PDF_LAYOUT_POLICY_VERSION,
     PDFMINER_PINNED_VERSION,
@@ -38,6 +43,7 @@ from .pdf_layout import (
 from .pdf_layout_units import PdfLayoutUnitBuilder, PdfLayoutUnitConfig
 from .profilers_csv_txt import decode_text_bytes
 from .source_provenance import NormalizedSliceProvenanceFactory
+from .xml_source import XmlNeutralMemoryError, XmlNeutralMemoryFactory
 
 
 FACTORY_REQUIRED = (
@@ -58,6 +64,9 @@ class FullSourceArtifactConfig:
     max_cells_per_logical_unit: int = 100_000
     max_text_characters_per_logical_unit: int = 200_000
     max_zip_member_bytes: int = 5_000_000
+    max_html_embedded_media_items: int = 16
+    max_html_embedded_media_bytes_per_item: int = 2_000_000
+    max_html_embedded_media_bytes_per_document: int = 10_000_000
     max_pdf_document_bytes: int = 50_000_000
     max_pdf_pages: int = 2_000
     max_pdf_page_content_stream_bytes: int = 10_000_000
@@ -101,6 +110,12 @@ class FullSourceArtifactFactory:
             raise ValueError("full_source_text_budget_invalid")
         if self.config.max_zip_member_bytes <= 0:
             raise ValueError("full_source_zip_member_budget_invalid")
+        if self.config.max_html_embedded_media_items <= 0:
+            raise ValueError("full_source_html_media_count_budget_invalid")
+        if self.config.max_html_embedded_media_bytes_per_item <= 0:
+            raise ValueError("full_source_html_media_item_budget_invalid")
+        if self.config.max_html_embedded_media_bytes_per_document <= 0:
+            raise ValueError("full_source_html_media_document_budget_invalid")
         if self.config.max_pdf_document_bytes <= 0:
             raise ValueError("full_source_pdf_document_budget_invalid")
         if self.config.max_pdf_pages <= 0:
@@ -214,6 +229,7 @@ class FullSourceArtifactBuilder:
                 max_units_per_document=config.max_pdf_layout_units_per_document,
             )
         )
+        self.pdf_visual_renderer = PdfVisualMemoryFactory().create()
 
     def build(
         self,
@@ -324,6 +340,8 @@ class FullSourceArtifactBuilder:
             return self._extract_text(content_bytes), []
         if container_format == "html_text":
             return self._extract_html(content_bytes), []
+        if container_format == "xml":
+            return self._extract_xml(content_bytes)
         if container_format == "xlsx":
             return self._extract_xlsx(content_bytes, document_id)
         if container_format == "docx":
@@ -331,6 +349,43 @@ class FullSourceArtifactBuilder:
         if container_format == "pdf":
             return self._extract_pdf(content_bytes)
         return [], ["format_not_supported_for_full_source"]
+
+    def _extract_xml(
+        self, content_bytes: bytes
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        try:
+            parsed = XmlNeutralMemoryFactory().create().parse(content_bytes)
+        except XmlNeutralMemoryError as exc:
+            return [
+                self._blocked_descriptor(
+                    "table_rows",
+                    "python_expat_neutral_events",
+                    exc.code,
+                    logical_identity="xml_neutral_events_001",
+                )
+            ], [exc.code]
+        return [
+            {
+                "logical_identity": "xml_neutral_events_001",
+                "slice_type": "table_rows",
+                "parser": "python_expat_neutral_events",
+                "parser_version": "stdlib",
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "format_reason_codes": [
+                    "xml_financial_semantics_not_claimed",
+                    "xml_canonical_table_topology_not_claimed",
+                ],
+                "format_structural_inventory": parsed.safe_inventory,
+                "source_location": {
+                    "kind": "xml_neutral_event_rows",
+                    "start_row": 1,
+                    "end_row": len(parsed.rows),
+                    "profile_id": "broker_reports_xml_neutral_event_memory_v1",
+                },
+                "cells": parsed.rows,
+            }
+        ], []
 
     def _extract_csv(self, content_bytes: bytes) -> list[dict[str, Any]]:
         try:
@@ -388,39 +443,58 @@ class FullSourceArtifactBuilder:
         decoded, encoding, error = decode_text_bytes(content_bytes)
         if decoded is None:
             return [self._blocked_descriptor("text_excerpt", "python_html_text_decode", error or "decode_failed")]
-        parser = _FullHtmlExtractor()
+        parser = _FullHtmlExtractor(
+            max_media_items=self.config.max_html_embedded_media_items,
+            max_media_bytes_per_item=(
+                self.config.max_html_embedded_media_bytes_per_item
+            ),
+            max_media_bytes_per_document=(
+                self.config.max_html_embedded_media_bytes_per_document
+            ),
+        )
         try:
             parser.feed(decoded)
             parser.close()
         except Exception:
             return [self._blocked_descriptor("text_excerpt", "python_html_text_decode", "html_parse_failed")]
         format_reason_codes = parser.format_reason_codes()
+        blocking_reason_codes = parser.blocking_reason_codes()
         format_structural_inventory = parser.safe_structural_inventory()
         descriptors: list[dict[str, Any]] = []
-        outside_text = parser.outside_text()
-        if outside_text:
-            descriptors.append(
-                {
-                    "logical_identity": "html_outside_table_text_001",
-                    "slice_type": "text_excerpt",
-                    "parser": "python_html_text_decode",
-                    "parser_version": "1",
-                    "parser_completeness_status": (
-                        "partial" if format_reason_codes else "complete"
-                    ),
-                    "parser_completeness_reason_codes": format_reason_codes,
-                    "format_reason_codes": format_reason_codes,
-                    "format_structural_inventory": format_structural_inventory,
-                    "source_location": {
-                        "kind": "html_outside_table_text",
-                        "character_start": 0,
-                        "character_end": len(outside_text),
-                        "encoding": encoding,
-                    },
-                    "text": outside_text,
-                }
-            )
-        for table_index, rows in enumerate(parser.tables, start=1):
+        text_index = 0
+        for block_index, block in enumerate(
+            parser.ordered_content_blocks(), start=1
+        ):
+            if block["kind"] == "text":
+                text_index += 1
+                outside_text = str(block["text"])
+                descriptors.append(
+                    {
+                        "logical_identity": (
+                            f"html_outside_table_text_{text_index:03d}"
+                        ),
+                        "slice_type": "text_excerpt",
+                        "parser": "python_html_text_decode",
+                        "parser_version": "1",
+                        "parser_completeness_status": (
+                            "partial" if blocking_reason_codes else "complete"
+                        ),
+                        "parser_completeness_reason_codes": blocking_reason_codes,
+                        "format_reason_codes": format_reason_codes,
+                        "format_structural_inventory": format_structural_inventory,
+                        "source_location": {
+                            "kind": "html_outside_table_text",
+                            "content_block_ordinal": block_index,
+                            "character_start": 0,
+                            "character_end": len(outside_text),
+                            "encoding": encoding,
+                        },
+                        "text": outside_text,
+                    }
+                )
+                continue
+            rows = copy.deepcopy(block["rows"])
+            table_index = int(block["table_ordinal"])
             descriptors.append(
                 {
                     "logical_identity": f"html_table_{table_index:03d}",
@@ -428,19 +502,43 @@ class FullSourceArtifactBuilder:
                     "parser": "python_html_table_decode",
                     "parser_version": "1",
                     "parser_completeness_status": (
-                        "partial" if format_reason_codes else "complete"
+                        "partial" if blocking_reason_codes else "complete"
                     ),
-                    "parser_completeness_reason_codes": format_reason_codes,
+                    "parser_completeness_reason_codes": blocking_reason_codes,
                     "format_reason_codes": format_reason_codes,
                     "format_structural_inventory": format_structural_inventory,
                     "source_location": {
                         "kind": "html_table_rows",
+                        "content_block_ordinal": block_index,
                         "table_ordinal": table_index,
                         "start_row": 1 if rows else 0,
                         "end_row": len(rows),
                         "encoding": encoding,
                     },
                     "cells": rows,
+                }
+            )
+        for media_index, media in enumerate(parser.embedded_media, start=1):
+            descriptors.append(
+                {
+                    "logical_identity": f"html_embedded_media_{media_index:03d}",
+                    "slice_type": "visual_media",
+                    "parser": "python_html_data_media_decode",
+                    "parser_version": "1",
+                    "parser_completeness_status": (
+                        "partial" if blocking_reason_codes else "complete"
+                    ),
+                    "parser_completeness_reason_codes": blocking_reason_codes,
+                    "format_reason_codes": format_reason_codes,
+                    "format_structural_inventory": format_structural_inventory,
+                    "source_location": {
+                        "kind": "html_embedded_data_media",
+                        "media_ordinal": media_index,
+                        "encoding": encoding,
+                    },
+                    "media_type": media["media_type"],
+                    "private_media_base64": media["private_media_base64"],
+                    "private_media_sha256": media["private_media_sha256"],
                 }
             )
         if not descriptors:
@@ -451,9 +549,9 @@ class FullSourceArtifactBuilder:
                     "parser": "python_html_text_decode",
                     "parser_version": "1",
                     "parser_completeness_status": (
-                        "partial" if format_reason_codes else "complete"
+                        "partial" if blocking_reason_codes else "complete"
                     ),
-                    "parser_completeness_reason_codes": format_reason_codes,
+                    "parser_completeness_reason_codes": blocking_reason_codes,
                     "format_reason_codes": format_reason_codes,
                     "format_structural_inventory": format_structural_inventory,
                     "source_location": {
@@ -918,6 +1016,65 @@ class FullSourceArtifactBuilder:
             "unaccounted_refs": sorted(set(selected_refs) - set(accounted_refs)),
         }
 
+        visual_page_numbers = [
+            int(page.get("page_number") or 0)
+            for page in page_inventory
+            if int(page.get("page_number") or 0) > 0
+            and (
+                not str(page.get("text") or "").strip()
+                or int(page.get("image_objects_total") or 0) > 0
+                or page.get("page_projection_status") != "complete"
+                or int(page.get("unknown_font_fragments_total") or 0) > 0
+                or int(page.get("replacement_characters_total") or 0) > 0
+            )
+        ]
+        visual_units: list[dict[str, Any]] = []
+        visual_page_inventory: list[dict[str, Any]] = []
+        visual_fallback_status = "not_required"
+        visual_reason_codes: list[str] = []
+        if visual_page_numbers:
+            try:
+                visual_units, visual_page_inventory = self._build_pdf_visual_units(
+                    normalization_run_id=normalization_run_id,
+                    document_id=document_id,
+                    profile_id=profile_id,
+                    source_checksum_sha256=source_checksum_sha256,
+                    payload_ref=payload_ref,
+                    content_bytes=content_bytes,
+                    page_numbers=visual_page_numbers,
+                )
+                visual_fallback_status = (
+                    "complete"
+                    if len(visual_units) == len(set(visual_page_numbers))
+                    else "partial"
+                )
+            except PdfVisualMemoryError as exc:
+                visual_fallback_status = "partial"
+                visual_reason_codes.append(exc.code)
+        visual_by_page = {
+            int(item.get("page_number") or 0): item
+            for item in visual_page_inventory
+        }
+        for page in page_inventory:
+            visual = visual_by_page.get(int(page.get("page_number") or 0))
+            if visual:
+                page["visual_page_ref"] = visual.get("visual_page_ref")
+                page["visual_media_ref"] = visual.get("media_ref")
+                page["visual_media_checksum_ref"] = visual.get(
+                    "media_checksum_ref"
+                )
+                page["visual_width_pixels"] = visual.get("width_pixels")
+                page["visual_height_pixels"] = visual.get("height_pixels")
+                page["page_rendering_used_for_extraction"] = True
+            page["page_text_checksum_ref"] = pdf_page_checksum_ref(
+                page, page_parser_ref
+            )
+        coverage["visual_page_refs"] = [
+            str(item.get("visual_page_ref") or "")
+            for item in visual_page_inventory
+            if item.get("visual_page_ref")
+        ]
+
         layout_char_inventory: list[dict[str, Any]] = []
         layout_word_inventory: list[dict[str, Any]] = []
         layout_line_inventory: list[dict[str, Any]] = []
@@ -1016,15 +1173,36 @@ class FullSourceArtifactBuilder:
                     if ref
                 }
             )
-        if status == "complete" and not provisional_units:
+        reasons.extend(visual_reason_codes)
+        if visual_fallback_status == "complete":
+            reasons = [
+                reason
+                for reason in reasons
+                if reason
+                not in {
+                    "pdf_image_only_no_text_layer",
+                    "pdf_no_text_layer",
+                    "pdf_page_projection_reconciliation_failed",
+                    "pdf_unknown_font_mapping",
+                }
+            ]
+            if not reasons:
+                status = "complete"
+            visible_content_status = "complete_with_visual_fallback"
+        if status == "complete" and not provisional_units and not visual_units:
             status = "partial"
             text_layer_status = "partial"
             reasons.append("pdf_no_text_layer")
         reasons = sorted(set(reasons))
-        if status == "complete" and layout_status == "complete":
-            extraction_units = layout_units
+        if status == "complete":
+            textual_units = (
+                layout_units
+                if layout_status == "complete" and layout_units
+                else provisional_units
+            )
+            extraction_units = [*textual_units, *visual_units]
         else:
-            extraction_units = provisional_units if status == "complete" else []
+            extraction_units = []
         projection = {
             "schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
             "projection_policy_ref": PDF_PARSER_POLICY_VERSION,
@@ -1034,6 +1212,11 @@ class FullSourceArtifactBuilder:
             "requested_capability": "page_text",
             "provided_capabilities": [
                 *(["page_text"] if page_inventory else []),
+                *(
+                    ["visual_page_fallback"]
+                    if visual_fallback_status == "complete"
+                    else []
+                ),
                 *(
                     ["layout_words", "layout_lines", "table_candidates"]
                     if layout_status == "complete"
@@ -1047,6 +1230,9 @@ class FullSourceArtifactBuilder:
                 "pages_total": len(page_inventory),
             },
             "page_inventory": page_inventory,
+            "visual_page_inventory": visual_page_inventory,
+            "visual_fallback_status": visual_fallback_status,
+            "visual_reason_codes": sorted(set(visual_reason_codes)),
             "text_fragment_inventory": text_fragment_inventory,
             "char_inventory": layout_char_inventory,
             "bbox_inventory": layout_bbox_inventory,
@@ -1124,7 +1310,7 @@ class FullSourceArtifactBuilder:
             "layout_parser_diagnostics": layout_diagnostics,
             "layout_unit_diagnostics": layout_unit_diagnostics,
             "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": False,
+            "page_rendering_used_for_extraction": bool(visual_units),
         }
         budget_omitted = not page_inventory and any(
             reason.endswith("_budget_exceeded") for reason in reasons
@@ -1195,8 +1381,14 @@ class FullSourceArtifactBuilder:
                 if self.config.enable_pdf_layout_slice2
                 else semantic_status
             ),
+            "visual_fallback_status": visual_fallback_status,
+            "visual_page_refs": [
+                str(item.get("visual_page_ref") or "")
+                for item in visual_page_inventory
+                if item.get("visual_page_ref")
+            ],
             "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": False,
+            "page_rendering_used_for_extraction": bool(visual_units),
             "visibility": "private_case",
             "knowledge_rag_used": False,
             "vectorization_performed": False,
@@ -1308,13 +1500,16 @@ class FullSourceArtifactBuilder:
                 parser_diagnostics.get("embedded_attachments_total") or 0
             ),
             "pdf_visible_content_coverage_status": visible_content_status,
+            "pdf_visual_fallback_status": visual_fallback_status,
+            "pdf_visual_pages_total": len(visual_units),
+            "pdf_visual_requested_pages_total": len(set(visual_page_numbers)),
             "pdf_semantic_reconstruction_status": (
                 layout_semantic_status
                 if self.config.enable_pdf_layout_slice2
                 else semantic_status
             ),
             "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": False,
+            "page_rendering_used_for_extraction": bool(visual_units),
             "knowledge_rag_used": False,
             "vectorization_performed": False,
         }
@@ -1323,6 +1518,123 @@ class FullSourceArtifactBuilder:
             units=extraction_units,
             summary=summary,
         )
+
+    def _build_pdf_visual_units(
+        self,
+        *,
+        normalization_run_id: str,
+        document_id: str,
+        profile_id: str,
+        source_checksum_sha256: str,
+        payload_ref: str,
+        content_bytes: bytes,
+        page_numbers: list[int],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        rendered_pages = self.pdf_visual_renderer.render_pages(
+            content_bytes=content_bytes,
+            page_numbers=page_numbers,
+        )
+        units: list[dict[str, Any]] = []
+        inventory: list[dict[str, Any]] = []
+        for rendered in rendered_pages:
+            page_number = int(rendered.page_number)
+            slice_id = "fullsrc_" + stable_digest(
+                [payload_ref, "visual_page", page_number, rendered.png_sha256],
+                length=24,
+            )
+            source_location = {
+                "kind": "pdf_visual_page_render",
+                "page": page_number,
+                "page_start": page_number,
+                "page_end": page_number,
+                "dpi": 144,
+            }
+            private_slice = {
+                "slice_id": slice_id,
+                "document_id": document_id,
+                "profile_id": profile_id,
+                "slice_type": "visual_page",
+                "source_location": source_location,
+                "location": copy.deepcopy(source_location),
+                "bounded": True,
+                "truncated": False,
+                "parser": "pymupdf_visual_page_1_26_5",
+                "created_for_gate": "gate1_pdf_visual_fallback_v1",
+                "media_type": "image/png",
+                "private_media_sha256": rendered.png_sha256,
+                "private_media_base64": rendered.private_png_base64,
+                "width_pixels": rendered.width_pixels,
+                "height_pixels": rendered.height_pixels,
+            }
+            unit = self.provenance.enrich_slice(
+                normalization_run_id=normalization_run_id,
+                document_id=document_id,
+                source_checksum_sha256=source_checksum_sha256,
+                private_slice=private_slice,
+            )
+            unit_ref = "srcunit_" + stable_digest(
+                [
+                    payload_ref,
+                    unit.get("slice_payload_checksum_ref"),
+                    (
+                        unit.get("coverage").get("coverage_ref")
+                        if isinstance(unit.get("coverage"), dict)
+                        else None
+                    ),
+                ],
+                length=24,
+            )
+            unit.update(
+                {
+                    "schema_version": SOURCE_UNIT_SCHEMA_VERSION,
+                    "unit_ref": unit_ref,
+                    "unit_id": unit_ref,
+                    "parent_payload_ref": payload_ref,
+                    "payload_checksum_ref": None,
+                    "source_unit_checksum_ref": None,
+                    "parser_completeness_status": "complete",
+                    "declared_range_complete": True,
+                    "coverage_scope": "complete_pdf_visual_page_projection",
+                    "source_slice_truncated": False,
+                    "parent_source_slice_truncated": False,
+                    "parent_remainder_status": "not_applicable_parent_complete",
+                    "remaining_unit_refs": [],
+                    "next_unit_refs": [],
+                    "visibility": "private_case",
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                    "pdf_unit_type": "pdf_visual_page_unit",
+                    "pdf_projection_schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
+                    "declared_page_refs": list(unit.get("page_refs") or []),
+                    "pdf_text_fragment_refs": [],
+                    "text_segment_refs": [],
+                    "text_layer_projection_status": "unavailable_visual_only",
+                    "layout_projection_status": "not_claimed",
+                    "visible_content_coverage_status": "complete_visual_fallback",
+                    "semantic_reconstruction_status": "not_claimed",
+                    "ocr_vlm_used": False,
+                    "page_rendering_used_for_extraction": True,
+                    "financial_interpretation_restricted": True,
+                    "canonical_table_scope": "unavailable",
+                    "page_number": page_number,
+                }
+            )
+            units.append(unit)
+            inventory.append(
+                {
+                    "page_number": page_number,
+                    "visual_page_ref": (unit.get("page_refs") or [None])[0],
+                    "media_ref": unit.get("media_ref"),
+                    "media_checksum_ref": unit.get("media_checksum_ref"),
+                    "source_unit_ref": unit_ref,
+                    "width_pixels": rendered.width_pixels,
+                    "height_pixels": rendered.height_pixels,
+                    "dpi": 144,
+                    "media_type": "image/png",
+                    "private_media_embedded_in_inventory": False,
+                }
+            )
+        return units, inventory
 
     def _extract_pdf(self, content_bytes: bytes) -> tuple[list[dict[str, Any]], list[str]]:
         if not content_bytes.startswith(b"%PDF-"):
@@ -1363,11 +1675,16 @@ class FullSourceArtifactBuilder:
         descriptor: dict[str, Any],
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
         logical_identity = str(descriptor.get("logical_identity") or f"logical_{ordinal:03d}")
-        projection = (
-            {"cells": copy.deepcopy(descriptor.get("cells") or [])}
-            if descriptor.get("slice_type") == "table_rows"
-            else {"text": str(descriptor.get("text") or "")}
-        )
+        if descriptor.get("slice_type") == "table_rows":
+            projection = {"cells": copy.deepcopy(descriptor.get("cells") or [])}
+        elif descriptor.get("slice_type") == "visual_media":
+            projection = {
+                "media_type": descriptor.get("media_type"),
+                "private_media_base64": descriptor.get("private_media_base64"),
+                "private_media_sha256": descriptor.get("private_media_sha256"),
+            }
+        else:
+            projection = {"text": str(descriptor.get("text") or "")}
         rows = projection.get("cells") if isinstance(projection.get("cells"), list) else []
         text = str(projection.get("text") or "")
         rows_total = len(rows)
@@ -1477,6 +1794,18 @@ class FullSourceArtifactBuilder:
                     "column_policy": "complete_parser_logical_unit",
                     "cells": copy.deepcopy(rows),
                     "rows": copy.deepcopy(rows),
+                }
+            )
+        elif descriptor.get("slice_type") == "visual_media":
+            private_slice.update(
+                {
+                    "media_type": descriptor.get("media_type"),
+                    "private_media_base64": descriptor.get(
+                        "private_media_base64"
+                    ),
+                    "private_media_sha256": descriptor.get(
+                        "private_media_sha256"
+                    ),
                 }
             )
         else:
@@ -1615,12 +1944,22 @@ def validate_full_source_unit(
 
 
 class _FullHtmlExtractor(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        max_media_items: int,
+        max_media_bytes_per_item: int,
+        max_media_bytes_per_document: int,
+    ) -> None:
         super().__init__()
+        self.max_media_items = max_media_items
+        self.max_media_bytes_per_item = max_media_bytes_per_item
+        self.max_media_bytes_per_document = max_media_bytes_per_document
         self._skip_depth = 0
         self._skip_tags: list[str] = []
         self._table_depth = 0
         self._outside_parts: list[str] = []
+        self._ordered_content_blocks: list[dict[str, Any]] = []
         self._current_table: list[list[str]] | None = None
         self._current_row: list[str] | None = None
         self._current_cell: list[str] | None = None
@@ -1630,6 +1969,9 @@ class _FullHtmlExtractor(HTMLParser):
         self.style_elements_total = 0
         self.comment_elements_total = 0
         self.embedded_media_elements_total = 0
+        self.embedded_media: list[dict[str, str]] = []
+        self.embedded_media_bytes_total = 0
+        self.embedded_media_reason_codes: list[str] = []
         self.nested_tables_total = 0
         self.link_elements_total = 0
 
@@ -1646,9 +1988,13 @@ class _FullHtmlExtractor(HTMLParser):
             return
         if tag in {"img", "picture", "object", "embed", "iframe", "canvas", "svg", "video", "audio"}:
             self.embedded_media_elements_total += 1
+            if tag == "img":
+                self._capture_data_image(dict(attrs).get("src"))
         if tag == "a":
             self.link_elements_total += 1
         if tag == "table":
+            if not self._table_depth:
+                self._flush_outside_block()
             if self._table_depth:
                 self.nested_tables_total += 1
             self._table_depth += 1
@@ -1683,6 +2029,13 @@ class _FullHtmlExtractor(HTMLParser):
         elif tag == "table" and self._table_depth:
             if self._table_depth == 1 and self._current_table is not None:
                 self.tables.append(self._current_table)
+                self._ordered_content_blocks.append(
+                    {
+                        "kind": "table",
+                        "table_ordinal": len(self.tables),
+                        "rows": copy.deepcopy(self._current_table),
+                    }
+                )
                 self._current_table = None
             self._table_depth -= 1
         elif not self._table_depth and tag in {"p", "div", "li", "section", "h1", "h2", "h3"}:
@@ -1705,16 +2058,73 @@ class _FullHtmlExtractor(HTMLParser):
         self.comment_elements_total += 1
 
     def format_reason_codes(self) -> list[str]:
-        reasons = []
+        reasons = list(self.blocking_reason_codes())
+        if self.embedded_media_elements_total and not self.embedded_media_reason_codes:
+            reasons.append("html_embedded_media_visual_memory_review_required")
+        reasons.extend(self.embedded_media_reason_codes)
+        return sorted(set(reasons))
+
+    def blocking_reason_codes(self) -> list[str]:
+        reasons = list(self.embedded_media_reason_codes)
         if self.script_characters_total:
             reasons.append("html_script_content_outside_supported_profile")
-        if self.embedded_media_elements_total:
-            reasons.append("html_embedded_media_outside_supported_profile")
         if self.nested_tables_total:
             reasons.append("html_nested_tables_outside_supported_profile")
         if self._skip_depth or self._table_depth or self._current_row is not None:
             reasons.append("html_structure_not_closed")
         return sorted(set(reasons))
+
+    def _capture_data_image(self, source: str | None) -> None:
+        if len(self.embedded_media) >= self.max_media_items:
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_count_budget_exceeded"
+            )
+            return
+        match = re.fullmatch(
+            r"data:(image/(?:png|jpeg|jpg|gif|webp));base64,([A-Za-z0-9+/=\s]+)",
+            str(source or ""),
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_not_bounded_data_image"
+            )
+            return
+        try:
+            encoded_media = "".join(match.group(2).split())
+            media_bytes = base64.b64decode(encoded_media, validate=True)
+        except (ValueError, TypeError):
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_base64_invalid"
+            )
+            return
+        if not media_bytes:
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_bytes_missing"
+            )
+            return
+        if len(media_bytes) > self.max_media_bytes_per_item:
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_item_budget_exceeded"
+            )
+            return
+        if (
+            self.embedded_media_bytes_total + len(media_bytes)
+            > self.max_media_bytes_per_document
+        ):
+            self.embedded_media_reason_codes.append(
+                "html_embedded_media_document_budget_exceeded"
+            )
+            return
+        self.embedded_media_bytes_total += len(media_bytes)
+        media_type = match.group(1).lower().replace("image/jpg", "image/jpeg")
+        self.embedded_media.append(
+            {
+                "media_type": media_type,
+                "private_media_base64": base64.b64encode(media_bytes).decode("ascii"),
+                "private_media_sha256": hashlib.sha256(media_bytes).hexdigest(),
+            }
+        )
 
     def safe_structural_inventory(self) -> dict[str, int | bool]:
         return {
@@ -1724,18 +2134,35 @@ class _FullHtmlExtractor(HTMLParser):
             "style_elements_total": self.style_elements_total,
             "comment_elements_total": self.comment_elements_total,
             "embedded_media_elements_total": self.embedded_media_elements_total,
+            "embedded_media_captured_total": len(self.embedded_media),
+            "embedded_media_bytes_total": self.embedded_media_bytes_total,
             "nested_tables_total": self.nested_tables_total,
             "link_elements_total": self.link_elements_total,
+            "ordered_content_blocks_total": len(self.ordered_content_blocks()),
             "private_values_in_inventory": False,
         }
 
     def outside_text(self) -> str:
+        return "\n".join(
+            str(block["text"])
+            for block in self.ordered_content_blocks()
+            if block["kind"] == "text"
+        )
+
+    def ordered_content_blocks(self) -> list[dict[str, Any]]:
+        self._flush_outside_block()
+        return copy.deepcopy(self._ordered_content_blocks)
+
+    def _flush_outside_block(self) -> None:
         lines = []
         for line in "\n".join(self._outside_parts).splitlines():
             clean = " ".join(line.split())
             if clean:
                 lines.append(clean)
-        return "\n".join(lines)
+        self._outside_parts = []
+        text = "\n".join(lines)
+        if text:
+            self._ordered_content_blocks.append({"kind": "text", "text": text})
 
 
 def _xlsx_relationships(archive: ZipFile) -> dict[str, str]:

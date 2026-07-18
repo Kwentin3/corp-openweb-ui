@@ -287,6 +287,23 @@ class Gate2InputReadinessService:
                         }
                     )
                     continue
+                if (
+                    private_slice.get("pdf_unit_type") == "pdf_visual_page_unit"
+                    or private_slice.get("slice_type") == "visual_media"
+                ):
+                    warning = _error(
+                        "gate2_visual_unit_restricted_requires_visual_consumer",
+                        str(private_slice.get("unit_ref") or document_ref),
+                    )
+                    warnings.append(warning)
+                    document_package_validations.append(
+                        {
+                            "validator_status": "skipped",
+                            "warning_codes": [warning["code"]],
+                            "errors": [],
+                        }
+                    )
+                    continue
                 issue_context = _build_issue_context(
                     issue_refs=_string_list(document_issue_refs.get(document_ref)),
                     issues_by_id=issues_by_id,
@@ -336,6 +353,12 @@ class Gate2InputReadinessService:
                             )
                             or {}
                         ),
+                        "scope_readiness": copy.deepcopy(
+                            _object(memory_entry.get("source_scope")).get(
+                                "scope_readiness"
+                            )
+                            or {}
+                        ),
                     }
                     package["issue_context"] = copy.deepcopy(issue_context)
                     package["allowed_issue_refs"] = sorted(
@@ -360,6 +383,14 @@ class Gate2InputReadinessService:
                         slice_record=slice_record,
                         private_slice=private_slice,
                         issue_context=issue_context,
+                    )
+                    package.setdefault("document_context", {})[
+                        "scope_readiness"
+                    ] = copy.deepcopy(
+                        _object(memory_entry.get("source_scope")).get(
+                            "scope_readiness"
+                        )
+                        or {}
                     )
                     validation = validate_dry_run_source_fact_package(
                         package=package,

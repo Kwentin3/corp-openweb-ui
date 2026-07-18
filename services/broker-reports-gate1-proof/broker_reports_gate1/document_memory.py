@@ -26,7 +26,7 @@ TERMINAL_STATES = {
     "review_required",
 }
 GATE2_MEMORY_READY_STATES = {"complete", "review_required"}
-SUPPORTED_CONTAINERS = {"csv", "html_text", "pdf"}
+SUPPORTED_CONTAINERS = {"csv", "html_text", "pdf", "xml", "zip"}
 SUPPORTED_HTML_ENCODINGS = {"utf-8-sig", "utf-8", "cp1251"}
 
 FACTORY_REQUIRED = (
@@ -83,14 +83,16 @@ def supported_pilot_profile_v1() -> dict[str, Any]:
                 "max_cells_per_table": 100_000,
                 "max_text_characters_per_unit": 200_000,
                 "scripts": "unsupported_review_required",
-                "embedded_media_objects": "unsupported_review_required",
+                "embedded_media_objects": (
+                    "bounded_data_image_visual_memory_review_required"
+                ),
                 "nested_tables": "unsupported_review_required",
                 "style_elements": "excluded_non_content_and_counted",
                 "logical_document_policy": "one_file_one_logical_document",
                 "table_policy": "common_normalized_table_contract_required",
             },
             "pdf": {
-                "variant": "complete_text_layer_and_layout_v1",
+                "variant": "text_layout_and_bounded_visual_fallback_v1",
                 "max_input_bytes": 50_000_000,
                 "max_pages": 2_000,
                 "max_page_content_stream_bytes": 10_000_000,
@@ -99,8 +101,8 @@ def supported_pilot_profile_v1() -> dict[str, Any]:
                 "max_layout_words_per_page": 10_000,
                 "max_layout_lines_per_page": 2_000,
                 "max_layout_objects_per_document": 75_000,
-                "image_only_pages": "unsupported_review_required",
-                "mixed_text_image_pages": "unsupported_review_required",
+                "image_only_pages": "bounded_visual_page_memory_review_required",
+                "mixed_text_image_pages": "bounded_visual_page_memory_review_required",
                 "embedded_attachments": "unsupported_review_required",
                 "table_policy": (
                     "common_normalized_table_when_geometry_is_validated; "
@@ -108,18 +110,40 @@ def supported_pilot_profile_v1() -> dict[str, Any]:
                 ),
                 "logical_document_policy": "one_file_one_logical_document",
             },
+            "xml": {
+                "variant": "neutral_ordered_xml_event_memory_v1",
+                "max_input_bytes": 5_000_000,
+                "max_events": 100_000,
+                "max_depth": 64,
+                "max_attributes": 100_000,
+                "dtd_and_entities": "forbidden",
+                "financial_semantics": "not_claimed",
+                "canonical_table_scope": "unavailable_review_required",
+                "logical_document_policy": "one_member_one_logical_document",
+                "table_policy": "common_neutral_event_table_contract",
+            },
+            "zip": {
+                "variant": "bounded_source_container_v1",
+                "max_input_bytes": 10_000_000,
+                "max_members": 100,
+                "max_member_bytes": 20_000_000,
+                "max_expanded_bytes": 50_000_000,
+                "max_compression_ratio": 100.0,
+                "promoted_member_formats": ["pdf", "xml"],
+                "accounted_signature_sidecars": ["p7s"],
+                "nested_archives": "forbidden",
+                "logical_document_policy": (
+                    "archive_container_only_members_become_logical_documents"
+                ),
+            },
         },
         "explicitly_outside_profile": {
             "xlsx": (
                 "pilot workbooks contain formulas and are methodology/output "
                 "artifacts; formula, merge and embedded-object memory is not closed"
             ),
-            "zip": "archive package inventory only; archive members are not source memory",
-            "image_only_pdf": "OCR/VL canonical memory is not closed",
-            "mixed_text_image_pdf": "visible image content is not fully normalized",
             "docx": "body-only projection is partial",
             "txt": "not present as a required source-evidence class in the approved pool",
-            "xml": "not present as a required source-evidence class in the approved pool",
             "xls": "not present as a required source-evidence class in the approved pool",
         },
         "terminal_states": {
@@ -178,6 +202,11 @@ class Gate1DocumentMemoryBuilder:
             for item in _dicts(package.get("technical_readability_profiles"))
             if item.get("document_id")
         }
+        archive_manifests = {
+            str(item.get("parent_document_ref") or ""): item
+            for item in _dicts(package.get("archive_source_manifests"))
+            if item.get("parent_document_ref")
+        }
 
         entries = []
         for document in documents:
@@ -191,6 +220,7 @@ class Gate1DocumentMemoryBuilder:
                     projections=projections_by_doc.get(document_ref, []),
                     decisions=decisions_by_doc.get(document_ref, []),
                     technical_profile=technical_profiles.get(document_ref, {}),
+                    archive_manifest=archive_manifests.get(document_ref, {}),
                 )
             )
         status_counts = Counter(str(item["terminal_status"]) for item in entries)
@@ -204,8 +234,19 @@ class Gate1DocumentMemoryBuilder:
                 "profile_accepted_total": sum(
                     1 for item in entries if item.get("profile_acceptance") == "accepted"
                 ),
+                "archive_containers_accepted_total": sum(
+                    1
+                    for item in entries
+                    if item.get("profile_acceptance") == "container_accepted"
+                ),
                 "gate2_memory_ready_total": sum(
                     1 for item in entries if item.get("gate2_memory_status") == "ready"
+                ),
+                "gate2_memory_restricted_total": sum(
+                    1
+                    for item in entries
+                    if item.get("gate2_memory_status")
+                    == "ready_with_restrictions"
                 ),
                 "terminal_status_counts": dict(sorted(status_counts.items())),
             },
@@ -243,6 +284,24 @@ class Gate1DocumentMemoryBuilder:
             _dicts(package.get("private_normalized_table_projections")),
             "source_document_ref",
         )
+        decisions_by_doc = _group_by(
+            _dicts(package.get("table_projection_decisions")),
+            "document_ref",
+        )
+        summaries_by_doc = {
+            str(item.get("document_ref") or ""): item
+            for item in _dicts(
+                _object(package.get("full_source_coverage_summary")).get(
+                    "documents"
+                )
+            )
+            if item.get("document_ref")
+        }
+        archive_by_parent = {
+            str(item.get("parent_document_ref") or ""): item
+            for item in _dicts(package.get("archive_source_manifests"))
+            if item.get("parent_document_ref")
+        }
         entries = []
         for document in _documents(package):
             document_ref = str(document.get("document_id") or "")
@@ -250,8 +309,17 @@ class Gate1DocumentMemoryBuilder:
             payloads = payloads_by_doc.get(document_ref, [])
             units = units_by_doc.get(document_ref, [])
             projections = projections_by_doc.get(document_ref, [])
-            logical_document_ref = "logicaldoc_" + stable_digest(
-                [run_id, document_ref, "one_file_one_logical_document"], length=24
+            is_archive_container = document.get("container_format") == "zip"
+            logical_document_refs = (
+                []
+                if is_archive_container
+                else [
+                    "logicaldoc_"
+                    + stable_digest(
+                        [run_id, document_ref, "one_file_one_logical_document"],
+                        length=24,
+                    )
+                ]
             )
             scope = self._scope(
                 document=document,
@@ -259,18 +327,43 @@ class Gate1DocumentMemoryBuilder:
                 payloads=payloads,
                 units=units,
                 projections=projections,
+                decisions=decisions_by_doc.get(document_ref, []),
+                summary=summaries_by_doc.get(document_ref, {}),
+                archive_manifest=archive_by_parent.get(document_ref, {}),
             )
             entries.append(
                 {
                     "source_file_ref": document_ref,
-                    "logical_document_refs": [logical_document_ref],
-                    "logical_document_policy": "one_file_one_logical_document",
+                    "logical_document_refs": logical_document_refs,
+                    "logical_document_policy": (
+                        "archive_container_only_members_are_logical_documents"
+                        if is_archive_container
+                        else "one_file_one_logical_document"
+                    ),
                     "normalization_run_id": run_id,
                     "profile_id": SUPPORTED_PROFILE_ID,
                     "profile_variant": assessment_entry.get("profile_variant"),
                     "profile_acceptance": assessment_entry.get("profile_acceptance"),
                     "container_format": document.get("container_format"),
                     "source_checksum_ref": _source_checksum_ref(document),
+                    "source_lineage": {
+                        "archive_parent_source_ref": document.get(
+                            "archive_parent_document_ref"
+                        ),
+                        "archive_member_ref": document.get("archive_member_ref"),
+                        "archive_member_index": document.get(
+                            "archive_member_index"
+                        ),
+                        "archive_manifest_ref": _object(
+                            archive_by_parent.get(document_ref)
+                        ).get("archive_ref"),
+                        "duplicate_group_ref": document.get(
+                            "duplicate_group_id"
+                        ),
+                        "duplicate_of_source_file_ref": document.get(
+                            "duplicate_of_document_id"
+                        ),
+                    },
                     "normalized_artifact_refs": {
                         "source_payload_refs": sorted(
                             str(item.get("source_payload_ref") or "")
@@ -329,6 +422,11 @@ class Gate1DocumentMemoryBuilder:
                     for item in entries
                     for ref in _strings(item.get("logical_document_refs"))
                 ),
+                "archive_container_refs": sorted(
+                    str(item.get("source_file_ref") or "")
+                    for item in entries
+                    if item.get("container_format") == "zip"
+                ),
             },
             "documents": entries,
             "summary": {
@@ -343,13 +441,25 @@ class Gate1DocumentMemoryBuilder:
                 "accepted_documents_total": sum(
                     1 for item in entries if item.get("profile_acceptance") == "accepted"
                 ),
+                "accepted_archive_containers_total": sum(
+                    1
+                    for item in entries
+                    if item.get("profile_acceptance") == "container_accepted"
+                ),
                 "gate2_memory_ready_total": sum(
                     1 for item in entries if item.get("gate2_memory_status") == "ready"
+                ),
+                "gate2_memory_restricted_total": sum(
+                    1
+                    for item in entries
+                    if item.get("gate2_memory_status")
+                    == "ready_with_restrictions"
                 ),
                 "zero_silent_loss_status": (
                     "passed_for_all_profile_accepted_documents"
                     if all(
-                        item.get("profile_acceptance") != "accepted"
+                        item.get("profile_acceptance")
+                        not in {"accepted", "container_accepted"}
                         or _object(item.get("completeness")).get("zero_silent_loss")
                         == "passed"
                         for item in entries
@@ -363,6 +473,9 @@ class Gate1DocumentMemoryBuilder:
                 "private_payloads_embedded": False,
                 "source_unit_schema_version": "private_normalized_source_unit_v0",
                 "table_schema_version": "broker_reports_normalized_table_projection_v0",
+                "scope_readiness_required": True,
+                "review_required_never_implies_canonical_table_ready": True,
+                "visual_units_require_visual_consumer": True,
             },
             "knowledge_vector_guard": {
                 "customer_docs_loaded_to_knowledge": False,
@@ -384,6 +497,7 @@ class Gate1DocumentMemoryBuilder:
         projections: list[dict[str, Any]],
         decisions: list[dict[str, Any]],
         technical_profile: dict[str, Any],
+        archive_manifest: dict[str, Any],
     ) -> dict[str, Any]:
         document_ref = str(document.get("document_id") or "")
         container = str(document.get("container_format") or "unknown")
@@ -392,7 +506,9 @@ class Gate1DocumentMemoryBuilder:
         profile_variant = {
             "csv": "broker_reports_csv_supported_profile_v1",
             "html_text": "static_html_text_and_tables_v1",
-            "pdf": "complete_text_layer_and_layout_v1",
+            "pdf": "text_layout_and_bounded_visual_fallback_v1",
+            "xml": "neutral_ordered_xml_event_memory_v1",
+            "zip": "bounded_source_container_v1",
         }.get(container, "outside_supported_profile_v1")
 
         if document.get("bytes_status") != "available" or document.get("read_error_class"):
@@ -401,6 +517,37 @@ class Gate1DocumentMemoryBuilder:
         elif container not in SUPPORTED_CONTAINERS:
             terminal_status = "unsupported"
             reasons.append(f"container_outside_supported_profile:{container}")
+        elif container == "zip":
+            if (
+                archive_manifest.get("terminal_status") == "complete"
+                and archive_manifest.get("all_members_accounted") is True
+                and int(archive_manifest.get("blocked_members_total") or 0) == 0
+                and int(archive_manifest.get("promoted_members_total") or 0) > 0
+                and all(
+                    item.get("disposition") != "promoted_source_document"
+                    or item.get("promoted_document_ref")
+                    for item in _dicts(archive_manifest.get("member_inventory"))
+                )
+            ):
+                return {
+                    "document_ref": document_ref,
+                    "container_format": container,
+                    "profile_variant": profile_variant,
+                    "profile_acceptance": "container_accepted",
+                    "terminal_status": "complete",
+                    "accounting_status": "passed",
+                    "zero_silent_loss": "passed",
+                    "gate2_memory_status": "lineage_only",
+                    "reason_codes": ["archive_members_fully_accounted"],
+                    "payloads_total": 0,
+                    "source_units_total": 0,
+                    "table_projections_total": 0,
+                }
+            terminal_status = "blocked"
+            reasons.extend(
+                _strings(archive_manifest.get("reason_codes"))
+                or ["archive_source_container_not_complete"]
+            )
         elif not summary:
             terminal_status = "blocked"
             reasons.append("full_source_summary_missing")
@@ -440,19 +587,59 @@ class Gate1DocumentMemoryBuilder:
                 if structural_reasons:
                     terminal_status = "review_required"
                     reasons.extend(structural_reasons)
+            if container == "xml" and terminal_status == "complete":
+                if technical_profile.get("xml_neutral_profile_status") != "accepted":
+                    terminal_status = "blocked"
+                    reasons.append("xml_neutral_profile_not_accepted")
+                else:
+                    terminal_status = "review_required"
+                    reasons.extend(
+                        [
+                            "xml_neutral_structure_ready",
+                            "xml_canonical_financial_table_unavailable",
+                        ]
+                    )
             if container == "pdf" and terminal_status == "complete":
                 if int(document.get("size_bytes") or 0) > 50_000_000:
                     terminal_status = "partial"
                     reasons.append("pdf_document_budget_exceeded")
+                visual_complete = (
+                    summary.get("pdf_visual_fallback_status") == "complete"
+                    and int(summary.get("pdf_visual_pages_total") or 0)
+                    == int(summary.get("pdf_visual_requested_pages_total") or 0)
+                )
                 if summary.get("pdf_text_layer_projection_status") != "complete":
-                    terminal_status = "partial"
-                    reasons.append("pdf_text_layer_projection_not_complete")
+                    if visual_complete:
+                        terminal_status = "review_required"
+                        reasons.append("pdf_text_scope_unavailable_visual_scope_ready")
+                    else:
+                        terminal_status = "partial"
+                        reasons.append("pdf_text_layer_projection_not_complete")
                 if summary.get("pdf_layout_projection_status") != "complete":
+                    if visual_complete:
+                        terminal_status = "review_required"
+                        reasons.append("pdf_layout_scope_restricted_visual_fallback_ready")
+                    elif (
+                        summary.get("pdf_text_layer_projection_status") == "complete"
+                        and summary.get("pdf_visible_content_coverage_status")
+                        == "complete_text_only"
+                    ):
+                        terminal_status = "review_required"
+                        reasons.append(
+                            "pdf_layout_scope_restricted_text_fallback_ready"
+                        )
+                    else:
+                        terminal_status = "partial"
+                        reasons.append("pdf_layout_projection_not_complete")
+                if summary.get("pdf_visible_content_coverage_status") not in {
+                    "complete_text_only",
+                    "complete_with_visual_fallback",
+                }:
                     terminal_status = "partial"
-                    reasons.append("pdf_layout_projection_not_complete")
-                if summary.get("pdf_visible_content_coverage_status") != "complete_text_only":
-                    terminal_status = "partial"
-                    reasons.append("pdf_visible_content_outside_text_only_profile")
+                    reasons.append("pdf_visible_content_coverage_not_complete")
+                elif visual_complete and terminal_status == "complete":
+                    terminal_status = "review_required"
+                    reasons.append("pdf_visual_scope_ready_requires_operator_review")
                 table_candidates = int(summary.get("pdf_table_candidates_total") or 0)
                 pdf_projections = sum(
                     1
@@ -491,6 +678,16 @@ class Gate1DocumentMemoryBuilder:
             if profile_acceptance == "accepted" and accounting_status == "passed"
             else "not_proven"
         )
+        if terminal_status in GATE2_MEMORY_READY_STATES:
+            if container == "xml" or (
+                container == "pdf"
+                and int(summary.get("pdf_pages_with_text") or 0) == 0
+            ):
+                memory_status = "ready_with_restrictions"
+            else:
+                memory_status = "ready"
+        else:
+            memory_status = "blocked"
         return {
             "document_ref": document_ref,
             "container_format": container,
@@ -499,9 +696,7 @@ class Gate1DocumentMemoryBuilder:
             "terminal_status": terminal_status,
             "accounting_status": accounting_status,
             "zero_silent_loss": zero_silent_loss,
-            "gate2_memory_status": (
-                "ready" if terminal_status in GATE2_MEMORY_READY_STATES else "blocked"
-            ),
+            "gate2_memory_status": memory_status,
             "reason_codes": sorted(set(reasons)),
             "payloads_total": len(payloads),
             "source_units_total": len(units),
@@ -516,6 +711,9 @@ class Gate1DocumentMemoryBuilder:
         payloads: list[dict[str, Any]],
         units: list[dict[str, Any]],
         projections: list[dict[str, Any]],
+        decisions: list[dict[str, Any]],
+        summary: dict[str, Any],
+        archive_manifest: dict[str, Any],
     ) -> dict[str, Any]:
         pages = max(
             (
@@ -525,9 +723,34 @@ class Gate1DocumentMemoryBuilder:
             ),
             default=0,
         )
+        container = str(document.get("container_format") or "unknown")
+        visual_units = [
+            item
+            for item in units
+            if item.get("slice_type") in {"visual_page", "visual_media"}
+            or item.get("pdf_unit_type") == "pdf_visual_page_unit"
+        ]
+        visual_page_units = [
+            item
+            for item in visual_units
+            if item.get("slice_type") == "visual_page"
+            or item.get("pdf_unit_type") == "pdf_visual_page_unit"
+        ]
+        visual_media_units = [
+            item for item in visual_units if item.get("slice_type") == "visual_media"
+        ]
+        validated_projections = [
+            item for item in projections if item.get("validator_status") == "passed"
+        ]
+        unresolved_decisions = [
+            item
+            for item in decisions
+            if item.get("status")
+            in {"blocked", "partial", "rejected_to_line_cluster"}
+        ]
         declared = {
             "source_files": 1,
-            "logical_documents": 1,
+            "logical_documents": 0 if container == "zip" else 1,
             "logical_content_artifacts": len(payloads),
             "rows_total": sum(int(item.get("rows_total") or 0) for item in payloads),
             "cells_total": sum(int(item.get("cells_total") or 0) for item in payloads),
@@ -535,9 +758,77 @@ class Gate1DocumentMemoryBuilder:
                 int(item.get("text_characters_total") or 0) for item in payloads
             ),
             "pages": pages,
+            "visual_pages": len(visual_page_units),
+            "visual_media": len(visual_media_units),
             "normalized_tables": len(projections),
+            "archive_members": int(archive_manifest.get("members_total") or 0),
+            "archive_promoted_members": int(
+                archive_manifest.get("promoted_members_total") or 0
+            ),
+            "archive_signature_sidecars": int(
+                archive_manifest.get("signature_sidecars_total") or 0
+            ),
         }
-        accepted = assessment.get("profile_acceptance") == "accepted"
+        accepted = assessment.get("profile_acceptance") in {
+            "accepted",
+            "container_accepted",
+        }
+        if container == "xml":
+            canonical_table_scope = "unavailable_neutral_structure_only"
+        elif container == "zip":
+            canonical_table_scope = "not_applicable_archive_container"
+        elif validated_projections and not unresolved_decisions:
+            canonical_table_scope = "ready_validated_projection_only"
+        elif projections or unresolved_decisions:
+            canonical_table_scope = "restricted_unresolved_topology"
+        else:
+            canonical_table_scope = "unavailable"
+        text_characters = int(declared["text_characters"])
+        if text_characters > 0:
+            text_scope = "ready"
+        elif container == "xml" and accepted:
+            text_scope = "neutral_structure_ready"
+        elif visual_units:
+            text_scope = "unavailable_visual_scope_only"
+        else:
+            text_scope = "unavailable"
+        restrictions = []
+        if canonical_table_scope not in {
+            "ready_validated_projection_only",
+            "not_applicable_archive_container",
+        }:
+            restrictions.append("canonical_financial_table_not_available")
+        if text_scope != "ready":
+            restrictions.append("text_scope_not_ready_for_text_only_consumer")
+        if document.get("duplicate_of_document_id"):
+            restrictions.append("duplicate_source_requires_canonical_choice")
+        if visual_units:
+            restrictions.append("visual_units_require_visual_consumer")
+        scope_readiness = {
+            "text_scope": text_scope,
+            "visual_scope": "ready" if visual_units else "not_required",
+            "canonical_table_scope": canonical_table_scope,
+            "neutral_structure_scope": (
+                "ready" if container == "xml" and accepted else "not_applicable"
+            ),
+            "archive_lineage_scope": (
+                "ready"
+                if container == "zip" and accepted
+                else "member_linked"
+                if document.get("archive_member_ref")
+                else "not_applicable"
+            ),
+            "fallback_lineage": (
+                "resolver_required_source_binary_available"
+                if document.get("sha256")
+                else "unavailable"
+            ),
+            "unresolved_table_topology": bool(unresolved_decisions)
+            or container == "xml",
+            "financial_interpretation": "restricted_to_ready_artifact_scopes",
+            "restrictions": sorted(set(restrictions)),
+            "review_required_does_not_imply_canonical_table": True,
+        }
         return {
             "scope_ref": "docscope_"
             + stable_digest(
@@ -566,6 +857,8 @@ class Gate1DocumentMemoryBuilder:
             ),
             "accounting_status": assessment.get("accounting_status"),
             "source_units_total": len(units),
+            "scope_readiness": scope_readiness,
+            "full_source_status": summary.get("parser_completeness_status"),
         }
 
 
@@ -601,17 +894,49 @@ def validate_document_memory_manifest(
         )
         if terminal_status not in TERMINAL_STATES:
             errors.append(_error("document_memory_terminal_status_invalid", entry.get("source_file_ref")))
-        if len(_strings(entry.get("logical_document_refs"))) != 1:
+        expected_logical_documents = (
+            0 if entry.get("container_format") == "zip" else 1
+        )
+        if len(_strings(entry.get("logical_document_refs"))) != expected_logical_documents:
             errors.append(_error("document_memory_logical_document_identity_invalid", entry.get("source_file_ref")))
         completeness = _object(entry.get("completeness"))
-        if entry.get("profile_acceptance") == "accepted" and (
+        if entry.get("profile_acceptance") in {"accepted", "container_accepted"} and (
             terminal_status not in GATE2_MEMORY_READY_STATES
             or completeness.get("accounting_status") != "passed"
             or completeness.get("zero_silent_loss") != "passed"
         ):
             errors.append(_error("document_memory_accepted_document_not_complete", entry.get("source_file_ref")))
-        if entry.get("gate2_memory_status") == "ready" and terminal_status not in GATE2_MEMORY_READY_STATES:
+        if entry.get("gate2_memory_status") in {"ready", "ready_with_restrictions"} and terminal_status not in GATE2_MEMORY_READY_STATES:
             errors.append(_error("document_memory_gate2_ready_status_invalid", entry.get("source_file_ref")))
+        if (
+            entry.get("profile_acceptance") == "container_accepted"
+            and entry.get("gate2_memory_status") != "lineage_only"
+        ):
+            errors.append(
+                _error(
+                    "document_memory_archive_container_status_invalid",
+                    entry.get("source_file_ref"),
+                )
+            )
+        readiness = _object(_object(entry.get("source_scope")).get("scope_readiness"))
+        if not readiness or readiness.get(
+            "review_required_does_not_imply_canonical_table"
+        ) is not True:
+            errors.append(
+                _error(
+                    "document_memory_scope_readiness_missing",
+                    entry.get("source_file_ref"),
+                )
+            )
+        if readiness.get("financial_interpretation") != (
+            "restricted_to_ready_artifact_scopes"
+        ):
+            errors.append(
+                _error(
+                    "document_memory_financial_scope_not_restricted",
+                    entry.get("source_file_ref"),
+                )
+            )
         for refs in _object(entry.get("normalized_artifact_refs")).values():
             all_artifact_refs.extend(_strings(refs))
     if len(all_artifact_refs) != len(set(all_artifact_refs)):
@@ -742,6 +1067,18 @@ def _accounting_errors(
             + int(summary.get("pdf_pages_without_text") or 0)
         ):
             errors.append("document_memory_pdf_page_accounting_mismatch")
+        visual_units_total = sum(
+            1
+            for item in units
+            if item.get("pdf_unit_type") == "pdf_visual_page_unit"
+        )
+        if int(summary.get("pdf_visual_pages_total") or 0) != visual_units_total:
+            errors.append("document_memory_pdf_visual_unit_count_mismatch")
+        if summary.get("pdf_visual_fallback_status") == "complete" and (
+            int(summary.get("pdf_visual_requested_pages_total") or 0)
+            != visual_units_total
+        ):
+            errors.append("document_memory_pdf_visual_coverage_incomplete")
     return sorted(set(errors))
 
 

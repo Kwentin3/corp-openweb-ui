@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -21,6 +22,7 @@ FORBIDDEN = (
 SOURCE_UNIT_SCHEMA_VERSION = "source_unit_provenance_v0"
 TABLE_SLICE_SCHEMA_VERSION = "private_normalized_table_slice_v0"
 TEXT_SLICE_SCHEMA_VERSION = "private_normalized_text_slice_v0"
+VISUAL_SLICE_SCHEMA_VERSION = "private_normalized_visual_slice_v1"
 COVERAGE_SCHEMA_VERSION = "source_unit_coverage_v0"
 SOURCE_VALUE_PROJECTION_POLICY = "private_payload_path_plus_checksum_v0"
 
@@ -63,6 +65,40 @@ _TEXT_PROVENANCE_FIELDS = {
     "source_checksum_ref",
     "slice_payload_checksum_ref",
     "safe_section_labels",
+    "safe_coverage_refs",
+    "coverage",
+}
+
+_VISUAL_PROVENANCE_FIELDS = {
+    "schema_version",
+    "source_unit_schema_version",
+    "normalization_run_id",
+    "page_refs",
+    "media_ref",
+    "media_checksum_ref",
+    "source_value_refs",
+    "source_value_index",
+    "source_value_projection_policy",
+    "parser_ref",
+    "source_checksum_ref",
+    "slice_payload_checksum_ref",
+    "safe_coverage_refs",
+    "coverage",
+}
+
+_VISUAL_MEDIA_PROVENANCE_FIELDS = {
+    "schema_version",
+    "source_unit_schema_version",
+    "normalization_run_id",
+    "media_item_refs",
+    "media_ref",
+    "media_checksum_ref",
+    "source_value_refs",
+    "source_value_index",
+    "source_value_projection_policy",
+    "parser_ref",
+    "source_checksum_ref",
+    "slice_payload_checksum_ref",
     "safe_coverage_refs",
     "coverage",
 }
@@ -162,6 +198,24 @@ class NormalizedSliceProvenanceEnricher:
                 )
             )
             enriched["schema_version"] = TEXT_SLICE_SCHEMA_VERSION
+        elif private_slice.get("slice_type") == "visual_page":
+            enriched.update(
+                self._visual_provenance(
+                    private_slice=private_slice,
+                    source_checksum_ref=source_checksum_ref,
+                    parser_ref=parser_ref,
+                )
+            )
+            enriched["schema_version"] = VISUAL_SLICE_SCHEMA_VERSION
+        elif private_slice.get("slice_type") == "visual_media":
+            enriched.update(
+                self._visual_media_provenance(
+                    private_slice=private_slice,
+                    source_checksum_ref=source_checksum_ref,
+                    parser_ref=parser_ref,
+                )
+            )
+            enriched["schema_version"] = VISUAL_SLICE_SCHEMA_VERSION
         else:
             raise ValueError("unsupported_private_slice_type")
         enriched.update(common)
@@ -338,6 +392,156 @@ class NormalizedSliceProvenanceEnricher:
             "coverage": coverage,
         }
 
+    def _visual_provenance(
+        self,
+        *,
+        private_slice: dict[str, Any],
+        source_checksum_ref: str,
+        parser_ref: str,
+    ) -> dict[str, Any]:
+        slice_id = str(private_slice["slice_id"])
+        source_location = (
+            private_slice.get("source_location")
+            if isinstance(private_slice.get("source_location"), dict)
+            else {}
+        )
+        page_number = int(source_location.get("page") or 0)
+        if page_number <= 0:
+            raise ValueError("visual_page_number_required")
+        encoded = str(private_slice.get("private_media_base64") or "")
+        try:
+            media_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("visual_media_base64_invalid") from exc
+        if not media_bytes:
+            raise ValueError("visual_media_bytes_required")
+        media_sha256 = hashlib.sha256(media_bytes).hexdigest()
+        if private_slice.get("private_media_sha256") != media_sha256:
+            raise ValueError("visual_media_checksum_mismatch")
+        page_ref = _ref(
+            "page",
+            source_checksum_ref,
+            page_number,
+            length=20,
+        )
+        media_ref = _ref(
+            "visual",
+            source_checksum_ref,
+            page_number,
+            media_sha256,
+            length=24,
+        )
+        media_checksum_ref = _ref(
+            "mediachk",
+            media_sha256,
+            len(media_bytes),
+            length=24,
+        )
+        coverage_ref = _ref("coverage", slice_id, page_ref, media_ref, length=24)
+        coverage = {
+            "schema_version": COVERAGE_SCHEMA_VERSION,
+            "coverage_ref": coverage_ref,
+            "unit_kind": "visual_page",
+            "selected_source_refs": [page_ref],
+            "visual_page_refs": [page_ref],
+            "selected_total": 1,
+            "accounted_total": 1,
+            "all_selected_refs_accounted": True,
+        }
+        slice_payload_checksum_ref = _checksum_ref(
+            "slicepayload",
+            {
+                "slice_id": slice_id,
+                "media_sha256": media_sha256,
+                "media_type": private_slice.get("media_type"),
+                "source_location": private_slice.get("source_location") or {},
+                "parser_ref": parser_ref,
+            },
+        )
+        return {
+            "page_refs": [page_ref],
+            "media_ref": media_ref,
+            "media_checksum_ref": media_checksum_ref,
+            "source_value_refs": [],
+            "source_value_index": [],
+            "slice_payload_checksum_ref": slice_payload_checksum_ref,
+            "safe_coverage_refs": [page_ref],
+            "coverage": coverage,
+        }
+
+    def _visual_media_provenance(
+        self,
+        *,
+        private_slice: dict[str, Any],
+        source_checksum_ref: str,
+        parser_ref: str,
+    ) -> dict[str, Any]:
+        slice_id = str(private_slice["slice_id"])
+        source_location = (
+            private_slice.get("source_location")
+            if isinstance(private_slice.get("source_location"), dict)
+            else {}
+        )
+        media_ordinal = int(source_location.get("media_ordinal") or 0)
+        if media_ordinal <= 0:
+            raise ValueError("visual_media_ordinal_required")
+        encoded = str(private_slice.get("private_media_base64") or "")
+        try:
+            media_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("visual_media_base64_invalid") from exc
+        if not media_bytes:
+            raise ValueError("visual_media_bytes_required")
+        media_sha256 = hashlib.sha256(media_bytes).hexdigest()
+        if private_slice.get("private_media_sha256") != media_sha256:
+            raise ValueError("visual_media_checksum_mismatch")
+        media_item_ref = _ref(
+            "mediaitem", source_checksum_ref, media_ordinal, length=20
+        )
+        media_ref = _ref(
+            "visual",
+            source_checksum_ref,
+            media_ordinal,
+            media_sha256,
+            length=24,
+        )
+        media_checksum_ref = _ref(
+            "mediachk", media_sha256, len(media_bytes), length=24
+        )
+        coverage_ref = _ref(
+            "coverage", slice_id, media_item_ref, media_ref, length=24
+        )
+        coverage = {
+            "schema_version": COVERAGE_SCHEMA_VERSION,
+            "coverage_ref": coverage_ref,
+            "unit_kind": "visual_media",
+            "selected_source_refs": [media_item_ref],
+            "visual_media_refs": [media_item_ref],
+            "selected_total": 1,
+            "accounted_total": 1,
+            "all_selected_refs_accounted": True,
+        }
+        slice_payload_checksum_ref = _checksum_ref(
+            "slicepayload",
+            {
+                "slice_id": slice_id,
+                "media_sha256": media_sha256,
+                "media_type": private_slice.get("media_type"),
+                "source_location": source_location,
+                "parser_ref": parser_ref,
+            },
+        )
+        return {
+            "media_item_refs": [media_item_ref],
+            "media_ref": media_ref,
+            "media_checksum_ref": media_checksum_ref,
+            "source_value_refs": [],
+            "source_value_index": [],
+            "slice_payload_checksum_ref": slice_payload_checksum_ref,
+            "safe_coverage_refs": [media_item_ref],
+            "coverage": coverage,
+        }
+
     def _text_provenance(
         self,
         *,
@@ -495,11 +699,14 @@ def validate_normalized_slice_provenance(
             private_slice=private_slice,
         )
 
-    fields = (
-        _TABLE_PROVENANCE_FIELDS
-        if private_slice.get("slice_type") == "table_rows"
-        else _TEXT_PROVENANCE_FIELDS
-    )
+    if private_slice.get("slice_type") == "table_rows":
+        fields = _TABLE_PROVENANCE_FIELDS
+    elif private_slice.get("slice_type") == "visual_page":
+        fields = _VISUAL_PROVENANCE_FIELDS
+    elif private_slice.get("slice_type") == "visual_media":
+        fields = _VISUAL_MEDIA_PROVENANCE_FIELDS
+    else:
+        fields = _TEXT_PROVENANCE_FIELDS
     for field in sorted(fields):
         if field not in private_slice:
             errors.append({"code": "slice_provenance_field_missing", "subject": f"{slice_id}:{field}"})

@@ -6,7 +6,12 @@ from typing import Callable, Literal
 from .contracts import stable_digest
 
 
-SourceKind = Literal["synthetic", "local_private_test", "openwebui_pipe"]
+SourceKind = Literal[
+    "synthetic",
+    "local_private_test",
+    "openwebui_pipe",
+    "archive_member_private",
+]
 
 
 class BytesUnavailable(Exception):
@@ -34,6 +39,10 @@ class FileInput:
     bytes_provider: Callable[[], bytes] | None = None
     provider_label: str = "provided"
     privacy_markers: list[str] = field(default_factory=list)
+    root_input_ordinal: int | None = None
+    archive_parent_document_ref: str | None = None
+    archive_member_ref: str | None = None
+    archive_member_index: int | None = None
 
     @classmethod
     def from_bytes(

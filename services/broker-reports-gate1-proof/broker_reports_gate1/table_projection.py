@@ -23,7 +23,7 @@ TABLE_PROJECTION_SCHEMA_VERSION = "broker_reports_normalized_table_projection_v0
 TABLE_COVERAGE_SCHEMA_VERSION = "broker_reports_table_projection_coverage_v0"
 TABLE_QUALITY_SCHEMA_VERSION = "broker_reports_table_reconstruction_quality_v0"
 
-SOURCE_FORMATS = {"csv", "html", "xlsx", "pdf", "txt", "unknown"}
+SOURCE_FORMATS = {"csv", "html", "xlsx", "pdf", "xml", "txt", "unknown"}
 ROW_ROLES = {
     "header_row",
     "data_row",
@@ -84,6 +84,7 @@ class NormalizedTableProjectionService:
             "csv": CsvTableProjectionBuilder(config),
             "html": HtmlTableProjectionBuilder(config),
             "xlsx": XlsxTableProjectionBuilder(config),
+            "xml": XmlTableProjectionBuilder(config),
         }
         self.pdf_builder = PdfTableCandidateProjectionBuilder(config)
         self.validator = TableProjectionValidator()
@@ -328,6 +329,10 @@ class HtmlTableProjectionBuilder(_NativeTableProjectionBuilder):
 
 class XlsxTableProjectionBuilder(_NativeTableProjectionBuilder):
     source_format = "xlsx"
+
+
+class XmlTableProjectionBuilder(_NativeTableProjectionBuilder):
+    source_format = "xml"
 
 
 class PdfTableCandidateProjectionBuilder:

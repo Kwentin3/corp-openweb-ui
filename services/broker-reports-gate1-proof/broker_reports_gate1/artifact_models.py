@@ -65,6 +65,7 @@ ARTIFACT_TYPES = {
     "normalization_run_v0",
     "broker_reports_gate1_supported_pilot_profile_v1",
     "broker_reports_gate1_supported_profile_assessment_v1",
+    "broker_reports_gate1_archive_source_manifest_v1",
     "broker_reports_gate1_document_memory_manifest_v1",
     "document_inventory_v0",
     "technical_readability_profile_v0",

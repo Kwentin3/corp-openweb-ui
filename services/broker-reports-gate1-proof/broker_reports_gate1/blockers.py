@@ -101,11 +101,11 @@ def zip_requires_review(run_id: str, document_id: str) -> dict:
         run_id=run_id,
         document_id=document_id,
         code="zip_requires_review",
-        severity="warning",
-        blocks_next_gate=False,
+        severity="error",
+        blocks_next_gate=True,
         created_by_step="zip_inventory",
-        safe_message="ZIP contents were inventoried but require operator review before use.",
-        review_action="review_zip_member_inventory",
+        safe_message="The ZIP source container failed bounded member intake.",
+        review_action="review_archive_policy_reasons_or_request_replacement",
     )
 
 

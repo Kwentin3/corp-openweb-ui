@@ -126,6 +126,11 @@ def persist_gate1_result(
         ),
         ("document_inventory_v0", package["document_inventory"], None),
         ("technical_readability_profile_v0", package["technical_readability_profiles"], None),
+        (
+            "broker_reports_gate1_archive_source_manifest_v1",
+            package.get("archive_source_manifests"),
+            None,
+        ),
         ("taxonomy_candidates_v0", package["taxonomy_candidates"], None),
         ("normalization_blockers_v0", package["normalization_blockers"], None),
         (
@@ -1293,16 +1298,32 @@ def _source_refs_for_documents(
 ) -> list[dict[str, Any]]:
     refs = []
     for index, document in enumerate(documents):
-        provided = source_file_refs[index] if index < len(source_file_refs) else {}
+        root_ordinal = int(document.get("root_input_ordinal") or (index + 1))
+        provided = (
+            source_file_refs[root_ordinal - 1]
+            if 0 < root_ordinal <= len(source_file_refs)
+            else {}
+        )
         refs.append(
             {
-                "provider": provided.get("provider") or document.get("source_kind") or "unknown",
+                "provider": (
+                    "bounded_zip_member"
+                    if document.get("archive_member_ref")
+                    else provided.get("provider")
+                    or document.get("source_kind")
+                    or "unknown"
+                ),
                 "openwebui_file_id": provided.get("openwebui_file_id"),
                 "file_hash_sha256": document.get("sha256") or provided.get("file_hash_sha256"),
                 "content_type": document.get("declared_mime_type") or provided.get("content_type"),
                 "size_bytes": document.get("size_bytes") or provided.get("size_bytes"),
                 "source_deleted": bool(provided.get("source_deleted", False)),
                 "source_delete_observed_at": provided.get("source_delete_observed_at"),
+                "archive_parent_document_ref": document.get(
+                    "archive_parent_document_ref"
+                ),
+                "archive_member_ref": document.get("archive_member_ref"),
+                "archive_member_index": document.get("archive_member_index"),
             }
         )
     return refs

@@ -134,6 +134,7 @@ SOURCE_DOCUMENT_CLASSES = {
     "fees_report",
     "withholding_report",
     "currency_rate_table",
+    "tax_source_document",
 }
 
 METHODOLOGY_OR_OUTPUT_CLASSES = {

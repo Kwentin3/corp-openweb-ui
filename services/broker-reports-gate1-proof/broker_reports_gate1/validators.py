@@ -5,6 +5,7 @@ import json
 from typing import Iterable
 
 from .blockers import privacy_violation
+from .archive_intake import ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION
 from .contracts import BLOCKER_CODES, GATE2_HANDOFF_MODES, OCR_POLICY_STATUSES, SOURCE_ELIGIBILITY_STATUSES
 from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
@@ -169,6 +170,7 @@ def validate_artifacts(package: dict) -> dict:
             "html_text",
             "xlsx",
             "pdf",
+            "xml",
             "zip",
             "docx",
             "image",
@@ -449,6 +451,47 @@ def validate_artifacts(package: dict) -> dict:
             }
             if "raster_requires_ocr_or_review" not in doc_refs:
                 errors.append(_error("raster_pdf_missing_gate2_blocker", profile.get("document_id")))
+
+    for manifest in package.get("archive_source_manifests") or []:
+        if not isinstance(manifest, dict):
+            errors.append(_error("archive_manifest_not_object", run_id))
+            continue
+        archive_ref = manifest.get("archive_ref")
+        parent_ref = manifest.get("parent_document_ref")
+        if manifest.get("schema_version") != ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION:
+            errors.append(_error("archive_manifest_schema_mismatch", archive_ref))
+        parent = document_by_id.get(parent_ref)
+        if not parent or parent.get("container_format") != "zip":
+            errors.append(_error("archive_manifest_parent_invalid", archive_ref))
+        members = [
+            item
+            for item in manifest.get("member_inventory") or []
+            if isinstance(item, dict)
+        ]
+        if int(manifest.get("members_total") or 0) != len(members):
+            errors.append(_error("archive_manifest_member_count_mismatch", archive_ref))
+        member_refs = [str(item.get("safe_member_ref") or "") for item in members]
+        if not all(member_refs) or len(member_refs) != len(set(member_refs)):
+            errors.append(_error("archive_manifest_member_ref_invalid", archive_ref))
+        if manifest.get("terminal_status") == "complete":
+            if manifest.get("all_members_accounted") is not True:
+                errors.append(_error("archive_manifest_member_accounting_failed", archive_ref))
+            for member in members:
+                if member.get("disposition") == "promoted_source_document":
+                    promoted_ref = str(member.get("promoted_document_ref") or "")
+                    promoted = document_by_id.get(promoted_ref)
+                    if (
+                        not promoted
+                        or promoted.get("archive_parent_document_ref") != parent_ref
+                        or promoted.get("archive_member_ref")
+                        != member.get("safe_member_ref")
+                    ):
+                        errors.append(
+                            _error(
+                                "archive_manifest_promoted_member_lineage_invalid",
+                                member.get("safe_member_ref"),
+                            )
+                        )
 
     gate2_status = package.get("normalization_run", {}).get("gate2_handoff_status")
     gate2_mode = package.get("normalization_run", {}).get("gate2_handoff_mode")

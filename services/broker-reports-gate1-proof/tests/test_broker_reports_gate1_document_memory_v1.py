@@ -71,12 +71,18 @@ class BrokerReportsGate1DocumentMemoryV1Test(unittest.TestCase):
         profile = supported_pilot_profile_v1()
 
         self.assertEqual(profile["profile_id"], SUPPORTED_PROFILE_ID)
-        self.assertEqual(set(profile["formats"]), {"csv", "html_text", "pdf"})
+        self.assertEqual(
+            set(profile["formats"]), {"csv", "html_text", "pdf", "xml", "zip"}
+        )
         self.assertEqual(profile["formats"]["csv"]["max_rows"], 10_000)
         self.assertEqual(profile["formats"]["pdf"]["max_pages"], 2_000)
         self.assertEqual(
             profile["formats"]["pdf"]["image_only_pages"],
-            "unsupported_review_required",
+            "bounded_visual_page_memory_review_required",
+        )
+        self.assertEqual(
+            profile["formats"]["zip"]["promoted_member_formats"],
+            ["pdf", "xml"],
         )
         self.assertIn("xlsx", profile["explicitly_outside_profile"])
         self.assertFalse(profile["silent_omission_allowed"])
