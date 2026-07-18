@@ -238,6 +238,7 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
         low["quality"]["reconstruction_quality"] = "low"
         low["table_projection_checksum_ref"] = _projection_checksum(low)
         package["private_normalized_table_projections"] = [low, good]
+        package = apply_domain_ingestion_artifacts(package)
         package["validation_result"] = validate_artifacts(package)
         self.assertEqual(package["validation_result"]["status"], "passed")
         context, manifest = self._persist(

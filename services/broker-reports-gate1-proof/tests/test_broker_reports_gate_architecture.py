@@ -15,6 +15,7 @@ GATE2_MODULES = {
 } | {"gate3_context_manifest"}
 GATE1_PRIVATE_IMPLEMENTATIONS = {
     "csv_profile",
+    "document_memory",
     "full_source",
     "pdf_layout_units",
     "pdf_text_layer",

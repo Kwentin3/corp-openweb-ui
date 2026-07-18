@@ -257,6 +257,16 @@ from .gate2_domain_runtime import (
     Gate2DomainSourceFactRuntimeFactory,
     Gate2DomainSourceFactRuntimeResult,
 )
+from .document_memory import (
+    DOCUMENT_MEMORY_POLICY_VERSION,
+    DOCUMENT_MEMORY_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_ASSESSMENT_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_ID,
+    SUPPORTED_PROFILE_SCHEMA_VERSION,
+    Gate1DocumentMemoryFactory,
+    supported_pilot_profile_v1,
+    validate_document_memory_manifest,
+)
 from .gate3_context_manifest import (
     GATE3_CONTEXT_MANIFEST_POLICY_VERSION,
     GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION,

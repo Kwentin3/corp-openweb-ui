@@ -40,6 +40,16 @@ def render_safe_report(package: dict) -> dict:
         if isinstance(package.get("table_projection_summary"), dict)
         else {}
     )
+    supported_profile_assessment = (
+        package.get("gate1_supported_profile_assessment")
+        if isinstance(package.get("gate1_supported_profile_assessment"), dict)
+        else {}
+    )
+    document_memory_manifest = (
+        package.get("document_memory_manifest")
+        if isinstance(package.get("document_memory_manifest"), dict)
+        else {}
+    )
 
     report = {
         "schema_version": SAFE_REPORT_SCHEMA,
@@ -86,6 +96,20 @@ def render_safe_report(package: dict) -> dict:
         if domain_context_packet
         else None,
         "domain_ingestion_summary": copy.deepcopy(domain_ingestion_summary) if domain_ingestion_summary else None,
+        "gate1_supported_profile_summary": {
+            "profile_id": supported_profile_assessment.get("profile_id"),
+            **copy.deepcopy(supported_profile_assessment.get("summary") or {}),
+        }
+        if supported_profile_assessment
+        else None,
+        "document_memory_summary": {
+            "manifest_id": document_memory_manifest.get("manifest_id"),
+            "profile_id": document_memory_manifest.get("profile_id"),
+            "integrity_hash": document_memory_manifest.get("integrity_hash"),
+            **copy.deepcopy(document_memory_manifest.get("summary") or {}),
+        }
+        if document_memory_manifest
+        else None,
         "full_source_coverage_summary": copy.deepcopy(full_source_coverage_summary),
         "table_projection_summary": copy.deepcopy(table_projection_summary),
         "validation_result": validation_result,

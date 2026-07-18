@@ -15,6 +15,7 @@ from .artifact_models import (
 from .artifact_resolver import ArtifactResolver
 from .contracts import stable_digest
 from .gate1_public_contracts import (
+    DOCUMENT_MEMORY_SCHEMA_VERSION,
     NormalizedSliceProvenanceFactory,
     SOURCE_UNIT_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
@@ -22,6 +23,7 @@ from .gate1_public_contracts import (
     resolve_pdf_layout_unit_source_value,
     resolve_source_values,
     validate_full_source_unit,
+    validate_document_memory_manifest,
     validate_normalized_slice_provenance,
     validate_pdf_source_unit,
 )
@@ -163,6 +165,30 @@ class Gate2InputReadinessService:
             resolved_scope_records=resolved_scope_records,
             errors=errors,
         )
+        document_memory = self._resolve_single_payload(
+            records=records,
+            artifact_type="broker_reports_gate1_document_memory_manifest_v1",
+            context=context,
+            resolved_scope_records=resolved_scope_records,
+            errors=errors,
+        )
+        document_memory_validation = validate_document_memory_manifest(
+            document_memory
+        )
+        errors.extend(
+            copy.deepcopy(document_memory_validation.get("errors") or [])
+        )
+        document_memory_boundary = _object(dcp.get("document_memory_boundary"))
+        if document_memory.get("schema_version") != DOCUMENT_MEMORY_SCHEMA_VERSION:
+            errors.append(_error("gate2_document_memory_schema_mismatch", "dcp"))
+        if document_memory_boundary.get("manifest_id") != document_memory.get(
+            "manifest_id"
+        ):
+            errors.append(_error("gate2_document_memory_id_mismatch", "dcp"))
+        if document_memory_boundary.get(
+            "manifest_integrity_hash"
+        ) != document_memory.get("integrity_hash"):
+            errors.append(_error("gate2_document_memory_hash_mismatch", "dcp"))
         passports_by_document = self._resolve_passports(
             records=records,
             context=context,
@@ -214,6 +240,12 @@ class Gate2InputReadinessService:
             if entry.get("issue_id")
         }
         document_issue_refs = _object(dcp.get("document_issue_refs"))
+        memory_by_document = {
+            str(item.get("source_file_ref") or ""): item
+            for item in document_memory.get("documents") or []
+            if isinstance(item, dict)
+            if item.get("source_file_ref")
+        }
 
         packages: list[dict[str, Any]] = []
         package_validations: list[dict[str, Any]] = []
@@ -222,6 +254,22 @@ class Gate2InputReadinessService:
         issue_scope_counts: Counter[str] = Counter()
 
         for document_ref in source_ready_refs:
+            memory_entry = memory_by_document.get(document_ref)
+            if not memory_entry:
+                errors.append(
+                    _error("gate2_source_ready_document_memory_missing", document_ref)
+                )
+                unpackageable_document_refs.add(document_ref)
+                continue
+            if (
+                document_memory_boundary.get("profile_enforcement") == "required"
+                and memory_entry.get("gate2_memory_status") != "ready"
+            ):
+                errors.append(
+                    _error("gate2_source_ready_document_memory_blocked", document_ref)
+                )
+                unpackageable_document_refs.add(document_ref)
+                continue
             document_slices = slices_by_document.get(document_ref, [])
             if not document_slices:
                 errors.append(_error("gate2_source_ready_document_has_no_private_slice", document_ref))
@@ -383,6 +431,15 @@ class Gate2InputReadinessService:
             "knowledge_records": knowledge_records,
             "handoff_audit": handoff_audit,
             "slice_audit": slice_audit,
+            "document_memory_audit": {
+                "manifest_id": document_memory.get("manifest_id"),
+                "schema_version": document_memory.get("schema_version"),
+                "validator_status": document_memory_validation.get(
+                    "validator_status"
+                ),
+                "documents_total": len(memory_by_document),
+                "format_specific_parser_required": False,
+            },
         }
         safe_report = _render_safe_report(
             validation=validation,

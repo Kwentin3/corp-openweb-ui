@@ -63,6 +63,9 @@ VALIDATION_STATUSES = {"pending", "validated", "blocked", "privacy_failed"}
 ARTIFACT_TYPES = {
     "source_file_ref_v0",
     "normalization_run_v0",
+    "broker_reports_gate1_supported_pilot_profile_v1",
+    "broker_reports_gate1_supported_profile_assessment_v1",
+    "broker_reports_gate1_document_memory_manifest_v1",
     "document_inventory_v0",
     "technical_readability_profile_v0",
     "taxonomy_candidates_v0",

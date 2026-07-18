@@ -252,6 +252,13 @@ class PypdfParserAdapter:
 
         pages: list[dict[str, Any]] = []
         document_reasons: list[str] = []
+        try:
+            embedded_attachments_total = sum(1 for _ in reader.attachment_list)
+        except Exception:
+            embedded_attachments_total = 0
+            document_reasons.append("pdf_attachment_inventory_unavailable")
+        if embedded_attachments_total:
+            document_reasons.append("pdf_embedded_attachments_not_supported")
         for page_index, page in enumerate(reader.pages, start=1):
             page_result = self._parse_page(page=page, page_number=page_index)
             pages.append(page_result)
@@ -309,6 +316,7 @@ class PypdfParserAdapter:
                 "unknown_font_fragments_total": sum(
                     int(page.get("unknown_font_fragments_total") or 0) for page in pages
                 ),
+                "embedded_attachments_total": embedded_attachments_total,
             },
         )
 
@@ -447,6 +455,7 @@ class PypdfParserAdapter:
                 "text_characters_total": 0,
                 "replacement_characters_total": 0,
                 "unknown_font_fragments_total": 0,
+                "embedded_attachments_total": 0,
             },
         )
 

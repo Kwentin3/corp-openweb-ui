@@ -76,7 +76,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_csv_supported_profile_v1",
+            "gate1_document_memory_profile_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
@@ -133,6 +133,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             bundled_order.index("pdf_structural_repair_shadow"),
         )
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
+        self.assertIn("document_memory", module._BUNDLED_MODULES)
         self.assertIn("gate2_input_readiness", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_contracts", module._BUNDLED_MODULES)
         self.assertIn("gate2_model_contracts", module._BUNDLED_MODULES)
@@ -142,6 +143,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_source_fact_runtime", module._BUNDLED_MODULES)
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(hasattr(bundled_package, "NormalizedSliceProvenanceFactory"))
+        self.assertTrue(hasattr(bundled_package, "Gate1DocumentMemoryFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(

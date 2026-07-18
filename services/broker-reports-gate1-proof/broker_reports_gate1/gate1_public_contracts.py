@@ -10,6 +10,11 @@ from .domain_ingestion import (
     DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION,
     ISSUE_LEDGER_SCHEMA_VERSION,
 )
+from .document_memory import (
+    DOCUMENT_MEMORY_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_ID,
+    validate_document_memory_manifest,
+)
 from .full_source import SOURCE_UNIT_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_layout_units import resolve_pdf_layout_unit_source_value
 from .pdf_text_layer import validate_pdf_source_unit
@@ -38,8 +43,10 @@ __all__ = [
     "DOCUMENT_USAGE_CLASSIFICATION_SCHEMA_VERSION",
     "DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION",
     "ISSUE_LEDGER_SCHEMA_VERSION",
+    "DOCUMENT_MEMORY_SCHEMA_VERSION",
     "NormalizedSliceProvenanceFactory",
     "SOURCE_UNIT_SCHEMA_VERSION",
+    "SUPPORTED_PROFILE_ID",
     "TABLE_PROJECTION_SCHEMA_VERSION",
     "TableProjectionValidator",
     "reproduce_normalized_value",
@@ -47,6 +54,7 @@ __all__ = [
     "resolve_source_value",
     "resolve_source_values",
     "validate_full_source_unit",
+    "validate_document_memory_manifest",
     "validate_normalized_slice_provenance",
     "validate_pdf_source_unit",
 ]

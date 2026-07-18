@@ -114,6 +114,16 @@ def persist_gate1_result(
 
     safe_payloads = [
         ("normalization_run_v0", package["normalization_run"], None),
+        (
+            "broker_reports_gate1_supported_pilot_profile_v1",
+            package.get("gate1_supported_profile"),
+            None,
+        ),
+        (
+            "broker_reports_gate1_supported_profile_assessment_v1",
+            package.get("gate1_supported_profile_assessment"),
+            None,
+        ),
         ("document_inventory_v0", package["document_inventory"], None),
         ("technical_readability_profile_v0", package["technical_readability_profiles"], None),
         ("taxonomy_candidates_v0", package["taxonomy_candidates"], None),
@@ -126,6 +136,11 @@ def persist_gate1_result(
         ("document_source_eligibility_v0", package["document_source_eligibility"], None),
         ("gate1_issue_ledger_v0", package.get("gate1_issue_ledger"), None),
         ("document_usage_classification_v0", package.get("document_usage_classification"), None),
+        (
+            "broker_reports_gate1_document_memory_manifest_v1",
+            package.get("document_memory_manifest"),
+            None,
+        ),
         ("domain_context_packet_v0", package.get("domain_context_packet"), None),
         (
             "broker_reports_pdf_table_intake_run_v1",
@@ -822,6 +837,9 @@ def persist_gate1_result(
     issue_ledger_refs = refs_by_type.get("gate1_issue_ledger_v0", [])
     usage_classification_refs = refs_by_type.get("document_usage_classification_v0", [])
     domain_context_packet_refs = refs_by_type.get("domain_context_packet_v0", [])
+    document_memory_manifest_refs = refs_by_type.get(
+        "broker_reports_gate1_document_memory_manifest_v1", []
+    )
     domain_context_packet = package.get("domain_context_packet") if isinstance(package.get("domain_context_packet"), dict) else {}
     next_stage_refs = (
         domain_context_packet.get("next_stage_refs")
@@ -842,6 +860,11 @@ def persist_gate1_result(
         "issue_ledger_ref": issue_ledger_refs[-1] if issue_ledger_refs else None,
         "document_usage_classification_ref": usage_classification_refs[-1] if usage_classification_refs else None,
         "domain_context_packet_ref": domain_context_packet_refs[-1] if domain_context_packet_refs else None,
+        "document_memory_manifest_ref": (
+            document_memory_manifest_refs[-1]
+            if document_memory_manifest_refs
+            else None
+        ),
         "unresolved_issue_refs": list(domain_context_packet.get("unresolved_issue_refs") or []),
         "domain_stage_readiness": dict(domain_context_packet.get("stage_readiness") or {}),
         "next_stage_refs": copy.deepcopy(next_stage_refs),
@@ -950,6 +973,9 @@ def persist_gate1_result(
                 "decision_status_counts": handoff_payload["decision_status_counts"],
                 "handoff_blocker_counts": handoff_payload["handoff_blocker_counts"],
                 "next_stage_ref_summary": handoff_payload["next_stage_ref_summary"],
+                "document_memory_manifest_ref": handoff_payload[
+                    "document_memory_manifest_ref"
+                ],
                 "source_unit_schema_version": handoff_payload["source_unit_contract"].get(
                     "source_unit_schema_version"
                 ),

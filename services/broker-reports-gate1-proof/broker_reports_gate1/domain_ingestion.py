@@ -5,6 +5,13 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from .contracts import METHODOLOGY_OR_OUTPUT_CLASSES, SOURCE_DOCUMENT_CLASSES, stable_digest
+from .document_memory import (
+    DOCUMENT_MEMORY_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_ASSESSMENT_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_SCHEMA_VERSION,
+    Gate1DocumentMemoryFactory,
+    supported_pilot_profile_v1,
+)
 
 
 ISSUE_LEDGER_SCHEMA_VERSION = "gate1_issue_ledger_v0"
@@ -12,6 +19,9 @@ DOCUMENT_USAGE_CLASSIFICATION_SCHEMA_VERSION = "document_usage_classification_v0
 DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION = "domain_context_packet_v0"
 
 DOMAIN_INGESTION_CONTRACTS = [
+    SUPPORTED_PROFILE_SCHEMA_VERSION,
+    SUPPORTED_PROFILE_ASSESSMENT_SCHEMA_VERSION,
+    DOCUMENT_MEMORY_SCHEMA_VERSION,
     ISSUE_LEDGER_SCHEMA_VERSION,
     DOCUMENT_USAGE_CLASSIFICATION_SCHEMA_VERSION,
     DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION,
@@ -31,6 +41,7 @@ CONSOLIDATION_ISSUES = {
     "metadata_gap",
     "source_role_policy_uncertainty",
     "outside_scope_confirmation",
+    "structural_uncertainty",
 }
 STAGES = [
     "domain_ingestion",
@@ -43,9 +54,25 @@ STAGES = [
 
 def apply_domain_ingestion_artifacts(package: dict[str, Any]) -> dict[str, Any]:
     updated = copy.deepcopy(package)
+    document_memory_builder = Gate1DocumentMemoryFactory().create()
+    supported_profile = supported_pilot_profile_v1()
+    supported_profile_assessment = document_memory_builder.assess_supported_profile(
+        updated
+    )
+    updated["gate1_supported_profile"] = supported_profile
+    updated["gate1_supported_profile_assessment"] = supported_profile_assessment
     issue_ledger = build_gate1_issue_ledger(updated)
     usage_classification = build_document_usage_classification(updated, issue_ledger)
-    domain_context_packet = build_domain_context_packet(updated, issue_ledger, usage_classification)
+    document_memory_manifest = document_memory_builder.build_manifest(
+        updated, supported_profile_assessment, issue_ledger
+    )
+    updated["document_memory_manifest"] = document_memory_manifest
+    domain_context_packet = build_domain_context_packet(
+        updated,
+        issue_ledger,
+        usage_classification,
+        document_memory_manifest=document_memory_manifest,
+    )
     summary = _domain_ingestion_summary(issue_ledger, usage_classification, domain_context_packet)
 
     updated["gate1_issue_ledger"] = issue_ledger
@@ -61,6 +88,9 @@ def apply_domain_ingestion_artifacts(package: dict[str, Any]) -> dict[str, Any]:
     run["domain_ingestion_status"] = summary["domain_ingestion_status"]
     run["issue_ledger_status"] = summary["issue_ledger_status"]
     run["domain_context_packet_status"] = "ready"
+    run["document_memory_status"] = (
+        document_memory_manifest.get("summary", {}).get("zero_silent_loss_status")
+    )
     run["source_fact_extraction_readiness"] = domain_context_packet["stage_readiness"]["source_fact_extraction"]
     run["consolidation_readiness"] = domain_context_packet["stage_readiness"]["consolidation"]
     run["declaration_support_readiness"] = domain_context_packet["stage_readiness"]["declaration_support"]
@@ -104,6 +134,32 @@ def build_gate1_issue_ledger(package: dict[str, Any]) -> dict[str, Any]:
     for document_id in doc_ids:
         for blocker in blockers_by_doc.get(document_id, []):
             _append_issue(issues, seen, _issue_from_blocker(run_id, blocker, [document_id]))
+
+    eligibility_by_doc = {
+        str(item.get("document_id") or ""): item
+        for item in _eligibility_entries(package)
+        if item.get("document_id")
+    }
+    profile_assessment = _object(package.get("gate1_supported_profile_assessment"))
+    profile_issue_entries = (
+        profile_assessment.get("entries") or []
+        if "full_source_coverage_summary" in package
+        and _supported_profile_enforced(package)
+        else []
+    )
+    for assessment in profile_issue_entries:
+        if not isinstance(assessment, dict):
+            continue
+        document_id = str(assessment.get("document_ref") or "")
+        if not _profile_assessment_requires_issue(
+            assessment, eligibility_by_doc.get(document_id, {})
+        ):
+            continue
+        _append_issue(
+            issues,
+            seen,
+            _issue_from_profile_assessment(run_id, assessment),
+        )
 
     for entry in _eligibility_entries(package):
         if not isinstance(entry, dict):
@@ -161,6 +217,7 @@ def build_domain_context_packet(
     package: dict[str, Any],
     issue_ledger: dict[str, Any],
     usage_classification: dict[str, Any],
+    document_memory_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     run_id = _run_id(package)
     unresolved_issues = [
@@ -179,6 +236,11 @@ def build_domain_context_packet(
     next_stage_ref_summary = _next_stage_ref_summary(next_stage_refs)
     document_issue_refs = _document_issue_refs(usage_entries)
     refs = _safe_refs(package)
+    document_memory = (
+        document_memory_manifest
+        if isinstance(document_memory_manifest, dict)
+        else _object(package.get("document_memory_manifest"))
+    )
     return {
         "schema_version": DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION,
         "packet_id": f"domainctx_{stable_digest([run_id, len(usage_entries), len(unresolved_issue_refs)], length=16)}",
@@ -193,7 +255,34 @@ def build_domain_context_packet(
             "document_source_eligibility_ref": refs.get("document_source_eligibility_ref"),
             "gate1_issue_ledger_ref": refs.get("gate1_issue_ledger_ref"),
             "document_usage_classification_ref": refs.get("document_usage_classification_ref"),
+            "document_memory_manifest_ref": refs.get("document_memory_manifest_ref"),
             "domain_context_packet_ref": refs.get("domain_context_packet_ref"),
+        },
+        "document_memory_boundary": {
+            "profile_id": document_memory.get("profile_id"),
+            "manifest_schema_version": document_memory.get("schema_version"),
+            "manifest_id": document_memory.get("manifest_id"),
+            "manifest_integrity_hash": document_memory.get("integrity_hash"),
+            "terminal_status_counts": copy.deepcopy(
+                _object(document_memory.get("summary")).get("terminal_status_counts")
+                or {}
+            ),
+            "accepted_documents_total": _object(document_memory.get("summary")).get(
+                "accepted_documents_total"
+            ),
+            "gate2_memory_ready_total": _object(document_memory.get("summary")).get(
+                "gate2_memory_ready_total"
+            ),
+            "zero_silent_loss_status": _object(document_memory.get("summary")).get(
+                "zero_silent_loss_status"
+            ),
+            "resolver_required": True,
+            "format_specific_parser_required_by_gate2": False,
+            "profile_enforcement": (
+                "required"
+                if _supported_profile_enforced(package)
+                else "legacy_compatible_advisory"
+            ),
         },
         "issue_ledger_id": issue_ledger.get("issue_ledger_id"),
         "document_usage_classification_id": usage_classification.get("classification_id"),
@@ -209,6 +298,7 @@ def build_domain_context_packet(
             "all_readable_documents_are_ingested_before_downstream_readiness_decisions",
             "unresolved_issues_are_carried_forward_by_issue_ref",
             "domain_context_packet_is_canonical_next_stage_context",
+            "document_memory_manifest_is_canonical_source_representation_root",
         ],
         "forbidden_assumptions": [
             "do_not_treat_unanswered_questions_as_resolved",
@@ -224,6 +314,7 @@ def build_domain_context_packet(
             "must_carry_unresolved_issue_refs": True,
             "must_use_source_unit_refs": True,
             "must_use_original_source_value_refs": True,
+            "must_validate_document_memory_manifest": True,
             "must_account_for_selected_row_segment_refs": True,
             "must_not_decide_issue_criticality": True,
             "must_not_mark_issue_resolved_without_resolution_artifact": True,
@@ -368,6 +459,79 @@ def _issue_from_blocker(run_id: str, blocker: dict[str, Any], target_refs: list[
             "deterministic_policy": True,
         },
         safe_explanation=str(blocker.get("safe_message") or _safe_issue_explanation(issue_type)),
+    )
+
+
+def _profile_assessment_requires_issue(
+    assessment: dict[str, Any], eligibility: dict[str, Any]
+) -> bool:
+    if assessment.get("terminal_status") == "complete":
+        return False
+    source_status = str(eligibility.get("source_eligibility") or "")
+    return source_status in {
+        "accepted_for_gate2",
+        "accepted_as_source_candidate_for_gate2",
+        "metadata_review_required",
+        "duplicate_needs_canonical_choice",
+        "source_policy_review_required",
+        "requires_manual_review",
+        "unknown_role_requires_review",
+        "source_role_policy_review_required",
+    }
+
+
+def _issue_from_profile_assessment(
+    run_id: str, assessment: dict[str, Any]
+) -> dict[str, Any]:
+    document_ref = str(assessment.get("document_ref") or "")
+    terminal_status = str(assessment.get("terminal_status") or "blocked")
+    structural_review = terminal_status == "review_required"
+    issue_type = "structural_uncertainty" if structural_review else "readability_blocker"
+    blocked_stages = (
+        ["consolidation", "declaration_support"]
+        if structural_review
+        else [
+            "source_fact_extraction",
+            "cross_check",
+            "consolidation",
+            "declaration_support",
+        ]
+    )
+    stages_that_may_continue = (
+        ["domain_ingestion", "source_fact_extraction", "cross_check"]
+        if structural_review
+        else ["domain_ingestion"]
+    )
+    return _issue(
+        run_id=run_id,
+        issue_type=issue_type,
+        target_document_refs=[document_ref] if document_ref else [],
+        evidence_refs=[document_ref] if document_ref else [],
+        blocker_refs=[],
+        reason_codes=[
+            str(item) for item in assessment.get("reason_codes") or [] if item
+        ]
+        or [f"supported_profile_terminal_{terminal_status}"],
+        criticality="clarifying" if structural_review else "critical",
+        affected_stage=blocked_stages[0],
+        blocked_stages=blocked_stages,
+        stages_that_may_continue=stages_that_may_continue,
+        status="unresolved",
+        unresolved_reason="carried_forward" if structural_review else "blocker_open",
+        user_was_asked=False,
+        answer_supplied=False,
+        ask_policy="do_not_ask" if structural_review else "not_applicable",
+        resolution_refs=[],
+        provenance={
+            "source_artifact_type": SUPPORTED_PROFILE_ASSESSMENT_SCHEMA_VERSION,
+            "source_ref": f"{document_ref}:{terminal_status}",
+            "deterministic_policy": True,
+        },
+        safe_explanation=(
+            "Source memory is available with explicit structural uncertainty."
+            if structural_review
+            else "The source document is outside the complete supported-profile memory."
+        ),
     )
 
 
@@ -988,6 +1152,17 @@ def _gap_report(package: dict[str, Any]) -> dict[str, Any]:
 def _safe_refs(package: dict[str, Any]) -> dict[str, Any]:
     value = package.get("safe_artifact_refs")
     return value if isinstance(value, dict) else {}
+
+
+def _object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _supported_profile_enforced(package: dict[str, Any]) -> bool:
+    context = _object(package.get("input_context"))
+    if context.get("gate1_supported_profile_enforcement") == "legacy_compatible":
+        return False
+    return context.get("pdf_layout_slice2_enabled") is not False
 
 
 def _run_id(package: dict[str, Any]) -> str:

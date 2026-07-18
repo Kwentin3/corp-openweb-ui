@@ -10,6 +10,7 @@ from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_text_layer import validate_pdf_text_layer_payload
 from .table_projection import TableProjectionValidator
+from .document_memory import validate_document_memory_manifest
 
 
 SAFE_REPORT_ALLOWED_KEYS = {
@@ -47,6 +48,8 @@ SAFE_REPORT_ALLOWED_KEYS = {
     "domain_context_packet",
     "domain_context_packet_summary",
     "domain_ingestion_summary",
+    "gate1_supported_profile_summary",
+    "document_memory_summary",
     "full_source_coverage_summary",
     "table_projection_summary",
     "validation_result",
@@ -118,6 +121,16 @@ def validate_artifacts(package: dict) -> dict:
     )
     usage_entries = usage_classification.get("entries", []) if isinstance(usage_classification.get("entries"), list) else []
     domain_context_packet = package.get("domain_context_packet", {}) if isinstance(package.get("domain_context_packet"), dict) else {}
+    supported_profile_assessment = (
+        package.get("gate1_supported_profile_assessment", {})
+        if isinstance(package.get("gate1_supported_profile_assessment"), dict)
+        else {}
+    )
+    document_memory_manifest = (
+        package.get("document_memory_manifest", {})
+        if isinstance(package.get("document_memory_manifest"), dict)
+        else {}
+    )
     passports = package.get("document_metadata_passports", [])
     passport_validation = package.get("document_metadata_passport_validation", {})
     llm_packages = package.get("llm_document_packages", [])
@@ -376,6 +389,30 @@ def validate_artifacts(package: dict) -> dict:
             errors.append(_error("domain_packet_source_value_policy_mismatch", run_id))
         if private_slice_access.get("row_segment_coverage_policy") != "source_unit_coverage_v0":
             errors.append(_error("domain_packet_source_unit_coverage_policy_mismatch", run_id))
+        document_memory_boundary = (
+            domain_context_packet.get("document_memory_boundary")
+            if isinstance(domain_context_packet.get("document_memory_boundary"), dict)
+            else {}
+        )
+        if document_memory_boundary.get("manifest_id") != document_memory_manifest.get(
+            "manifest_id"
+        ):
+            errors.append(_error("domain_packet_document_memory_id_mismatch", run_id))
+        if document_memory_boundary.get(
+            "manifest_integrity_hash"
+        ) != document_memory_manifest.get("integrity_hash"):
+            errors.append(_error("domain_packet_document_memory_hash_mismatch", run_id))
+
+    if document_memory_manifest:
+        memory_validation = validate_document_memory_manifest(
+            document_memory_manifest,
+            package=package,
+            assessment=supported_profile_assessment,
+            issue_ledger=issue_ledger,
+        )
+        errors.extend(copy.deepcopy(memory_validation.get("errors") or []))
+    else:
+        errors.append(_error("document_memory_manifest_missing", run_id))
 
     if passports:
         for passport in passports:

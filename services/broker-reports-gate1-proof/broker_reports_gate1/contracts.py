@@ -22,6 +22,9 @@ SAFETY_FLAGS = {
 }
 
 SUPPORTED_CONTRACTS = [
+    "broker_reports_gate1_supported_pilot_profile_v1",
+    "broker_reports_gate1_supported_profile_assessment_v1",
+    "broker_reports_gate1_document_memory_manifest_v1",
     "normalization_run_v0",
     "document_inventory_v0",
     "technical_readability_profile_v0",

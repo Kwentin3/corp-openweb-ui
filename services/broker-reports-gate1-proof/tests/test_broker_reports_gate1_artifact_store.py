@@ -381,7 +381,11 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertTrue(payload["issue_ledger_ref"])
         self.assertTrue(payload["document_usage_classification_ref"])
         self.assertTrue(payload["domain_context_packet_ref"])
-        self.assertEqual(payload["domain_stage_readiness"]["source_fact_extraction"], "ready")
+        self.assertTrue(payload["document_memory_manifest_ref"])
+        self.assertEqual(
+            payload["domain_stage_readiness"]["source_fact_extraction"],
+            "ready_with_issue_context",
+        )
         self.assertEqual(len(payload["included_document_refs"]), 2)
         self.assertEqual(payload["excluded_document_refs"], [])
         self.assertEqual(payload["pending_review_refs"], [])

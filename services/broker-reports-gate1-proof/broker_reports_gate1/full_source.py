@@ -394,6 +394,8 @@ class FullSourceArtifactBuilder:
             parser.close()
         except Exception:
             return [self._blocked_descriptor("text_excerpt", "python_html_text_decode", "html_parse_failed")]
+        format_reason_codes = parser.format_reason_codes()
+        format_structural_inventory = parser.safe_structural_inventory()
         descriptors: list[dict[str, Any]] = []
         outside_text = parser.outside_text()
         if outside_text:
@@ -403,8 +405,12 @@ class FullSourceArtifactBuilder:
                     "slice_type": "text_excerpt",
                     "parser": "python_html_text_decode",
                     "parser_version": "1",
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
+                    "parser_completeness_status": (
+                        "partial" if format_reason_codes else "complete"
+                    ),
+                    "parser_completeness_reason_codes": format_reason_codes,
+                    "format_reason_codes": format_reason_codes,
+                    "format_structural_inventory": format_structural_inventory,
                     "source_location": {
                         "kind": "html_outside_table_text",
                         "character_start": 0,
@@ -421,8 +427,12 @@ class FullSourceArtifactBuilder:
                     "slice_type": "table_rows",
                     "parser": "python_html_table_decode",
                     "parser_version": "1",
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
+                    "parser_completeness_status": (
+                        "partial" if format_reason_codes else "complete"
+                    ),
+                    "parser_completeness_reason_codes": format_reason_codes,
+                    "format_reason_codes": format_reason_codes,
+                    "format_structural_inventory": format_structural_inventory,
                     "source_location": {
                         "kind": "html_table_rows",
                         "table_ordinal": table_index,
@@ -440,8 +450,12 @@ class FullSourceArtifactBuilder:
                     "slice_type": "text_excerpt",
                     "parser": "python_html_text_decode",
                     "parser_version": "1",
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
+                    "parser_completeness_status": (
+                        "partial" if format_reason_codes else "complete"
+                    ),
+                    "parser_completeness_reason_codes": format_reason_codes,
+                    "format_reason_codes": format_reason_codes,
+                    "format_structural_inventory": format_structural_inventory,
                     "source_location": {
                         "kind": "html_text",
                         "character_start": 0,
@@ -656,6 +670,7 @@ class FullSourceArtifactBuilder:
                 "text_characters_total": 0,
                 "replacement_characters_total": 0,
                 "unknown_font_fragments_total": 0,
+                "embedded_attachments_total": 0,
             }
 
         layout_requested_capability = (
@@ -1289,6 +1304,9 @@ class FullSourceArtifactBuilder:
                 if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
             ),
             "pdf_table_candidate_status": table_candidate_status,
+            "pdf_embedded_attachments_total": int(
+                parser_diagnostics.get("embedded_attachments_total") or 0
+            ),
             "pdf_visible_content_coverage_status": visible_content_status,
             "pdf_semantic_reconstruction_status": (
                 layout_semantic_status
@@ -1383,6 +1401,11 @@ class FullSourceArtifactBuilder:
                 ),
                 "parser": descriptor.get("parser"),
                 "parser_version": descriptor.get("parser_version"),
+                "format_structural_inventory": descriptor.get(
+                    "format_structural_inventory"
+                )
+                or {},
+                "format_reason_codes": descriptor.get("format_reason_codes") or [],
             },
         )
         source_checksum_ref = f"srcsum_{stable_digest([document_id, source_checksum_sha256], length=24)}"
@@ -1401,6 +1424,12 @@ class FullSourceArtifactBuilder:
             "payload_checksum_ref": payload_checksum_ref,
             "parser_completeness_status": status,
             "parser_completeness_reason_codes": sorted(set(reasons)),
+            "format_reason_codes": sorted(
+                set(descriptor.get("format_reason_codes") or [])
+            ),
+            "format_structural_inventory": copy.deepcopy(
+                descriptor.get("format_structural_inventory") or {}
+            ),
             "normalized_projection": stored_projection,
             "normalized_projection_status": (
                 "omitted_budget_exceeded" if budget_exceeded else "materialized"
@@ -1589,20 +1618,39 @@ class _FullHtmlExtractor(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self._skip_depth = 0
+        self._skip_tags: list[str] = []
         self._table_depth = 0
         self._outside_parts: list[str] = []
         self._current_table: list[list[str]] | None = None
         self._current_row: list[str] | None = None
         self._current_cell: list[str] | None = None
         self.tables: list[list[list[str]]] = []
+        self.script_elements_total = 0
+        self.script_characters_total = 0
+        self.style_elements_total = 0
+        self.comment_elements_total = 0
+        self.embedded_media_elements_total = 0
+        self.nested_tables_total = 0
+        self.link_elements_total = 0
 
     def handle_starttag(self, tag: str, attrs) -> None:
         if tag in {"script", "style"}:
+            if tag == "script":
+                self.script_elements_total += 1
+            else:
+                self.style_elements_total += 1
             self._skip_depth += 1
+            self._skip_tags.append(tag)
             return
         if self._skip_depth:
             return
+        if tag in {"img", "picture", "object", "embed", "iframe", "canvas", "svg", "video", "audio"}:
+            self.embedded_media_elements_total += 1
+        if tag == "a":
+            self.link_elements_total += 1
         if tag == "table":
+            if self._table_depth:
+                self.nested_tables_total += 1
             self._table_depth += 1
             if self._table_depth == 1:
                 self._current_table = []
@@ -1618,6 +1666,8 @@ class _FullHtmlExtractor(HTMLParser):
         if tag in {"script", "style"}:
             if self._skip_depth:
                 self._skip_depth -= 1
+            if self._skip_tags:
+                self._skip_tags.pop()
             return
         if self._skip_depth:
             return
@@ -1640,6 +1690,8 @@ class _FullHtmlExtractor(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if self._skip_depth:
+            if self._skip_tags and self._skip_tags[-1] == "script":
+                self.script_characters_total += len(data.strip())
             return
         text = " ".join(data.split())
         if not text:
@@ -1648,6 +1700,34 @@ class _FullHtmlExtractor(HTMLParser):
             self._current_cell.append(text)
         elif not self._table_depth:
             self._outside_parts.append(text)
+
+    def handle_comment(self, data: str) -> None:
+        self.comment_elements_total += 1
+
+    def format_reason_codes(self) -> list[str]:
+        reasons = []
+        if self.script_characters_total:
+            reasons.append("html_script_content_outside_supported_profile")
+        if self.embedded_media_elements_total:
+            reasons.append("html_embedded_media_outside_supported_profile")
+        if self.nested_tables_total:
+            reasons.append("html_nested_tables_outside_supported_profile")
+        if self._skip_depth or self._table_depth or self._current_row is not None:
+            reasons.append("html_structure_not_closed")
+        return sorted(set(reasons))
+
+    def safe_structural_inventory(self) -> dict[str, int | bool]:
+        return {
+            "tables_total": len(self.tables),
+            "script_elements_total": self.script_elements_total,
+            "script_characters_total": self.script_characters_total,
+            "style_elements_total": self.style_elements_total,
+            "comment_elements_total": self.comment_elements_total,
+            "embedded_media_elements_total": self.embedded_media_elements_total,
+            "nested_tables_total": self.nested_tables_total,
+            "link_elements_total": self.link_elements_total,
+            "private_values_in_inventory": False,
+        }
 
     def outside_text(self) -> str:
         lines = []
