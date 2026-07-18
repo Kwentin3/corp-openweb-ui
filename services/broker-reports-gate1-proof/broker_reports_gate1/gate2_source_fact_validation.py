@@ -5,10 +5,10 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .artifact_models import ArtifactAccessContext, utc_now_iso
+from .artifact_models import ArtifactAccessContext, ArtifactStoreError, utc_now_iso
 from .artifact_resolver import ArtifactResolver
-from .artifact_store import ArtifactStoreError
 from .contracts import stable_digest
+from .gate1_public_contracts import reproduce_normalized_value
 from .gate2_source_fact_contracts import (
     COMPLETENESS_VALUES,
     FACT_TYPES,
@@ -21,7 +21,6 @@ from .gate2_source_fact_contracts import (
 )
 from .gate2_domain_packages import DOMAIN_PACKAGE_SCHEMA_VERSION
 from .gate2_model_contracts import GATE2_STRICT_STRUCTURED_OUTPUT_MODES
-from .source_provenance import reproduce_normalized_value
 
 
 FACTORY_REQUIRED = (

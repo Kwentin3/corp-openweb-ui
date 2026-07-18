@@ -7,9 +7,15 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .artifact_lifecycle import lifecycle_for_visibility
-from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPolicy, utc_now_iso
+from .artifact_models import (
+    ArtifactAccessContext,
+    ArtifactRecord,
+    ArtifactStorePort,
+    RetentionPolicy,
+    new_artifact_id,
+    utc_now_iso,
+)
 from .artifact_resolver import ArtifactResolver
-from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
 from .contracts import stable_digest
 from .gate2_candidate_binding import (
     BINDING_VALIDATION_SCHEMA_VERSION,
@@ -17,6 +23,8 @@ from .gate2_candidate_binding import (
     RELATION_SET_SCHEMA_VERSION,
 )
 from .gate2_domain_contracts import (
+    DOMAIN_RUN_SCHEMA_VERSION,
+    DOMAIN_SUMMARY_SCHEMA_VERSION,
     DOMAIN_SOURCE_FACTS_SCHEMA_VERSION,
     build_domain_source_facts_wrapper,
     domain_source_facts_response_format,
@@ -74,11 +82,11 @@ from .gate2_source_unit_segmentation import (
     mark_segmentation_selection,
 )
 from .gate2_source_fact_validation import Gate2SourceFactValidatorFactory
-from .gate3_context_manifest import Gate3ContextManifestFactory
+from .gate3_context_manifest import (
+    Gate3ContextManifestFactory,
+    gate3_context_manifest_ref_for_run,
+)
 
-
-DOMAIN_RUN_SCHEMA_VERSION = "broker_reports_domain_source_fact_extraction_run_v0"
-DOMAIN_SUMMARY_SCHEMA_VERSION = "broker_reports_domain_source_fact_extraction_summary_v0"
 
 FACTORY_REQUIRED = (
     "Gate2DomainSourceFactRuntimeFactory.create is the only production domain extraction runtime entrypoint"
@@ -148,7 +156,7 @@ class Gate2DomainSourceFactRuntimeFactory:
     def __init__(
         self,
         *,
-        store: SqliteArtifactStoreAdapter,
+        store: ArtifactStorePort,
         prompt_resolver: Gate2DomainPromptResolver,
         model_client: Gate2StructuredModelClient,
         config: Gate2DomainSourceFactRuntimeConfig,
@@ -252,20 +260,6 @@ class Gate2DomainSourceFactRuntimeService:
             context=context,
             started_at=started_at,
         )
-        self._put_record(
-            artifact_id=extraction_run_ref,
-            artifact_type=DOMAIN_RUN_SCHEMA_VERSION,
-            context=context,
-            retention_policy=retention_policy,
-            document_id=None,
-            source_file_ref=None,
-            visibility="safe_internal",
-            storage_backend="project_artifact_store",
-            validation_status="validated",
-            payload=run_payload,
-            safe_metadata={"run_status": "created", "wave": self.config.wave},
-        )
-
         try:
             readiness = Gate2InputReadinessFactory(
                 store=self.store,
@@ -572,7 +566,14 @@ class Gate2DomainSourceFactRuntimeService:
                 "finished_at": utc_now_iso(),
             }
         )
-        self._replace_run_record(
+        planned_manifest_ref = None
+        if self.config.gate3_context_manifest_enabled:
+            planned_manifest_ref = gate3_context_manifest_ref_for_run(
+                extraction_run_ref=extraction_run_ref,
+                normalization_run_id=context.normalization_run_id,
+            )
+            run_payload["gate3_context_manifest_ref"] = planned_manifest_ref
+        self._persist_terminal_run_record(
             artifact_id=extraction_run_ref,
             payload=run_payload,
             context=context,
@@ -584,6 +585,7 @@ class Gate2DomainSourceFactRuntimeService:
                 "selected_units": len(execution_packages),
                 "accepted_packages": sum(accepted_counts.values()),
                 "rejected_packages": total_rejected,
+                "gate3_context_manifest_ref": planned_manifest_ref,
             },
         )
         gate3_manifest = None
@@ -594,25 +596,11 @@ class Gate2DomainSourceFactRuntimeService:
                 extraction_run_ref=extraction_run_ref,
                 context=context,
             )
-            run_payload["gate3_context_manifest_ref"] = (
-                gate3_manifest.manifest_ref
-            )
-            self._replace_run_record(
-                artifact_id=extraction_run_ref,
-                payload=run_payload,
-                context=context,
-                retention_policy=retention_policy,
-                safe_metadata={
-                    "run_status": terminal_status,
-                    "wave": self.config.wave,
-                    "selected_parent_units": len(selected_base_packages),
-                    "selected_units": len(execution_packages),
-                    "accepted_packages": sum(accepted_counts.values()),
-                    "rejected_packages": total_rejected,
-                    "gate3_context_manifest_ref": gate3_manifest.manifest_ref,
-                    "gate3_input_status": gate3_manifest.gate3_input_status,
-                },
-            )
+            if gate3_manifest.manifest_ref != planned_manifest_ref:
+                raise Gate2SourceFactRuntimeError(
+                    "gate3_context_manifest_ref_mismatch",
+                    "Persisted Gate 3 context manifest does not match its planned immutable ref",
+                )
         compact = render_domain_compact_russian_summary(
             stitch_results=stitch_results,
             accepted_domains=dict(accepted_counts),
@@ -1179,12 +1167,10 @@ class Gate2DomainSourceFactRuntimeService:
         self, *, derived_ref, package, context, retention_policy
     ):
         source_unit = _object(package.get("source_unit"))
-        slice_record = self.store.get_record_unchecked(
-            str(source_unit.get("private_slice_artifact_ref") or "")
+        slice_record = self.resolver.resolve_record(
+            str(source_unit.get("private_slice_artifact_ref") or ""), context
         )
-        source_file_ref = (
-            copy.deepcopy(slice_record.source_file_ref) if slice_record else None
-        )
+        source_file_ref = copy.deepcopy(slice_record.source_file_ref)
         coverage = _object(package.get("coverage_expectation"))
         self._put_record(
             artifact_id=derived_ref,
@@ -1231,12 +1217,10 @@ class Gate2DomainSourceFactRuntimeService:
         candidate_set["package_artifact_ref"] = package_ref
         relation_set["package_artifact_ref"] = package_ref
         source_unit = _object(package.get("source_unit"))
-        slice_record = self.store.get_record_unchecked(
-            str(source_unit.get("private_slice_artifact_ref") or "")
+        slice_record = self.resolver.resolve_record(
+            str(source_unit.get("private_slice_artifact_ref") or ""), context
         )
-        source_file_ref = (
-            copy.deepcopy(slice_record.source_file_ref) if slice_record else None
-        )
+        source_file_ref = copy.deepcopy(slice_record.source_file_ref)
         candidate_kind_counts = dict(
             sorted(
                 Counter(
@@ -1340,10 +1324,10 @@ class Gate2DomainSourceFactRuntimeService:
 
     def _persist_domain_package(self, *, package_ref, package, context, retention_policy, validation_status, warning_codes):
         source_unit = _object(package.get("source_unit"))
-        slice_record = self.store.get_record_unchecked(
-            str(source_unit.get("private_slice_artifact_ref") or "")
+        slice_record = self.resolver.resolve_record(
+            str(source_unit.get("private_slice_artifact_ref") or ""), context
         )
-        source_file_ref = copy.deepcopy(slice_record.source_file_ref) if slice_record else None
+        source_file_ref = copy.deepcopy(slice_record.source_file_ref)
         self._put_record(
             artifact_id=package_ref,
             artifact_type=DOMAIN_PACKAGE_SCHEMA_VERSION,
@@ -1602,12 +1586,24 @@ class Gate2DomainSourceFactRuntimeService:
             safe_metadata={"terminal_status": "blocked", "error_code": error_code},
         )
         run_payload.update({"run_status": "blocked", "summary_ref": summary_ref, "finished_at": utc_now_iso()})
-        self._replace_run_record(
+        planned_manifest_ref = None
+        if self.config.gate3_context_manifest_enabled:
+            planned_manifest_ref = gate3_context_manifest_ref_for_run(
+                extraction_run_ref=extraction_run_ref,
+                normalization_run_id=context.normalization_run_id,
+            )
+            run_payload["gate3_context_manifest_ref"] = planned_manifest_ref
+        self._persist_terminal_run_record(
             artifact_id=extraction_run_ref,
             payload=run_payload,
             context=context,
             retention_policy=retention_policy,
-            safe_metadata={"run_status": "blocked", "error_code": error_code, "wave": self.config.wave},
+            safe_metadata={
+                "run_status": "blocked",
+                "error_code": error_code,
+                "wave": self.config.wave,
+                "gate3_context_manifest_ref": planned_manifest_ref,
+            },
         )
         gate3_manifest = None
         if self.config.gate3_context_manifest_enabled:
@@ -1617,22 +1613,11 @@ class Gate2DomainSourceFactRuntimeService:
                 extraction_run_ref=extraction_run_ref,
                 context=context,
             )
-            run_payload["gate3_context_manifest_ref"] = (
-                gate3_manifest.manifest_ref
-            )
-            self._replace_run_record(
-                artifact_id=extraction_run_ref,
-                payload=run_payload,
-                context=context,
-                retention_policy=retention_policy,
-                safe_metadata={
-                    "run_status": "blocked",
-                    "error_code": error_code,
-                    "wave": self.config.wave,
-                    "gate3_context_manifest_ref": gate3_manifest.manifest_ref,
-                    "gate3_input_status": gate3_manifest.gate3_input_status,
-                },
-            )
+            if gate3_manifest.manifest_ref != planned_manifest_ref:
+                raise Gate2SourceFactRuntimeError(
+                    "gate3_context_manifest_ref_mismatch",
+                    "Persisted Gate 3 context manifest does not match its planned immutable ref",
+                )
         return Gate2DomainSourceFactRuntimeResult(
             extraction_run_ref=extraction_run_ref,
             extraction_run_id=extraction_run_id,
@@ -1660,7 +1645,7 @@ class Gate2DomainSourceFactRuntimeService:
             compact_russian_summary="Gate 2 заблокирован: безопасное извлечение не начато.",
         )
 
-    def _replace_run_record(self, *, artifact_id, payload, context, retention_policy, safe_metadata):
+    def _persist_terminal_run_record(self, *, artifact_id, payload, context, retention_policy, safe_metadata):
         self._put_record(
             artifact_id=artifact_id,
             artifact_type=DOMAIN_RUN_SCHEMA_VERSION,

@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
+from .gate1_public_contracts import reproduce_normalized_value
 from .gate2_candidate_binding import (
     BINDING_OUTPUT_SCHEMA_VERSION,
     BINDING_VALIDATION_SCHEMA_VERSION,
-    NORMALIZED_VALUE_FIELDS,
 )
-from .source_provenance import reproduce_normalized_value
+from .gate2_source_fact_contracts import NORMALIZED_VALUE_FIELDS
 
 
 FACTORY_REQUIRED = (

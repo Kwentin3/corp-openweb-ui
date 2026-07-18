@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 
 
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
+
+
+class ArtifactStoreError(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def new_artifact_id() -> str:
+    return f"art_{secrets.token_urlsafe(24)}"
 
 VISIBILITIES = {
     "chat_visible",
@@ -230,3 +242,15 @@ class ArtifactRecord:
     def __post_init__(self) -> None:
         if self.expires_at is None:
             self.expires_at = self.retention_policy.expires_at
+
+
+class ArtifactStorePort(Protocol):
+    """Domain-neutral persistence port used by gate runtimes and resolvers."""
+
+    def put_record(self, record: ArtifactRecord) -> ArtifactRecord: ...
+
+    def get_record_unchecked(self, artifact_id: str) -> ArtifactRecord | None: ...
+
+    def list_by_run(self, normalization_run_id: str) -> list[ArtifactRecord]: ...
+
+    def read_payload(self, record: ArtifactRecord) -> Any: ...

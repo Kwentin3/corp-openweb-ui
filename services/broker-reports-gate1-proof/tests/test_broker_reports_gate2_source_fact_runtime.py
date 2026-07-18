@@ -504,6 +504,26 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(len(source_facts_provider_schema_hash()), 64)
         self.assertNotEqual(source_facts_schema_hash(), source_facts_provider_schema_hash())
 
+    def test_gate2_execution_appends_artifacts_without_mutating_gate1_source_memory(self):
+        gate1_before = {
+            record.artifact_id: self._artifact_semantic_snapshot(record)
+            for record in self.store.list_by_run(self.context.normalization_run_id)
+        }
+
+        result = self._run(FullUnionBoundaryModel())
+
+        self.assertEqual(result.terminal_status, "completed")
+        gate1_after = {
+            record.artifact_id: self._artifact_semantic_snapshot(record)
+            for record in self.store.list_by_run(self.context.normalization_run_id)
+            if record.artifact_id in gate1_before
+        }
+        self.assertEqual(gate1_after, gate1_before)
+        self.assertGreater(
+            len(self.store.list_by_run(self.context.normalization_run_id)),
+            len(gate1_before),
+        )
+
     def test_domain_runtime_routes_narrows_validates_stitches_and_persists(self):
         model = NarrowDomainBoundaryModel()
         prompts = {
@@ -1473,6 +1493,30 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 ),
             )
         )
+
+    def _artifact_semantic_snapshot(self, record):
+        return {
+            "artifact_type": record.artifact_type,
+            "schema_version": record.schema_version,
+            "scope": (
+                record.user_id,
+                record.case_id,
+                record.chat_id,
+                record.workspace_model_id,
+                record.normalization_run_id,
+            ),
+            "document_id": record.document_id,
+            "source_file_ref": copy.deepcopy(record.source_file_ref),
+            "visibility": record.visibility,
+            "storage_backend": record.storage_backend,
+            "retention_policy": record.retention_policy.to_dict(),
+            "validation_status": record.validation_status,
+            "lifecycle_status": record.lifecycle_status,
+            "purge_status": record.purge_status,
+            "payload": copy.deepcopy(self.store.read_payload(record)),
+            "safe_metadata": copy.deepcopy(record.safe_metadata),
+            "warning_codes": copy.deepcopy(record.warning_codes),
+        }
 
     def _domain_prompt(self, domain: str) -> Gate2ManagedPrompt:
         content = f"Synthetic managed {domain} prompt with {{{{source_fact_package_json}}}}."

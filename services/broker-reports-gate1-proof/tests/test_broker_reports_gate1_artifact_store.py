@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import tempfile
@@ -82,6 +83,40 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertEqual(stored.storage_backend, "project_artifact_payload")
         self.assertTrue(stored.payload_ref)
         self.assertEqual(payload["schema_version"], "broker_reports_document_extraction_packet_v0")
+
+    def test_put_record_is_idempotent_but_rejects_semantic_overwrite(self):
+        retention = build_retention_policy(mode="api_smoke")
+        record = ArtifactRecord(
+            artifact_id=new_artifact_id(),
+            artifact_type="validation_result_v0",
+            case_id="case-immutable",
+            chat_id="chat-immutable",
+            user_id="user-immutable",
+            normalization_run_id="norm-immutable",
+            document_id=None,
+            source_file_ref=None,
+            visibility="safe_internal",
+            storage_backend="project_artifact_store",
+            retention_policy=retention,
+            access_policy={"requires_user_id": True},
+            validation_status="validated",
+            lifecycle_status="visible_safe",
+            payload={"schema_version": "validation_result_v0", "status": "passed"},
+            safe_metadata={"status": "passed"},
+        )
+
+        first = self.store.put_record(record)
+        replay = self.store.put_record(copy.deepcopy(record))
+        changed = copy.deepcopy(record)
+        changed.payload["status"] = "failed"
+        changed.safe_metadata["status"] = "failed"
+
+        with self.assertRaises(ArtifactStoreError) as overwritten:
+            self.store.put_record(changed)
+
+        self.assertEqual(replay.artifact_id, first.artifact_id)
+        self.assertEqual(overwritten.exception.code, "artifact_immutable")
+        self.assertEqual(self.store.read_payload(first)["status"], "passed")
 
     def test_gate1_run_persists_safe_private_and_handoff_artifacts(self):
         result, context, manifest = self._persist_clean_run()

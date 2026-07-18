@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import secrets
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,20 +17,15 @@ from .artifact_models import (
     VALIDATION_STATUSES,
     VISIBILITIES,
     ArtifactRecord,
+    ArtifactStoreError,
     RetentionPolicy,
+    new_artifact_id as new_artifact_id,
     utc_now_iso,
 )
 
 
 FACTORY_REQUIRED = "ArtifactStoreFactory.create is the only production store entrypoint"
 FORBIDDEN = "Pipe and Gate 2 resolver must not instantiate SqliteArtifactStoreAdapter directly"
-
-
-class ArtifactStoreError(RuntimeError):
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
 
 
 @dataclass(frozen=True)
@@ -60,11 +54,27 @@ class SqliteArtifactStoreAdapter:
     def put_record(self, record: ArtifactRecord) -> ArtifactRecord:
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT lifecycle_status FROM artifact_records WHERE artifact_id = ?",
+                "SELECT * FROM artifact_records WHERE artifact_id = ?",
                 (record.artifact_id,),
             ).fetchone()
-        if existing is not None and str(existing["lifecycle_status"]) == "purged":
-            raise ArtifactStoreError("artifact_purged", "Purged artifact ids cannot be restored")
+        if existing is not None:
+            stored = _row_to_record(existing)
+            if stored.lifecycle_status == "purged":
+                raise ArtifactStoreError(
+                    "artifact_purged", "Purged artifact ids cannot be restored"
+                )
+            existing_payload = self.read_payload(stored)
+            incoming_payload = record.payload
+            if incoming_payload is None and record.payload_ref == stored.payload_ref:
+                incoming_payload = existing_payload
+            if _immutable_record_material(stored, existing_payload) == _immutable_record_material(
+                record, incoming_payload
+            ):
+                return stored
+            raise ArtifactStoreError(
+                "artifact_immutable",
+                "Existing artifact ids cannot be overwritten with different content",
+            )
         self._validate_record(record)
         payload_ref = record.payload_ref
         payload_inline = record.payload
@@ -81,7 +91,7 @@ class SqliteArtifactStoreAdapter:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO artifact_records(
+                INSERT INTO artifact_records(
                     artifact_id,
                     artifact_type,
                     schema_version,
@@ -400,7 +410,14 @@ class SqliteArtifactStoreAdapter:
         root = self.payload_root.resolve()
         if root not in target.parents:
             raise ArtifactStoreError("artifact_payload_unavailable", "Payload path escaped root")
-        target.write_bytes(payload_bytes)
+        try:
+            with target.open("xb") as stream:
+                stream.write(payload_bytes)
+        except FileExistsError as exc:
+            raise ArtifactStoreError(
+                "artifact_immutable",
+                "Existing artifact payloads cannot be overwritten",
+            ) from exc
         return str(target.relative_to(root)).replace("\\", "/")
 
     def _payload_path_from_ref(self, payload_ref: str) -> Path:
@@ -484,10 +501,6 @@ class SqliteArtifactStoreAdapter:
             )
 
 
-def new_artifact_id() -> str:
-    return f"art_{secrets.token_urlsafe(24)}"
-
-
 def _row_to_record(row: sqlite3.Row) -> ArtifactRecord:
     retention_policy = RetentionPolicy.from_dict(json.loads(str(row["retention_policy_json"])))
     return ArtifactRecord(
@@ -520,6 +533,38 @@ def _row_to_record(row: sqlite3.Row) -> ArtifactRecord:
         deleted_at=row["deleted_at"],
         purged_at=row["purged_at"],
     )
+
+
+def _immutable_record_material(record: ArtifactRecord, payload: Any) -> dict[str, Any]:
+    """Exclude audit timestamps; lifecycle methods own the only allowed mutations."""
+
+    return {
+        "artifact_id": record.artifact_id,
+        "artifact_type": record.artifact_type,
+        "schema_version": record.schema_version,
+        "case_id": record.case_id,
+        "chat_id": record.chat_id,
+        "user_id": record.user_id,
+        "workspace_model_id": record.workspace_model_id,
+        "message_id": record.message_id,
+        "normalization_run_id": record.normalization_run_id,
+        "document_id": record.document_id,
+        "source_file_ref": record.source_file_ref,
+        "visibility": record.visibility,
+        "storage_backend": record.storage_backend,
+        "retention_policy": record.retention_policy.to_dict(),
+        "expires_at": record.expires_at,
+        "purge_status": record.purge_status,
+        "lifecycle_status": record.lifecycle_status,
+        "access_policy": record.access_policy,
+        "validation_status": record.validation_status,
+        "payload_kind": record.payload_kind,
+        "payload": payload,
+        "safe_metadata": record.safe_metadata,
+        "warning_codes": record.warning_codes,
+        "deleted_at": record.deleted_at,
+        "purged_at": record.purged_at,
+    }
 
 
 def _json(value: Any) -> str:

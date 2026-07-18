@@ -7,12 +7,19 @@ from dataclasses import dataclass
 from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
-from .artifact_models import ArtifactAccessContext, ArtifactRecord
+from .artifact_models import ArtifactAccessContext, ArtifactRecord, ArtifactStorePort
 from .artifact_resolver import ArtifactResolver
-from .artifact_store import SqliteArtifactStoreAdapter
 from .contracts import stable_digest
-from .csv_profile import CSV_SUPPORTED_PROFILE_ID
-from .gate2_domain_contracts import DOMAIN_SOURCE_FACTS_SCHEMA_VERSION
+from .gate1_public_contracts import (
+    CSV_SUPPORTED_PROFILE_ID,
+    DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION,
+    ISSUE_LEDGER_SCHEMA_VERSION,
+)
+from .gate2_domain_contracts import (
+    DOMAIN_RUN_SCHEMA_VERSION,
+    DOMAIN_SOURCE_FACTS_SCHEMA_VERSION,
+    DOMAIN_SUMMARY_SCHEMA_VERSION,
+)
 from .gate2_domain_packages import DOMAIN_PACKAGE_SCHEMA_VERSION
 from .gate2_domain_routing import ROUTE_SCHEMA_VERSION
 from .gate2_candidate_binding import (
@@ -38,17 +45,27 @@ from .gate2_source_unit_segmentation import (
 
 GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION = "broker_reports_gate3_context_manifest_v0"
 GATE3_CONTEXT_MANIFEST_POLICY_VERSION = "broker_reports_gate3_context_manifest_policy_v0"
-DOMAIN_RUN_SCHEMA_VERSION = "broker_reports_domain_source_fact_extraction_run_v0"
-DOMAIN_SUMMARY_SCHEMA_VERSION = (
-    "broker_reports_domain_source_fact_extraction_summary_v0"
-)
-
 FACTORY_REQUIRED = (
     "Gate3ContextManifestFactory.create is the only production Gate 3 context-manifest build and resolution entrypoint"
 )
 FORBIDDEN = (
     "Gate 3 callers must not use raw CSV, DCP, one extraction run or inherited readiness booleans as the root input"
 )
+
+
+def gate3_context_manifest_ref_for_run(
+    *, extraction_run_ref: str, normalization_run_id: str
+) -> str:
+    if not extraction_run_ref or not normalization_run_id:
+        raise Gate3ContextManifestError("gate3_context_run_identity_missing")
+    return "gate3ctx_" + stable_digest(
+        [
+            GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION,
+            normalization_run_id,
+            extraction_run_ref,
+        ],
+        length=24,
+    )
 
 
 class Gate3ContextManifestError(RuntimeError):
@@ -67,7 +84,7 @@ class Gate3ContextManifestResult:
 
 
 class Gate3ContextManifestFactory:
-    def __init__(self, *, store: SqliteArtifactStoreAdapter) -> None:
+    def __init__(self, *, store: ArtifactStorePort) -> None:
         self.store = store
 
     def create(self) -> "Gate3ContextManifestService":
@@ -75,7 +92,7 @@ class Gate3ContextManifestFactory:
 
 
 class Gate3ContextManifestService:
-    def __init__(self, store: SqliteArtifactStoreAdapter) -> None:
+    def __init__(self, store: ArtifactStorePort) -> None:
         self.store = store
         self.resolver = ArtifactResolver(store)
 
@@ -93,14 +110,9 @@ class Gate3ContextManifestService:
             extraction_run_ref=extraction_run_ref,
             context=context,
         )
-        manifest_id = "gate3ctx_" + stable_digest(
-            [
-                GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION,
-                context.normalization_run_id,
-                extraction_run_ref,
-                graph["declared_scope"]["selected_source_refs_hash"],
-            ],
-            length=24,
+        manifest_id = gate3_context_manifest_ref_for_run(
+            extraction_run_ref=extraction_run_ref,
+            normalization_run_id=context.normalization_run_id,
         )
         payload = {
             "schema_version": GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION,
@@ -273,7 +285,7 @@ class Gate3ContextManifestService:
 
         run = resolve(extraction_run_ref, DOMAIN_RUN_SCHEMA_VERSION)
         dcp_ref = str(run.get("domain_context_packet_ref") or "")
-        dcp = resolve(dcp_ref, "domain_context_packet_v0")
+        dcp = resolve(dcp_ref, DOMAIN_CONTEXT_PACKET_SCHEMA_VERSION)
         summary_ref = str(run.get("summary_ref") or "")
         summary = resolve(summary_ref, DOMAIN_SUMMARY_SCHEMA_VERSION)
 
@@ -563,11 +575,7 @@ class Gate3ContextManifestService:
             set(ready_document_refs) - set(included_document_refs)
         )
 
-        all_run_records = [
-            record
-            for record in self.store.list_by_run(context.normalization_run_id)
-            if _record_matches_context(record, context)
-        ]
+        all_run_records = self.resolver.catalog_run(context)
         profile_records = [
             item
             for item in all_run_records
@@ -598,7 +606,7 @@ class Gate3ContextManifestService:
         issue_ledger_records = [
             item
             for item in all_run_records
-            if item.artifact_type == "gate1_issue_ledger_v0"
+            if item.artifact_type == ISSUE_LEDGER_SCHEMA_VERSION
         ]
         issue_ledger_ref = ""
         if len(issue_ledger_records) == 1:

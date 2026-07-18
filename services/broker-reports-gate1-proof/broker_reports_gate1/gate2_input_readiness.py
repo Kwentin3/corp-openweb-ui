@@ -5,23 +5,29 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from .artifact_models import ArtifactAccessContext, ArtifactRecord, utc_now_iso
-from .artifact_resolver import ArtifactResolver
-from .artifact_store import ArtifactStoreError, SqliteArtifactStoreAdapter
-from .contracts import stable_digest
-from .full_source import SOURCE_UNIT_SCHEMA_VERSION, validate_full_source_unit
-from .pdf_text_layer import validate_pdf_source_unit
-from .pdf_layout_units import resolve_pdf_layout_unit_source_value
-from .source_provenance import (
-    NormalizedSliceProvenanceFactory,
-    resolve_source_value,
-    resolve_source_values,
-    validate_normalized_slice_provenance,
+from .artifact_models import (
+    ArtifactAccessContext,
+    ArtifactRecord,
+    ArtifactStoreError,
+    ArtifactStorePort,
+    utc_now_iso,
 )
-from .table_projection import (
+from .artifact_resolver import ArtifactResolver
+from .contracts import stable_digest
+from .gate1_public_contracts import (
+    NormalizedSliceProvenanceFactory,
+    SOURCE_UNIT_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
-    Gate2TablePackageFactory,
     TableProjectionValidator,
+    resolve_pdf_layout_unit_source_value,
+    resolve_source_values,
+    validate_full_source_unit,
+    validate_normalized_slice_provenance,
+    validate_pdf_source_unit,
+)
+from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
+from .gate2_table_packages import (
+    Gate2TablePackageFactory,
     validate_gate2_table_package,
 )
 
@@ -34,7 +40,7 @@ FORBIDDEN = (
 )
 
 INPUT_READINESS_SCHEMA_VERSION = "gate2_input_readiness_validation_v0"
-DRY_RUN_PACKAGE_SCHEMA_VERSION = "broker_reports_source_fact_package_v0"
+DRY_RUN_PACKAGE_SCHEMA_VERSION = PACKAGE_SCHEMA_VERSION
 SAFE_REPORT_SCHEMA_VERSION = "gate2_input_readiness_safe_report_v0"
 
 SOURCE_READY_BUCKETS = (
@@ -88,7 +94,7 @@ class Gate2InputReadinessFactory:
     def __init__(
         self,
         *,
-        store: SqliteArtifactStoreAdapter,
+        store: ArtifactStorePort,
         config: Gate2InputReadinessConfig | None = None,
     ) -> None:
         self.store = store
@@ -96,7 +102,6 @@ class Gate2InputReadinessFactory:
 
     def create(self) -> "Gate2InputReadinessService":
         return Gate2InputReadinessService(
-            store=self.store,
             resolver=ArtifactResolver(self.store),
             config=self.config,
         )
@@ -106,11 +111,9 @@ class Gate2InputReadinessService:
     def __init__(
         self,
         *,
-        store: SqliteArtifactStoreAdapter,
         resolver: ArtifactResolver,
         config: Gate2InputReadinessConfig,
     ) -> None:
-        self.store = store
         self.resolver = resolver
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
@@ -127,11 +130,7 @@ class Gate2InputReadinessService:
                 "gate2_private_access_not_requested",
                 "Gate 2 input readiness requires explicit private artifact access",
             )
-        records_before = [
-            record
-            for record in self.store.list_by_run(context.normalization_run_id)
-            if _record_matches_context_scope(record, context)
-        ]
+        records_before = self.resolver.catalog_run(context)
         dcp_resolved = self.resolver.resolve(domain_context_packet_ref, context)
         dcp_record = dcp_resolved["record"]
         if dcp_record.artifact_type != "domain_context_packet_v0":
@@ -345,11 +344,7 @@ class Gate2InputReadinessService:
             for validation in package_validations
             for error in validation.get("errors") or []
         )
-        records_after = [
-            record
-            for record in self.store.list_by_run(context.normalization_run_id)
-            if _record_matches_context_scope(record, context)
-        ]
+        records_after = self.resolver.catalog_run(context)
         store_unchanged = [record.artifact_id for record in records_before] == [
             record.artifact_id for record in records_after
         ]

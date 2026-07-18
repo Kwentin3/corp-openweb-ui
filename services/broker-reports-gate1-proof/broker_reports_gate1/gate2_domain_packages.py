@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
+from .gate1_public_contracts import reproduce_normalized_value
 from .gate2_candidate_binding import Gate2CandidateBindingKernelFactory
 from .gate2_domain_routing import (
     DOMAIN_ALLOWED_FACT_TYPES,
@@ -14,7 +15,6 @@ from .gate2_domain_routing import (
     validate_source_unit_domain_route,
 )
 from .gate2_llm_context import Gate2LlmContextPackageFactory, package_feasibility
-from .source_provenance import reproduce_normalized_value
 
 
 DOMAIN_PACKAGE_SCHEMA_VERSION = "broker_reports_domain_extraction_package_v0"

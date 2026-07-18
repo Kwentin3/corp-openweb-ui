@@ -20,6 +20,10 @@ from .gate2_source_fact_contracts import (
 
 
 DOMAIN_SOURCE_FACTS_SCHEMA_VERSION = "broker_reports_domain_source_facts_v0"
+DOMAIN_RUN_SCHEMA_VERSION = "broker_reports_domain_source_fact_extraction_run_v0"
+DOMAIN_SUMMARY_SCHEMA_VERSION = (
+    "broker_reports_domain_source_fact_extraction_summary_v0"
+)
 DOMAIN_PROMPT_CONTRACT_ID = "broker_reports_domain_source_fact_prompt_v0"
 DOMAIN_PROMPT_REQUIRED_TAG = "broker-reports-gate2-domain"
 

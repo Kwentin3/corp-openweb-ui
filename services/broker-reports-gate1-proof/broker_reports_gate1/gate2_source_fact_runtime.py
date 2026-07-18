@@ -7,9 +7,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
-from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPolicy, utc_now_iso
+from .artifact_models import (
+    ArtifactAccessContext,
+    ArtifactRecord,
+    ArtifactStorePort,
+    RetentionPolicy,
+    new_artifact_id,
+    utc_now_iso,
+)
 from .artifact_resolver import ArtifactResolver
-from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
 from .contracts import stable_digest
 from .gate2_input_readiness import Gate2InputReadinessFactory
 from .gate2_model_contracts import (
@@ -85,7 +91,7 @@ class Gate2SourceFactRuntimeFactory:
     def __init__(
         self,
         *,
-        store: SqliteArtifactStoreAdapter,
+        store: ArtifactStorePort,
         prompt_resolver: Gate2PromptResolver,
         model_client: Gate2StructuredModelClient,
         config: Gate2SourceFactRuntimeConfig,
@@ -127,7 +133,7 @@ class Gate2SourceFactRuntimeService:
     def __init__(
         self,
         *,
-        store: SqliteArtifactStoreAdapter,
+        store: ArtifactStorePort,
         prompt_resolver: Gate2PromptResolver,
         model_client: Gate2StructuredModelClient,
         config: Gate2SourceFactRuntimeConfig,
@@ -162,11 +168,7 @@ class Gate2SourceFactRuntimeService:
         extraction_run_id = f"sfrun_{stable_digest([context.normalization_run_id, self.config.wave, started_at, new_artifact_id()], length=24)}"
         extraction_run_ref = new_artifact_id()
         input_refs = _input_artifact_refs(
-            records=[
-                record
-                for record in self.store.list_by_run(context.normalization_run_id)
-                if _record_matches_context_scope(record, context)
-            ],
+            records=self.resolver.catalog_run(context),
             dcp_ref=domain_context_packet_ref,
         )
         run_payload = self._new_run_payload(
@@ -175,20 +177,6 @@ class Gate2SourceFactRuntimeService:
             input_refs=input_refs,
             started_at=started_at,
         )
-        self._put_record(
-            artifact_id=extraction_run_ref,
-            artifact_type=EXTRACTION_RUN_SCHEMA_VERSION,
-            context=context,
-            retention_policy=retention_policy,
-            document_id=None,
-            source_file_ref=None,
-            visibility="safe_internal",
-            storage_backend="project_artifact_store",
-            validation_status="validated",
-            payload=run_payload,
-            safe_metadata={"run_status": "created", "wave": self.config.wave},
-        )
-
         try:
             readiness = Gate2InputReadinessFactory(store=self.store).create().audit_and_build(
                 domain_context_packet_ref=domain_context_packet_ref,
@@ -204,7 +192,7 @@ class Gate2SourceFactRuntimeService:
             run_payload["run_status"] = "blocked"
             run_payload["terminal_error_code"] = exc.code
             run_payload["finished_at"] = utc_now_iso()
-            self._replace_run_record(
+            self._persist_terminal_run_record(
                 artifact_id=extraction_run_ref,
                 payload=run_payload,
                 context=context,
@@ -322,10 +310,10 @@ class Gate2SourceFactRuntimeService:
             ] = repair_package_response_schema_hash
             response_format = source_facts_response_format(package)
             source_unit = _object(package.get("source_unit"))
-            slice_record = self.store.get_record_unchecked(
-                str(source_unit.get("private_slice_artifact_ref") or "")
+            slice_record = self.resolver.resolve_record(
+                str(source_unit.get("private_slice_artifact_ref") or ""), context
             )
-            source_file_ref = copy.deepcopy(slice_record.source_file_ref) if slice_record else None
+            source_file_ref = copy.deepcopy(slice_record.source_file_ref)
             budget_error = _package_budget_error(package, self.config)
             package_validation_status = "blocked" if budget_error else "validated"
             self._put_record(
@@ -614,7 +602,7 @@ class Gate2SourceFactRuntimeService:
                 "finished_at": utc_now_iso(),
             }
         )
-        self._replace_run_record(
+        self._persist_terminal_run_record(
             artifact_id=extraction_run_ref,
             payload=run_payload,
             context=context,
@@ -980,7 +968,7 @@ class Gate2SourceFactRuntimeService:
         )
         return self.store.put_record(record)
 
-    def _replace_run_record(
+    def _persist_terminal_run_record(
         self,
         *,
         artifact_id: str,

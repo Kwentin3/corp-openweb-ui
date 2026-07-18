@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
-from .source_provenance import reproduce_normalized_value
+from .gate1_public_contracts import reproduce_normalized_value
 
 
 CANDIDATE_SET_SCHEMA_VERSION = "broker_reports_source_value_candidate_set_v0"
@@ -21,18 +21,6 @@ FACTORY_REQUIRED = (
 FORBIDDEN = (
     "Candidate discovery and finalization must not choose semantic roles or invent source values"
 )
-
-NORMALIZED_VALUE_FIELDS = (
-    "date",
-    "amount",
-    "currency",
-    "quantity",
-    "rate",
-    "converted_amount",
-    "identifier",
-    "label",
-)
-
 
 def _role(path: str, *kinds: str) -> dict[str, Any]:
     return {"fact_field_path": path, "candidate_kinds": list(kinds)}

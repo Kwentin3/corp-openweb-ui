@@ -336,8 +336,6 @@ from .table_projection import (
     TABLE_PROJECTION_SCHEMA_VERSION,
     TABLE_QUALITY_SCHEMA_VERSION,
     CsvTableProjectionBuilder,
-    Gate2TablePackageConfig,
-    Gate2TablePackageFactory,
     HtmlTableProjectionBuilder,
     NormalizedTableProjectionConfig,
     NormalizedTableProjectionFactory,
@@ -345,6 +343,10 @@ from .table_projection import (
     TableProjectionBuildResult,
     TableProjectionValidator,
     XlsxTableProjectionBuilder,
+)
+from .gate2_table_packages import (
+    Gate2TablePackageConfig,
+    Gate2TablePackageFactory,
     validate_gate2_table_package,
 )
 
