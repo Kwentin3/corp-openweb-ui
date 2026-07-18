@@ -413,7 +413,7 @@ Your narrow task:
 You do not own routing or final row/segment ownership. Do not change the domain
 route, resolve issues, choose a canonical duplicate, consolidate documents,
 calculate totals/FX/profit/loss/cost basis/tax base/tax, map declaration fields,
-decide filing or Gate 3 readiness, or generate XLS/XLSX.
+decide Gate 3 input readiness, Gate 4 filing/readiness, or generate XLS/XLSX.
 
 Do not output raw rows, full source text, filenames, OpenWebUI file ids, private
 paths, account numbers, personal data, secrets, or env values.

@@ -1,11 +1,17 @@
 # Broker Reports Gate 2 Source-Fact Extraction Blueprint
 
-Date: 2026-07-12
+Date: 2026-07-12; ownership/status reconciled 2026-07-18
 
-Status: `GATE2_NATIVE_PROVIDER_TRANSPORT_PARTIAL`; the factory/profile boundary,
-OpenAI, Gemini and native Anthropic routes are implemented. Their low-cost
-extraction defaults pass the same candidate-binding synthetic contract; real
-multi-provider and second-domain proof remain outside this bounded refactor.
+Status: `GLOBAL_GATE2_IMPLEMENTED_PARTIALLY_CLOSED`. The factory/profile
+boundary, OpenAI, Gemini and native Anthropic routes are implemented and
+deployed. Bounded multi-provider/domain and CSV v1 stage proofs exist; complete
+whole-document/full-corpus/all-format semantic coverage remains open.
+
+Architecture authority: global placement and the Gate 3/Gate 4 split are
+defined by the
+[Broker Reports Global Gate Architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md).
+`Gate 1.5` below is a historical local compatibility label for the LLM
+metadata-passport sub-stage inside global Gate 1, not a global product gate.
 
 ## 1. Problem and Risk
 
@@ -35,7 +41,8 @@ The active risks are:
 | Gate 2 fact validator | Schema, scope, provenance, value, issue, privacy, coverage, boundary checks | Tax methodology or duplicate consolidation |
 | ArtifactStore | Durable records, visibility, retention, access, purge, resolver | Business interpretation |
 | Chat projection | Compact safe status/counts/next step | Facts, raw rows, private refs |
-| Gate 3 intermediate ledgers | Consolidation, cross-document duplicate logic, calculations and methodology-bound preparation | Gate 2 extraction |
+| Gate 3 case assembly | Consolidation, cross-document duplicate/conflict logic, intermediate ledgers and deterministic financial calculations | Gate 2 extraction or tax/declaration decisions |
+| Gate 4 tax/declaration preparation | Tax methodology, declaration model, specialist review and controlled export | Source representation, Gate 2 extraction or Gate 3 reconciliation |
 
 ## 3. Target Flow
 
@@ -400,10 +407,16 @@ Gate 3 owns:
 - canonical-source decisions not already deterministically resolved upstream;
 - lot matching and operation linkage;
 - intermediate ledgers;
-- currency-rate lookup/conversion policy;
-- profit/loss, tax-base, and tax calculations;
-- methodology application;
-- declaration model and XLS/XLSX.
+- policy-approved currency-rate lookup/conversion and financial calculation
+  traces;
+- case-level profit/loss candidates and reconciliation.
+
+Gate 4 owns:
+
+- tax methodology and legal/tax treatment;
+- final tax-base/tax arithmetic under the approved methodology;
+- declaration model and specialist review;
+- separately authorized XLS/XLSX or other output.
 
 Gate 2 cannot claim filing or declaration readiness.
 
@@ -561,7 +574,7 @@ Checkpoint: 2026-07-12.
 
 The current contour does not claim full-corpus coverage, automatic failover,
 all-domain Claude support, OCR/scanned-PDF support, all-domain live acceptance,
-or Gate 3 tax/declaration readiness. Logos, signatures or other embedded images
+or Gate 3 case-assembly / Gate 4 tax-declaration readiness. Logos, signatures or other embedded images
 do not by themselves trigger OCR; an image-only page remains outside this
 text-layer path.
 
@@ -575,7 +588,8 @@ validator-accepted synthetic facts through the same normal OpenWebUI Function
 route. Gemini also passed bounded real native/PDF `cash_movement`. The same
 bounded real `income` package now passed Gemini Flash-Lite, native Claude Haiku
 and OpenAI Luna; the Gate 2 cross-domain/multi-provider architecture gap is
-closed. Full-corpus and Gate 3 readiness remain outside this checkpoint.
+closed. Full-corpus Gate 2 closure and Gate 3 business implementation remain
+outside this checkpoint.
 
 ```text
 GATE2_SOURCE_FACT_BLUEPRINT_READY

@@ -8,6 +8,11 @@ Date: 2026-07-08
 
 Scope: safe metadata-only contract for LLM-assisted Broker Reports Gate 1 / Gate 1.5 document passport.
 
+Compatibility note: `Gate 1.5` is a historical local label for this
+metadata-passport sub-stage inside global Gate 1, not a global product gate.
+See the
+[canonical gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 This contract does not allow source-fact extraction, tax calculation, declaration generation, XLS/XLSX export, OCR/VLM, Knowledge loading or ordinary OpenWebUI upload. It does not allow raw rows, full source text, raw filenames, file ids, private paths, names, account numbers, secrets or env values in safe surfaces.
 
 ## 1. Contract Name

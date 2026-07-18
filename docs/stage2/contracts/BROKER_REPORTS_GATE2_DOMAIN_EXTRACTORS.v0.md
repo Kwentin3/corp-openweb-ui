@@ -294,7 +294,8 @@ Limited primary expansion is allowed per selected document only after:
 - complete conflict-free stitch;
 - reconciled source-ready and issue refs.
 
-This does not authorize whole-case expansion, Gate 3, tax, declaration or XLS.
+This does not authorize whole-case expansion or Gate 3 case assembly, and it
+does not authorize Gate 4 tax, declaration or XLS work.
 
 ## 13. Table input assumption refinement (2026-07-11)
 

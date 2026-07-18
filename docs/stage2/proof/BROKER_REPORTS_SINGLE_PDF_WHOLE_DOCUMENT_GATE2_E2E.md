@@ -5,7 +5,9 @@ Date: 2026-07-12
 Status: `BROKER_REPORTS_SINGLE_PDF_E2E_PARTIAL`.
 
 This proof processes one approved real broker PDF as a complete document through
-the production Gate 1 / Gate 1.5 / Gate 2 path. It is intentionally scoped to
+the production global Gate 1 / Gate 2 path. Historical `Gate 1.5` references
+mean only the metadata-passport compatibility sub-stage inside Gate 1. This
+proof is intentionally scoped to
 source-visible Gate 2 facts and coverage accounting. It does not run Gate 3,
 cross-document consolidation, tax calculation, declaration mapping, XLS/XLSX
 generation, OCR/VLM, or image-only transcription.
@@ -171,7 +173,7 @@ Top blocker classes:
 | File rows delta | zero during Gate 2 |
 | Knowledge rows delta | zero |
 | OCR/VLM | not used |
-| Gate 3 / tax / declaration / XLSX | not run |
+| Gate 3 case assembly / Gate 4 tax-declaration-output | not run |
 | OpenWebUI core patch | not used |
 
 ## Product verdict

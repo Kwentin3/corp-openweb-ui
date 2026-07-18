@@ -2,6 +2,11 @@
 
 Status: implemented in `services/broker-reports-gate1-proof/`.
 
+Compatibility note: any `Gate 1.5` wording retained below means the historical
+LLM metadata-passport sub-stage inside global Gate 1. It is not a global
+product gate. See the
+[canonical gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 ## Purpose
 
 Gate 1 must not treat every uploaded document as Gate 2 source evidence.

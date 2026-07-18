@@ -7,6 +7,8 @@ implementation conditions. They are not the numbered Broker Reports product
 pipeline. In particular, `PDF Table Intake Gate 1` is a local child-capability
 name documented in
 [Broker Reports PDF Table Intake](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md).
+The authoritative Broker Reports product sequence is defined separately in
+[Broker Reports Global Gate Architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
 
 Implementation gates защищают проект от начала кодинга до того, как закрыты
 policy, backend boundaries, runtime proof and customer test data.

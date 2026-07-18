@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Source-Fact Extraction Contract v0
 
-Date: 2026-07-10
+Date: 2026-07-10; ownership note reconciled 2026-07-18
 
 Status: `GATE2_SOURCE_FACT_CONTRACT_READY`
 
@@ -8,7 +8,14 @@ Status: `GATE2_SOURCE_FACT_CONTRACT_READY`
 
 This contract defines the Gate 2 run, bounded input-package, validation, persistence, and summary boundaries for extracting source-visible facts from normalized broker-report slices.
 
-Gate 2 starts from validated Gate 1 / Gate 1.5 artifacts. It does not parse raw chat text, raw uploaded files, ordinary OpenWebUI file context, Knowledge/RAG, or vector results.
+Gate 2 starts from validated global Gate 1 artifacts. Historical references to
+`Gate 1.5` mean the LLM metadata-passport compatibility sub-stage inside
+global Gate 1; they do not define another global product gate. Gate 2 does not
+parse raw chat text, raw uploaded files, ordinary OpenWebUI file context,
+Knowledge/RAG, or vector results.
+
+Global ownership is defined by the
+[Broker Reports gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
 
 ## 2. Contract Family
 
@@ -612,9 +619,16 @@ It must not contain fact values, source text/rows, filenames, file ids, private 
 
 ## 11. Gate 3 Handoff Rule
 
-Gate 3 may receive ArtifactStore refs to validated fact sets, validation results, issue/fact linkage, and coverage summaries. It must resolve private facts under the same authorized context.
+For a supported ready scope, Gate 3 receives one
+`broker_reports_gate3_context_manifest_v0`. The manifest is produced at the
+Gate 2 exit boundary, indexes the terminal ArtifactStore refs below and is
+resolved under the same authorized context. A raw fact ref, DCP, run or
+readiness boolean is not an alternative Gate 3 root.
 
-Gate 2 does not emit intermediate ledger rows, consolidated facts, profit/loss, tax base, tax, declaration fields, filing status, or XLS/XLSX.
+Gate 2 does not emit intermediate ledger rows, consolidated facts,
+case-level profit/loss, tax base, tax, declaration fields, filing status or
+XLS/XLSX. Gate 3 owns case assembly/ledgers; Gate 4 owns tax/declaration/output
+preparation.
 
 ## 12. Invariants
 
@@ -676,10 +690,12 @@ bounded fragments and the number of incomplete parent remainders awaiting
 repeat preparation. It must not expose source rows, values, names, ids, or
 paths.
 
-Primary expansion and Gate 3 readiness require no truncated derived unit, no
+Primary expansion and Gate 3 input readiness require no truncated derived unit, no
 truncated parent, no pending parent remainder, at least one typed validated
-fact, and complete conflict-free selected coverage. A successful bounded typed
-vertical with `pending_gate1_reslice` does not satisfy expansion readiness.
+fact, complete conflict-free selected coverage and a valid
+`broker_reports_gate3_context_manifest_v0`. Readiness applies only to the
+manifest-declared scope. A successful bounded typed vertical with
+`pending_gate1_reslice` does not satisfy expansion readiness.
 
 ```text
 NO_SOURCE_FACT_WITHOUT_PROVENANCE

@@ -503,6 +503,13 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
+Architecture authority, 2026-07-18: the global Broker Reports product sequence
+is Gate 1 source representation, Gate 2 source-local semantic interpretation,
+Gate 3 case assembly/deterministic reconciliation and Gate 4 tax/declaration
+output preparation. Local capability gates, Stage 2 implementation gates and
+vertical proof labels are separate namespaces. Start with the
+[canonical global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 CSV pre-Gate-3 note, 2026-07-17: CSV is the first format with a maintained
 complete path from private `process=false` intake through complete whole-file
 normalization, bounded terminal Gate 2 facts and the authoritative
@@ -549,8 +556,10 @@ bbox and accepted structure must bind completely to exact source atoms.
 
 Read first:
 
+- [Canonical Broker Reports global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
+- [Gate architecture/domain ownership finalization report](../reports/2026-07-18/OPENWEBUI_BROKER_REPORTS_GATE_ARCHITECTURE_AND_DOMAIN_OWNERSHIP_FINALIZATION.report.md)
 - [PDF Table Intake architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
 - [Supported PDF Table Intake runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [PDF Table Intake Gate 1 operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)

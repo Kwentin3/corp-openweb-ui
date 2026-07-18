@@ -246,8 +246,9 @@ declaration_mapping_allowed=false
 cross_document_consolidation_allowed=false
 ```
 
-Candidate binding produces source facts only. Gate 3 ledgers, tax logic,
-declaration mapping, spreadsheet generation, and cross-document consolidation
+Candidate binding produces source facts only. Gate 3 ledgers and
+cross-document consolidation, plus Gate 4 tax logic, declaration mapping and
+spreadsheet generation,
 remain out of scope.
 
 ## 7. Versioning and extension rule

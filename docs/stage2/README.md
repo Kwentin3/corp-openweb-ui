@@ -286,6 +286,12 @@ Next action:
 
 Finding:
 
+- Broker Reports uses one four-gate product architecture: source
+  representation, source-local interpretation, case reconciliation and
+  tax/declaration output preparation. Read the
+  [canonical global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
+  before local PDF gate, Stage 2 implementation-gate or vertical-proof
+  documents.
 - OpenWebUI has extraction engines.
 - Broker-report PDFs with a text layer now have a bounded deterministic
   normalization/table path; corpus-wide acceptance still waits for customer

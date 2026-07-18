@@ -1,18 +1,20 @@
 ﻿# Broker Reports Contract Flow Mapping v0
 
-Status: Draft flow mapping
-Date: 2026-07-06
+Status: Maintained flow mapping; global gate placement reconciled
+Date: 2026-07-06; ownership reconciled 2026-07-18
 Scope: Stage 2 Broker Reports / XLS NDFL contract-to-contract data flow
+
+Canonical gate placement is defined by the
+[Broker Reports gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
 
 ## 1. Flow
 
 ```text
 customer folder / safe registry
--> document inventory
--> source facts schema
--> intermediate ledgers
--> declaration model
--> review state
+-> Gate 1 document inventory / DCP / normalized representation
+-> Gate 2 source facts / terminal validation / Gate 3 context manifest
+-> Gate 3 case assembly / intermediate ledgers
+-> Gate 4 declaration model / review state
 -> later output artifacts
 ```
 
@@ -26,7 +28,7 @@ Only safe registry data and existing docs are used in public artifacts. Raw cust
 | document inventory | source facts | document eligibility, source granularity, document class | `document_id`, source evidence refs | yes for eligible evidence docs |
 | source facts | intermediate ledgers | raw and normalized event facts, dates, amounts, currencies, visible labels, confidence | `source_fact_id`, `document_id` | yes, but no tax-base finalization |
 | intermediate ledgers | declaration model | ledger candidates, calculation status, official requirement refs, methodology status | `ledger_item_id`, `official_requirement_refs[]` | conditional |
-| source facts | declaration model | direct source facts for simple target candidates | `source_fact_id` | only when no deterministic calculation is needed |
+| Gate 3 case assembly | declaration model | accepted case/ledger refs and, for simple lineage, cited source-fact refs | case-assembly root, `ledger_item_id`, `source_fact_id` | only inside Gate 4; never bypass the Gate 3 scope/reconciliation root |
 | declaration model | review state | target paths, readiness gaps, official refs, methodology status | declaration model paths, `official_requirement_refs[]` | yes for issue creation |
 | ledgers | review state | calculation gaps, conflicts, unresolved methodology | `ledger_item_id`, `calculation_trace_id` | yes for issue creation |
 | review state | later output artifacts | questions, conflicts, readiness summary | `issue_id`, `question_id` | yes, safe review output only |

@@ -1,6 +1,10 @@
 ﻿# Broker Reports NDFL Declaration Data Model v0
 
 Status: Draft declaration-oriented data model
+
+Global owner: Gate 4 — Tax and Declaration Output Preparation. Gate 3 supplies
+the accepted case-assembly/ledger root; this contract must not become a bypass
+from one Gate 2 fact set around cross-document scope and reconciliation.
 Date: 2026-07-04
 Scope: Stage 2 Broker Reports / XLS NDFL documentation refine
 

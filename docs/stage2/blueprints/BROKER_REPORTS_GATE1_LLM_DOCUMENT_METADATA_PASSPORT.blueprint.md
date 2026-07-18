@@ -9,6 +9,11 @@ Date: 2026-07-08
 
 Scope: implementation blueprint for a future Gate 1 / Gate 1.5 LLM-assisted document metadata passport slice.
 
+Compatibility note: `Gate 1.5` is a historical local label for this
+metadata-passport sub-stage wholly inside global Broker Reports Gate 1. It is
+not a fifth/half global product gate. Global numbering is defined by the
+[canonical gate architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 No runtime code is changed by this blueprint. This blueprint does not authorize ordinary OpenWebUI upload, Gate 2, source-fact extraction, tax calculation, declaration generation, XLS/XLSX export, OCR/VLM or Knowledge loading.
 
 ## 1. Problem And Risk

@@ -167,7 +167,8 @@ This v1 does not:
 
 - migrate PDF tables to CSV in production;
 - transcribe free-form values through the VLM;
-- perform OCR, business extraction, Gate 3, tax/declaration or XLSX work;
+- perform OCR, business extraction, Gate 3 case assembly/reconciliation, or
+  Gate 4 tax/declaration/XLSX work;
 - activate cleanup or remove forensic artifacts;
 - make any shadow result authoritative;
 - change production Gate 2 selection.

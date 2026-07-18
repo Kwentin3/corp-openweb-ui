@@ -6,6 +6,12 @@ CSV profile: `broker_reports_csv_supported_profile_v1`
 
 Gate 3 root: `broker_reports_gate3_context_manifest_v0`
 
+Ownership note: the manifest is produced and validated at the global Gate 2
+exit boundary and consumed as the global Gate 3 input root. Its name identifies
+the consumer; it is not a Gate 3 business output and does not implement
+ledgers, reconciliation or calculations. See the
+[canonical global gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 ## Назначение
 
 Это первый поддержанный сквозной формат Broker Reports до границы Gate 3:

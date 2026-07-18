@@ -4,7 +4,9 @@ Status: Intermediate ledgers contract proposal
 Date: 2026-07-06
 Scope: Stage 2 Broker Reports / XLS NDFL source-facts-to-declaration bridge
 
-> 2026-07-10 Gate boundary note: this proposal belongs to Gate 3 and later.
+> 2026-07-18 global gate boundary: this proposal belongs to global Gate 3
+> (case assembly and deterministic reconciliation). Tax methodology,
+> declaration mapping, specialist review and export belong to global Gate 4.
 > Gate 2 emits only validator-passed source-fact refs, provenance, issue
 > linkage, completeness, restrictions, and coverage. Gate 2 does not create
 > these ledgers, consolidate duplicates, or perform calculations.

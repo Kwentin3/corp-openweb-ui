@@ -5,7 +5,13 @@ Date: 2026-07-11
 Status: bounded technical contour implemented and deployed with repo/live
 parity; the local PDF Table Intake Gate 1 child capability is implemented with region-only VLM detection
 and deterministic `8 %` page-relative crop padding and was formally closed by
-the 2026-07-17 stage operator proof; the full customer pilot remains a separate gate.
+the 2026-07-17 stage operator proof; the full customer pilot remains a separate
+acceptance milestone spanning future global Gate 3/Gate 4 work, not another
+gate number.
+
+Architecture authority: global gate ownership and numbering are defined by the
+[Broker Reports Global Gate Architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md).
+This product blueprint does not create an alternative gate sequence.
 
 ## 1. Purpose
 
@@ -70,6 +76,7 @@ policy. Manual anonymization may be required until future masking subsystem exis
 
 ## 8. Dependencies
 
+- [Canonical global gate architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - [PDF Table Intake architecture and gate mapping](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
 - [PDF Table Intake runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [DOCUMENTS_OCR_EXCEL](DOCUMENTS_OCR_EXCEL.blueprint.md)

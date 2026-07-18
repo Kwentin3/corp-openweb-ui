@@ -8,6 +8,11 @@ Date: 2026-07-08
 
 Scope: managed OpenWebUI Prompt contract for the Broker Reports Gate 1 / Gate 1.5 LLM document metadata passport stage.
 
+Compatibility note: `Gate 1.5` is a historical local label for this
+metadata-passport sub-stage inside global Gate 1, not a global product gate.
+See the
+[canonical gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+
 This is a prompt contract and reference managed-prompt content. It is not backend Python code. The final prompt body must be stored and versioned as an OpenWebUI Prompt, not hardcoded in the Pipe/backend.
 
 ## 1. Prompt Identity

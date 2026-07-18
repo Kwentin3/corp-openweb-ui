@@ -380,7 +380,9 @@ The model may copy only allowed issue refs. Deterministic validation owns impact
 }
 ```
 
-`cross_document_consolidation_allowed` remains false in Gate 2. Gate 3 may decide after duplicate/cross-check logic. Tax and declaration flags are always false in this contract.
+`cross_document_consolidation_allowed` remains false in Gate 2. Gate 3 may
+decide after duplicate/cross-check logic. Tax and declaration decisions belong
+to Gate 4 and their flags are always false in this contract.
 
 ## 13. Extraction Audit
 
@@ -611,7 +613,8 @@ The validator must reject:
 
 Gate 3 consumes fact refs, provenance, issue linkage, completeness, and restrictions. It may build intermediate ledgers and deterministic calculation traces.
 
-Gate 2 does not merge, consolidate, calculate, map to a declaration, or decide filing readiness.
+Gate 2 does not merge, consolidate or calculate. Gate 4, not Gate 3, owns
+declaration mapping and filing/output readiness.
 
 ### 17.1 Domain projection and stitch authority
 
@@ -654,7 +657,9 @@ that derived unit is present and accounted for. If
 `parent_source_slice_truncated=true`, the fact and stitch result remain bounded
 to the parent projection and the plan must carry
 `parent_remainder_status=pending_gate1_reslice`. This state cannot imply whole
-document completeness, Gate 3 readiness, or primary expansion readiness.
+document completeness, Gate 3 input readiness, or primary expansion readiness.
+Only `broker_reports_gate3_context_manifest_v0` may assert the latter for its
+declared bounded scope.
 
 For a selected derived unit, the unchanged validator still requires:
 

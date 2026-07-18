@@ -5,6 +5,8 @@ Date: 2026-07-07; status reconciled 2026-07-17
 Scope: Stage 2 Broker Reports / XLS NDFL, Gate 1 "Document Intake & Normalization"
 
 Authority note: this document defines the broader global Broker Reports Gate 1.
+Its placement inside the complete product sequence is defined by the
+[canonical global gate architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md).
 The narrower
 [PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md) is a child
 capability inside it. Original implementation slices and 2026-07-07 readiness

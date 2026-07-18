@@ -4,6 +4,10 @@ Status: Review state contract proposal
 Date: 2026-07-06
 Scope: Stage 2 Broker Reports / XLS NDFL specialist-review readiness
 
+Global owner: Gate 4 — Tax and Declaration Output Preparation. Earlier gates
+own their source issue artifacts; Gate 4 aggregates those refs into the
+specialist review state without rewriting source facts or Gate 3 ledgers.
+
 ## 1. Purpose
 
 Review state is the contract that collects blockers, warnings, conflicts, methodology gaps and questions.

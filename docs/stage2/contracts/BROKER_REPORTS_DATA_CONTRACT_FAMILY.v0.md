@@ -1,22 +1,21 @@
 ﻿# Broker Reports Data Contract Family v0
 
-Status: Draft contract family
-Date: 2026-07-06
+Status: Maintained conceptual contract family; gate placement reconciled
+Date: 2026-07-06; ownership reconciled 2026-07-18
 Scope: Stage 2 Broker Reports / XLS NDFL data contracts
 
 ## 1. Purpose
 
 This document defines the contract family for the Broker Reports workflow.
 
-The workflow is intentionally layered:
+The workflow is intentionally layered. Global gate ownership is defined by the
+[Broker Reports gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md):
 
 ```text
-case package
--> document inventory
--> source facts
--> intermediate ledgers
--> declaration-oriented model
--> review state
+Gate 1: source representation + document inventory + DCP
+  -> Gate 2: validated source facts + Gate 3 input manifest
+  -> Gate 3: case assembly + intermediate ledgers
+  -> Gate 4: declaration-oriented model + review/output preparation
 ```
 
 The goal is `ready_for_specialist_review`. This family does not define final tax correctness, automatic 3-NDFL completion, FNS filing, XLS/XLSX generation or OpenWebUI Knowledge loading.
@@ -55,12 +54,13 @@ broker_case_package_v0
 
 | Contract | Owner | Data owned here | Data not owned here |
 | --- | --- | --- | --- |
-| `broker_reports_case_package_v0_proposal` | case orchestration | `case_id`, status, tax/form year, refs to every artifact, safety flags | raw facts, ledger rows, declaration rows, issue bodies |
-| `document_inventory / manifest` | intake and taxonomy | `document_id`, safe hashes, container, MIME, size, readability, taxonomy class, technical suitability, `case_group_id` | source facts, tax-base calculations, final readiness |
-| `broker_reports_source_facts_v0_proposal` | evidence extraction | event-level facts, raw/normalized values, source evidence refs, confidence, source granularity | deterministic tax-base calculation, final declaration mapping |
-| `broker_reports_intermediate_ledgers_v0_proposal` | calculation-prep and deterministic ledger layer | normalized ledgers, calculation status, methodology status, consistency checks, trace links | official form structure, final declaration assertions |
-| `broker_reports_ndfl_declaration_model_v0/v0.1` | declaration-oriented target model | period applicability, official requirement refs, target candidates, model paths | raw source-document inventory, full ledger history |
-| `broker_reports_review_state_v0_proposal` | specialist review gate | missing, uncertain, conflicts, gaps, questions, readiness | source evidence extraction, deterministic calculations, filing output |
+| `broker_reports_case_package_v0_proposal` | Global Gate 3 case orchestration | `case_id`, accepted input scope, refs to source-fact and ledger artifacts, safety flags | raw facts, ledger rows, Gate 4 declaration rows or issue bodies |
+| `document_inventory / domain_context_packet_v0` | Global Gate 1 | `document_id`, safe hashes, container, MIME, size, readability, taxonomy class, technical suitability, `case_group_id` and next-stage refs | source facts, tax-base calculations, final readiness |
+| `broker_reports_source_facts_v0` | Global Gate 2 | event-level facts, raw/normalized values, source evidence refs, confidence, source granularity | cross-document reconciliation, deterministic case calculations, final declaration mapping |
+| `broker_reports_gate3_context_manifest_v0` | Global Gate 2 exit / Gate 3 input | declared scope, terminal Gate 2 graph refs, readiness and restrictions | rows, values, ledgers or Gate 3 business decisions |
+| `broker_reports_intermediate_ledgers_v0_proposal` | Global Gate 3 | normalized ledgers, calculation status, consistency checks, reconciliation and trace links | tax treatment, official form structure, final declaration assertions |
+| `broker_reports_ndfl_declaration_model_v0/v0.1` | Global Gate 4 | period applicability, official requirement refs, target candidates, model paths | raw source-document inventory, full ledger history |
+| `broker_reports_review_state_v0_proposal` | Global Gate 4 review/output boundary | missing, uncertain, conflicts, gaps, questions, readiness | source evidence extraction, Gate 3 calculations, filing output |
 
 ## 4. Non-Duplication Rules
 
