@@ -227,9 +227,9 @@ tax methodology -> declaration model -> review -> controlled output
 - repository factory boundary: passed;
 - итоговый status: `passed`.
 
-Текущий repository `HEAD=fc5966b` — docs-only follow-up. Последняя
-runtime-affecting revision — `0f1aa5c`. В рамках этой финализации изменялись
-только Markdown-документы; stage delivery не требовался.
+Проверенная base revision перед этой финализацией — `fc5966b`, docs-only
+follow-up. Последняя runtime-affecting revision — `0f1aa5c`. Сама финализация
+также изменяет только Markdown-документы; stage delivery не требовался.
 
 Локальный service suite из канонического cwd
 `services/broker-reports-gate1-proof`:
