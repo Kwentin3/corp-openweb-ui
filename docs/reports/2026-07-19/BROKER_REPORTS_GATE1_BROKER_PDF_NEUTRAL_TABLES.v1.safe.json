@@ -1,0 +1,106 @@
+{
+  "actual_corpus": {
+    "artifactstore_unchanged": true,
+    "canonical_output_sha256": "6b09f4ffb138b979bcd698e9ff1d151ab0826e734daf9fc2b2c9f67b00e47958",
+    "canonical_regions_total": 14,
+    "canonical_status_counts": {
+      "canonical_table_accepted": 14
+    },
+    "cells_total": 2037,
+    "continued_logical_tables_total": 2,
+    "full_replay_observed_peak_rss_bytes": 4995956736,
+    "full_replay_observed_wall_seconds": 1304,
+    "logical_tables_total": 12,
+    "other_candidate_documents_failed_closed_total": 24,
+    "persisted_equals_replay": true,
+    "reconstruction_replay_seconds": [
+      1.513565,
+      1.534998
+    ],
+    "repeated_replay_byte_equivalent": true,
+    "rows_total": 201,
+    "source_accounting_complete": true,
+    "source_values_total": 2984,
+    "technical_review_role": "agent_operated_technical_review",
+    "validator_passed_regions_total": 14,
+    "validator_seconds_all_regions": 0.470871
+  },
+  "characterization": {
+    "existing_high_replaced_total": 6,
+    "existing_low_replaced_total": 3,
+    "previous_topology_unresolved_reconstructed_total": 5,
+    "regions_total": 14
+  },
+  "delivery": {
+    "local_bundle_build": "passed",
+    "repository_bundle_sha256": {
+      "gate1": "08d6e9d7d3e9f8669365e4bfa6c99327ccd8496e09e5c2c04eef74fa0e39dabd",
+      "gate2_domain": "3daec92cd22731d4e37de6aa8cc8237dc50425a249e6edb17ec0e916f54539cd",
+      "gate2_source_fact": "b20fb77775d4e82d6f56130a4af81675a7405b4abf912803de4f04e5d001356e"
+    },
+    "stage_deployment": "not_run_positive_holdout_precondition_missing",
+    "stage_parity": "not_claimed"
+  },
+  "gate2_reproof": {
+    "after": {
+      "artifactstore_unchanged": true,
+      "blocked_noncanonical_candidates": 180,
+      "canonical_pdf_packages": 14,
+      "duplicate_package_ids": 0,
+      "packages_total": 681,
+      "table_projection_full_validation_total": 14,
+      "wall_seconds": 53.146799
+    },
+    "before": {
+      "blocked_noncanonical_candidates": 194,
+      "canonical_pdf_packages": 0,
+      "packages_total": 667,
+      "reference_wall_seconds": 50.824
+    },
+    "package_delta": 14,
+    "performance_ratio_to_reference": 1.045706,
+    "performance_threshold_ratio": 1.25,
+    "provider_calls": 0,
+    "provider_input_tokens": 0,
+    "provider_latency_seconds": 0.0,
+    "provider_output_tokens": 0,
+    "provider_retries": 0
+  },
+  "holdouts": {
+    "negative_out_of_profile": {
+      "canonical_regions_total": 0,
+      "candidate_regions_total": 0,
+      "failed_closed_as_expected": true,
+      "operator_review": "completed",
+      "provider_calls": 0,
+      "source_memory_complete": true,
+      "source_sha256": "62328f3bd76b9d1b3d79a2cfa4f70d9ee835f7a1df923ea894a5666c3207b9ed"
+    },
+    "positive_unseen_same_family": {
+      "reason": "genuine_previously_unseen_same_family_pdf_unavailable",
+      "status": "not_run"
+    }
+  },
+  "privacy": {
+    "customer_values_included": false,
+    "filenames_included": false,
+    "local_paths_included": false,
+    "page_crops_included": false,
+    "private_coordinates_included": false
+  },
+  "regression": {
+    "full_service_suite_passed": true,
+    "tests_passed": 923,
+    "tests_failed": 0
+  },
+  "profile_id": "supported_broker_pdf_neutral_table_profile_v1",
+  "provider_usage": {
+    "calls": 0,
+    "estimated_cost": 0,
+    "latency_seconds": 0.0,
+    "models": []
+  },
+  "safe_output": true,
+  "schema_version": "broker_reports_gate1_broker_pdf_neutral_tables_safe_evidence_v1",
+  "status": "not_closed_positive_holdout_missing"
+}
