@@ -65,6 +65,29 @@ def _repeated_header_wrapped_pdf() -> bytes:
     return _pdf_bytes([{"texts": texts, "vectors": vectors}])
 
 
+def _broker_profile_ruled_table_pdf() -> bytes:
+    rows = [
+        (220, ("Date", "Amount", "Currency")),
+        (195, ("1", "2", "3")),
+        (170, ("2026-01-01", "10.00", "USD")),
+        (145, ("Total", "10.00", "USD")),
+    ]
+    texts = [
+        item
+        for y, values in rows
+        for item in zip((30, 125, 225), (y, y, y), values)
+    ]
+    vectors = [
+        f"20 {y} m 300 {y} l S" for y in (130, 155, 180, 205, 230)
+    ] + [
+        "20 130 m 20 230 l S",
+        "110 130 m 110 230 l S",
+        "210 130 m 210 230 l S",
+        "300 130 m 300 230 l S",
+    ]
+    return _pdf_bytes([{"texts": texts, "vectors": vectors}])
+
+
 class BrokerReportsTableProjectionTest(unittest.TestCase):
     def test_batch_source_value_lookup_indexes_entries_and_private_values_once(self):
         rows = ["Date,Amount,Note"] + [
@@ -401,7 +424,7 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             ]
             self.assertEqual(
                 {item["source_unit"]["source_format"] for item in table_packages},
-                {"csv", "pdf"},
+                {"csv"},
             )
             for package in table_packages:
                 projection = next(
@@ -458,7 +481,9 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             )
 
     def test_gate2_table_package_requires_eligible_quality_and_complete_coverage(self):
-        projection = self._project_pdf(_ruled_table_pdf()).projections[0]
+        projection = self._project_pdf(
+            _broker_profile_ruled_table_pdf()
+        ).projections[0]
         package = Gate2TablePackageFactory().create().build(
             projection=projection,
             case_id="table-eligibility-case",
@@ -478,6 +503,15 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             ValueError, "gate2_table_projection_coverage_not_eligible"
         ):
             validate_gate2_table_package(package, incomplete_coverage)
+
+        geometry_only = self._project_pdf(_ruled_table_pdf()).projections[0]
+        with self.assertRaisesRegex(
+            ValueError, "gate2_pdf_canonical_table_not_validated"
+        ):
+            Gate2TablePackageFactory().create().build(
+                projection=geometry_only,
+                case_id="table-eligibility-case",
+            )
 
     def test_budget_overflow_is_blocked_and_performance_metrics_are_bounded(self):
         built = FullSourceArtifactFactory().create().build(

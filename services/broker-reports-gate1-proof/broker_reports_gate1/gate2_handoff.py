@@ -444,6 +444,9 @@ def persist_gate1_result(
                     "table_ref": table_projection.get("table_ref"),
                     "source_document_ref": document_id,
                     "source_unit_ref": table_projection.get("source_unit_ref"),
+                    "source_unit_refs_count": len(
+                        table_projection.get("source_unit_refs") or []
+                    ),
                     "source_format": table_projection.get("source_format"),
                     "table_origin": table_projection.get("table_origin"),
                     "projection_status": table_projection.get("projection_status"),
@@ -470,6 +473,21 @@ def persist_gate1_result(
                     "coverage_status": (
                         table_projection.get("coverage") or {}
                     ).get("coverage_status"),
+                    "canonical_table_id": table_projection.get(
+                        "canonical_table_id"
+                    ),
+                    "logical_table_id": table_projection.get(
+                        "logical_table_id"
+                    ),
+                    "canonical_profile_id": table_projection.get(
+                        "canonical_profile_id"
+                    ),
+                    "canonical_table_scope": table_projection.get(
+                        "canonical_table_scope"
+                    ),
+                    "canonical_validation_status": (
+                        table_projection.get("canonical_validation") or {}
+                    ).get("validator_status"),
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                 },

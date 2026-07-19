@@ -360,6 +360,17 @@ from .source_provenance import (
     resolve_source_values,
     validate_normalized_slice_provenance,
 )
+from .broker_pdf_neutral_tables import (
+    CANONICAL_READY_SCOPE,
+    CANONICAL_SCHEMA_VERSION,
+    PROFILE_ID as BROKER_PDF_NEUTRAL_TABLE_PROFILE_ID,
+    REGION_DECISION_SCHEMA_VERSION,
+    BrokerPdfNeutralTableConfig,
+    BrokerPdfNeutralTableFactory,
+    validate_canonical_integrity,
+    validate_canonical_neutral_projection,
+    validate_region_decision,
+)
 from .table_projection import (
     TABLE_COVERAGE_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
@@ -634,6 +645,15 @@ __all__ = [
     "TABLE_PROJECTION_SCHEMA_VERSION",
     "TABLE_COVERAGE_SCHEMA_VERSION",
     "TABLE_QUALITY_SCHEMA_VERSION",
+    "CANONICAL_READY_SCOPE",
+    "CANONICAL_SCHEMA_VERSION",
+    "BROKER_PDF_NEUTRAL_TABLE_PROFILE_ID",
+    "REGION_DECISION_SCHEMA_VERSION",
+    "BrokerPdfNeutralTableConfig",
+    "BrokerPdfNeutralTableFactory",
+    "validate_canonical_integrity",
+    "validate_canonical_neutral_projection",
+    "validate_region_decision",
     "NormalizedTableProjectionConfig",
     "NormalizedTableProjectionFactory",
     "TableProjectionBuildResult",

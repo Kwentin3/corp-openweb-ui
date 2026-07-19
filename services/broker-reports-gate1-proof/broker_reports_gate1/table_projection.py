@@ -8,6 +8,11 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from .broker_pdf_neutral_tables import (
+    BrokerPdfNeutralTableFactory,
+    validate_canonical_integrity,
+    validate_canonical_neutral_projection,
+)
 from .contracts import stable_digest
 from .source_provenance import resolve_source_value, validate_source_value_refs
 
@@ -37,6 +42,7 @@ ROW_ROLES = {
 }
 PDF_STATUSES = {
     "candidate",
+    "canonical_table_accepted",
     "validated_geometry",
     "rejected_to_line_cluster",
     "partial",
@@ -87,6 +93,7 @@ class NormalizedTableProjectionService:
             "xml": XmlTableProjectionBuilder(config),
         }
         self.pdf_builder = PdfTableCandidateProjectionBuilder(config)
+        self.broker_pdf_neutral_builder = BrokerPdfNeutralTableFactory().create()
         self.validator = TableProjectionValidator()
 
     def build_for_document(
@@ -104,16 +111,30 @@ class NormalizedTableProjectionService:
             for item in payloads
             if isinstance(item, dict) and item.get("source_payload_ref")
         }
+        broker_profile = (
+            self.broker_pdf_neutral_builder.build_for_document(
+                payloads=payloads,
+                source_units=source_units,
+            )
+            if normalized_format == "pdf"
+            else None
+        )
         for unit in source_units:
             if not isinstance(unit, dict):
                 continue
             if unit.get("pdf_unit_type") == "pdf_table_candidate_unit":
-                projection = self.pdf_builder.build(
-                    source_unit=unit,
-                    parent_payload=payload_by_ref.get(
-                        str(unit.get("parent_payload_ref") or "")
-                    ),
-                )
+                unit_ref = str(unit.get("unit_ref") or "")
+                if broker_profile and unit_ref in broker_profile.projections_by_unit_ref:
+                    projection = _finish_projection(
+                        broker_profile.projections_by_unit_ref[unit_ref]
+                    )
+                else:
+                    projection = self.pdf_builder.build(
+                        source_unit=unit,
+                        parent_payload=payload_by_ref.get(
+                            str(unit.get("parent_payload_ref") or "")
+                        ),
+                    )
             elif unit.get("slice_type") == "table_rows":
                 builder = self.native_builders.get(normalized_format)
                 if builder is None:
@@ -134,19 +155,32 @@ class NormalizedTableProjectionService:
                 {str(item.get("code") or "") for item in validation["errors"]}
             )
             projections.append(projection)
-            decisions.append(
-                _decision(
-                    unit,
-                    status=(
-                        str(projection.get("table_candidate_status") or "ready")
-                    ),
-                    reason_codes=[
-                        *list(projection.get("reconstruction_reason_codes") or []),
-                        *list(projection.get("validator_reason_codes") or []),
-                    ],
-                    projection_ref=projection.get("table_projection_id"),
+            unit_ref = str(unit.get("unit_ref") or "")
+            if broker_profile and unit_ref in broker_profile.decisions_by_unit_ref:
+                decision = copy.deepcopy(broker_profile.decisions_by_unit_ref[unit_ref])
+                if validation["validator_status"] != "passed":
+                    decision["status"] = "blocked"
+                    decision["reason_codes"] = sorted(
+                        set(
+                            list(decision.get("reason_codes") or [])
+                            + list(projection.get("validator_reason_codes") or [])
+                        )
+                    )
+                decisions.append(decision)
+            else:
+                decisions.append(
+                    _decision(
+                        unit,
+                        status=(
+                            str(projection.get("table_candidate_status") or "ready")
+                        ),
+                        reason_codes=[
+                            *list(projection.get("reconstruction_reason_codes") or []),
+                            *list(projection.get("validator_reason_codes") or []),
+                        ],
+                        projection_ref=projection.get("table_projection_id"),
+                    )
                 )
-            )
         summary = _safe_summary(projections, decisions)
         return TableProjectionBuildResult(
             projections=projections,
@@ -722,6 +756,16 @@ class TableProjectionValidator:
                 errors.append(_error("table_projection_pdf_status_invalid", projection_id))
             if projection.get("semantic_table_truth_claimed") is not False:
                 errors.append(_error("table_projection_pdf_semantic_truth_forbidden", projection_id))
+            if projection.get("canonical_profile_id"):
+                canonical_validation = validate_canonical_neutral_projection(projection)
+                errors.extend(
+                    _error(code, projection_id)
+                    for code in canonical_validation["reason_codes"]
+                )
+                if not validate_canonical_integrity(projection):
+                    errors.append(
+                        _error("canonical_neutral_table_integrity_mismatch", projection_id)
+                    )
         expected_checksum = _projection_checksum(projection)
         if projection.get("table_projection_checksum_ref") != expected_checksum:
             errors.append(_error("table_projection_checksum_mismatch", projection_id))
@@ -1242,11 +1286,17 @@ def _decision(
     projection_ref: Any = None,
 ) -> dict[str, Any]:
     return {
+        "schema_version": "broker_reports_typed_region_decision_v1",
         "source_unit_ref": unit.get("unit_ref"),
         "document_ref": unit.get("document_id"),
         "table_projection_ref": projection_ref,
+        "canonical_table_ref": None,
+        "logical_table_ref": None,
+        "region_type": "unknown_or_ambiguous",
         "status": status,
         "reason_codes": sorted(set(reason_codes)),
+        "detector_authority": "proposal_only",
+        "promotion_authority": None,
     }
 
 

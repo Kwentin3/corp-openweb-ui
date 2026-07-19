@@ -56,6 +56,15 @@ class Gate2TablePackageBuilder:
             "medium",
         }:
             raise ValueError("gate2_table_projection_quality_not_eligible")
+        if projection.get("source_format") == "pdf" and (
+            projection.get("canonical_table_scope")
+            != "ready_validated_projection_only"
+            or _object(projection.get("canonical_validation")).get(
+                "validator_status"
+            )
+            != "passed"
+        ):
+            raise ValueError("gate2_pdf_canonical_table_not_validated")
         coverage = _object(projection.get("coverage"))
         if (
             coverage.get("coverage_status") != "complete"
@@ -146,6 +155,14 @@ class Gate2TablePackageBuilder:
             "unit_kind": "table_row_window",
             "slice_ref": projection.get("table_projection_id"),
             "table_projection_id": projection.get("table_projection_id"),
+            "canonical_table_id": projection.get("canonical_table_id"),
+            "logical_table_id": projection.get("logical_table_id"),
+            "canonical_profile_id": projection.get("canonical_profile_id"),
+            "canonical_table_scope": projection.get("canonical_table_scope"),
+            "continuation": copy.deepcopy(
+                _object(projection.get("canonical_contract")).get("continuation")
+                or {}
+            ),
             "table_projection_artifact_ref": table_projection_artifact_ref,
             "private_slice_artifact_ref": table_projection_artifact_ref,
             "table_ref": projection.get("table_ref"),
@@ -291,6 +308,15 @@ def validate_gate2_table_package(
         "medium",
     }:
         errors.append(_error("gate2_table_projection_quality_not_eligible", package_id))
+    if projection.get("source_format") == "pdf" and (
+        projection.get("canonical_table_scope")
+        != "ready_validated_projection_only"
+        or _object(projection.get("canonical_validation")).get(
+            "validator_status"
+        )
+        != "passed"
+    ):
+        errors.append(_error("gate2_pdf_canonical_table_not_validated", package_id))
     if (
         projection_coverage.get("coverage_status") != "complete"
         or _strings(projection_coverage.get("duplicate_accounted_refs"))

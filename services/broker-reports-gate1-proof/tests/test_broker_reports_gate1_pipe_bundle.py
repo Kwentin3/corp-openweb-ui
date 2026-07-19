@@ -76,7 +76,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_document_memory_profile_v1",
+            "gate1_broker_pdf_neutral_tables_profile_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)

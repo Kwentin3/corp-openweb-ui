@@ -28,6 +28,7 @@ BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 MODULE_ORDER = [
     "contracts",
     "source_provenance",
+    "broker_pdf_neutral_tables",
     "table_projection",
     "blockers",
     "file_processing_outcomes",
@@ -151,8 +152,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.18.0-actual-corpus-zip-xml-visual-v1-bundled",
-            package_version="gate1_document_memory_profile_v1",
+            version="0.19.0-broker-pdf-neutral-tables-v1-bundled",
+            package_version="gate1_broker_pdf_neutral_tables_profile_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
@@ -170,8 +171,8 @@ def main() -> None:
             modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
-            version="0.5.0-document-memory-handoff-v1-bundled",
-            package_version="gate2_document_memory_handoff_v1",
+            version="0.6.0-broker-pdf-neutral-tables-v1-bundled",
+            package_version="gate2_broker_pdf_neutral_tables_profile_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
         )
@@ -190,8 +191,8 @@ def main() -> None:
             modules=gate2_domain_modules,
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
-            version="0.7.0-document-memory-handoff-v1-bundled",
-            package_version="gate2_domain_document_memory_handoff_v1",
+            version="0.8.0-broker-pdf-neutral-tables-v1-bundled",
+            package_version="gate2_domain_broker_pdf_neutral_tables_profile_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
         )

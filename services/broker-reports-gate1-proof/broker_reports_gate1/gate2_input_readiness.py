@@ -608,6 +608,24 @@ class Gate2InputReadinessService:
             if record.artifact_type == "broker_reports_normalized_table_projection_v0"
             and requested(record)
         ]
+        canonical_pdf_projection_anchor_unit_refs = {
+            str(record.safe_metadata.get("source_unit_ref") or "")
+            for record in projection_records
+            if record.validation_status == "validated"
+            and record.safe_metadata.get("source_format") == "pdf"
+            and record.safe_metadata.get("projection_status") == "ready"
+            and record.safe_metadata.get("reconstruction_quality")
+            in {"high", "medium"}
+            and record.safe_metadata.get("coverage_status") == "complete"
+            and record.safe_metadata.get("canonical_table_scope")
+            == "ready_validated_projection_only"
+            and record.safe_metadata.get("canonical_validation_status") == "passed"
+            and _gate2_record_scope_decision(
+                record,
+                memory_by_document.get(str(record.document_id or "")) or {},
+            )[0]
+            and record.safe_metadata.get("source_unit_ref")
+        }
         full_unit_documents = {
             str(record.document_id or "") for record in full_unit_records
         }
@@ -628,7 +646,11 @@ class Gate2InputReadinessService:
             if (
                 not allowed
                 and reason == "gate2_noncanonical_table_candidate_scope_blocked"
-                and self.config.prefer_table_projections
+                and (
+                    self.config.prefer_table_projections
+                    or str(record.safe_metadata.get("unit_ref") or "")
+                    in canonical_pdf_projection_anchor_unit_refs
+                )
             ):
                 allowed = True
             if allowed:
@@ -661,6 +683,15 @@ class Gate2InputReadinessService:
             and record.safe_metadata.get("reconstruction_quality")
             in {"high", "medium"}
             and record.safe_metadata.get("coverage_status") == "complete"
+            and (
+                record.safe_metadata.get("source_format") != "pdf"
+                or (
+                    record.safe_metadata.get("canonical_table_scope")
+                    == "ready_validated_projection_only"
+                    and record.safe_metadata.get("canonical_validation_status")
+                    == "passed"
+                )
+            )
             and str(record.safe_metadata.get("source_unit_ref") or "")
             in selected_full_unit_refs
             and _gate2_record_scope_decision(
@@ -669,8 +700,13 @@ class Gate2InputReadinessService:
             )[0]
         ]
         selected_projection_records_by_unit: dict[str, ArtifactRecord] = {}
-        if self.config.prefer_table_projections:
-            for record in eligible_projection_records:
+        for record in eligible_projection_records:
+            if (
+                self.config.prefer_table_projections
+                or record.safe_metadata.get("source_format") == "pdf"
+                and record.safe_metadata.get("canonical_table_scope")
+                == "ready_validated_projection_only"
+            ):
                 selected_projection_records_by_unit[
                     str(record.safe_metadata.get("source_unit_ref") or "")
                 ] = record
@@ -854,17 +890,19 @@ class Gate2InputReadinessService:
         ):
             full_units = full_units_by_document.get(document_id, [])
             if self.config.prefer_full_source_units and full_units:
-                projections_by_unit = (
-                    {
-                        str(payload.get("source_unit_ref") or ""): item
-                        for item in table_projections_by_document.get(document_id, [])
-                        for _record, payload, _validation in [item]
-                        if payload.get("projection_status") == "ready"
-                        and _validation.get("validator_status") == "passed"
-                    }
-                    if self.config.prefer_table_projections
-                    else {}
-                )
+                projections_by_unit = {
+                    str(payload.get("source_unit_ref") or ""): item
+                    for item in table_projections_by_document.get(document_id, [])
+                    for _record, payload, _validation in [item]
+                    if payload.get("projection_status") == "ready"
+                    and _validation.get("validator_status") == "passed"
+                    and (
+                        self.config.prefer_table_projections
+                        or payload.get("source_format") == "pdf"
+                        and payload.get("canonical_table_scope")
+                        == "ready_validated_projection_only"
+                    )
+                }
                 selected = []
                 for item in full_units:
                     source_unit_ref = str(item[1].get("unit_ref") or "")
@@ -919,7 +957,11 @@ class Gate2InputReadinessService:
             "input_priority": (
                 "normalized_table_projection_then_full_source_unit_then_legacy_preview"
                 if self.config.prefer_table_projections
-                else "full_source_unit_then_legacy_preview"
+                else (
+                    "validated_pdf_canonical_projection_then_full_source_unit_then_legacy_preview"
+                    if canonical_pdf_projection_anchor_unit_refs
+                    else "full_source_unit_then_legacy_preview"
+                )
             ),
             "legacy_provenance_upgrade_total": legacy_upgrade_total,
         }
