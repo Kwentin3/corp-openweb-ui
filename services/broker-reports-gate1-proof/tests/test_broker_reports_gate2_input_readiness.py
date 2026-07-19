@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import copy
 import json
 import sys
@@ -186,6 +187,14 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
         self.assertTrue(dry_run.safe_report["row_segment_coverage_ready"])
         self.assertGreater(dry_run.safe_report["source_value_refs_total"], 0)
         self.assertGreater(dry_run.safe_report["issue_scope_counts"].get("source_unit", 0), 0)
+        slice_audit = dry_run.validation["slice_audit"]
+        self.assertGreater(slice_audit["table_projections_total"], 0)
+        self.assertEqual(slice_audit["table_projection_full_validation_total"], 0)
+        self.assertEqual(
+            slice_audit["table_projections_unselected_total"],
+            slice_audit["table_projections_total"],
+        )
+        self.assertGreater(slice_audit["legacy_slices_unselected_total"], 0)
         self.assertEqual(
             _table_row_fact_type_hint(
                 [
@@ -268,6 +277,11 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
             table_packages[0]["source_unit"]["table_projection_id"],
             good["table_projection_id"],
         )
+        slice_audit = dry_run.validation["slice_audit"]
+        self.assertEqual(slice_audit["table_projections_total"], 2)
+        self.assertEqual(slice_audit["table_projections_eligible_total"], 1)
+        self.assertEqual(slice_audit["table_projection_full_validation_total"], 1)
+        self.assertEqual(slice_audit["table_projections_unselected_total"], 1)
 
     def test_dry_run_rejects_cross_scope_context_and_foreign_package_refs(self):
         result = self._normalization_with_secondary_and_unit_issue()
@@ -311,6 +325,101 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
         self.assertIn(
             "gate2_package_source_value_refs_mismatch",
             {item["code"] for item in validation["errors"]},
+        )
+
+    def test_ready_with_restrictions_selects_only_named_xml_and_html_scopes(self):
+        xml_result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="gate2-neutral-xml",
+                    filename="neutral.xml",
+                    content=b"<root><item code='a'>10</item></root>",
+                    mime_type="application/xml",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        xml_memory = xml_result.package["document_memory_manifest"]["documents"][0]
+        self.assertEqual(xml_memory["gate2_memory_status"], "ready_with_restrictions")
+        xml_context, xml_manifest = self._persist(xml_result)
+
+        xml_readiness = Gate2InputReadinessFactory(store=self.store).create().audit_and_build(
+            domain_context_packet_ref=xml_manifest.artifact_refs_by_type[
+                "domain_context_packet_v0"
+            ][0],
+            context=xml_context,
+        )
+
+        self.assertEqual(xml_readiness.validation["validator_status"], "passed")
+        self.assertTrue(xml_readiness.packages)
+        self.assertEqual(
+            {item["document_context"]["selected_source_scope"] for item in xml_readiness.packages},
+            {"neutral_structure"},
+        )
+        self.assertTrue(
+            all(
+                item["document_context"]["financial_interpretation_allowed"] is False
+                for item in xml_readiness.packages
+            )
+        )
+
+        tiny_png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+            "AAMAASsJTYQAAAAASUVORK5CYII="
+        )
+        encoded = base64.b64encode(tiny_png).decode("ascii")
+        html_result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="gate2-restricted-html",
+                    filename="restricted.html",
+                    content=(
+                        "<p>Statement</p><table><tr><th>Date</th></tr>"
+                        "<tr><td>2026-01-01</td></tr></table>"
+                        f"<img src='data:image/png;base64,{encoded}'>"
+                    ).encode("utf-8"),
+                    mime_type="text/html",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        html_memory = html_result.package["document_memory_manifest"]["documents"][0]
+        self.assertEqual(
+            html_memory["source_scope"]["scope_readiness"]["visual_scope"],
+            "ready",
+        )
+        self.assertIn(
+            "visual_units_require_visual_consumer",
+            html_memory["source_scope"]["scope_readiness"]["restrictions"],
+        )
+        html_context, html_manifest = self._persist(html_result)
+
+        html_readiness = Gate2InputReadinessFactory(store=self.store).create().audit_and_build(
+            domain_context_packet_ref=html_manifest.artifact_refs_by_type[
+                "domain_context_packet_v0"
+            ][0],
+            context=html_context,
+        )
+
+        self.assertEqual(html_readiness.validation["validator_status"], "passed")
+        self.assertEqual(
+            html_readiness.validation["slice_audit"]["unselected_scope_reason_counts"].get(
+                "gate2_visual_consumer_unavailable"
+            ),
+            1,
+        )
+        self.assertEqual(
+            {
+                item["document_context"]["selected_source_scope"]
+                for item in html_readiness.packages
+            },
+            {"text", "canonical_table"},
+        )
+        self.assertTrue(
+            all(
+                item["source_unit"].get("unit_kind") != "visual_media"
+                for item in html_readiness.packages
+            )
         )
 
     def test_source_fact_ready_dcp_keeps_handoff_manifest_resolver_readable_when_compatibility_is_blocked(self):

@@ -16,7 +16,10 @@ from .document_memory import (
     validate_document_memory_manifest,
 )
 from .full_source import SOURCE_UNIT_SCHEMA_VERSION, validate_full_source_unit
-from .pdf_layout_units import resolve_pdf_layout_unit_source_value
+from .pdf_layout_units import (
+    resolve_pdf_layout_unit_source_value,
+    resolve_pdf_layout_unit_source_values,
+)
 from .pdf_text_layer import (
     validate_pdf_source_unit,
     validate_pdf_source_unit_parent_linkage,
@@ -56,6 +59,7 @@ __all__ = [
     "TableProjectionValidator",
     "reproduce_normalized_value",
     "resolve_pdf_layout_unit_source_value",
+    "resolve_pdf_layout_unit_source_values",
     "resolve_source_value",
     "resolve_source_values",
     "validate_full_source_unit",

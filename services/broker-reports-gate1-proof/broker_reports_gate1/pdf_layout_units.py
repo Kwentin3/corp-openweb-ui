@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
-from .pdf_layout import PDF_LAYOUT_POLICY_VERSION
 from .source_provenance import NormalizedSliceProvenanceFactory
 
 
@@ -706,11 +705,6 @@ class PdfLayoutUnitBuilder:
         candidates = _dicts(page.get("_layout_candidates"))
         if not words and not lines:
             return [], []
-        candidate_word_refs = {
-            ref
-            for candidate in candidates
-            for ref in _strings(candidate.get("contributing_word_refs"))
-        }
         table_units: list[dict[str, Any]] = []
         accepted_candidate_word_refs: set[str] = set()
         reasons: list[str] = []
@@ -1007,25 +1001,61 @@ class PdfLayoutUnitBuilder:
 def resolve_pdf_layout_unit_source_value(
     unit: dict[str, Any], source_value_ref: str
 ) -> str:
-    matches = [
-        item
-        for item in _dicts(unit.get("pdf_layout_source_value_index"))
-        if item.get("source_value_ref") == source_value_ref
-    ]
-    if len(matches) != 1:
-        raise ValueError("pdf_layout_unit_source_value_ref_not_unique_or_missing")
-    path = _object(matches[0].get("value_path"))
-    if path.get("kind") != "pdf_unit_text_span":
-        raise ValueError("pdf_layout_unit_source_value_path_kind_invalid")
-    text = str(unit.get("text") or "")
-    start = int(path.get("character_start") or 0)
-    end = int(path.get("character_end") or 0)
-    if start < 0 or end < start or end > len(text):
-        raise ValueError("pdf_layout_unit_source_value_path_invalid")
-    value = text[start:end]
-    if matches[0].get("value_checksum_ref") != _checksum_ref("valuechk", value):
-        raise ValueError("pdf_layout_unit_source_value_checksum_mismatch")
-    return value
+    return _PdfLayoutUnitSourceValueResolver(unit).resolve(source_value_ref)
+
+
+def resolve_pdf_layout_unit_source_values(
+    unit: dict[str, Any], source_value_refs: list[str]
+) -> dict[str, str]:
+    resolver = _PdfLayoutUnitSourceValueResolver(unit)
+    return {
+        str(source_value_ref): resolver.resolve(str(source_value_ref))
+        for source_value_ref in source_value_refs
+    }
+
+
+def resolve_pdf_layout_unit_source_value_results(
+    unit: dict[str, Any], source_value_refs: list[str]
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    resolver = _PdfLayoutUnitSourceValueResolver(unit)
+    resolved: dict[str, str] = {}
+    errors: list[dict[str, str]] = []
+    for source_value_ref in source_value_refs:
+        try:
+            resolved[str(source_value_ref)] = resolver.resolve(
+                str(source_value_ref)
+            )
+        except ValueError as exc:
+            errors.append(
+                {"code": str(exc), "subject": str(source_value_ref)}
+            )
+    return resolved, errors
+
+
+class _PdfLayoutUnitSourceValueResolver:
+    def __init__(self, unit: dict[str, Any]) -> None:
+        self.text = str(unit.get("text") or "")
+        self.entries: dict[str, list[dict[str, Any]]] = {}
+        for item in _dicts(unit.get("pdf_layout_source_value_index")):
+            source_value_ref = str(item.get("source_value_ref") or "")
+            if source_value_ref:
+                self.entries.setdefault(source_value_ref, []).append(item)
+
+    def resolve(self, source_value_ref: str) -> str:
+        matches = self.entries.get(str(source_value_ref), [])
+        if len(matches) != 1:
+            raise ValueError("pdf_layout_unit_source_value_ref_not_unique_or_missing")
+        path = _object(matches[0].get("value_path"))
+        if path.get("kind") != "pdf_unit_text_span":
+            raise ValueError("pdf_layout_unit_source_value_path_kind_invalid")
+        start = int(path.get("character_start") or 0)
+        end = int(path.get("character_end") or 0)
+        if start < 0 or end < start or end > len(self.text):
+            raise ValueError("pdf_layout_unit_source_value_path_invalid")
+        value = self.text[start:end]
+        if matches[0].get("value_checksum_ref") != _checksum_ref("valuechk", value):
+            raise ValueError("pdf_layout_unit_source_value_checksum_mismatch")
+        return value
 
 
 def _unit_text_and_source_values(

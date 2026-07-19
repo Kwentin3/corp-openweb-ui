@@ -24,6 +24,8 @@ from broker_reports_gate1 import (
     TableProjectionValidator,
     build_retention_policy,
     persist_gate1_result,
+    resolve_source_value,
+    resolve_source_values,
     validate_gate2_table_package,
 )
 from broker_reports_gate1.table_projection import FACTORY_REQUIRED, FORBIDDEN
@@ -64,6 +66,115 @@ def _repeated_header_wrapped_pdf() -> bytes:
 
 
 class BrokerReportsTableProjectionTest(unittest.TestCase):
+    def test_batch_source_value_lookup_indexes_entries_and_private_values_once(self):
+        rows = ["Date,Amount,Note"] + [
+            f"2026-01-{(index % 28) + 1:02d},{index}.00,row-{index}"
+            for index in range(1, 201)
+        ]
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="batch-source-values",
+                    filename="batch_source_values.csv",
+                    content=("\n".join(rows) + "\n").encode("utf-8"),
+                    mime_type="text/csv",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        projection = copy.deepcopy(
+            result.package["private_normalized_table_projections"][0]
+        )
+
+        class CountingList(list):
+            def __init__(self, values):
+                super().__init__(values)
+                self.iterations = 0
+
+            def __iter__(self):
+                self.iterations += 1
+                return super().__iter__()
+
+        source_index = CountingList(projection["source_value_index"])
+        private_values = CountingList(projection["private_values"])
+        projection["source_value_index"] = source_index
+        projection["private_values"] = private_values
+        refs = list(projection["source_value_refs"])
+
+        resolved = resolve_source_values(projection, refs)
+
+        self.assertEqual(len(resolved), len(refs))
+        self.assertEqual(source_index.iterations, 1)
+        self.assertEqual(private_values.iterations, 1)
+        for source_value_ref in refs[:10]:
+            self.assertEqual(
+                resolved[source_value_ref],
+                resolve_source_value(projection, source_value_ref),
+            )
+
+    def test_batch_source_value_lookup_preserves_failure_codes(self):
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="batch-source-value-errors",
+                    filename="batch_source_value_errors.csv",
+                    content=b"Date,Amount\n2026-01-01,10.00\n",
+                    mime_type="text/csv",
+                )
+            ],
+            input_context={"clarification_criticality_refinement_enabled": True},
+        )
+        projection = result.package["private_normalized_table_projections"][0]
+        source_value_ref = str(projection["source_value_refs"][0])
+
+        duplicate = copy.deepcopy(projection)
+        duplicate["source_value_index"].append(
+            copy.deepcopy(
+                next(
+                    item
+                    for item in duplicate["source_value_index"]
+                    if item["source_value_ref"] == source_value_ref
+                )
+            )
+        )
+        with self.assertRaisesRegex(
+            ValueError, "source_value_ref_not_unique_or_missing"
+        ):
+            resolve_source_values(duplicate, [source_value_ref])
+
+        with self.assertRaisesRegex(
+            ValueError, "source_value_ref_not_unique_or_missing"
+        ):
+            resolve_source_values(projection, ["srcval_missing"])
+
+        checksum = copy.deepcopy(projection)
+        checksum_entry = next(
+            item
+            for item in checksum["source_value_index"]
+            if item["source_value_ref"] == source_value_ref
+        )
+        checksum_entry["value_checksum_ref"] = "valuechk_foreign"
+        with self.assertRaisesRegex(ValueError, "source_value_checksum_mismatch"):
+            resolve_source_values(checksum, [source_value_ref])
+
+        duplicate_private_value = copy.deepcopy(projection)
+        target_entry = next(
+            item
+            for item in duplicate_private_value["source_value_index"]
+            if item["source_value_ref"] == source_value_ref
+        )
+        value_path_ref = target_entry["value_path"]["value_path_ref"]
+        target_private_value = next(
+            item
+            for item in duplicate_private_value["private_values"]
+            if item["value_path_ref"] == value_path_ref
+        )
+        duplicate_private_value["private_values"].append(
+            copy.deepcopy(target_private_value)
+        )
+        with self.assertRaisesRegex(ValueError, "source_value_path_invalid"):
+            resolve_source_values(duplicate_private_value, [source_value_ref])
+
     def test_native_composite_cash_headers_are_mechanically_normalized(self):
         result = Gate1Normalizer().normalize(
             [
@@ -320,6 +431,29 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
                 any(
                     record.storage_backend == "openwebui_knowledge"
                     for record in store.list_by_run(run_id)
+                )
+            )
+
+            default_readiness = Gate2InputReadinessFactory(
+                store=store
+            ).create().audit_and_build(
+                domain_context_packet_ref=manifest.artifact_refs_by_type[
+                    "domain_context_packet_v0"
+                ][0],
+                context=context,
+            )
+            self.assertEqual(default_readiness.validation["validator_status"], "passed")
+            self.assertGreater(
+                default_readiness.validation["slice_audit"][
+                    "unselected_scope_reason_counts"
+                ].get("gate2_noncanonical_table_candidate_scope_blocked", 0),
+                0,
+            )
+            self.assertTrue(
+                all(
+                    item["source_unit"].get("pdf_unit_type")
+                    != "pdf_table_candidate_unit"
+                    for item in default_readiness.packages
                 )
             )
 

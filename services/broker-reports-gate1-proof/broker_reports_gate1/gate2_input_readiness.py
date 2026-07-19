@@ -20,7 +20,7 @@ from .gate1_public_contracts import (
     SOURCE_UNIT_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
     TableProjectionValidator,
-    resolve_pdf_layout_unit_source_value,
+    resolve_pdf_layout_unit_source_values,
     resolve_source_values,
     validate_full_source_unit,
     validate_document_memory_manifest,
@@ -204,15 +204,24 @@ class Gate2InputReadinessService:
             errors=errors,
             warnings=warnings,
         )
+
+        next_stage_refs = _object(dcp.get("next_stage_refs"))
+        source_ready_refs = _string_list(next_stage_refs.get("source_fact_ready_refs"))
+        memory_by_document = {
+            str(item.get("source_file_ref") or ""): item
+            for item in document_memory.get("documents") or []
+            if isinstance(item, dict)
+            if item.get("source_file_ref")
+        }
         slices_by_document, slice_audit = self._resolve_private_slices(
             records=records,
             context=context,
+            requested_document_refs=set(source_ready_refs),
+            memory_by_document=memory_by_document,
             resolved_scope_records=resolved_scope_records,
             errors=errors,
         )
 
-        next_stage_refs = _object(dcp.get("next_stage_refs"))
-        source_ready_refs = _string_list(next_stage_refs.get("source_fact_ready_refs"))
         duc_ready_refs = sorted(
             str(entry.get("document_ref"))
             for entry in _entries(duc)
@@ -241,13 +250,6 @@ class Gate2InputReadinessService:
             if entry.get("issue_id")
         }
         document_issue_refs = _object(dcp.get("document_issue_refs"))
-        memory_by_document = {
-            str(item.get("source_file_ref") or ""): item
-            for item in document_memory.get("documents") or []
-            if isinstance(item, dict)
-            if item.get("source_file_ref")
-        }
-
         packages: list[dict[str, Any]] = []
         package_validations: list[dict[str, Any]] = []
         packageable_document_refs: set[str] = set()
@@ -264,7 +266,8 @@ class Gate2InputReadinessService:
                 continue
             if (
                 document_memory_boundary.get("profile_enforcement") == "required"
-                and memory_entry.get("gate2_memory_status") != "ready"
+                and memory_entry.get("gate2_memory_status")
+                not in {"ready", "ready_with_restrictions"}
             ):
                 errors.append(
                     _error("gate2_source_ready_document_memory_blocked", document_ref)
@@ -360,6 +363,8 @@ class Gate2InputReadinessService:
                             )
                             or {}
                         ),
+                        "selected_source_scope": "canonical_table",
+                        "financial_interpretation_allowed": True,
                     }
                     package["issue_context"] = copy.deepcopy(issue_context)
                     package["allowed_issue_refs"] = sorted(
@@ -374,6 +379,11 @@ class Gate2InputReadinessService:
                         package, private_slice
                     )
                 else:
+                    _scope_allowed, selected_scope, _scope_reason = (
+                        _gate2_private_slice_scope_decision(
+                            private_slice, memory_entry
+                        )
+                    )
                     package = _build_dry_run_package(
                         dcp=dcp,
                         context=context,
@@ -393,6 +403,12 @@ class Gate2InputReadinessService:
                         )
                         or {}
                     )
+                    package["document_context"][
+                        "selected_source_scope"
+                    ] = selected_scope
+                    package["document_context"][
+                        "financial_interpretation_allowed"
+                    ] = selected_scope == "canonical_table"
                     validation = validate_dry_run_source_fact_package(
                         package=package,
                         private_slice=private_slice,
@@ -535,6 +551,8 @@ class Gate2InputReadinessService:
         *,
         records: list[ArtifactRecord],
         context: ArtifactAccessContext,
+        requested_document_refs: set[str],
+        memory_by_document: dict[str, dict[str, Any]],
         resolved_scope_records: list[str],
         errors: list[dict[str, str]],
     ) -> tuple[
@@ -553,8 +571,9 @@ class Gate2InputReadinessService:
         legacy_upgrade_total = 0
         table_total = 0
         text_total = 0
-        full_source_units_total = 0
-        table_projections_total = 0
+        full_source_unit_full_validation_total = 0
+        legacy_slice_full_validation_total = 0
+        table_projection_full_validation_total = 0
         parent_payloads_by_ref: dict[
             str, tuple[ArtifactRecord, dict[str, Any]]
         ] = {}
@@ -562,8 +581,112 @@ class Gate2InputReadinessService:
         pdf_parent_full_validation_total = 0
         pdf_parent_validation_cache_hit_total = 0
         pdf_unit_parent_linkage_validation_total = 0
+        selected_scope_counts: Counter[str] = Counter()
+        unselected_scope_reason_counts: Counter[str] = Counter()
+
+        def requested(record: ArtifactRecord) -> bool:
+            return str(record.document_id or "") in requested_document_refs
+
+        full_unit_records = [
+            record
+            for record in records
+            if record.artifact_type == SOURCE_UNIT_SCHEMA_VERSION and requested(record)
+        ]
+        legacy_records = [
+            record
+            for record in records
+            if record.artifact_type
+            in {
+                "private_normalized_table_slice_v0",
+                "private_normalized_text_slice_v0",
+            }
+            and requested(record)
+        ]
+        projection_records = [
+            record
+            for record in records
+            if record.artifact_type == "broker_reports_normalized_table_projection_v0"
+            and requested(record)
+        ]
+        full_unit_documents = {
+            str(record.document_id or "") for record in full_unit_records
+        }
+        strategy_full_unit_records = (
+            full_unit_records if self.config.prefer_full_source_units else []
+        )
+        strategy_legacy_records = [
+            record
+            for record in legacy_records
+            if not self.config.prefer_full_source_units
+            or str(record.document_id or "") not in full_unit_documents
+        ]
+        selected_full_unit_records = []
+        for record in strategy_full_unit_records:
+            allowed, _scope, reason = _gate2_record_scope_decision(
+                record, memory_by_document.get(str(record.document_id or "")) or {}
+            )
+            if (
+                not allowed
+                and reason == "gate2_noncanonical_table_candidate_scope_blocked"
+                and self.config.prefer_table_projections
+            ):
+                allowed = True
+            if allowed:
+                selected_full_unit_records.append(record)
+            else:
+                unselected_scope_reason_counts[reason] += 1
+        selected_legacy_records = []
+        for record in strategy_legacy_records:
+            allowed, _scope, reason = _gate2_record_scope_decision(
+                record, memory_by_document.get(str(record.document_id or "")) or {}
+            )
+            if allowed:
+                selected_legacy_records.append(record)
+            else:
+                unselected_scope_reason_counts[reason] += 1
+        selected_private_record_ids = {
+            record.artifact_id
+            for record in [*selected_full_unit_records, *selected_legacy_records]
+        }
+        selected_full_unit_refs = {
+            str(record.safe_metadata.get("unit_ref") or "")
+            for record in selected_full_unit_records
+            if record.safe_metadata.get("unit_ref")
+        }
+        eligible_projection_records = [
+            record
+            for record in projection_records
+            if record.validation_status == "validated"
+            and record.safe_metadata.get("projection_status") == "ready"
+            and record.safe_metadata.get("reconstruction_quality")
+            in {"high", "medium"}
+            and record.safe_metadata.get("coverage_status") == "complete"
+            and str(record.safe_metadata.get("source_unit_ref") or "")
+            in selected_full_unit_refs
+            and _gate2_record_scope_decision(
+                record,
+                memory_by_document.get(str(record.document_id or "")) or {},
+            )[0]
+        ]
+        selected_projection_records_by_unit: dict[str, ArtifactRecord] = {}
+        if self.config.prefer_table_projections:
+            for record in eligible_projection_records:
+                selected_projection_records_by_unit[
+                    str(record.safe_metadata.get("source_unit_ref") or "")
+                ] = record
+        selected_projection_record_ids = {
+            record.artifact_id
+            for record in selected_projection_records_by_unit.values()
+        }
+        needed_parent_document_refs = {
+            str(record.document_id or "")
+            for record in selected_full_unit_records
+            if record.safe_metadata.get("pdf_unit_type")
+        }
         for record in records:
             if record.artifact_type != "private_normalized_source_payload_v0":
+                continue
+            if str(record.document_id or "") not in needed_parent_document_refs:
                 continue
             try:
                 resolved = self.resolver.resolve(record.artifact_id, context)
@@ -577,15 +700,7 @@ class Gate2InputReadinessService:
                 resolved_scope_records.append(record.artifact_id)
         table_validator = TableProjectionValidator()
         for record in records:
-            if (
-                record.artifact_type
-                != "broker_reports_normalized_table_projection_v0"
-            ):
-                continue
-            if (
-                record.validation_status != "validated"
-                or record.safe_metadata.get("projection_status") != "ready"
-            ):
+            if record.artifact_id not in selected_projection_record_ids:
                 continue
             try:
                 resolved = self.resolver.resolve(record.artifact_id, context)
@@ -602,18 +717,22 @@ class Gate2InputReadinessService:
                 )
                 continue
             projection_validation = table_validator.validate(payload)
+            allowed, selected_scope, reason = _gate2_private_slice_scope_decision(
+                payload,
+                memory_by_document.get(document_id) or {},
+            )
+            if not allowed:
+                unselected_scope_reason_counts[reason] += 1
+                continue
             table_projections_by_document[document_id].append(
                 (record, payload, projection_validation)
             )
-            table_projections_total += 1
+            selected_scope_counts[selected_scope] += 1
+            table_projection_full_validation_total += 1
             table_total += 1
             resolved_scope_records.append(record.artifact_id)
         for record in records:
-            if record.artifact_type not in {
-                "private_normalized_table_slice_v0",
-                "private_normalized_text_slice_v0",
-                SOURCE_UNIT_SCHEMA_VERSION,
-            }:
+            if record.artifact_id not in selected_private_record_ids:
                 continue
             try:
                 resolved = self.resolver.resolve(record.artifact_id, context)
@@ -626,6 +745,23 @@ class Gate2InputReadinessService:
             if not document_id or not checksum:
                 errors.append(_error("gate2_private_slice_scope_or_checksum_missing", record.artifact_id))
                 continue
+            allowed, selected_scope, reason = _gate2_private_slice_scope_decision(
+                payload,
+                memory_by_document.get(document_id) or {},
+            )
+            if (
+                not allowed
+                and reason == "gate2_noncanonical_table_candidate_scope_blocked"
+                and str(payload.get("unit_ref") or "")
+                in selected_projection_records_by_unit
+            ):
+                allowed = True
+                selected_scope = "canonical_projection_anchor"
+            if not allowed:
+                unselected_scope_reason_counts[reason] += 1
+                resolved_scope_records.append(record.artifact_id)
+                continue
+            selected_scope_counts[selected_scope] += 1
             if record.artifact_type == SOURCE_UNIT_SCHEMA_VERSION:
                 provenance_validation = validate_full_source_unit(
                     unit=payload,
@@ -633,6 +769,7 @@ class Gate2InputReadinessService:
                     document_id=document_id,
                     source_checksum_sha256=checksum,
                 )
+                full_source_unit_full_validation_total += 1
                 if payload.get("pdf_unit_type"):
                     parent_entry = parent_payloads_by_ref.get(
                         str(payload.get("parent_payload_ref") or "")
@@ -674,7 +811,6 @@ class Gate2InputReadinessService:
                         provenance_validation["errors_count"] = len(
                             provenance_validation["errors"]
                         )
-                full_source_units_total += 1
             else:
                 legacy = payload.get("source_unit_schema_version") != "source_unit_provenance_v0"
                 if legacy:
@@ -694,6 +830,7 @@ class Gate2InputReadinessService:
                     document_id=document_id,
                     source_checksum_sha256=checksum,
                 )
+                legacy_slice_full_validation_total += 1
             resolved_scope_records.append(record.artifact_id)
             target = (
                 full_units_by_document
@@ -740,10 +877,38 @@ class Gate2InputReadinessService:
                     legacy_fallback_documents_total += 1
         return selected_by_document, {
             "private_slices_total": table_total + text_total,
+            "input_artifacts_inventoried_total": (
+                len(full_unit_records)
+                + len(legacy_records)
+                + len(projection_records)
+            ),
+            "input_artifacts_selected_for_full_validation_total": (
+                full_source_unit_full_validation_total
+                + table_projection_full_validation_total
+                + legacy_slice_full_validation_total
+            ),
             "table_slices_total": table_total,
             "text_slices_total": text_total,
-            "full_source_units_total": full_source_units_total,
-            "table_projections_total": table_projections_total,
+            "full_source_units_total": len(full_unit_records),
+            "full_source_unit_full_validation_total": full_source_unit_full_validation_total,
+            "full_source_units_unselected_total": (
+                len(full_unit_records) - len(selected_full_unit_records)
+            ),
+            "legacy_slices_inventoried_total": len(legacy_records),
+            "legacy_slice_full_validation_total": legacy_slice_full_validation_total,
+            "legacy_slices_unselected_total": (
+                len(legacy_records) - len(selected_legacy_records)
+            ),
+            "table_projections_total": len(projection_records),
+            "table_projections_eligible_total": len(eligible_projection_records),
+            "table_projection_full_validation_total": table_projection_full_validation_total,
+            "table_projections_unselected_total": (
+                len(projection_records) - len(selected_projection_record_ids)
+            ),
+            "selected_scope_counts": dict(sorted(selected_scope_counts.items())),
+            "unselected_scope_reason_counts": dict(
+                sorted(unselected_scope_reason_counts.items())
+            ),
             "pdf_parent_payloads_resolved_total": len(parent_payloads_by_ref),
             "pdf_parent_full_validation_total": pdf_parent_full_validation_total,
             "pdf_parent_validation_cache_hit_total": pdf_parent_validation_cache_hit_total,
@@ -857,8 +1022,9 @@ def validate_dry_run_source_fact_package(
         errors.append(_error("gate2_package_source_value_refs_mismatch", package_id))
     try:
         resolve_source_values(private_slice, sorted(generic_source_value_refs))
-        for source_value_ref in sorted(layout_source_value_refs):
-            resolve_pdf_layout_unit_source_value(private_slice, source_value_ref)
+        resolve_pdf_layout_unit_source_values(
+            private_slice, sorted(layout_source_value_refs)
+        )
     except ValueError as exc:
         errors.append(_error(str(exc), package_id))
 
@@ -1262,12 +1428,20 @@ def _build_model_source_projection(
                 )
             )
         )
+        selected_entries = [
+            item
+            for item in _dict_list(private_slice.get("pdf_layout_source_value_index"))
+            if str(item.get("source_object_ref") or "") in selected_refs
+            and item.get("source_value_ref")
+        ]
+        resolved_values = resolve_pdf_layout_unit_source_values(
+            private_slice,
+            [str(item.get("source_value_ref") or "") for item in selected_entries],
+        )
         segments = []
-        for item in _dict_list(private_slice.get("pdf_layout_source_value_index")):
+        for item in selected_entries:
             source_ref = str(item.get("source_object_ref") or "")
             source_value_ref = str(item.get("source_value_ref") or "")
-            if source_ref not in selected_refs or not source_value_ref:
-                continue
             segments.append(
                 {
                     "text_segment_ref": source_ref,
@@ -1278,9 +1452,7 @@ def _build_model_source_projection(
                     ),
                     "page_ref": (_string_list(private_slice.get("page_refs")) or [None])[0],
                     "source_value_ref": source_value_ref,
-                    "value": resolve_pdf_layout_unit_source_value(
-                        private_slice, source_value_ref
-                    ),
+                    "value": resolved_values[source_value_ref],
                     "table_candidate_ref": private_slice.get("table_candidate_ref"),
                     "semantic_role": "not_claimed",
                 }
@@ -1651,6 +1823,93 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
         }
     )
     return {ref for ref in refs if ref}
+
+
+def _gate2_record_scope_decision(
+    record: ArtifactRecord,
+    memory_entry: dict[str, Any],
+) -> tuple[bool, str, str]:
+    if record.artifact_type == "broker_reports_normalized_table_projection_v0":
+        return _gate2_scope_decision(
+            memory_entry=memory_entry,
+            schema_version=TABLE_PROJECTION_SCHEMA_VERSION,
+        )
+    if record.artifact_type == "private_normalized_table_slice_v0":
+        return _gate2_scope_decision(
+            memory_entry=memory_entry,
+            slice_type="table_rows",
+        )
+    if record.artifact_type == "private_normalized_text_slice_v0":
+        return _gate2_scope_decision(
+            memory_entry=memory_entry,
+            slice_type="text_excerpt",
+        )
+    pdf_unit_type = str(record.safe_metadata.get("pdf_unit_type") or "")
+    if pdf_unit_type:
+        return _gate2_scope_decision(
+            memory_entry=memory_entry,
+            pdf_unit_type=pdf_unit_type,
+        )
+    return _gate2_scope_decision(memory_entry=memory_entry)
+
+
+def _gate2_private_slice_scope_decision(
+    private_slice: dict[str, Any],
+    memory_entry: dict[str, Any],
+) -> tuple[bool, str, str]:
+    return _gate2_scope_decision(
+        memory_entry=memory_entry,
+        schema_version=str(private_slice.get("schema_version") or ""),
+        slice_type=str(private_slice.get("slice_type") or ""),
+        pdf_unit_type=str(private_slice.get("pdf_unit_type") or ""),
+    )
+
+
+def _gate2_scope_decision(
+    *,
+    memory_entry: dict[str, Any],
+    schema_version: str = "",
+    slice_type: str = "",
+    pdf_unit_type: str = "",
+) -> tuple[bool, str, str]:
+    memory_status = str(memory_entry.get("gate2_memory_status") or "")
+    if memory_status not in {"ready", "ready_with_restrictions"}:
+        return False, "blocked", "gate2_document_memory_scope_blocked"
+    readiness = _object(_object(memory_entry.get("source_scope")).get("scope_readiness"))
+    if schema_version == TABLE_PROJECTION_SCHEMA_VERSION:
+        if readiness.get("canonical_table_scope") == "ready_validated_projection_only":
+            return True, "canonical_table", "ready"
+        return False, "blocked", "gate2_canonical_table_scope_blocked"
+    if pdf_unit_type == "pdf_visual_page_unit" or slice_type in {
+        "visual_page",
+        "visual_media",
+    }:
+        if readiness.get("visual_scope") == "ready":
+            return False, "visual", "gate2_visual_consumer_unavailable"
+        return False, "blocked", "gate2_visual_scope_blocked"
+    if pdf_unit_type == "pdf_table_candidate_unit":
+        return (
+            False,
+            "noncanonical_table_candidate",
+            "gate2_noncanonical_table_candidate_scope_blocked",
+        )
+    if slice_type == "table_rows":
+        if (
+            memory_entry.get("container_format") == "xml"
+            and readiness.get("neutral_structure_scope") == "ready"
+        ):
+            return True, "neutral_structure", "ready"
+        if readiness.get("canonical_table_scope") == "ready_validated_projection_only":
+            return True, "canonical_table", "ready"
+        return False, "blocked", "gate2_canonical_table_scope_blocked"
+    if slice_type == "text_excerpt" or pdf_unit_type in {
+        "pdf_page_text_unit",
+        "pdf_line_cluster_unit",
+    }:
+        if readiness.get("text_scope") == "ready":
+            return True, "text", "ready"
+        return False, "blocked", "gate2_text_scope_blocked"
+    return True, "payload_scope_pending", "ready"
 
 
 def _document_bucket_roles(next_stage_refs: dict[str, Any], document_ref: str) -> list[str]:

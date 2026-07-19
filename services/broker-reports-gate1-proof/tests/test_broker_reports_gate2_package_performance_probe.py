@@ -62,6 +62,13 @@ class BrokerReportsGate2PackagePerformanceProbeTest(unittest.TestCase):
         self.assertEqual(outcomes["package_candidates_enumerated"], 1)
         self.assertEqual(outcomes["packages_built"], 1)
         self.assertEqual(outcomes["candidates_not_built"], 0)
+        slice_audit = measurement["result"]["slice_audit"]
+        self.assertGreater(slice_audit["table_projections_total"], 0)
+        self.assertEqual(slice_audit["table_projection_full_validation_total"], 0)
+        self.assertEqual(
+            slice_audit["table_projections_unselected_total"],
+            slice_audit["table_projections_total"],
+        )
 
         rendered = json.dumps(measurement, ensure_ascii=False, sort_keys=True)
         self.assertNotIn("synthetic-0.csv", rendered)

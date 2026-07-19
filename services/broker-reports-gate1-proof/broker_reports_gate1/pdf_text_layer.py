@@ -10,7 +10,6 @@ from typing import Any
 from .contracts import stable_digest
 from .pdf_layout import (
     PDF_LAYOUT_CAPABILITIES,
-    PDF_LAYOUT_POLICY_VERSION,
     PDFMINER_PINNED_VERSION,
     PDFPLUMBER_PINNED_VERSION,
     PdfLayoutParserConfig,
@@ -19,7 +18,7 @@ from .pdf_layout import (
 from .pdf_layout_units import (
     PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION,
     PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION,
-    resolve_pdf_layout_unit_source_value,
+    resolve_pdf_layout_unit_source_value_results,
 )
 
 
@@ -802,13 +801,14 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     index_by_ref: dict[str, list[dict[str, Any]]] = {}
     for entry in source_value_index:
         index_by_ref.setdefault(str(entry.get("source_value_ref") or ""), []).append(entry)
+    payload_value_resolver = _PdfPayloadSourceValueResolver(payload)
     for source_value_ref in source_value_refs:
         entries = index_by_ref.get(str(source_value_ref), [])
         if len(entries) != 1:
             errors.append(_error("pdf_source_value_ref_not_unique_or_missing", source_value_ref))
             continue
         try:
-            value = resolve_pdf_payload_source_value(payload, entries[0])
+            value = payload_value_resolver.resolve_entry(entries[0])
         except ValueError as exc:
             errors.append(_error(str(exc), source_value_ref))
             continue
@@ -893,11 +893,10 @@ def validate_pdf_source_unit_structure(
         supplemental_refs = list(unit.get("pdf_layout_source_value_refs") or [])
         if not supplemental_refs or len(supplemental_refs) != len(set(supplemental_refs)):
             errors.append(_error("pdf_layout_source_unit_value_refs_invalid", unit_ref))
-        for source_value_ref in supplemental_refs:
-            try:
-                resolve_pdf_layout_unit_source_value(unit, str(source_value_ref))
-            except ValueError as exc:
-                errors.append(_error(str(exc), source_value_ref))
+        _resolved_values, source_value_errors = (
+            resolve_pdf_layout_unit_source_value_results(unit, supplemental_refs)
+        )
+        errors.extend(source_value_errors)
         if unit.get("semantic_table_truth_claimed") is not False:
             errors.append(_error("pdf_layout_source_unit_semantic_truth_claimed", unit_ref))
         if unit_type == "pdf_table_candidate_unit":
@@ -951,29 +950,38 @@ def validate_pdf_source_unit_parent_linkage(
             if parent_projection.get("layout_projection_status") != "complete":
                 errors.append(_error("pdf_layout_source_unit_parent_not_complete", unit_ref))
             parent_layout_refs = set(parent_payload.get("source_value_refs") or [])
-            for source_value_ref in unit.get("pdf_layout_source_value_refs") or []:
+            supplemental_refs = [
+                str(item) for item in unit.get("pdf_layout_source_value_refs") or []
+            ]
+            unit_values, unit_value_errors = (
+                resolve_pdf_layout_unit_source_value_results(
+                    unit, supplemental_refs
+                )
+            )
+            errors.extend(unit_value_errors)
+            parent_entries_by_ref: dict[str, list[dict[str, Any]]] = {}
+            for item in _dict_list(parent_payload.get("source_value_index")):
+                parent_entries_by_ref.setdefault(
+                    str(item.get("source_value_ref") or ""), []
+                ).append(item)
+            parent_value_resolver = _PdfPayloadSourceValueResolver(parent_payload)
+            for source_value_ref in supplemental_refs:
                 if source_value_ref not in parent_layout_refs:
                     errors.append(
                         _error("pdf_layout_source_unit_value_ref_out_of_parent", source_value_ref)
                     )
                     continue
-                unit_value = resolve_pdf_layout_unit_source_value(
-                    unit, str(source_value_ref)
-                )
-                parent_entries = [
-                    item
-                    for item in _dict_list(parent_payload.get("source_value_index"))
-                    if item.get("source_value_ref") == source_value_ref
-                ]
+                if source_value_ref not in unit_values:
+                    continue
+                unit_value = unit_values[source_value_ref]
+                parent_entries = parent_entries_by_ref.get(source_value_ref, [])
                 if len(parent_entries) != 1:
                     errors.append(
                         _error("pdf_layout_parent_value_ref_not_unique", source_value_ref)
                     )
                     continue
                 try:
-                    parent_value = resolve_pdf_payload_source_value(
-                        parent_payload, parent_entries[0]
-                    )
+                    parent_value = parent_value_resolver.resolve_entry(parent_entries[0])
                 except ValueError as exc:
                     errors.append(_error(str(exc), source_value_ref))
                     continue
@@ -1006,49 +1014,52 @@ def resolve_pdf_payload_source_value(
     payload: dict[str, Any],
     entry: dict[str, Any],
 ) -> str:
-    path = _object(entry.get("value_path"))
-    kind = path.get("kind")
-    projection = _object(payload.get("pdf_text_layer_projection"))
-    if kind == "pdf_page_text_span":
-        page_number = int(path.get("page_number") or 0)
-        pages = _dict_list(projection.get("page_inventory"))
-        page = next(
-            (
-                item
-                for item in pages
-                if int(item.get("page_number") or 0) == page_number
-            ),
-            None,
-        )
-        if page is None:
-            raise ValueError("pdf_source_value_page_path_invalid")
-        text = str(page.get("text") or "")
-        start = int(path.get("character_start") or 0)
-        end = int(path.get("character_end") or 0)
-        if start < 0 or end < start or end > len(text):
-            raise ValueError("pdf_source_value_span_path_invalid")
-        return text[start:end]
-    if kind == "pdf_layout_word_text":
-        ref = str(path.get("word_ref") or "")
-        matches = [
-            item
-            for item in _dict_list(projection.get("word_inventory"))
-            if item.get("word_ref") == ref
-        ]
-        if len(matches) != 1:
-            raise ValueError("pdf_layout_word_value_path_invalid")
-        return str(matches[0].get("text") or "")
-    if kind == "pdf_layout_line_text":
-        ref = str(path.get("line_ref") or "")
-        matches = [
-            item
-            for item in _dict_list(projection.get("line_inventory"))
-            if item.get("line_ref") == ref
-        ]
-        if len(matches) != 1:
-            raise ValueError("pdf_layout_line_value_path_invalid")
-        return str(matches[0].get("text") or "")
-    raise ValueError("pdf_source_value_path_kind_invalid")
+    return _PdfPayloadSourceValueResolver(payload).resolve_entry(entry)
+
+
+class _PdfPayloadSourceValueResolver:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        projection = _object(payload.get("pdf_text_layer_projection"))
+        self.pages_by_number: dict[int, list[dict[str, Any]]] = {}
+        for item in _dict_list(projection.get("page_inventory")):
+            self.pages_by_number.setdefault(
+                int(item.get("page_number") or 0), []
+            ).append(item)
+        self.words_by_ref: dict[str, list[dict[str, Any]]] = {}
+        for item in _dict_list(projection.get("word_inventory")):
+            self.words_by_ref.setdefault(
+                str(item.get("word_ref") or ""), []
+            ).append(item)
+        self.lines_by_ref: dict[str, list[dict[str, Any]]] = {}
+        for item in _dict_list(projection.get("line_inventory")):
+            self.lines_by_ref.setdefault(
+                str(item.get("line_ref") or ""), []
+            ).append(item)
+
+    def resolve_entry(self, entry: dict[str, Any]) -> str:
+        path = _object(entry.get("value_path"))
+        kind = path.get("kind")
+        if kind == "pdf_page_text_span":
+            pages = self.pages_by_number.get(int(path.get("page_number") or 0), [])
+            if not pages:
+                raise ValueError("pdf_source_value_page_path_invalid")
+            text = str(pages[0].get("text") or "")
+            start = int(path.get("character_start") or 0)
+            end = int(path.get("character_end") or 0)
+            if start < 0 or end < start or end > len(text):
+                raise ValueError("pdf_source_value_span_path_invalid")
+            return text[start:end]
+        if kind == "pdf_layout_word_text":
+            matches = self.words_by_ref.get(str(path.get("word_ref") or ""), [])
+            if len(matches) != 1:
+                raise ValueError("pdf_layout_word_value_path_invalid")
+            return str(matches[0].get("text") or "")
+        if kind == "pdf_layout_line_text":
+            matches = self.lines_by_ref.get(str(path.get("line_ref") or ""), [])
+            if len(matches) != 1:
+                raise ValueError("pdf_layout_line_value_path_invalid")
+            return str(matches[0].get("text") or "")
+        raise ValueError("pdf_source_value_path_kind_invalid")
 
 
 def _text_showing_operator_count(contents: Any) -> int:

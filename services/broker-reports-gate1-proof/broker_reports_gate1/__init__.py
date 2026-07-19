@@ -143,6 +143,7 @@ from .pdf_layout_units import (
     PdfLayoutUnitBuilder,
     PdfLayoutUnitConfig,
     resolve_pdf_layout_unit_source_value,
+    resolve_pdf_layout_unit_source_values,
 )
 from .gate2_input_readiness import (
     Gate2InputReadinessConfig,
@@ -509,6 +510,7 @@ __all__ = [
     "resolve_source_value",
     "resolve_source_values",
     "resolve_pdf_layout_unit_source_value",
+    "resolve_pdf_layout_unit_source_values",
     "validate_document_metadata_passport",
     "validate_clarification_request",
     "validate_dry_run_source_fact_package",

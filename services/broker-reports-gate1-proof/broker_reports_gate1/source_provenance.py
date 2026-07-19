@@ -720,64 +720,76 @@ def validate_normalized_slice_provenance(
         errors.append({"code": "slice_coverage_count_mismatch", "subject": slice_id})
     if len(set(private_slice.get("source_value_refs") or [])) != len(private_slice.get("source_value_refs") or []):
         errors.append({"code": "slice_source_value_ref_duplicate", "subject": slice_id})
-    source_value_entries: dict[str, list[dict[str, Any]]] = {}
-    for item in private_slice.get("source_value_index") or []:
-        if not isinstance(item, dict):
-            continue
-        source_value_ref = str(item.get("source_value_ref") or "")
-        if source_value_ref:
-            source_value_entries.setdefault(source_value_ref, []).append(item)
-    for source_value_ref in private_slice.get("source_value_refs") or []:
-        matches = source_value_entries.get(str(source_value_ref), [])
-        if len(matches) != 1:
-            errors.append(
-                {
-                    "code": "source_value_ref_not_unique_or_missing",
-                    "subject": str(source_value_ref),
-                }
-            )
-            continue
-        try:
-            _resolve_source_value_entry(private_slice, matches[0])
-        except ValueError as exc:
-            errors.append({"code": str(exc), "subject": str(source_value_ref)})
+    errors.extend(
+        validate_source_value_refs(
+            private_slice,
+            [str(item) for item in private_slice.get("source_value_refs") or []],
+        )
+    )
     return _validation_result(errors=errors, private_slice=private_slice)
 
 
 def resolve_source_value(private_slice: dict[str, Any], source_value_ref: str) -> Any:
-    matches = [
-        item
-        for item in private_slice.get("source_value_index") or []
-        if isinstance(item, dict) and item.get("source_value_ref") == source_value_ref
-    ]
-    if len(matches) != 1:
-        raise ValueError("source_value_ref_not_unique_or_missing")
-    return _resolve_source_value_entry(private_slice, matches[0])
+    return _SourceValueResolver(private_slice).resolve(source_value_ref)
 
 
 def resolve_source_values(
     private_slice: dict[str, Any], source_value_refs: list[str]
 ) -> dict[str, Any]:
-    entries: dict[str, list[dict[str, Any]]] = {}
-    for item in private_slice.get("source_value_index") or []:
-        if not isinstance(item, dict):
-            continue
-        source_value_ref = str(item.get("source_value_ref") or "")
-        if source_value_ref:
-            entries.setdefault(source_value_ref, []).append(item)
-    resolved: dict[str, Any] = {}
+    resolver = _SourceValueResolver(private_slice)
+    return {
+        str(source_value_ref): resolver.resolve(str(source_value_ref))
+        for source_value_ref in source_value_refs
+    }
+
+
+def validate_source_value_refs(
+    private_slice: dict[str, Any], source_value_refs: list[str]
+) -> list[dict[str, str]]:
+    resolver = _SourceValueResolver(private_slice)
+    errors: list[dict[str, str]] = []
     for source_value_ref in source_value_refs:
-        matches = entries.get(str(source_value_ref), [])
+        try:
+            resolver.resolve(str(source_value_ref))
+        except ValueError as exc:
+            errors.append({"code": str(exc), "subject": str(source_value_ref)})
+    return errors
+
+
+class _SourceValueResolver:
+    def __init__(self, private_slice: dict[str, Any]) -> None:
+        self.private_slice = private_slice
+        self.entries: dict[str, list[dict[str, Any]]] = {}
+        for item in private_slice.get("source_value_index") or []:
+            if not isinstance(item, dict):
+                continue
+            source_value_ref = str(item.get("source_value_ref") or "")
+            if source_value_ref:
+                self.entries.setdefault(source_value_ref, []).append(item)
+        self.private_values: dict[str, list[dict[str, Any]]] = {}
+        for item in private_slice.get("private_values") or []:
+            if not isinstance(item, dict):
+                continue
+            value_path_ref = str(item.get("value_path_ref") or "")
+            if value_path_ref:
+                self.private_values.setdefault(value_path_ref, []).append(item)
+
+    def resolve(self, source_value_ref: str) -> Any:
+        matches = self.entries.get(str(source_value_ref), [])
         if len(matches) != 1:
             raise ValueError("source_value_ref_not_unique_or_missing")
-        resolved[str(source_value_ref)] = _resolve_source_value_entry(
-            private_slice, matches[0]
+        return _resolve_source_value_entry(
+            self.private_slice,
+            matches[0],
+            private_values_by_ref=self.private_values,
         )
-    return resolved
 
 
 def _resolve_source_value_entry(
-    private_slice: dict[str, Any], entry: dict[str, Any]
+    private_slice: dict[str, Any],
+    entry: dict[str, Any],
+    *,
+    private_values_by_ref: dict[str, list[dict[str, Any]]] | None = None,
 ) -> Any:
     path = entry.get("value_path") if isinstance(entry.get("value_path"), dict) else {}
     if path.get("kind") == "table_cell":
@@ -797,12 +809,15 @@ def _resolve_source_value_entry(
         value = text[start:end]
     elif path.get("kind") == "table_projection_private_value":
         value_path_ref = str(path.get("value_path_ref") or "")
-        matches = [
-            item
-            for item in private_slice.get("private_values") or []
-            if isinstance(item, dict)
-            and str(item.get("value_path_ref") or "") == value_path_ref
-        ]
+        if private_values_by_ref is None:
+            private_values_by_ref = {}
+            for item in private_slice.get("private_values") or []:
+                if not isinstance(item, dict):
+                    continue
+                private_values_by_ref.setdefault(
+                    str(item.get("value_path_ref") or ""), []
+                ).append(item)
+        matches = private_values_by_ref.get(value_path_ref, [])
         if not value_path_ref or len(matches) != 1:
             raise ValueError("source_value_path_invalid")
         value = matches[0].get("normalized_value")

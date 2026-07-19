@@ -218,16 +218,17 @@ class PhaseTrace:
     """Low-volume line probe around the orchestration method only."""
 
     BOUNDARIES = {
-        135: "catalog_and_dcp_resolution",
-        150: "boundary_payloads_and_contracts",
-        198: "handoff_audit",
-        206: "private_artifact_discovery_validation",
-        213: "scope_readiness_indexing",
-        250: "package_enumeration_construction_validation",
-        411: "coverage_aggregation",
-        426: "store_immutability_guard",
-        438: "validation_summary",
-        475: "safe_report_rendering",
+        136: "catalog_and_dcp_resolution",
+        155: "boundary_payloads_and_contracts",
+        199: "handoff_audit",
+        209: "input_strategy_and_scope_indexing",
+        216: "private_artifact_discovery_validation",
+        228: "scope_readiness_reconciliation",
+        253: "package_enumeration_construction_validation",
+        428: "coverage_aggregation",
+        443: "store_immutability_guard",
+        455: "validation_summary",
+        492: "safe_report_rendering",
     }
 
     def __init__(self, target_code) -> None:
@@ -335,7 +336,16 @@ def _function_probes(metrics: MetricBook) -> Iterator[None]:
         (resolver_module.ArtifactResolver, "resolve", "resolver.resolve"),
         (readiness_module, "validate_document_memory_manifest", "validation.document_memory"),
         (readiness_module, "validate_full_source_unit", "validation.full_source_unit"),
-        (readiness_module, "validate_pdf_source_unit", "validation.pdf_source_unit_parent"),
+        (
+            readiness_module,
+            "validate_pdf_source_unit_parent_linkage",
+            "validation.pdf_source_unit_parent_linkage",
+        ),
+        (
+            readiness_module,
+            "validate_pdf_text_layer_payload",
+            "validation.pdf_parent_payload_gate2",
+        ),
         (readiness_module, "validate_normalized_slice_provenance", "validation.legacy_slice_provenance"),
         (readiness_module, "validate_dry_run_source_fact_package", "validation.source_fact_package"),
         (readiness_module, "_build_dry_run_package", "construction.source_fact_package"),
@@ -343,16 +353,28 @@ def _function_probes(metrics: MetricBook) -> Iterator[None]:
         (readiness_module, "_build_issue_context", "construction.issue_context"),
         (readiness_module, "_render_safe_report", "serialization.safe_report"),
         (readiness_module, "resolve_source_values", "validation.resolve_source_values"),
-        (readiness_module, "resolve_pdf_layout_unit_source_value", "validation.resolve_pdf_value_input"),
+        (
+            readiness_module,
+            "resolve_pdf_layout_unit_source_values",
+            "validation.resolve_pdf_values_input_batch",
+        ),
         (readiness_module, "validate_gate2_table_package", "validation.table_package_outer"),
         (readiness_module, "stable_digest", "hash.stable_digest_readiness"),
         (provenance_module, "validate_normalized_slice_provenance", "validation.slice_provenance"),
         (provenance_module.NormalizedSliceProvenanceEnricher, "enrich_slice", "validation.rebuild_provenance"),
         (provenance_module, "_checksum_ref", "hash.provenance_checksum"),
-        (full_source_module, "validate_pdf_source_unit", "validation.pdf_source_unit_inner"),
+        (
+            full_source_module,
+            "validate_pdf_source_unit_structure",
+            "validation.pdf_source_unit_structure",
+        ),
         (full_source_module, "_checksum_ref", "hash.full_source_checksum"),
         (pdf_text_module, "validate_pdf_text_layer_payload", "validation.pdf_parent_payload"),
-        (pdf_text_module, "resolve_pdf_layout_unit_source_value", "validation.resolve_pdf_value_inner"),
+        (
+            pdf_text_module,
+            "resolve_pdf_layout_unit_source_value_results",
+            "validation.resolve_pdf_values_inner_batch",
+        ),
         (pdf_text_module, "_checksum_ref", "hash.pdf_checksum"),
         (table_projection_module.TableProjectionValidator, "validate", "validation.table_projection"),
         (table_projection_module, "_projection_checksum", "hash.table_projection_checksum"),
@@ -603,6 +625,9 @@ def run_measurement(prepared: PreparedWorkload, *, mode: str, cache_state: str) 
             ),
             "artifactstore_unchanged": result.validation.get("artifactstore_unchanged"),
             "safe_report_status": result.safe_report.get("status"),
+            "slice_audit": copy.deepcopy(
+                result.validation.get("slice_audit") or {}
+            ),
         },
         "provider_attribution": {
             "provider_client_or_transport_calls": provider_calls,

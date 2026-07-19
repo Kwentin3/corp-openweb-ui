@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
-from .source_provenance import resolve_source_value
+from .source_provenance import resolve_source_value, validate_source_value_refs
 
 
 FACTORY_REQUIRED = (
@@ -686,11 +686,7 @@ class TableProjectionValidator:
         if sorted(source_index_refs) != sorted(value_set):
             errors.append(_error("table_projection_source_value_index_mismatch", projection_id))
         else:
-            for source_value_ref in source_index_refs:
-                try:
-                    resolve_source_value(projection, source_value_ref)
-                except ValueError as exc:
-                    errors.append(_error(str(exc), source_value_ref))
+            errors.extend(validate_source_value_refs(projection, source_index_refs))
         coverage = _object(projection.get("coverage"))
         if coverage.get("schema_version") != TABLE_COVERAGE_SCHEMA_VERSION:
             errors.append(_error("table_projection_coverage_schema_mismatch", projection_id))

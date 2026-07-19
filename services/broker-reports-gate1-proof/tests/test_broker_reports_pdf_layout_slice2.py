@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import tempfile
 import unittest
 from io import BytesIO
@@ -29,6 +30,7 @@ from broker_reports_gate1 import (
     build_retention_policy,
     persist_gate1_result,
     resolve_pdf_layout_unit_source_value,
+    resolve_pdf_layout_unit_source_values,
     validate_full_source_unit,
     validate_pdf_text_layer_payload,
 )
@@ -219,6 +221,59 @@ def _layout_inventory_objects(page: dict) -> int:
 
 
 class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
+    def test_layout_source_value_batch_indexes_once_and_preserves_failures(self):
+        built = self._build(_ruled_table_pdf())
+        unit = copy.deepcopy(
+            next(
+                item
+                for item in built.units
+                if item.get("pdf_unit_type") == "pdf_table_candidate_unit"
+            )
+        )
+
+        class CountingList(list):
+            def __init__(self, values):
+                super().__init__(values)
+                self.iterations = 0
+
+            def __iter__(self):
+                self.iterations += 1
+                return super().__iter__()
+
+        source_index = CountingList(unit["pdf_layout_source_value_index"])
+        unit["pdf_layout_source_value_index"] = source_index
+        refs = list(unit["pdf_layout_source_value_refs"])
+
+        resolved = resolve_pdf_layout_unit_source_values(unit, refs)
+
+        self.assertEqual(set(resolved), set(refs))
+        self.assertEqual(source_index.iterations, 1)
+
+        duplicate = copy.deepcopy(unit)
+        duplicate["pdf_layout_source_value_index"].append(
+            copy.deepcopy(duplicate["pdf_layout_source_value_index"][0])
+        )
+        duplicate_ref = duplicate["pdf_layout_source_value_index"][0][
+            "source_value_ref"
+        ]
+        with self.assertRaisesRegex(
+            ValueError,
+            "pdf_layout_unit_source_value_ref_not_unique_or_missing",
+        ):
+            resolve_pdf_layout_unit_source_values(duplicate, [duplicate_ref])
+
+        checksum = copy.deepcopy(unit)
+        checksum_ref = checksum["pdf_layout_source_value_index"][0][
+            "source_value_ref"
+        ]
+        checksum["pdf_layout_source_value_index"][0][
+            "value_checksum_ref"
+        ] = "valuechk_foreign"
+        with self.assertRaisesRegex(
+            ValueError, "pdf_layout_unit_source_value_checksum_mismatch"
+        ):
+            resolve_pdf_layout_unit_source_values(checksum, [checksum_ref])
+
     def test_document_inventory_cap_default_remains_75000(self) -> None:
         self.assertEqual(
             75_000,

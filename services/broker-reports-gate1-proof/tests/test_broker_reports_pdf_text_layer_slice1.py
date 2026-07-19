@@ -11,6 +11,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, Num
 from broker_reports_gate1 import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
+    ArtifactStoreError,
     ArtifactStoreFactory,
     FileInput,
     FullSourceArtifactConfig,
@@ -455,6 +456,12 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
                 result=result,
                 context=context,
                 retention_policy=build_retention_policy(mode="api_smoke"),
+                source_file_refs=[
+                    {
+                        "provider": "openwebui_file",
+                        "openwebui_file_id": "pdf-parent-cache-source-file",
+                    }
+                ],
             )
             records_before = [record.artifact_id for record in store.list_by_run(run_id)]
             service = Gate2InputReadinessFactory(store=store).create()
@@ -486,6 +493,43 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             self.assertEqual(
                 records_before,
                 [record.artifact_id for record in store.list_by_run(run_id)],
+            )
+            with self.assertRaises(ArtifactStoreError) as wrong_user:
+                service.audit_and_build(
+                    domain_context_packet_ref=dcp_ref,
+                    context=ArtifactAccessContext(
+                        **{**context.__dict__, "user_id": "foreign-user"}
+                    ),
+                )
+            self.assertEqual(wrong_user.exception.code, "artifact_access_denied")
+
+            source_unit_record = next(
+                record
+                for record in store.list_by_run(run_id)
+                if record.artifact_type == "private_normalized_source_unit_v0"
+            )
+            source_file_id = str(
+                (source_unit_record.source_file_ref or {}).get(
+                    "openwebui_file_id"
+                )
+                or ""
+            )
+            self.assertTrue(source_file_id)
+            self.assertTrue(
+                store.mark_source_file_deleted(openwebui_file_id=source_file_id)
+            )
+            after_source_delete = service.audit_and_build(
+                domain_context_packet_ref=dcp_ref,
+                context=context,
+            )
+            self.assertEqual(
+                after_source_delete.validation["validator_status"], "failed"
+            )
+            self.assertGreater(
+                after_source_delete.validation["error_code_counts"].get(
+                    "gate2_artifact_purged", 0
+                ),
+                0,
             )
 
     @staticmethod
