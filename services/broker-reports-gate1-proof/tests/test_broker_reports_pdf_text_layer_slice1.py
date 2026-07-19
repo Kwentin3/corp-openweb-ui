@@ -26,6 +26,8 @@ from broker_reports_gate1 import (
     resolve_source_value,
     validate_full_source_unit,
     validate_pdf_source_unit,
+    validate_pdf_source_unit_parent_linkage,
+    validate_pdf_source_unit_structure,
     validate_pdf_text_layer_payload,
 )
 from broker_reports_gate1.pdf_text_layer import (
@@ -222,6 +224,44 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "pdf_source_unit_parent_payload_missing",
             {item["code"] for item in missing_parent_errors},
         )
+        structural_errors = validate_pdf_source_unit_structure(unit)
+        linkage_errors = validate_pdf_source_unit_parent_linkage(
+            unit,
+            parent_payload=payload,
+            parent_validation=payload_validation,
+            require_parent_payload=True,
+        )
+        self.assertEqual(structural_errors, [])
+        self.assertEqual(linkage_errors, [])
+        self.assertEqual(
+            validate_pdf_source_unit(
+                unit,
+                parent_payload=payload,
+                parent_validation=payload_validation,
+                require_parent_payload=True,
+            ),
+            [*structural_errors, *linkage_errors],
+        )
+        wrong_parent_errors = validate_pdf_source_unit_parent_linkage(
+            {**unit, "parent_payload_ref": "pdfpayload_foreign"},
+            parent_payload=payload,
+            parent_validation=payload_validation,
+            require_parent_payload=True,
+        )
+        self.assertIn(
+            "pdf_source_unit_parent_ref_mismatch",
+            {item["code"] for item in wrong_parent_errors},
+        )
+        wrong_checksum_errors = validate_pdf_source_unit_parent_linkage(
+            {**unit, "payload_checksum_ref": "pdfpayloadchk_foreign"},
+            parent_payload=payload,
+            parent_validation=payload_validation,
+            require_parent_payload=True,
+        )
+        self.assertIn(
+            "pdf_source_unit_payload_checksum_mismatch",
+            {item["code"] for item in wrong_checksum_errors},
+        )
         values = [resolve_source_value(unit, ref) for ref in unit["source_value_refs"]]
         self.assertIn("Synthetic Broker Report\n", values)
         self.assertIn("Amount 10.00 USD", values)
@@ -368,6 +408,85 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             self.assertFalse(package["prompt_contract"]["model_call_performed"])
             self.assertFalse(package["privacy_policy"]["knowledge_rag_used"])
             self.assertFalse(package["privacy_policy"]["vectorization_performed"])
+
+    def test_gate2_validates_shared_pdf_parent_once_per_audit_run(self):
+        content = _pdf_bytes(
+            pages=[
+                ("text", ["Synthetic Broker Report", "Page one amount 10.00 USD"]),
+                ("text", ["Synthetic Broker Report", "Page two amount 20.00 USD"]),
+            ]
+        )
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="pdf-parent-validation-cache",
+                    filename="synthetic_parent_fanout.pdf",
+                    content=content,
+                    mime_type="application/pdf",
+                )
+            ],
+            input_context={
+                "clarification_criticality_refinement_enabled": True,
+                "pdf_layout_slice2_enabled": False,
+            },
+        )
+        self.assertEqual(result.package["validation_result"]["status"], "passed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = ArtifactStoreFactory(
+                ArtifactStoreConfig(
+                    mode="sqlite",
+                    sqlite_path=root / "artifacts.sqlite3",
+                    payload_root=root / "payloads",
+                )
+            ).create()
+            run_id = result.package["normalization_run"]["run_id"]
+            context = ArtifactAccessContext(
+                user_id="pdf-parent-cache-user",
+                normalization_run_id=run_id,
+                case_id="pdf-parent-cache-case",
+                chat_id="pdf-parent-cache-chat",
+                workspace_model_id="pdf-parent-cache-model",
+                allow_private=True,
+                require_source_available=True,
+            )
+            manifest = persist_gate1_result(
+                store=store,
+                result=result,
+                context=context,
+                retention_policy=build_retention_policy(mode="api_smoke"),
+            )
+            records_before = [record.artifact_id for record in store.list_by_run(run_id)]
+            service = Gate2InputReadinessFactory(store=store).create()
+            dcp_ref = manifest.artifact_refs_by_type["domain_context_packet_v0"][0]
+
+            first = service.audit_and_build(
+                domain_context_packet_ref=dcp_ref,
+                context=context,
+            )
+            second = service.audit_and_build(
+                domain_context_packet_ref=dcp_ref,
+                context=context,
+            )
+
+            for readiness in (first, second):
+                audit = readiness.validation["slice_audit"]
+                self.assertEqual(readiness.validation["validator_status"], "passed")
+                self.assertEqual(audit["pdf_parent_payloads_resolved_total"], 1)
+                self.assertEqual(audit["pdf_parent_full_validation_total"], 1)
+                self.assertEqual(audit["pdf_parent_validation_cache_entries_total"], 1)
+                self.assertEqual(audit["pdf_unit_parent_linkage_validation_total"], 2)
+                self.assertEqual(audit["pdf_parent_validation_cache_hit_total"], 1)
+                self.assertEqual(len(readiness.packages), 2)
+                self.assertFalse(
+                    readiness.safe_report["safety_flags"][
+                        "source_fact_llm_call_performed"
+                    ]
+                )
+            self.assertEqual(
+                records_before,
+                [record.artifact_id for record in store.list_by_run(run_id)],
+            )
 
     @staticmethod
     def _build(content: bytes):

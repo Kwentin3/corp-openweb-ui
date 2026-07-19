@@ -123,6 +123,8 @@ from .pdf_text_layer import (
     PdfTextLayerParserError,
     PdfTextLayerParserFactory,
     validate_pdf_source_unit,
+    validate_pdf_source_unit_parent_linkage,
+    validate_pdf_source_unit_structure,
     validate_pdf_text_layer_payload,
 )
 from .pdf_layout import (
@@ -515,6 +517,8 @@ __all__ = [
     "validate_file_processing_batch",
     "validate_file_processing_outcome",
     "validate_pdf_source_unit",
+    "validate_pdf_source_unit_parent_linkage",
+    "validate_pdf_source_unit_structure",
     "validate_pdf_text_layer_payload",
     "table_detection_output_schema",
     "validate_table_detection_output",

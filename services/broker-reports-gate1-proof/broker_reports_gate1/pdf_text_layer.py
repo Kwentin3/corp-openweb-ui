@@ -838,11 +838,8 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def validate_pdf_source_unit(
+def validate_pdf_source_unit_structure(
     unit: dict[str, Any],
-    *,
-    parent_payload: dict[str, Any] | None = None,
-    require_parent_payload: bool = False,
 ) -> list[dict[str, str]]:
     errors: list[dict[str, str]] = []
     unit_ref = str(unit.get("unit_ref") or "")
@@ -920,10 +917,27 @@ def validate_pdf_source_unit(
                 errors.append(_error("pdf_table_source_unit_fallback_missing", unit_ref))
         elif unit.get("table_reconstruction_status") != "not_claimed":
             errors.append(_error("pdf_line_cluster_claims_table_reconstruction", unit_ref))
+    return errors
+
+
+def validate_pdf_source_unit_parent_linkage(
+    unit: dict[str, Any],
+    *,
+    parent_payload: dict[str, Any] | None = None,
+    parent_validation: dict[str, Any] | None = None,
+    require_parent_payload: bool = False,
+) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    unit_ref = str(unit.get("unit_ref") or "")
+    unit_type = unit.get("pdf_unit_type")
     if require_parent_payload and parent_payload is None:
         errors.append(_error("pdf_source_unit_parent_payload_missing", unit_ref))
     if parent_payload is not None:
-        validation = validate_pdf_text_layer_payload(parent_payload)
+        validation = (
+            parent_validation
+            if parent_validation is not None
+            else validate_pdf_text_layer_payload(parent_payload)
+        )
         if validation.get("validator_status") != "passed":
             errors.append(_error("pdf_source_unit_parent_payload_invalid", unit_ref))
         if parent_payload.get("parser_completeness_status") != "complete":
@@ -968,6 +982,24 @@ def validate_pdf_source_unit(
                         _error("pdf_layout_source_unit_parent_value_mismatch", source_value_ref)
                     )
     return errors
+
+
+def validate_pdf_source_unit(
+    unit: dict[str, Any],
+    *,
+    parent_payload: dict[str, Any] | None = None,
+    parent_validation: dict[str, Any] | None = None,
+    require_parent_payload: bool = False,
+) -> list[dict[str, str]]:
+    return [
+        *validate_pdf_source_unit_structure(unit),
+        *validate_pdf_source_unit_parent_linkage(
+            unit,
+            parent_payload=parent_payload,
+            parent_validation=parent_validation,
+            require_parent_payload=require_parent_payload,
+        ),
+    ]
 
 
 def resolve_pdf_payload_source_value(

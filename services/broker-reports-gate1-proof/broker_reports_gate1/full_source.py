@@ -27,7 +27,7 @@ from .pdf_text_layer import (
     pdf_page_checksum_ref,
     pdf_layout_page_checksum_ref,
     pdf_payload_checksum_ref,
-    validate_pdf_source_unit,
+    validate_pdf_source_unit_structure,
     validate_pdf_text_layer_payload,
 )
 from .pdf_visual_memory import (
@@ -1925,7 +1925,7 @@ def validate_full_source_unit(
     if unit.get("source_unit_checksum_ref") != expected_unit_checksum:
         errors.append({"code": "full_source_unit_checksum_mismatch", "subject": str(unit.get("unit_ref") or "")})
     if unit.get("pdf_unit_type"):
-        errors.extend(validate_pdf_source_unit(unit))
+        errors.extend(validate_pdf_source_unit_structure(unit))
     provenance = validate_normalized_slice_provenance(
         private_slice=unit,
         normalization_run_id=normalization_run_id,

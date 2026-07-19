@@ -25,7 +25,8 @@ from .gate1_public_contracts import (
     validate_full_source_unit,
     validate_document_memory_manifest,
     validate_normalized_slice_provenance,
-    validate_pdf_source_unit,
+    validate_pdf_source_unit_parent_linkage,
+    validate_pdf_text_layer_payload,
 )
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
 from .gate2_table_packages import (
@@ -554,7 +555,13 @@ class Gate2InputReadinessService:
         text_total = 0
         full_source_units_total = 0
         table_projections_total = 0
-        parent_payloads_by_ref: dict[str, dict[str, Any]] = {}
+        parent_payloads_by_ref: dict[
+            str, tuple[ArtifactRecord, dict[str, Any]]
+        ] = {}
+        parent_validation_cache: dict[tuple[str, str], dict[str, Any]] = {}
+        pdf_parent_full_validation_total = 0
+        pdf_parent_validation_cache_hit_total = 0
+        pdf_unit_parent_linkage_validation_total = 0
         for record in records:
             if record.artifact_type != "private_normalized_source_payload_v0":
                 continue
@@ -566,7 +573,7 @@ class Gate2InputReadinessService:
             payload = _object(resolved.get("payload"))
             payload_ref = str(payload.get("source_payload_ref") or "")
             if payload_ref:
-                parent_payloads_by_ref[payload_ref] = payload
+                parent_payloads_by_ref[payload_ref] = (record, payload)
                 resolved_scope_records.append(record.artifact_id)
         table_validator = TableProjectionValidator()
         for record in records:
@@ -627,14 +634,33 @@ class Gate2InputReadinessService:
                     source_checksum_sha256=checksum,
                 )
                 if payload.get("pdf_unit_type"):
-                    parent_payload = parent_payloads_by_ref.get(
+                    parent_entry = parent_payloads_by_ref.get(
                         str(payload.get("parent_payload_ref") or "")
                     )
-                    pdf_errors = validate_pdf_source_unit(
+                    parent_payload = parent_entry[1] if parent_entry else None
+                    parent_validation = None
+                    if parent_entry:
+                        parent_record, parent_payload = parent_entry
+                        parent_cache_key = (
+                            parent_record.artifact_id,
+                            str(parent_payload.get("payload_checksum_ref") or ""),
+                        )
+                        parent_validation = parent_validation_cache.get(parent_cache_key)
+                        if parent_validation is None:
+                            parent_validation = validate_pdf_text_layer_payload(
+                                parent_payload
+                            )
+                            parent_validation_cache[parent_cache_key] = parent_validation
+                            pdf_parent_full_validation_total += 1
+                        else:
+                            pdf_parent_validation_cache_hit_total += 1
+                    pdf_errors = validate_pdf_source_unit_parent_linkage(
                         payload,
                         parent_payload=parent_payload,
+                        parent_validation=parent_validation,
                         require_parent_payload=True,
                     )
+                    pdf_unit_parent_linkage_validation_total += 1
                     if pdf_errors:
                         provenance_validation = {
                             **provenance_validation,
@@ -718,6 +744,11 @@ class Gate2InputReadinessService:
             "text_slices_total": text_total,
             "full_source_units_total": full_source_units_total,
             "table_projections_total": table_projections_total,
+            "pdf_parent_payloads_resolved_total": len(parent_payloads_by_ref),
+            "pdf_parent_full_validation_total": pdf_parent_full_validation_total,
+            "pdf_parent_validation_cache_hit_total": pdf_parent_validation_cache_hit_total,
+            "pdf_parent_validation_cache_entries_total": len(parent_validation_cache),
+            "pdf_unit_parent_linkage_validation_total": pdf_unit_parent_linkage_validation_total,
             "full_source_documents_total": full_source_documents_total,
             "legacy_fallback_documents_total": legacy_fallback_documents_total,
             "input_priority": (

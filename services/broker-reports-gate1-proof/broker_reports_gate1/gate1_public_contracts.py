@@ -17,7 +17,12 @@ from .document_memory import (
 )
 from .full_source import SOURCE_UNIT_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_layout_units import resolve_pdf_layout_unit_source_value
-from .pdf_text_layer import validate_pdf_source_unit
+from .pdf_text_layer import (
+    validate_pdf_source_unit,
+    validate_pdf_source_unit_parent_linkage,
+    validate_pdf_source_unit_structure,
+    validate_pdf_text_layer_payload,
+)
 from .source_provenance import (
     NormalizedSliceProvenanceFactory,
     reproduce_normalized_value,
@@ -57,4 +62,7 @@ __all__ = [
     "validate_document_memory_manifest",
     "validate_normalized_slice_provenance",
     "validate_pdf_source_unit",
+    "validate_pdf_source_unit_parent_linkage",
+    "validate_pdf_source_unit_structure",
+    "validate_pdf_text_layer_payload",
 ]
