@@ -104,6 +104,25 @@ The required public audit:
 5. never imports CSV, HTML, PDF, XML or ZIP parsers into Gate 2;
 6. leaves the Gate 1 ArtifactStore catalog unchanged.
 
+Gate 2 package preparation applies the following scope matrix. The document
+memory entry must be `ready` or `ready_with_restrictions`, and the selected
+scope itself must be ready; document-level readiness never promotes an
+unready representation.
+
+| Representation | Package eligibility |
+| --- | --- |
+| Text | `text_scope=ready` |
+| Canonical table projection | `canonical_table_scope=ready_validated_projection_only` with a published, validated projection ref |
+| Noncanonical table candidate | Never promoted by document/text readiness; retained as an explicitly blocked candidate unless anchored by the canonical projection contract |
+| Neutral XML structure | `neutral_structure_scope=ready`; selected as `neutral_structure` with `financial_interpretation_allowed=false` |
+| Visual | Requires an explicit compatible visual consumer; the default source-fact preparation path has none and accounts the unit as blocked |
+
+Blocked or unavailable scopes remain explicit. For every source-ready
+document, accounting reconciles packages, deliberately unselected
+representations, deferred representations and blocked candidates. This
+selection contract does not change Gate 1 representation or readiness
+semantics.
+
 The actual-corpus proof passed all boundary checks for 104 source records. A
 full mass build of every optional Gate 2 package was not part of the Gate 1
 acceptance boundary. Its previously observed long runtime is recorded as a

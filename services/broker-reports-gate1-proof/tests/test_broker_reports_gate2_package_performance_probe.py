@@ -60,6 +60,7 @@ class BrokerReportsGate2PackagePerformanceProbeTest(unittest.TestCase):
         self.assertGreater(measurement["sqlite_profile"]["queries_total"], 0)
         outcomes = measurement["phase_profile"]["candidate_outcomes"]
         self.assertEqual(outcomes["package_candidates_enumerated"], 1)
+        self.assertEqual(outcomes["package_candidates_selected_after_scope"], 1)
         self.assertEqual(outcomes["packages_built"], 1)
         self.assertEqual(outcomes["candidates_not_built"], 0)
         slice_audit = measurement["result"]["slice_audit"]

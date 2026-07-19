@@ -674,23 +674,41 @@ def _fanout_summary(result) -> dict[str, Any]:
 
 def _candidate_summary_from_locals(values: dict[str, Any]) -> dict[str, Any]:
     slices_by_document = values.get("slices_by_document") or {}
+    slice_audit = values.get("slice_audit") or {}
     source_ready_refs = values.get("source_ready_refs") or []
     packages = values.get("packages") or []
-    candidates = sum(len(slices_by_document.get(ref, [])) for ref in source_ready_refs)
+    selected_candidates = sum(
+        len(slices_by_document.get(ref, [])) for ref in source_ready_refs
+    )
+    candidates = int(
+        slice_audit.get("full_source_units_total") or selected_candidates
+    )
     built = len(packages)
-    warnings = values.get("warnings") or []
-    visual_deferred = sum(
-        isinstance(item, dict)
-        and item.get("code") == "gate2_visual_unit_restricted_requires_visual_consumer"
-        for item in warnings
+    unselected_reasons = _object(
+        slice_audit.get("unselected_scope_reason_counts")
+    )
+    visual_deferred = int(
+        unselected_reasons.get("gate2_visual_consumer_unavailable") or 0
+    )
+    noncanonical_table_blocked = int(
+        unselected_reasons.get(
+            "gate2_noncanonical_table_candidate_scope_blocked"
+        )
+        or 0
     )
     return {
         "package_candidates_enumerated": candidates,
+        "package_candidates_selected_after_scope": selected_candidates,
         "packages_built": built,
         "candidates_not_built": max(0, candidates - built),
         "visual_candidates_deferred": visual_deferred,
+        "noncanonical_table_candidates_blocked": noncanonical_table_blocked,
         "other_rejected_or_deferred_candidates": max(
-            0, candidates - built - visual_deferred
+            0,
+            candidates
+            - built
+            - visual_deferred
+            - noncanonical_table_blocked,
         ),
     }
 
