@@ -67,6 +67,15 @@
     "provider_retries": 0
   },
   "holdouts": {
+    "availability_audit": {
+      "eligible_same_family_pdfs_found_total": 0,
+      "profile_execution": "not_run_no_eligible_source_bytes",
+      "profile_rules_changed": false,
+      "provenance_unsafe_sources_rejected": true,
+      "public_search_passes_total": 2,
+      "screenshot_or_synthetic_substitutes_rejected": true,
+      "status": "completed_no_eligible_positive_holdout_found"
+    },
     "negative_out_of_profile": {
       "canonical_regions_total": 0,
       "candidate_regions_total": 0,

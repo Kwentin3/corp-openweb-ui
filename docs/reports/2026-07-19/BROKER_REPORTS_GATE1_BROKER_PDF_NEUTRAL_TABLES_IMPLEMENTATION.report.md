@@ -86,7 +86,7 @@ Technical comparison of original pages, text/layout memory, canonical topology, 
 
 The negative holdout was a previously unused public broker-report sample embedded in an official materially different-layout PDF. The maintained FullSource path preserved complete source memory, found no v1 candidate region, and produced zero canonical promotions. Extraction took 37.776 s; projection took less than 1 ms; provider calls were zero. This is the expected fail-closed result.
 
-The positive holdout result is `NOT_RUN`: no genuine unseen PDF from the same intended family was found in the accepted source roots, the wider local PDF inventory, or public-source search. The negative document and synthetic test PDFs cannot prove generalization within the intended family.
+The positive holdout result is `NOT_RUN`: no genuine unseen PDF from the same intended family was found in the accepted source roots, the wider local PDF inventory, or either of two public-source searches. The second search kept the profile frozen and checked official Sber/SberCIB publications, rendered and raw article assets, exact-title and distinctive-heading PDF queries, public GitHub code search, a bounded public archive URL inventory, and provenance-safe third-party references. It found official image fragments confirming the template, but no eligible original PDF bytes. The negative document and synthetic test PDFs cannot prove generalization within the intended family. The safe search record is [BROKER_REPORTS_GATE1_BROKER_PDF_POSITIVE_HOLDOUT_AVAILABILITY_AUDIT.report.md](BROKER_REPORTS_GATE1_BROKER_PDF_POSITIVE_HOLDOUT_AVAILABILITY_AUDIT.report.md).
 
 ## Gate 2 accounting and performance
 
