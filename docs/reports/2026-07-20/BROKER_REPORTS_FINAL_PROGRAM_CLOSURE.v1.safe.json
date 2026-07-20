@@ -5,17 +5,17 @@
       {
         "repository_live_sha256_equal": true,
         "role": "gate1",
-        "sha256": "5c0ea33afb5180434ec6adaa41e804b99846ef361499e2789d9a754a682bebab"
+        "sha256": "0a4d9f4ea3bc582c9848184dd53d247d7cc3c56c3d9444b2dbf14303db9d1ca9"
       },
       {
         "repository_live_sha256_equal": true,
         "role": "gate2_source",
-        "sha256": "8622c9d72cbca7e59380fd5bb9eb7bcecc75e5d964bd1a5324e75ff33edd856f"
+        "sha256": "0b33da01d3e6b4d65e9120f248216e441418e1125e54a7f6e14a76406805b0d0"
       },
       {
         "repository_live_sha256_equal": true,
         "role": "gate2_domain",
-        "sha256": "d599b1caeac0eaf8bc77e383cb8cae1a8848f9d92d26fb3ee687e92d5cd90840"
+        "sha256": "92be1c81bdafff3e37bd856484d829ba53809dc622ff7157be37a6e2354ac158"
       }
     ],
     "live_parity": {
@@ -37,7 +37,7 @@
     "goal_2_fns_typed_adapter_and_pdf_parity": "completed",
     "goal_3_visual_neutral_table_recovery": "implementation_blocked",
     "goal_4_readiness_reconciliation": "completed_with_integrated_closure_blocked_by_goal_3",
-    "goal_5_delivery_live_alignment_and_git_hygiene": "delivery_aligned_but_stage_chat_operationally_blocked"
+    "goal_5_delivery_live_alignment_and_git_hygiene": "completed"
   },
   "program_blockers": [
     {
@@ -59,16 +59,11 @@
       "owner": "customer",
       "status": "external_customer_acceptance_debt",
       "summary": "same_family_sber_positive_holdout_is_unavailable"
-    },
-    {
-      "owner": "stage_chat_runtime",
-      "status": "operational_blocker",
-      "summary": "real_chat_completion_did_not_reach_a_terminal_response"
     }
   ],
   "quality": {
-    "bundle_tests_passed": 17,
-    "full_regression_passed": 960,
+    "bundle_tests_passed": 28,
+    "full_regression_passed": 961,
     "full_regression_warnings": 5,
     "new_live_poll_terminal_tests_passed": 3,
     "ruff_relevant_files_passed": true
@@ -100,17 +95,27 @@
   },
   "schema_version": "broker_reports_final_program_closure_safe_v1",
   "stage_chat_observation": {
-    "accepted_as_closure_evidence": false,
+    "accepted_as_closure_evidence": true,
     "approved_process_false_path": {
-      "client_timeout_seconds": 300,
+      "active_private_payload_records_after_purge": 0,
+      "checks_passed": 30,
+      "compact_chat_length": 2165,
+      "dropped_source_ready_documents": 0,
       "knowledge_delta": 0,
-      "status": "blocked_no_terminal_response",
+      "source_uploads_deleted": 2,
+      "status": "passed",
       "vector_delta": 0
+    },
+    "closed_operational_defect": {
+      "previous_terminal_state": "blocked_no_terminal_response",
+      "root_cause": "live_retention_probe_used_global_artifact_expiry_scan",
+      "terminal_state": "resolved_with_run_scoped_single_transaction_expiry"
     },
     "native_default_processing_path": {
       "approved_product_path": false,
       "generated_vector_state": true,
-      "status": "blocked_no_terminal_response"
+      "generated_state_cleaned": true,
+      "status": "diagnostic_only_not_used_for_acceptance"
     },
     "privacy": {
       "customer_documents_used": false,
@@ -119,7 +124,7 @@
   },
   "stage_cleanup_receipt": {
     "active_private_payload_records": 0,
-    "case_audit_tombstones": 53,
+    "case_audit_tombstones": 106,
     "document_rows": 0,
     "file_rows": 261,
     "health_body_status_true": true,
