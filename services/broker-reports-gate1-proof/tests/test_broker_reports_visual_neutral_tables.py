@@ -375,6 +375,20 @@ class BrokerReportsVisualNeutralTableTest(unittest.TestCase):
                     "visual_cell_source_text_unreproducible", _codes(changed)
                 )
 
+    def test_ocr_box_may_cross_grid_line_when_its_center_stays_in_cell(self):
+        observation = _semantic_mutation(
+            self.observation,
+            lambda item: item["ocr_lines"][0].update(bbox=[10, 10, 105, 40]),
+        )
+        result = self.service.recover(
+            source_unit=self.source_unit,
+            observation=observation,
+        )
+        self.assertEqual(
+            result["promotion_state"],
+            "canonical_table_accepted_deterministic",
+        )
+
     def test_geometry_column_order_header_total_and_merge_fail_closed(self):
         cases = [
             (

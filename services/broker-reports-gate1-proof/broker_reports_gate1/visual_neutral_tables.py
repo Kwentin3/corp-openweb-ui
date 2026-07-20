@@ -526,7 +526,9 @@ def _validate_observed_table(
             errors.append(_error("visual_cell_ocr_refs_invalid", table_ref))
             continue
         if any(
-            not _bbox_within(_int_list(line_by_ref[ref].get("bbox")), expected_bbox)
+            not _bbox_center_within(
+                _int_list(line_by_ref[ref].get("bbox")), expected_bbox
+            )
             for ref in refs
         ):
             errors.append(_error("visual_cell_ocr_geometry_mismatch", table_ref))
@@ -962,6 +964,14 @@ def _bbox_close(left: list[int], right: list[int], *, tolerance: int) -> bool:
     return len(left) == len(right) == 4 and all(
         abs(a - b) <= tolerance for a, b in zip(left, right)
     )
+
+
+def _bbox_center_within(inner: list[int], outer: list[int]) -> bool:
+    if len(inner) != 4 or len(outer) != 4:
+        return False
+    center_x = (inner[0] + inner[2]) / 2
+    center_y = (inner[1] + inner[3]) / 2
+    return outer[0] <= center_x <= outer[2] and outer[1] <= center_y <= outer[3]
 
 
 def _boundaries_valid(
