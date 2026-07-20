@@ -28,7 +28,11 @@ from broker_reports_gate1.archive_intake import (
 from broker_reports_gate1.domain_ingestion import _next_stage_refs, _usage_entry
 from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
 from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
-from scripts.prove_gate1_actual_customer_corpus import _full_gate2_validator_passed
+from scripts.prove_gate1_actual_customer_corpus import (
+    _full_gate2_validator_passed,
+    _opaque_run_ref,
+)
+from scripts.prove_visual_neutral_tables_actual_corpus import PROVIDER_ZERO
 
 
 def _zip_bytes(entries: list[tuple[str, bytes]]) -> bytes:
@@ -475,6 +479,19 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
                 requested=True,
                 evidence={"status": "completed", "validator_status": "failed"},
             )
+        )
+        opaque = _opaque_run_ref("normrun_private_internal_identifier")
+        self.assertEqual(len(opaque), 24)
+        self.assertNotIn("normrun", opaque)
+        self.assertEqual(
+            PROVIDER_ZERO,
+            {
+                "calls": 0,
+                "retries": 0,
+                "tokens": 0,
+                "cost": 0,
+                "whole_document_uploads": 0,
+            },
         )
         self.assertTrue(
             _full_gate2_validator_passed(

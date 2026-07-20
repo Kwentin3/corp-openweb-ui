@@ -6,8 +6,10 @@ import csv
 import hashlib
 import io
 import json
+import os
 import re
 import sys
+import time
 import zipfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -16,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
+import psutil
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
@@ -51,6 +54,10 @@ def _full_gate2_validator_passed(
         and evidence.get("status") == "completed"
         and evidence.get("validator_status") == "passed"
     )
+
+
+def _opaque_run_ref(run_id: str) -> str:
+    return hashlib.sha256(run_id.encode("utf-8")).hexdigest()[:24]
 
 
 SAFE_REGISTRY = (
@@ -113,6 +120,8 @@ def main() -> None:
         help="Print the full safe JSON in addition to writing the proof files.",
     )
     args = parser.parse_args()
+    proof_started = time.perf_counter()
+    process = psutil.Process(os.getpid())
 
     config = _read_json(args.config)
     authoritative_root = Path(config["authoritative_original_root"])
@@ -136,6 +145,7 @@ def main() -> None:
     )
 
     print("proof_checkpoint=normalization_started", file=sys.stderr, flush=True)
+    normalization_started = time.perf_counter()
     result = Gate1Normalizer().normalize(
         inputs,
         input_context={
@@ -154,6 +164,7 @@ def main() -> None:
         entrypoint="gate1_actual_customer_corpus_proof",
         trigger_type="backend_core",
     )
+    normalization_wall_seconds = time.perf_counter() - normalization_started
     package = result.package
     print("proof_checkpoint=normalization_completed", file=sys.stderr, flush=True)
 
@@ -211,6 +222,7 @@ def main() -> None:
     if args.full_gate2_packages:
         from broker_reports_gate1 import Gate2InputReadinessFactory
 
+        gate2_started = time.perf_counter()
         readiness = Gate2InputReadinessFactory(store=store).create().audit_and_build(
             domain_context_packet_ref=dcp_ref,
             context=context,
@@ -220,6 +232,7 @@ def main() -> None:
             "validator_status": readiness.validation["validator_status"],
             "packages_total": readiness.validation["packages_total"],
             "warnings_total": len(readiness.validation.get("warnings") or []),
+            "wall_seconds": round(time.perf_counter() - gate2_started, 6),
         }
         print(
             "proof_checkpoint=full_gate2_packages_completed",
@@ -307,7 +320,9 @@ def main() -> None:
             "excluded_derived_pdf_total": 5,
         },
         "actual_execution": {
-            "normalization_run_id": package["normalization_run"]["run_id"],
+            "opaque_run_ref": _opaque_run_ref(
+                str(package["normalization_run"]["run_id"])
+            ),
             "top_level_inputs_total": len(required_records),
             "document_sources_total": len(safe_documents),
             "archive_containers_total": package["normalization_run"][
@@ -357,6 +372,15 @@ def main() -> None:
         "runtime": {
             "gate1_bundle_sha256": hashlib.sha256(GATE1_BUNDLE.read_bytes()).hexdigest(),
             "execution_mode": "repository_bundle_parity_equivalent_backend_core",
+        },
+        "performance": {
+            "gate1_normalization_wall_seconds": round(
+                normalization_wall_seconds, 6
+            ),
+            "actual_proof_wall_seconds": round(
+                time.perf_counter() - proof_started, 6
+            ),
+            "process_peak_rss_bytes": int(process.memory_info().peak_wset),
         },
         "privacy": {
             "customer_values_included": False,

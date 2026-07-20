@@ -16,12 +16,15 @@ import importlib.metadata
 import json
 import math
 import multiprocessing
+import os
 import re
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+import psutil
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
@@ -752,6 +755,8 @@ def build_proof(
     job_path: Path,
     model_root: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    proof_started = time.perf_counter()
+    process = psutil.Process(os.getpid())
     import cv2
     import numpy as np
 
@@ -1150,6 +1155,13 @@ def build_proof(
                 "pages": len(primary_continuations),
                 "validation_errors": 0,
                 "status": "passed",
+            },
+            "performance": {
+                "visual_recovery_wall_seconds": round(
+                    time.perf_counter() - proof_started, 6
+                ),
+                "process_peak_rss_bytes": int(process.memory_info().peak_wset),
+                "provider_latency_seconds": 0.0,
             },
             "provider_accounting": copy.deepcopy(PROVIDER_ZERO),
             "model_canonical_authority": False,
