@@ -4,7 +4,6 @@ import argparse
 import json
 import mimetypes
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,9 @@ FIXTURES = ROOT / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normali
 DEFAULT_MODEL_ID = "test"
 BASE_PIPE_ID = "broker_reports_gate1_pipe"
 CASE_ID = "case_gate1_no_rag_source_intake_smoke"
+PROCESS_STATUS_DEADLINE_SECONDS = 120.0
+PROCESS_STATUS_REQUEST_TIMEOUT_SECONDS = 20.0
+PROCESS_STATUS_POLL_INTERVAL_SECONDS = 1.0
 
 SYNTHETIC_FILES = [
     FIXTURES / "synthetic_broker_report.txt",
@@ -315,10 +317,18 @@ def _upload_file_default_processing(
 
 
 def _wait_file_processed(session: requests.Session, base_url: str, file_id: str) -> None:
-    deadline = time.time() + 120
+    deadline = time.monotonic() + PROCESS_STATUS_DEADLINE_SECONDS
     last_status = "pending"
-    while time.time() < deadline:
-        response = session.get(_url(base_url, f"/api/v1/files/{file_id}/process/status"), timeout=20)
+    while time.monotonic() < deadline:
+        try:
+            response = session.get(
+                _url(base_url, f"/api/v1/files/{file_id}/process/status"),
+                timeout=PROCESS_STATUS_REQUEST_TIMEOUT_SECONDS,
+            )
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_status = f"transient_{type(exc).__name__}"
+            time.sleep(PROCESS_STATUS_POLL_INTERVAL_SECONDS)
+            continue
         response.raise_for_status()
         status = str(response.json().get("status") or "pending")
         last_status = status
@@ -326,7 +336,7 @@ def _wait_file_processed(session: requests.Session, base_url: str, file_id: str)
             if status == "failed":
                 raise RuntimeError("synthetic_file_processing_failed")
             return
-        time.sleep(1)
+        time.sleep(PROCESS_STATUS_POLL_INTERVAL_SECONDS)
     raise RuntimeError(f"synthetic_file_processing_timeout:{last_status}")
 
 
