@@ -67,6 +67,10 @@ FUNCTION_CONTRACTS = (
             "broker_reports_pdf_continuation_materialization_v1",
             "run_continuation_group",
             "run_windowed_target",
+            "Gate1VisualNeutralTableFactory",
+            "Gate2Fns2NdflAdapterFactory",
+            "archive_lineage_refs",
+            "broker_pdf_neutral_table_profile_v1_enabled",
         ),
     ),
     FunctionContract(
@@ -240,6 +244,9 @@ def main() -> int:
         "gate1_pdf_table_intake_padding_configured": gate1_operational_state[
             "table_intake_padding_configured"
         ],
+        "gate1_broker_pdf_neutral_table_profile_release_gated": (
+            gate1_operational_state["broker_pdf_neutral_table_profile_disabled"]
+        ),
     }
     output = {
         "status": "passed" if all(checks.values()) else "failed",
@@ -394,6 +401,9 @@ def evaluate_gate1_operational_state(
     table_intake_vertical_padding = valves.get(
         "pdf_table_intake_vertical_padding_fraction"
     )
+    broker_pdf_neutral_table_profile = valves.get(
+        "broker_pdf_neutral_table_profile_v1_enabled"
+    )
     return {
         "structural_shadow_disabled": shadow_value is False,
         "guided_intake_shadow_disabled": guided_value is False,
@@ -409,6 +419,9 @@ def evaluate_gate1_operational_state(
         "table_intake_padding_configured": (
             table_intake_horizontal_padding == 0.08
             and table_intake_vertical_padding == 0.08
+        ),
+        "broker_pdf_neutral_table_profile_disabled": (
+            broker_pdf_neutral_table_profile is False
         ),
         "fitz_version": fitz_version,
         "required_fitz_version": REQUIRED_FITZ_VERSION,

@@ -109,6 +109,7 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             "pdf_table_intake_dpi": 150,
             "pdf_table_intake_horizontal_padding_fraction": 0.08,
             "pdf_table_intake_vertical_padding_fraction": 0.08,
+            "broker_pdf_neutral_table_profile_v1_enabled": False,
         }
         passed = self.module.evaluate_gate1_operational_state(
             valves=table_intake_valves,
@@ -136,6 +137,10 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             valves={"pdf_structural_repair_shadow_enabled": False},
             fitz_version="0.0.0",
         )
+        broker_profile_enabled = self.module.evaluate_gate1_operational_state(
+            valves={"broker_pdf_neutral_table_profile_v1_enabled": True},
+            fitz_version=self.module.REQUIRED_FITZ_VERSION,
+        )
 
         self.assertTrue(passed["structural_shadow_disabled"])
         self.assertTrue(passed["guided_intake_shadow_disabled"])
@@ -147,11 +152,15 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         self.assertTrue(passed["table_intake_model_configured"])
         self.assertTrue(passed["table_intake_dpi_configured"])
         self.assertTrue(passed["table_intake_padding_configured"])
+        self.assertTrue(passed["broker_pdf_neutral_table_profile_disabled"])
         self.assertFalse(enabled["structural_shadow_disabled"])
         self.assertFalse(guided_enabled["guided_intake_shadow_disabled"])
         self.assertFalse(page_allowlisted["guided_page_allowlist_empty"])
         self.assertFalse(semantic_enabled["semantic_header_shadow_disabled"])
         self.assertFalse(wrong_runtime["fitz_version_match"])
+        self.assertFalse(
+            broker_profile_enabled["broker_pdf_neutral_table_profile_disabled"]
+        )
 
     def test_gate1_contract_has_continuation_antidrift_markers(self):
         markers = set(self.module.FUNCTION_CONTRACTS[0].required_markers)
@@ -165,6 +174,10 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             markers,
         )
         self.assertIn("run_continuation_group", markers)
+        self.assertIn("Gate1VisualNeutralTableFactory", markers)
+        self.assertIn("Gate2Fns2NdflAdapterFactory", markers)
+        self.assertIn("archive_lineage_refs", markers)
+        self.assertIn("broker_pdf_neutral_table_profile_v1_enabled", markers)
 
     def test_live_ssh_reads_require_strict_host_key_verification(self):
         with mock.patch.object(self.module.subprocess, "run") as run:

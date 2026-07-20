@@ -96,11 +96,15 @@ def main() -> int:
         "pdf_vlm_guided_intake_shadow_enabled": False,
         "pdf_vlm_guided_intake_shadow_page_allowlist": "",
         "pdf_semantic_header_shadow_enabled": False,
+        "broker_pdf_neutral_table_profile_v1_enabled": False,
     }
     _update_function_valves(session, base_url, desired_valves)
     live_valves = _get_function_valves(session, base_url)
     for key, expected in desired_valves.items():
-        if key.startswith("pdf_table_intake_") and live_valves.get(key) != expected:
+        if (
+            key.startswith("pdf_table_intake_")
+            or key == "broker_pdf_neutral_table_profile_v1_enabled"
+        ) and live_valves.get(key) != expected:
             raise RuntimeError(f"live_function_valve_mismatch:{key}")
 
     prompt_summary = _seed_passport_prompt(
@@ -135,6 +139,9 @@ def main() -> int:
                 for key in sorted(live_valves)
                 if key.startswith("pdf_table_intake_")
             },
+            "broker_pdf_neutral_table_profile_v1_enabled": live_valves.get(
+                "broker_pdf_neutral_table_profile_v1_enabled"
+            ),
         },
         "managed_prompt": prompt_summary,
         "managed_clarification_prompt": clarification_prompt_summary,
