@@ -15,6 +15,7 @@ import copy
 import functools
 import gc
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -217,22 +218,44 @@ class SqliteProbe:
 class PhaseTrace:
     """Low-volume line probe around the orchestration method only."""
 
-    BOUNDARIES = {
-        136: "catalog_and_dcp_resolution",
-        155: "boundary_payloads_and_contracts",
-        199: "handoff_audit",
-        209: "input_strategy_and_scope_indexing",
-        216: "private_artifact_discovery_validation",
-        228: "scope_readiness_reconciliation",
-        253: "package_enumeration_construction_validation",
-        428: "coverage_aggregation",
-        443: "store_immutability_guard",
-        455: "validation_summary",
-        492: "safe_report_rendering",
-    }
+    BOUNDARY_MARKERS = (
+        (
+            "records_before = self.resolver.catalog_run(context)",
+            "catalog_and_dcp_resolution",
+        ),
+        ("errors: list[dict[str, str]] = []", "boundary_payloads_and_contracts"),
+        ("handoff_audit = self._audit_handoff(", "handoff_audit"),
+        (
+            'next_stage_refs = _object(dcp.get("next_stage_refs"))',
+            "input_strategy_and_scope_indexing",
+        ),
+        (
+            "slices_by_document, slice_audit = self._resolve_private_slices(",
+            "private_artifact_discovery_validation",
+        ),
+        ("duc_ready_refs = sorted(", "scope_readiness_reconciliation"),
+        (
+            "packages: list[dict[str, Any]] = []",
+            "package_enumeration_construction_validation",
+        ),
+        (
+            "representation_reconciliations: list[dict[str, Any]] = []",
+            "coverage_aggregation",
+        ),
+        (
+            "records_after = self.resolver.catalog_run(context)",
+            "store_immutability_guard",
+        ),
+        (
+            'error_codes = Counter(str(item.get("code") or "unknown") for item in errors)',
+            "validation_summary",
+        ),
+        ("safe_report = _render_safe_report(", "safe_report_rendering"),
+    )
 
-    def __init__(self, target_code) -> None:
-        self.target_code = target_code
+    def __init__(self, target_function) -> None:
+        self.target_code = target_function.__code__
+        self.boundaries = self.resolve_boundaries(target_function)
         self.phase_seconds: Counter[str] = Counter()
         self.current_phase: str | None = None
         self.current_started = 0.0
@@ -240,6 +263,26 @@ class PhaseTrace:
         self.trace_total_seconds = 0.0
         self.started = 0.0
         self.candidate_summary: dict[str, Any] = {}
+
+    @classmethod
+    def resolve_boundaries(cls, target_function) -> dict[int, str]:
+        source_lines, start_line = inspect.getsourcelines(target_function)
+        boundaries: dict[int, str] = {}
+        for marker, phase in cls.BOUNDARY_MARKERS:
+            matches = [
+                start_line + offset
+                for offset, line in enumerate(source_lines)
+                if marker in line.strip()
+            ]
+            if len(matches) != 1:
+                raise RuntimeError(
+                    "gate2_phase_marker_resolution_failed:"
+                    f"{phase}:matches={len(matches)}"
+                )
+            boundaries[matches[0]] = phase
+        if list(boundaries) != sorted(boundaries):
+            raise RuntimeError("gate2_phase_marker_order_invalid")
+        return boundaries
 
     @contextlib.contextmanager
     def installed(self) -> Iterator[None]:
@@ -260,10 +303,10 @@ class PhaseTrace:
     def _local_trace(self, frame, event, arg):
         if event == "line":
             line = frame.f_lineno
-            if line in self.BOUNDARIES and line not in self.seen_boundaries:
+            if line in self.boundaries and line not in self.seen_boundaries:
                 self.seen_boundaries.add(line)
                 self._finish_phase()
-                self._start_phase(self.BOUNDARIES[line])
+                self._start_phase(self.boundaries[line])
         elif event == "return":
             self._finish_phase()
             self.trace_total_seconds = time.perf_counter() - self.started
@@ -290,7 +333,7 @@ class PhaseTrace:
             },
             "candidate_outcomes": self.candidate_summary,
             "line_boundaries": {
-                str(line): name for line, name in self.BOUNDARIES.items()
+                str(line): name for line, name in self.boundaries.items()
             },
         }
 
@@ -533,7 +576,9 @@ def run_measurement(prepared: PreparedWorkload, *, mode: str, cache_state: str) 
     service = readiness_module.Gate2InputReadinessFactory(
         store=measured_store
     ).create()
-    phase_trace = PhaseTrace(readiness_module.Gate2InputReadinessService.audit_and_build.__code__)
+    phase_trace = PhaseTrace(
+        readiness_module.Gate2InputReadinessService.audit_and_build
+    )
     sampler = PeakSampler(process)
     sampler.start()
     started = time.perf_counter()

@@ -12,6 +12,7 @@ SCRIPTS_ROOT = SERVICE_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_ROOT))
 
 from profile_gate2_package_preparation import (  # noqa: E402
+    PhaseTrace,
     prepare_synthetic,
     run_measurement,
 )
@@ -19,6 +20,7 @@ from profile_gate2_package_preparation import (  # noqa: E402
 from broker_reports_gate1.gate2_input_readiness import (  # noqa: E402
     FACTORY_REQUIRED as GATE2_FACTORY_REQUIRED,
     FORBIDDEN as GATE2_FORBIDDEN,
+    Gate2InputReadinessService,
 )
 
 
@@ -27,6 +29,18 @@ from broker_reports_gate1.gate2_input_readiness import (  # noqa: E402
     "performance probe requires optional psutil instrumentation",
 )
 class BrokerReportsGate2PackagePerformanceProbeTest(unittest.TestCase):
+    def test_phase_boundaries_are_resolved_from_current_orchestrator_source(self):
+        boundaries = PhaseTrace.resolve_boundaries(
+            Gate2InputReadinessService.audit_and_build
+        )
+
+        self.assertEqual(len(boundaries), len(PhaseTrace.BOUNDARY_MARKERS))
+        self.assertEqual(list(boundaries), sorted(boundaries))
+        self.assertEqual(
+            list(boundaries.values()),
+            [phase for _marker, phase in PhaseTrace.BOUNDARY_MARKERS],
+        )
+
     def test_probe_measures_canonical_package_path_without_provider_or_persistence(self):
         prepared = prepare_synthetic("csv", documents=1, csv_rows=3)
         try:
@@ -59,6 +73,11 @@ class BrokerReportsGate2PackagePerformanceProbeTest(unittest.TestCase):
         )
         self.assertGreater(measurement["sqlite_profile"]["queries_total"], 0)
         outcomes = measurement["phase_profile"]["candidate_outcomes"]
+        self.assertEqual(
+            set(measurement["phase_profile"]["phases"]),
+            {"preconditions"}
+            | {phase for _marker, phase in PhaseTrace.BOUNDARY_MARKERS},
+        )
         self.assertEqual(outcomes["package_candidates_enumerated"], 1)
         self.assertEqual(outcomes["package_candidates_selected_after_scope"], 1)
         self.assertEqual(outcomes["packages_built"], 1)
