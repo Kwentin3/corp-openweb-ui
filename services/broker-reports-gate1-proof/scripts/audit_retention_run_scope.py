@@ -20,13 +20,13 @@ from typing import Any, Iterator
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from broker_reports_gate1.artifact_models import (
+from broker_reports_gate1.artifact_models import (  # noqa: E402
     ArtifactRecord,
     ArtifactStoreError,
     RetentionPolicy,
     new_artifact_id,
 )
-from broker_reports_gate1.artifact_store import (
+from broker_reports_gate1.artifact_store import (  # noqa: E402
     ArtifactStoreConfig,
     ArtifactStoreFactory,
 )
