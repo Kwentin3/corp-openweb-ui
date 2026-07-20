@@ -7,6 +7,7 @@ import argparse
 import contextlib
 import json
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -14,6 +15,10 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SERVICE_ROOT))
 
 from broker_reports_gate1.artifact_models import (
     ArtifactRecord,
