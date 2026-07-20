@@ -1,0 +1,4423 @@
+{
+  "actual_execution": {
+    "archive_containers_total": 24,
+    "archive_promoted_members_total": 48,
+    "document_sources_total": 104,
+    "logical_documents_total": 80,
+    "opaque_run_ref": "bf714a1edf3f3a196c477510",
+    "terminal_status_counts": {
+      "complete": 26,
+      "review_required": 78
+    },
+    "top_level_inputs_total": 56,
+    "zero_silent_loss_status": "passed_for_all_profile_accepted_documents"
+  },
+  "agent_operator_acceptance": {
+    "documents_reviewed_total": 104,
+    "human_customer_acceptance": "not_performed",
+    "partial_blocked_unsupported_unreadable_total": 0,
+    "private_review_values_exported_to_safe_report": false,
+    "review_required_documents_reviewed_total": 78,
+    "reviewer_role": "agent_operated_technical_reviewer",
+    "status": "passed"
+  },
+  "automated_checks": {
+    "all_accepted_zero_silent_loss": true,
+    "all_document_accounting_passed": true,
+    "archive_profile_proven": true,
+    "authoritative_and_private_copy_reconciled": true,
+    "every_required_source_terminal": true,
+    "full_gate2_validator_passed": true,
+    "gate1_immutable_after_gate2": true,
+    "gate2_public_boundary_validated": true,
+    "gate2_used_document_memory": true,
+    "knowledge_rag_absent": true,
+    "normalization_validation_passed": true,
+    "operator_review_passed": true,
+    "private_corpus_outside_git": true,
+    "required_top_level_pool_exact": true,
+    "safe_output_private_values_absent": true
+  },
+  "corpus_reconciliation": {
+    "authoritative_copy_hash_sets_equal": true,
+    "authoritative_files_total": 63,
+    "duplicates_total": 2,
+    "excluded_derived_pdf_total": 5,
+    "excluded_derived_xlsx_total": 2,
+    "private_copy_files_total": 63,
+    "registry_hashes_matched_total": 63,
+    "registry_records_total": 63,
+    "required_top_level_sources_total": 56
+  },
+  "documents": [
+    {
+      "accounting_status": "passed",
+      "container_format": "csv",
+      "gate2_memory_status": "ready",
+      "issue_refs": [],
+      "logical_document_refs": [
+        "logicaldoc_dbf4de382ee259224e07aeac"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 14378,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 1342,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_fc82ab1799b640b736d1f9e9",
+      "source_identity": "brdoc_001_b874d956e33a",
+      "supported_profile_variant": "broker_reports_csv_supported_profile_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_2cdf47a949ef5523"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_baed19b1373b074d22e03703"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 34,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 33,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 111358,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_4c4caad7b31781f999afd2fd",
+      "source_identity": "brdoc_002_1c6582477921",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "csv",
+      "gate2_memory_status": "ready",
+      "issue_refs": [],
+      "logical_document_refs": [
+        "logicaldoc_c24b4e7e6db4e8a4970cc45f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 12863,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 1255,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_98af1f914a2d6f069e4b9c82",
+      "source_identity": "brdoc_003_be6168a763cd",
+      "supported_profile_variant": "broker_reports_csv_supported_profile_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_10f4017de0518f41"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_f99765aa5848a96181cc644a"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 33,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 32,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 103626,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_c59672cca4d7cf882215da9d",
+      "source_identity": "brdoc_004_66a3087cb242",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_6a831b143f582c3d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_3b3556822668686ed326ea86"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 40,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 39,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 135753,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_26649fc375c144197ab559cb",
+      "source_identity": "brdoc_005_f68f7ac26a26",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_d36dab310019e949"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_39971d970cf096fc758137e3"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 66,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 65,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 217842,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_30366db2bb41207ccb28500f",
+      "source_identity": "brdoc_006_7cfd297786cc",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_bd8a3170c2777205"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_ec6a4fb70db0db5fb7fc788c"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 60,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 60,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 115496,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_801283d54e961f8942efea18",
+      "source_identity": "brdoc_007_bdc1038fdd93",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_ad0c0da5c9ec85f3"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_c256ec06bef2299481f08f77"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 28,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 14,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 7067,
+        "visual_media": 0,
+        "visual_pages": 14
+      },
+      "source_checksum_ref": "srcsum_1c781006ef4f61f2494d0bed",
+      "source_identity": "brdoc_010_665b45748e01",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_007641d3b0ac2d8f"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_bf7bfd0984486cc45b77f5cd"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 50,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 49,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 98220,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_35407096e1e5ef5727df3a83",
+      "source_identity": "brdoc_011_6f36b1030270",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4e2040782e96093191343032",
+      "source_identity": "brdoc_012_7564b3bc1353",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_616810fa64d99ef652febfa2",
+      "source_identity": "brdoc_013_c1721c84d107",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_fc938acbafc6f810c6dbd353",
+      "source_identity": "brdoc_014_701797dcb627",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_05ff73f9034c0162cc373452",
+      "source_identity": "brdoc_015_3a1b9214292c",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_d5eaa4ba4c33d2e77112abd9",
+      "source_identity": "brdoc_016_573d9c44da70",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_62b0f605a4e7ba2c1c57067f",
+      "source_identity": "brdoc_017_8390e02699f1",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_9195b0e76ac4f4170f3506c0",
+      "source_identity": "brdoc_018_68c0f4c2e764",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_d05303ec754856c865c4cc2a",
+      "source_identity": "brdoc_019_e20f86bce4cb",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_60f0a11319e8d0f6c22f330a",
+      "source_identity": "brdoc_020_acc1c591d660",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_1044a46e422f1051f714b897",
+      "source_identity": "brdoc_021_3d59bcf9fda4",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_457d7dc272e633c88f35320e",
+      "source_identity": "brdoc_022_996b292d1408",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_034316ca44b979299f64f409",
+      "source_identity": "brdoc_023_e16dae9c454b",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_0dfa4447177425ce43c78d29",
+      "source_identity": "brdoc_024_eac67250999e",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_acba40443eb5e17022d60375",
+      "source_identity": "brdoc_025_0f617e48b33f",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4845ea76c8088c87906bd78f",
+      "source_identity": "brdoc_026_60865da0b67a",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_80339a2cf4909a2638e600a4",
+      "source_identity": "brdoc_027_73b9943d9a8a",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_7b7f8e22879bf64b7e35051f",
+      "source_identity": "brdoc_028_703a6fd74179",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_bf3290cd21f33c2a0699b06e",
+      "source_identity": "brdoc_029_355edae532a6",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4e660c5ec19361a31384f240",
+      "source_identity": "brdoc_030_e2ff5374db45",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_bc6e244fe0eed3d6020ac0cf",
+      "source_identity": "brdoc_031_7f469bb3e17d",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_c549bdf6a6b886f986585ad1",
+      "source_identity": "brdoc_032_e0ac2210dba5",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4c57b388ea05ba03be2b25e5",
+      "source_identity": "brdoc_033_3b540b094d7a",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_fee072cbdb9b43b37781083c",
+      "source_identity": "brdoc_034_0d1652d9303e",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "zip",
+      "gate2_memory_status": "lineage_only",
+      "issue_refs": [],
+      "logical_document_refs": [],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 0,
+        "source_unit_refs": 0,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 3,
+        "archive_promoted_members": 2,
+        "archive_signature_sidecars": 1,
+        "cells_total": 0,
+        "logical_content_artifacts": 0,
+        "logical_documents": 0,
+        "normalized_tables": 0,
+        "pages": 0,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_5150f21c9a163227cd4b0753",
+      "source_identity": "brdoc_035_9419913a504a",
+      "supported_profile_variant": "bounded_source_container_v1",
+      "terminal_state": "complete",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_9e0cee199e306be3"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_8ddd832a04054b4876c1d4dc"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 6,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 6,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 6
+      },
+      "source_checksum_ref": "srcsum_e1417cc71ae3c1eef7f61f80",
+      "source_identity": "brdoc_036_f1995ee6a6fa",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_879e0d282a2a6bdc"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_63773b2bd275ae45e5919416"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 20,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 18,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 74418,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_85b9e5f09137bd086d8d6740",
+      "source_identity": "brdoc_037_8c0fea99b1db",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_ae11ce4c2bbe8645"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_2d9732c5d4e0f0604b827aba"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 16,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 14,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 68759,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_578364a0f5ff25c9264e90b0",
+      "source_identity": "brdoc_038_d603a3988ee0",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_89d39590bd8da2fb"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_108235e075c7a9d749132068"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 19,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 17,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 59213,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_addf078cf5a9ef2966239ebb",
+      "source_identity": "brdoc_039_ca35351f1c5f",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_145c81a14f51e95d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_e4c667ebe753b18a5fefe98a"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 8,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 6,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 25384,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_9bafbcb7063f127feda2834d",
+      "source_identity": "brdoc_040_ce1cdfa4d4eb",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_4d63b02be5f6120d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_6e18082992dcc37dba02ed9a"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 28,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 28,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 10024,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_3d07b9b626d09b1e06f56e8c",
+      "source_identity": "brdoc_041_39227188fb1c",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_cbd7973fe4a3146b"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_592532c94652b8dcc65fe513"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 33,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 33,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 13680,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_241141ca4f41a24976c2a900",
+      "source_identity": "brdoc_042_51ccbbd65039",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_aebd1366971949c3"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_75c256f5f8b74ec1345ca583"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 33,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 33,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 17083,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_ee3bcd2912bcb422ae315465",
+      "source_identity": "brdoc_043_4d8ee8777b23",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_bb2a91bae1cc6e0a"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_65b0414cbf1ee47303454c9f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 20,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 18,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 92888,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_807abfc40498ac0a4e5347ff",
+      "source_identity": "brdoc_044_74e5de8408a8",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_4fe3fa372a1bf5e3",
+        "issue_881b6e9a562caa90"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_64e36b91fb25784255702fe4"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 25,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 19,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 66414,
+        "visual_media": 0,
+        "visual_pages": 7
+      },
+      "source_checksum_ref": "srcsum_34a281a6f6592e2597ece480",
+      "source_identity": "brdoc_045_0c44a95cc671",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_5969edd1e7fbad39",
+        "issue_881b6e9a562caa90",
+        "issue_f1ae258f4d3d265b"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_42e37ddc2593c6553418609b"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 25,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "duplicate_source_requires_canonical_choice",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 19,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 66414,
+        "visual_media": 0,
+        "visual_pages": 7
+      },
+      "source_checksum_ref": "srcsum_6186e3f2302f71199c28e5e2",
+      "source_identity": "brdoc_046_0c44a95cc671",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_5d79a73c77b5b970",
+        "issue_8f82850bf763a055"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_800207dd0ee933cf0703df92"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 13,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 12,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 40154,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_0566e3e61f7e05aab93ddc94",
+      "source_identity": "brdoc_047_6137e019ea76",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_7ed2705d03aea8e6"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_c637fd110ee63d7d84d07f30"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 18,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 16,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 100443,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_6da91d7aad69a18945e25632",
+      "source_identity": "brdoc_048_62db60cb2b17",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_40ab85cfd4c743aa",
+        "issue_8f82850bf763a055",
+        "issue_ae41ffe8c79380e8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_bdd127945ba385799b64f9ff"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 13,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "duplicate_source_requires_canonical_choice",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 12,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 40154,
+        "visual_media": 0,
+        "visual_pages": 2
+      },
+      "source_checksum_ref": "srcsum_495a52e0184623abb0706209",
+      "source_identity": "brdoc_049_6137e019ea76",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_90f9f6dac1dda8fc"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_d3f19ffdbc4d63023760526b"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 26,
+        "table_projection_refs": 14
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 14,
+        "pages": 6,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 21531,
+        "visual_media": 0,
+        "visual_pages": 6
+      },
+      "source_checksum_ref": "srcsum_6e27d7bd7dec685c05f50739",
+      "source_identity": "brdoc_054_79af73d5be78",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "html_text",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_b6110892b19d93f6"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_c2f0c6d1d842f197751ad7e6"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 26,
+        "source_unit_refs": 26,
+        "table_projection_refs": 12
+      },
+      "operator_review_check_count": 15,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 533,
+        "logical_content_artifacts": 26,
+        "logical_documents": 1,
+        "normalized_tables": 12,
+        "pages": 0,
+        "rows_total": 63,
+        "source_files": 1,
+        "text_characters": 3289,
+        "visual_media": 2,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_386f81694a9a434859565ce4",
+      "source_identity": "brdoc_055_21c85fa3ff06",
+      "supported_profile_variant": "static_html_text_and_tables_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "html_text",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_971aa926961d68e8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_3944fe04a53a8960393c87b7"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 20,
+        "source_unit_refs": 20,
+        "table_projection_refs": 9
+      },
+      "operator_review_check_count": 15,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 478,
+        "logical_content_artifacts": 20,
+        "logical_documents": 1,
+        "normalized_tables": 9,
+        "pages": 0,
+        "rows_total": 53,
+        "source_files": 1,
+        "text_characters": 2722,
+        "visual_media": 2,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_8b2021cd7d6a59524d8a04de",
+      "source_identity": "brdoc_056_1fb1c0744eb0",
+      "supported_profile_variant": "static_html_text_and_tables_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "html_text",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_51b0c656b3c350a8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_47f47f89d6032ec4119c869e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 24,
+        "source_unit_refs": 24,
+        "table_projection_refs": 11
+      },
+      "operator_review_check_count": 15,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 558,
+        "logical_content_artifacts": 24,
+        "logical_documents": 1,
+        "normalized_tables": 11,
+        "pages": 0,
+        "rows_total": 68,
+        "source_files": 1,
+        "text_characters": 3032,
+        "visual_media": 2,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_286c716536d2728c030177ff",
+      "source_identity": "brdoc_057_8b29ff7a464f",
+      "supported_profile_variant": "static_html_text_and_tables_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "html_text",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_b2b84f2e5256a62f"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_852cc28e387ab6e6502aff3d"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 16,
+        "source_unit_refs": 16,
+        "table_projection_refs": 7
+      },
+      "operator_review_check_count": 15,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 345,
+        "logical_content_artifacts": 16,
+        "logical_documents": 1,
+        "normalized_tables": 7,
+        "pages": 0,
+        "rows_total": 40,
+        "source_files": 1,
+        "text_characters": 3486,
+        "visual_media": 2,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_e9c2ea21085ba55d87d46803",
+      "source_identity": "brdoc_058_cee60e388015",
+      "supported_profile_variant": "static_html_text_and_tables_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_4036461e7b70b69f"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_a529972ee1fbd422976778d6"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_521da90e6992e87cf1fe016c",
+      "source_identity": "brdoc_060_e69ef2fa1cb2",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_648dfb73f5aa9a58"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_42e0ce6c088a1db575880966"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_553681e3cab1b36951c31602",
+      "source_identity": "brdoc_061_aeaff2e070aa",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_098ee1f0e35f4474"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_295307d16b32669c16e34f7f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_a3d6840f92bf9ebaccfa4035",
+      "source_identity": "brdoc_062_161065e246ac",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_82f52a6ba3d2a72a"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_84fa5ca969fbddd69af33d89"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 0
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer",
+        "visual_units_require_visual_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 0,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 1
+      },
+      "source_checksum_ref": "srcsum_846f6ffe3c69ceeb027f5c18",
+      "source_identity": "brdoc_063_510b999b1914",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_755e916d107ea7b9"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_d6186bcbcdd1da6b1e754c89"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1851,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4738fd4d334572282667791a",
+      "source_identity": "zipmem_496e1c1358073118959e37bf",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_9ccad2553bbe2416"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_3636b7fdf26c3920d562d5e0"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_ed8b16e5ca1cbb5b65588df5",
+      "source_identity": "zipmem_8454c048c0cc70d49b6e9987",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_03ebceb1c29b450e"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_b572cf6b9d9b715abc5f7eef"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 15,
+        "table_projection_refs": 14
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 14,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 3908,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_2f9ed87ab943723012a23542",
+      "source_identity": "zipmem_2a11bc62e3dcb06709b80f34",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_cc15ee595d8fe87d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_e4d917766fcb67d0913eecb9"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 1526,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 218,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_111c111cc3344505a1f36e46",
+      "source_identity": "zipmem_577ff5b36fe0bdebc567a8e9",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_e1a21d0601a505af"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_f86d300b3e00f7aa17a25b1a"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1898,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_3b383611143d9679e734054c",
+      "source_identity": "zipmem_c47afdc3df6890e417bf9b6c",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_d141f2181814f8da"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_51468c91dc1f2dfcc32e34a4"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 539,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 77,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_c07b2fcf64e40cb14df448f0",
+      "source_identity": "zipmem_289b29552c30dad23058f025",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_aae8ea79e51f52bb"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_e8ee3bec29b88884a22b8f23"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 15,
+        "table_projection_refs": 14
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 14,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 3756,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_9e177f0c51ce45d3bcea2deb",
+      "source_identity": "zipmem_54babde0d109dc05313da904",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_5eeeb0ee4efe5838"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_8d9aa890c5fc9f49dbf31f8e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 1113,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 159,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_4b4a2d02bdc3481a841380f3",
+      "source_identity": "zipmem_2b419215280f625c4fe89837",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_be6ae9b89ebb0c9f"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_928cded9ed364c312a4e1a5d"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1777,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_ac8100821ca0f88328ae5f81",
+      "source_identity": "zipmem_1926fd1cf3cb466a2e1dacef",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_d4606159694c93c5"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_99cbe4e672a89e77ea767296"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 427,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 61,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_47ac723f773d98e10158871c",
+      "source_identity": "zipmem_f42c68e6aadbec89bab3ad93",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_fa8fbf82e4caa69f"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_9af4d9469c27b0b24bb4a428"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1823,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_30e6466534f888fba5228962",
+      "source_identity": "zipmem_74f35ba5ed0ed33279e6ec86",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_6691ceec82457edf"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_d2e83d2e35b932175f7af35e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_b06d5804975b9f82cc38bd9e",
+      "source_identity": "zipmem_a382f51bddb6b9d88b36ec88",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_29e7063a9448c41b"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_4b8ede854d2f2a0d7783896f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 11,
+        "table_projection_refs": 10
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 10,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2823,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_62e3c6308dc99be3626a20bb",
+      "source_identity": "zipmem_efed824330806abe5801e310",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_0817f5efacc79d1e"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_26b6ec2ad65cb7f7f9369da7"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 931,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 133,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_d1475d0692c1fb18ff55c19e",
+      "source_identity": "zipmem_0fc7cd3f5a3c6bded09c9ad1",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_90ab04eabd55ef4d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_074f84425bee6c48fd1a1b4e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1920,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_093065d1fb0ed11558f1dcdf",
+      "source_identity": "zipmem_31612d13b1486ab724de7b34",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_9dcfc7bf8c2455aa"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_60985ad24e34371b82205701"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 567,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 81,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_36d8a907261034f8d6857221",
+      "source_identity": "zipmem_17d3ac417bc8ab7ca78930ec",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_71a6e0b6c7eb7b0d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_ce3fafccc8bf4eb67d45eade"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1806,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_61540296bda0db1c14362c5b",
+      "source_identity": "zipmem_b941d918cbd302a0b1e2c888",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_8396bba5e9775ba3"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_64880108d92288b4680844d9"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_d1e6f812a309c422990d3da9",
+      "source_identity": "zipmem_d225f964096ad7623c16e25b",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_594195bc0c792bfc"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_0d5dfe3e4362200ea87dc78e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1783,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_efad4a88e2320d2d2961d00b",
+      "source_identity": "zipmem_5fcf1c67430efdec35c88e56",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_fafb0ff7d8a6a656"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_8a85f506d1645f16efa566fc"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_b9923f1ea833e4694caf8734",
+      "source_identity": "zipmem_60c4b9f15d41650e0aad5cb9",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_484135cedd0921a8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_224d44a7f4b66e1b4a2fc240"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1909,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_0d176eb3355c89c7c2df77e6",
+      "source_identity": "zipmem_dcc02467d5f806fa6454f737",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_a48955418db240a2"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_5cca1a47579f1b5045f34d9c"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 637,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 91,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_a5d87ea1c4697f68d472ad7d",
+      "source_identity": "zipmem_7ed9652119e3816923caf6bc",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_5e3de897b572c13a"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_10bc0064f1192a45beedd87e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2189,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_d36f60e3d5a8e0f534aa7dfe",
+      "source_identity": "zipmem_2e34aeb9c7c4aebfdd651e5d",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_85fc07395e45ee1e"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_a1bb56661204699ca48c67d3"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 1190,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 170,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_950cdcd9cc76add659733dc2",
+      "source_identity": "zipmem_9920fb514b9e294a6608c4ef",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_2dc22e0a959d1770"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_f4ad6261c12e50c1c98b020f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1839,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_79e4cb9684e4926fedf770d0",
+      "source_identity": "zipmem_e0b44bf2ac18c4b8264370cd",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_c8b2772dd89f0dc8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_619230ca4569874311781f31"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 462,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 66,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_e27e287c4bc707728d640e61",
+      "source_identity": "zipmem_c4269312e58c82bd198a174f",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_3bc696acf1dc5538"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_ec7261760a3522232b8efd7b"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1947,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_609feb9df045806e011fa08c",
+      "source_identity": "zipmem_e398496ade8b1a0fa9a9cf4e",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_f20e15cb3a981703"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_15c92468fc2095251c66e4ac"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 658,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 94,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_0ab1c158ee28049c8d48acee",
+      "source_identity": "zipmem_920f97f27b307e9548433d81",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_6079ca20640f32a9"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_d7921477c2fe4a5cd970de46"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2241,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_7dcf269d6a708be1612bc967",
+      "source_identity": "zipmem_8e93c7ea22fedceae5ffd78c",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_59e24e6e63c37044"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_f949c8a31c0deb8d1d4f2e14"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 1190,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 170,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_cd00fed5bfd819b93f772a4f",
+      "source_identity": "zipmem_b688cc797e0a2ef0d3500d06",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_60638b2f041713e2"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_9af1d12299a331b846991a18"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2064,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_748d5e6fe02e77ee1e958d2c",
+      "source_identity": "zipmem_381f9d8e52caaf83ef6adadb",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_9c0bd9b6829fa976"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_ef2d784ecbfbe003b3aec358"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 910,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 130,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_3bd2a5039ab8f045f043579e",
+      "source_identity": "zipmem_376ee922c9d6852b2f42cd05",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_4353870535992c0d"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_05f4525d02f329e6fc636d7f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1928,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_a88b6704dca8c33ceb42fce7",
+      "source_identity": "zipmem_2afc35912cca9e6abb9649f7",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_f4beffef8d2091b9"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_128f0a082a288f1638cfb371"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 497,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 71,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_762f9495654268b2ea27e02c",
+      "source_identity": "zipmem_f3ee5c98cd98b53d8ec8942c",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_a75b612310c75137"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_046418c2aa26fbd6787eda62"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 11,
+        "table_projection_refs": 10
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 10,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2647,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_dcaed959a9f4f97f767615cf",
+      "source_identity": "zipmem_ec49f2182506a1ba63851e65",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_02a0670e0ec7483e"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_3cc3ef143b7f5e39db887510"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 644,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 92,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_cfed9d42a0723bdd501d4cbc",
+      "source_identity": "zipmem_aa03352a7e156defab477990",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_e4f35648a583c552"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_b3f2769f2a2de2ed79f38146"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 11,
+        "table_projection_refs": 10
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 10,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 2779,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_957c4abe4912c9d6c8fa6ce0",
+      "source_identity": "zipmem_a8545203d360690e36671e43",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_110fa1a6110dfed8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_61da9bebbbfd71b2d00debe4"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 784,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 112,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_e348bf4aa82e9ce2569ab367",
+      "source_identity": "zipmem_28b9dd1f73200a226d86578a",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_1c375aa100750752"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_b329fd589b34887130499e2f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1806,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_51fb21168dd919480f699734",
+      "source_identity": "zipmem_44d82541e929e2cd992ba303",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_d754161a4a0d518b"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_a429781c7948a27cb24540bf"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_1dd05a58f578cb704b435903",
+      "source_identity": "zipmem_22bd0f3d7c0c01a016f4c6f7",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_1fa12b2a9d67984e"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_af0f0a9fe0e1915747dd9c17"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1788,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_20bed80dc5e09e004824e542",
+      "source_identity": "zipmem_6fb81c483f35307cb2cd33f6",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_c32232a776a72f51"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_e8cd1ff46df017c64a9425a3"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 434,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 62,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_5d5c9ee98fec200084c7e801",
+      "source_identity": "zipmem_0ea4edb178807c3f5d24e9a5",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_ad101a86969b9241"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_b32f8299d5799ca58e98140f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1900,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_43645d0f39a4a432eb467039",
+      "source_identity": "zipmem_deb7f08f72eea6d0a19a8b42",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_762481f3134e96c6"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_1ce2b54920abf445986f46bf"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 609,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 87,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_23d644e712341a856500f6ec",
+      "source_identity": "zipmem_6271fa72292516e6d00de378",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_fd718280e0753118"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_04d0c453532658f558f7880e"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 7,
+        "table_projection_refs": 6
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 6,
+        "pages": 1,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 1801,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_b3ecd3d2562bc90da0a62242",
+      "source_identity": "zipmem_a8b7a49b32fd1aa7d6a49a29",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_93da71157330488b"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_0e7ae68fa31fd720657f73f8"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 462,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 66,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_dd19834e32016b1539d6c580",
+      "source_identity": "zipmem_c86df1f75c4913acbad69048",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "pdf",
+      "gate2_memory_status": "ready",
+      "issue_refs": [
+        "issue_ccf1649487c9b6b8"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_e9e33b1f48339dbd2992ddd3"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 15,
+        "table_projection_refs": 14
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 0,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 14,
+        "pages": 2,
+        "rows_total": 0,
+        "source_files": 1,
+        "text_characters": 3881,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_a2c6c8b0548c414830800ccc",
+      "source_identity": "zipmem_0459211c33b7988b19f8314c",
+      "supported_profile_variant": "text_layout_and_bounded_visual_fallback_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    },
+    {
+      "accounting_status": "passed",
+      "container_format": "xml",
+      "gate2_memory_status": "ready_with_restrictions",
+      "issue_refs": [
+        "issue_2705a71f0c8942a3"
+      ],
+      "logical_document_refs": [
+        "logicaldoc_53ba7e5addf262c001fc8a1f"
+      ],
+      "normalized_artifact_counts": {
+        "source_payload_refs": 1,
+        "source_unit_refs": 1,
+        "table_projection_refs": 1
+      },
+      "operator_review_check_count": 14,
+      "operator_review_failed_check_refs": [],
+      "operator_review_verdict": "passed",
+      "restrictions": [
+        "canonical_financial_table_not_available",
+        "text_scope_not_ready_for_text_only_consumer"
+      ],
+      "scope_accounting": {
+        "archive_members": 0,
+        "archive_promoted_members": 0,
+        "archive_signature_sidecars": 0,
+        "cells_total": 1393,
+        "logical_content_artifacts": 1,
+        "logical_documents": 1,
+        "normalized_tables": 1,
+        "pages": 0,
+        "rows_total": 199,
+        "source_files": 1,
+        "text_characters": 0,
+        "visual_media": 0,
+        "visual_pages": 0
+      },
+      "source_checksum_ref": "srcsum_14ad9a6ec0b005081c047b45",
+      "source_identity": "zipmem_34946e3a7e38a3c040a18fd0",
+      "supported_profile_variant": "neutral_ordered_xml_event_memory_v1",
+      "terminal_state": "review_required",
+      "zero_silent_loss": "passed"
+    }
+  ],
+  "gate2_public_handoff": {
+    "artifactstore_unchanged": true,
+    "boundary_checks": {
+      "dcp_schema_supported": true,
+      "format_specific_parser_not_required": true,
+      "manifest_id_matches": true,
+      "manifest_integrity_hash_matches": true,
+      "manifest_schema_matches": true,
+      "memory_manifest_validated": true,
+      "profile_enforcement_required": true,
+      "profile_id_matches": true,
+      "resolver_required": true
+    },
+    "document_memory_validator_status": "passed",
+    "error_refs": [],
+    "format_specific_parser_required": false,
+    "full_gate2_package_builder": {
+      "packages_total": 681,
+      "status": "completed",
+      "validator_status": "passed",
+      "wall_seconds": 53.229773,
+      "warnings_total": 0
+    },
+    "validator_status": "passed"
+  },
+  "performance": {
+    "actual_proof_wall_seconds": 1374.290349,
+    "gate1_normalization_wall_seconds": 1190.179126,
+    "process_peak_rss_bytes": 7434231808
+  },
+  "privacy": {
+    "customer_values_included": false,
+    "knowledge_rag_used": false,
+    "private_paths_included": false,
+    "vectorization_performed": false
+  },
+  "proof_scope": "complete_actual_customer_approved_source_evidence_pool_v1",
+  "proof_status": "passed",
+  "runtime": {
+    "execution_mode": "repository_bundle_parity_equivalent_backend_core",
+    "gate1_bundle_sha256": "5c0ea33afb5180434ec6adaa41e804b99846ef361499e2789d9a754a682bebab"
+  },
+  "schema_version": "broker_reports_gate1_actual_corpus_acceptance_v1"
+}

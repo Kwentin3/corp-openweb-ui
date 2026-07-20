@@ -1,0 +1,81 @@
+{
+  "actual_corpus_execution": true,
+  "artifactstore_unchanged": true,
+  "blank_scope": {
+    "reclassified_as_non_material": false,
+    "source_image_uniform_evidence_preserved": true,
+    "terminal_state": "unresolved_visual_requires_review"
+  },
+  "canonical_region_accounting": {
+    "cells_accepted": 410,
+    "deterministic_promotion_replays": 12,
+    "operator_reviewed_regions": 11,
+    "regions_accepted": 12,
+    "tables_accepted": 12
+  },
+  "closure_blockers": [
+    "one_material_scope_is_byte_uniform_and_unresolved",
+    "one_material_complex_layout_is_outside_frozen_grid_profile"
+  ],
+  "continuation_chain": {
+    "pages": 6,
+    "status": "passed",
+    "validation_errors": 0
+  },
+  "customer_acceptance_claimed": false,
+  "customer_values_in_output": false,
+  "heldout_visual_table": {
+    "accepted": true,
+    "actual_scope_evaluated": true,
+    "layout_sibling_token_overlap_ratio": 1.0,
+    "profile_geometry_was_not_manifest_tuned": true,
+    "selection_rule": "first_audit_order_simple_grid_with_layout_sibling",
+    "status": "passed"
+  },
+  "material_scope_accounting": {
+    "accepted_unique_scopes": 9,
+    "exact_duplicate_source_identities": 1,
+    "exact_scope_invariant_passed": true,
+    "promotion_state_counts": {
+      "canonical_table_accepted_deterministic": 1,
+      "canonical_table_accepted_reviewed_visual": 8,
+      "unresolved_visual_requires_review": 1,
+      "unsupported_visual_layout": 1
+    },
+    "required_unique_scopes": 11,
+    "source_identities": 12,
+    "unique_image_scopes": 11
+  },
+  "model_canonical_authority": false,
+  "negative_non_table": {
+    "actual_scope_evaluated": true,
+    "detected_grid_regions": 0,
+    "false_promotions": 0,
+    "status": "passed"
+  },
+  "out_of_profile_scope": {
+    "failed_closed": true,
+    "model_topology_used_as_authority": false,
+    "terminal_state": "unsupported_visual_layout"
+  },
+  "performance": {
+    "process_peak_rss_bytes": 181641216,
+    "provider_latency_seconds": 0.0,
+    "visual_recovery_wall_seconds": 365.908195
+  },
+  "private_result_safe_projection_count": 14,
+  "proof_date": "2026-07-20",
+  "provider_accounting": {
+    "calls": 0,
+    "cost": 0,
+    "retries": 0,
+    "tokens": 0,
+    "whole_document_uploads": 0
+  },
+  "release_readiness_claimed": false,
+  "schema_version": "broker_reports_visual_actual_corpus_proof_safe_v1",
+  "source_identities_in_output": false,
+  "status": "NOT_CLOSED",
+  "whole_document_provider_uploads": 0,
+  "workload_fingerprint": "bb31ef404583f5797c130df4091058a66570256311af0f2e9541e4e023c19c38"
+}
