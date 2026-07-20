@@ -63,6 +63,7 @@ must retain that blocker; resolver readability does not resolve it.
 - `cross_check_refs`
 - `declaration_support_refs`
 - `audit_reference_refs`
+- `archive_lineage_refs`
 - `duplicate_or_non_primary_refs`
 - `source_ready_not_primary_refs`
 - `dropped_source_ready_refs`
@@ -87,6 +88,10 @@ Bucket meaning:
 - `declaration_support_refs` are docs that may later support declaration
   assembly, subject to their issues.
 - `audit_reference_refs` are docs retained for traceability/audit context.
+- `archive_lineage_refs` are accepted ZIP container identities retained for
+  archive/member accounting and provenance. They must never appear in
+  `source_fact_ready_refs`; their promoted members remain independently
+  classified.
 - `duplicate_or_non_primary_refs` are source-ready duplicates or non-primary
   refs that must not vanish just because they are outside the reduced subset.
 

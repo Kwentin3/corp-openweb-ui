@@ -316,6 +316,11 @@ def validate_artifacts(package: dict) -> dict:
             errors.append(_error("usage_classification_schema_mismatch", usage_classification.get("schema_version")))
         if usage_classification.get("normalization_run_id") != run_id:
             errors.append(_error("usage_classification_run_ref_mismatch", usage_classification.get("normalization_run_id")))
+        memory_by_source_ref = {
+            str(item.get("source_file_ref") or ""): item
+            for item in document_memory_manifest.get("documents") or []
+            if isinstance(item, dict) and item.get("source_file_ref")
+        }
         for entry in usage_entries:
             document_ref = entry.get("document_ref")
             if document_ref not in document_ids:
@@ -326,6 +331,38 @@ def validate_artifacts(package: dict) -> dict:
             for issue_ref in entry.get("warning_issue_refs") or []:
                 if issue_ref not in issue_ids:
                     errors.append(_error("usage_unknown_warning_issue_ref", issue_ref))
+            memory_entry = memory_by_source_ref.get(str(document_ref))
+            memory_status = (
+                memory_entry.get("gate2_memory_status")
+                if isinstance(memory_entry, dict)
+                else None
+            )
+            readiness_by_stage = entry.get("readiness_by_stage")
+            source_fact_status = (
+                readiness_by_stage.get("source_fact_extraction")
+                if isinstance(readiness_by_stage, dict)
+                else None
+            )
+            usage_modes = set(entry.get("usage_modes") or [])
+            if memory_status == "lineage_only":
+                if source_fact_status != "not_applicable_lineage_only":
+                    errors.append(
+                        _error(
+                            "usage_archive_lineage_source_fact_status_invalid",
+                            document_ref,
+                        )
+                    )
+                if not {"archive_lineage", "audit_reference"} <= usage_modes:
+                    errors.append(
+                        _error("usage_archive_lineage_modes_missing", document_ref)
+                    )
+            elif (
+                source_fact_status == "not_applicable_lineage_only"
+                or "archive_lineage" in usage_modes
+            ):
+                errors.append(
+                    _error("usage_non_archive_declared_lineage_only", document_ref)
+                )
 
     if domain_context_packet:
         if domain_context_packet.get("schema_version") != "domain_context_packet_v0":
@@ -369,6 +406,30 @@ def validate_artifacts(package: dict) -> dict:
                 errors.append(_error("domain_packet_source_ready_ref_not_classified", ",".join(sorted(missing_source_ready_refs))))
             if next_stage_refs.get("dropped_source_ready_refs"):
                 errors.append(_error("domain_packet_dropped_source_ready_refs", ",".join(next_stage_refs.get("dropped_source_ready_refs") or [])))
+            lineage_only_refs = {
+                str(item.get("source_file_ref") or "")
+                for item in document_memory_manifest.get("documents") or []
+                if isinstance(item, dict)
+                and item.get("gate2_memory_status") == "lineage_only"
+                and item.get("source_file_ref")
+            }
+            packet_lineage_refs = set(
+                next_stage_refs.get("archive_lineage_refs") or []
+            )
+            if packet_lineage_refs != lineage_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_archive_lineage_refs_mismatch",
+                        ",".join(sorted(packet_lineage_refs ^ lineage_only_refs)),
+                    )
+                )
+            if packet_source_ready_refs & lineage_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_archive_lineage_declared_source_ready",
+                        ",".join(sorted(packet_source_ready_refs & lineage_only_refs)),
+                    )
+                )
         document_issue_refs = domain_context_packet.get("document_issue_refs")
         if isinstance(document_issue_refs, dict):
             for document_ref, refs in document_issue_refs.items():

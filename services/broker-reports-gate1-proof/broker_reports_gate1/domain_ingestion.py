@@ -62,9 +62,13 @@ def apply_domain_ingestion_artifacts(package: dict[str, Any]) -> dict[str, Any]:
     updated["gate1_supported_profile"] = supported_profile
     updated["gate1_supported_profile_assessment"] = supported_profile_assessment
     issue_ledger = build_gate1_issue_ledger(updated)
-    usage_classification = build_document_usage_classification(updated, issue_ledger)
     document_memory_manifest = document_memory_builder.build_manifest(
         updated, supported_profile_assessment, issue_ledger
+    )
+    usage_classification = build_document_usage_classification(
+        updated,
+        issue_ledger,
+        document_memory_manifest=document_memory_manifest,
     )
     updated["document_memory_manifest"] = document_memory_manifest
     domain_context_packet = build_domain_context_packet(
@@ -182,6 +186,8 @@ def build_gate1_issue_ledger(package: dict[str, Any]) -> dict[str, Any]:
 def build_document_usage_classification(
     package: dict[str, Any],
     issue_ledger: dict[str, Any],
+    *,
+    document_memory_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     run_id = _run_id(package)
     issues_by_doc = _issues_by_doc(issue_ledger)
@@ -195,13 +201,24 @@ def build_document_usage_classification(
         for item in _eligibility_entries(package)
         if isinstance(item, dict) and item.get("document_id")
     }
+    memory_by_document = {
+        str(item.get("source_file_ref") or ""): item
+        for item in _object(document_memory_manifest).get("documents") or []
+        if isinstance(item, dict) and item.get("source_file_ref")
+    }
     entries = []
     for document in _documents(package):
         document_id = str(document.get("document_id") or "")
         taxonomy = taxonomy_by_doc.get(document_id, {})
         eligibility = eligibility_by_doc.get(document_id, {})
         doc_issues = issues_by_doc.get(document_id, [])
-        entry = _usage_entry(document, taxonomy, eligibility, doc_issues)
+        entry = _usage_entry(
+            document,
+            taxonomy,
+            eligibility,
+            doc_issues,
+            memory_entry=memory_by_document.get(document_id),
+        )
         entries.append(entry)
     summary = _usage_summary(entries)
     return {
@@ -608,6 +625,8 @@ def _usage_entry(
     taxonomy: dict[str, Any],
     eligibility: dict[str, Any],
     doc_issues: list[dict[str, Any]],
+    *,
+    memory_entry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     document_ref = str(document.get("document_id") or "")
     issue_refs = [str(issue.get("issue_id")) for issue in doc_issues if issue.get("issue_id")]
@@ -616,6 +635,8 @@ def _usage_entry(
     taxonomy_class = str(taxonomy.get("document_class_candidate") or "unknown_or_needs_review")
     eligibility_status = str(eligibility.get("source_eligibility") or "not_evaluated")
     readable = _document_readable(document)
+    memory_status = str(_object(memory_entry).get("gate2_memory_status") or "")
+    lineage_only = memory_status == "lineage_only"
     source_candidate = taxonomy_class in SOURCE_DOCUMENT_CLASSES or eligibility_status in {
         "accepted_for_gate2",
         "accepted_as_source_candidate_for_gate2",
@@ -627,13 +648,17 @@ def _usage_entry(
     extraction_blocked = bool(issue_types & {"readability_blocker", "no_files"})
     if not readable:
         extraction_blocked = True
-    source_ready = bool(source_candidate and not extraction_blocked)
+    source_ready = bool(
+        source_candidate and not extraction_blocked and not lineage_only
+    )
     source_ready_with_issues = bool(source_ready and issue_refs)
-    cross_check_ready = bool(readable and not extraction_blocked)
+    cross_check_ready = bool(readable and not extraction_blocked and not lineage_only)
     consolidation_blocked = bool(issue_types & CONSOLIDATION_ISSUES)
     declaration_blocked = bool(issue_types & CONSOLIDATION_ISSUES)
     usage_modes = ["ingested"]
-    if source_ready:
+    if lineage_only:
+        usage_modes.extend(["archive_lineage", "audit_reference"])
+    elif source_ready:
         usage_modes.append("source_extraction_candidate")
     if cross_check_ready:
         usage_modes.append("cross_check_candidate")
@@ -641,8 +666,39 @@ def _usage_entry(
         usage_modes.append("declaration_support_reference")
     elif source_ready and not consolidation_blocked:
         usage_modes.append("consolidation_candidate")
-    if not source_ready and readable:
+    if not source_ready and readable and not lineage_only:
         usage_modes.append("audit_reference")
+
+    if lineage_only:
+        readiness_by_stage = {
+            "domain_ingestion": "completed",
+            "source_fact_extraction": "not_applicable_lineage_only",
+            "cross_check": "not_applicable_lineage_only",
+            "consolidation": "not_applicable_lineage_only",
+            "declaration_support": "not_applicable_lineage_only",
+        }
+    else:
+        readiness_by_stage = {
+            "domain_ingestion": "completed",
+            "source_fact_extraction": _ready_label(
+                source_ready, source_ready_with_issues, extraction_blocked
+            ),
+            "cross_check": _ready_label(
+                cross_check_ready,
+                bool(cross_check_ready and issue_refs),
+                extraction_blocked,
+            ),
+            "consolidation": (
+                "blocked_unresolved_issues"
+                if consolidation_blocked
+                else ("ready" if source_ready else "not_applicable")
+            ),
+            "declaration_support": (
+                "blocked_unresolved_issues"
+                if declaration_blocked
+                else ("ready" if readable else "blocked_unreadable")
+            ),
+        }
 
     return {
         "document_ref": document_ref,
@@ -656,13 +712,7 @@ def _usage_entry(
             if issue.get("status") != "resolved" and issue.get("issue_id")
         ],
         "issue_refs_by_stage": issue_refs_by_stage,
-        "readiness_by_stage": {
-            "domain_ingestion": "completed",
-            "source_fact_extraction": _ready_label(source_ready, source_ready_with_issues, extraction_blocked),
-            "cross_check": _ready_label(cross_check_ready, bool(cross_check_ready and issue_refs), extraction_blocked),
-            "consolidation": "blocked_unresolved_issues" if consolidation_blocked else ("ready" if source_ready else "not_applicable"),
-            "declaration_support": "blocked_unresolved_issues" if declaration_blocked else ("ready" if readable else "blocked_unreadable"),
-        },
+        "readiness_by_stage": readiness_by_stage,
         "private_payload_access": "resolver_required" if readable else "not_available",
         "raw_private_payload_in_classification": False,
         "deterministic_basis": {
@@ -671,6 +721,7 @@ def _usage_entry(
             "machine_readable": document.get("machine_readable"),
             "taxonomy_class": taxonomy_class,
             "source_eligibility": eligibility_status,
+            "document_memory_status": memory_status or "not_available",
         },
     }
 
@@ -884,6 +935,7 @@ def _next_stage_refs(package: dict[str, Any], usage_entries: list[dict[str, Any]
     declaration_support_refs: set[str] = set()
     audit_reference_refs: set[str] = set()
     duplicate_or_non_primary_refs: set[str] = set()
+    archive_lineage_refs: set[str] = set()
 
     for entry in usage_entries:
         document_ref = str(entry.get("document_ref") or "")
@@ -906,6 +958,8 @@ def _next_stage_refs(package: dict[str, Any], usage_entries: list[dict[str, Any]
             declaration_support_refs.add(document_ref)
         if "audit_reference" in usage_modes or eligibility_status in {"outside_case_scope", "excluded_from_gate2"}:
             audit_reference_refs.add(document_ref)
+        if "archive_lineage" in usage_modes:
+            archive_lineage_refs.add(document_ref)
         if eligibility_status == "duplicate_needs_canonical_choice" or "noncanonical_exact_duplicate_excluded" in reason_codes:
             duplicate_or_non_primary_refs.add(document_ref)
 
@@ -933,6 +987,7 @@ def _next_stage_refs(package: dict[str, Any], usage_entries: list[dict[str, Any]
         "cross_check_refs": _sorted_refs(cross_check_refs),
         "declaration_support_refs": _sorted_refs(declaration_support_refs),
         "audit_reference_refs": _sorted_refs(audit_reference_refs),
+        "archive_lineage_refs": _sorted_refs(archive_lineage_refs),
         "duplicate_or_non_primary_refs": _sorted_refs(duplicate_or_non_primary_refs),
         "dropped_source_ready_refs": _sorted_refs(dropped_source_ready_refs),
     }
@@ -947,6 +1002,7 @@ def _next_stage_ref_summary(next_stage_refs: dict[str, list[str]]) -> dict[str, 
         "cross_check_total": len(next_stage_refs.get("cross_check_refs") or []),
         "declaration_support_total": len(next_stage_refs.get("declaration_support_refs") or []),
         "audit_reference_total": len(next_stage_refs.get("audit_reference_refs") or []),
+        "archive_lineage_total": len(next_stage_refs.get("archive_lineage_refs") or []),
         "duplicate_or_non_primary_total": len(next_stage_refs.get("duplicate_or_non_primary_refs") or []),
         "dropped_source_ready_total": len(next_stage_refs.get("dropped_source_ready_refs") or []),
     }

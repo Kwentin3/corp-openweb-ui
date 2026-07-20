@@ -37,6 +37,7 @@ Initial usage modes:
 - `consolidation_candidate`
 - `declaration_support_reference`
 - `audit_reference`
+- `archive_lineage`
 
 Readable PDF/HTML documents with source-like evidence can be `source_extraction_candidate` even when source-role policy is uncertain. That uncertainty must point to `gate1_issue_ledger_v0`.
 
@@ -58,6 +59,12 @@ Allowed values:
 - `blocked_unreadable`
 - `blocked_unresolved_issues`
 - `not_applicable`
+- `not_applicable_lineage_only`
+
+An accepted ZIP container is `archive_lineage`, not a source-extraction
+candidate. Its source-fact and interpretation stages are
+`not_applicable_lineage_only`; it remains an `audit_reference`. Promoted PDF/XML
+members are independent source records and retain their ordinary readiness.
 
 Semantic duplicates and unclear roles may be ready for source extraction but blocked for consolidation/declaration-support.
 
