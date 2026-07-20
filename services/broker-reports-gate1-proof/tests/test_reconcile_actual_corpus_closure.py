@@ -49,9 +49,14 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
             {
                 "correct_scope_restriction",
                 "external_customer_acceptance_debt",
-                "implementation_defect",
-                "unsupported_profile",
             },
+        )
+        self.assertEqual(
+            {
+                item["taxonomy"]
+                for item in reconciliation["resolved_program_blockers"]
+            },
+            {"resolved_implementation_defect", "resolved_unsupported_profile"},
         )
         self.assertTrue(
             all(
@@ -71,7 +76,11 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
         )
         self.assertEqual(
             proof["actual_corpus_accounting"]["visual_accepted_unique_scopes"],
-            9,
+            10,
+        )
+        self.assertEqual(
+            proof["actual_corpus_accounting"]["visual_gate2_packages"],
+            17,
         )
         self.assertEqual(
             next(
@@ -88,7 +97,8 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
         report = render_report(proof)
         self.assertIn("Program status: **NOT_CLOSED**", report)
         self.assertIn("14/14", report)
-        self.assertIn("9/11", report)
+        self.assertIn("10/11", report)
+        self.assertIn("17 canonical regions", report)
 
 
 if __name__ == "__main__":

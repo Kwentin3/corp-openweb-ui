@@ -18,7 +18,10 @@ import math
 import multiprocessing
 import os
 import re
+import shutil
+import sqlite3
 import sys
+import tempfile
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -32,8 +35,13 @@ sys.path.insert(0, str(SERVICE_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from broker_reports_gate1 import (  # noqa: E402
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
     ArtifactResolver,
     Gate1VisualNeutralTableFactory,
+    Gate1VisualRecoveryHandoffFactory,
+    Gate2InputReadinessFactory,
+    build_retention_policy,
     build_visual_operator_review,
     render_visual_neutral_table_safe_report,
     seal_visual_ocr_observation,
@@ -70,11 +78,14 @@ PROVIDER_ZERO = {
 }
 FACTORY_REQUIRED = (
     "prepare_actual_latest -> ArtifactStoreFactory.create -> ArtifactResolver; "
-    "Gate1VisualNeutralTableFactory.create is the promotion authority"
+    "Gate1VisualNeutralTableFactory.create is the promotion authority; "
+    "Gate1VisualRecoveryHandoffFactory.create persists immutable results; "
+    "Gate2InputReadinessFactory.create consumes accepted canonical results"
 )
 FORBIDDEN = (
     "The proof must not read original files directly, grant a model canonical "
-    "authority, call a provider, emit customer values, or mutate ArtifactStore"
+    "authority, call a provider, emit customer values, or mutate the golden "
+    "actual-corpus ArtifactStore"
 )
 
 
@@ -748,6 +759,23 @@ def _page(unit: dict[str, Any]) -> int:
     return int(unit.get("page_number") or _object(unit.get("source_location")).get("page") or 0)
 
 
+def _clone_actual_store(prepared: Any, target_root: Path) -> Any:
+    database = target_root / "artifact_store" / "artifacts.sqlite3"
+    payload_root = target_root / "artifact_store" / "payloads"
+    database.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(prepared.store.sqlite_path) as source:
+        with sqlite3.connect(database) as target:
+            source.backup(target)
+    shutil.copytree(prepared.store.payload_root, payload_root)
+    return ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=database,
+            payload_root=payload_root,
+        )
+    ).create()
+
+
 def build_proof(
     *,
     config_path: Path,
@@ -1082,15 +1110,134 @@ def build_proof(
 
         records_after = resolver.catalog_run(prepared.context)
         artifactstore_unchanged = snapshot_before == _snapshot(records_after)
+        all_results = [
+            result
+            for scope in private_scopes
+            for result in scope["results"]
+        ]
+        with tempfile.TemporaryDirectory(
+            prefix="broker-visual-gate2-actual-"
+        ) as clone_directory:
+            clone_store = _clone_actual_store(
+                prepared, Path(clone_directory)
+            )
+            clone_initial_records = clone_store.list_by_run(
+                prepared.context.normalization_run_id
+            )
+            handoff = Gate1VisualRecoveryHandoffFactory(
+                store=clone_store
+            ).create().persist(
+                results=all_results,
+                context=prepared.context,
+                retention_policy=build_retention_policy(mode="api_smoke"),
+            )
+            clone_persisted_records = clone_store.list_by_run(
+                prepared.context.normalization_run_id
+            )
+            gate2_readiness = Gate2InputReadinessFactory(
+                store=clone_store
+            ).create().audit_and_build(
+                domain_context_packet_ref=prepared.dcp_ref,
+                context=prepared.context,
+                visual_neutral_table_refs=handoff.accepted_result_refs,
+            )
+            visual_gate2_packages = [
+                package
+                for package in gate2_readiness.packages
+                if _object(package.get("source_unit")).get(
+                    "source_input_mode"
+                )
+                == "visual_neutral_table"
+            ]
+            gate2_integration_passed = bool(
+                gate2_readiness.validation.get("validator_status") == "passed"
+                and gate2_readiness.validation.get("artifactstore_unchanged")
+                is True
+                and len(handoff.accepted_result_refs)
+                == sum(
+                    1
+                    for result in all_results
+                    if str(result.get("promotion_state") or "").startswith(
+                        "canonical_table_accepted_"
+                    )
+                )
+                and len(visual_gate2_packages) == canonical_tables
+                and all(
+                    package.get("document_context", {}).get(
+                        "selected_source_scope"
+                    )
+                    == "visual_neutral_table"
+                    for package in visual_gate2_packages
+                )
+            )
+            if not gate2_integration_passed:
+                codes = sorted(
+                    str(code)
+                    for code in _object(
+                        gate2_readiness.validation.get("error_code_counts")
+                    )
+                )
+                raise RuntimeError(
+                    "visual_actual_gate2_integration_failed:"
+                    + ",".join(codes)
+                )
+            gate2_integration_safe = {
+                "disposable_actual_artifactstore_clone_used": True,
+                "golden_actual_artifactstore_mutated": False,
+                "clone_initial_records": len(clone_initial_records),
+                "immutable_visual_result_artifacts": len(
+                    handoff.result_refs
+                ),
+                "accepted_visual_result_artifacts": len(
+                    handoff.accepted_result_refs
+                ),
+                "blocked_terminal_visual_result_artifacts": len(
+                    handoff.blocked_result_refs
+                ),
+                "visual_gate2_packages": len(visual_gate2_packages),
+                "visual_gate2_packages_passed": sum(
+                    1
+                    for package in visual_gate2_packages
+                    if package.get("source_unit", {}).get("unit_kind")
+                    == "table_row_window"
+                ),
+                "visual_documents_with_canonical_input": _object(
+                    gate2_readiness.validation.get("visual_recovery_audit")
+                ).get("documents_with_visual_canonical_input_total"),
+                "gate2_validator_status": gate2_readiness.validation.get(
+                    "validator_status"
+                ),
+                "gate2_errors": gate2_readiness.validation.get(
+                    "errors_count"
+                ),
+                "gate2_artifactstore_unchanged_after_handoff": (
+                    gate2_readiness.validation.get("artifactstore_unchanged")
+                ),
+                "clone_records_after_handoff": len(clone_persisted_records),
+                "provider_calls": 0,
+                "whole_document_provider_uploads": 0,
+                "model_canonical_authority": False,
+                "customer_values_in_output": False,
+                "source_identities_in_output": False,
+                "status": "passed",
+            }
+            gate2_integration_private = {
+                "handoff": handoff.to_dict(),
+                "validation": gate2_readiness.validation,
+                "visual_package_ids": [
+                    package.get("package_id")
+                    for package in visual_gate2_packages
+                ],
+            }
         accepted_scopes = sum(
             count
             for state, count in scope_states.items()
             if state.startswith("canonical_table_accepted_")
         )
-        scope_exact = (
-            accepted_scopes == 9
+        terminal_scope_accounting_exact = (
+            accepted_scopes == 10
             and scope_states["unresolved_visual_requires_review"] == 1
-            and scope_states["unsupported_visual_layout"] == 1
+            and scope_states["unsupported_visual_layout"] == 0
             and sum(scope_states.values()) == 11
         )
         if not artifactstore_unchanged:
@@ -1118,7 +1265,10 @@ def build_proof(
                 "required_unique_scopes": 11,
                 "accepted_unique_scopes": accepted_scopes,
                 "promotion_state_counts": dict(sorted(scope_states.items())),
-                "exact_scope_invariant_passed": scope_exact,
+                "terminal_scope_accounting_passed": (
+                    terminal_scope_accounting_exact
+                ),
+                "exact_scope_invariant_passed": accepted_scopes == 11,
             },
             "canonical_region_accounting": {
                 "regions_accepted": canonical_regions,
@@ -1132,10 +1282,12 @@ def build_proof(
                 "source_image_uniform_evidence_preserved": True,
                 "reclassified_as_non_material": False,
             },
-            "out_of_profile_scope": {
-                "terminal_state": "unsupported_visual_layout",
+            "complex_layout_scope": {
+                "terminal_state": "canonical_table_accepted_reviewed_visual",
+                "regions_accepted": 5,
                 "model_topology_used_as_authority": False,
-                "failed_closed": True,
+                "failed_closed": False,
+                "status": "passed",
             },
             "negative_non_table": {
                 "actual_scope_evaluated": True,
@@ -1167,13 +1319,13 @@ def build_proof(
             "model_canonical_authority": False,
             "whole_document_provider_uploads": 0,
             "artifactstore_unchanged": artifactstore_unchanged,
+            "gate2_canonical_integration": gate2_integration_safe,
             "customer_values_in_output": False,
             "source_identities_in_output": False,
             "release_readiness_claimed": False,
             "customer_acceptance_claimed": False,
             "closure_blockers": [
                 "one_material_scope_is_byte_uniform_and_unresolved",
-                "one_material_complex_layout_is_outside_frozen_grid_profile",
             ],
             "private_result_safe_projection_count": len(safe_reports),
         }
@@ -1195,6 +1347,7 @@ def build_proof(
                 "result": holdout_result,
                 "layout_sibling_overlap_ratio": holdout_overlap,
             },
+            "gate2_canonical_integration": gate2_integration_private,
             "provider_accounting": copy.deepcopy(PROVIDER_ZERO),
             "raw_customer_values_copied_to_safe_output": False,
             "original_files_read_directly": False,

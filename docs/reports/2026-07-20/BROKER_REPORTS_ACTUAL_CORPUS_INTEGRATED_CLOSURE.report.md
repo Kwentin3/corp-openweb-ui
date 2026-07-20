@@ -5,7 +5,7 @@ Program status: **NOT_CLOSED**
 
 ## Outcome
 
-The 29 historical readiness errors are fully classified and no Gate 2 validator errors remain. The program is still not closed because visual recovery is 9/11, the accepted visual outputs are not yet integrated as Gate 2 canonical input, and the same-family Sber positive holdout remains external customer debt.
+The 29 historical readiness errors are fully classified and no Gate 2 validator errors remain. Accepted visual recovery is integrated as validated Gate 2 canonical input. The program is still not closed because one of 11 claimed material visual scopes is physically byte-uniform and unresolved, and the same-family Sber positive holdout remains external customer debt.
 
 ## Actual-corpus accounting
 
@@ -14,7 +14,7 @@ The 29 historical readiness errors are fully classified and no Gate 2 validator 
 - Gate 2: 75 source-ready documents, 681 validated packages, 0 errors.
 - FNS 2-NDFL: 24 typed outputs and 351 typed facts.
 - Broker PDF actual corpus: 14/14 canonical regions.
-- Visual-only material scopes: 9/11 accepted.
+- Visual-only material scopes: 10/11 accepted.
 
 ## Workflow readiness
 
@@ -24,7 +24,7 @@ The 29 historical readiness errors are fully classified and no Gate 2 validator 
 | html_broker_report_interpretation | ready |
 | broker_pdf_canonical_table_interpretation_actual_corpus | ready_private_actual_corpus |
 | fns_2ndfl_xml_interpretation | ready |
-| visual_only_table_interpretation | implementation_blocked |
+| visual_only_table_interpretation | ready_for_accepted_scopes_with_one_fail_closed_restriction |
 | complete_actual_corpus_source_local_interpretation | ready_with_explicit_restrictions |
 | same_family_sber_profile_generalization | externally_blocked |
 
@@ -39,6 +39,7 @@ Every row, including exact terminal state, workflow impact, owner, next action a
 - Actual-corpus Sber processing: ready in private proof (14/14).
 - Same-family Sber generalization: awaiting customer positive holdout.
 - Sber release: gated; the default-off valve is unchanged.
-- Visual recovery: implementation blocked at 9/11 and not yet a Gate 2 canonical consumer path.
+- Visual recovery: 10/11 claimed material scopes accepted; 17 canonical regions are integrated through the Gate 2 consumer path.
+- Remaining visual restriction: one claimed material source image is byte-uniform and remains fail-closed.
 - Customer acceptance: not claimed.
-- Stage delivery/repository-live parity: outside this Goal 4 proof and not claimed here.
+- Stage delivery/repository-live parity: evidenced separately and not inferred from this reconciliation proof.

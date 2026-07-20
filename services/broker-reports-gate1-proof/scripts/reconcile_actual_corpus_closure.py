@@ -133,6 +133,10 @@ def build_closure(
     fns_acceptance = _object(fns.get("acceptance"))
     fns_terminal = _object(fns.get("terminal_accounting"))
     visual_scopes = _object(visual.get("material_scope_accounting"))
+    visual_canonical = _object(visual.get("canonical_region_accounting"))
+    visual_gate2 = _object(visual.get("gate2_canonical_integration"))
+    visual_complex = _object(visual.get("complex_layout_scope"))
+    visual_blank = _object(visual.get("blank_scope"))
     broker_actual = _object(broker.get("actual_corpus"))
 
     _require(gate1.get("proof_status") == "passed", "integrated_gate1_proof_failed")
@@ -197,15 +201,34 @@ def build_closure(
     _require(_object(fns.get("provider_accounting")).get("calls") == 0, "integrated_fns_provider_call")
 
     _require(visual_scopes.get("required_unique_scopes") == 11, "integrated_visual_scope_count_mismatch")
-    _require(visual_scopes.get("accepted_unique_scopes") == 9, "integrated_visual_acceptance_count_mismatch")
+    _require(visual_scopes.get("accepted_unique_scopes") == 10, "integrated_visual_acceptance_count_mismatch")
+    _require(visual_scopes.get("exact_scope_invariant_passed") is False, "integrated_visual_false_scope_completion")
+    _require(visual_scopes.get("terminal_scope_accounting_passed") is True, "integrated_visual_terminal_accounting_failed")
     _require(visual.get("status") == "NOT_CLOSED", "integrated_visual_false_completion")
     _require(_object(visual.get("provider_accounting")).get("calls") == 0, "integrated_visual_provider_call")
     _require(visual.get("artifactstore_unchanged") is True, "integrated_visual_store_changed")
     _require(
-        _object(visual.get("canonical_region_accounting")).get("regions_accepted")
-        == 12,
+        visual_canonical.get("regions_accepted") == 17,
         "integrated_visual_region_count_mismatch",
     )
+    _require(visual_complex.get("status") == "passed", "integrated_complex_visual_scope_failed")
+    _require(visual_complex.get("regions_accepted") == 5, "integrated_complex_visual_region_count_mismatch")
+    _require(
+        visual_blank.get("terminal_state") == "unresolved_visual_requires_review",
+        "integrated_blank_visual_scope_not_fail_closed",
+    )
+    _require(visual_blank.get("reclassified_as_non_material") is False, "integrated_blank_visual_scope_reclassified")
+    _require(visual_gate2.get("status") == "passed", "integrated_visual_gate2_status_failed")
+    _require(visual_gate2.get("gate2_validator_status") == "passed", "integrated_visual_gate2_validator_failed")
+    _require(visual_gate2.get("gate2_errors") == 0, "integrated_visual_gate2_errors_remain")
+    _require(visual_gate2.get("accepted_visual_result_artifacts") == 17, "integrated_visual_artifact_count_mismatch")
+    _require(visual_gate2.get("blocked_terminal_visual_result_artifacts") == 1, "integrated_visual_blocked_artifact_count_mismatch")
+    _require(visual_gate2.get("visual_gate2_packages") == 17, "integrated_visual_gate2_package_count_mismatch")
+    _require(visual_gate2.get("visual_gate2_packages_passed") == 17, "integrated_visual_gate2_package_validation_failed")
+    _require(visual_gate2.get("visual_documents_with_canonical_input") == 5, "integrated_visual_gate2_document_count_mismatch")
+    _require(visual_gate2.get("gate2_artifactstore_unchanged_after_handoff") is True, "integrated_visual_gate2_store_changed")
+    _require(visual_gate2.get("golden_actual_artifactstore_mutated") is False, "integrated_visual_golden_store_changed")
+    _require(visual_gate2.get("provider_calls") == 0, "integrated_visual_gate2_provider_call")
 
     _require(broker_actual.get("canonical_regions_total") == 14, "integrated_broker_region_count_mismatch")
     _require(broker_actual.get("validator_passed_regions_total") == 14, "integrated_broker_validator_failed")
@@ -252,18 +275,31 @@ def build_closure(
             count=1,
         ),
     ]
-    remaining = [
+    resolved_program_blockers = [
         _row(
-            taxonomy="implementation_defect",
+            taxonomy="resolved_implementation_defect",
             scope="accepted_visual_canonical_scope_set",
             component="visual_recovery_to_gate2_canonical_consumer",
             materiality="material",
             workflows=["visual_only_table_interpretation"],
-            terminal_state="accepted_private_proof_not_integrated_as_gate2_input",
-            next_action="persist_and_bind_validated_visual_canonical_tables_through_maintained_factories",
-            debt_type="product_debt",
-            count=9,
+            terminal_state="resolved_immutable_visual_artifacts_consumed_as_validated_gate2_packages",
+            next_action="none_regression_guarded",
+            debt_type="none",
+            count=17,
         ),
+        _row(
+            taxonomy="resolved_unsupported_profile",
+            scope="complex_visual_layout_scope",
+            component="gate1_visual_neutral_table_recovery",
+            materiality="material",
+            workflows=["visual_only_table_interpretation"],
+            terminal_state="resolved_canonical_table_accepted_reviewed_visual",
+            next_action="none_preserve_profile_and_replay_tests",
+            debt_type="none",
+            count=1,
+        ),
+    ]
+    remaining = [
         _row(
             taxonomy="correct_scope_restriction",
             scope="byte_uniform_material_visual_scope",
@@ -273,17 +309,6 @@ def build_closure(
             terminal_state="unresolved_visual_requires_review",
             next_action="source_owner_confirms_or_replaces_the_material_but_blank_source_scope",
             debt_type="correct_restriction",
-            count=1,
-        ),
-        _row(
-            taxonomy="unsupported_profile",
-            scope="complex_visual_layout_scope",
-            component="gate1_visual_neutral_table_recovery",
-            materiality="material",
-            workflows=["visual_only_table_interpretation"],
-            terminal_state="unsupported_visual_layout",
-            next_action="implement_and_holdout_test_a_separate_complex_layout_profile_or_keep_blocked",
-            debt_type="product_debt",
             count=1,
         ),
         _row(
@@ -328,8 +353,8 @@ def build_closure(
         {"workflow": "html_broker_report_interpretation", "status": "ready", "evidence": {"source_records": container_counts["html_text"], "gate2_validator": "passed"}},
         {"workflow": "broker_pdf_canonical_table_interpretation_actual_corpus", "status": "ready_private_actual_corpus", "evidence": {"canonical_regions": 14, "canonical_pdf_packages": 14}},
         {"workflow": "fns_2ndfl_xml_interpretation", "status": "ready", "evidence": {"typed_outputs": 24, "typed_facts": fns_terminal.get("typed_facts_total")}},
-        {"workflow": "visual_only_table_interpretation", "status": "implementation_blocked", "evidence": {"accepted_unique_scopes": 9, "required_unique_scopes": 11, "gate2_consumer_integrated": False}},
-        {"workflow": "complete_actual_corpus_source_local_interpretation", "status": "ready_with_explicit_restrictions", "evidence": {"source_records": 104, "logical_documents": 80, "gate2_errors": 0, "explicit_visual_blockers": 2}},
+        {"workflow": "visual_only_table_interpretation", "status": "ready_for_accepted_scopes_with_one_fail_closed_restriction", "evidence": {"accepted_unique_scopes": 10, "required_unique_scopes": 11, "gate2_consumer_integrated": True, "visual_gate2_packages": 17}},
+        {"workflow": "complete_actual_corpus_source_local_interpretation", "status": "ready_with_explicit_restrictions", "evidence": {"source_records": 104, "logical_documents": 80, "gate2_errors": 0, "explicit_visual_blockers": 1}},
         {"workflow": "same_family_sber_profile_generalization", "status": "externally_blocked", "evidence": {"actual_corpus_regions": 14, "positive_holdout": "awaiting_customer"}},
     ]
 
@@ -372,8 +397,8 @@ def build_closure(
             "goal_0_customer_debt_and_release_isolation": "completed",
             "goal_1_zip_lineage_handoff": "completed",
             "goal_2_fns_typed_adapter_and_pdf_parity": "completed",
-            "goal_3_visual_neutral_table_recovery": "implementation_blocked",
-            "goal_4_readiness_reconciliation": "completed_with_integrated_closure_blocked_by_goal_3",
+            "goal_3_visual_neutral_table_recovery": "not_closed_10_of_11_one_byte_uniform_scope",
+            "goal_4_readiness_reconciliation": "completed_for_accepted_scopes_with_goal_3_restriction",
         },
         "actual_corpus_accounting": {
             "source_records": 104,
@@ -394,10 +419,14 @@ def build_closure(
             "broker_pdf_actual_canonical_regions": broker_actual.get("canonical_regions_total"),
             "visual_unique_material_scopes": visual_scopes.get("required_unique_scopes"),
             "visual_accepted_unique_scopes": visual_scopes.get("accepted_unique_scopes"),
+            "visual_canonical_regions": visual_canonical.get("regions_accepted"),
+            "visual_gate2_packages": visual_gate2.get("visual_gate2_packages"),
+            "visual_gate2_documents": visual_gate2.get("visual_documents_with_canonical_input"),
         },
         "readiness_error_reconciliation": {
             "historical_errors_total": sum(item["count"] for item in historical),
             "historical_resolution_rows": historical,
+            "resolved_program_blockers": resolved_program_blockers,
             "current_gate2_validator_errors": current_result.get("errors_count"),
             "remaining_program_blockers": remaining,
             "accounted_non_errors": accounted_non_errors,
@@ -440,11 +469,8 @@ def build_closure(
             "model_canonical_authority": False,
         },
         "closure_blockers": [
-            "accepted_visual_outputs_not_integrated_as_gate2_canonical_input",
             "one_material_visual_scope_is_byte_uniform_and_unresolved",
-            "one_material_complex_visual_layout_is_unsupported",
             "same_family_sber_positive_holdout_is_customer_debt",
-            "accepted_capabilities_stage_delivery_not_yet_in_this_goal4_proof",
         ],
     }
     _require(
@@ -470,7 +496,7 @@ def render_report(proof: dict[str, Any]) -> str:
         "",
         "## Outcome",
         "",
-        "The 29 historical readiness errors are fully classified and no Gate 2 validator errors remain. The program is still not closed because visual recovery is 9/11, the accepted visual outputs are not yet integrated as Gate 2 canonical input, and the same-family Sber positive holdout remains external customer debt.",
+        "The 29 historical readiness errors are fully classified and no Gate 2 validator errors remain. Accepted visual recovery is integrated as validated Gate 2 canonical input. The program is still not closed because one of 11 claimed material visual scopes is physically byte-uniform and unresolved, and the same-family Sber positive holdout remains external customer debt.",
         "",
         "## Actual-corpus accounting",
         "",
@@ -504,9 +530,10 @@ def render_report(proof: dict[str, Any]) -> str:
             "- Actual-corpus Sber processing: ready in private proof (14/14).",
             "- Same-family Sber generalization: awaiting customer positive holdout.",
             "- Sber release: gated; the default-off valve is unchanged.",
-            "- Visual recovery: implementation blocked at 9/11 and not yet a Gate 2 canonical consumer path.",
+            "- Visual recovery: 10/11 claimed material scopes accepted; 17 canonical regions are integrated through the Gate 2 consumer path.",
+            "- Remaining visual restriction: one claimed material source image is byte-uniform and remains fail-closed.",
             "- Customer acceptance: not claimed.",
-            "- Stage delivery/repository-live parity: outside this Goal 4 proof and not claimed here.",
+            "- Stage delivery/repository-live parity: evidenced separately and not inferred from this reconciliation proof.",
             "",
         ]
     )
