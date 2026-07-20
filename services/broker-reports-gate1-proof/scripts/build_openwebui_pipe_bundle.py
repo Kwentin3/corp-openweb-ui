@@ -48,6 +48,7 @@ MODULE_ORDER = [
     "pdf_layout_units",
     "pdf_text_layer",
     "pdf_visual_memory",
+    "visual_neutral_tables",
     "full_source",
     "pdf_compact_canonical",
     "pdf_compact_gate2_adapter",
