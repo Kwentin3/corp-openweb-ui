@@ -1,0 +1,44 @@
+{
+  "backend_action": {
+    "accepts_existing_file_refs": true,
+    "feature_owned_upload_endpoint": false,
+    "incompatible_native_processing_state_rejected": false,
+    "post_upload_no_vector_invariant_checked": false
+  },
+  "guard_gap": {
+    "client_can_omit_or_bypass_process_false": true,
+    "native_processing_can_start_before_gate1_action": true,
+    "narrow_fix": "server_authoritative_feature_owned_upload_contract",
+    "repository_and_live_affected": true,
+    "severity": "P0_correctness_security",
+    "specific_gap": "broker_document_upload_is_not_rewritten_to_process_false"
+  },
+  "live_parity": {
+    "http_status": 200,
+    "live_loader_sha256": "28c5eadf6839d9aac5db4f125c31bda5ca6f08d9ce82723c832dd319126703b2",
+    "repository_loader_sha256": "28c5eadf6839d9aac5db4f125c31bda5ca6f08d9ce82723c832dd319126703b2",
+    "repository_live_exact": true
+  },
+  "privacy": {
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "source_or_file_ids_in_output": false
+  },
+  "product_route": {
+    "action_endpoint": "/api/chat/actions/broker_reports_gate1_normalizer_action",
+    "broker_upload_forced_process_false": false,
+    "default_file_upload_endpoint": "/api/v1/files/",
+    "native_file_list_is_accepted_by_broker_action": true,
+    "stt_upload_forced_process_false": true,
+    "ui_action": "broker_reports_gate1_composer_and_attachment_action"
+  },
+  "required_invariant": {
+    "knowledge_entries": "not_proven_impossible",
+    "native_document_processing_artifacts": "not_proven_impossible",
+    "rag_documents": "not_proven_impossible",
+    "status": "failed",
+    "vector_collections_or_embeddings": "not_proven_impossible"
+  },
+  "schema_version": "broker_reports_product_intake_vectorization_audit_safe_v1",
+  "status": "guard_gap_identified"
+}
