@@ -648,8 +648,19 @@ def _usage_entry(
     extraction_blocked = bool(issue_types & {"readability_blocker", "no_files"})
     if not readable:
         extraction_blocked = True
+    gate2_consumable_source_scope = _gate2_consumable_source_scope(memory_entry)
+    gate2_consumer_blocked = bool(
+        source_candidate
+        and readable
+        and not extraction_blocked
+        and not lineage_only
+        and not gate2_consumable_source_scope
+    )
     source_ready = bool(
-        source_candidate and not extraction_blocked and not lineage_only
+        source_candidate
+        and not extraction_blocked
+        and not lineage_only
+        and gate2_consumable_source_scope
     )
     source_ready_with_issues = bool(source_ready and issue_refs)
     cross_check_ready = bool(readable and not extraction_blocked and not lineage_only)
@@ -680,8 +691,12 @@ def _usage_entry(
     else:
         readiness_by_stage = {
             "domain_ingestion": "completed",
-            "source_fact_extraction": _ready_label(
-                source_ready, source_ready_with_issues, extraction_blocked
+            "source_fact_extraction": (
+                "blocked_no_gate2_consumer"
+                if gate2_consumer_blocked
+                else _ready_label(
+                    source_ready, source_ready_with_issues, extraction_blocked
+                )
             ),
             "cross_check": _ready_label(
                 cross_check_ready,
@@ -722,6 +737,7 @@ def _usage_entry(
             "taxonomy_class": taxonomy_class,
             "source_eligibility": eligibility_status,
             "document_memory_status": memory_status or "not_available",
+            "gate2_consumable_source_scope": gate2_consumable_source_scope,
         },
     }
 
@@ -1169,6 +1185,19 @@ def _document_readable(document: dict[str, Any]) -> bool:
     if document.get("read_error_class"):
         return False
     return str(document.get("readable") or "") in {"yes", "conditional"}
+
+
+def _gate2_consumable_source_scope(memory_entry: dict[str, Any] | None) -> bool:
+    if not isinstance(memory_entry, dict):
+        return True
+    readiness = _object(_object(memory_entry.get("source_scope")).get("scope_readiness"))
+    if bool(
+        readiness.get("text_scope") == "ready"
+        or str(readiness.get("canonical_table_scope") or "").startswith("ready_")
+        or readiness.get("neutral_structure_scope") == "ready"
+    ):
+        return True
+    return readiness.get("visual_scope") != "ready"
 
 
 def _ready_label(ready: bool, with_issues: bool, blocked: bool) -> str:

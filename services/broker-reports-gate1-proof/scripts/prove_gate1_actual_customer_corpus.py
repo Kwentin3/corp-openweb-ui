@@ -39,6 +39,20 @@ from broker_reports_gate1 import (
 DEFAULT_CONFIG = (
     REPO_ROOT / "local" / "stage2" / "broker_reports_customer_case_alpha.local.json"
 )
+
+
+def _full_gate2_validator_passed(
+    *, requested: bool, evidence: dict[str, Any] | None
+) -> bool:
+    if not requested:
+        return True
+    return bool(
+        isinstance(evidence, dict)
+        and evidence.get("status") == "completed"
+        and evidence.get("validator_status") == "passed"
+    )
+
+
 SAFE_REGISTRY = (
     REPO_ROOT
     / "docs"
@@ -252,6 +266,10 @@ def main() -> None:
             "document_memory_validator_status"
         ]
         == "passed",
+        "full_gate2_validator_passed": _full_gate2_validator_passed(
+            requested=args.full_gate2_packages,
+            evidence=full_gate2,
+        ),
         "gate1_immutable_after_gate2": [item.artifact_id for item in records_before]
         == [item.artifact_id for item in records_after],
         "knowledge_rag_absent": all(

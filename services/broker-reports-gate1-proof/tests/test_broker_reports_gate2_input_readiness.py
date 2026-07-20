@@ -33,6 +33,7 @@ from broker_reports_gate1 import (
     validate_normalized_slice_provenance,
 )
 from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
+from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
 from broker_reports_gate1.gate2_input_readiness import (
     FACTORY_REQUIRED as GATE2_FACTORY_REQUIRED,
     FORBIDDEN as GATE2_FORBIDDEN,
@@ -422,6 +423,57 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
                 item["source_unit"].get("unit_kind") != "visual_media"
                 for item in html_readiness.packages
             )
+        )
+
+    def test_visual_only_pdf_is_auditable_without_blocking_packageable_peer(self):
+        result = Gate1Normalizer().normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="gate2-packageable-peer",
+                    filename="operations.csv",
+                    content=fixture_bytes("synthetic_operations.csv"),
+                    mime_type="text/csv",
+                ),
+                FileInput.from_bytes(
+                    private_ref="gate2-visual-only",
+                    filename="scan.pdf",
+                    content=_pdf_bytes(pages=[("image", [])]),
+                    mime_type="application/pdf",
+                )
+            ]
+        )
+        usage = next(
+            item
+            for item in result.package["document_usage_classification"]["entries"]
+            if item["deterministic_basis"]["container_format"] == "pdf"
+        )
+        self.assertEqual(
+            usage["readiness_by_stage"]["source_fact_extraction"],
+            "blocked_unreadable",
+        )
+        self.assertIn("audit_reference", usage["usage_modes"])
+        self.assertEqual(
+            len(
+                result.package["domain_context_packet"]["next_stage_refs"][
+                    "source_fact_ready_refs"
+                ]
+            ),
+            1,
+        )
+
+        context, manifest = self._persist(result)
+        readiness = Gate2InputReadinessFactory(store=self.store).create().audit_and_build(
+            domain_context_packet_ref=manifest.artifact_refs_by_type[
+                "domain_context_packet_v0"
+            ][0],
+            context=context,
+        )
+
+        self.assertEqual(readiness.validation["validator_status"], "passed")
+        self.assertGreater(len(readiness.packages), 0)
+        self.assertEqual(
+            readiness.validation["source_ready_refs_total"],
+            1,
         )
 
     def test_source_fact_ready_dcp_keeps_handoff_manifest_resolver_readable_when_compatibility_is_blocked(self):

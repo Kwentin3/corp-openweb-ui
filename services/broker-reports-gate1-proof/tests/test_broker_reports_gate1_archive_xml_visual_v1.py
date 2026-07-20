@@ -25,8 +25,10 @@ from broker_reports_gate1.archive_intake import (
     FACTORY_REQUIRED as ARCHIVE_FACTORY_REQUIRED,
     FORBIDDEN as ARCHIVE_FORBIDDEN,
 )
+from broker_reports_gate1.domain_ingestion import _next_stage_refs, _usage_entry
 from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
 from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
+from scripts.prove_gate1_actual_customer_corpus import _full_gate2_validator_passed
 
 
 def _zip_bytes(entries: list[tuple[str, bytes]]) -> bytes:
@@ -400,6 +402,86 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         self.assertEqual(scope["visual_scope"], "ready")
         self.assertEqual(scope["text_scope"], "unavailable_visual_scope_only")
         self.assertIn("visual_units_require_visual_consumer", scope["restrictions"])
+        usage = result.package["document_usage_classification"]["entries"][0]
+        self.assertEqual(
+            usage["readiness_by_stage"]["source_fact_extraction"],
+            "blocked_unreadable",
+        )
+        self.assertFalse(
+            usage["deterministic_basis"]["gate2_consumable_source_scope"]
+        )
+        self.assertEqual(
+            result.package["domain_context_packet"]["next_stage_refs"][
+                "source_fact_ready_refs"
+            ],
+            [],
+        )
+
+    def test_visual_only_source_candidate_is_not_advertised_without_consumer(self):
+        document = {
+            "document_id": "brdoc_visual_candidate",
+            "bytes_status": "available",
+            "readable": "yes",
+            "container_format": "pdf",
+            "machine_readable": "unknown",
+        }
+        eligibility = {
+            "document_id": "brdoc_visual_candidate",
+            "source_eligibility": "accepted_for_gate2",
+            "included_in_reduced_subset": True,
+            "reason_codes": [],
+        }
+        usage = _usage_entry(
+            document,
+            {"document_class_candidate": "tax_source_document"},
+            eligibility,
+            [],
+            memory_entry={
+                "gate2_memory_status": "ready_with_restrictions",
+                "source_scope": {
+                    "scope_readiness": {
+                        "text_scope": "unavailable_visual_scope_only",
+                        "visual_scope": "ready",
+                        "canonical_table_scope": "unavailable",
+                        "neutral_structure_scope": "not_applicable",
+                    }
+                },
+            },
+        )
+
+        self.assertEqual(
+            usage["readiness_by_stage"]["source_fact_extraction"],
+            "blocked_no_gate2_consumer",
+        )
+        self.assertIn("audit_reference", usage["usage_modes"])
+        refs = _next_stage_refs(
+            {
+                "document_source_eligibility": {"entries": [eligibility]},
+                "gate2_handoff": {
+                    "included_document_ids": ["brdoc_visual_candidate"]
+                },
+            },
+            [usage],
+        )
+        self.assertEqual(refs["source_fact_ready_refs"], [])
+        self.assertEqual(refs["audit_reference_refs"], ["brdoc_visual_candidate"])
+
+    def test_requested_full_gate2_validation_is_a_proof_gate(self):
+        self.assertTrue(
+            _full_gate2_validator_passed(requested=False, evidence=None)
+        )
+        self.assertFalse(
+            _full_gate2_validator_passed(
+                requested=True,
+                evidence={"status": "completed", "validator_status": "failed"},
+            )
+        )
+        self.assertTrue(
+            _full_gate2_validator_passed(
+                requested=True,
+                evidence={"status": "completed", "validator_status": "passed"},
+            )
+        )
 
     def test_scope_readiness_tamper_is_rejected(self):
         result = Gate1Normalizer().normalize(
