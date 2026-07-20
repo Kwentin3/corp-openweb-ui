@@ -219,23 +219,79 @@ class SqliteArtifactStoreAdapter:
         return json.loads(payload_path.read_text(encoding="utf-8"))
 
     def expire_artifacts(self, now: datetime | None = None) -> list[str]:
+        return self._expire_records(now=now, normalization_run_id=None)
+
+    def expire_run(
+        self,
+        normalization_run_id: str,
+        now: datetime | None = None,
+    ) -> list[str]:
+        if not normalization_run_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Artifact normalization run context is required",
+            )
+        return self._expire_records(
+            now=now,
+            normalization_run_id=normalization_run_id,
+        )
+
+    def _expire_records(
+        self,
+        *,
+        now: datetime | None,
+        normalization_run_id: str | None,
+    ) -> list[str]:
         current = now or datetime.now(timezone.utc)
         expired_ids: list[str] = []
-        for record in self._active_records():
-            if not record.expires_at:
-                continue
-            try:
-                expires_at = datetime.fromisoformat(record.expires_at)
-            except ValueError as exc:
-                raise ArtifactStoreError("artifact_payload_unavailable", "Invalid artifact expires_at") from exc
-            if expires_at > current:
-                continue
-            self._set_status(
-                record.artifact_id,
-                lifecycle_status="expired",
-                purge_status="expired",
-            )
-            expired_ids.append(record.artifact_id)
+        with self._connect() as conn:
+            if normalization_run_id is None:
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM artifact_records
+                    WHERE purge_status NOT IN ('purged')
+                      AND lifecycle_status NOT IN ('purged')
+                      AND expires_at IS NOT NULL
+                    ORDER BY expires_at ASC, created_at ASC
+                    """
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM artifact_records
+                    WHERE normalization_run_id = ?
+                      AND purge_status NOT IN ('purged')
+                      AND lifecycle_status NOT IN ('purged')
+                      AND expires_at IS NOT NULL
+                    ORDER BY expires_at ASC, created_at ASC
+                    """,
+                    (normalization_run_id,),
+                ).fetchall()
+            updated_at = utc_now_iso()
+            for row in rows:
+                record = _row_to_record(row)
+                try:
+                    expires_at = datetime.fromisoformat(str(record.expires_at))
+                except ValueError as exc:
+                    raise ArtifactStoreError(
+                        "artifact_payload_unavailable",
+                        "Invalid artifact expires_at",
+                    ) from exc
+                if expires_at > current:
+                    continue
+                conn.execute(
+                    """
+                    UPDATE artifact_records
+                    SET lifecycle_status = 'expired',
+                        purge_status = 'expired',
+                        updated_at = ?
+                    WHERE artifact_id = ?
+                    """,
+                    (updated_at, record.artifact_id),
+                )
+                expired_ids.append(record.artifact_id)
         return expired_ids
 
     def purge_run(self, normalization_run_id: str) -> list[str]:

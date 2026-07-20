@@ -1817,7 +1817,10 @@ class Pipe:
             ),
             source_file_refs=self._source_file_refs(file_refs),
         )
-        store.expire_artifacts(now=datetime.now(timezone.utc) + timedelta(seconds=2))
+        store.expire_run(
+            probe_context.normalization_run_id,
+            now=datetime.now(timezone.utc) + timedelta(seconds=2),
+        )
         self._assert_resolver_denies(
             resolver,
             probe_manifest.safe_refs[0],
