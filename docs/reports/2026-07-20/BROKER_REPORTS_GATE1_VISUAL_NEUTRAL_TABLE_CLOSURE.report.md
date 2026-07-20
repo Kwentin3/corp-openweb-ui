@@ -99,3 +99,9 @@ terminal evidence satisfying the required canonical acceptance invariant, or
 when the authorized source owner corrects the underlying evidence. The current
 byte-uniform source cannot be repaired by OCR and was not reclassified merely to
 make the denominator pass.
+
+The separate maintained source-binary proof confirms that this is the only blank
+page in its 19-page PDF: page 8 has zero content streams, bytes, text, images,
+XObjects, drawings, links, and annotations, while all other 18 pages are
+contentful. Two exact source copies and both normalized renders agree. See
+`BROKER_REPORTS_GATE1_VISUAL_SOURCE_CORRECTION_REQUIRED.v1.safe.json`.

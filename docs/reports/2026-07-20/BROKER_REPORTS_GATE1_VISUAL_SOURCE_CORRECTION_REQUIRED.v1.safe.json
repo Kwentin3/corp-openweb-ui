@@ -1,0 +1,152 @@
+{
+  "artifactstore_page_render_proof": {
+    "all_normalized_renders_white": true,
+    "artifactstore_unchanged": true,
+    "normalized_page_renders": 2,
+    "normalized_render_pixel_equal_source_render": true,
+    "render_metrics": [
+      {
+        "all_pixels_white": true,
+        "channels": 3,
+        "height": 1584,
+        "nonwhite_channel_values": 0,
+        "pixel_standard_deviation": 0.0,
+        "width": 1224
+      },
+      {
+        "all_pixels_white": true,
+        "channels": 3,
+        "height": 1584,
+        "nonwhite_channel_values": 0,
+        "pixel_standard_deviation": 0.0,
+        "width": 1224
+      }
+    ]
+  },
+  "failed_contract_invariant": "visual_scopes_canonical_11_of_11",
+  "goal_3_status": "correctly_deferred_source_correction_required",
+  "original_source_page_proof": {
+    "all_render_paths_byte_uniform": true,
+    "all_visible_content_signals_zero": true,
+    "independent_library_proofs_agree": true,
+    "pymupdf": {
+      "alpha_render": {
+        "all_pixels_transparent": true,
+        "height": 1584,
+        "opaque_or_visible_pixels": 0,
+        "width": 1224
+      },
+      "annotations": 0,
+      "blank_other_pages": 0,
+      "content_stream_bytes": 0,
+      "content_streams": 0,
+      "contentful_other_pages": 18,
+      "cropbox_equals_mediabox": true,
+      "drawings": 0,
+      "images": 0,
+      "links": 0,
+      "mediabox_render": {
+        "all_pixels_white": true,
+        "channels": 3,
+        "height": 1584,
+        "nonwhite_channel_values": 0,
+        "pixel_standard_deviation": 0.0,
+        "width": 1224
+      },
+      "page_count": 19,
+      "page_rotation_degrees": 0,
+      "raw_image_blocks": 0,
+      "renders": [
+        {
+          "all_pixels_white": true,
+          "channels": 3,
+          "height": 792,
+          "nonwhite_channel_values": 0,
+          "pixel_standard_deviation": 0.0,
+          "scale": 1.0,
+          "width": 612
+        },
+        {
+          "all_pixels_white": true,
+          "channels": 3,
+          "height": 1584,
+          "nonwhite_channel_values": 0,
+          "pixel_standard_deviation": 0.0,
+          "scale": 2.0,
+          "width": 1224
+        },
+        {
+          "all_pixels_white": true,
+          "channels": 3,
+          "height": 3168,
+          "nonwhite_channel_values": 0,
+          "pixel_standard_deviation": 0.0,
+          "scale": 4.0,
+          "width": 2448
+        },
+        {
+          "all_pixels_white": true,
+          "channels": 3,
+          "height": 3300,
+          "nonwhite_channel_values": 0,
+          "pixel_standard_deviation": 0.0,
+          "scale": 4.166667,
+          "width": 2550
+        }
+      ],
+      "target_page_number": 8,
+      "text_characters": 0
+    },
+    "pymupdf_version": "1.26.5",
+    "pypdf": {
+      "annotations": 0,
+      "content_stream_bytes": 0,
+      "content_streams": 0,
+      "declared_fonts": 0,
+      "declared_xobjects": 0,
+      "page_count": 19
+    },
+    "pypdf_version": "6.7.5",
+    "target_is_only_blank_page_in_document": true
+  },
+  "owner_handoff": {
+    "narrowest_remaining_action": "confirm_or_replace_the_claimed_material_but_byte_uniform_source_page",
+    "owner": "authorized_source_owner",
+    "replacement_acceptance": [
+      "replacement_source_identity_is_authorized",
+      "replacement_target_page_contains_visible_source_evidence",
+      "source_hash_and_page_render_lineage_are_rebuilt",
+      "bounded_visual_recovery_replays_twice",
+      "canonical_table_validator_passes",
+      "gate2_visual_package_validator_passes"
+    ]
+  },
+  "privacy": {
+    "customer_values_in_output": false,
+    "knowledge_rag_used": false,
+    "private_paths_in_output": false,
+    "provider_calls": 0,
+    "raw_artifact_or_document_refs_in_output": false,
+    "raw_source_hashes_in_output": false,
+    "source_filenames_in_output": false,
+    "vectorization_performed": false,
+    "whole_document_provider_uploads": 0
+  },
+  "proof_date": "2026-07-20",
+  "recovery_feasibility": {
+    "adjacent_page_value_inference_allowed": false,
+    "canonical_table_recovery_from_current_source": "impossible_without_source_correction",
+    "material_scope_reclassified": false,
+    "model_canonical_authority": false
+  },
+  "schema_version": "broker_reports_visual_source_correction_required_safe_v1",
+  "scope_accounting": {
+    "claimed_material_scopes_affected": 1,
+    "exact_source_binary_copies": 2,
+    "exact_source_copy_hash_sets_equal": true,
+    "source_identity_records": 2,
+    "target_page_number": 8,
+    "unique_source_binary_hashes": 1
+  },
+  "status": "NOT_CLOSED"
+}

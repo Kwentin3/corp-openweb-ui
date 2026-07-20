@@ -36,8 +36,8 @@ customer debt.
 - Stage PyMuPDF is `1.26.5`, matching the required version.
 - The Sber neutral-table profile remains disabled and release-gated.
 - Local bundle tests: 28 passed.
-- Full service regression: 965 passed, 5 dependency deprecation warnings.
-- Visual/readiness/reconciliation contour: 40 passed.
+- Full service regression: 968 passed, 5 dependency deprecation warnings.
+- Visual/readiness/reconciliation contour: 43 passed.
 - Ruff on all changed Python files: passed.
 
 ## Restricted-scope stage proof
@@ -92,11 +92,17 @@ Native default file processing remains outside the approved product path and was
   Maintained actual Gate 2 baseline is 4.01 GB peak and the Gate 1 replay peak is
   7.43 GB, so the new measured contour remains within the existing resource
   envelope.
+- Independent source-binary proof: the remaining target is the sole blank page
+  in a 19-page PDF. Two exact source copies, two normalized renders, PyMuPDF at
+  four DPI levels, and pypdf all agree that page 8 contains no stream, text,
+  image, drawing, link, annotation, or visible pixel.
 
 ## Remaining blockers
 
 1. Source owner: confirm or replace the one claimed material but byte-uniform
-   visual source; until then the exact 11/11 canonical invariant remains false.
+   visual source. Replacement must rebuild source/render lineage and pass double
+   recovery replay plus both canonical-table and Gate 2 validators; until then
+   the exact 11/11 canonical invariant remains false.
 2. Customer: provide one authorized genuine unseen same-family Sber PDF; until
    then generalization remains externally blocked and the release valve stays
    disabled.

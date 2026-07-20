@@ -48,6 +48,15 @@
       "measured_evidence": {
         "accepted_unique_scopes": 10,
         "claimed_material_scopes": 11,
+        "exact_source_binary_copies": 2,
+        "target_page_number": 8,
+        "document_pages": 19,
+        "contentful_other_pages": 18,
+        "content_streams": 0,
+        "content_stream_bytes": 0,
+        "images": 0,
+        "drawings": 0,
+        "annotations": 0,
         "nonwhite_pixels": 0,
         "pixel_standard_deviation": 0.0
       },
@@ -67,8 +76,8 @@
   ],
   "quality": {
     "bundle_tests_passed": 28,
-    "focused_visual_readiness_tests_passed": 40,
-    "full_regression_passed": 965,
+    "focused_visual_readiness_tests_passed": 43,
+    "full_regression_passed": 968,
     "full_regression_warnings": 5,
     "ruff_relevant_files_passed": true
   },
@@ -101,6 +110,7 @@
     "BROKER_REPORTS_ACTUAL_CORPUS_INTEGRATED_CLOSURE.v1.safe.json",
     "BROKER_REPORTS_GATE1_ACTUAL_CORPUS_RERUN.v4.safe.json",
     "BROKER_REPORTS_GATE1_VISUAL_NEUTRAL_TABLE_ACTUAL_CORPUS.v2.safe.json",
+    "BROKER_REPORTS_GATE1_VISUAL_SOURCE_CORRECTION_REQUIRED.v1.safe.json",
     "BROKER_REPORTS_GATE2_FNS_2NDFL_ACTUAL_CORPUS.v1.safe.json",
     "BROKER_REPORTS_GATE2_PACKAGE_PREPARATION_ACTUAL_RERUN.v3.safe.json"
   ],
