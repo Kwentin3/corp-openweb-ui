@@ -292,10 +292,19 @@ class BrokerReportsVisualNeutralTableTest(unittest.TestCase):
             "canonical_table_accepted_reviewed_visual",
         )
 
-    def test_blank_material_scope_stays_explicitly_unresolved(self):
+    def test_source_owner_confirmed_blank_scope_is_terminally_accounted(self):
         def make_blank(item: dict) -> None:
-            item["terminal_status"] = "unresolved"
+            item["terminal_status"] = "confirmed_empty"
             item["reason_codes"] = ["visual_source_image_blank_or_uniform"]
+            item["source_scope_decision"] = {
+                "status": "confirmed_empty_source_scope",
+                "authority": "authorized_source_owner",
+                "canonical_table_count_expected": 0,
+                "visual_recovery_required": False,
+                "source_correction_required": False,
+                "adjacent_page_inference_allowed": False,
+                "model_content_invention_allowed": False,
+            }
             item["image_statistics"] = {
                 "nonwhite_pixel_count": 0,
                 "pixel_stddev": 0.0,
@@ -311,10 +320,48 @@ class BrokerReportsVisualNeutralTableTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            result["promotion_state"], "unresolved_visual_requires_review"
+            result["promotion_state"], "confirmed_empty_source_scope"
         )
         self.assertEqual(result["canonical_tables"], [])
         self.assertEqual(result["reason_codes"], ["visual_source_image_blank_or_uniform"])
+        self.assertTrue(
+            result["source_to_table_accounting"][
+                "source_to_table_accounting_passed"
+            ]
+        )
+        self.assertEqual(
+            result["source_to_table_accounting"][
+                "canonical_table_count_expected"
+            ],
+            0,
+        )
+        self.assertEqual(result["operator_review_status"], "not_required")
+
+    def test_blank_scope_without_source_owner_decision_stays_unresolved(self):
+        def make_blank(item: dict) -> None:
+            item["terminal_status"] = "unresolved"
+            item["reason_codes"] = ["visual_source_image_blank_or_uniform"]
+            item["image_statistics"] = {
+                "nonwhite_pixel_count": 0,
+                "pixel_stddev": 0.0,
+            }
+            item["ocr_lines"] = []
+            item["ocr_consensus_status"] = "not_available"
+            item["tables"] = []
+
+        result = self.service.recover(
+            source_unit=self.source_unit,
+            observation=_semantic_mutation(self.observation, make_blank),
+        )
+
+        self.assertEqual(
+            result["promotion_state"], "unresolved_visual_requires_review"
+        )
+        self.assertFalse(
+            result["source_to_table_accounting"][
+                "source_to_table_accounting_passed"
+            ]
+        )
 
     def test_provider_proposal_is_not_used_without_approval(self):
         observation = _semantic_mutation(

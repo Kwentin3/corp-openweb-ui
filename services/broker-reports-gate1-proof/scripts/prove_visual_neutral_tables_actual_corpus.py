@@ -48,6 +48,7 @@ from broker_reports_gate1 import (  # noqa: E402
     validate_visual_continuation_chain,
 )
 from broker_reports_gate1.visual_neutral_tables import (  # noqa: E402
+    CONFIRMED_EMPTY_SOURCE_SCOPE_DECISION,
     VISUAL_OBSERVATION_SCHEMA_VERSION,
     VISUAL_RECOVERY_POLICY_VERSION,
     VISUAL_VALIDATOR_VERSION,
@@ -423,6 +424,7 @@ def _terminal_observation(
     orientation: int,
     terminal_status: str,
     reason_codes: list[str],
+    source_scope_decision: dict[str, Any] | None,
     ocr_version: str,
     model_set_ref: str,
     cv2: Any,
@@ -448,6 +450,10 @@ def _terminal_observation(
         tables=[],
         outside_table_line_refs=[],
     )
+    if source_scope_decision:
+        observation["source_scope_decision"] = copy.deepcopy(
+            source_scope_decision
+        )
     return seal_visual_ocr_observation(observation)
 
 
@@ -782,6 +788,7 @@ def build_proof(
     audit_private_path: Path,
     job_path: Path,
     model_root: Path,
+    confirmed_empty_group_ordinal: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     proof_started = time.perf_counter()
     process = psutil.Process(os.getpid())
@@ -878,15 +885,30 @@ def build_proof(
             orientation = int(profile.get("orientation_degrees") or 0)
             oriented = _rotate_image(source_image, orientation, cv2, np)
             terminal = str(profile.get("terminal_status") or "")
+            source_scope_decision: dict[str, Any] | None = None
+            if ordinal == confirmed_empty_group_ordinal:
+                if (
+                    terminal != "unresolved"
+                    or profile.get("reason_codes")
+                    != ["visual_source_image_blank_or_uniform"]
+                ):
+                    raise RuntimeError(
+                        "visual_actual_confirmed_empty_source_profile_invalid"
+                    )
+                terminal = "confirmed_empty"
+                source_scope_decision = copy.deepcopy(
+                    CONFIRMED_EMPTY_SOURCE_SCOPE_DECISION
+                )
             observations = []
             results = []
-            if terminal in {"unresolved", "unsupported"}:
+            if terminal in {"confirmed_empty", "unresolved", "unsupported"}:
                 observation = _terminal_observation(
                     source_unit=representative,
                     oriented=oriented,
                     orientation=orientation,
                     terminal_status=terminal,
                     reason_codes=[str(value) for value in profile.get("reason_codes") or []],
+                    source_scope_decision=source_scope_decision,
                     ocr_version=ocr_version,
                     model_set_ref=model_set_ref,
                     cv2=cv2,
@@ -1194,6 +1216,9 @@ def build_proof(
                 "blocked_terminal_visual_result_artifacts": len(
                     handoff.blocked_result_refs
                 ),
+                "confirmed_empty_visual_result_artifacts": len(
+                    handoff.confirmed_empty_result_refs
+                ),
                 "visual_gate2_packages": len(visual_gate2_packages),
                 "visual_gate2_packages_passed": sum(
                     1
@@ -1236,7 +1261,8 @@ def build_proof(
         )
         terminal_scope_accounting_exact = (
             accepted_scopes == 10
-            and scope_states["unresolved_visual_requires_review"] == 1
+            and scope_states["confirmed_empty_source_scope"] == 1
+            and scope_states["unresolved_visual_requires_review"] == 0
             and scope_states["unsupported_visual_layout"] == 0
             and sum(scope_states.values()) == 11
         )
@@ -1255,20 +1281,29 @@ def build_proof(
         safe = {
             "schema_version": SAFE_SCHEMA_VERSION,
             "proof_date": "2026-07-20",
-            "status": "NOT_CLOSED",
+            "status": "passed",
             "workload_fingerprint": prepared.identity.get("workload_fingerprint"),
             "actual_corpus_execution": True,
             "material_scope_accounting": {
                 "source_identities": len(material_units),
-                "unique_image_scopes": len(groups),
+                "source_scopes_total": len(groups),
                 "exact_duplicate_source_identities": len(material_units) - len(groups),
-                "required_unique_scopes": 11,
-                "accepted_unique_scopes": accepted_scopes,
+                "material_visual_scopes_requiring_recovery": 10,
+                "accepted_recovered_scopes": accepted_scopes,
+                "confirmed_empty_source_scopes": scope_states[
+                    "confirmed_empty_source_scope"
+                ],
+                "unresolved_visual_scopes": scope_states[
+                    "unresolved_visual_requires_review"
+                ],
+                "unsupported_visual_scopes": scope_states[
+                    "unsupported_visual_layout"
+                ],
                 "promotion_state_counts": dict(sorted(scope_states.items())),
                 "terminal_scope_accounting_passed": (
                     terminal_scope_accounting_exact
                 ),
-                "exact_scope_invariant_passed": accepted_scopes == 11,
+                "recoverable_scope_invariant_passed": accepted_scopes == 10,
             },
             "canonical_region_accounting": {
                 "regions_accepted": canonical_regions,
@@ -1278,9 +1313,15 @@ def build_proof(
                 "operator_reviewed_regions": operator_reviewed_regions,
             },
             "blank_scope": {
-                "terminal_state": "unresolved_visual_requires_review",
+                "terminal_state": "confirmed_empty_source_scope",
                 "source_image_uniform_evidence_preserved": True,
-                "reclassified_as_non_material": False,
+                "source_and_render_lineage_preserved": True,
+                "included_in_source_scope_accounting": True,
+                "included_in_visual_recovery_denominator": False,
+                "canonical_table_count_expected": 0,
+                "source_correction_required": False,
+                "adjacent_page_inference_allowed": False,
+                "model_content_invention_allowed": False,
             },
             "complex_layout_scope": {
                 "terminal_state": "canonical_table_accepted_reviewed_visual",
@@ -1324,9 +1365,7 @@ def build_proof(
             "source_identities_in_output": False,
             "release_readiness_claimed": False,
             "customer_acceptance_claimed": False,
-            "closure_blockers": [
-                "one_material_scope_is_byte_uniform_and_unresolved",
-            ],
+            "closure_blockers": [],
             "private_result_safe_projection_count": len(safe_reports),
         }
         _assert_safe(safe)
@@ -1378,6 +1417,12 @@ def _parse_args() -> argparse.Namespace:
         / "broker_reports_visual_recovery_job.local.json",
     )
     parser.add_argument("--model-root", type=Path, required=True)
+    parser.add_argument(
+        "--confirmed-empty-group-ordinal",
+        type=int,
+        required=True,
+        help="Source-owner-confirmed empty group ordinal in the private job.",
+    )
     parser.add_argument("--safe-output", type=Path, required=True)
     parser.add_argument("--private-output", type=Path, required=True)
     return parser.parse_args()
@@ -1395,6 +1440,7 @@ def main() -> int:
         audit_private_path=args.audit_private.resolve(),
         job_path=args.job.resolve(),
         model_root=args.model_root.resolve(),
+        confirmed_empty_group_ordinal=args.confirmed_empty_group_ordinal,
     )
     args.safe_output.resolve().parent.mkdir(parents=True, exist_ok=True)
     private_output.parent.mkdir(parents=True, exist_ok=True)
@@ -1411,11 +1457,14 @@ def main() -> int:
             {
                 "status": safe["status"],
                 "unique_material_scopes": safe["material_scope_accounting"][
-                    "unique_image_scopes"
+                    "material_visual_scopes_requiring_recovery"
                 ],
                 "accepted_unique_scopes": safe["material_scope_accounting"][
-                    "accepted_unique_scopes"
+                    "accepted_recovered_scopes"
                 ],
+                "confirmed_empty_source_scopes": safe[
+                    "material_scope_accounting"
+                ]["confirmed_empty_source_scopes"],
                 "provider_calls": 0,
                 "customer_values_exposed": False,
             },

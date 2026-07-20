@@ -41,6 +41,7 @@ class Gate1VisualRecoveryArtifactManifest:
     manifest_ref: str
     result_refs: list[str]
     accepted_result_refs: list[str]
+    confirmed_empty_result_refs: list[str]
     blocked_result_refs: list[str]
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,6 +49,9 @@ class Gate1VisualRecoveryArtifactManifest:
             "manifest_ref": self.manifest_ref,
             "result_refs": list(self.result_refs),
             "accepted_result_refs": list(self.accepted_result_refs),
+            "confirmed_empty_result_refs": list(
+                self.confirmed_empty_result_refs
+            ),
             "blocked_result_refs": list(self.blocked_result_refs),
         }
 
@@ -92,6 +96,7 @@ class Gate1VisualRecoveryHandoffService:
 
         result_refs: list[str] = []
         accepted_refs: list[str] = []
+        confirmed_empty_refs: list[str] = []
         blocked_refs: list[str] = []
         manifest_entries: list[dict[str, Any]] = []
         seen_recovery_ids: set[str] = set()
@@ -146,6 +151,9 @@ class Gate1VisualRecoveryHandoffService:
             accepted = str(result.get("promotion_state") or "").startswith(
                 "canonical_table_accepted_"
             )
+            confirmed_empty = (
+                result.get("promotion_state") == "confirmed_empty_source_scope"
+            )
             record = self.store.put_record(
                 _record(
                     artifact_type="broker_reports_gate1_visual_neutral_table_v1",
@@ -153,7 +161,9 @@ class Gate1VisualRecoveryHandoffService:
                     retention_policy=retention_policy,
                     document_id=str(result.get("source_document_ref") or ""),
                     source_file_ref=source_record.source_file_ref,
-                    validation_status="validated" if accepted else "blocked",
+                    validation_status=(
+                        "validated" if accepted or confirmed_empty else "blocked"
+                    ),
                     payload=result,
                     safe_metadata={
                         "schema_version": result.get("schema_version"),
@@ -180,7 +190,12 @@ class Gate1VisualRecoveryHandoffService:
                 )
             )
             result_refs.append(record.artifact_id)
-            (accepted_refs if accepted else blocked_refs).append(record.artifact_id)
+            if accepted:
+                accepted_refs.append(record.artifact_id)
+            elif confirmed_empty:
+                confirmed_empty_refs.append(record.artifact_id)
+            else:
+                blocked_refs.append(record.artifact_id)
             manifest_entries.append(
                 {
                     "result_artifact_ref": record.artifact_id,
@@ -190,6 +205,8 @@ class Gate1VisualRecoveryHandoffService:
                     "promotion_state": result.get("promotion_state"),
                     "integrity_ref": result.get("integrity_ref"),
                     "accepted_as_gate2_canonical_input": accepted,
+                    "confirmed_empty_source_scope": confirmed_empty,
+                    "terminally_accounted": accepted or confirmed_empty,
                 }
             )
 
@@ -199,9 +216,11 @@ class Gate1VisualRecoveryHandoffService:
             "entries": manifest_entries,
             "results_total": len(result_refs),
             "accepted_results_total": len(accepted_refs),
+            "confirmed_empty_results_total": len(confirmed_empty_refs),
             "blocked_results_total": len(blocked_refs),
             "all_results_structurally_valid": True,
-            "all_results_accepted": not blocked_refs,
+            "all_results_accepted": len(accepted_refs) == len(result_refs),
+            "all_results_terminally_accounted": not blocked_refs,
             "knowledge_rag_used": False,
             "vectorization_performed": False,
             "model_canonical_authority": False,
@@ -219,8 +238,10 @@ class Gate1VisualRecoveryHandoffService:
                     "schema_version": VISUAL_RECOVERY_MANIFEST_SCHEMA_VERSION,
                     "results_total": len(result_refs),
                     "accepted_results_total": len(accepted_refs),
+                    "confirmed_empty_results_total": len(confirmed_empty_refs),
                     "blocked_results_total": len(blocked_refs),
-                    "all_results_accepted": not blocked_refs,
+                    "all_results_accepted": len(accepted_refs) == len(result_refs),
+                    "all_results_terminally_accounted": not blocked_refs,
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                     "model_canonical_authority": False,
@@ -231,6 +252,7 @@ class Gate1VisualRecoveryHandoffService:
             manifest_ref=manifest_record.artifact_id,
             result_refs=result_refs,
             accepted_result_refs=accepted_refs,
+            confirmed_empty_result_refs=confirmed_empty_refs,
             blocked_result_refs=blocked_refs,
         )
 

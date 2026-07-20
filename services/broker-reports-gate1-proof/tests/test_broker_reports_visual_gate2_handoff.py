@@ -30,7 +30,10 @@ from broker_reports_gate1.visual_recovery_handoff import (
     VisualRecoveryHandoffError,
 )
 from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
-from tests.test_broker_reports_visual_neutral_tables import _observation
+from tests.test_broker_reports_visual_neutral_tables import (
+    _observation,
+    _semantic_mutation,
+)
 
 
 class BrokerReportsVisualGate2HandoffTest(unittest.TestCase):
@@ -303,6 +306,54 @@ class BrokerReportsVisualGate2HandoffTest(unittest.TestCase):
                 retention_policy=self.retention,
             )
         self.assertEqual(raised.exception.code, "visual_handoff_result_invalid")
+
+    def test_confirmed_empty_scope_is_validated_accounting_not_gate2_input(self):
+        def confirm_empty(item: dict) -> None:
+            item["terminal_status"] = "confirmed_empty"
+            item["reason_codes"] = ["visual_source_image_blank_or_uniform"]
+            item["source_scope_decision"] = {
+                "status": "confirmed_empty_source_scope",
+                "authority": "authorized_source_owner",
+                "canonical_table_count_expected": 0,
+                "visual_recovery_required": False,
+                "source_correction_required": False,
+                "adjacent_page_inference_allowed": False,
+                "model_content_invention_allowed": False,
+            }
+            item["image_statistics"] = {
+                "nonwhite_pixel_count": 0,
+                "pixel_stddev": 0.0,
+            }
+            item["ocr_lines"] = []
+            item["ocr_consensus_status"] = "not_available"
+            item["uncertainty_ledger"] = []
+            item["tables"] = []
+            item["outside_table_line_refs"] = []
+
+        confirmed = Gate1VisualNeutralTableFactory().create().recover(
+            source_unit=self.visual_source,
+            observation=_semantic_mutation(
+                _observation(self.visual_source), confirm_empty
+            ),
+        )
+        handoff = Gate1VisualRecoveryHandoffFactory(
+            store=self.store
+        ).create().persist(
+            results=[confirmed],
+            context=self.context,
+            retention_policy=self.retention,
+        )
+        resolver = ArtifactResolver(self.store)
+        result_record = self.store.get_record_unchecked(handoff.result_refs[0])
+        manifest = resolver.resolve(handoff.manifest_ref, self.context)["payload"]
+
+        self.assertEqual(handoff.accepted_result_refs, [])
+        self.assertEqual(len(handoff.confirmed_empty_result_refs), 1)
+        self.assertEqual(handoff.blocked_result_refs, [])
+        self.assertEqual(result_record.validation_status, "validated")
+        self.assertEqual(manifest["confirmed_empty_results_total"], 1)
+        self.assertTrue(manifest["all_results_terminally_accounted"])
+        self.assertFalse(manifest["all_results_accepted"])
 
 
 if __name__ == "__main__":

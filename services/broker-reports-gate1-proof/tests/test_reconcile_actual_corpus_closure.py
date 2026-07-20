@@ -30,7 +30,7 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
         )
 
         reconciliation = proof["readiness_error_reconciliation"]
-        self.assertEqual(proof["status"], "NOT_CLOSED")
+        self.assertEqual(proof["status"], "COMPLETED")
         self.assertEqual(reconciliation["historical_errors_total"], 29)
         self.assertEqual(reconciliation["current_gate2_validator_errors"], 0)
         self.assertEqual(reconciliation["unexplained_error_count"], 0)
@@ -46,10 +46,7 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
                 item["taxonomy"]
                 for item in reconciliation["remaining_program_blockers"]
             },
-            {
-                "correct_scope_restriction",
-                "external_customer_acceptance_debt",
-            },
+            {"external_customer_acceptance_debt"},
         )
         self.assertEqual(
             {
@@ -75,8 +72,16 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
             proof["actual_corpus_accounting"]["gate2_packages"], 681
         )
         self.assertEqual(
-            proof["actual_corpus_accounting"]["visual_accepted_unique_scopes"],
+            proof["actual_corpus_accounting"]["visual_accepted_recovered_scopes"],
             10,
+        )
+        self.assertEqual(
+            proof["actual_corpus_accounting"]["visual_confirmed_empty_source_scopes"],
+            1,
+        )
+        self.assertEqual(
+            proof["actual_corpus_accounting"]["visual_unresolved_scopes"],
+            0,
         )
         self.assertEqual(
             proof["actual_corpus_accounting"]["visual_gate2_packages"],
@@ -95,9 +100,9 @@ class ReconcileActualCorpusClosureTest(unittest.TestCase):
         for forbidden in ("normrun_", "brdoc_", "srcunit_", "artifact_ref"):
             self.assertNotIn(forbidden, rendered)
         report = render_report(proof)
-        self.assertIn("Program status: **NOT_CLOSED**", report)
+        self.assertIn("Program status: **COMPLETED**", report)
         self.assertIn("14/14", report)
-        self.assertIn("10/11", report)
+        self.assertIn("10/10", report)
         self.assertIn("17 canonical regions", report)
 
 

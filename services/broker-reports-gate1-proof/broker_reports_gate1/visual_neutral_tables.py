@@ -33,12 +33,27 @@ VISUAL_VALIDATOR_VERSION = "broker_reports_visual_neutral_table_validator_v1"
 PROMOTION_STATES = {
     "canonical_table_accepted_deterministic",
     "canonical_table_accepted_reviewed_visual",
+    "confirmed_empty_source_scope",
     "unresolved_visual_requires_review",
     "unsupported_visual_layout",
 }
 PROPOSAL_SOURCES = {"local_ocr_geometry", "bounded_vl_proposal"}
 ROW_ROLES = {"header", "body", "subtotal", "total"}
-OBSERVATION_TERMINAL_STATUSES = {"completed", "unresolved", "unsupported"}
+OBSERVATION_TERMINAL_STATUSES = {
+    "completed",
+    "confirmed_empty",
+    "unresolved",
+    "unsupported",
+}
+CONFIRMED_EMPTY_SOURCE_SCOPE_DECISION = {
+    "status": "confirmed_empty_source_scope",
+    "authority": "authorized_source_owner",
+    "canonical_table_count_expected": 0,
+    "visual_recovery_required": False,
+    "source_correction_required": False,
+    "adjacent_page_inference_allowed": False,
+    "model_content_invention_allowed": False,
+}
 
 FACTORY_REQUIRED = (
     "Gate1VisualNeutralTableFactory.create is the only canonical visual-neutral "
@@ -146,6 +161,15 @@ class Gate1VisualNeutralTableService:
                 canonical_tables=[],
                 reason_codes=["visual_provider_disabled_or_transfer_not_approved"],
                 operator_review_status="not_performed",
+            )
+        if terminal_status == "confirmed_empty":
+            return _terminal_result(
+                source_unit=source_unit,
+                observation=observation,
+                promotion_state="confirmed_empty_source_scope",
+                canonical_tables=[],
+                reason_codes=["visual_source_image_blank_or_uniform"],
+                operator_review_status="not_required",
             )
         if terminal_status in {"unresolved", "unsupported"}:
             state = (
@@ -292,6 +316,14 @@ def validate_visual_ocr_observation(
     terminal = observation.get("terminal_status")
     if terminal not in OBSERVATION_TERMINAL_STATUSES:
         errors.append(_error("visual_observation_terminal_status_invalid", unit_ref))
+    source_scope_decision = _object(observation.get("source_scope_decision"))
+    if terminal == "confirmed_empty":
+        if source_scope_decision != CONFIRMED_EMPTY_SOURCE_SCOPE_DECISION:
+            errors.append(
+                _error("visual_confirmed_empty_source_decision_invalid", unit_ref)
+            )
+    elif source_scope_decision:
+        errors.append(_error("visual_source_scope_decision_unexpected", unit_ref))
     raw_media = _decode_media(source_unit.get("private_media_base64"))
     if (
         raw_media is None
@@ -394,6 +426,15 @@ def validate_visual_ocr_observation(
         errors.append(_error("visual_completed_observation_has_no_tables", unit_ref))
     if terminal != "completed" and tables:
         errors.append(_error("visual_nonterminal_tables_forbidden", unit_ref))
+    if terminal == "confirmed_empty" and (
+        _string_list(observation.get("reason_codes"))
+        != ["visual_source_image_blank_or_uniform"]
+        or _dict_list(observation.get("ocr_lines"))
+        or observation.get("ocr_consensus_status") != "not_available"
+        or _dict_list(observation.get("uncertainty_ledger"))
+        or _string_list(observation.get("outside_table_line_refs"))
+    ):
+        errors.append(_error("visual_confirmed_empty_evidence_invalid", unit_ref))
     if "visual_source_image_blank_or_uniform" in _string_list(
         observation.get("reason_codes")
     ) and (
@@ -755,6 +796,9 @@ def _terminal_result(
         ),
         "reason_codes": sorted(set(reason_codes)),
         "operator_review_status": operator_review_status,
+        "source_scope_decision": copy.deepcopy(
+            observation.get("source_scope_decision") or {}
+        ),
         "continuation": copy.deepcopy(observation.get("continuation") or {}),
         "source_to_table_accounting": {
             "ocr_lines_total": len(_dict_list(observation.get("ocr_lines"))),
@@ -766,8 +810,14 @@ def _terminal_result(
             "cells_total": sum(
                 len(_dict_list(table.get("cells"))) for table in canonical_tables
             ),
-            "source_to_table_accounting_passed": promotion_state.startswith(
-                "canonical_table_accepted_"
+            "canonical_table_count_expected": (
+                0
+                if promotion_state == "confirmed_empty_source_scope"
+                else len(canonical_tables)
+            ),
+            "source_to_table_accounting_passed": (
+                promotion_state.startswith("canonical_table_accepted_")
+                or promotion_state == "confirmed_empty_source_scope"
             ),
         },
         "provider_accounting": copy.deepcopy(
@@ -795,9 +845,28 @@ def validate_visual_neutral_table_result(
     accepted = str(result.get("promotion_state") or "").startswith(
         "canonical_table_accepted_"
     )
+    confirmed_empty = (
+        result.get("promotion_state") == "confirmed_empty_source_scope"
+    )
     tables = _dict_list(result.get("canonical_tables"))
     if accepted != bool(tables):
         errors.append(_error("visual_result_canonical_table_state_mismatch", recovery_id))
+    decision = _object(result.get("source_scope_decision"))
+    if confirmed_empty:
+        if decision != CONFIRMED_EMPTY_SOURCE_SCOPE_DECISION:
+            errors.append(
+                _error("visual_result_confirmed_empty_decision_invalid", recovery_id)
+            )
+    elif decision:
+        errors.append(_error("visual_result_source_scope_decision_unexpected", recovery_id))
+    accounting = _object(result.get("source_to_table_accounting"))
+    expected_table_count = len(tables) if accepted else 0
+    if (
+        accounting.get("canonical_table_count_expected") != expected_table_count
+        or accounting.get("source_to_table_accounting_passed")
+        is not (accepted or confirmed_empty)
+    ):
+        errors.append(_error("visual_result_source_accounting_invalid", recovery_id))
     if result.get("model_canonical_authority") is not False:
         errors.append(_error("visual_result_model_authority_forbidden", recovery_id))
     if result.get("financial_interpretation_allowed") is not False:

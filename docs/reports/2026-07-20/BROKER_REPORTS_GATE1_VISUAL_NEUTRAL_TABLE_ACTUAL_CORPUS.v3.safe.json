@@ -1,0 +1,111 @@
+{
+  "actual_corpus_execution": true,
+  "artifactstore_unchanged": true,
+  "blank_scope": {
+    "adjacent_page_inference_allowed": false,
+    "canonical_table_count_expected": 0,
+    "included_in_source_scope_accounting": true,
+    "included_in_visual_recovery_denominator": false,
+    "model_content_invention_allowed": false,
+    "source_and_render_lineage_preserved": true,
+    "source_correction_required": false,
+    "source_image_uniform_evidence_preserved": true,
+    "terminal_state": "confirmed_empty_source_scope"
+  },
+  "canonical_region_accounting": {
+    "cells_accepted": 623,
+    "deterministic_promotion_replays": 17,
+    "operator_reviewed_regions": 15,
+    "regions_accepted": 17,
+    "tables_accepted": 17
+  },
+  "closure_blockers": [],
+  "complex_layout_scope": {
+    "failed_closed": false,
+    "model_topology_used_as_authority": false,
+    "regions_accepted": 5,
+    "status": "passed",
+    "terminal_state": "canonical_table_accepted_reviewed_visual"
+  },
+  "continuation_chain": {
+    "pages": 6,
+    "status": "passed",
+    "validation_errors": 0
+  },
+  "customer_acceptance_claimed": false,
+  "customer_values_in_output": false,
+  "gate2_canonical_integration": {
+    "accepted_visual_result_artifacts": 17,
+    "blocked_terminal_visual_result_artifacts": 0,
+    "clone_initial_records": 1531,
+    "clone_records_after_handoff": 1550,
+    "confirmed_empty_visual_result_artifacts": 1,
+    "customer_values_in_output": false,
+    "disposable_actual_artifactstore_clone_used": true,
+    "gate2_artifactstore_unchanged_after_handoff": true,
+    "gate2_errors": 0,
+    "gate2_validator_status": "passed",
+    "golden_actual_artifactstore_mutated": false,
+    "immutable_visual_result_artifacts": 18,
+    "model_canonical_authority": false,
+    "provider_calls": 0,
+    "source_identities_in_output": false,
+    "status": "passed",
+    "visual_documents_with_canonical_input": 5,
+    "visual_gate2_packages": 17,
+    "visual_gate2_packages_passed": 17,
+    "whole_document_provider_uploads": 0
+  },
+  "heldout_visual_table": {
+    "accepted": true,
+    "actual_scope_evaluated": true,
+    "layout_sibling_token_overlap_ratio": 1.0,
+    "profile_geometry_was_not_manifest_tuned": true,
+    "selection_rule": "first_audit_order_simple_grid_with_layout_sibling",
+    "status": "passed"
+  },
+  "material_scope_accounting": {
+    "accepted_recovered_scopes": 10,
+    "confirmed_empty_source_scopes": 1,
+    "exact_duplicate_source_identities": 1,
+    "material_visual_scopes_requiring_recovery": 10,
+    "promotion_state_counts": {
+      "canonical_table_accepted_deterministic": 1,
+      "canonical_table_accepted_reviewed_visual": 9,
+      "confirmed_empty_source_scope": 1
+    },
+    "recoverable_scope_invariant_passed": true,
+    "source_identities": 12,
+    "source_scopes_total": 11,
+    "terminal_scope_accounting_passed": true,
+    "unresolved_visual_scopes": 0,
+    "unsupported_visual_scopes": 0
+  },
+  "model_canonical_authority": false,
+  "negative_non_table": {
+    "actual_scope_evaluated": true,
+    "detected_grid_regions": 0,
+    "false_promotions": 0,
+    "status": "passed"
+  },
+  "performance": {
+    "process_peak_rss_bytes": 4122615808,
+    "provider_latency_seconds": 0.0,
+    "visual_recovery_wall_seconds": 520.856317
+  },
+  "private_result_safe_projection_count": 18,
+  "proof_date": "2026-07-20",
+  "provider_accounting": {
+    "calls": 0,
+    "cost": 0,
+    "retries": 0,
+    "tokens": 0,
+    "whole_document_uploads": 0
+  },
+  "release_readiness_claimed": false,
+  "schema_version": "broker_reports_visual_actual_corpus_proof_safe_v1",
+  "source_identities_in_output": false,
+  "status": "passed",
+  "whole_document_provider_uploads": 0,
+  "workload_fingerprint": "6827eea7c5fcacd1ea37abd8d966b0dd67a613ec58204688decf30d269340651"
+}

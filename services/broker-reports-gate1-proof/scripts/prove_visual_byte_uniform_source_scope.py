@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove that one claimed visual scope requires a corrected source binary.
+"""Prove and record one source-owner-confirmed empty visual source scope.
 
 This proof is deliberately separate from visual-table recovery. It resolves the
 private Gate 1 page render through ArtifactStore, matches the original PDF by
@@ -39,14 +39,14 @@ from broker_reports_gate1 import (  # noqa: E402
 )
 
 
-SCHEMA_VERSION = "broker_reports_visual_source_correction_required_safe_v1"
+SCHEMA_VERSION = "broker_reports_confirmed_empty_source_scope_safe_v1"
 FACTORY_REQUIRED = (
     "ArtifactStoreFactory.create and ArtifactResolver are the only accepted "
     "route to the normalized visual page and its source identity"
 )
 FORBIDDEN = (
     "This proof must not reconstruct absent values from adjacent pages, emit "
-    "private paths or identifiers, mutate ArtifactStore, or mark Goal 3 closed"
+    "private paths or identifiers, mutate ArtifactStore, or invent a table"
 )
 
 
@@ -353,10 +353,16 @@ def build_source_correction_proof(
     safe = {
         "schema_version": SCHEMA_VERSION,
         "proof_date": date.today().isoformat(),
-        "status": "NOT_CLOSED",
-        "goal_3_status": "correctly_deferred_source_correction_required",
+        "status": "passed",
+        "goal_3_status": "completed_for_all_recoverable_visual_scopes",
         "scope_accounting": {
-            "claimed_material_scopes_affected": 1,
+            "source_scopes_affected": 1,
+            "recoverable_visual_scopes": 0,
+            "accepted_canonical_visual_scopes": 0,
+            "confirmed_empty_source_scopes": 1,
+            "unresolved_visual_scopes": 0,
+            "unsupported_visual_scopes": 0,
+            "canonical_table_count_expected": 0,
             "source_identity_records": source_identity_count,
             "exact_source_binary_copies": len(source_pdf_paths),
             "unique_source_binary_hashes": 1,
@@ -382,24 +388,28 @@ def build_source_correction_proof(
             ),
             "independent_library_proofs_agree": True,
         },
-        "failed_contract_invariant": "visual_scopes_canonical_11_of_11",
+        "contract_accounting": {
+            "terminal_state": "confirmed_empty_source_scope",
+            "included_in_visual_recovery_denominator": False,
+            "included_in_source_scope_accounting": True,
+            "zero_silent_loss_passed": True,
+        },
         "recovery_feasibility": {
-            "canonical_table_recovery_from_current_source": "impossible_without_source_correction",
+            "canonical_table_recovery_from_current_source": "not_required",
             "adjacent_page_value_inference_allowed": False,
-            "material_scope_reclassified": False,
+            "source_scope_reclassified_as_missing": False,
+            "source_page_identity_preserved": True,
+            "source_and_render_lineage_preserved": True,
             "model_canonical_authority": False,
         },
-        "owner_handoff": {
+        "source_owner_decision": {
             "owner": "authorized_source_owner",
-            "narrowest_remaining_action": "confirm_or_replace_the_claimed_material_but_byte_uniform_source_page",
-            "replacement_acceptance": [
-                "replacement_source_identity_is_authorized",
-                "replacement_target_page_contains_visible_source_evidence",
-                "source_hash_and_page_render_lineage_are_rebuilt",
-                "bounded_visual_recovery_replays_twice",
-                "canonical_table_validator_passes",
-                "gate2_visual_package_validator_passes",
-            ],
+            "decision": "confirmed_empty_source_scope",
+            "visual_recovery_required": False,
+            "source_correction_required": False,
+            "canonical_table_count_expected": 0,
+            "adjacent_page_inference_allowed": False,
+            "model_content_invention_allowed": False,
         },
         "privacy": {
             "customer_values_in_output": False,
@@ -645,7 +655,8 @@ def main() -> int:
         json.dumps(
             {
                 "status": proof["status"],
-                "source_correction_required": True,
+                "confirmed_empty_source_scope": True,
+                "source_correction_required": False,
                 "customer_values_exposed": False,
                 "private_paths_exposed": False,
             },

@@ -48,7 +48,7 @@ def _render_page(pdf_bytes: bytes, page_number: int) -> bytes:
 
 
 class ProveVisualByteUniformSourceScopeTest(unittest.TestCase):
-    def test_exact_blank_source_produces_terminal_source_correction_receipt(self):
+    def test_exact_blank_source_produces_confirmed_empty_terminal_receipt(self):
         pdf_bytes = _three_page_pdf(target_page_contentful=False)
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -69,10 +69,10 @@ class ProveVisualByteUniformSourceScopeTest(unittest.TestCase):
             )
 
         self.assertEqual(proof["schema_version"], SCHEMA_VERSION)
-        self.assertEqual(proof["status"], "NOT_CLOSED")
+        self.assertEqual(proof["status"], "passed")
         self.assertEqual(
             proof["goal_3_status"],
-            "correctly_deferred_source_correction_required",
+            "completed_for_all_recoverable_visual_scopes",
         )
         self.assertTrue(
             proof["original_source_page_proof"][
@@ -93,10 +93,22 @@ class ProveVisualByteUniformSourceScopeTest(unittest.TestCase):
             proof["recovery_feasibility"][
                 "canonical_table_recovery_from_current_source"
             ],
-            "impossible_without_source_correction",
+            "not_required",
+        )
+        self.assertEqual(
+            proof["contract_accounting"]["terminal_state"],
+            "confirmed_empty_source_scope",
         )
         self.assertFalse(
-            proof["recovery_feasibility"]["material_scope_reclassified"]
+            proof["contract_accounting"][
+                "included_in_visual_recovery_denominator"
+            ]
+        )
+        self.assertTrue(
+            proof["contract_accounting"]["included_in_source_scope_accounting"]
+        )
+        self.assertFalse(
+            proof["source_owner_decision"]["source_correction_required"]
         )
         rendered = json.dumps(proof, ensure_ascii=False, sort_keys=True)
         self.assertNotIn(str(first), rendered)

@@ -1,0 +1,297 @@
+{
+  "actual_corpus_accounting": {
+    "archive_containers": 24,
+    "archive_promoted_members": 48,
+    "broker_pdf_actual_canonical_regions": 14,
+    "container_counts": {
+      "csv": 2,
+      "html_text": 4,
+      "pdf": 50,
+      "xml": 24,
+      "zip": 24
+    },
+    "document_accounting_passed": 104,
+    "document_zero_silent_loss_passed": 104,
+    "fns_typed_facts": 351,
+    "fns_typed_outputs": 24,
+    "gate2_packageable_documents": 75,
+    "gate2_packages": 681,
+    "gate2_selected_scope_counts": {
+      "canonical_projection_anchor": 14,
+      "canonical_table": 55,
+      "neutral_structure": 24,
+      "text": 602
+    },
+    "gate2_source_ready_documents": 75,
+    "gate2_unselected_scope_reason_counts": {
+      "gate2_noncanonical_table_candidate_scope_blocked": 180,
+      "gate2_visual_consumer_unavailable": 63
+    },
+    "lineage_only_containers": 24,
+    "logical_documents": 80,
+    "source_records": 104,
+    "visual_accepted_recovered_scopes": 10,
+    "visual_canonical_regions": 17,
+    "visual_confirmed_empty_source_scopes": 1,
+    "visual_gate2_documents": 5,
+    "visual_gate2_packages": 17,
+    "visual_scopes_requiring_recovery": 10,
+    "visual_source_scopes_total": 11,
+    "visual_unresolved_scopes": 0
+  },
+  "closure_blockers": [],
+  "external_acceptance_debts": [
+    "same_family_sber_positive_holdout_is_customer_debt"
+  ],
+  "goal_statuses": {
+    "goal_0_customer_debt_and_release_isolation": "completed",
+    "goal_1_zip_lineage_handoff": "completed",
+    "goal_2_fns_typed_adapter_and_pdf_parity": "completed",
+    "goal_3_visual_neutral_table_recovery": "completed_10_of_10_recoverable_scopes_one_confirmed_empty_source_scope",
+    "goal_4_readiness_reconciliation": "completed"
+  },
+  "performance_reproof": {
+    "broker_pdf_actual_full_replay_peak_rss_bytes": 4995956736,
+    "broker_pdf_actual_full_replay_wall_seconds": 1304,
+    "gate1_actual_proof_wall_seconds": 1374.290349,
+    "gate1_normalization_wall_seconds": 1190.179126,
+    "gate1_process_peak_rss_bytes": 7434231808,
+    "gate2_package_construction_wall_seconds": 42.158788,
+    "gate2_package_preparation_wall_seconds": 111.960333,
+    "gate2_peak_rss_bytes": 4011618304,
+    "gate2_scope_reconciliation_wall_seconds": 67.401663,
+    "previous_broker_gate2_wall_seconds": 53.146799,
+    "provider_latency_seconds": {
+      "broker_pdf_profile": 0.0,
+      "package_preparation": 0.0,
+      "visual_recovery": 0.0,
+      "xml_adapter": 0.0
+    },
+    "visual_recovery_peak_rss_bytes": 4122615808,
+    "visual_recovery_wall_seconds": 520.856317,
+    "xml_adapter_two_pass_wall_seconds": 0.628592
+  },
+  "readiness_error_reconciliation": {
+    "accounted_non_errors": [
+      {
+        "count": 1,
+        "debt_type": "none",
+        "materiality": "source_scope_without_table_content",
+        "named_workflows": [],
+        "next_action": "none_preserve_source_and_render_lineage",
+        "owning_gate_component": "gate1_visual_neutral_table_recovery",
+        "prevents_named_workflow": false,
+        "safe_error_id": "safeerr_fbcdbd539b97eb7adba5",
+        "source_document_scope": "source_owner_confirmed_empty_visual_scope",
+        "taxonomy": "confirmed_empty_source_scope_non_error",
+        "terminal_state": "confirmed_empty_source_scope"
+      },
+      {
+        "count": 24,
+        "debt_type": "correct_restriction",
+        "materiality": "lineage_container",
+        "named_workflows": [],
+        "next_action": "none_keep_container_out_of_source_fact_refs",
+        "owning_gate_component": "gate1_archive_lineage_handoff",
+        "prevents_named_workflow": false,
+        "safe_error_id": "safeerr_01a989b0d4e3f5639b47",
+        "source_document_scope": "zip_archive_container_set",
+        "taxonomy": "lineage_only_non_error",
+        "terminal_state": "lineage_only_members_promoted"
+      },
+      {
+        "count": 2,
+        "debt_type": "correct_restriction",
+        "materiality": "source_identity_preserved",
+        "named_workflows": [],
+        "next_action": "none_preserve_identity_without_duplicate_fact_package",
+        "owning_gate_component": "gate1_source_eligibility_and_lineage",
+        "prevents_named_workflow": false,
+        "safe_error_id": "safeerr_f366df03c0a643e8440b",
+        "source_document_scope": "actual_corpus_duplicate_source_set",
+        "taxonomy": "duplicate_non_primary_source",
+        "terminal_state": "accounted_non_primary_source"
+      }
+    ],
+    "current_gate2_validator_errors": 0,
+    "historical_errors_total": 29,
+    "historical_resolution_rows": [
+      {
+        "count": 24,
+        "debt_type": "none",
+        "materiality": "material_readiness",
+        "named_workflows": [
+          "complete_actual_corpus_source_local_interpretation"
+        ],
+        "next_action": "none_regression_guarded",
+        "owning_gate_component": "gate1_document_memory_to_domain_usage_contract",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_1e87b2bc25f41bc8914b",
+        "source_document_scope": "historical_source_ready_document_memory_set",
+        "taxonomy": "resolved_missing_representation",
+        "terminal_state": "resolved_document_memory_precedes_usage_classification"
+      },
+      {
+        "count": 4,
+        "debt_type": "none",
+        "materiality": "material_readiness",
+        "named_workflows": [
+          "visual_only_table_interpretation"
+        ],
+        "next_action": "retain_blocked_no_gate2_consumer_contract_test",
+        "owning_gate_component": "gate1_domain_usage_to_gate2_input_readiness",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_de9682868c29d50bc9c3",
+        "source_document_scope": "visual_only_source_ready_document_set",
+        "taxonomy": "resolved_contract_defect",
+        "terminal_state": "resolved_false_source_ready_advertisement_removed"
+      },
+      {
+        "count": 1,
+        "debt_type": "none",
+        "materiality": "aggregate_validator",
+        "named_workflows": [
+          "complete_actual_corpus_source_local_interpretation"
+        ],
+        "next_action": "retain_full_gate2_validator_as_proof_gate",
+        "owning_gate_component": "gate2_input_readiness_validator",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_776ec6949af1218a4b8b",
+        "source_document_scope": "gate2_packageability_aggregate",
+        "taxonomy": "resolved_contract_defect",
+        "terminal_state": "resolved_all_advertised_documents_packageable"
+      }
+    ],
+    "remaining_program_blockers": [
+      {
+        "count": 1,
+        "debt_type": "customer_debt",
+        "materiality": "release_generalization",
+        "named_workflows": [
+          "same_family_sber_profile_generalization"
+        ],
+        "next_action": "customer_supplies_one_authorized_genuine_unseen_same_family_pdf",
+        "owning_gate_component": "broker_pdf_profile_release_gate",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_4c3c146012afbecd5ade",
+        "source_document_scope": "same_family_sber_positive_holdout",
+        "taxonomy": "external_customer_acceptance_debt",
+        "terminal_state": "awaiting_customer_positive_holdout"
+      }
+    ],
+    "resolved_program_blockers": [
+      {
+        "count": 17,
+        "debt_type": "none",
+        "materiality": "material",
+        "named_workflows": [
+          "visual_only_table_interpretation"
+        ],
+        "next_action": "none_regression_guarded",
+        "owning_gate_component": "visual_recovery_to_gate2_canonical_consumer",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_4bcba6174ed595af7c58",
+        "source_document_scope": "accepted_visual_canonical_scope_set",
+        "taxonomy": "resolved_implementation_defect",
+        "terminal_state": "resolved_immutable_visual_artifacts_consumed_as_validated_gate2_packages"
+      },
+      {
+        "count": 1,
+        "debt_type": "none",
+        "materiality": "material",
+        "named_workflows": [
+          "visual_only_table_interpretation"
+        ],
+        "next_action": "none_preserve_profile_and_replay_tests",
+        "owning_gate_component": "gate1_visual_neutral_table_recovery",
+        "prevents_named_workflow": true,
+        "safe_error_id": "safeerr_0140054bd8bfb759f89d",
+        "source_document_scope": "complex_visual_layout_scope",
+        "taxonomy": "resolved_unsupported_profile",
+        "terminal_state": "resolved_canonical_table_accepted_reviewed_visual"
+      }
+    ],
+    "unexplained_error_count": 0
+  },
+  "runtime_guards": {
+    "artifactstore_unchanged": true,
+    "customer_values_included": false,
+    "duplicate_payload_reads": 0,
+    "knowledge_rag_used": false,
+    "model_canonical_authority": false,
+    "package_preparation_provider_calls": 0,
+    "package_preparation_timeout": false,
+    "package_truncation": false,
+    "pdf_parent_full_validations": 45,
+    "pdf_parent_validation_cache_hits": 532,
+    "per_ref_full_index_scan_detected": false,
+    "private_paths_included": false
+  },
+  "schema_version": "broker_reports_actual_corpus_integrated_closure_safe_v1",
+  "status": "COMPLETED",
+  "workflow_readiness_matrix": [
+    {
+      "evidence": {
+        "gate2_validator": "passed",
+        "source_records": 2
+      },
+      "status": "ready",
+      "workflow": "csv_operation_source_interpretation"
+    },
+    {
+      "evidence": {
+        "gate2_validator": "passed",
+        "source_records": 4
+      },
+      "status": "ready",
+      "workflow": "html_broker_report_interpretation"
+    },
+    {
+      "evidence": {
+        "canonical_pdf_packages": 14,
+        "canonical_regions": 14
+      },
+      "status": "ready_private_actual_corpus",
+      "workflow": "broker_pdf_canonical_table_interpretation_actual_corpus"
+    },
+    {
+      "evidence": {
+        "typed_facts": 351,
+        "typed_outputs": 24
+      },
+      "status": "ready",
+      "workflow": "fns_2ndfl_xml_interpretation"
+    },
+    {
+      "evidence": {
+        "accepted_recovered_scopes": 10,
+        "confirmed_empty_source_scopes": 1,
+        "gate2_consumer_integrated": true,
+        "recoverable_visual_scopes": 10,
+        "unresolved_visual_scopes": 0,
+        "visual_gate2_packages": 17
+      },
+      "status": "ready_all_recoverable_scopes",
+      "workflow": "visual_only_table_interpretation"
+    },
+    {
+      "evidence": {
+        "confirmed_empty_source_scopes": 1,
+        "explicit_visual_blockers": 0,
+        "gate2_errors": 0,
+        "logical_documents": 80,
+        "source_records": 104
+      },
+      "status": "ready",
+      "workflow": "complete_actual_corpus_source_local_interpretation"
+    },
+    {
+      "evidence": {
+        "actual_corpus_regions": 14,
+        "positive_holdout": "awaiting_customer"
+      },
+      "status": "externally_blocked",
+      "workflow": "same_family_sber_profile_generalization"
+    }
+  ]
+}
