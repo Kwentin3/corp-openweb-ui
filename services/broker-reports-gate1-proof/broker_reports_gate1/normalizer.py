@@ -33,7 +33,10 @@ from .profilers_xml import profile_xml
 from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
 from .source_provenance import NormalizedSliceProvenanceFactory
-from .table_projection import NormalizedTableProjectionFactory
+from .table_projection import (
+    NormalizedTableProjectionConfig,
+    NormalizedTableProjectionFactory,
+)
 from .taxonomy import classify_document
 from .validators import merge_validation_results, validate_artifacts, validate_safe_report
 
@@ -92,7 +95,16 @@ class Gate1Normalizer:
                 )
             )
         ).create()
-        table_projection_builder = NormalizedTableProjectionFactory().create()
+        table_projection_builder = NormalizedTableProjectionFactory(
+            NormalizedTableProjectionConfig(
+                broker_pdf_neutral_table_profile_v1_enabled=(
+                    (input_context or {}).get(
+                        "broker_pdf_neutral_table_profile_v1_enabled"
+                    )
+                    is True
+                )
+            )
+        ).create()
         archive_intake = Gate1ArchiveIntakeFactory().create()
 
         if not file_inputs:

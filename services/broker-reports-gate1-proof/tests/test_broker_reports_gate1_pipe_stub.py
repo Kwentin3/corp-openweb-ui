@@ -166,6 +166,13 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         pipe.valves.passport_model_id = "passport-model"
         return pipe
 
+    def test_unaccepted_broker_pdf_profile_is_release_gated_by_default(self):
+        pipe = self._pipe()
+
+        self.assertFalse(
+            pipe.valves.broker_pdf_neutral_table_profile_v1_enabled
+        )
+
     def test_pipe_clarification_model_id_ignores_workspace_model_metadata(self):
         pipe = self._pipe()
         body = {
