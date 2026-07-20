@@ -1,0 +1,298 @@
+{
+  "schema_version": "broker_reports_runtime_technical_debt_audit_v1_safe",
+  "audit_status": "completed",
+  "evidence_date": "2026-07-20",
+  "privacy": {
+    "customer_values_present": false,
+    "customer_source_identifiers_present": false,
+    "absolute_private_paths_present": false,
+    "raw_payloads_present": false,
+    "raw_profiles_present": false,
+    "private_evidence_tracked_by_audit": false
+  },
+  "reentry": {
+    "branch": "codex/broker-reports-runtime-audit-v1",
+    "starting_local_head": "21a08b5dc67f79843dbc4c5c00f96ecdc637e329",
+    "starting_remote_head": "21a08b5dc67f79843dbc4c5c00f96ecdc637e329",
+    "starting_ahead_origin_main": 21,
+    "starting_behind_origin_main": 0,
+    "starting_worktree_clean": true,
+    "worktrees_total": 1,
+    "ignored_entries_total": 20,
+    "ignored_environment_file": true,
+    "ignored_local_evidence_root": true,
+    "tracked_local_evidence_root_entries": 0,
+    "stage_container_image_id": "sha256:8dbfafc61b79cfdf6bbe7c08da6b65ad6d91ca249c801175f77092ccf0210175",
+    "stage_container_created_at": "2026-07-03T13:06:34.991381926Z",
+    "live_verifier": {
+      "status": "passed",
+      "checks_passed": 18,
+      "checks_total": 18,
+      "managed_prompts_passed": 12,
+      "managed_prompts_total": 12,
+      "factory_boundary_checks_passed": 21,
+      "factory_boundary_checks_total": 21,
+      "stage_pymupdf_version": "1.26.5",
+      "required_pymupdf_version": "1.26.5"
+    },
+    "repository_live_bundles": [
+      {
+        "function": "gate1",
+        "repository_sha256": "9b3895b521d8ec82b486edfba7a3b29cbeb913217fa73aff18783915126bb1df",
+        "live_sha256": "9b3895b521d8ec82b486edfba7a3b29cbeb913217fa73aff18783915126bb1df",
+        "match": true
+      },
+      {
+        "function": "gate2_source",
+        "repository_sha256": "168a3095ca488f13736ea4655c54df5ec136ebf196c6ab7fa4e1e98f121a3f96",
+        "live_sha256": "168a3095ca488f13736ea4655c54df5ec136ebf196c6ab7fa4e1e98f121a3f96",
+        "match": true
+      },
+      {
+        "function": "gate2_domain",
+        "repository_sha256": "eb1a98515743e8adda5fa57dfbe5c2f7a57753966fd1b0902f35300ab903a54e",
+        "live_sha256": "eb1a98515743e8adda5fa57dfbe5c2f7a57753966fd1b0902f35300ab903a54e",
+        "match": true
+      }
+    ],
+    "repository_live_loader": {
+      "repository_sha256": "28c5eadf6839d9aac5db4f125c31bda5ca6f08d9ce82723c832dd319126703b2",
+      "live_sha256": "28c5eadf6839d9aac5db4f125c31bda5ca6f08d9ce82723c832dd319126703b2",
+      "match": true
+    },
+    "operational_valves": {
+      "sber_neutral_table_profile_enabled": false,
+      "pdf_table_intake_enabled": true,
+      "structural_shadow_enabled": false,
+      "guided_intake_shadow_enabled": false,
+      "semantic_header_shadow_enabled": false
+    },
+    "current_regression": {
+      "passed": 976,
+      "failed": 0,
+      "warnings": 5,
+      "warning_class": "dependency_swig_deprecation"
+    }
+  },
+  "confirmed_empty_source_scope": {
+    "status": "recorded_and_not_a_blocker",
+    "material_visual_scopes": 10,
+    "accepted_recovered_scopes": 10,
+    "confirmed_empty_source_scopes": 1,
+    "unresolved_visual_scopes": 0,
+    "unsupported_visual_scopes": 0,
+    "canonical_tables": 17,
+    "canonical_cells": 623,
+    "zero_silent_loss": true,
+    "adjacent_page_inference_used": false,
+    "provider_calls": 0
+  },
+  "gate2_controlled_benchmark": {
+    "classification": "no_regression_measurement_noise",
+    "accepted_status": "no_regression",
+    "historical_reference_seconds": 53.146799,
+    "controlled_baseline_median_seconds": 53.287363,
+    "reference_ratio": 1.002645,
+    "cold_process_runs": 3,
+    "warm_os_cache_runs": 3,
+    "cold_median_seconds": 53.326727,
+    "warm_median_seconds": 53.279008,
+    "instrumented_runs": 3,
+    "instrumented_median_seconds": 109.639739,
+    "instrumentation_overhead_excluded_from_regression_judgment": true,
+    "largest_instrumented_phase": "private_artifact_discovery_validation",
+    "largest_instrumented_phase_median_seconds": 65.893316,
+    "package_enumeration_construction_validation_seconds": 40.247032,
+    "reconciliation_seconds": 1.100843,
+    "sqlite_queries": 935,
+    "sqlite_cumulative_seconds": 0.228,
+    "resolver_calls": 933,
+    "payload_reads": 933,
+    "payload_duplicate_reads": 0,
+    "payload_bytes": 1324069871,
+    "pdf_parent_validations": 45,
+    "pdf_parent_cache_hits": 532,
+    "packages_passed": 681,
+    "packages_total": 681,
+    "errors": 0,
+    "warnings": 0,
+    "provider_calls": 0,
+    "artifact_store_changed": false
+  },
+  "gate1_actual_profile": {
+    "normalization_seconds": 1167.19911,
+    "full_proof_seconds": 1295.886413,
+    "profile_total_seconds": 1298.02857,
+    "peak_rss_bytes": 7045357568,
+    "sources_total": 104,
+    "sources_terminal": 104,
+    "zero_silent_loss": true,
+    "persisted_records": 1531,
+    "persisted_json_bytes": 1462961493,
+    "source_payload_records": 162,
+    "source_payload_bytes": 1221494446,
+    "source_unit_records": 934,
+    "source_unit_bytes": 149431937,
+    "projection_records": 259,
+    "projection_bytes": 76319687,
+    "text_slice_records": 49,
+    "text_slice_bytes": 13123966,
+    "largest_aggregate_phases": [
+      {
+        "phase": "pdf_full_source_build",
+        "calls": 50,
+        "seconds": 552.620891
+      },
+      {
+        "phase": "csv_table_projection",
+        "calls": 2,
+        "seconds": 429.910332
+      },
+      {
+        "phase": "pdf_layout_parse_nested",
+        "seconds": 298.667163
+      },
+      {
+        "phase": "pdf_text_layer_parse_nested",
+        "seconds": 152.773792
+      }
+    ]
+  },
+  "visual_actual_profile": {
+    "total_seconds": 530.582069,
+    "peak_rss_bytes": 4119752704,
+    "observation_reconstruction_seconds": 461.199209,
+    "isolated_two_pass_ocr_calls": 18,
+    "isolated_two_pass_ocr_seconds": 461.093189,
+    "gate2_handoff_seconds": 59.291924,
+    "resolver_reads": 1231,
+    "resolver_seconds": 20.972227,
+    "persist_seconds": 3.254221,
+    "clone_seconds": 2.19768,
+    "terminal_material_scopes": 10,
+    "confirmed_empty_scopes": 1,
+    "errors": 0,
+    "provider_calls": 0,
+    "artifact_store_changed": false
+  },
+  "capacity": {
+    "measurement_environment": {
+      "logical_cpu": 8,
+      "physical_ram_gb": 34.04,
+      "swap_in_delta": 0,
+      "swap_out_delta": 0
+    },
+    "one_gate2_worker": {
+      "wall_seconds": 54.497682,
+      "peak_rss_bytes": 4011245568,
+      "minimum_available_host_bytes": 7644528640
+    },
+    "two_gate2_workers": {
+      "wall_seconds": 59.865303,
+      "aggregate_peak_rss_bytes": 8018206720,
+      "minimum_available_host_bytes": 3939991552,
+      "wall_degradation_ratio": 1.080783,
+      "throughput_ratio": 1.820677
+    },
+    "failures": 0,
+    "retries": 0,
+    "database_locks": 0,
+    "recommendation": {
+      "gate1_max_workers": 1,
+      "gate1_container_memory_gib": 10,
+      "gate2_max_workers": 2,
+      "gate2_memory_gib_per_worker": 5,
+      "visual_max_workers": 1,
+      "visual_separate_pool": true,
+      "visual_container_memory_gib": 6,
+      "queue_beyond_limits": true,
+      "three_worker_test_skipped_as_not_safe_or_useful": true
+    }
+  },
+  "product_intake": {
+    "status": "guard_gap_identified",
+    "repository_live_loader_match": true,
+    "explicit_diagnostic_process_false_path_safe": true,
+    "feature_route_server_authoritative": false,
+    "native_processing_race_possible": true,
+    "primary_gap": "broker_upload_not_forced_to_process_false_before_original_upload",
+    "required_fix": "feature_owned_server_upload_endpoint_with_forced_process_false_and_typed_receipt",
+    "cleanup_is_defense_in_depth_only": true
+  },
+  "retention": {
+    "approved_flow_run_scope": "proven",
+    "global_expiry_scan_in_approved_flow": "absent",
+    "unrelated_records": 5000,
+    "target_records_examined": 10,
+    "target_records_changed": 10,
+    "unrelated_records_materialized": 0,
+    "unrelated_records_changed": 0,
+    "sql_selects": 1,
+    "sql_updates": 10,
+    "sql_execute_seconds": 0.001898,
+    "operation_wall_seconds": 0.008314,
+    "single_connection_transaction": true,
+    "context_bound_api_complete": false,
+    "strict_audit_idempotence": false,
+    "concurrent_duplicate_work_observed": true,
+    "cleanup_failure_false_success": false,
+    "cleanup_failure_leaves_purge_pending": true,
+    "global_cleanup_scans_outside_approved_expiry": true
+  },
+  "debt_summary": {
+    "p0": [
+      "TD-01-server-authoritative-private-intake"
+    ],
+    "p1": [
+      "TD-02-context-bound-retention-api",
+      "TD-03-idempotent-concurrent-expiry",
+      "TD-04-gate1-bounded-graph-lifetime",
+      "TD-05-heavy-worker-queue-enforcement"
+    ],
+    "p2": [
+      "TD-06-visual-ocr-worker-lifecycle",
+      "TD-07-csv-projection-cost",
+      "TD-08-gate2-bulk-read-validation-cache",
+      "TD-09-indexed-cleanup-scopes",
+      "TD-10-atomic-batched-purge",
+      "TD-11-progress-cancellation-cleanup",
+      "TD-12-ocr-model-path-portability"
+    ],
+    "p3": [
+      "TD-13-pymupdf-swig-deprecations",
+      "TD-14-preexisting-vector-orphan",
+      "TD-15-safe-report-growth",
+      "TD-16-ui-loader-maintainability",
+      "TD-17-customer-holdout-separation",
+      "TD-18-historical-status-accounting"
+    ],
+    "rejected_hypotheses": [
+      "gate2_confirmed_regression",
+      "sqlite_is_gate2_bottleneck",
+      "source_byte_io_is_gate1_bottleneck",
+      "reconciliation_is_current_67_second_gate2_bottleneck",
+      "visual_rendering_is_visual_bottleneck"
+    ]
+  },
+  "next_goal_sequence": [
+    "Broker Reports Server-Authoritative Private Intake And Native-Processing Rejection v1",
+    "Broker Reports Context-Bound Idempotent Lifecycle And Indexed Cleanup v1",
+    "Broker Reports Gate1 Bounded Graph Lifetime And CSV Projection Performance v1",
+    "Broker Reports Reusable Isolated OCR Worker And Workload Queue Separation v1",
+    "Broker Reports Gate2 Bulk Resolution And Immutable Validation Cache v1"
+  ],
+  "final_status": {
+    "confirmed_empty_source_scope": "recorded_and_not_a_blocker",
+    "repository_live_reentry": "proven",
+    "gate2_performance_status": "no_regression",
+    "gate1_performance": "phase_attributed",
+    "capacity_envelope": "measured",
+    "product_process_false_path": "guard_gap_identified",
+    "retention_run_scope": "proven",
+    "global_expiry_scan": "absent_in_approved_flow",
+    "technical_debt": "classified_and_prioritized",
+    "optimization_candidates": "ranked_by_evidence",
+    "correctness_zero_silent_loss_and_privacy": "preserved",
+    "next_engineering_goal": "ready"
+  }
+}
