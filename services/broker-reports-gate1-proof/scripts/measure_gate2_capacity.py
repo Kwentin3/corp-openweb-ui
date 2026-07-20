@@ -114,8 +114,8 @@ def run_group(
         subprocess.Popen(
             command,
             cwd=REPO_ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             text=True,
         )
         for command in commands
