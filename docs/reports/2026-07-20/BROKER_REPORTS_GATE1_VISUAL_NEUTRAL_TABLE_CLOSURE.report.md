@@ -6,10 +6,10 @@ Program status: **NOT_CLOSED**
 ## Outcome
 
 The bounded visual-neutral-table contour is implemented and proven against the
-actual approved corpus without provider calls or ArtifactStore mutation. It does
-not close Goal 3: nine of eleven unique material visual scopes are accepted; one
-byte-uniform source scope remains unresolved and one materially different scan
-fails closed outside the frozen physical-grid profile.
+actual approved corpus without provider calls or mutation of the golden
+ArtifactStore. It does not close Goal 3: ten of eleven claimed material visual
+scopes are accepted; one source scope is physically byte-uniform and remains
+unresolved.
 
 No material scope was reclassified to make the count pass. No OCR or table model
 was granted canonical authority.
@@ -21,18 +21,19 @@ was granted canonical authority.
 | Material source identities | 12 |
 | Exact duplicate identities | 1 |
 | Unique material image scopes | 11 |
-| Accepted unique scopes | 9 |
+| Accepted unique scopes | 10 |
 | Deterministic accepted scopes | 1 |
-| Operator-reviewed accepted scopes | 8 |
+| Operator-reviewed accepted scopes | 9 |
 | Unresolved byte-uniform scopes | 1 |
-| Unsupported complex-layout scopes | 1 |
-| Accepted regions / neutral tables | 12 / 12 |
-| Accepted neutral cells | 410 |
-| Promotion replays | 12 |
+| Unsupported complex-layout scopes | 0 |
+| Accepted regions / neutral tables | 17 / 17 |
+| Accepted neutral cells | 623 |
+| Promotion replays | 17 |
 | Continuation pages validated | 6 |
 
-The exact terminal-state invariant passed. The committed aggregate evidence is
-`BROKER_REPORTS_GATE1_VISUAL_NEUTRAL_TABLE_ACTUAL_CORPUS.v1.safe.json`; all
+Terminal-state accounting passed, but the required 11/11 acceptance invariant
+did not. The committed aggregate evidence is
+`BROKER_REPORTS_GATE1_VISUAL_NEUTRAL_TABLE_ACTUAL_CORPUS.v2.safe.json`; all
 customer-bearing observations and canonical cells remain in ignored private
 proof storage.
 
@@ -44,8 +45,9 @@ and its OCR tokens had 1.0 set overlap with the independent layout sibling.
 
 An actual non-table visual scope was evaluated across the frozen orientation and
 grid detector. It produced zero grid regions and zero promotions. The materially
-different complex scan was retained as `unsupported_visual_layout`; crop/scale
-changes had produced unstable model topology, so model output was not promoted.
+different complex scan was reconstructed as five bounded physical regions,
+passed deterministic validation, and was accepted only after technical review.
+Model topology was not used as authority.
 
 These checks are evidence for this bounded profile. One holdout does not prove
 generalization to arbitrary broker-report layouts.
@@ -54,7 +56,12 @@ generalization to arbitrary broker-report layouts.
 
 - Provider calls, retries, tokens, cost, and whole-document uploads: zero.
 - `model_canonical_authority`: false.
-- ArtifactStore before/after snapshot: unchanged.
+- Golden ArtifactStore before/after snapshot: unchanged.
+- An isolated disposable clone persisted 18 immutable visual results: 17
+  accepted and one blocked terminal result.
+- Gate 2 consumed the 17 accepted artifacts as 17 validated canonical packages
+  for five documents with zero validation errors; the clone remained unchanged
+  during read-only package preparation.
 - Customer values and source identities in committed proof: false.
 - Private payloads were resolved through `ArtifactResolver`; original files were
   not read directly.
@@ -79,15 +86,16 @@ continuation, access/source-image drift, malformed input, and result tampering.
 
 ## Readiness statement
 
-- Actual-corpus readiness: **partial, 9/11 unique material scopes accepted**.
+- Actual-corpus readiness: **partial, 10/11 claimed material scopes accepted**.
+- Accepted-scope Gate 2 readiness: **17/17 canonical packages validated**.
 - Bounded physical-grid profile: **proven on the accepted scopes plus one actual
   holdout and one actual negative**.
 - Generalization readiness: **not proven**.
 - Release readiness: **not claimed**.
 - Customer acceptance: **not claimed**.
 
-Goal 3 can close only when both remaining material scopes have honest terminal
-evidence satisfying the required canonical acceptance invariant, or when an
-authorized source correction changes the underlying evidence. The current blank
-source cannot be repaired by OCR, and the unstable complex scan needs a separate
-topology profile or an explicit reviewed reconstruction contract.
+Goal 3 can close only when the remaining claimed material scope has honest
+terminal evidence satisfying the required canonical acceptance invariant, or
+when the authorized source owner corrects the underlying evidence. The current
+byte-uniform source cannot be repaired by OCR and was not reclassified merely to
+make the denominator pass.
