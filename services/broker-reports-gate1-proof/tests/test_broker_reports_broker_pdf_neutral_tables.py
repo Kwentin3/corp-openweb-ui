@@ -5,8 +5,11 @@ import unittest
 
 from broker_reports_gate1 import (
     BROKER_PDF_NEUTRAL_TABLE_PROFILE_ID,
+    FileInput,
     FullSourceArtifactFactory,
+    Gate1Normalizer,
     Gate2TablePackageFactory,
+    NormalizedTableProjectionConfig,
     NormalizedTableProjectionFactory,
     REGION_DECISION_SCHEMA_VERSION,
     TableProjectionValidator,
@@ -39,7 +42,11 @@ class BrokerPdfNeutralTablesTest(unittest.TestCase):
             )
         )
         result = (
-            NormalizedTableProjectionFactory()
+            NormalizedTableProjectionFactory(
+                NormalizedTableProjectionConfig(
+                    broker_pdf_neutral_table_profile_v1_enabled=True
+                )
+            )
             .create()
             .build_for_document(
                 source_format="pdf",
@@ -84,6 +91,72 @@ class BrokerPdfNeutralTablesTest(unittest.TestCase):
         )
         self.assertFalse(package["prompt_contract"]["model_call_performed"])
 
+    def test_profile_is_release_gated_by_default_and_requires_explicit_opt_in(self):
+        built = (
+            FullSourceArtifactFactory()
+            .create()
+            .build(
+                normalization_run_id="release_gate_run",
+                document_id="release_gate_document",
+                profile_id="release_gate_profile",
+                container_format="pdf",
+                content_bytes=_broker_profile_ruled_table_pdf(),
+                source_checksum_sha256="c" * 64,
+            )
+        )
+
+        default_result = (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_for_document(
+                source_format="pdf",
+                payloads=built.payloads,
+                source_units=built.units,
+            )
+        )
+
+        self.assertEqual(len(default_result.projections), 1)
+        self.assertNotIn("canonical_contract", default_result.projections[0])
+        self.assertEqual(
+            default_result.projections[0]["table_candidate_status"],
+            "validated_geometry",
+        )
+        self.assertEqual(
+            self._projection()["canonical_profile_id"],
+            BROKER_PDF_NEUTRAL_TABLE_PROFILE_ID,
+        )
+
+    def test_gate1_runtime_requires_explicit_private_proof_enablement(self):
+        source = FileInput.from_bytes(
+            private_ref="release-gate-source",
+            filename="synthetic-broker-report.pdf",
+            content=_broker_profile_ruled_table_pdf(),
+            mime_type="application/pdf",
+        )
+
+        default_result = Gate1Normalizer().normalize([source])
+        enabled_result = Gate1Normalizer().normalize(
+            [source],
+            input_context={
+                "broker_pdf_neutral_table_profile_v1_enabled": True,
+                "proof_scope": "deterministic_test_fixture",
+            },
+        )
+
+        default_projections = default_result.package[
+            "private_normalized_table_projections"
+        ]
+        enabled_projections = enabled_result.package[
+            "private_normalized_table_projections"
+        ]
+        self.assertFalse(
+            any("canonical_contract" in item for item in default_projections)
+        )
+        self.assertEqual(
+            sum("canonical_contract" in item for item in enabled_projections),
+            1,
+        )
+
     def test_out_of_profile_ruled_table_stays_geometry_only_and_gate2_blocked(self):
         built = (
             FullSourceArtifactFactory()
@@ -98,7 +171,11 @@ class BrokerPdfNeutralTablesTest(unittest.TestCase):
             )
         )
         result = (
-            NormalizedTableProjectionFactory()
+            NormalizedTableProjectionFactory(
+                NormalizedTableProjectionConfig(
+                    broker_pdf_neutral_table_profile_v1_enabled=True
+                )
+            )
             .create()
             .build_for_document(
                 source_format="pdf",

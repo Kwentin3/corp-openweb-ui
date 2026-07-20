@@ -124,6 +124,7 @@ class Pipe:
         clarification_prompt_command: str = Field(default="broker_gate1_clarification_request")
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
+        broker_pdf_neutral_table_profile_v1_enabled: bool = Field(default=False)
         pdf_compact_canonical_dual_write: bool = Field(default=False)
         pdf_table_intake_enabled: bool = Field(default=False)
         pdf_table_intake_provider_profile: str = Field(default="google_gemini")
@@ -211,6 +212,9 @@ class Pipe:
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
+                "broker_pdf_neutral_table_profile_v1_enabled": bool(
+                    self.valves.broker_pdf_neutral_table_profile_v1_enabled
+                ),
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
                 ),

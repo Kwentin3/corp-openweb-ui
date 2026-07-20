@@ -56,6 +56,7 @@ class NormalizedTableProjectionConfig:
     max_cells: int = 100_000
     max_payload_bytes: int = 20_000_000
     min_pdf_geometry_confidence: float = 0.90
+    broker_pdf_neutral_table_profile_v1_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,11 @@ class NormalizedTableProjectionService:
             "xml": XmlTableProjectionBuilder(config),
         }
         self.pdf_builder = PdfTableCandidateProjectionBuilder(config)
-        self.broker_pdf_neutral_builder = BrokerPdfNeutralTableFactory().create()
+        self.broker_pdf_neutral_builder = (
+            BrokerPdfNeutralTableFactory().create()
+            if config.broker_pdf_neutral_table_profile_v1_enabled
+            else None
+        )
         self.validator = TableProjectionValidator()
 
     def build_for_document(
@@ -117,6 +122,7 @@ class NormalizedTableProjectionService:
                 source_units=source_units,
             )
             if normalized_format == "pdf"
+            and self.broker_pdf_neutral_builder is not None
             else None
         )
         for unit in source_units:

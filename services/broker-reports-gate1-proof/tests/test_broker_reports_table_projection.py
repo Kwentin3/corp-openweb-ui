@@ -604,7 +604,11 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             content_bytes=content,
             source_checksum_sha256="a" * 64,
         )
-        return NormalizedTableProjectionFactory().create().build_for_document(
+        return NormalizedTableProjectionFactory(
+            NormalizedTableProjectionConfig(
+                broker_pdf_neutral_table_profile_v1_enabled=True
+            )
+        ).create().build_for_document(
             source_format="pdf",
             payloads=built.payloads,
             source_units=built.units,
