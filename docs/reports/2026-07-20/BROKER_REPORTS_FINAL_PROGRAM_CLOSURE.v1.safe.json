@@ -1,0 +1,136 @@
+{
+  "date": "2026-07-20",
+  "delivery": {
+    "function_bundles": [
+      {
+        "repository_live_sha256_equal": true,
+        "role": "gate1",
+        "sha256": "5c0ea33afb5180434ec6adaa41e804b99846ef361499e2789d9a754a682bebab"
+      },
+      {
+        "repository_live_sha256_equal": true,
+        "role": "gate2_source",
+        "sha256": "8622c9d72cbca7e59380fd5bb9eb7bcecc75e5d964bd1a5324e75ff33edd856f"
+      },
+      {
+        "repository_live_sha256_equal": true,
+        "role": "gate2_domain",
+        "sha256": "d599b1caeac0eaf8bc77e383cb8cae1a8848f9d92d26fb3ee687e92d5cd90840"
+      }
+    ],
+    "live_parity": {
+      "factory_boundary_checks_passed": true,
+      "functions_exact": 3,
+      "managed_prompts_exact": 12,
+      "required_fitz_version": "1.26.5",
+      "status": "passed"
+    },
+    "operational_valves": {
+      "broker_pdf_neutral_table_profile_v1_enabled": false,
+      "sber_release_remains_gated": true,
+      "visual_provider_transfer_enabled_in_restricted_smoke": false
+    }
+  },
+  "goal_statuses": {
+    "goal_0_customer_debt_and_release_isolation": "completed",
+    "goal_1_zip_lineage_handoff": "completed",
+    "goal_2_fns_typed_adapter_and_pdf_parity": "completed",
+    "goal_3_visual_neutral_table_recovery": "implementation_blocked",
+    "goal_4_readiness_reconciliation": "completed_with_integrated_closure_blocked_by_goal_3",
+    "goal_5_delivery_live_alignment_and_git_hygiene": "delivery_aligned_but_stage_chat_operationally_blocked"
+  },
+  "program_blockers": [
+    {
+      "owner": "visual_recovery_to_gate2_canonical_consumer",
+      "status": "implementation_defect",
+      "summary": "accepted_visual_outputs_not_integrated_as_gate2_canonical_input"
+    },
+    {
+      "owner": "source_owner",
+      "status": "correct_scope_restriction",
+      "summary": "one_material_visual_scope_is_byte_uniform_and_unresolved"
+    },
+    {
+      "owner": "visual_profile",
+      "status": "unsupported_profile",
+      "summary": "one_material_complex_visual_layout_is_unsupported"
+    },
+    {
+      "owner": "customer",
+      "status": "external_customer_acceptance_debt",
+      "summary": "same_family_sber_positive_holdout_is_unavailable"
+    },
+    {
+      "owner": "stage_chat_runtime",
+      "status": "operational_blocker",
+      "summary": "real_chat_completion_did_not_reach_a_terminal_response"
+    }
+  ],
+  "quality": {
+    "bundle_tests_passed": 17,
+    "full_regression_passed": 960,
+    "full_regression_warnings": 5,
+    "new_live_poll_terminal_tests_passed": 3,
+    "ruff_relevant_files_passed": true
+  },
+  "references": [
+    "BROKER_REPORTS_ACTUAL_CORPUS_INTEGRATED_CLOSURE.v1.safe.json",
+    "BROKER_REPORTS_GATE1_ACTUAL_CORPUS_RERUN.v4.safe.json",
+    "BROKER_REPORTS_GATE1_VISUAL_NEUTRAL_TABLE_ACTUAL_CORPUS.v2.safe.json",
+    "BROKER_REPORTS_GATE2_FNS_2NDFL_ACTUAL_CORPUS.v1.safe.json",
+    "BROKER_REPORTS_GATE2_PACKAGE_PREPARATION_ACTUAL_RERUN.v3.safe.json"
+  ],
+  "restricted_scope_stage_smoke": {
+    "accounting": {
+      "archive_containers": 1,
+      "fns_typed_packages": 1,
+      "packages": 2,
+      "promoted_members": 1,
+      "provider_calls": 0,
+      "source_ready_documents": 2,
+      "source_records": 4
+    },
+    "checks_passed": 15,
+    "customer_documents_used": false,
+    "execution_mode": "ephemeral_synthetic_repository_bundle_in_stage_container",
+    "knowledge_rag_used": false,
+    "persistent_state_unchanged": true,
+    "status": "passed",
+    "vectorization_performed": false
+  },
+  "schema_version": "broker_reports_final_program_closure_safe_v1",
+  "stage_chat_observation": {
+    "accepted_as_closure_evidence": false,
+    "approved_process_false_path": {
+      "client_timeout_seconds": 300,
+      "knowledge_delta": 0,
+      "status": "blocked_no_terminal_response",
+      "vector_delta": 0
+    },
+    "native_default_processing_path": {
+      "approved_product_path": false,
+      "generated_vector_state": true,
+      "status": "blocked_no_terminal_response"
+    },
+    "privacy": {
+      "customer_documents_used": false,
+      "synthetic_inputs_only": true
+    }
+  },
+  "stage_cleanup_receipt": {
+    "active_private_payload_records": 0,
+    "case_audit_tombstones": 53,
+    "document_rows": 0,
+    "file_rows": 261,
+    "health_body_status_true": true,
+    "health_http_status": 200,
+    "knowledge_rows": 0,
+    "recent_generated_orphan_directories_remaining": 0,
+    "synthetic_uploads_remaining": 0,
+    "unrelated_preexisting_orphan_directories_preserved": 1,
+    "vector_collections": 146,
+    "vector_directories": 146,
+    "vector_files": 595
+  },
+  "status": "NOT_CLOSED"
+}
