@@ -707,6 +707,7 @@ def _canonical_table(
         "header_rows": copy.deepcopy(table.get("header_rows")),
         "header_hierarchy": copy.deepcopy(table.get("header_hierarchy")),
         "row_roles": copy.deepcopy(table.get("row_roles")),
+        "merge_evidence": copy.deepcopy(table.get("merge_evidence")),
         "geometry_evidence": copy.deepcopy(table.get("geometry_evidence")),
     }
     canonical["table_checksum_ref"] = _checksum_ref("visualtablechk", canonical)

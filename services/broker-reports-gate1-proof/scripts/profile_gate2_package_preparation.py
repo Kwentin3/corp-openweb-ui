@@ -731,7 +731,17 @@ def prepare_actual_latest(config_path: Path) -> PreparedWorkload:
     acceptance = json.loads(acceptance_path.read_text(encoding="utf-8"))
     run_id = str(_object(acceptance.get("actual_execution")).get("normalization_run_id") or "")
     if not run_id:
-        raise RuntimeError("actual_gate1_run_id_missing")
+        with sqlite3.connect(database) as connection:
+            run_ids = [
+                str(row[0] or "")
+                for row in connection.execute(
+                    "SELECT DISTINCT normalization_run_id FROM artifact_records"
+                ).fetchall()
+                if row[0]
+            ]
+        if len(run_ids) != 1:
+            raise RuntimeError("actual_gate1_run_id_missing_or_ambiguous")
+        run_id = run_ids[0]
     store = ArtifactStoreFactory(
         ArtifactStoreConfig(
             mode="sqlite",

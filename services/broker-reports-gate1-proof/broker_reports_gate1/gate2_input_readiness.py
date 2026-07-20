@@ -42,6 +42,11 @@ from .gate2_table_packages import (
     Gate2TablePackageFactory,
     validate_gate2_table_package,
 )
+from .gate2_visual_table_packages import (
+    Gate2VisualTablePackageFactory,
+    validate_gate2_visual_table_package,
+)
+from .visual_neutral_tables import validate_visual_neutral_table_result
 
 
 FACTORY_REQUIRED = (
@@ -130,6 +135,9 @@ class Gate2InputReadinessService:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
         self.table_package_builder = Gate2TablePackageFactory().create()
+        self.visual_table_package_builder = (
+            Gate2VisualTablePackageFactory().create()
+        )
         self.fns_2ndfl_adapter = Gate2Fns2NdflAdapterFactory().create()
         self.fns_2ndfl_parity = Gate2Fns2NdflParityFactory().create()
 
@@ -138,6 +146,7 @@ class Gate2InputReadinessService:
         *,
         domain_context_packet_ref: str,
         context: ArtifactAccessContext,
+        visual_neutral_table_refs: list[str] | None = None,
     ) -> Gate2InputReadinessResult:
         if not context.allow_private:
             raise Gate2InputReadinessError(
@@ -217,17 +226,32 @@ class Gate2InputReadinessService:
         )
 
         next_stage_refs = _object(dcp.get("next_stage_refs"))
-        source_ready_refs = _string_list(next_stage_refs.get("source_fact_ready_refs"))
+        base_source_ready_refs = _string_list(
+            next_stage_refs.get("source_fact_ready_refs")
+        )
         memory_by_document = {
             str(item.get("source_file_ref") or ""): item
             for item in document_memory.get("documents") or []
             if isinstance(item, dict)
             if item.get("source_file_ref")
         }
+        visual_inputs_by_document, visual_recovery_audit = (
+            self._resolve_visual_neutral_tables(
+                records=records,
+                artifact_refs=visual_neutral_table_refs or [],
+                context=context,
+                resolved_scope_records=resolved_scope_records,
+                errors=errors,
+            )
+        )
+        visual_ready_refs = sorted(visual_inputs_by_document)
+        source_ready_refs = sorted(
+            set(base_source_ready_refs) | set(visual_ready_refs)
+        )
         slices_by_document, slice_audit = self._resolve_private_slices(
             records=records,
             context=context,
-            requested_document_refs=set(source_ready_refs),
+            requested_document_refs=set(base_source_ready_refs),
             memory_by_document=memory_by_document,
             resolved_scope_records=resolved_scope_records,
             errors=errors,
@@ -240,11 +264,13 @@ class Gate2InputReadinessService:
             in {"ready", "ready_with_issues"}
             and entry.get("document_ref")
         )
-        if sorted(source_ready_refs) != duc_ready_refs:
+        if sorted(base_source_ready_refs) != duc_ready_refs:
             errors.append(
                 _error(
                     "gate2_source_ready_refs_mismatch",
-                    ",".join(sorted(set(source_ready_refs) ^ set(duc_ready_refs))),
+                    ",".join(
+                        sorted(set(base_source_ready_refs) ^ set(duc_ready_refs))
+                    ),
                 )
             )
         if _string_list(next_stage_refs.get("dropped_source_ready_refs")):
@@ -255,6 +281,47 @@ class Gate2InputReadinessService:
             for entry in _entries(duc)
             if entry.get("document_ref")
         }
+        for document_ref in visual_ready_refs:
+            usage_entry = usage_by_document.get(document_ref)
+            memory_entry = memory_by_document.get(document_ref)
+            usage_readiness = str(
+                _object(_object(usage_entry).get("readiness_by_stage")).get(
+                    "source_fact_extraction"
+                )
+                or ""
+            )
+            visual_scope = str(
+                _object(
+                    _object(_object(memory_entry).get("source_scope")).get(
+                        "scope_readiness"
+                    )
+                ).get("visual_scope")
+                or ""
+            )
+            if usage_entry is None or usage_readiness not in {
+                "blocked_no_gate2_consumer",
+                "blocked_unreadable",
+                "ready",
+                "ready_with_issues",
+            }:
+                errors.append(
+                    _error(
+                        "gate2_visual_recovery_document_usage_not_eligible",
+                        document_ref,
+                    )
+                )
+            if (
+                memory_entry is None
+                or memory_entry.get("gate2_memory_status")
+                not in {"ready", "ready_with_restrictions"}
+                or visual_scope != "ready"
+            ):
+                errors.append(
+                    _error(
+                        "gate2_visual_recovery_document_memory_not_ready",
+                        document_ref,
+                    )
+                )
         paired_withholding_groups = _paired_withholding_groups(
             memory_by_document=memory_by_document,
             usage_by_document=usage_by_document,
@@ -299,12 +366,110 @@ class Gate2InputReadinessService:
                 unpackageable_document_refs.add(document_ref)
                 continue
             document_slices = slices_by_document.get(document_ref, [])
-            if not document_slices:
+            document_visual_inputs = visual_inputs_by_document.get(
+                document_ref, []
+            )
+            if not document_slices and not document_visual_inputs:
                 errors.append(_error("gate2_source_ready_document_has_no_private_slice", document_ref))
                 unpackageable_document_refs.add(document_ref)
                 continue
             bucket_roles = _document_bucket_roles(next_stage_refs, document_ref)
+            if document_visual_inputs:
+                bucket_roles = sorted(
+                    set(bucket_roles) | {"visual_recovery_source"}
+                )
             document_package_validations = []
+            for visual_record, visual_result in document_visual_inputs:
+                visual_issue_refs = [
+                    ref
+                    for ref in _string_list(
+                        document_issue_refs.get(document_ref)
+                    )
+                    if ref in issues_by_id
+                ]
+                issue_scope_counts.update(
+                    "visual_neutral_table" for _ in visual_issue_refs
+                )
+                try:
+                    visual_packages = self.visual_table_package_builder.build(
+                        visual_result=visual_result,
+                        visual_result_artifact_ref=visual_record.artifact_id,
+                        normalization_run_id=context.normalization_run_id,
+                        case_id=context.case_id,
+                        issue_refs=visual_issue_refs,
+                    )
+                except ValueError as exc:
+                    failure = _error(str(exc), visual_record.artifact_id)
+                    errors.append(failure)
+                    document_package_validations.append(
+                        {
+                            "validator_status": "failed",
+                            "errors": [failure],
+                        }
+                    )
+                    continue
+                tables_by_id = {
+                    str(table.get("table_id") or ""): table
+                    for table in visual_result.get("canonical_tables") or []
+                    if isinstance(table, dict)
+                }
+                for package in visual_packages:
+                    package["source_bucket_roles"] = copy.deepcopy(
+                        bucket_roles
+                    )
+                    package["document_context"] = {
+                        "usage_modes": _string_list(
+                            _object(usage_by_document.get(document_ref)).get(
+                                "usage_modes"
+                            )
+                        ),
+                        "readiness_by_stage": copy.deepcopy(
+                            _object(usage_by_document.get(document_ref)).get(
+                                "readiness_by_stage"
+                            )
+                            or {}
+                        ),
+                        "scope_readiness": copy.deepcopy(
+                            _object(memory_entry.get("source_scope")).get(
+                                "scope_readiness"
+                            )
+                            or {}
+                        ),
+                        "selected_source_scope": "visual_neutral_table",
+                        "financial_interpretation_allowed": True,
+                    }
+                    package["forbidden_assumptions"] = _string_list(
+                        dcp.get("forbidden_assumptions")
+                    )
+                    table = tables_by_id.get(
+                        str(
+                            _object(package.get("source_unit")).get(
+                                "canonical_table_id"
+                            )
+                            or ""
+                        )
+                    )
+                    if table is None:
+                        failure = _error(
+                            "gate2_visual_package_table_lineage_missing",
+                            package.get("package_id"),
+                        )
+                        errors.append(failure)
+                        document_package_validations.append(
+                            {
+                                "validator_status": "failed",
+                                "errors": [failure],
+                            }
+                        )
+                        continue
+                    validation = validate_gate2_visual_table_package(
+                        package=package,
+                        visual_result=visual_result,
+                        table=table,
+                    )
+                    packages.append(package)
+                    package_validations.append(validation)
+                    document_package_validations.append(validation)
             for slice_record, private_slice, provenance_validation in document_slices:
                 if provenance_validation.get("validator_status") != "passed":
                     errors.extend(copy.deepcopy(provenance_validation.get("errors") or []))
@@ -614,6 +779,7 @@ class Gate2InputReadinessService:
             "knowledge_records": knowledge_records,
             "handoff_audit": handoff_audit,
             "slice_audit": slice_audit,
+            "visual_recovery_audit": visual_recovery_audit,
             "document_memory_audit": {
                 "manifest_id": document_memory.get("manifest_id"),
                 "schema_version": document_memory.get("schema_version"),
@@ -725,6 +891,140 @@ class Gate2InputReadinessService:
             if record.document_id:
                 result[str(record.document_id)] = _object(resolved["payload"])
         return result
+
+    def _resolve_visual_neutral_tables(
+        self,
+        *,
+        records: list[ArtifactRecord],
+        artifact_refs: list[str],
+        context: ArtifactAccessContext,
+        resolved_scope_records: list[str],
+        errors: list[dict[str, str]],
+    ) -> tuple[
+        dict[str, list[tuple[ArtifactRecord, dict[str, Any]]]],
+        dict[str, Any],
+    ]:
+        result: dict[
+            str, list[tuple[ArtifactRecord, dict[str, Any]]]
+        ] = defaultdict(list)
+        requested_refs = [str(ref) for ref in artifact_refs if str(ref)]
+        if len(requested_refs) != len(set(requested_refs)):
+            errors.append(
+                _error("gate2_visual_recovery_refs_not_unique", "visual")
+            )
+            requested_refs = list(dict.fromkeys(requested_refs))
+        record_by_id = {record.artifact_id: record for record in records}
+        source_records_by_unit: dict[str, list[ArtifactRecord]] = defaultdict(
+            list
+        )
+        for record in records:
+            if record.artifact_type != SOURCE_UNIT_SCHEMA_VERSION:
+                continue
+            unit_ref = str(record.safe_metadata.get("unit_ref") or "")
+            if unit_ref:
+                source_records_by_unit[unit_ref].append(record)
+
+        accepted_total = 0
+        rejected_total = 0
+        source_lineage_validated_total = 0
+        for artifact_ref in requested_refs:
+            catalog_record = record_by_id.get(artifact_ref)
+            if catalog_record is None:
+                errors.append(
+                    _error("gate2_visual_recovery_artifact_missing", artifact_ref)
+                )
+                rejected_total += 1
+                continue
+            try:
+                resolved = self.resolver.resolve(artifact_ref, context)
+            except ArtifactStoreError as exc:
+                errors.append(_error(f"gate2_{exc.code}", artifact_ref))
+                rejected_total += 1
+                continue
+            record = resolved["record"]
+            payload = _object(resolved.get("payload"))
+            if (
+                record.artifact_type
+                != "broker_reports_gate1_visual_neutral_table_v1"
+                or record.validation_status != "validated"
+            ):
+                errors.append(
+                    _error("gate2_visual_recovery_artifact_not_canonical", artifact_ref)
+                )
+                rejected_total += 1
+                continue
+            validation_errors = validate_visual_neutral_table_result(payload)
+            if validation_errors:
+                errors.extend(copy.deepcopy(validation_errors))
+                rejected_total += 1
+                continue
+            if not str(payload.get("promotion_state") or "").startswith(
+                "canonical_table_accepted_"
+            ):
+                errors.append(
+                    _error("gate2_visual_recovery_result_not_accepted", artifact_ref)
+                )
+                rejected_total += 1
+                continue
+            document_ref = str(payload.get("source_document_ref") or "")
+            source_unit_ref = str(payload.get("source_unit_ref") or "")
+            source_candidates = source_records_by_unit.get(source_unit_ref, [])
+            if (
+                not document_ref
+                or str(record.document_id or "") != document_ref
+                or len(source_candidates) != 1
+            ):
+                errors.append(
+                    _error("gate2_visual_recovery_source_lineage_invalid", artifact_ref)
+                )
+                rejected_total += 1
+                continue
+            source_record = source_candidates[0]
+            try:
+                source_payload = _object(
+                    self.resolver.resolve(source_record.artifact_id, context).get(
+                        "payload"
+                    )
+                )
+            except ArtifactStoreError as exc:
+                errors.append(
+                    _error(f"gate2_{exc.code}", source_record.artifact_id)
+                )
+                rejected_total += 1
+                continue
+            if (
+                source_record.validation_status != "validated"
+                or str(source_record.document_id or "") != document_ref
+                or source_payload.get("pdf_unit_type")
+                != "pdf_visual_page_unit"
+                or source_payload.get("private_media_sha256")
+                != payload.get("image_sha256")
+                or int(source_payload.get("page_number") or 0)
+                != int(payload.get("page_number") or 0)
+            ):
+                errors.append(
+                    _error("gate2_visual_recovery_source_payload_mismatch", artifact_ref)
+                )
+                rejected_total += 1
+                continue
+            result[document_ref].append((record, payload))
+            resolved_scope_records.extend(
+                [record.artifact_id, source_record.artifact_id]
+            )
+            accepted_total += 1
+            source_lineage_validated_total += 1
+        return result, {
+            "requested_artifact_refs_total": len(requested_refs),
+            "accepted_canonical_results_total": accepted_total,
+            "rejected_results_total": rejected_total,
+            "documents_with_visual_canonical_input_total": len(result),
+            "source_lineage_validated_total": source_lineage_validated_total,
+            "provider_calls": 0,
+            "whole_document_provider_uploads": 0,
+            "model_canonical_authority": False,
+            "knowledge_rag_used": False,
+            "vectorization_performed": False,
+        }
 
     def _resolve_private_slices(
         self,

@@ -35,6 +35,8 @@ SUPPORTED_CONTRACTS = [
     "private_normalized_source_unit_v0",
     "full_source_coverage_summary_v0",
     "broker_reports_normalized_table_projection_v0",
+    "broker_reports_gate1_visual_neutral_table_v1",
+    "broker_reports_gate1_visual_recovery_manifest_v1",
     "broker_reports_pdf_compact_canonical_document_v1",
     "broker_reports_pdf_normalization_acceptance_v1",
     "broker_reports_pdf_table_classification_v1",

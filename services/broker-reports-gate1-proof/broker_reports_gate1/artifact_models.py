@@ -90,6 +90,8 @@ ARTIFACT_TYPES = {
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
     "broker_reports_normalized_table_projection_v0",
+    "broker_reports_gate1_visual_neutral_table_v1",
+    "broker_reports_gate1_visual_recovery_manifest_v1",
     "broker_reports_pdf_compact_canonical_document_v1",
     "broker_reports_pdf_normalization_acceptance_v1",
     "broker_reports_pdf_compact_build_failure_v1",

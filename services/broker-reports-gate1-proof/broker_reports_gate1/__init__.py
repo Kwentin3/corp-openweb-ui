@@ -385,6 +385,12 @@ from .visual_neutral_tables import (
     validate_visual_neutral_table_result,
     validate_visual_ocr_observation,
 )
+from .visual_recovery_handoff import (
+    VISUAL_RECOVERY_MANIFEST_SCHEMA_VERSION,
+    Gate1VisualRecoveryArtifactManifest,
+    Gate1VisualRecoveryHandoffFactory,
+    VisualRecoveryHandoffError,
+)
 from .xml_source import (
     XML_NEUTRAL_PROFILE_ID,
     XmlNeutralMemoryConfig,
@@ -428,6 +434,12 @@ from .gate2_table_packages import (
     Gate2TablePackageConfig,
     Gate2TablePackageFactory,
     validate_gate2_table_package,
+)
+from .gate2_visual_table_packages import (
+    VISUAL_TABLE_PACKAGE_VALIDATION_SCHEMA_VERSION,
+    Gate2VisualTablePackageConfig,
+    Gate2VisualTablePackageFactory,
+    validate_gate2_visual_table_package,
 )
 
 __all__ = [
@@ -488,6 +500,10 @@ __all__ = [
     "validate_visual_continuation_chain",
     "validate_visual_neutral_table_result",
     "validate_visual_ocr_observation",
+    "VISUAL_RECOVERY_MANIFEST_SCHEMA_VERSION",
+    "Gate1VisualRecoveryArtifactManifest",
+    "Gate1VisualRecoveryHandoffFactory",
+    "VisualRecoveryHandoffError",
     "PYPDF_PINNED_VERSION",
     "XML_NEUTRAL_PROFILE_ID",
     "XmlNeutralMemoryConfig",
@@ -722,4 +738,8 @@ __all__ = [
     "Gate2TablePackageConfig",
     "Gate2TablePackageFactory",
     "validate_gate2_table_package",
+    "VISUAL_TABLE_PACKAGE_VALIDATION_SCHEMA_VERSION",
+    "Gate2VisualTablePackageConfig",
+    "Gate2VisualTablePackageFactory",
+    "validate_gate2_visual_table_package",
 ]
