@@ -101,7 +101,7 @@ def run_group(
         _worker_command(
             config_path=config_path,
             raw_output=output,
-            cache_state=f"capacity_{label}",
+            cache_state="warm_os_cache",
         )
         for output in raw_outputs
     ]
