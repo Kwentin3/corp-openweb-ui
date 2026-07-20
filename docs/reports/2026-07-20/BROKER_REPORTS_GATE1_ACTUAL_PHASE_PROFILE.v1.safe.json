@@ -1,0 +1,284 @@
+{
+  "artifact_storage": {
+    "by_artifact_type": {
+      "broker_reports_file_processing_batch_v1": {
+        "payload_bytes": 53384,
+        "records": 1
+      },
+      "broker_reports_gate1_archive_source_manifest_v1": {
+        "payload_bytes": 43703,
+        "records": 1
+      },
+      "broker_reports_gate1_document_memory_manifest_v1": {
+        "payload_bytes": 321441,
+        "records": 1
+      },
+      "broker_reports_gate1_supported_pilot_profile_v1": {
+        "payload_bytes": 3785,
+        "records": 1
+      },
+      "broker_reports_gate1_supported_profile_assessment_v1": {
+        "payload_bytes": 47840,
+        "records": 1
+      },
+      "broker_reports_normalized_table_projection_v0": {
+        "payload_bytes": 76319687,
+        "records": 259
+      },
+      "chat_visible_normalization_report_v0": {
+        "payload_bytes": 963030,
+        "records": 1
+      },
+      "document_inventory_v0": {
+        "payload_bytes": 83294,
+        "records": 1
+      },
+      "document_source_eligibility_v0": {
+        "payload_bytes": 185168,
+        "records": 1
+      },
+      "document_usage_classification_v0": {
+        "payload_bytes": 107357,
+        "records": 1
+      },
+      "domain_context_packet_v0": {
+        "payload_bytes": 22478,
+        "records": 1
+      },
+      "gate1_issue_ledger_v0": {
+        "payload_bytes": 90117,
+        "records": 1
+      },
+      "gate2_handoff_v0": {
+        "payload_bytes": 108151,
+        "records": 1
+      },
+      "normalization_blockers_v0": {
+        "payload_bytes": 1251,
+        "records": 1
+      },
+      "normalization_run_v0": {
+        "payload_bytes": 1643,
+        "records": 1
+      },
+      "private_normalized_source_payload_v0": {
+        "payload_bytes": 1221494446,
+        "records": 162
+      },
+      "private_normalized_source_unit_v0": {
+        "payload_bytes": 149431937,
+        "records": 934
+      },
+      "private_normalized_table_slice_v0": {
+        "payload_bytes": 313273,
+        "records": 6
+      },
+      "private_normalized_text_slice_v0": {
+        "payload_bytes": 13123966,
+        "records": 49
+      },
+      "source_file_ref_v0": {
+        "payload_bytes": 43559,
+        "records": 104
+      },
+      "taxonomy_candidates_v0": {
+        "payload_bytes": 90145,
+        "records": 1
+      },
+      "technical_readability_profile_v0": {
+        "payload_bytes": 111702,
+        "records": 1
+      },
+      "validation_result_v0": {
+        "payload_bytes": 136,
+        "records": 1
+      }
+    },
+    "payload_bytes_total": 1462961493,
+    "records_total": 1531
+  },
+  "inclusive_phase_profile": {
+    "archive.inspect_and_expand": {
+      "calls": 24,
+      "inclusive_wall_seconds": 0.025084,
+      "maximum_call_wall_seconds": 0.001346
+    },
+    "full_source_build.csv": {
+      "calls": 2,
+      "inclusive_wall_seconds": 0.817426,
+      "maximum_call_wall_seconds": 0.441075
+    },
+    "full_source_build.html": {
+      "calls": 4,
+      "inclusive_wall_seconds": 0.115877,
+      "maximum_call_wall_seconds": 0.033676
+    },
+    "full_source_build.pdf": {
+      "calls": 50,
+      "inclusive_wall_seconds": 552.620891,
+      "maximum_call_wall_seconds": 54.808018
+    },
+    "full_source_build.xml": {
+      "calls": 24,
+      "inclusive_wall_seconds": 0.527419,
+      "maximum_call_wall_seconds": 0.047351
+    },
+    "pdf.layout_parse": {
+      "calls": 50,
+      "inclusive_wall_seconds": 298.667163,
+      "maximum_call_wall_seconds": 21.035095
+    },
+    "pdf.page_render": {
+      "calls": 22,
+      "inclusive_wall_seconds": 7.148804,
+      "maximum_call_wall_seconds": 2.295091
+    },
+    "pdf.text_layer_parse": {
+      "calls": 50,
+      "inclusive_wall_seconds": 152.773792,
+      "maximum_call_wall_seconds": 25.992753
+    },
+    "pdf.visual_unit_materialization": {
+      "calls": 22,
+      "inclusive_wall_seconds": 7.249301,
+      "maximum_call_wall_seconds": 2.310303
+    },
+    "post_parse.artifact_validation": {
+      "calls": 1,
+      "inclusive_wall_seconds": 23.450368,
+      "maximum_call_wall_seconds": 23.450368
+    },
+    "post_parse.domain_ingestion": {
+      "calls": 1,
+      "inclusive_wall_seconds": 47.339172,
+      "maximum_call_wall_seconds": 47.339172
+    },
+    "post_parse.safe_report_render": {
+      "calls": 2,
+      "inclusive_wall_seconds": 0.056339,
+      "maximum_call_wall_seconds": 0.028352
+    },
+    "proof.actual_corpus_operator_review": {
+      "calls": 1,
+      "inclusive_wall_seconds": 64.524225,
+      "maximum_call_wall_seconds": 64.524225
+    },
+    "proof.artifactstore_persistence": {
+      "calls": 1,
+      "inclusive_wall_seconds": 42.826203,
+      "maximum_call_wall_seconds": 42.826203
+    },
+    "proof.input_construction": {
+      "calls": 1,
+      "inclusive_wall_seconds": 0.023997,
+      "maximum_call_wall_seconds": 0.023997
+    },
+    "proof.private_artifact_reload": {
+      "calls": 1,
+      "inclusive_wall_seconds": 20.859482,
+      "maximum_call_wall_seconds": 20.859482
+    },
+    "proof.public_handoff_audit": {
+      "calls": 1,
+      "inclusive_wall_seconds": 0.016717,
+      "maximum_call_wall_seconds": 0.016717
+    },
+    "proof.source_inventory": {
+      "calls": 2,
+      "inclusive_wall_seconds": 0.175701,
+      "maximum_call_wall_seconds": 0.105181
+    },
+    "proof.source_reconciliation": {
+      "calls": 1,
+      "inclusive_wall_seconds": 0.000474,
+      "maximum_call_wall_seconds": 0.000474
+    },
+    "source_bytes.csv": {
+      "calls": 2,
+      "inclusive_wall_seconds": 0.000401,
+      "maximum_call_wall_seconds": 0.00028
+    },
+    "source_bytes.html": {
+      "calls": 4,
+      "inclusive_wall_seconds": 0.000742,
+      "maximum_call_wall_seconds": 0.000211
+    },
+    "source_bytes.pdf": {
+      "calls": 50,
+      "inclusive_wall_seconds": 0.008531,
+      "maximum_call_wall_seconds": 0.000568
+    },
+    "source_bytes.xml": {
+      "calls": 24,
+      "inclusive_wall_seconds": 0.000283,
+      "maximum_call_wall_seconds": 1.6e-05
+    },
+    "source_bytes.zip": {
+      "calls": 24,
+      "inclusive_wall_seconds": 0.003284,
+      "maximum_call_wall_seconds": 0.000279
+    },
+    "source_provenance.enrich_profile_slices": {
+      "calls": 51,
+      "inclusive_wall_seconds": 0.257952,
+      "maximum_call_wall_seconds": 0.018815
+    },
+    "table_projection.csv": {
+      "calls": 2,
+      "inclusive_wall_seconds": 429.910332,
+      "maximum_call_wall_seconds": 248.311203
+    },
+    "table_projection.html": {
+      "calls": 4,
+      "inclusive_wall_seconds": 0.395384,
+      "maximum_call_wall_seconds": 0.114139
+    },
+    "table_projection.pdf": {
+      "calls": 50,
+      "inclusive_wall_seconds": 3.828653,
+      "maximum_call_wall_seconds": 3.34562
+    },
+    "table_projection.xml": {
+      "calls": 24,
+      "inclusive_wall_seconds": 9.278376,
+      "maximum_call_wall_seconds": 2.28433
+    }
+  },
+  "interpretation_guards": {
+    "inclusive_nested_times_must_not_be_summed": true,
+    "instrumentation_changes_source_semantics": false,
+    "provider_calls_added_by_profiler": 0,
+    "visual_or_review_memory_dropped": false
+  },
+  "privacy": {
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "raw_profile_private_or_ignored": true,
+    "source_or_artifact_refs_in_output": false
+  },
+  "repository_revision": "e14153915838e7ccb291309df916e5edf828304a",
+  "resource_profile": {
+    "normalization_wall_seconds": 1167.19911,
+    "process_peak_rss_bytes": 7045357568,
+    "profile_total_wall_seconds": 1298.02857,
+    "proof_wall_seconds": 1295.886413
+  },
+  "schema_version": "broker_reports_gate1_actual_phase_profile_safe_v1",
+  "status": "passed",
+  "terminal_outcome": {
+    "knowledge_rag_absent": true,
+    "proof_status": "passed",
+    "terminal_status_counts": {
+      "complete": 26,
+      "review_required": 78
+    },
+    "zero_silent_loss": "passed_for_all_profile_accepted_documents"
+  },
+  "workload": {
+    "archive_containers": 24,
+    "archive_promoted_members": 48,
+    "document_sources": 104,
+    "logical_documents": 80,
+    "top_level_inputs": 56
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "concurrent_expiry": {
+    "callers": 2,
+    "errors": 0,
+    "operation_wall_seconds": 0.012551,
+    "result_cardinalities": [
+      20,
+      20
+    ],
+    "terminal_state_correct": true
+  },
+  "global_scan_audit": {
+    "approved_expire_run_flow": "absent",
+    "expire_artifacts": "global_api_still_exists_but_not_used_by_approved_flow",
+    "mark_source_file_deleted": "global_active_record_scan_present",
+    "purge_case": "global_active_record_scan_present",
+    "purge_run": "run_scoped"
+  },
+  "partial_cleanup_failure": {
+    "exception_propagated": true,
+    "false_terminal_success": false,
+    "record_left_recoverably_purge_pending": true
+  },
+  "privacy": {
+    "artifact_ids_in_output": false,
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "synthetic_records_only": true
+  },
+  "repeated_expiry": {
+    "audit_timestamp_mutations": 10,
+    "second_call_returned_ids": 10,
+    "strict_idempotence": false,
+    "terminal_state_idempotent": true
+  },
+  "run_scoped_expiry": {
+    "case_or_tenant_predicate_present": false,
+    "context_bound_api": false,
+    "empty_run_scope_denied": true,
+    "operation_wall_seconds": 0.008314,
+    "records_changed": 10,
+    "records_examined": 10,
+    "single_connection_transaction": true,
+    "sql_probe": {
+      "execute_wall_seconds": 0.001898,
+      "statement_counts": {
+        "select": 1,
+        "update": 10
+      },
+      "statements_total": 11
+    },
+    "sql_shape_run_predicate_present": true,
+    "unrelated_records_examined_by_result_materialization": 0,
+    "unrelated_records_unchanged": true
+  },
+  "schema_version": "broker_reports_retention_run_scope_audit_safe_v1",
+  "status": "passed_with_contract_gaps",
+  "workload": {
+    "concurrent_target_records": 20,
+    "target_records": 10,
+    "unrelated_records": 5000
+  }
+}

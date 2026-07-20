@@ -1,0 +1,106 @@
+{
+  "inclusive_phase_profile": {
+    "canonical.continuation_validation": {
+      "calls": 1,
+      "inclusive_wall_seconds": 3e-05,
+      "maximum_call_wall_seconds": 3e-05
+    },
+    "canonical.recovery_validation": {
+      "calls": 36,
+      "inclusive_wall_seconds": 0.234237,
+      "maximum_call_wall_seconds": 0.014172
+    },
+    "handoff.clone_artifactstore": {
+      "calls": 1,
+      "inclusive_wall_seconds": 2.19768,
+      "maximum_call_wall_seconds": 2.19768
+    },
+    "handoff.gate2_integration": {
+      "calls": 1,
+      "inclusive_wall_seconds": 59.291924,
+      "maximum_call_wall_seconds": 59.291924
+    },
+    "handoff.persist_visual_results": {
+      "calls": 1,
+      "inclusive_wall_seconds": 3.254221,
+      "maximum_call_wall_seconds": 3.254221
+    },
+    "image.base64_decode": {
+      "calls": 20,
+      "inclusive_wall_seconds": 0.354188,
+      "maximum_call_wall_seconds": 0.027379
+    },
+    "layout.grid_detection": {
+      "calls": 36,
+      "inclusive_wall_seconds": 1.420993,
+      "maximum_call_wall_seconds": 0.079546
+    },
+    "layout.observation_and_reconstruction": {
+      "calls": 18,
+      "inclusive_wall_seconds": 461.199209,
+      "maximum_call_wall_seconds": 31.173843
+    },
+    "layout.orientation_search": {
+      "calls": 8,
+      "inclusive_wall_seconds": 1.574494,
+      "maximum_call_wall_seconds": 0.210363
+    },
+    "ocr.isolated_two_pass": {
+      "calls": 18,
+      "inclusive_wall_seconds": 461.093189,
+      "maximum_call_wall_seconds": 31.166734
+    },
+    "operator_review.build": {
+      "calls": 18,
+      "inclusive_wall_seconds": 0.012123,
+      "maximum_call_wall_seconds": 0.001872
+    },
+    "safe_report.visual_result_render": {
+      "calls": 18,
+      "inclusive_wall_seconds": 0.019496,
+      "maximum_call_wall_seconds": 0.002046
+    },
+    "source_graph.prepare_clone": {
+      "calls": 1,
+      "inclusive_wall_seconds": 0.119196,
+      "maximum_call_wall_seconds": 0.119196
+    },
+    "source_graph.resolver_reads": {
+      "calls": 1231,
+      "inclusive_wall_seconds": 20.972227,
+      "maximum_call_wall_seconds": 1.677221
+    }
+  },
+  "interpretation_guards": {
+    "golden_artifactstore_mutated": false,
+    "inclusive_nested_times_must_not_be_summed": true,
+    "local_ocr_only": true,
+    "model_canonical_authority": false
+  },
+  "privacy": {
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "raw_outputs_private_or_ignored": true,
+    "source_or_artifact_refs_in_output": false
+  },
+  "repository_revision": "3b547fc9b2c819d871dc2a211a5ae3dc96671308",
+  "resource_profile": {
+    "process_peak_rss_bytes": 4119752704,
+    "profile_wall_seconds": 530.582069
+  },
+  "schema_version": "broker_reports_visual_actual_phase_profile_safe_v1",
+  "status": "passed",
+  "terminal_outcome": {
+    "accepted_scopes": 10,
+    "artifactstore_unchanged": true,
+    "canonical_cells": 623,
+    "canonical_tables": 17,
+    "confirmed_empty_scopes": 1,
+    "gate2_errors": 0,
+    "gate2_status": "passed",
+    "material_scopes": 10,
+    "provider_calls": 0,
+    "unresolved_scopes": 0,
+    "unsupported_scopes": 0
+  }
+}
