@@ -258,3 +258,9 @@ class ArtifactStorePort(Protocol):
     def list_by_run(self, normalization_run_id: str) -> list[ArtifactRecord]: ...
 
     def read_payload(self, record: ArtifactRecord) -> Any: ...
+
+    def expire_run(
+        self,
+        normalization_run_id: str,
+        now: datetime | None = None,
+    ) -> list[str]: ...

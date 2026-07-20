@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -337,6 +338,33 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertTrue(purged_case)
         for record in self.store.list_by_run(case_context.normalization_run_id):
             self.assertEqual(record.purge_status, "purged")
+
+    def test_expire_run_is_index_scoped_and_does_not_scan_other_runs(self):
+        _first_result, first_context, _first_manifest = self._persist_clean_run(
+            case_id="case-expire-run-first"
+        )
+        _second_result, second_context, _second_manifest = self._persist_clean_run(
+            case_id="case-expire-run-second"
+        )
+
+        with mock.patch.object(
+            self.store,
+            "_active_records",
+            side_effect=AssertionError("global_active_record_scan_forbidden"),
+        ):
+            expired = self.store.expire_run(
+                first_context.normalization_run_id,
+                now=datetime.now(timezone.utc) + timedelta(days=8),
+            )
+
+        first_records = self.store.list_by_run(first_context.normalization_run_id)
+        second_records = self.store.list_by_run(second_context.normalization_run_id)
+        self.assertEqual(len(expired), len(first_records))
+        self.assertTrue(expired)
+        self.assertTrue(all(record.lifecycle_status == "expired" for record in first_records))
+        self.assertTrue(all(record.purge_status == "expired" for record in first_records))
+        self.assertTrue(all(record.lifecycle_status != "expired" for record in second_records))
+        self.assertTrue(all(record.purge_status == "active" for record in second_records))
 
     def test_knowledge_backend_is_rejected_for_private_or_customer_artifacts(self):
         result, context, _manifest = self._persist_clean_run(case_id="knowledge-guard")
