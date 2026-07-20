@@ -1,0 +1,130 @@
+{
+  "comparison": {
+    "aggregate_throughput_ratio_vs_one_worker": 1.820677,
+    "per_worker_wall_degradation_ratio": 1.080783,
+    "two_worker_terminal_correctness_preserved": true
+  },
+  "identity": {
+    "input_payload_bytes": 1462961395,
+    "input_records": 1531,
+    "logical_cpus": 8,
+    "physical_memory_bytes": 34039119872,
+    "platform": "Windows-10-10.0.17763-SP0",
+    "python": "3.11.9",
+    "run_label": "actual_gate1_20260720T111631Z",
+    "sqlite": "3.45.1",
+    "storage_location": "local_ntfs_private_proof_root_or_temporary_directory",
+    "workload_fingerprint": "6827eea7c5fcacd1ea37abd8d966b0dd67a613ec58204688decf30d269340651"
+  },
+  "methodology": {
+    "fresh_processes": true,
+    "full_graph_prewarm_before_each_group": true,
+    "one_worker_measured": true,
+    "production_customer_workload_touched": false,
+    "raw_outputs_private_or_ignored": true,
+    "representative_contour": "actual_corpus_gate2_package_preparation",
+    "two_concurrent_workers_measured": true
+  },
+  "one_worker": {
+    "aggregate_worker_rss_peak_sampled_bytes": 4011245568,
+    "artifactstore_unchanged": true,
+    "database_lock_errors": 0,
+    "disk_queue_depth": "not_exposed_by_portable_psutil_sampler",
+    "group_wall_seconds": 54.497682,
+    "host_cpu_percent_maximum": 70.8,
+    "host_cpu_percent_mean": 15.770838,
+    "host_disk_io_delta": {
+      "read_bytes": 442368,
+      "read_count": 8,
+      "write_bytes": 8714752,
+      "write_count": 940
+    },
+    "host_minimum_available_memory_bytes": 7644528640,
+    "host_swap_in_bytes_delta": 0,
+    "host_swap_out_bytes_delta": 0,
+    "host_swap_percent_maximum": 3.0,
+    "parent_observed_worker_rss_peaks_bytes": [
+      4011245568
+    ],
+    "prewarm": {
+      "bytes": 1469194799,
+      "files": 1411,
+      "wall_seconds": 6.184454
+    },
+    "terminal_statuses": [
+      "passed"
+    ],
+    "worker_failures": 0,
+    "worker_peak_rss_bytes": [
+      4011245568
+    ],
+    "worker_retries": 0,
+    "worker_wall_seconds": [
+      53.731399
+    ],
+    "workers": 1
+  },
+  "privacy": {
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "provider_calls": 0,
+    "raw_source_or_artifact_refs_in_output": false
+  },
+  "repository_revision": "14efda4a28998a01aff32b4df61e1700eacc5374",
+  "schema_version": "broker_reports_gate2_capacity_safe_v1",
+  "status": "passed",
+  "terminal_outcome": {
+    "artifactstore_unchanged": true,
+    "errors_count": 0,
+    "packageable_documents_total": 75,
+    "packages_passed": 681,
+    "packages_total": 681,
+    "provider_calls": 0,
+    "source_ready_refs_total": 75,
+    "validator_status": "passed",
+    "warnings_count": 0
+  },
+  "two_concurrent_workers": {
+    "aggregate_worker_rss_peak_sampled_bytes": 8018206720,
+    "artifactstore_unchanged": true,
+    "database_lock_errors": 0,
+    "disk_queue_depth": "not_exposed_by_portable_psutil_sampler",
+    "group_wall_seconds": 59.865303,
+    "host_cpu_percent_maximum": 87.5,
+    "host_cpu_percent_mean": 29.006983,
+    "host_disk_io_delta": {
+      "read_bytes": 3276800,
+      "read_count": 436,
+      "write_bytes": 248940544,
+      "write_count": 1190
+    },
+    "host_minimum_available_memory_bytes": 3939991552,
+    "host_swap_in_bytes_delta": 0,
+    "host_swap_out_bytes_delta": 0,
+    "host_swap_percent_maximum": 7.7,
+    "parent_observed_worker_rss_peaks_bytes": [
+      4011548672,
+      4011831296
+    ],
+    "prewarm": {
+      "bytes": 1469194799,
+      "files": 1411,
+      "wall_seconds": 6.256833
+    },
+    "terminal_statuses": [
+      "passed",
+      "passed"
+    ],
+    "worker_failures": 0,
+    "worker_peak_rss_bytes": [
+      4011548672,
+      4011831296
+    ],
+    "worker_retries": 0,
+    "worker_wall_seconds": [
+      59.03155,
+      58.768772
+    ],
+    "workers": 2
+  }
+}
