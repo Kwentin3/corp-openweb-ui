@@ -29,6 +29,11 @@ from .gate1_public_contracts import (
     validate_pdf_text_layer_payload,
 )
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
+from .gate2_fns_2ndfl_adapter import (
+    Gate2Fns2NdflAdapterFactory,
+    Gate2Fns2NdflError,
+)
+from .gate2_fns_2ndfl_contracts import validate_fns_2ndfl_typed_output
 from .gate2_table_packages import (
     Gate2TablePackageFactory,
     validate_gate2_table_package,
@@ -121,6 +126,7 @@ class Gate2InputReadinessService:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
         self.table_package_builder = Gate2TablePackageFactory().create()
+        self.fns_2ndfl_adapter = Gate2Fns2NdflAdapterFactory().create()
 
     def audit_and_build(
         self,
@@ -406,9 +412,40 @@ class Gate2InputReadinessService:
                     package["document_context"][
                         "selected_source_scope"
                     ] = selected_scope
+                    if _is_neutral_xml_source_unit(private_slice):
+                        try:
+                            package["typed_source_facts"] = (
+                                self.fns_2ndfl_adapter.adapt(
+                                    source_package_ref=str(package["package_id"]),
+                                    source_unit=private_slice,
+                                )
+                            )
+                            package["package_mode"] = (
+                                "gate2_fns_2ndfl_typed_deterministic_no_model_call"
+                            )
+                            package["output_schema"] = {
+                                "output_schema_version": (
+                                    "broker_reports_fns_2ndfl_source_facts_v1"
+                                ),
+                                "schema_validation_performed": True,
+                            }
+                        except Gate2Fns2NdflError as exc:
+                            package["typed_adapter_terminal"] = {
+                                "adapter_id": (
+                                    "broker_reports_fns_2ndfl_source_facts_v1"
+                                ),
+                                "terminal_status": "blocked",
+                                "error_code": exc.code,
+                                "provider_calls": 0,
+                                "provider_tokens": 0,
+                                "provider_cost": 0,
+                            }
                     package["document_context"][
                         "financial_interpretation_allowed"
-                    ] = selected_scope == "canonical_table"
+                    ] = (
+                        selected_scope == "canonical_table"
+                        or isinstance(package.get("typed_source_facts"), dict)
+                    )
                     validation = validate_dry_run_source_fact_package(
                         package=package,
                         private_slice=private_slice,
@@ -473,6 +510,9 @@ class Gate2InputReadinessService:
             "packages_total": len(packages),
             "packages_passed": sum(
                 1 for item in package_validations if item.get("validator_status") == "passed"
+            ),
+            "fns_2ndfl_typed_packages_total": sum(
+                1 for item in packages if isinstance(item.get("typed_source_facts"), dict)
             ),
             "resolved_scope_records_total": len(set(resolved_scope_records)),
             "artifactstore_unchanged": store_unchanged,
@@ -1158,6 +1198,28 @@ def validate_dry_run_source_fact_package(
     ):
         if guards.get(key) is not False:
             errors.append(_error("gate2_package_privacy_guard_not_false", key))
+    if _is_neutral_xml_source_unit(private_slice):
+        typed_output = package.get("typed_source_facts")
+        if not isinstance(typed_output, dict):
+            terminal = _object(package.get("typed_adapter_terminal"))
+            errors.append(
+                _error(
+                    str(terminal.get("error_code") or "gate2_fns_2ndfl_typed_output_missing"),
+                    package_id,
+                )
+            )
+        else:
+            typed_validation = validate_fns_2ndfl_typed_output(
+                typed_output,
+                allowed_source_value_refs=sorted(expected_source_value_refs),
+            )
+            errors.extend(copy.deepcopy(typed_validation.get("errors") or []))
+            if _object(package.get("document_context")).get(
+                "financial_interpretation_allowed"
+            ) is not True:
+                errors.append(
+                    _error("gate2_fns_2ndfl_financial_scope_not_enabled", package_id)
+                )
     return {
         "schema_version": "broker_reports_source_fact_package_validation_v0",
         "package_id": package_id,
@@ -1750,6 +1812,15 @@ def _render_safe_report(
     source_value_refs_total = sum(
         len(_string_list(package.get("allowed_source_value_refs"))) for package in packages
     )
+    fns_typed_packages = [
+        package
+        for package in packages
+        if isinstance(package.get("typed_source_facts"), dict)
+    ]
+    fns_typed_facts_total = sum(
+        len(_object(package.get("typed_source_facts")).get("facts") or [])
+        for package in fns_typed_packages
+    )
     coverage_selected_total = sum(
         int(_object(package.get("coverage_expectation")).get("required_accounting_total") or 0)
         for package in packages
@@ -1790,6 +1861,9 @@ def _render_safe_report(
         "bucket_counts": bucket_counts,
         "source_unit_refs_total": source_unit_refs_total,
         "source_value_refs_total": source_value_refs_total,
+        "fns_2ndfl_typed_packages_total": len(fns_typed_packages),
+        "fns_2ndfl_typed_facts_total": fns_typed_facts_total,
+        "fns_2ndfl_provider_calls": 0,
         "coverage_selected_total": coverage_selected_total,
         "row_segment_coverage_ready": validation.get("validator_status") == "passed",
         "issue_scope_counts": dict(sorted(issue_scope_counts.items())),
@@ -1865,6 +1939,14 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
         }
     )
     return {ref for ref in refs if ref}
+
+
+def _is_neutral_xml_source_unit(private_slice: dict[str, Any]) -> bool:
+    return (
+        private_slice.get("parser") == "python_expat_neutral_events"
+        and _object(private_slice.get("source_location")).get("kind")
+        == "xml_neutral_event_rows"
+    )
 
 
 def _gate2_record_scope_decision(

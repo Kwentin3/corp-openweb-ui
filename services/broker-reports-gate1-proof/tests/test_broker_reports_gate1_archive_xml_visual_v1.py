@@ -26,6 +26,7 @@ from broker_reports_gate1.archive_intake import (
     FORBIDDEN as ARCHIVE_FORBIDDEN,
 )
 from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
+from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
 
 
 def _zip_bytes(entries: list[tuple[str, bytes]]) -> bytes:
@@ -98,7 +99,7 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
     def test_zip_promotes_pdf_and_xml_and_accounts_signature_sidecar(self):
         content = _zip_bytes(
             [
-                ("payload.xml", b"<root><item code='a'>10</item></root>"),
+                ("payload.xml", _fns_2ndfl_xml()),
                 (
                     "statement.pdf",
                     _pdf_bytes(

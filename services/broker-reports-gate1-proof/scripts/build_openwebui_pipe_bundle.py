@@ -66,6 +66,8 @@ MODULE_ORDER = [
     "artifact_resolver",
     "gate1_public_contracts",
     "gate2_source_fact_contracts",
+    "gate2_fns_2ndfl_contracts",
+    "gate2_fns_2ndfl_adapter",
     "gate2_table_packages",
     "gate2_input_readiness",
     "gate2_model_contracts",

@@ -32,6 +32,7 @@ from broker_reports_gate1 import (
     validate_dry_run_source_fact_package,
     validate_normalized_slice_provenance,
 )
+from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
 from broker_reports_gate1.gate2_input_readiness import (
     FACTORY_REQUIRED as GATE2_FACTORY_REQUIRED,
     FORBIDDEN as GATE2_FORBIDDEN,
@@ -333,7 +334,7 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
                 FileInput.from_bytes(
                     private_ref="gate2-neutral-xml",
                     filename="neutral.xml",
-                    content=b"<root><item code='a'>10</item></root>",
+                    content=_fns_2ndfl_xml(),
                     mime_type="application/xml",
                 )
             ],
@@ -358,7 +359,8 @@ class BrokerReportsGate2InputReadinessTest(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                item["document_context"]["financial_interpretation_allowed"] is False
+                item["document_context"]["financial_interpretation_allowed"] is True
+                and item["typed_source_facts"]["terminal_status"] == "validated"
                 for item in xml_readiness.packages
             )
         )
