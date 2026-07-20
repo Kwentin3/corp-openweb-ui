@@ -148,6 +148,14 @@ def validate_fns_2ndfl_typed_output(
         if allowed_refs and not set(node_refs + value_refs) <= allowed_refs:
             errors.append(_error("fns_2ndfl_fact_source_ref_out_of_scope", fact_id))
         fields = _dict_list(fact.get("fields"))
+        if family in {
+            "income_source_row",
+            "deduction_source_row",
+            "tax_summary_source_fact",
+        }:
+            section_ref = str(fact.get("source_section_ref") or "")
+            if not section_ref or section_ref not in node_refs:
+                errors.append(_error("fns_2ndfl_fact_section_link_missing", fact_id))
         if not fields:
             errors.append(_error("fns_2ndfl_fact_fields_missing", fact_id))
         for field in fields:

@@ -165,6 +165,14 @@ from .gate2_fns_2ndfl_contracts import (
     render_fns_2ndfl_safe_report,
     validate_fns_2ndfl_typed_output,
 )
+from .gate2_fns_2ndfl_parity import (
+    PARITY_SCHEMA_VERSION as FNS_2NDFL_PARITY_SCHEMA_VERSION,
+    Gate2Fns2NdflParityConfig,
+    Gate2Fns2NdflParityError,
+    Gate2Fns2NdflParityFactory,
+    render_fns_2ndfl_parity_safe_report,
+    validate_fns_2ndfl_parity,
+)
 from .gate2_source_fact_contracts import (
     FACT_TYPES,
     Gate2ManagedPrompt,

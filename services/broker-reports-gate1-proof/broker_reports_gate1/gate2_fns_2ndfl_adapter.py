@@ -344,6 +344,7 @@ class Gate2Fns2NdflAdapter:
                     source_checksum_ref=source_checksum_ref,
                     schema_version_id=policy.schema_version_id,
                     related_nodes=[section] if section else [],
+                    source_section_ref=section.path_ref if section else None,
                 )
             )
 
@@ -353,6 +354,8 @@ class Gate2Fns2NdflAdapter:
         for ordinal, node in enumerate(
             sorted(deduction_nodes, key=lambda item: item.path), 1
         ):
+            income_parent = nodes.get(node.parent_path)
+            section = nodes.get(_ancestor_path(node.path, "СведДох"))
             fields = _fields(
                 node,
                 ("КодВычет", "СумВычет"),
@@ -368,6 +371,8 @@ class Gate2Fns2NdflAdapter:
                     package_ref=source_package_ref,
                     source_checksum_ref=source_checksum_ref,
                     schema_version_id=policy.schema_version_id,
+                    related_nodes=[income_parent, section],
+                    source_section_ref=section.path_ref if section else None,
                 )
             )
 
@@ -396,6 +401,7 @@ class Gate2Fns2NdflAdapter:
                     source_checksum_ref=source_checksum_ref,
                     schema_version_id=policy.schema_version_id,
                     related_nodes=[section] if section else [],
+                    source_section_ref=section.path_ref if section else None,
                 )
             )
 
@@ -452,6 +458,7 @@ class Gate2Fns2NdflAdapter:
         source_checksum_ref: str,
         schema_version_id: str,
         related_nodes: list[_Node | None] | None = None,
+        source_section_ref: str | None = None,
     ) -> dict[str, Any]:
         related = [item for item in related_nodes or [] if item is not None]
         node_refs = sorted(
@@ -480,6 +487,7 @@ class Gate2Fns2NdflAdapter:
             "source_checksum_ref": source_checksum_ref,
             "original_node_refs": node_refs,
             "original_value_refs": value_refs,
+            "source_section_ref": source_section_ref,
             "fields": fields,
             "validation_status": "validated",
             "restrictions": list(FACT_RESTRICTIONS),
@@ -668,6 +676,7 @@ def _fields(
                 "field_code": name,
                 "value_type": value_type,
                 "value": value,
+                "source_lexeme": attribute.value,
                 "source_lexeme_checksum_ref": attribute.value_checksum_ref,
                 "original_node_ref": attribute.node_ref,
                 "original_value_ref": attribute.value_ref,

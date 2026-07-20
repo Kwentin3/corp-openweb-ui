@@ -61,6 +61,21 @@ Gate1 neutral XML source unit
 
 The adapter is read-only. ArtifactStore identity before and after preparation must be equal. Resolver access, lifecycle, source-availability and purge rules remain authoritative.
 
+## Paired PDF/XML representation parity
+
+When the document-memory lineage proves that a withholding-report PDF and XML came from the same archive parent, `Gate2InputReadinessFactory` routes the typed XML output and every preserved PDF table candidate through `Gate2Fns2NdflParityFactory.create`.
+
+The parity result is bidirectional:
+
+- XML-to-PDF checks every material income, deduction and tax-summary field against the bounded PDF candidate text;
+- PDF-to-XML classifies every candidate as an income/deduction table, tax-summary table, non-withheld-tax table or non-financial form/heading scope;
+- the three material candidate roles must have the same section cardinality as the typed XML tax summaries;
+- every comparison terminates as `matched_material_financial`, `xml_only_certificate_metadata`, `pdf_only_presentational`, `permitted_format_specific_metadata` or `unmatched_material_error`.
+
+Only explicit presentation equivalences are allowed: schema zero represented by a blank PDF cell, a month with or without a leading zero, and an integer token represented as a one-decimal numeric token. A non-zero mismatch, missing material role, wrong document scope, candidate-identity failure or integrity mismatch fails closed. There is no fuzzy or provider fallback.
+
+Successful parity does not merge source identities or promote a PDF candidate to canonical. It records `recovery_deferred_validated_paired_xml_coverage`: the typed XML satisfies the named withholding workflow, while all original PDF candidate refs remain preserved and independently auditable.
+
 ## Restrictions
 
 Every fact declares:

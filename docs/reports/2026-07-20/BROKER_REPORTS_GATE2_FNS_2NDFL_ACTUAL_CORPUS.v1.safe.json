@@ -1,0 +1,97 @@
+{
+  "acceptance": {
+    "artifactstore_immutability_passed": true,
+    "bidirectional_material_parity_passed": true,
+    "deterministic_replay_24_of_24": true,
+    "paired_representation_groups_24_of_24": true,
+    "paired_representation_replay_24_of_24": true,
+    "pdf_candidates_180_preserved_recovery_deferred": true,
+    "privacy_passed": true,
+    "provider_calls_zero": true,
+    "provider_cost_zero": true,
+    "provider_tokens_zero": true,
+    "structural_variants_17_observed": true,
+    "terminal_validation_24_of_24": true,
+    "unmatched_material_errors_zero": true,
+    "xml_packages_24_of_24": true
+  },
+  "adapter": {
+    "adapter_id": "broker_reports_fns_2ndfl_source_facts_v1",
+    "factory_route": "prepare_actual_latest -> ArtifactStoreFactory.create -> ArtifactResolver; Gate2Fns2NdflAdapterFactory.create is the typed authority; Gate2Fns2NdflParityFactory.create is the paired-representation authority",
+    "forbidden_route": "The proof must not read source bytes directly, persist typed payloads, call a provider, emit private values or mutate ArtifactStore"
+  },
+  "guards": {
+    "artifactstore_unchanged": true,
+    "customer_values_in_safe_output": false,
+    "knowledge_rag_used": false,
+    "source_bytes_read_directly": false,
+    "typed_payloads_persisted": false,
+    "vectorization_performed": false
+  },
+  "input_accounting": {
+    "neutral_xml_units": 24,
+    "observed_structural_variants": 17,
+    "report_period_counts": {
+      "2024": 13,
+      "2025": 11
+    }
+  },
+  "paired_representation_accounting": {
+    "candidate_role_counts": {
+      "income_deduction_table": 33,
+      "nonwithheld_tax_table": 33,
+      "other_form_or_heading": 81,
+      "tax_summary_table": 33
+    },
+    "deterministic_replays_passed": 24,
+    "paired_groups": 24,
+    "pdf_candidates_canonicalized": 0,
+    "pdf_candidates_preserved": 180,
+    "recovery_disposition": "recovery_deferred_validated_paired_xml_coverage",
+    "safe_reports_validated": 24,
+    "terminal_class_counts": {
+      "matched_material_financial": 1111,
+      "permitted_format_specific_metadata": 463,
+      "xml_only_certificate_metadata": 97
+    },
+    "terminal_outputs_validated": 24,
+    "unmatched_material_errors": 0
+  },
+  "performance": {
+    "outputs_per_second": 76.361,
+    "two_pass_adapter_wall_seconds": 0.628592
+  },
+  "provider_accounting": {
+    "calls": 0,
+    "cost": 0,
+    "llm_fallback_performed": false,
+    "tokens": 0
+  },
+  "safe_output_digest": "9f65ac2832d15a07cb4ce694239486411656192035ee42774b0820dc32bee28c",
+  "schema_version": "broker_reports_fns_2ndfl_actual_corpus_proof_safe_v1",
+  "terminal_accounting": {
+    "deterministic_replays_passed": 24,
+    "fact_family_counts": {
+      "certificate_metadata": 24,
+      "deduction_source_row": 70,
+      "income_source_row": 119,
+      "recipient_identity": 24,
+      "source_certificate_identity": 24,
+      "tax_agent_identity": 24,
+      "tax_summary_source_fact": 66
+    },
+    "non_fact_source_nodes_total": 7,
+    "safe_reports_validated": 24,
+    "schema_version_counts": {
+      "fns_lk_signed_2ndfl_certificate_document_fragment_v1": 24
+    },
+    "typed_facts_total": 351,
+    "typed_outputs_validated": 24
+  },
+  "workload": {
+    "customer_values_exposed": false,
+    "kind": "actual_customer_corpus_gate1_memory",
+    "opaque_run_id": "a1e8c074e9a9a3f63c9796c3",
+    "workload_fingerprint": "fef03a6338013c9536a3b82808ebbc9c3bfd4de0843a62df8c718927afbce7a0"
+  }
+}
