@@ -1664,7 +1664,7 @@ class PdfStructuralRepairShadowTests(unittest.TestCase):
                 ),
             )
         self.assertEqual("artifact_access_denied", denied.exception.code)
-        self.store.purge_run(self.context.normalization_run_id)
+        self.store.purge_run(self.context)
         purged = self.store.get_record_unchecked(semantic_ref)
         self.assertEqual("purged", purged.purge_status)
         self.assertIsNone(purged.payload_ref)

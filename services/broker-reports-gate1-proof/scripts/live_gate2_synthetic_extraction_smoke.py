@@ -556,14 +556,38 @@ from pathlib import Path
 bundle_source = {bundle_source!r}
 namespace = {{"__name__": "broker_reports_gate2_synthetic_purge_bundle"}}
 exec(compile(bundle_source, "<broker_reports_gate2_synthetic_purge_bundle>", "exec"), namespace)
-from broker_reports_gate1 import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1 import ArtifactAccessContext, ArtifactStoreConfig, ArtifactStoreFactory
 store = ArtifactStoreFactory(ArtifactStoreConfig(
     mode="sqlite",
     sqlite_path=Path("/app/backend/data/broker_reports_gate1/artifacts.sqlite3"),
     payload_root=Path("/app/backend/data/broker_reports_gate1/payloads"),
 )).create()
-purged = store.purge_case(case_id={case_id!r})
-print(json.dumps({{"performed": True, "purged_records_total": len(purged)}}, sort_keys=True))
+records = store.list_by_case({case_id!r})
+purge_contexts = {{
+    (
+        record.user_id,
+        record.case_id,
+        record.chat_id,
+        record.workspace_model_id,
+        record.normalization_run_id,
+    )
+    for record in records
+    if record.lifecycle_status != "purged" or record.purge_status != "purged"
+}}
+purged_records_total = 0
+for user_id, scoped_case_id, chat_id, workspace_model_id, run_id in sorted(
+    purge_contexts,
+    key=lambda item: tuple("" if value is None else str(value) for value in item),
+):
+    result = store.purge_case(ArtifactAccessContext(
+        user_id=user_id,
+        case_id=scoped_case_id,
+        chat_id=chat_id,
+        workspace_model_id=workspace_model_id,
+        normalization_run_id=run_id,
+    ))
+    purged_records_total += result.records_changed
+print(json.dumps({{"performed": True, "purged_records_total": purged_records_total}}, sort_keys=True))
 '''
     return _remote_json(ssh_target, code, timeout=90)
 
