@@ -1,0 +1,20 @@
+# Closed-world OpenWebUI image context.  The Dockerfile needs only the two
+# maintained patch directories; local/customer/runtime material must never be
+# transferred to the Docker daemon as build context.
+*
+!deploy/
+deploy/*
+!deploy/openwebui-native-web-stt-patch/
+!deploy/openwebui-native-web-stt-patch/**
+!deploy/openwebui-broker-reports-intake/
+!deploy/openwebui-broker-reports-intake/**
+!services/
+services/*
+!services/stage2-stt/
+services/stage2-stt/*
+!services/stage2-stt/Dockerfile
+!services/stage2-stt/pyproject.toml
+!services/stage2-stt/stage2_stt/
+!services/stage2-stt/stage2_stt/**
+!services/stage2-stt/openwebui_actions/
+!services/stage2-stt/openwebui_actions/**
