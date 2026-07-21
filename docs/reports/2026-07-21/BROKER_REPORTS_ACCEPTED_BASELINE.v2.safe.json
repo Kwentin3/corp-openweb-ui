@@ -1,0 +1,296 @@
+{
+  "schema_version": "broker_reports_accepted_baseline_v2",
+  "evidence_date": "2026-07-21",
+  "repository": "Kwentin3/corp-openweb-ui",
+  "status": "terminal_delivery_candidate",
+  "delivery": {
+    "pull_request": 5,
+    "branch": "codex/broker-reports-baseline-consolidation-v2",
+    "base": "main",
+    "receipt_foundation_revision": "b2184f5ab8a55c70dfa7e398fde28a4df7cede96",
+    "merge_state_at_publication": "clean",
+    "superseded_recovery_pull_request": {
+      "pull_request": 1,
+      "state": "closed",
+      "evidence_branch_retained": true,
+      "evidence_branch_revision": "230fd02d8ae5d6662957d75b3bb6de2c8d21f532"
+    }
+  },
+  "authoritative_source_revision": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
+  "authoritative_source_ref": "main",
+  "repository_freeze": {
+    "local_main": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
+    "origin_main": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
+    "equal": true,
+    "canonical_worktrees": 1,
+    "dirty_tracked_files": 0
+  },
+  "accepted_merge_contour": [
+    {
+      "capability_set": "clean_selective_integration",
+      "merge_revision": "8037f7d030ea2533a63d5fadc3b96412cb9efea0",
+      "pull_request": 2
+    },
+    {
+      "capability_set": "server_authoritative_private_intake",
+      "merge_revision": "e16bca1d73df59559c7d136dad371d641325e9fe",
+      "pull_request": 3
+    },
+    {
+      "capability_set": "maintained_dual_vlm_runtime",
+      "merge_revision": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
+      "pull_request": 4
+    }
+  ],
+  "capability_ownership": [
+    {
+      "capability": "repository_privacy_and_governance_guards",
+      "owner_revisions": [
+        "113443b0281b8baec42db2842468420bd8c4fb3c",
+        "9807b357665dd07ce030ca01b26f3ee430fdc8ef"
+      ],
+      "anchors": [
+        ".gitignore",
+        "services/broker-reports-gate1-proof/tests/test_repository_privacy_guard.py",
+        "docs/stage2/operations/BROKER_REPORTS_RELEASE_GOVERNANCE.md"
+      ]
+    },
+    {
+      "capability": "authoritative_architecture_and_antidrift",
+      "owner_revisions": [
+        "75e4dd85e0c72058e5deba3e831b06072f630b4b",
+        "27bffa8b629b506b9bc91916ec7b860d8a4570c6"
+      ],
+      "anchors": [
+        "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/architecture_policy.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ]
+    },
+    {
+      "capability": "batched_csv_and_table_source_resolution",
+      "owner_revisions": [
+        "e2995aa2d2fa920ded0e8f810c75a3d9e883a7c3"
+      ],
+      "anchors": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/source_provenance.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/table_projection.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_table_projection.py"
+      ]
+    },
+    {
+      "capability": "artifact_store_lifecycle_and_retention_scope",
+      "owner_revisions": [
+        "f72e63b131a592a7d74780fc0fcea48b63d14194",
+        "9fe7d5dfe1de24bb00217d313ac8f2fe68aaf1ad"
+      ],
+      "anchors": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/artifact_models.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/artifact_store.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/artifact_resolver.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_artifact_lifecycle.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_retention_run_scope_audit.py"
+      ]
+    },
+    {
+      "capability": "sber_default_off_customer_release_gate",
+      "owner_revisions": [
+        "5e1d27900abc673226142b4b0f6706ffde6f7c30",
+        "c62d25e7aaa056bc70d5469d09a33c879ef1e917"
+      ],
+      "anchors": [
+        "docs/contracts/BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.safe.json",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/customer_debt_policy.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_customer_debt_policy.py"
+      ]
+    },
+    {
+      "capability": "deterministic_closed_world_bundles",
+      "owner_revisions": [
+        "f94abcdeb94c0ae07ec09e137d646198c12d9018",
+        "27bffa8b629b506b9bc91916ec7b860d8a4570c6"
+      ],
+      "anchors": [
+        "services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate1_pipe_bundle.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_pipe_bundle.py"
+      ]
+    },
+    {
+      "capability": "server_authoritative_private_intake",
+      "owner_revisions": [
+        "e7ee80aa30d886e77a7a223a451fbb7cda48f5c6",
+        "5d973b2c8179df5a7ce4fd7173e56bccea8003ee",
+        "81eef4d12e8cadc7e0ac3f5ead1d5437b631cb7e",
+        "5c52b18eb7458b1166806f627715893124b4077e",
+        "8e6a71f13cf4f9cec0e5be191fac924548050e48",
+        "e6255bffb20fe2e8b25295e327d0d636cc17c608",
+        "eed4e2fce7dfa300994795eba8ad04ee073257eb",
+        "e16bca1d73df59559c7d136dad371d641325e9fe"
+      ],
+      "anchors": [
+        "deploy/openwebui-broker-reports-intake/broker_reports_intake_contract.py",
+        "deploy/openwebui-broker-reports-intake/broker_reports_intake.py",
+        "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_private_intake_action.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_private_intake.py"
+      ]
+    },
+    {
+      "capability": "maintained_dual_provider_vlm_runtime",
+      "owner_revisions": [
+        "27bffa8b629b506b9bc91916ec7b860d8a4570c6",
+        "5781547be9a6df7f7a0d7351df408368b3a361cc",
+        "3cb56847dd9a62dd539a327d9b3769c99bd065ed"
+      ],
+      "anchors": [
+        "docs/stage2/contracts/BROKER_REPORTS_PDF_DUAL_VLM_TABLE_RUNTIME.v1.md",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_dual_vlm_canonical_table_contracts.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_dual_vlm_fact_providers.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_dual_vlm_runtime.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_dual_vlm_runtime.py"
+      ]
+    }
+  ],
+  "excluded_recovery_work": [
+    {
+      "revision": "d3a12670b76bc6bdb3c8a9f7530c0c14aee16282",
+      "classification": "incomplete_gate1_graph_memory_optimization",
+      "ancestor_of_authoritative_source": false,
+      "absent_symbols": [
+        "apply_domain_ingestion_artifacts.copy_package",
+        "Gate1Normalizer.copy_package_false_route"
+      ]
+    },
+    {
+      "revision": "a460c811f78efce8a6b44fab64c1efdcdab0203e",
+      "classification": "scheduler_admission_scaffold",
+      "ancestor_of_authoritative_source": false,
+      "absent_paths": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/workload_admission.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_workload_admission.py"
+      ]
+    },
+    {
+      "revision": "d7cc52dfdac0e3fec3fedde98f10b13ec9b4ba99",
+      "classification": "rejected_duplicate_vlm_scaffold",
+      "ancestor_of_authoritative_source": false,
+      "absent_paths": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/visual_table_vlm.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/visual_table_vlm_contracts.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_visual_table_vlm.py"
+      ]
+    }
+  ],
+  "test_delta": {
+    "snapshots": [
+      {
+        "revision": "230fd02d8ae5d6662957d75b3bb6de2c8d21f532",
+        "name": "recovery_evidence",
+        "collected": 1055,
+        "effective_passed": 1035,
+        "maintained_skips": 20
+      },
+      {
+        "revision": "8037f7d030ea2533a63d5fadc3b96412cb9efea0",
+        "name": "clean_selective_integration",
+        "collected": 950,
+        "passed": 930,
+        "maintained_skips": 20
+      },
+      {
+        "revision": "e16bca1d73df59559c7d136dad371d641325e9fe",
+        "name": "private_intake",
+        "collected": 967,
+        "passed": 947,
+        "maintained_skips": 20
+      },
+      {
+        "revision": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
+        "name": "dual_vlm",
+        "collected": 991,
+        "passed": 971,
+        "maintained_skips": 20
+      }
+    ],
+    "transitions": [
+      {
+        "from": "recovery_evidence",
+        "to": "clean_selective_integration",
+        "net_collected_delta": -105,
+        "removed_node_ids": 106,
+        "added_node_ids": 1,
+        "disposition": {
+          "excluded_experimental_code": 60,
+          "rejected_architecture": 32,
+          "private_proof_tooling": 14,
+          "new_privacy_guard": 1
+        }
+      },
+      {
+        "from": "clean_selective_integration",
+        "to": "private_intake",
+        "net_collected_delta": 17,
+        "removed_node_ids": 0,
+        "added_node_ids": 17
+      },
+      {
+        "from": "private_intake",
+        "to": "dual_vlm",
+        "net_collected_delta": 24,
+        "removed_node_ids": 2,
+        "added_node_ids": 26,
+        "removed_node_disposition": "renamed_and_strengthened_in_place",
+        "renames": [
+          {
+            "from": "test_non_production_visual_components_are_explicitly_classified",
+            "to": "test_visual_components_are_explicitly_classified"
+          },
+          {
+            "from": "test_factory_rejects_models_outside_research_allowlists",
+            "to": "test_factory_rejects_models_outside_qualification_allowlists"
+          }
+        ]
+      }
+    ],
+    "current_full_run": {
+      "passed": 971,
+      "skipped": 20,
+      "failed": 0,
+      "warnings": 5
+    },
+    "focused_accepted_capability_run": {
+      "passed": 145,
+      "skipped": 0,
+      "failed": 0,
+      "warnings": 5
+    },
+    "silent_coverage_loss": 0
+  },
+  "bundles": [
+    {
+      "id": "gate1",
+      "sha256": "0b9020a7f8deceb0d1639e2038850b84c2fd26fd80a0028322f5c93189988442"
+    },
+    {
+      "id": "gate2_source",
+      "sha256": "f11ace003701dd1001c119efe599ae283ffa8d5caf9ab8a7c1824ac62c69b458"
+    },
+    {
+      "id": "gate2_domain",
+      "sha256": "3193b8b4b4cd154ba40550b51ac3c3b31d587a87016c7d4d90f0f39b2e72b50a"
+    }
+  ],
+  "bundle_build_runs": 2,
+  "bundle_byte_differences_between_runs": 0,
+  "bundle_forbidden_module_matches": 0,
+  "production_paddle_or_torch_import_install_matches": 0,
+  "stage_read_only_snapshot": {
+    "configured_image": "corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2-8e6a71f",
+    "image_id": "sha256:c862956b5a88f490de3a13829cb4176ce9a2e3fb3621ebf0198b059be65f8e83",
+    "restart_count": 0,
+    "state": "running",
+    "health": "healthy",
+    "mutation_count": 0
+  },
+  "private_customer_values_in_receipt": 0
+}
