@@ -1,0 +1,82 @@
+{
+  "schema_version": "broker_reports_goal4_workload_authority_evidence_v1",
+  "generated_at": "2026-07-21",
+  "implementation_commit": "4cc5e83b85df76bcd15936df8ddca4ddecc7e376",
+  "branch": "codex/broker-reports-goal4-workload-authority-v1",
+  "verdict": "accepted_for_delivery",
+  "authority": {
+    "contract_version": "broker_reports_workload_authority_v1",
+    "implementation_status": "maintained",
+    "coordination_scope": "sqlite_cross_process_single_authority",
+    "construction": "factory_only",
+    "primary_wall_timeout": null,
+    "local_ocr_worker_pool": false,
+    "gate1_heavy_concurrency": 1,
+    "gate2_local_maximum_concurrency": 2,
+    "queue_policy": "persisted_fifo_beyond_capacity",
+    "states": [
+      "queued",
+      "source_intake",
+      "normalizing",
+      "building_document_memory",
+      "validating",
+      "preparing_gate2",
+      "awaiting_provider",
+      "awaiting_review",
+      "completed",
+      "failed",
+      "cancelled"
+    ]
+  },
+  "archaeology": {
+    "historical_commit": "a460c811",
+    "decision": "selective_adaptation_no_cherry_pick",
+    "reason_codes": [
+      "process_local_state",
+      "single_instance_scaffold",
+      "persistence_missing",
+      "authentication_missing",
+      "crash_recovery_missing",
+      "provider_budgets_missing",
+      "production_routing_missing"
+    ]
+  },
+  "acceptance": {
+    "WORKLOAD_AUTHORITY": "SINGLE_AND_MAINTAINED",
+    "GATE1_CONCURRENCY": "ONE",
+    "GATE2_CONCURRENCY": "MAXIMUM_TWO",
+    "QUEUE_BEYOND_CAPACITY": "ENFORCED",
+    "PROGRESS": "TYPED_PERSISTED_AND_VISIBLE",
+    "CANCELLATION": "TERMINAL_AND_CLEAN",
+    "FALSE_PARTIAL_COMPLETION": "ZERO",
+    "LOCAL_OCR_WORKER_POOL": "ABSENT"
+  },
+  "verification": {
+    "focused_tests": {
+      "passed": 39,
+      "failed": 0
+    },
+    "full_tests": {
+      "passed": 1015,
+      "skipped": 20,
+      "failed": 0,
+      "warnings": 5,
+      "warning_scope": "swig_deprecation_only"
+    },
+    "ruff": "passed",
+    "py_compile": "passed",
+    "git_diff_check": "passed",
+    "bundle_generation": "deterministic"
+  },
+  "bundle_sha256": {
+    "gate1": "D65CBED620357E4273E546DBFACFB59B6FF5055EE18E17290D0B89797A32E089",
+    "gate2_source_fact": "5F337AB5D1B14D8232AB2B39B4C7E03497391D5A359AA53053A6915587A5EBFD",
+    "gate2_domain": "FC5D290DB52CC2B4E616DF55214BF85738DF6617B5C174FADE01B6B198EA5C78"
+  },
+  "privacy": {
+    "customer_corpus_accessed": false,
+    "customer_data_recorded": false,
+    "live_deployment_mutated": false,
+    "production_data_mutated": false
+  }
+}
