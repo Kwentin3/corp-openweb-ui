@@ -30,7 +30,8 @@ services:
       dockerfile: deploy/openwebui-native-web-stt-patch/Dockerfile
       args:
         OPENWEBUI_BASE_IMAGE: ${OPENWEBUI_BASE_IMAGE:-ghcr.io/open-webui/open-webui:v0.9.6}
-    image: ${OPENWEBUI_IMAGE:-corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v1}
+        BROKER_REPORTS_SOURCE_REVISION: ${BROKER_REPORTS_SOURCE_REVISION:-untracked}
+    image: ${OPENWEBUI_IMAGE:-corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2}
     container_name: openwebui
     restart: unless-stopped
     environment:

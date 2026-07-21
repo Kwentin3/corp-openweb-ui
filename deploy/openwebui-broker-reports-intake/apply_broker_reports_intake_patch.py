@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PATCH_ID = "broker-reports-private-intake-v1"
+PATCH_ID = "broker-reports-private-intake-v2"
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,7 @@ app.include_router(
     broker_reports_intake.router,
     prefix='/api/v1/broker-reports',
     tags=['broker-reports'],
-)  # broker-reports-private-intake-v1 FACTORY_REQUIRED
+)  # broker-reports-private-intake-v2 FACTORY_REQUIRED
 app.include_router(functions.router, prefix='/api/v1/functions', tags=['functions'])""",
     ),
     Replacement(
@@ -75,9 +75,86 @@ async def chat_action(
             form_data,
             user=user,
             db=db,
-        )  # broker-reports-private-intake-v1 FACTORY_REQUIRED
+        )  # broker-reports-private-intake-v2 FACTORY_REQUIRED
         await db.rollback()  # release the short receipt-read transaction before Action work
         model_item = form_data.pop('model_item', {})""",
+    ),
+    Replacement(
+        "files_guard_import",
+        "routers/files.py",
+        """from open_webui.models.knowledge import Knowledges
+from open_webui.models.users import Users""",
+        """from open_webui.models.knowledge import Knowledges
+from open_webui.routers import broker_reports_intake
+from open_webui.models.users import Users""",
+    ),
+    Replacement(
+        "files_content_update_guard",
+        "routers/files.py",
+        """    if file.user_id == user.id or user.role == 'admin' or await has_access_to_file(id, 'write', user, db=db):
+        try:
+            await process_file(""",
+        """    if file.user_id == user.id or user.role == 'admin' or await has_access_to_file(id, 'write', user, db=db):
+        # broker-reports-private-intake-v2 FORBIDDEN: reject before the
+        # endpoint's broad processing exception can convert denial into 200.
+        broker_reports_intake.assert_native_processing_allowed(file)
+        try:
+            await process_file(""",
+    ),
+    Replacement(
+        "knowledge_guard_import",
+        "routers/knowledge.py",
+        """from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+from open_webui.routers.retrieval import (""",
+        """from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+from open_webui.routers import broker_reports_intake
+from open_webui.routers.retrieval import (""",
+    ),
+    Replacement(
+        "knowledge_single_add_guard",
+        "routers/knowledge.py",
+        """    if not file.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.FILE_NOT_PROCESSED,
+        )
+
+    # KB write-access alone is not enough""",
+        """    # broker-reports-private-intake-v2 FORBIDDEN: a reserved source
+    # cannot become a Knowledge entry even if its data was tampered with.
+    broker_reports_intake.assert_native_processing_allowed(file)
+    if not file.data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.FILE_NOT_PROCESSED,
+        )
+
+    # KB write-access alone is not enough""",
+    ),
+    Replacement(
+        "knowledge_single_update_guard",
+        "routers/knowledge.py",
+        """    # Validate the file actually belongs to this knowledge base
+    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):""",
+        """    # broker-reports-private-intake-v2 FORBIDDEN: validate before
+    # vector deletion or reprocessing can begin.
+    broker_reports_intake.assert_native_processing_allowed(file)
+
+    # Validate the file actually belongs to this knowledge base
+    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):""",
+    ),
+    Replacement(
+        "knowledge_batch_add_guard",
+        "routers/knowledge.py",
+        """    # Per-file read-access check — same gate as the single-file endpoint.
+    if user.role != 'admin':""",
+        """    # broker-reports-private-intake-v2 FORBIDDEN: reject the whole
+    # batch before vector processing or Knowledge association.
+    for file in files:
+        broker_reports_intake.assert_native_processing_allowed(file)
+
+    # Per-file read-access check — same gate as the single-file endpoint.
+    if user.role != 'admin':""",
     ),
     Replacement(
         "retrieval_guard_import",
@@ -99,7 +176,7 @@ from open_webui.routers import broker_reports_intake
         try:
             collection_name = form_data.collection_name""",
         """    if file:
-        # broker-reports-private-intake-v1 FORBIDDEN: guard before the
+        # broker-reports-private-intake-v2 FORBIDDEN: guard before the
         # processing try/except so rejection cannot write a native failure state.
         broker_reports_intake.assert_native_processing_allowed(file)
         try:
@@ -129,7 +206,7 @@ from open_webui.routers import broker_reports_intake
                 )
                 continue
 
-            # broker-reports-private-intake-v1 FORBIDDEN: validate the DB row,
+            # broker-reports-private-intake-v2 FORBIDDEN: validate the DB row,
             # never the client-supplied FileModel used by this upstream endpoint.
             broker_reports_intake.assert_native_processing_allowed(db_file)
             text_content = file.data.get('content', '')""",
@@ -160,6 +237,27 @@ def _validate_feature_modules(root: Path) -> None:
             + ", ".join(present)
         )
 
+    contract_text = contract_path.read_text(encoding="utf-8")
+    required_authority_markers = (
+        "broker_reports_action_intake_attestation_v2",
+        "broker_reports_private_intake_factory_v2",
+        "verify_action_attestation",
+        "ACTION_ATTESTATION_TTL_SECONDS",
+    )
+    missing = [
+        marker for marker in required_authority_markers if marker not in contract_text
+    ]
+    if missing:
+        raise RuntimeError(
+            "Broker Reports intake authority contract is incomplete: "
+            + ", ".join(missing)
+        )
+    for marker in ("WEBUI_SECRET_KEY", "server_secret=WEBUI_SECRET_KEY"):
+        if marker not in router_text:
+            raise RuntimeError(
+                f"Broker Reports intake router lacks signed Action authority: {marker}"
+            )
+
 
 def patch_backend(root: Path, *, dry_run: bool) -> str:
     _validate_feature_modules(root)
@@ -175,7 +273,10 @@ def patch_backend(root: Path, *, dry_run: bool) -> str:
         new_count = text.count(replacement.new)
         if old_count == 1 and new_count == 0:
             states.append("old")
-        elif old_count == 0 and new_count == 1:
+        elif new_count == 1 and old_count in {0, 1}:
+            # Some narrow old anchors remain a substring of their guarded
+            # replacement.  A second standalone old anchor would make the
+            # count greater than one and still fail closed as partial drift.
             states.append("new")
         else:
             raise RuntimeError(

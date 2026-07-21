@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import re
 import time
 import uuid
@@ -17,14 +18,15 @@ from typing import Any, Callable, Mapping, Protocol
 
 INTAKE_SCHEMA_VERSION = "broker_reports_private_source_intake_v1"
 RECEIPT_SCHEMA_VERSION = "broker_reports_private_source_receipt_v1"
-ACTION_ATTESTATION_SCHEMA_VERSION = "broker_reports_action_intake_attestation_v1"
+ACTION_ATTESTATION_SCHEMA_VERSION = "broker_reports_action_intake_attestation_v2"
 RECEIPT_META_KEY = "broker_reports_intake"
 ACTION_ATTESTATION_KEY = "broker_reports_server_intake_attestation"
 PROTECTED_ACTION_ID = "broker_reports_private_intake_action"
+ACTION_ATTESTATION_TTL_SECONDS = 60
 
 # FACTORY_REQUIRED: production construction goes through
 # build_broker_reports_intake_service() in the deployed router.
-FACTORY_REQUIRED = "broker_reports_private_intake_factory_v1"
+FACTORY_REQUIRED = "broker_reports_private_intake_factory_v2"
 
 # FORBIDDEN: native processing, Knowledge, RAG, embeddings and vectorization are
 # never optional capabilities of an eligible Broker Reports source.
@@ -45,6 +47,28 @@ VECTORIZATION_ALLOWED = False
 _SOURCE_ID_NAMESPACE = uuid.UUID("75355f89-3ed8-4eb8-815c-909f3276aeb1")
 _IDEMPOTENCY_KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _BROKER_REPORTS_ID_PREFIX = "br-"
+_BROKER_REPORTS_ID_RE = re.compile(
+    r"^br-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+_HEX_32_RE = re.compile(r"^[0-9a-f]{32}$")
+_HEX_64_RE = re.compile(r"^[0-9a-f]{64}$")
+_ACTION_ATTESTATION_SIGNING_CONTEXT = b"broker-reports-action-attestation-v2"
+_ACTION_ATTESTATION_KEYS = frozenset(
+    {
+        "schema_version",
+        "guard",
+        "action_id",
+        "actor_user_id",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "sources",
+        "signature",
+    }
+)
+_ACTION_SOURCE_KEYS = frozenset(
+    {"source_id", "receipt_id", "receipt_schema_version"}
+)
 _FORBIDDEN_NATIVE_DATA_KEYS = frozenset(
     {
         "collection_name",
@@ -87,6 +111,10 @@ class IntakePersistenceFailure(IntakeContractError):
 
 class IntakeCleanupFailure(IntakeContractError):
     code = "broker_reports_intake_cleanup_failed"
+
+
+class IntakeConfigurationFailure(IntakeContractError):
+    code = "broker_reports_intake_configuration_failed"
 
 
 class IneligibleSource(IntakeContractError):
@@ -474,20 +502,162 @@ async def resolve_receipts(
     return receipts
 
 
-def action_attestation(receipts: list[VerifiedReceipt]) -> dict[str, Any]:
-    """Build the only file-reference payload accepted by the protected Action."""
+def _action_signing_key(server_secret: str) -> bytes:
+    secret = str(server_secret or "").encode("utf-8")
+    if len(secret) < 32:
+        raise IntakeConfigurationFailure(
+            "Authenticated server secret must contain at least 32 UTF-8 bytes."
+        )
+    return hmac.new(
+        secret,
+        _ACTION_ATTESTATION_SIGNING_CONTEXT,
+        hashlib.sha256,
+    ).digest()
+
+
+def _canonical_attestation_bytes(payload: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+
+
+def _validated_attestation_sources(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value or len(value) > 128:
+        raise IneligibleSource("Server intake attestation must contain 1-128 sources.")
+
+    verified: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for source in value:
+        if not isinstance(source, Mapping) or set(source) != _ACTION_SOURCE_KEYS:
+            raise IneligibleSource("Server intake source receipt is invalid.")
+        source_id = str(source.get("source_id") or "")
+        receipt_id = str(source.get("receipt_id") or "")
+        if not _BROKER_REPORTS_ID_RE.fullmatch(source_id):
+            raise IneligibleSource("Generic OpenWebUI file ref is ineligible.")
+        if source.get("receipt_schema_version") != RECEIPT_SCHEMA_VERSION:
+            raise IneligibleSource("Server receipt schema is invalid.")
+        if not _HEX_64_RE.fullmatch(receipt_id):
+            raise IneligibleSource("Server receipt identity is invalid.")
+        if source_id in seen:
+            raise IneligibleSource("Duplicate server receipt source is invalid.")
+        seen.add(source_id)
+        verified.append(
+            {
+                "source_id": source_id,
+                "receipt_id": receipt_id,
+                "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
+            }
+        )
+    return verified
+
+
+def action_attestation(
+    receipts: list[VerifiedReceipt],
+    *,
+    actor: IntakeActor,
+    server_secret: str,
+    action_id: str = PROTECTED_ACTION_ID,
+    issued_at: int | None = None,
+    nonce: str | None = None,
+) -> dict[str, Any]:
+    """Build a short-lived, server-authenticated Action payload."""
 
     if not receipts:
         raise IneligibleSource("Action attestation cannot be empty.")
-    return {
-        "schema_version": ACTION_ATTESTATION_SCHEMA_VERSION,
-        "guard": FACTORY_REQUIRED,
-        "sources": [
+    actor_user_id = str(actor.user_id or "").strip()
+    if not actor_user_id:
+        raise IneligibleSource("Authenticated Action actor is absent.")
+    if action_id != PROTECTED_ACTION_ID:
+        raise IneligibleSource("Protected Action identity is invalid.")
+    issued = _default_clock() if issued_at is None else int(issued_at)
+    if issued <= 0:
+        raise IneligibleSource("Action attestation issue time is invalid.")
+    nonce_value = _default_nonce() if nonce is None else str(nonce)
+    if not _HEX_32_RE.fullmatch(nonce_value):
+        raise IneligibleSource("Action attestation nonce is invalid.")
+
+    sources = _validated_attestation_sources(
+        [
             {
                 "source_id": receipt.source_id,
                 "receipt_id": receipt.receipt_id,
                 "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
             }
             for receipt in receipts
-        ],
+        ]
+    )
+    payload = {
+        "schema_version": ACTION_ATTESTATION_SCHEMA_VERSION,
+        "guard": FACTORY_REQUIRED,
+        "action_id": action_id,
+        "actor_user_id": actor_user_id,
+        "issued_at": issued,
+        "expires_at": issued + ACTION_ATTESTATION_TTL_SECONDS,
+        "nonce": nonce_value,
+        "sources": sources,
     }
+    payload["signature"] = hmac.new(
+        _action_signing_key(server_secret),
+        _canonical_attestation_bytes(payload),
+        hashlib.sha256,
+    ).hexdigest()
+    return payload
+
+
+def verify_action_attestation(
+    attestation: Any,
+    *,
+    action_id: str,
+    authenticated_user_id: str,
+    server_secret: str,
+    now: int | None = None,
+) -> list[dict[str, str]]:
+    """Verify authority, actor, lifetime and exact receipt identities."""
+
+    if not isinstance(attestation, Mapping) or set(attestation) != _ACTION_ATTESTATION_KEYS:
+        raise IneligibleSource("Signed server intake attestation is required.")
+    if attestation.get("schema_version") != ACTION_ATTESTATION_SCHEMA_VERSION:
+        raise IneligibleSource("Server intake attestation schema is invalid.")
+    if attestation.get("guard") != FACTORY_REQUIRED:
+        raise IneligibleSource("Server intake guard identity is invalid.")
+    if action_id != PROTECTED_ACTION_ID or attestation.get("action_id") != action_id:
+        raise IneligibleSource("Protected Action identity is invalid.")
+
+    actor_user_id = str(authenticated_user_id or "").strip()
+    if not actor_user_id or not hmac.compare_digest(
+        str(attestation.get("actor_user_id") or ""), actor_user_id
+    ):
+        raise IneligibleSource("Action attestation actor does not match authentication.")
+
+    try:
+        issued_at = int(attestation.get("issued_at"))
+        expires_at = int(attestation.get("expires_at"))
+    except (TypeError, ValueError) as exc:
+        raise IneligibleSource("Action attestation lifetime is invalid.") from exc
+    current = _default_clock() if now is None else int(now)
+    if (
+        issued_at <= 0
+        or expires_at != issued_at + ACTION_ATTESTATION_TTL_SECONDS
+        or current < issued_at
+        or current > expires_at
+    ):
+        raise IneligibleSource("Action attestation is not currently valid.")
+    if not _HEX_32_RE.fullmatch(str(attestation.get("nonce") or "")):
+        raise IneligibleSource("Action attestation nonce is invalid.")
+
+    sources = _validated_attestation_sources(attestation.get("sources"))
+    signature = str(attestation.get("signature") or "")
+    if not _HEX_64_RE.fullmatch(signature):
+        raise IneligibleSource("Action attestation signature is invalid.")
+    unsigned = {key: value for key, value in attestation.items() if key != "signature"}
+    expected_signature = hmac.new(
+        _action_signing_key(server_secret),
+        _canonical_attestation_bytes(unsigned),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(signature, expected_signature):
+        raise IneligibleSource("Action attestation signature is invalid.")
+    return sources

@@ -5,7 +5,10 @@ import importlib.util
 import shutil
 import sys
 import tempfile
+import time
+import types
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -13,6 +16,8 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEPLOY_ROOT = REPO_ROOT / "deploy" / "openwebui-broker-reports-intake"
 sys.path.insert(0, str(SERVICE_ROOT))
+
+TEST_SERVER_SECRET = "unit-test-broker-intake-secret-32-bytes-minimum"
 
 
 def load_module(name: str, path: Path):
@@ -25,8 +30,18 @@ def load_module(name: str, path: Path):
     return module
 
 
+open_webui_module = types.ModuleType("open_webui")
+open_webui_module.__path__ = []
+routers_module = types.ModuleType("open_webui.routers")
+routers_module.__path__ = []
+env_module = types.ModuleType("open_webui.env")
+env_module.WEBUI_SECRET_KEY = TEST_SERVER_SECRET
+sys.modules["open_webui"] = open_webui_module
+sys.modules["open_webui.routers"] = routers_module
+sys.modules["open_webui.env"] = env_module
+
 contract = load_module(
-    "broker_reports_intake_contract_test",
+    "open_webui.routers.broker_reports_intake_contract",
     DEPLOY_ROOT / "broker_reports_intake_contract.py",
 )
 patcher = load_module(
@@ -303,42 +318,143 @@ class BrokerReportsPrivateIntakeContractTest(unittest.IsolatedAsyncioTestCase):
 
 
 class BrokerReportsPrivateIntakeActionTest(unittest.IsolatedAsyncioTestCase):
-    async def test_action_rejects_generic_file_refs_without_server_attestation(self):
-        with self.assertRaisesRegex(ValueError, "Generic OpenWebUI file refs are ineligible"):
-            await Action().action(
-                {"files": [{"id": "generic-file-id"}]},
-                __id__=PROTECTED_ACTION_ID,
-            )
-
-    async def test_action_accepts_only_server_attestation_and_hides_source_ids(self):
-        repository = InMemoryReceiptRepository()
-        storage = InMemoryPrivateStorage()
-        result = await contract.BrokerReportsIntakeService(
-            repository,
-            storage,
+    async def asyncSetUp(self) -> None:
+        self.repository = InMemoryReceiptRepository()
+        self.storage = InMemoryPrivateStorage()
+        self.actor = contract.IntakeActor(user_id="verified-user-action")
+        self.result = await contract.BrokerReportsIntakeService(
+            self.repository,
+            self.storage,
             clock=lambda: 1_720_000_000,
             nonce=lambda: "attempt-action",
         ).accept(
-            actor=contract.IntakeActor(user_id="verified-user-action"),
+            actor=self.actor,
             idempotency_key="request-action-1",
             filename="private.pdf",
             content_type="application/pdf",
             payload=b"private action source",
         )
+
+    def _signed_attestation(self, *, issued_at: int | None = None) -> dict:
+        return contract.action_attestation(
+            [self.result],
+            actor=self.actor,
+            server_secret=TEST_SERVER_SECRET,
+            issued_at=int(time.time()) if issued_at is None else issued_at,
+            nonce="0123456789abcdef0123456789abcdef",
+        )
+
+    async def test_action_rejects_generic_file_refs_without_server_attestation(self):
+        events: list[dict] = []
+
+        async def emit(event: dict) -> None:
+            events.append(event)
+
+        with self.assertRaisesRegex(
+            contract.IneligibleSource,
+            "Signed server intake attestation is required",
+        ):
+            await Action().action(
+                {"files": [{"id": "generic-file-id"}]},
+                __id__=PROTECTED_ACTION_ID,
+                __user__={"id": self.actor.user_id},
+                __event_emitter__=emit,
+            )
+        self.assertEqual(events[-1]["data"]["done"], True)
+        self.assertIn("rejected", events[-1]["data"]["description"].lower())
+
+    async def test_direct_action_rejects_shape_only_client_forgery(self):
+        issued_at = int(time.time())
+        forged = {
+            "schema_version": contract.ACTION_ATTESTATION_SCHEMA_VERSION,
+            "guard": contract.FACTORY_REQUIRED,
+            "action_id": PROTECTED_ACTION_ID,
+            "actor_user_id": self.actor.user_id,
+            "issued_at": issued_at,
+            "expires_at": issued_at + contract.ACTION_ATTESTATION_TTL_SECONDS,
+            "nonce": "0123456789abcdef0123456789abcdef",
+            "sources": [
+                {
+                    "source_id": self.result.source_id,
+                    "receipt_id": self.result.receipt_id,
+                    "receipt_schema_version": contract.RECEIPT_SCHEMA_VERSION,
+                }
+            ],
+            "signature": "0" * 64,
+        }
+        with self.assertRaisesRegex(contract.IneligibleSource, "signature is invalid"):
+            await Action().action(
+                {ACTION_ATTESTATION_KEY: forged},
+                __id__=PROTECTED_ACTION_ID,
+                __user__={"id": self.actor.user_id},
+            )
+
+    async def test_action_rejects_cross_user_and_expired_attestations(self):
+        signed = self._signed_attestation()
+        with self.assertRaisesRegex(contract.IneligibleSource, "actor does not match"):
+            await Action().action(
+                {ACTION_ATTESTATION_KEY: signed},
+                __id__=PROTECTED_ACTION_ID,
+                __user__={"id": "different-authenticated-user"},
+            )
+
+        expired = self._signed_attestation(
+            issued_at=int(time.time()) - contract.ACTION_ATTESTATION_TTL_SECONDS - 1
+        )
+        with self.assertRaisesRegex(contract.IneligibleSource, "not currently valid"):
+            await Action().action(
+                {ACTION_ATTESTATION_KEY: expired},
+                __id__=PROTECTED_ACTION_ID,
+                __user__={"id": self.actor.user_id},
+            )
+
+    async def test_action_rejects_tampered_signed_source(self):
+        signed = self._signed_attestation()
+        tampered = deepcopy(signed)
+        tampered["sources"][0]["receipt_id"] = "f" * 64
+        with self.assertRaisesRegex(contract.IneligibleSource, "signature is invalid"):
+            await Action().action(
+                {ACTION_ATTESTATION_KEY: tampered},
+                __id__=PROTECTED_ACTION_ID,
+                __user__={"id": self.actor.user_id},
+            )
+
+    async def test_action_accepts_signed_server_attestation_and_hides_source_ids(self):
+        events: list[dict] = []
+
+        async def emit(event: dict) -> None:
+            events.append(event)
+
         body = {
-            "files": [{"id": result.source_id}],
-            ACTION_ATTESTATION_KEY: contract.action_attestation([result]),
+            "files": [{"id": self.result.source_id}],
+            ACTION_ATTESTATION_KEY: self._signed_attestation(),
         }
 
-        response = await Action().action(body, __id__=PROTECTED_ACTION_ID)
+        response = await Action().action(
+            body,
+            __id__=PROTECTED_ACTION_ID,
+            __user__={"id": self.actor.user_id},
+            __event_emitter__=emit,
+        )
 
         report = response["broker_reports_private_intake"]
         self.assertEqual(report["run_status"], "receipt_verified")
         self.assertEqual(report["eligible_sources_total"], 1)
-        self.assertNotIn(result.source_id, response["content"])
-        self.assertNotIn(result.receipt_id, response["content"])
+        self.assertNotIn(self.result.source_id, response["content"])
+        self.assertNotIn(self.result.receipt_id, response["content"])
         self.assertFalse(report["documents"][0]["native_processing"])
         self.assertFalse(report["documents"][0]["knowledge_rag_vectorization"])
+        self.assertEqual([event["data"]["done"] for event in events], [False, True])
+
+    async def test_short_server_secret_fails_closed(self):
+        with self.assertRaises(contract.IntakeConfigurationFailure):
+            contract.action_attestation(
+                [self.result],
+                actor=self.actor,
+                server_secret="short",
+                issued_at=int(time.time()),
+                nonce="0123456789abcdef0123456789abcdef",
+            )
 
 
 class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
@@ -372,12 +488,17 @@ class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
             )
             main = (root / "main.py").read_text(encoding="utf-8")
             retrieval = (root / "routers" / "retrieval.py").read_text(encoding="utf-8")
+            files = (root / "routers" / "files.py").read_text(encoding="utf-8")
+            knowledge = (root / "routers" / "knowledge.py").read_text(encoding="utf-8")
 
         self.assertIn("broker_reports_intake.router", main)
         self.assertIn("guard_protected_action_form", main)
         self.assertIn("db: AsyncSession = Depends(get_async_session)", main)
         self.assertEqual(retrieval.count("assert_native_processing_allowed"), 2)
         self.assertIn("assert_native_processing_allowed(db_file)", retrieval)
+        self.assertEqual(files.count("assert_native_processing_allowed"), 1)
+        self.assertEqual(knowledge.count("assert_native_processing_allowed"), 3)
+        self.assertIn("reject the whole", knowledge)
 
     def test_patch_fails_closed_on_upstream_signature_drift(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -398,6 +519,11 @@ class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
 
     def test_deployed_intake_has_no_native_pipeline_dependency(self):
         router_text = (DEPLOY_ROOT / "broker_reports_intake.py").read_text(encoding="utf-8")
+        action_text = (
+            SERVICE_ROOT
+            / "openwebui_actions"
+            / "broker_reports_private_intake_action.py"
+        ).read_text(encoding="utf-8")
         dockerfile = (
             REPO_ROOT / "deploy" / "openwebui-native-web-stt-patch" / "Dockerfile"
         ).read_text(encoding="utf-8")
@@ -414,9 +540,17 @@ class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
         )
         self.assertIn("apply_broker_reports_intake_patch.py --backend-root", dockerfile)
         self.assertIn("get_action_chat_source_ids", router_text)
+        self.assertIn("WEBUI_SECRET_KEY", router_text)
+        self.assertIn("server_secret=WEBUI_SECRET_KEY", router_text)
         self.assertIn("Chat.user_id == owner_user_id", router_text)
         self.assertIn("ChatMessage.parent_id", router_text)
         self.assertIn("ChatFile.user_id == owner_user_id", router_text)
+        self.assertIn(
+            "from open_webui.routers.broker_reports_intake_contract import",
+            action_text,
+        )
+        self.assertIn("verify_action_attestation", action_text)
+        self.assertNotIn("broker_reports_private_intake_factory_v1", action_text)
 
 
 if __name__ == "__main__":

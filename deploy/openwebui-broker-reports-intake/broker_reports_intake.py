@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
+from open_webui.env import WEBUI_SECRET_KEY
 from open_webui.internal.db import get_async_session
 from open_webui.models.chat_messages import ChatMessage
 from open_webui.models.chats import Chat, ChatFile
@@ -355,6 +356,8 @@ async def guard_protected_action_form(
     base_action_id = action_id.split(".", 1)[0]
     if base_action_id != PROTECTED_ACTION_ID:
         return
+    if action_id != PROTECTED_ACTION_ID:
+        raise _http_error(IneligibleSource("Protected Action sub-actions are not eligible."))
 
     # A direct client may submit this key, so it is removed before any checks and
     # replaced only with a server-generated value after receipt verification.
@@ -376,6 +379,11 @@ async def guard_protected_action_form(
             actor=IntakeActor(user_id=user.id),
             repository=repository,
         )
-        form_data[ACTION_ATTESTATION_KEY] = action_attestation(receipts)
+        form_data[ACTION_ATTESTATION_KEY] = action_attestation(
+            receipts,
+            actor=IntakeActor(user_id=user.id),
+            server_secret=WEBUI_SECRET_KEY,
+            action_id=action_id,
+        )
     except IntakeContractError as error:
         raise _http_error(error) from error
