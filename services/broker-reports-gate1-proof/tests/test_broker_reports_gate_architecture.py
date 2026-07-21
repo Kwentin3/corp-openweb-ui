@@ -4,9 +4,26 @@ import ast
 import unittest
 from pathlib import Path
 
+from broker_reports_gate1.architecture_policy import (
+    ARCHITECTURE_AUTHORITY,
+    CANONICAL_PROMOTION_AUTHORITY,
+    COMPONENT_RUNTIME_STATUSES,
+    KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
+    LOCAL_OCR_PRODUCTION_ALLOWED,
+    MODEL_CANONICAL_AUTHORITY,
+    NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
+    PROVIDER_OUTPUT_AUTHORITY,
+    VISUAL_RECOVERY_INPUT_SCOPES,
+    VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
+    WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "broker_reports_gate1"
+REPOSITORY_ROOT = ROOT.parents[1]
+ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
+OPENWEBUI_ACTIONS = ROOT / "openwebui_actions"
 
 GATE2_MODULES = {
     path.stem
@@ -42,6 +59,75 @@ GATE2_BUSINESS_RUNTIME_MODULES = {
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
+    def test_canonical_architecture_contains_runtime_authority_markers(self):
+        authority = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
+        required = {
+            "separate controlled source-processing pipeline",
+            "Knowledge, RAG, embeddings or vectorization",
+            "Production visual-table provider profiles are exactly `google_gemini` and",
+            "`openai_gpt`",
+            "whole-document provider upload is",
+            "PaddleOCR, PaddleOCR-VL",
+            "MODEL_CANONICAL_AUTHORITY:",
+            "BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md",
+            "ArtifactResolver",
+        }
+        self.assertEqual(
+            sorted(marker for marker in required if marker not in authority),
+            [],
+        )
+
+    def test_machine_readable_policy_is_fail_closed(self):
+        self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)
+        self.assertFalse(KNOWLEDGE_RAG_VECTORIZATION_ALLOWED)
+        self.assertEqual(
+            VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
+            frozenset({"google_gemini", "openai_gpt"}),
+        )
+        self.assertEqual(
+            VISUAL_RECOVERY_INPUT_SCOPES,
+            frozenset({"declared_page", "table_crop"}),
+        )
+        self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
+        self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
+        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "typed_proposal_only")
+        self.assertEqual(
+            CANONICAL_PROMOTION_AUTHORITY,
+            "deterministic_validator_only",
+        )
+        self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
+
+    def test_production_python_has_no_heavy_local_ocr_import(self):
+        forbidden_roots = {"paddle", "paddleocr", "easyocr", "torch"}
+        violations = []
+        for root in (PACKAGE, OPENWEBUI_ACTIONS):
+            for path in sorted(root.glob("*.py")):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        imports = {alias.name.split(".", 1)[0] for alias in node.names}
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        imports = {node.module.split(".", 1)[0]}
+                    else:
+                        continue
+                    for name in sorted(imports & forbidden_roots):
+                        violations.append(f"{path.name}:{name}")
+        self.assertEqual(violations, [])
+
+    def test_non_production_visual_components_are_explicitly_classified(self):
+        expected = {
+            "pdf_csv_experiment_provider": "proof_only",
+            "pdf_grid_experiment_provider": "proof_only",
+            "pdf_hybrid_provider": "proof_only",
+            "pdf_dual_vlm_fact_providers": "proof_only",
+            "pdf_dual_vlm_canonical_table": "proof_only",
+            "prove_visual_neutral_tables_actual_corpus": "offline_only",
+        }
+        self.assertEqual(
+            {key: COMPONENT_RUNTIME_STATUSES.get(key) for key in expected},
+            expected,
+        )
+
     def test_gate2_imports_gate1_only_through_public_contract_surface(self):
         violations = []
         for module_name in sorted(GATE2_MODULES):

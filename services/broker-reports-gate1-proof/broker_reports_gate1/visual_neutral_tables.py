@@ -12,6 +12,11 @@ from typing import Any
 from .contracts import stable_digest
 
 
+# Architecture authority: provider observations are proposals.  Only this
+# deterministic validator/factory may promote a validated source-local table.
+# Local OCR may feed offline proof evidence but is not a production dependency.
+
+
 VISUAL_OBSERVATION_SCHEMA_VERSION = (
     "broker_reports_gate1_visual_ocr_geometry_observation_v1"
 )

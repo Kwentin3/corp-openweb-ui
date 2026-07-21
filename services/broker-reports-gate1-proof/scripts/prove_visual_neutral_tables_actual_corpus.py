@@ -8,6 +8,9 @@ The committed projection contains aggregate counts and opaque proof identities.
 
 from __future__ import annotations
 
+
+RUNTIME_STATUS = "offline_only"
+
 import argparse
 import base64
 import copy

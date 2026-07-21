@@ -30,6 +30,7 @@ ADR registry order:
 - [ADR-0006 Provider Model Catalog](ADR-0006-provider-model-catalog.md)
 - [ADR-0007 Web-search Provider](ADR-0007-web-search-provider.md)
 - [ADR-0008 Native Analytics vs Hard Billing](ADR-0008-native-analytics-vs-hard-billing.md)
+- [ADR-0009 Broker Reports Bounded VLM and Private Intake](ADR-0009-broker-reports-bounded-vlm-and-private-intake.md)
 
 Recommended execution / review order:
 
@@ -41,6 +42,7 @@ Recommended execution / review order:
 6. Chat Deletion / Retention / Audit.
 7. OCR / VL OCR Pilot Scope.
 8. Native Analytics vs Hard Billing.
+9. Broker Reports Bounded VLM and Private Intake.
 
 Numbers are the ADR registry order. Execution order reflects implementation
 dependencies.
