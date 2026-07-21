@@ -29,6 +29,16 @@ from .gate1_public_contracts import (
     validate_pdf_text_layer_payload,
 )
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
+from .gate2_fns_2ndfl_adapter import (
+    Gate2Fns2NdflAdapterFactory,
+    Gate2Fns2NdflError,
+    is_fns_2ndfl_neutral_event_source_unit,
+)
+from .gate2_fns_2ndfl_contracts import validate_fns_2ndfl_typed_output
+from .gate2_fns_2ndfl_parity import (
+    Gate2Fns2NdflParityError,
+    Gate2Fns2NdflParityFactory,
+)
 from .gate2_table_packages import (
     Gate2TablePackageFactory,
     validate_gate2_table_package,
@@ -121,6 +131,8 @@ class Gate2InputReadinessService:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
         self.table_package_builder = Gate2TablePackageFactory().create()
+        self.fns_2ndfl_adapter = Gate2Fns2NdflAdapterFactory().create()
+        self.fns_2ndfl_parity = Gate2Fns2NdflParityFactory().create()
 
     def audit_and_build(
         self,
@@ -244,6 +256,19 @@ class Gate2InputReadinessService:
             for entry in _entries(duc)
             if entry.get("document_ref")
         }
+        paired_withholding_groups = _paired_withholding_groups(
+            memory_by_document=memory_by_document,
+            usage_by_document=usage_by_document,
+        )
+        paired_pdf_candidate_units = self._resolve_paired_pdf_candidate_units(
+            records=records,
+            paired_pdf_document_refs={
+                item["pdf_document_ref"] for item in paired_withholding_groups
+            },
+            context=context,
+            resolved_scope_records=resolved_scope_records,
+            errors=errors,
+        )
         issues_by_id = {
             str(entry.get("issue_id")): entry
             for entry in _entries(issue_ledger)
@@ -406,9 +431,40 @@ class Gate2InputReadinessService:
                     package["document_context"][
                         "selected_source_scope"
                     ] = selected_scope
+                    if is_fns_2ndfl_neutral_event_source_unit(private_slice):
+                        try:
+                            package["typed_source_facts"] = (
+                                self.fns_2ndfl_adapter.adapt(
+                                    source_package_ref=str(package["package_id"]),
+                                    source_unit=private_slice,
+                                )
+                            )
+                            package["package_mode"] = (
+                                "gate2_fns_2ndfl_typed_deterministic_no_model_call"
+                            )
+                            package["output_schema"] = {
+                                "output_schema_version": (
+                                    "broker_reports_fns_2ndfl_source_facts_v1"
+                                ),
+                                "schema_validation_performed": True,
+                            }
+                        except Gate2Fns2NdflError as exc:
+                            package["typed_adapter_terminal"] = {
+                                "adapter_id": (
+                                    "broker_reports_fns_2ndfl_source_facts_v1"
+                                ),
+                                "terminal_status": "blocked",
+                                "error_code": exc.code,
+                                "provider_calls": 0,
+                                "provider_tokens": 0,
+                                "provider_cost": 0,
+                            }
                     package["document_context"][
                         "financial_interpretation_allowed"
-                    ] = selected_scope == "canonical_table"
+                    ] = (
+                        selected_scope == "canonical_table"
+                        or isinstance(package.get("typed_source_facts"), dict)
+                    )
                     validation = validate_dry_run_source_fact_package(
                         package=package,
                         private_slice=private_slice,
@@ -424,6 +480,76 @@ class Gate2InputReadinessService:
                 packageable_document_refs.add(document_ref)
             else:
                 unpackageable_document_refs.add(document_ref)
+
+        representation_reconciliations: list[dict[str, Any]] = []
+        packages_by_document: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for package in packages:
+            packages_by_document[str(package.get("document_ref") or "")].append(
+                package
+            )
+        for pair in paired_withholding_groups:
+            xml_document_ref = pair["xml_document_ref"]
+            pdf_document_ref = pair["pdf_document_ref"]
+            xml_packages = [
+                package
+                for package in packages_by_document.get(xml_document_ref, [])
+                if isinstance(package.get("typed_source_facts"), dict)
+            ]
+            pdf_packages = packages_by_document.get(pdf_document_ref, [])
+            pdf_candidate_units = paired_pdf_candidate_units.get(
+                pdf_document_ref, []
+            )
+            if len(xml_packages) != 1 or not pdf_candidate_units:
+                errors.append(
+                    _error(
+                        "gate2_fns_2ndfl_paired_representation_input_incomplete",
+                        stable_digest([pair.get("archive_parent_ref")], length=20),
+                    )
+                )
+                continue
+            try:
+                parity = self.fns_2ndfl_parity.reconcile(
+                    typed_xml_output=_object(
+                        xml_packages[0].get("typed_source_facts")
+                    ),
+                    paired_pdf_document_ref=pdf_document_ref,
+                    pdf_source_units=pdf_candidate_units,
+                )
+            except Gate2Fns2NdflParityError as exc:
+                errors.append(
+                    _error(
+                        exc.code,
+                        stable_digest([pair.get("archive_parent_ref")], length=20),
+                    )
+                )
+                continue
+            representation_reconciliations.append(parity)
+            xml_packages[0]["paired_representation_parity"] = parity
+            for package in pdf_packages:
+                source_unit = _object(package.get("source_unit"))
+                candidate_ref = str(source_unit.get("unit_id") or "")
+                is_candidate = source_unit.get("unit_kind") == "pdf_table_candidate"
+                package["representation_satisfaction"] = {
+                    "schema_version": "broker_reports_representation_satisfaction_v1",
+                    "parity_id": parity.get("parity_id"),
+                    "workflow": "withholding_source_evidence",
+                    "selected_representation": "typed_fns_2ndfl_xml",
+                    "typed_xml_document_ref": xml_document_ref,
+                    "pdf_source_identity_preserved": True,
+                    "pdf_candidate_ref": candidate_ref if is_candidate else None,
+                    "pdf_candidate_preserved": is_candidate,
+                    "pdf_candidate_canonicalized": False,
+                    "pdf_recovery_status": (
+                        "recovery_deferred_validated_paired_xml_coverage"
+                        if is_candidate
+                        else "independent_pdf_representation_preserved"
+                    ),
+                    "named_workflow_blocked": False,
+                    "source_identities_merged_or_deleted": False,
+                }
+                package.setdefault("document_context", {})[
+                    "withholding_workflow_readiness"
+                ] = "satisfied_by_validated_paired_typed_xml"
 
         if set(source_ready_refs) != packageable_document_refs | unpackageable_document_refs:
             errors.append(_error("gate2_source_ready_decision_coverage_incomplete", "dcp"))
@@ -474,6 +600,16 @@ class Gate2InputReadinessService:
             "packages_passed": sum(
                 1 for item in package_validations if item.get("validator_status") == "passed"
             ),
+            "fns_2ndfl_typed_packages_total": sum(
+                1 for item in packages if isinstance(item.get("typed_source_facts"), dict)
+            ),
+            "fns_2ndfl_paired_representations_reconciled": len(
+                representation_reconciliations
+            ),
+            "fns_2ndfl_pdf_candidates_recovery_deferred": sum(
+                len(item.get("pdf_candidate_refs") or [])
+                for item in representation_reconciliations
+            ),
             "resolved_scope_records_total": len(set(resolved_scope_records)),
             "artifactstore_unchanged": store_unchanged,
             "knowledge_records": knowledge_records,
@@ -502,6 +638,51 @@ class Gate2InputReadinessService:
             validation=validation,
             safe_report=safe_report,
         )
+
+    def _resolve_paired_pdf_candidate_units(
+        self,
+        *,
+        records: list[ArtifactRecord],
+        paired_pdf_document_refs: set[str],
+        context: ArtifactAccessContext,
+        resolved_scope_records: list[str],
+        errors: list[dict[str, str]],
+    ) -> dict[str, list[dict[str, Any]]]:
+        result: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        if not paired_pdf_document_refs:
+            return result
+        for record in records:
+            document_ref = str(record.document_id or "")
+            if (
+                record.artifact_type != SOURCE_UNIT_SCHEMA_VERSION
+                or document_ref not in paired_pdf_document_refs
+                or record.safe_metadata.get("pdf_unit_type")
+                != "pdf_table_candidate_unit"
+            ):
+                continue
+            try:
+                resolved = self.resolver.resolve(record.artifact_id, context)
+            except ArtifactStoreError as exc:
+                errors.append(
+                    _error(f"gate2_{exc.code}", record.artifact_id)
+                )
+                continue
+            payload = _object(resolved.get("payload"))
+            checksum = str(
+                (record.source_file_ref or {}).get("file_hash_sha256") or ""
+            )
+            validation = validate_full_source_unit(
+                unit=payload,
+                normalization_run_id=context.normalization_run_id,
+                document_id=document_ref,
+                source_checksum_sha256=checksum,
+            )
+            if validation.get("validator_status") != "passed":
+                errors.extend(copy.deepcopy(validation.get("errors") or []))
+                continue
+            result[document_ref].append(payload)
+            resolved_scope_records.append(record.artifact_id)
+        return result
 
     def _resolve_single_payload(
         self,
@@ -1158,6 +1339,28 @@ def validate_dry_run_source_fact_package(
     ):
         if guards.get(key) is not False:
             errors.append(_error("gate2_package_privacy_guard_not_false", key))
+    if is_fns_2ndfl_neutral_event_source_unit(private_slice):
+        typed_output = package.get("typed_source_facts")
+        if not isinstance(typed_output, dict):
+            terminal = _object(package.get("typed_adapter_terminal"))
+            errors.append(
+                _error(
+                    str(terminal.get("error_code") or "gate2_fns_2ndfl_typed_output_missing"),
+                    package_id,
+                )
+            )
+        else:
+            typed_validation = validate_fns_2ndfl_typed_output(
+                typed_output,
+                allowed_source_value_refs=sorted(expected_source_value_refs),
+            )
+            errors.extend(copy.deepcopy(typed_validation.get("errors") or []))
+            if _object(package.get("document_context")).get(
+                "financial_interpretation_allowed"
+            ) is not True:
+                errors.append(
+                    _error("gate2_fns_2ndfl_financial_scope_not_enabled", package_id)
+                )
     return {
         "schema_version": "broker_reports_source_fact_package_validation_v0",
         "package_id": package_id,
@@ -1750,6 +1953,20 @@ def _render_safe_report(
     source_value_refs_total = sum(
         len(_string_list(package.get("allowed_source_value_refs"))) for package in packages
     )
+    fns_typed_packages = [
+        package
+        for package in packages
+        if isinstance(package.get("typed_source_facts"), dict)
+    ]
+    fns_typed_facts_total = sum(
+        len(_object(package.get("typed_source_facts")).get("facts") or [])
+        for package in fns_typed_packages
+    )
+    paired_reconciliations = [
+        _object(package.get("paired_representation_parity"))
+        for package in packages
+        if isinstance(package.get("paired_representation_parity"), dict)
+    ]
     coverage_selected_total = sum(
         int(_object(package.get("coverage_expectation")).get("required_accounting_total") or 0)
         for package in packages
@@ -1790,6 +2007,16 @@ def _render_safe_report(
         "bucket_counts": bucket_counts,
         "source_unit_refs_total": source_unit_refs_total,
         "source_value_refs_total": source_value_refs_total,
+        "fns_2ndfl_typed_packages_total": len(fns_typed_packages),
+        "fns_2ndfl_typed_facts_total": fns_typed_facts_total,
+        "fns_2ndfl_provider_calls": 0,
+        "fns_2ndfl_paired_representations_reconciled": len(
+            paired_reconciliations
+        ),
+        "fns_2ndfl_pdf_candidates_recovery_deferred": sum(
+            len(item.get("pdf_candidate_refs") or [])
+            for item in paired_reconciliations
+        ),
         "coverage_selected_total": coverage_selected_total,
         "row_segment_coverage_ready": validation.get("validator_status") == "passed",
         "issue_scope_counts": dict(sorted(issue_scope_counts.items())),
@@ -1865,6 +2092,40 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
         }
     )
     return {ref for ref in refs if ref}
+
+
+def _paired_withholding_groups(
+    *,
+    memory_by_document: dict[str, dict[str, Any]],
+    usage_by_document: dict[str, dict[str, Any]],
+) -> list[dict[str, str]]:
+    grouped: dict[str, dict[str, str]] = defaultdict(dict)
+    for document_ref, memory in memory_by_document.items():
+        parent_ref = str(
+            _object(memory.get("source_lineage")).get(
+                "archive_parent_source_ref"
+            )
+            or ""
+        )
+        container_format = str(memory.get("container_format") or "")
+        inferred_role = str(
+            _object(usage_by_document.get(document_ref)).get("inferred_role") or ""
+        )
+        if (
+            parent_ref
+            and container_format in {"pdf", "xml"}
+            and inferred_role == "withholding_report"
+        ):
+            grouped[parent_ref][container_format] = document_ref
+    return [
+        {
+            "archive_parent_ref": parent_ref,
+            "pdf_document_ref": members["pdf"],
+            "xml_document_ref": members["xml"],
+        }
+        for parent_ref, members in sorted(grouped.items())
+        if set(members) == {"pdf", "xml"}
+    ]
 
 
 def _gate2_record_scope_decision(

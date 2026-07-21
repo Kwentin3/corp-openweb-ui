@@ -458,6 +458,73 @@ def validate_artifacts(package: dict) -> dict:
             for issue_ref in entry.get("warning_issue_refs") or []:
                 if issue_ref not in issue_ids:
                     errors.append(_error("usage_unknown_warning_issue_ref", issue_ref))
+            memory_entry = next(
+                (
+                    item
+                    for item in document_memory_manifest.get("documents") or []
+                    if isinstance(item, dict)
+                    and item.get("source_file_ref") == document_ref
+                ),
+                {},
+            )
+            memory_status = str(memory_entry.get("gate2_memory_status") or "")
+            readiness = entry.get("readiness_by_stage") or {}
+            source_fact_status = readiness.get("source_fact_extraction")
+            usage_modes = {str(item) for item in entry.get("usage_modes") or []}
+            if memory_status == "lineage_only":
+                if source_fact_status != "not_applicable_lineage_only":
+                    errors.append(
+                        _error(
+                            "usage_archive_lineage_source_fact_status_invalid",
+                            document_ref,
+                        )
+                    )
+                if not {"archive_lineage", "audit_reference"} <= usage_modes:
+                    errors.append(
+                        _error("usage_archive_lineage_modes_missing", document_ref)
+                    )
+            elif (
+                source_fact_status == "not_applicable_lineage_only"
+                or "archive_lineage" in usage_modes
+            ):
+                errors.append(
+                    _error("usage_non_archive_declared_lineage_only", document_ref)
+                )
+            scope_readiness = (
+                (memory_entry.get("source_scope") or {}).get("scope_readiness") or {}
+            )
+            machine_source_scope_ready = any(
+                (
+                    scope_readiness.get("text_scope") == "ready",
+                    scope_readiness.get("neutral_structure_scope") == "ready",
+                    scope_readiness.get("canonical_table_scope")
+                    == "ready_validated_projection_only",
+                )
+            )
+            visual_review_only = bool(
+                memory_entry
+                and scope_readiness.get("visual_scope") == "ready"
+                and not machine_source_scope_ready
+            )
+            if visual_review_only:
+                if source_fact_status != "review_required_visual_consumer":
+                    errors.append(
+                        _error(
+                            "usage_visual_only_source_fact_status_invalid",
+                            document_ref,
+                        )
+                    )
+                if not {"visual_review_candidate", "audit_reference"} <= usage_modes:
+                    errors.append(
+                        _error("usage_visual_review_modes_missing", document_ref)
+                    )
+            elif (
+                source_fact_status == "review_required_visual_consumer"
+                or "visual_review_candidate" in usage_modes
+            ):
+                errors.append(
+                    _error("usage_non_visual_declared_review_only", document_ref)
+                )
 
     if domain_context_packet:
         if domain_context_packet.get("schema_version") != "domain_context_packet_v0":
@@ -539,6 +606,77 @@ def validate_artifacts(package: dict) -> dict:
                         "domain_packet_dropped_source_ready_refs",
                         ",".join(
                             next_stage_refs.get("dropped_source_ready_refs") or []
+                        ),
+                    )
+                )
+            lineage_only_refs = {
+                str(item.get("source_file_ref") or "")
+                for item in document_memory_manifest.get("documents") or []
+                if isinstance(item, dict)
+                and item.get("gate2_memory_status") == "lineage_only"
+                and item.get("source_file_ref")
+            }
+            packet_lineage_refs = set(
+                next_stage_refs.get("archive_lineage_refs") or []
+            )
+            if packet_lineage_refs != lineage_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_archive_lineage_refs_mismatch",
+                        ",".join(sorted(packet_lineage_refs ^ lineage_only_refs)),
+                    )
+                )
+            if packet_source_ready_refs & lineage_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_archive_lineage_declared_source_ready",
+                        ",".join(sorted(packet_source_ready_refs & lineage_only_refs)),
+                    )
+                )
+            visual_review_only_refs = {
+                str(item.get("source_file_ref") or "")
+                for item in document_memory_manifest.get("documents") or []
+                if isinstance(item, dict)
+                and item.get("source_file_ref")
+                and ((item.get("source_scope") or {}).get("scope_readiness") or {}).get(
+                    "visual_scope"
+                )
+                == "ready"
+                and not any(
+                    (
+                        ((item.get("source_scope") or {}).get("scope_readiness") or {}).get(
+                            "text_scope"
+                        )
+                        == "ready",
+                        ((item.get("source_scope") or {}).get("scope_readiness") or {}).get(
+                            "neutral_structure_scope"
+                        )
+                        == "ready",
+                        ((item.get("source_scope") or {}).get("scope_readiness") or {}).get(
+                            "canonical_table_scope"
+                        )
+                        == "ready_validated_projection_only",
+                    )
+                )
+            }
+            packet_visual_review_refs = set(
+                next_stage_refs.get("visual_review_refs") or []
+            )
+            if packet_visual_review_refs != visual_review_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_visual_review_refs_mismatch",
+                        ",".join(
+                            sorted(packet_visual_review_refs ^ visual_review_only_refs)
+                        ),
+                    )
+                )
+            if packet_source_ready_refs & visual_review_only_refs:
+                errors.append(
+                    _error(
+                        "domain_packet_visual_only_declared_source_ready",
+                        ",".join(
+                            sorted(packet_source_ready_refs & visual_review_only_refs)
                         ),
                     )
                 )

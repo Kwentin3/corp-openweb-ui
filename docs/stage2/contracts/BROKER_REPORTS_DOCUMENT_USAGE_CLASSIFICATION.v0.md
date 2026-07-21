@@ -37,6 +37,8 @@ Initial usage modes:
 - `consolidation_candidate`
 - `declaration_support_reference`
 - `audit_reference`
+- `archive_lineage`
+- `visual_review_candidate`
 
 Readable PDF/HTML documents with source-like evidence can be `source_extraction_candidate` even when source-role policy is uncertain. That uncertainty must point to `gate1_issue_ledger_v0`.
 
@@ -58,8 +60,23 @@ Allowed values:
 - `blocked_unreadable`
 - `blocked_unresolved_issues`
 - `not_applicable`
+- `not_applicable_lineage_only`
+- `review_required_visual_consumer`
 
 Semantic duplicates and unclear roles may be ready for source extraction but blocked for consolidation/declaration-support.
+
+An accepted ZIP container is lineage, not a second logical source document.
+When DocumentMemory declares `gate2_memory_status=lineage_only`, every
+downstream stage is `not_applicable_lineage_only`; the entry carries
+`archive_lineage` plus `audit_reference` and cannot carry
+`source_extraction_candidate`.
+
+A document whose only ready source scope is visual is not source-ready for the
+ordinary text/table consumer. It carries `visual_review_candidate` plus
+`audit_reference`, and its downstream readiness is
+`review_required_visual_consumer`. Its visual units remain private and
+resolver-gated until an explicit review receipt and seal authorize a canonical
+projection.
 
 `source_fact_extraction=ready` and `source_fact_extraction=ready_with_issues`
 mean the document is source-fact-ready for the next stage with the stated issue
@@ -75,6 +92,12 @@ No-loss invariant:
   `domain_context_packet_v0.next_stage_refs.source_fact_ready_refs`;
 - the same ref must then be classified into an explicit next-stage bucket, not
   omitted because it is non-primary, duplicate, warning-only or audit-only.
+- every lineage-only archive must flow to
+  `domain_context_packet_v0.next_stage_refs.archive_lineage_refs` and never to
+  `source_fact_ready_refs`;
+- every visual-review-only document must flow to
+  `domain_context_packet_v0.next_stage_refs.visual_review_refs` and never to
+  `source_fact_ready_refs`.
 
 ## Privacy
 

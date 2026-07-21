@@ -23,6 +23,9 @@ from broker_reports_gate1 import (
 )
 from scripts.profile_gate1_bounded_graph import (
     _VOLATILE_PAYLOAD_KEYS,
+    _baseline_repository_revision,
+    _baseline_resource_profile,
+    _baseline_terminal_status_counts,
     _normalize_payload,
     _record_contract,
     _store_signature,
@@ -77,6 +80,26 @@ def _plain(value: Any) -> Any:
 
 
 class BrokerReportsGate1BoundedGraphTest(unittest.TestCase):
+    def test_profile_output_can_be_the_next_deterministic_baseline(self):
+        profile = {
+            "schema_version": "broker_reports_gate1_bounded_graph_profile_safe_v1",
+            "baseline": {"repository_revision": "revision-a"},
+            "candidate": {
+                "proof_wall_seconds": 10.0,
+                "normalization_wall_seconds": 8.0,
+                "process_peak_rss_bytes": 123,
+            },
+            "terminal": {"terminal_status_counts": {"complete": 2}},
+        }
+
+        self.assertEqual(
+            _baseline_resource_profile(profile), profile["candidate"]
+        )
+        self.assertEqual(
+            _baseline_terminal_status_counts(profile), {"complete": 2}
+        )
+        self.assertEqual(_baseline_repository_revision(profile), "revision-a")
+
     def _bounded_result(self, root: Path):
         inputs = _inputs()
         normalizer = Gate1Normalizer()

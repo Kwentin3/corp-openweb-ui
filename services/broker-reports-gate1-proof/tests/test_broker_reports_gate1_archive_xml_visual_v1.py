@@ -12,8 +12,10 @@ from broker_reports_gate1 import (
     Gate1Normalizer,
     validate_document_memory_manifest,
 )
+from broker_reports_gate1.validators import validate_artifacts
 from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
 from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
+from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
 
 
 def _zip_bytes(entries: list[tuple[str, bytes]]) -> bytes:
@@ -86,7 +88,7 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
     def test_zip_promotes_pdf_and_xml_and_accounts_signature_sidecar(self):
         content = _zip_bytes(
             [
-                ("payload.xml", b"<root><item code='a'>10</item></root>"),
+                ("payload.xml", _fns_2ndfl_xml()),
                 ("statement.pdf", _ruled_table_pdf()),
                 ("signature.p7s", b"synthetic-signature"),
             ]
@@ -107,6 +109,24 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
             "entries"
         ]
         document_memory = result.package["document_memory_manifest"]
+        domain_context_packet = result.package["domain_context_packet"]
+        usage_by_format = {
+            next(
+                document["container_format"]
+                for document in result.package["document_inventory"]["documents"]
+                if document["document_id"] == item["document_ref"]
+            ): item
+            for item in result.package["document_usage_classification"]["entries"]
+        }
+        memory_by_format = {
+            item["container_format"]: item for item in document_memory["documents"]
+        }
+        archive_ref = memory_by_format["zip"]["source_file_ref"]
+        promoted_member_refs = {
+            item["source_file_ref"]
+            for item in document_memory["documents"]
+            if item["container_format"] in {"pdf", "xml"}
+        }
         by_format = {item["container_format"]: item for item in assessments}
 
         self.assertEqual(result.package["validation_result"]["status"], "passed")
@@ -122,6 +142,25 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
             by_format["xml"]["gate2_memory_status"], "ready_with_restrictions"
         )
         self.assertEqual(by_format["pdf"]["terminal_status"], "complete")
+        self.assertEqual(
+            usage_by_format["zip"]["readiness_by_stage"]["source_fact_extraction"],
+            "not_applicable_lineage_only",
+        )
+        self.assertIn("archive_lineage", usage_by_format["zip"]["usage_modes"])
+        self.assertEqual(
+            domain_context_packet["next_stage_refs"]["archive_lineage_refs"],
+            [archive_ref],
+        )
+        self.assertNotIn(
+            archive_ref,
+            domain_context_packet["next_stage_refs"]["source_fact_ready_refs"],
+        )
+        self.assertTrue(
+            promoted_member_refs
+            <= set(
+                domain_context_packet["next_stage_refs"]["source_fact_ready_refs"]
+            )
+        )
         self.assertEqual(document_memory["summary"]["logical_documents_total"], 2)
         self.assertEqual(
             document_memory["summary"]["accepted_archive_containers_total"], 1
@@ -134,6 +173,30 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         self.assertNotIn("payload.xml", safe_text)
         self.assertNotIn("statement.pdf", safe_text)
         self.assertNotIn("synthetic-signature", safe_text)
+
+        tampered = copy.deepcopy(result.package)
+        zip_usage = next(
+            item
+            for item in tampered["document_usage_classification"]["entries"]
+            if item["document_ref"] == archive_ref
+        )
+        zip_usage["readiness_by_stage"]["source_fact_extraction"] = "ready"
+        zip_usage["usage_modes"].append("source_extraction_candidate")
+        tampered["domain_context_packet"]["next_stage_refs"][
+            "source_fact_ready_refs"
+        ].append(archive_ref)
+        tampered["domain_context_packet"]["next_stage_refs"][
+            "secondary_source_extraction_refs"
+        ].append(archive_ref)
+        tamper_codes = {
+            item["code"] for item in validate_artifacts(tampered)["errors"]
+        }
+        self.assertIn(
+            "usage_archive_lineage_source_fact_status_invalid", tamper_codes
+        )
+        self.assertIn(
+            "domain_packet_archive_lineage_declared_source_ready", tamper_codes
+        )
 
     def test_archive_policy_fails_closed_for_traversal_and_nested_archive(self):
         service = Gate1ArchiveIntakeFactory().create()
@@ -179,6 +242,11 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         scope = result.package["document_memory_manifest"]["documents"][0][
             "source_scope"
         ]["scope_readiness"]
+        document_ref = result.package["document_inventory"]["documents"][0][
+            "document_id"
+        ]
+        usage = result.package["document_usage_classification"]["entries"][0]
+        next_stage_refs = result.package["domain_context_packet"]["next_stage_refs"]
 
         self.assertEqual(result.package["validation_result"]["status"], "passed")
         self.assertEqual(assessment["terminal_status"], "review_required")
@@ -192,6 +260,25 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         self.assertEqual(scope["visual_scope"], "ready")
         self.assertEqual(scope["text_scope"], "unavailable_visual_scope_only")
         self.assertIn("visual_units_require_visual_consumer", scope["restrictions"])
+        self.assertEqual(
+            usage["readiness_by_stage"]["source_fact_extraction"],
+            "review_required_visual_consumer",
+        )
+        self.assertIn("visual_review_candidate", usage["usage_modes"])
+        self.assertEqual(next_stage_refs["visual_review_refs"], [document_ref])
+        self.assertNotIn(document_ref, next_stage_refs["source_fact_ready_refs"])
+
+        tampered = copy.deepcopy(result.package)
+        tampered_usage = tampered["document_usage_classification"]["entries"][0]
+        tampered_usage["readiness_by_stage"]["source_fact_extraction"] = "ready"
+        tampered["domain_context_packet"]["next_stage_refs"][
+            "source_fact_ready_refs"
+        ].append(document_ref)
+        tamper_codes = {
+            item["code"] for item in validate_artifacts(tampered)["errors"]
+        }
+        self.assertIn("usage_visual_only_source_fact_status_invalid", tamper_codes)
+        self.assertIn("domain_packet_visual_only_declared_source_ready", tamper_codes)
 
     def test_scope_readiness_tamper_is_rejected(self):
         result = Gate1Normalizer().normalize(
