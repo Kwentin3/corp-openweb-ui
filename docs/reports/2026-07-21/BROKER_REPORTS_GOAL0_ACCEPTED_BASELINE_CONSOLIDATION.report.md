@@ -6,7 +6,7 @@ Evidence date: `2026-07-21`
 
 Repository: `Kwentin3/corp-openweb-ui`
 
-Delivery PR: `assigned on publication`
+Delivery PR: `#5`
 
 Machine receipt: `BROKER_REPORTS_ACCEPTED_BASELINE.v2.safe.json`
 

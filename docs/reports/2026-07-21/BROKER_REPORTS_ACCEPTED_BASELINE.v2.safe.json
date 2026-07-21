@@ -2,7 +2,20 @@
   "schema_version": "broker_reports_accepted_baseline_v2",
   "evidence_date": "2026-07-21",
   "repository": "Kwentin3/corp-openweb-ui",
-  "status": "verified_for_normal_merge",
+  "status": "terminal_delivery_candidate",
+  "delivery": {
+    "pull_request": 5,
+    "branch": "codex/broker-reports-baseline-consolidation-v2",
+    "base": "main",
+    "receipt_foundation_revision": "b2184f5ab8a55c70dfa7e398fde28a4df7cede96",
+    "merge_state_at_publication": "clean",
+    "superseded_recovery_pull_request": {
+      "pull_request": 1,
+      "state": "closed",
+      "evidence_branch_retained": true,
+      "evidence_branch_revision": "230fd02d8ae5d6662957d75b3bb6de2c8d21f532"
+    }
+  },
   "authoritative_source_revision": "3cb56847dd9a62dd539a327d9b3769c99bd065ed",
   "authoritative_source_ref": "main",
   "repository_freeze": {
