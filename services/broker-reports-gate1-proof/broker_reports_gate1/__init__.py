@@ -428,6 +428,22 @@ from .table_projection import (
     TableProjectionValidator,
     XlsxTableProjectionBuilder,
 )
+from .visual_table_review_contracts import (
+    REVIEWED_VISUAL_TABLE_ORIGIN,
+    VISUAL_REVIEW_CONTRACT_VERSION,
+    VISUAL_REVIEW_RECEIPT_SCHEMA_VERSION,
+    VISUAL_REVIEW_SEAL_SCHEMA_VERSION,
+    VISUAL_REVIEW_VALIDATOR_VERSION,
+    validate_reviewed_visual_projection,
+    validate_visual_review_receipt,
+    validate_visual_review_seal,
+)
+from .pdf_visual_table_review import (
+    PdfVisualTableReviewError,
+    PdfVisualTableReviewFactory,
+    PdfVisualTableReviewResult,
+    VisualReviewAuthorityContext,
+)
 from .gate2_table_packages import (
     Gate2TablePackageConfig,
     Gate2TablePackageFactory,
@@ -594,6 +610,9 @@ __all__ = [
     "validate_clarification_request",
     "validate_dry_run_source_fact_package",
     "validate_normalized_slice_provenance",
+    "validate_reviewed_visual_projection",
+    "validate_visual_review_receipt",
+    "validate_visual_review_seal",
     "validate_full_source_unit",
     "validate_file_processing_batch",
     "validate_file_processing_outcome",
@@ -730,6 +749,15 @@ __all__ = [
     "XlsxTableProjectionBuilder",
     "PdfTableCandidateProjectionBuilder",
     "TableProjectionValidator",
+    "REVIEWED_VISUAL_TABLE_ORIGIN",
+    "VISUAL_REVIEW_CONTRACT_VERSION",
+    "VISUAL_REVIEW_RECEIPT_SCHEMA_VERSION",
+    "VISUAL_REVIEW_SEAL_SCHEMA_VERSION",
+    "VISUAL_REVIEW_VALIDATOR_VERSION",
+    "PdfVisualTableReviewError",
+    "PdfVisualTableReviewFactory",
+    "PdfVisualTableReviewResult",
+    "VisualReviewAuthorityContext",
     "Gate2TablePackageConfig",
     "Gate2TablePackageFactory",
     "validate_gate2_table_package",

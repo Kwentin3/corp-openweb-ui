@@ -81,7 +81,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_broker_pdf_neutral_tables_profile_v1",
+            "gate1_visual_review_promotion_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
@@ -90,6 +90,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_compact_canonical", module._BUNDLED_MODULES)
         self.assertIn("pdf_compact_gate2_adapter", module._BUNDLED_MODULES)
         self.assertIn("pdf_normalization_acceptance", module._BUNDLED_MODULES)
+        self.assertIn("visual_table_review_contracts", module._BUNDLED_MODULES)
+        self.assertIn("pdf_visual_table_review", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_budget", module._BUNDLED_MODULES)
         self.assertIn("pdf_table_intake_contracts", module._BUNDLED_MODULES)
         self.assertIn("pdf_hybrid_compaction", module._BUNDLED_MODULES)

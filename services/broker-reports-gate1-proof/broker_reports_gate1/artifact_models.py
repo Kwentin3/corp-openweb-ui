@@ -101,6 +101,8 @@ ARTIFACT_TYPES = {
     "broker_reports_pdf_table_candidate_v1",
     "broker_reports_pdf_table_detection_attempt_v1",
     "broker_reports_pdf_table_intake_run_v1",
+    "broker_reports_visual_table_review_receipt_v1",
+    "broker_reports_visual_table_review_seal_v1",
     "broker_reports_pdf_hybrid_evidence_package_v1",
     "broker_reports_pdf_provider_attempt_v1",
     "broker_reports_pdf_hybrid_raw_response_v1",

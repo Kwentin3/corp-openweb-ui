@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from .contracts import stable_digest
-from .gate1_public_contracts import TableProjectionValidator
+from .gate1_public_contracts import (
+    REVIEWED_VISUAL_TABLE_ORIGIN,
+    TableProjectionValidator,
+    validate_reviewed_visual_projection,
+)
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
 
 
@@ -65,6 +69,17 @@ class Gate2TablePackageBuilder:
             != "passed"
         ):
             raise ValueError("gate2_pdf_canonical_table_not_validated")
+        reviewed_visual = (
+            projection.get("source_format") == "pdf"
+            and projection.get("table_origin") == REVIEWED_VISUAL_TABLE_ORIGIN
+        )
+        if projection.get("source_format") == "pdf":
+            if reviewed_visual:
+                visual_validation = validate_reviewed_visual_projection(projection)
+                if visual_validation["validator_status"] != "passed":
+                    raise ValueError("gate2_reviewed_visual_projection_invalid")
+            elif not projection.get("canonical_profile_id"):
+                raise ValueError("gate2_pdf_canonical_boundary_unsupported")
         coverage = _object(projection.get("coverage"))
         if (
             coverage.get("coverage_status") != "complete"
@@ -205,6 +220,9 @@ class Gate2TablePackageBuilder:
             "table_candidate_status": projection.get("table_candidate_status"),
             "table_fallback_metadata": copy.deepcopy(projection.get("geometry") or {}),
             "semantic_table_truth_claimed": False,
+            "upstream_source_representation": (
+                _reviewed_visual_handoff(projection) if reviewed_visual else None
+            ),
         }
         package = {
             "schema_version": PACKAGE_SCHEMA_VERSION,
@@ -284,6 +302,10 @@ class Gate2TablePackageBuilder:
                 "ocr_vlm_used": False,
                 "page_rendering_used_for_extraction": False,
             },
+            "privacy_policy_scope": "gate2_package_construction_only",
+            "upstream_source_representation": (
+                _reviewed_visual_handoff(projection) if reviewed_visual else None
+            ),
         }
         validate_gate2_table_package(package, projection)
         return package
@@ -317,6 +339,21 @@ def validate_gate2_table_package(
         != "passed"
     ):
         errors.append(_error("gate2_pdf_canonical_table_not_validated", package_id))
+    reviewed_visual = (
+        projection.get("source_format") == "pdf"
+        and projection.get("table_origin") == REVIEWED_VISUAL_TABLE_ORIGIN
+    )
+    if projection.get("source_format") == "pdf":
+        if reviewed_visual:
+            visual_validation = validate_reviewed_visual_projection(projection)
+            if visual_validation["validator_status"] != "passed":
+                errors.append(
+                    _error("gate2_reviewed_visual_projection_invalid", package_id)
+                )
+        elif not projection.get("canonical_profile_id"):
+            errors.append(
+                _error("gate2_pdf_canonical_boundary_unsupported", package_id)
+            )
     if (
         projection_coverage.get("coverage_status") != "complete"
         or _strings(projection_coverage.get("duplicate_accounted_refs"))
@@ -356,6 +393,14 @@ def validate_gate2_table_package(
     privacy = _object(package.get("privacy_policy"))
     if any(value is not False for value in privacy.values()):
         errors.append(_error("gate2_table_privacy_guard_failed", package_id))
+    if package.get("privacy_policy_scope") != "gate2_package_construction_only":
+        errors.append(_error("gate2_table_privacy_scope_invalid", package_id))
+    expected_upstream = _reviewed_visual_handoff(projection) if reviewed_visual else None
+    if (
+        package.get("upstream_source_representation") != expected_upstream
+        or source_unit.get("upstream_source_representation") != expected_upstream
+    ):
+        errors.append(_error("gate2_table_upstream_provenance_mismatch", package_id))
     result = {
         "schema_version": "broker_reports_gate2_table_package_validation_v0",
         "package_id": package_id,
@@ -367,6 +412,25 @@ def validate_gate2_table_package(
     if errors:
         raise ValueError(errors[0]["code"])
     return result
+
+
+def _reviewed_visual_handoff(projection: dict[str, Any]) -> dict[str, Any]:
+    review = _object(projection.get("visual_review"))
+    receipt = _object(review.get("receipt"))
+    seal = _object(review.get("seal"))
+    return {
+        "source_representation_kind": "reviewed_visual_canonical_table",
+        "review_receipt_id": receipt.get("review_receipt_id"),
+        "review_receipt_hash": receipt.get("receipt_hash"),
+        "review_seal_hash": seal.get("seal_hash"),
+        "review_decision": receipt.get("decision"),
+        "reviewer_type": _object(receipt.get("reviewer")).get("reviewer_type"),
+        "source_to_table_accounting": "passed",
+        "upstream_visual_vlm_used": True,
+        "upstream_page_rendering_used": True,
+        "local_ocr_evidence_used": False,
+        "provider_consensus_canonical_authority": False,
+    }
 
 
 def _object(value: Any) -> dict[str, Any]:

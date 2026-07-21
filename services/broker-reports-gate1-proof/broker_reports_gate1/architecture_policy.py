@@ -31,17 +31,16 @@ VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 PROVIDER_OUTPUT_AUTHORITY = "typed_proposal_only"
-CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_only"
+CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_plus_explicit_review"
 MODEL_CANONICAL_AUTHORITY = 0
 
 COMPONENT_RUNTIME_STATUSES = {
     # Maintained repository integration. Atomic stage delivery remains a
     # separate release goal, and the route is default-off until then.
     "visual_table_vlm": "maintained_default_off",
-    # Proven on the audit branch, but intentionally absent from this clean
-    # candidate until the dedicated VLM integration goal closes delivery.
-    "visual_neutral_tables": "accepted_but_not_yet_deliverable",
-    "visual_recovery_handoff": "accepted_but_not_yet_deliverable",
+    "visual_neutral_tables": "maintained_default_off",
+    "visual_review_boundary": "maintained_default_off",
+    "visual_recovery_handoff": "maintained_default_off",
     # Preserved experiments and historical proof contours.
     "pdf_csv_experiment_provider": "proof_only",
     "pdf_grid_experiment_provider": "proof_only",

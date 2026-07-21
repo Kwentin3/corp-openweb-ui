@@ -230,6 +230,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
 
         module = load_domain_bundle_module()
         order = module._BUNDLED_MODULE_ORDER
+        self.assertIn("visual_table_review_contracts", order)
         self.assertNotIn("pdf_structural_repair_runtime", order)
         self.assertNotIn("pdf_structural_row_windows", order)
         self.assertNotIn("pdf_structural_repair_shadow", order)

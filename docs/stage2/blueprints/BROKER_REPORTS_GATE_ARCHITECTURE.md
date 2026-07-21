@@ -32,9 +32,12 @@ The following policy decisions are normative:
 4. Production visual-table provider profiles are exactly `google_gemini` and
    `openai_gpt`.  Provider output is a typed proposal.  Confidence, provider
    agreement and raw model output have zero canonical authority.
-5. Canonical promotion belongs only to maintained deterministic validators and
-   explicit source-to-table accounting.  Ambiguity terminates in review,
-   rejection or fail-closed unresolved state.
+5. Canonical promotion belongs only to the maintained review/promotion factory
+   after deterministic validation, explicit source-to-table accounting and an
+   authenticated human or explicitly delegated review authority.  The sealed
+   receipt binds the source/crop, provider proposal hashes, canonical candidate,
+   corrections and lifecycle.  Mutation invalidates the seal.  Ambiguity
+   terminates in rejection, unsupported or fail-closed unresolved state.
 6. PaddleOCR, PaddleOCR-VL and comparable heavy local OCR frameworks are outside
    production runtime.  Preserved implementations are `proof_only`,
    `offline_only` or `unsupported_runtime`; they are not bundle dependencies or
@@ -212,6 +215,7 @@ manifest.
 | Normalized text/table/source payload and unit contracts | Gate 1 | Source representation | Versioned/private; table projection is structural, not financial | Gate 2 | Implemented for supported paths |
 | PDF Table Intake Gate 1 | Gate 1 local child capability | PDF page -> private raster candidates | Versioned/private; local gate terminology | Downstream Gate 1 table normalizer | Closed for accepted bounded scope |
 | Bounded visual-table VLM adapters | Gate 1 | One declared page/crop -> typed structural proposal | Production Gemini/OpenAI transport; proposal-only, private | Deterministic visual validator | Maintained production policy |
+| Visual review/promotion boundary | Gate 1 | Validated proposal + authenticated explicit review + region/cell accounting -> sealed canonical projection or non-canonical terminal receipt | Versioned/private; provider consensus and local OCR have no acceptance authority | Gate 2 table-package factory | Maintained repository runtime, default-off pending atomic stage delivery |
 | PDF hybrid, structural-repair, dual-oracle and direct-PDF contours | Gate 1 research/shadow unless promoted | Alternative structural reconstruction evidence | Evidence-only or default-off; not product authority | Research/quality decisions | Research-only, rejected or unclosed by contour |
 | `domain_context_packet_v0` | Gate 1 | Safe handoff root and stage readiness | Normative safe-internal refs | Gate 2 | Implemented |
 | `gate1_issue_ledger_v0` | Gate 1 | Source/intake issue authority | Normative safe-internal; carried forward by ref | Gates 2-4 | Implemented |
@@ -238,6 +242,7 @@ The maintained Python implementation enforces the ownership map as follows:
 | Boundary | Maintained code surface | Enforced rule |
 | --- | --- | --- |
 | Gate 1 -> Gate 2 | `gate1_public_contracts.py`, versioned DCP/handoff artifacts and `ArtifactResolver` | Gate 2 may import the public Gate 1 surface and resolve validated refs; it may not import format-parser internals or inspect SQLite directly. |
+| Reviewed visual table -> Gate 2 | `visual_table_review_contracts.py` through `gate1_public_contracts.py` | Gate 2 accepts only a source-bound receipt, complete region/cell accounting and a mutation-valid seal created by `PdfVisualTableReviewFactory`; an arbitrary PDF `canonical_validation=passed` assertion is rejected. |
 | Gate 2-owned table packages | `gate2_table_packages.py` | Financial/source-fact package construction and validation belong to Gate 2. `table_projection.py` keeps only a lazy compatibility export for older imports. |
 | Gate 2 -> Gate 3 | `gate3_context_manifest.py` | The Gate 2 exit factory creates one immutable, validator-recomputed manifest ref. Future Gate 3 code must start from this manifest, not from Gate 1 or Gate 2 internals. |
 | Cross-cutting persistence | `ArtifactStorePort`, `ArtifactResolver`, SQLite adapter | Gate runtimes depend on the domain-neutral port/resolver. The adapter permits idempotent replay of identical content but rejects semantic overwrite of an existing artifact id. |
@@ -262,7 +267,7 @@ The allowed status vocabulary is:
 | Global Gate 1 | Implemented; partially closed | Runtime exists. Named format/sub-capability closures do not imply universal format support. |
 | CSV v1 normalization | Closed for bounded supported profile | Whole accepted CSV representation is normalized under declared limits. |
 | PDF Table Intake local Gate 1 | Closed | Table regions become private raster candidates; no cells or financial meaning are claimed. |
-| Canonical visual-table reconstruction | Maintained repository runtime, default-off; atomic stage delivery remains pending | Recovered Gemini/OpenAI adapters process one declared crop under a versioned dual-provider policy. Agreement remains review-only; only deterministic validation plus source accounting may promote cells/table JSON. |
+| Canonical visual-table reconstruction | Maintained repository runtime, default-off; atomic stage delivery remains pending | Recovered Gemini/OpenAI adapters process one declared crop under a versioned dual-provider policy. Agreement remains evidence-only. `PdfVisualTableReviewFactory` requires authenticated explicit review, complete region/cell accounting and a valid mutation seal before the existing Gate 2 table-package boundary accepts the projection. |
 | Global Gate 2 | Implemented; partially closed | Bounded typed verticals pass. Whole-document/full-corpus/all-format semantic coverage is not closed. |
 | CSV pre-Gate-3 vertical | Closed for bounded scope | One selected segment is terminal and validated; 343 segments are explicit deferred scope. |
 | Gate 3 context manifest | Implemented; stage proven for bounded CSV scope | Ready means the declared Gate 2 graph is acceptable as Gate 3 input. |

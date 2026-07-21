@@ -36,6 +36,7 @@ GATE1_PRIVATE_IMPLEMENTATIONS = {
     "pdf_text_layer",
     "source_provenance",
     "table_projection",
+    "visual_table_review_contracts",
 }
 PLATFORM_IMPLEMENTATIONS = {"artifact_store"}
 PROVIDER_TRANSPORT_MODULES = {"gate2_model_clients", "gate2_provider_adapters"}
@@ -91,7 +92,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "typed_proposal_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
-            "deterministic_validator_only",
+            "deterministic_validator_plus_explicit_review",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
 
@@ -115,8 +116,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_visual_components_are_explicitly_classified(self):
         expected = {
             "visual_table_vlm": "maintained_default_off",
-            "visual_neutral_tables": "accepted_but_not_yet_deliverable",
-            "visual_recovery_handoff": "accepted_but_not_yet_deliverable",
+            "visual_neutral_tables": "maintained_default_off",
+            "visual_review_boundary": "maintained_default_off",
+            "visual_recovery_handoff": "maintained_default_off",
             "pdf_csv_experiment_provider": "proof_only",
             "pdf_grid_experiment_provider": "proof_only",
             "pdf_hybrid_provider": "proof_only",
