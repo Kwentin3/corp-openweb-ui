@@ -23,11 +23,11 @@ REQUIRED_FITZ_VERSION = "1.26.5"
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
 
-import live_update_function_and_passport_prompt as gate1_update
-import live_update_gate2_domain_function_and_prompts as domain_update
-import live_update_gate2_function_and_prompt as source_update
-from broker_reports_gate1 import GATE2_PROVIDER_PROFILES
-from live_no_rag_source_intake_smoke import (
+import live_update_function_and_passport_prompt as gate1_update  # noqa: E402
+import live_update_gate2_domain_function_and_prompts as domain_update  # noqa: E402
+import live_update_gate2_function_and_prompt as source_update  # noqa: E402
+from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
+from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _default_ssh_target,
     _read_env,
@@ -225,8 +225,11 @@ def main() -> int:
         "gate1_structural_runtime_dependency_ready": gate1_operational_state[
             "fitz_version_match"
         ],
-        "gate1_pdf_table_intake_enabled": gate1_operational_state[
-            "table_intake_enabled"
+        "gate1_pdf_table_intake_default_off": gate1_operational_state[
+            "table_intake_disabled"
+        ],
+        "gate1_pdf_dual_vlm_default_off": gate1_operational_state[
+            "dual_vlm_disabled"
         ],
         "gate1_pdf_table_intake_provider_configured": gate1_operational_state[
             "table_intake_provider_configured"
@@ -239,6 +242,9 @@ def main() -> int:
         ],
         "gate1_pdf_table_intake_padding_configured": gate1_operational_state[
             "table_intake_padding_configured"
+        ],
+        "gate1_pdf_table_intake_bounds_configured": gate1_operational_state[
+            "table_intake_bounds_configured"
         ],
     }
     output = {
@@ -385,6 +391,7 @@ def evaluate_gate1_operational_state(
     )
     semantic_value = valves.get("pdf_semantic_header_shadow_enabled", False)
     table_intake_enabled = valves.get("pdf_table_intake_enabled", False)
+    dual_vlm_enabled = valves.get("pdf_dual_vlm_enabled", False)
     table_intake_provider = valves.get("pdf_table_intake_provider_profile")
     table_intake_model = valves.get("pdf_table_intake_model_id")
     table_intake_dpi = valves.get("pdf_table_intake_dpi")
@@ -394,13 +401,18 @@ def evaluate_gate1_operational_state(
     table_intake_vertical_padding = valves.get(
         "pdf_table_intake_vertical_padding_fraction"
     )
+    table_intake_maximum_pages = valves.get("pdf_table_intake_maximum_pages")
+    table_intake_maximum_candidates = valves.get(
+        "pdf_table_intake_maximum_candidates_per_page"
+    )
     return {
         "structural_shadow_disabled": shadow_value is False,
         "guided_intake_shadow_disabled": guided_value is False,
         "guided_page_allowlist_empty": isinstance(page_allowlist, str)
         and not page_allowlist.strip(),
         "semantic_header_shadow_disabled": semantic_value is False,
-        "table_intake_enabled": table_intake_enabled is True,
+        "table_intake_disabled": table_intake_enabled is False,
+        "dual_vlm_disabled": dual_vlm_enabled is False,
         "table_intake_provider_configured": table_intake_provider
         == "google_gemini",
         "table_intake_model_configured": table_intake_model
@@ -409,6 +421,10 @@ def evaluate_gate1_operational_state(
         "table_intake_padding_configured": (
             table_intake_horizontal_padding == 0.08
             and table_intake_vertical_padding == 0.08
+        ),
+        "table_intake_bounds_configured": (
+            table_intake_maximum_pages == 64
+            and table_intake_maximum_candidates == 32
         ),
         "fitz_version": fitz_version,
         "required_fitz_version": REQUIRED_FITZ_VERSION,

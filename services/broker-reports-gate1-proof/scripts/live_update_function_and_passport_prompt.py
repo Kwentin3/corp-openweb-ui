@@ -31,9 +31,17 @@ CLARIFICATION_PROMPT_VERSION = "clarification-v0-2026-07-09-implementation"
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from live_no_rag_source_intake_smoke import _base_url, _default_ssh_target, _read_env, _signin, _url
-from broker_reports_gate1.document_passport import prompt_hash
-from broker_reports_gate1.clarification import gate1_clarification_request_schema_hash
+from live_no_rag_source_intake_smoke import (  # noqa: E402
+    _base_url,
+    _default_ssh_target,
+    _read_env,
+    _signin,
+    _url,
+)
+from broker_reports_gate1.document_passport import prompt_hash  # noqa: E402
+from broker_reports_gate1.clarification import (  # noqa: E402
+    gate1_clarification_request_schema_hash,
+)
 
 
 def main() -> int:
@@ -84,7 +92,8 @@ def main() -> int:
     current_valves = _get_function_valves(session, base_url)
     desired_valves = {
         **current_valves,
-        "pdf_table_intake_enabled": True,
+        "pdf_table_intake_enabled": False,
+        "pdf_dual_vlm_enabled": False,
         "pdf_table_intake_provider_profile": "google_gemini",
         "pdf_table_intake_model_id": "models/gemini-3.5-flash",
         "pdf_table_intake_dpi": 150,

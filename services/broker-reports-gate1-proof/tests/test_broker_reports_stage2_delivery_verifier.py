@@ -103,10 +103,13 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
 
     def test_gate1_operational_state_requires_supported_table_intake_config(self):
         table_intake_valves = {
-            "pdf_table_intake_enabled": True,
+            "pdf_table_intake_enabled": False,
+            "pdf_dual_vlm_enabled": False,
             "pdf_table_intake_provider_profile": "google_gemini",
             "pdf_table_intake_model_id": "models/gemini-3.5-flash",
             "pdf_table_intake_dpi": 150,
+            "pdf_table_intake_maximum_pages": 64,
+            "pdf_table_intake_maximum_candidates_per_page": 32,
             "pdf_table_intake_horizontal_padding_fraction": 0.08,
             "pdf_table_intake_vertical_padding_fraction": 0.08,
         }
@@ -142,11 +145,13 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         self.assertTrue(passed["guided_page_allowlist_empty"])
         self.assertTrue(passed["semantic_header_shadow_disabled"])
         self.assertTrue(passed["fitz_version_match"])
-        self.assertTrue(passed["table_intake_enabled"])
+        self.assertTrue(passed["table_intake_disabled"])
+        self.assertTrue(passed["dual_vlm_disabled"])
         self.assertTrue(passed["table_intake_provider_configured"])
         self.assertTrue(passed["table_intake_model_configured"])
         self.assertTrue(passed["table_intake_dpi_configured"])
         self.assertTrue(passed["table_intake_padding_configured"])
+        self.assertTrue(passed["table_intake_bounds_configured"])
         self.assertFalse(enabled["structural_shadow_disabled"])
         self.assertFalse(guided_enabled["guided_intake_shadow_disabled"])
         self.assertFalse(page_allowlisted["guided_page_allowlist_empty"])
