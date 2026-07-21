@@ -23,8 +23,8 @@
   },
   "historical_context": {
     "primary_report": "docs/reports/2026-07-16/OPENWEBUI_PDF_TABLE_DUAL_VLM_FACT_AND_EVIDENCE_BENCHMARK.report.md",
-    "sealed_fact_terminal": "local/stage2/broker_reports_pdf_dual_vlm_fact_benchmark_2026-07-16/run1/terminal.private.json",
-    "human_reviewed_fact_reference": "local/stage2/broker_reports_pdf_dual_vlm_fact_benchmark_2026-07-16/human-reference-final-ru2/reference.human-reviewed.private.json",
+    "sealed_fact_terminal": "external_private_evidence",
+    "human_reviewed_fact_reference": "external_private_evidence",
     "human_reviewed_fact_reference_sha256": "ed1a846c2af8a8ffb9af2908398944679bd24b91e25d9f7764ae5202128e3c52",
     "structural_reference": "external_private_evidence",
     "structural_reference_file_sha256": "0865544f42aac951f11809173e1035f7237058684ef6f793a2b546a89c181a66",
