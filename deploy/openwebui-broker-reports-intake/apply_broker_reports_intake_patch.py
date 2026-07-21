@@ -135,13 +135,27 @@ from open_webui.routers.retrieval import (""",
         "knowledge_single_update_guard",
         "routers/knowledge.py",
         """    # Validate the file actually belongs to this knowledge base
-    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):""",
+    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Remove content from the vector database
+    await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=knowledge.id, filter={'file_id': form_data.file_id})""",
         """    # broker-reports-private-intake-v2 FORBIDDEN: validate before
     # vector deletion or reprocessing can begin.
     broker_reports_intake.assert_native_processing_allowed(file)
 
     # Validate the file actually belongs to this knowledge base
-    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):""",
+    if not await Knowledges.has_file(knowledge_id=id, file_id=form_data.file_id, db=db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Remove content from the vector database
+    await ASYNC_VECTOR_DB_CLIENT.delete(collection_name=knowledge.id, filter={'file_id': form_data.file_id})""",
     ),
     Replacement(
         "knowledge_batch_add_guard",
