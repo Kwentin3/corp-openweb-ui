@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import importlib.util
 import shutil
 import sys
@@ -551,6 +552,28 @@ class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
         )
         self.assertIn("verify_action_attestation", action_text)
         self.assertNotIn("broker_reports_private_intake_factory_v1", action_text)
+
+    def test_delivery_assets_cover_image_action_and_terminal_live_proof(self):
+        scripts = SERVICE_ROOT / "scripts"
+        image_delivery = scripts / "live_deliver_broker_reports_private_intake_image.py"
+        action_delivery = scripts / "live_update_broker_reports_private_intake_action.py"
+        live_smoke = scripts / "live_broker_reports_private_intake_smoke.py"
+        texts = {
+            path.name: path.read_text(encoding="utf-8")
+            for path in (image_delivery, action_delivery, live_smoke)
+        }
+        for name, text in texts.items():
+            ast.parse(text, filename=name)
+
+        self.assertIn("compose_up(rollback_image)", texts[image_delivery.name])
+        self.assertIn("persist_image(original_env, IMAGE)", texts[image_delivery.name])
+        self.assertIn("delivery_image_revision_mismatch", texts[image_delivery.name])
+        self.assertIn("content_hash_exact", texts[action_delivery.name])
+        self.assertIn("function_type_action", texts[action_delivery.name])
+        self.assertIn("private_action_receipt_verified", texts[live_smoke.name])
+        self.assertIn("knowledge_delta_zero", texts[live_smoke.name])
+        self.assertIn("vector_metadata_refs_zero", texts[live_smoke.name])
+        self.assertIn("private_source_deleted", texts[live_smoke.name])
 
 
 if __name__ == "__main__":
