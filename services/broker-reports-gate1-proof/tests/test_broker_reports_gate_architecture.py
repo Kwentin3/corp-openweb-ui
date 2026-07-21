@@ -26,9 +26,7 @@ ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
 OPENWEBUI_ACTIONS = ROOT / "openwebui_actions"
 
 GATE2_MODULES = {
-    path.stem
-    for path in PACKAGE.glob("gate2_*.py")
-    if path.stem != "gate2_handoff"
+    path.stem for path in PACKAGE.glob("gate2_*.py") if path.stem != "gate2_handoff"
 } | {"gate3_context_manifest"}
 GATE1_PRIVATE_IMPLEMENTATIONS = {
     "csv_profile",
@@ -114,15 +112,17 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         violations.append(f"{path.name}:{name}")
         self.assertEqual(violations, [])
 
-    def test_non_production_visual_components_are_explicitly_classified(self):
+    def test_visual_components_are_explicitly_classified(self):
         expected = {
+            "visual_table_vlm": "maintained_default_off",
             "visual_neutral_tables": "accepted_but_not_yet_deliverable",
             "visual_recovery_handoff": "accepted_but_not_yet_deliverable",
             "pdf_csv_experiment_provider": "proof_only",
             "pdf_grid_experiment_provider": "proof_only",
             "pdf_hybrid_provider": "proof_only",
-            "pdf_dual_vlm_fact_providers": "proof_only",
-            "pdf_dual_vlm_canonical_table": "proof_only",
+            "pdf_dual_vlm_fact_providers": "maintained_default_off",
+            "pdf_dual_vlm_canonical_table": "maintained_default_off",
+            "pdf_dual_vlm_runtime": "maintained_default_off",
             "prove_visual_neutral_tables_actual_corpus": "offline_only",
         }
         self.assertEqual(
@@ -171,7 +171,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 continue
             for imported in _local_imports(module_name):
                 edge = (module_name, imported)
-                if imported in GATE2_BUSINESS_RUNTIME_MODULES and edge != allowed_compatibility_edge:
+                if (
+                    imported in GATE2_BUSINESS_RUNTIME_MODULES
+                    and edge != allowed_compatibility_edge
+                ):
                     violations.append(f"{module_name}->{imported}")
         self.assertEqual(violations, [])
 

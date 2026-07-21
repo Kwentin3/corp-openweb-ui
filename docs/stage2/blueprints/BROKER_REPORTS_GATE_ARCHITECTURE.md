@@ -262,7 +262,7 @@ The allowed status vocabulary is:
 | Global Gate 1 | Implemented; partially closed | Runtime exists. Named format/sub-capability closures do not imply universal format support. |
 | CSV v1 normalization | Closed for bounded supported profile | Whole accepted CSV representation is normalized under declared limits. |
 | PDF Table Intake local Gate 1 | Closed | Table regions become private raster candidates; no cells or financial meaning are claimed. |
-| Canonical visual-table reconstruction | Implemented policy; bounded runtime acceptance required | Gemini/OpenAI may propose one declared page/crop. Only deterministic validation and source accounting may promote cells/table JSON. |
+| Canonical visual-table reconstruction | Maintained repository runtime, default-off; atomic stage delivery remains pending | Recovered Gemini/OpenAI adapters process one declared crop under a versioned dual-provider policy. Agreement remains review-only; only deterministic validation plus source accounting may promote cells/table JSON. |
 | Global Gate 2 | Implemented; partially closed | Bounded typed verticals pass. Whole-document/full-corpus/all-format semantic coverage is not closed. |
 | CSV pre-Gate-3 vertical | Closed for bounded scope | One selected segment is terminal and validated; 343 segments are explicit deferred scope. |
 | Gate 3 context manifest | Implemented; stage proven for bounded CSV scope | Ready means the declared Gate 2 graph is acceptable as Gate 3 input. |

@@ -9,18 +9,26 @@ from pathlib import Path
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 PIPE_SOURCE = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe.py"
-BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
+BUNDLE_PATH = (
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
+)
 GATE2_PIPE_SOURCE = (
     SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
 )
 GATE2_BUNDLE_PATH = (
-    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe_bundled.py"
+    SERVICE_ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate2_source_fact_pipe_bundled.py"
 )
 GATE2_DOMAIN_PIPE_SOURCE = (
-    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe.py"
+    SERVICE_ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate2_domain_source_fact_pipe.py"
 )
 GATE2_DOMAIN_BUNDLE_PATH = (
-    SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
+    SERVICE_ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
 )
 
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
@@ -119,6 +127,9 @@ GATE1_HYBRID_MODULES = [
     "pdf_vlm_region_binding",
     "pdf_grid_experiment_provider",
     "pdf_table_intake_runtime",
+    "pdf_dual_vlm_canonical_table_contracts",
+    "pdf_dual_vlm_fact_providers",
+    "pdf_dual_vlm_runtime",
     "pdf_continuation_discovery",
     "pdf_structural_repair_runtime",
     "pdf_semantic_header_contracts",
@@ -268,7 +279,10 @@ def _project_package_init(
                 and item.value in removed_exports
             ):
                 continue
-            if item.end_lineno != item.lineno or len(constants_by_line[item.lineno]) != 1:
+            if (
+                item.end_lineno != item.lineno
+                or len(constants_by_line[item.lineno]) != 1
+            ):
                 raise RuntimeError("bundle_package_init_all_entry_must_own_line")
             dropped_lines.add(item.lineno)
 
@@ -326,9 +340,7 @@ def assert_gate2_bundle_contract(
         if marker not in bundle_source
     )
     if missing:
-        raise RuntimeError(
-            "gate2_bundle_contract_missing:" + ",".join(missing)
-        )
+        raise RuntimeError("gate2_bundle_contract_missing:" + ",".join(missing))
 
     source_adapter = bundle_source.split(BUNDLE_ADAPTER_MARKER, 1)[1]
     forbidden_markers = {
@@ -339,14 +351,10 @@ def assert_gate2_bundle_contract(
         "legacy_pipe_model_client": "class OpenWebUIGate2",
     }
     present = sorted(
-        label
-        for label, marker in forbidden_markers.items()
-        if marker in source_adapter
+        label for label, marker in forbidden_markers.items() if marker in source_adapter
     )
     if present:
-        raise RuntimeError(
-            "gate2_bundle_contract_forbidden:" + ",".join(present)
-        )
+        raise RuntimeError("gate2_bundle_contract_forbidden:" + ",".join(present))
 
 
 def _render_bundle(

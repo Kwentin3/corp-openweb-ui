@@ -11,9 +11,7 @@ from __future__ import annotations
 
 
 ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v1"
-ARCHITECTURE_AUTHORITY = (
-    "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
-)
+ARCHITECTURE_AUTHORITY = "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
 PIPELINE_ID = "broker_reports_controlled_source_processing"
 
 NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED = False
@@ -37,8 +35,9 @@ CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_only"
 MODEL_CANONICAL_AUTHORITY = 0
 
 COMPONENT_RUNTIME_STATUSES = {
-    # Accepted production design; Goal 2 promotes this only after runtime tests.
-    "visual_table_vlm": "implementation_pending",
+    # Maintained repository integration. Atomic stage delivery remains a
+    # separate release goal, and the route is default-off until then.
+    "visual_table_vlm": "maintained_default_off",
     # Proven on the audit branch, but intentionally absent from this clean
     # candidate until the dedicated VLM integration goal closes delivery.
     "visual_neutral_tables": "accepted_but_not_yet_deliverable",
@@ -47,8 +46,9 @@ COMPONENT_RUNTIME_STATUSES = {
     "pdf_csv_experiment_provider": "proof_only",
     "pdf_grid_experiment_provider": "proof_only",
     "pdf_hybrid_provider": "proof_only",
-    "pdf_dual_vlm_fact_providers": "proof_only",
-    "pdf_dual_vlm_canonical_table": "proof_only",
+    "pdf_dual_vlm_fact_providers": "maintained_default_off",
+    "pdf_dual_vlm_canonical_table": "maintained_default_off",
+    "pdf_dual_vlm_runtime": "maintained_default_off",
     "prove_visual_neutral_tables_actual_corpus": "offline_only",
 }
 

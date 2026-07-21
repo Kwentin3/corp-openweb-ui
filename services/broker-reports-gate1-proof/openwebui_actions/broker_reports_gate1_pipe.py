@@ -63,6 +63,9 @@ from broker_reports_gate1 import (
     PdfTableIntakeConfig,
     PdfTableIntakeError,
     PdfTableIntakeRuntimeFactory,
+    PdfDualVlmRuntimeConfig,
+    PdfDualVlmRuntimeError,
+    PdfDualVlmRuntimeFactory,
 )
 from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
@@ -107,8 +110,12 @@ class Pipe:
         )
         upload_root: str = Field(default="/app/backend/data/uploads")
         allow_upload_path_access: bool = Field(default=True)
-        artifact_store_path: str = Field(default="/app/backend/data/broker_reports_gate1/artifacts.sqlite3")
-        artifact_payload_root: str = Field(default="/app/backend/data/broker_reports_gate1/payloads")
+        artifact_store_path: str = Field(
+            default="/app/backend/data/broker_reports_gate1/artifacts.sqlite3"
+        )
+        artifact_payload_root: str = Field(
+            default="/app/backend/data/broker_reports_gate1/payloads"
+        )
         artifact_retention_mode: str = Field(default="api_smoke")
         artifact_retention_ttl_seconds: int = Field(default=24 * 60 * 60)
         artifact_retention_explicit: bool = Field(default=True)
@@ -121,7 +128,9 @@ class Pipe:
         clarification_enabled: bool = Field(default=False)
         clarification_prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         clarification_prompt_id: str = Field(default="")
-        clarification_prompt_command: str = Field(default="broker_gate1_clarification_request")
+        clarification_prompt_command: str = Field(
+            default="broker_gate1_clarification_request"
+        )
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
         broker_pdf_neutral_table_profile_v1_enabled: bool = Field(default=False)
@@ -140,6 +149,18 @@ class Pipe:
         pdf_table_intake_vertical_padding_fraction: float = Field(
             default=0.08, ge=0, le=0.25
         )
+        pdf_dual_vlm_enabled: bool = Field(default=False)
+        pdf_dual_vlm_provider_selection_policy_version: str = Field(
+            default="pdf_dual_vlm_provider_selection_v1"
+        )
+        pdf_dual_vlm_gemini_model_id: str = Field(default="models/gemini-3.5-flash")
+        pdf_dual_vlm_openai_model_id: str = Field(default="gpt-5.4-mini-2026-03-17")
+        pdf_dual_vlm_timeout_seconds: int = Field(default=240, ge=1, le=600)
+        pdf_dual_vlm_maximum_output_tokens: int = Field(default=16_384, ge=1, le=32_768)
+        pdf_dual_vlm_maximum_counted_input_tokens: int = Field(
+            default=24_000, ge=1, le=128_000
+        )
+        pdf_dual_vlm_maximum_candidates: int = Field(default=8, ge=1, le=32)
         pdf_hybrid_shadow_enabled: bool = Field(default=False)
         pdf_hybrid_shadow_table_allowlist: str = Field(default="")
         pdf_hybrid_provider_profile: str = Field(default="google_gemini")
@@ -177,29 +198,49 @@ class Pipe:
         __event_emitter__=None,
         **kwargs,
     ) -> str:
-        await self._emit(__event_emitter__, "Checking uploaded file refs...", done=False)
+        await self._emit(
+            __event_emitter__, "Checking uploaded file refs...", done=False
+        )
         safe_body = body if isinstance(body, dict) else {}
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
         files_arg = __files__ or kwargs.get("__files__")
 
-        if self.valves.require_trigger_phrase and not self._has_trigger_phrase(safe_body, messages_arg):
-            await self._emit(__event_emitter__, "Gate 1 trigger phrase was not found.", done=True)
+        if self.valves.require_trigger_phrase and not self._has_trigger_phrase(
+            safe_body, messages_arg
+        ):
+            await self._emit(
+                __event_emitter__, "Gate 1 trigger phrase was not found.", done=True
+            )
             return (
                 "Gate 1 normalization is available. Attach documents and send "
                 "`Gate 1 normalization` in the same message."
             )
 
-        file_refs = self._collect_file_refs(safe_body, safe_metadata, files_arg, messages_arg)
-        input_context = self._safe_input_context(safe_body, safe_metadata, files_arg, messages_arg)
+        file_refs = self._collect_file_refs(
+            safe_body, safe_metadata, files_arg, messages_arg
+        )
+        input_context = self._safe_input_context(
+            safe_body, safe_metadata, files_arg, messages_arg
+        )
         case_group_id = self._case_group_id(safe_body, safe_metadata)
         if case_group_id:
             input_context["case_group_id"] = case_group_id
-        body_metadata = safe_body.get("metadata") if isinstance(safe_body.get("metadata"), dict) else {}
-        case_id = safe_metadata.get("case_id") or body_metadata.get("case_id") or safe_body.get("case_id")
+        body_metadata = (
+            safe_body.get("metadata")
+            if isinstance(safe_body.get("metadata"), dict)
+            else {}
+        )
+        case_id = (
+            safe_metadata.get("case_id")
+            or body_metadata.get("case_id")
+            or safe_body.get("case_id")
+        )
         if case_id:
             input_context["case_id"] = str(case_id)
-        criticality_refinement_enabled = self._criticality_refinement_enabled(safe_body, safe_metadata)
+        criticality_refinement_enabled = self._criticality_refinement_enabled(
+            safe_body, safe_metadata
+        )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
         retention_policy = self._retention_policy(safe_body, safe_metadata)
         result = self._normalizer.normalize(
@@ -218,14 +259,16 @@ class Pipe:
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
                 ),
-                "pdf_table_intake_enabled": bool(
-                    self.valves.pdf_table_intake_enabled
-                ),
+                "pdf_table_intake_enabled": bool(self.valves.pdf_table_intake_enabled),
                 "pdf_table_intake_horizontal_padding_fraction": (
                     self.valves.pdf_table_intake_horizontal_padding_fraction
                 ),
                 "pdf_table_intake_vertical_padding_fraction": (
                     self.valves.pdf_table_intake_vertical_padding_fraction
+                ),
+                "pdf_dual_vlm_enabled": bool(self.valves.pdf_dual_vlm_enabled),
+                "pdf_dual_vlm_provider_selection_policy_version": (
+                    self.valves.pdf_dual_vlm_provider_selection_policy_version
                 ),
                 "pdf_semantic_header_shadow_enabled": bool(
                     self.valves.pdf_semantic_header_shadow_enabled
@@ -262,6 +305,12 @@ class Pipe:
         result.package["private_pdf_table_detection_attempts"] = table_intake[
             "private_detection_attempts"
         ]
+        dual_vlm = self._maybe_run_pdf_dual_vlm(
+            table_intake=table_intake,
+            request=__request__,
+        )
+        result.package["pdf_dual_vlm"] = dual_vlm["safe_summary"]
+        result.package["private_pdf_dual_vlm_decisions"] = dual_vlm["private_decisions"]
         structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
             store=artifact_store,
             result=result,
@@ -309,6 +358,7 @@ class Pipe:
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
             "pdf_table_intake": table_intake["safe_summary"],
+            "pdf_dual_vlm": dual_vlm["safe_summary"],
             "pdf_structural_repair_shadow": structural_shadow,
             "pdf_semantic_header_shadow": self._semantic_shadow_manifest(
                 structural_shadow
@@ -317,9 +367,15 @@ class Pipe:
         }
 
         if not file_refs:
-            await self._emit(__event_emitter__, "No uploaded file refs were visible.", done=True)
+            await self._emit(
+                __event_emitter__, "No uploaded file refs were visible.", done=True
+            )
         else:
-            await self._emit(__event_emitter__, "Gate 1 artifacts persisted and compact report ready.", done=True)
+            await self._emit(
+                __event_emitter__,
+                "Gate 1 artifacts persisted and compact report ready.",
+                done=True,
+            )
         chat_content = render_chat_content(result.safe_report)
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
@@ -463,6 +519,99 @@ class Pipe:
             "private_detection_attempts": [],
         }
 
+    def _maybe_run_pdf_dual_vlm(
+        self,
+        *,
+        table_intake: dict[str, Any],
+        request: Any,
+    ) -> dict[str, Any]:
+        config = PdfDualVlmRuntimeConfig(
+            enabled=bool(self.valves.pdf_dual_vlm_enabled),
+            provider_selection_policy_version=(
+                self.valves.pdf_dual_vlm_provider_selection_policy_version
+            ),
+            gemini_model_id=self.valves.pdf_dual_vlm_gemini_model_id,
+            openai_model_id=self.valves.pdf_dual_vlm_openai_model_id,
+            timeout_seconds=self.valves.pdf_dual_vlm_timeout_seconds,
+            maximum_output_tokens=self.valves.pdf_dual_vlm_maximum_output_tokens,
+            maximum_counted_input_tokens=(
+                self.valves.pdf_dual_vlm_maximum_counted_input_tokens
+            ),
+            maximum_candidates=self.valves.pdf_dual_vlm_maximum_candidates,
+        )
+        try:
+            factory = PdfDualVlmRuntimeFactory(config)
+            if not config.enabled:
+                disabled = factory.create_with_providers(
+                    gemini=None,
+                    openai=None,
+                ).run([])
+                return {
+                    "safe_summary": disabled.safe_summary,
+                    "private_decisions": [],
+                }
+            intake_summary = table_intake.get("safe_summary")
+            if (
+                not isinstance(intake_summary, dict)
+                or intake_summary.get("enabled") is not True
+                or intake_summary.get("status") != "completed"
+            ):
+                raise PdfDualVlmRuntimeError("pdf_dual_vlm_table_intake_not_ready")
+            outcome = factory.create_for_openwebui(request).run(
+                table_intake.get("private_candidates") or []
+            )
+            return {
+                "safe_summary": outcome.safe_summary,
+                "private_decisions": outcome.private_decisions,
+            }
+        except (PdfDualVlmRuntimeError, RuntimeError, ValueError) as exc:
+            return self._pdf_dual_vlm_failure(
+                config,
+                str(getattr(exc, "code", "pdf_dual_vlm_runtime_failed")),
+                candidates_total=len(table_intake.get("private_candidates") or []),
+            )
+
+    @staticmethod
+    def _pdf_dual_vlm_failure(
+        config: PdfDualVlmRuntimeConfig,
+        failure_code: str,
+        *,
+        candidates_total: int,
+    ) -> dict[str, Any]:
+        return {
+            "safe_summary": {
+                "schema_version": "broker_reports_pdf_dual_vlm_run_v1",
+                "policy_version": "pdf_dual_vlm_runtime_policy_v1",
+                "enabled": config.enabled,
+                "status": "failed",
+                "terminal_failure_code": failure_code,
+                "candidates_total": candidates_total,
+                "decisions_total": 0,
+                "decision_status_counts": {},
+                "provider_selection": {
+                    "policy_version": config.provider_selection_policy_version,
+                    "execution_mode": config.execution_mode,
+                    "primary_provider": config.primary_provider,
+                    "primary_model_id": config.gemini_model_id,
+                    "review_provider": config.review_provider,
+                    "review_model_id": config.openai_model_id,
+                    "provider_order": ["gemini", "openai"],
+                    "hidden_retry": False,
+                    "provider_failover": False,
+                    "provider_switch": False,
+                },
+                "provider_qualifications": None,
+                "decision_hashes": [],
+                "provider_proposal_canonical_authority": False,
+                "canonical_tables_published": 0,
+                "whole_document_provider_uploads": 0,
+                "hidden_retries": 0,
+                "provider_failovers": 0,
+                "paddle_dependency": False,
+            },
+            "private_decisions": [],
+        }
+
     def _maybe_run_pdf_structural_repair_shadow(
         self,
         *,
@@ -495,7 +644,9 @@ class Pipe:
             read = file_input.read_bytes()
             if read.status != "available" or not isinstance(read.content_bytes, bytes):
                 continue
-            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = read.content_bytes
+            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = (
+                read.content_bytes
+            )
         provider = None
         try:
             provider = PdfGridExperimentProviderFactory(
@@ -511,7 +662,9 @@ class Pipe:
             sorted(
                 {
                     item.strip()
-                    for item in self.valves.pdf_structural_repair_shadow_table_allowlist.split(",")
+                    for item in self.valves.pdf_structural_repair_shadow_table_allowlist.split(
+                        ","
+                    )
                     if item.strip()
                 }
             )
@@ -520,7 +673,9 @@ class Pipe:
             sorted(
                 {
                     item.strip()
-                    for item in self.valves.pdf_vlm_guided_intake_shadow_page_allowlist.split(",")
+                    for item in self.valves.pdf_vlm_guided_intake_shadow_page_allowlist.split(
+                        ","
+                    )
                     if item.strip()
                 }
             )
@@ -616,7 +771,9 @@ class Pipe:
     ) -> dict[str, Any]:
         documents = [
             item
-            for item in result.package.get("document_inventory", {}).get("documents", [])
+            for item in result.package.get("document_inventory", {}).get(
+                "documents", []
+            )
             if isinstance(item, dict) and item.get("container_format") == "pdf"
         ]
         outcomes = None
@@ -650,9 +807,7 @@ class Pipe:
                 "continuation_groups_failed": 0,
                 "continuation_group_outcomes": [],
                 "terminal_outcomes": {"internal_failure": len(documents)},
-                "semantic_header_shadow_enabled": (
-                    semantic_header_shadow_enabled
-                ),
+                "semantic_header_shadow_enabled": (semantic_header_shadow_enabled),
                 "semantic_projection_status_counts": (
                     {"not_projected_structural_failure": len(documents)}
                     if semantic_header_shadow_enabled and documents
@@ -722,7 +877,9 @@ class Pipe:
             read = file_input.read_bytes()
             if read.status != "available" or not isinstance(read.content_bytes, bytes):
                 continue
-            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = read.content_bytes
+            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = (
+                read.content_bytes
+            )
         provider = None
         try:
             provider = PdfHybridProviderFactory(
@@ -774,10 +931,18 @@ class Pipe:
     ) -> NormalizationResult:
         if not self._passport_enabled(body, metadata):
             return result
-        criticality_refinement_enabled = self._criticality_refinement_enabled(body, metadata)
-        await self._emit(event_emitter, "Resolving managed Document Metadata Passport prompt...", done=False)
+        criticality_refinement_enabled = self._criticality_refinement_enabled(
+            body, metadata
+        )
+        await self._emit(
+            event_emitter,
+            "Resolving managed Document Metadata Passport prompt...",
+            done=False,
+        )
         try:
-            prompt = self._resolve_passport_prompt(user=user, metadata=metadata, body=body)
+            prompt = self._resolve_passport_prompt(
+                user=user, metadata=metadata, body=body
+            )
             model_id = self._passport_model_id(body, metadata)
         except DocumentPassportError:
             await self._emit(
@@ -794,7 +959,11 @@ class Pipe:
             case_group_id=case_group_id,
             max_documents=self._passport_max_documents(body, metadata),
         )
-        await self._emit(event_emitter, "Calling OpenWebUI model for document metadata passports...", done=False)
+        await self._emit(
+            event_emitter,
+            "Calling OpenWebUI model for document metadata passports...",
+            done=False,
+        )
         raw_outputs = []
         for document_package in llm_packages:
             try:
@@ -807,7 +976,10 @@ class Pipe:
                 )
                 output = completion["content"]
                 if output is None or (isinstance(output, str) and not output.strip()):
-                    raise DocumentPassportError("passport_model_invalid_response", "Completion response is empty")
+                    raise DocumentPassportError(
+                        "passport_model_invalid_response",
+                        "Completion response is empty",
+                    )
                 audit = dict(completion["audit"])
                 parsed = parse_document_passport_model_output(output)
                 validation = validate_document_metadata_passport(
@@ -834,8 +1006,12 @@ class Pipe:
                     {
                         "schema_version": "llm_passport_raw_output_v0",
                         "document_id": document_package["document_id"],
-                        "normalization_run_id": document_package["normalization_run_id"],
-                        "llm_input_package_id": document_package["llm_input_package_id"],
+                        "normalization_run_id": document_package[
+                            "normalization_run_id"
+                        ],
+                        "llm_input_package_id": document_package[
+                            "llm_input_package_id"
+                        ],
                         "model_call_status": "passed",
                         "raw_output": output,
                         "error_code": None,
@@ -856,8 +1032,12 @@ class Pipe:
                     {
                         "schema_version": "llm_passport_raw_output_v0",
                         "document_id": document_package["document_id"],
-                        "normalization_run_id": document_package["normalization_run_id"],
-                        "llm_input_package_id": document_package["llm_input_package_id"],
+                        "normalization_run_id": document_package[
+                            "normalization_run_id"
+                        ],
+                        "llm_input_package_id": document_package[
+                            "llm_input_package_id"
+                        ],
                         "model_call_status": "failed",
                         "raw_output": None,
                         "error_code": exc.code,
@@ -873,7 +1053,9 @@ class Pipe:
             private_markers=result.private_markers,
             criticality_refinement_enabled=criticality_refinement_enabled,
         )
-        await self._emit(event_emitter, "Document metadata passports validated.", done=False)
+        await self._emit(
+            event_emitter, "Document metadata passports validated.", done=False
+        )
         return NormalizationResult(
             package=applied["package"],
             safe_report=applied["safe_report"],
@@ -892,13 +1074,22 @@ class Pipe:
     ) -> NormalizationResult:
         if not self._clarification_enabled(body, metadata):
             return result
-        criticality_refinement_enabled = self._criticality_refinement_enabled(body, metadata)
-        await self._emit(event_emitter, "Building deterministic Gate 1 metadata gap report...", done=False)
+        criticality_refinement_enabled = self._criticality_refinement_enabled(
+            body, metadata
+        )
+        await self._emit(
+            event_emitter,
+            "Building deterministic Gate 1 metadata gap report...",
+            done=False,
+        )
         gap_report = build_metadata_gap_report(
             result.package,
             criticality_refinement_enabled=criticality_refinement_enabled,
         )
-        if int((gap_report.get("summary") or {}).get("resolvable_gaps_total") or 0) == 0:
+        if (
+            int((gap_report.get("summary") or {}).get("resolvable_gaps_total") or 0)
+            == 0
+        ):
             applied_gap = apply_metadata_gap_report_stage(
                 result.package,
                 private_markers=result.private_markers,
@@ -910,7 +1101,9 @@ class Pipe:
                 private_markers=result.private_markers,
             )
         try:
-            prompt = self._resolve_clarification_prompt(user=user, metadata=metadata, body=body)
+            prompt = self._resolve_clarification_prompt(
+                user=user, metadata=metadata, body=body
+            )
             model_id = self._clarification_model_id(body, metadata)
         except ClarificationError:
             await self._emit(
@@ -928,7 +1121,11 @@ class Pipe:
                 safe_report=applied_gap["safe_report"],
                 private_markers=result.private_markers,
             )
-        await self._emit(event_emitter, "Calling OpenWebUI model for Gate 1 clarification questions...", done=False)
+        await self._emit(
+            event_emitter,
+            "Calling OpenWebUI model for Gate 1 clarification questions...",
+            done=False,
+        )
         try:
             completion = await self._openwebui_clarification_completion(
                 prompt=prompt,
@@ -987,14 +1184,18 @@ class Pipe:
                 safe_report=applied_gap["safe_report"],
                 private_markers=result.private_markers,
             )
-        await self._emit(event_emitter, "Gate 1 clarification questions prepared.", done=False)
+        await self._emit(
+            event_emitter, "Gate 1 clarification questions prepared.", done=False
+        )
         return NormalizationResult(
             package=applied["package"],
             safe_report=applied["safe_report"],
             private_markers=result.private_markers,
         )
 
-    def _resolve_passport_prompt(self, *, user: Any, metadata: dict[str, Any], body: dict[str, Any]) -> ManagedPrompt:
+    def _resolve_passport_prompt(
+        self, *, user: Any, metadata: dict[str, Any], body: dict[str, Any]
+    ) -> ManagedPrompt:
         user_context = PromptUserContext(
             user_id=self._user_id(user, metadata),
             user_role=self._user_role(user, metadata),
@@ -1011,7 +1212,9 @@ class Pipe:
         ).create()
         return resolver.resolve(user_context)
 
-    def _resolve_clarification_prompt(self, *, user: Any, metadata: dict[str, Any], body: dict[str, Any]):
+    def _resolve_clarification_prompt(
+        self, *, user: Any, metadata: dict[str, Any], body: dict[str, Any]
+    ):
         user_context = PromptUserContext(
             user_id=self._user_id(user, metadata),
             user_role=self._user_role(user, metadata),
@@ -1038,12 +1241,18 @@ class Pipe:
         request: Any,
     ) -> dict[str, Any]:
         if request is None:
-            raise DocumentPassportError("passport_model_unavailable", "OpenWebUI request object is required")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "OpenWebUI request object is required"
+            )
         user_id = self._user_id(user, {})
         if not user_id:
-            raise DocumentPassportError("passport_model_unavailable", "OpenWebUI user id is required")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "OpenWebUI user id is required"
+            )
         package_json = json.dumps(document_package, ensure_ascii=False, sort_keys=True)
-        system_content = prompt.content.replace("{{document_package_json}}", package_json)
+        system_content = prompt.content.replace(
+            "{{document_package_json}}", package_json
+        )
         allowed_evidence_refs = self._passport_allowed_evidence_refs(document_package)
         user_content = (
             "Return the strict document_metadata_passport_v0 JSON object for the package embedded in the managed "
@@ -1098,7 +1307,9 @@ class Pipe:
                     native_error_code = exc.code
                     continue
                 raise
-        raise DocumentPassportError("passport_model_unavailable", "Structured output model call failed")
+        raise DocumentPassportError(
+            "passport_model_unavailable", "Structured output model call failed"
+        )
 
     async def _openwebui_passport_repair_completion(
         self,
@@ -1113,12 +1324,18 @@ class Pipe:
         audit: dict[str, Any],
     ) -> dict[str, Any]:
         if request is None:
-            raise DocumentPassportError("passport_model_unavailable", "OpenWebUI request object is required")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "OpenWebUI request object is required"
+            )
         user_id = self._user_id(user, {})
         if not user_id:
-            raise DocumentPassportError("passport_model_unavailable", "OpenWebUI user id is required")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "OpenWebUI user id is required"
+            )
         package_json = json.dumps(document_package, ensure_ascii=False, sort_keys=True)
-        system_content = prompt.content.replace("{{document_package_json}}", package_json)
+        system_content = prompt.content.replace(
+            "{{document_package_json}}", package_json
+        )
         allowed_evidence_refs = self._passport_allowed_evidence_refs(document_package)
         repair_payload = {
             "task": "repair_document_metadata_passport_v0",
@@ -1142,7 +1359,10 @@ class Pipe:
             system_content=system_content,
             user_content=json.dumps(repair_payload, ensure_ascii=False, sort_keys=True),
             response_format=response_format,
-            structured_output_mode=str(audit.get("structured_output_mode") or "openwebui_response_format_json_object_fallback"),
+            structured_output_mode=str(
+                audit.get("structured_output_mode")
+                or "openwebui_response_format_json_object_fallback"
+            ),
             prompt=prompt,
             document_package=document_package,
             model_id=model_id,
@@ -1155,7 +1375,9 @@ class Pipe:
         repaired_audit["validator_error_summary"] = validator_summary
         return {"content": content, "audit": repaired_audit}
 
-    def _passport_allowed_evidence_refs(self, document_package: dict[str, Any]) -> list[str]:
+    def _passport_allowed_evidence_refs(
+        self, document_package: dict[str, Any]
+    ) -> list[str]:
         refs = [
             str(ref)
             for ref in document_package.get("evidence_refs") or []
@@ -1176,22 +1398,31 @@ class Pipe:
         request: Any,
     ) -> dict[str, Any]:
         if request is None:
-            raise ClarificationError("clarification_model_unavailable", "OpenWebUI request object is required")
+            raise ClarificationError(
+                "clarification_model_unavailable",
+                "OpenWebUI request object is required",
+            )
         user_id = self._user_id(user, {})
         if not user_id:
-            raise ClarificationError("clarification_model_unavailable", "OpenWebUI user id is required")
+            raise ClarificationError(
+                "clarification_model_unavailable", "OpenWebUI user id is required"
+            )
         gap_report_json = json.dumps(gap_report, ensure_ascii=False, sort_keys=True)
-        schema_json = json.dumps(clarification_json_schema_response_format()["json_schema"]["schema"], ensure_ascii=False, sort_keys=True)
-        system_content = (
-            prompt.content
-            .replace("{{metadata_gap_report_json}}", gap_report_json)
-            .replace("{{allowed_answer_schema_json}}", schema_json)
+        schema_json = json.dumps(
+            clarification_json_schema_response_format()["json_schema"]["schema"],
+            ensure_ascii=False,
+            sort_keys=True,
         )
+        system_content = prompt.content.replace(
+            "{{metadata_gap_report_json}}", gap_report_json
+        ).replace("{{allowed_answer_schema_json}}", schema_json)
         user_content = json.dumps(
             {
                 "task": "write_gate1_clarification_request_v0",
                 "metadata_gap_report": gap_report,
-                "allowed_schema": clarification_json_schema_response_format()["json_schema"]["schema"],
+                "allowed_schema": clarification_json_schema_response_format()[
+                    "json_schema"
+                ]["schema"],
                 "instruction": (
                     "Return gate1_clarification_request_v0 JSON only. Use exactly the question_id values "
                     "from metadata_gap_report.question_stubs. Preserve criticality, blocking_scope, blocks_gate2, "
@@ -1262,8 +1493,12 @@ class Pipe:
                 if attempt["response_format_type"] == "json_schema":
                     native_error_code = exc.code
                     continue
-                raise ClarificationError("clarification_model_call_failed", exc.code) from exc
-        raise ClarificationError("clarification_model_unavailable", "Structured output model call failed")
+                raise ClarificationError(
+                    "clarification_model_call_failed", exc.code
+                ) from exc
+        raise ClarificationError(
+            "clarification_model_unavailable", "Structured output model call failed"
+        )
 
     async def _call_openwebui_completion(
         self,
@@ -1296,18 +1531,24 @@ class Pipe:
                     "llm_prompt_hash": prompt.hash,
                     "output_schema_version": prompt.output_schema_version,
                     "output_schema_hash": output_schema_hash
-                    or document_package.get("output_schema", {}).get("output_schema_hash"),
+                    or document_package.get("output_schema", {}).get(
+                        "output_schema_hash"
+                    ),
                 }
             },
         }
         try:
             completion_fn, user_model = self._openwebui_completion_dependencies(user_id)
         except Exception as exc:
-            raise DocumentPassportError("passport_model_unavailable", exc.__class__.__name__) from exc
+            raise DocumentPassportError(
+                "passport_model_unavailable", exc.__class__.__name__
+            ) from exc
         if inspect.isawaitable(user_model):
             user_model = await user_model
         if user_model is None:
-            raise DocumentPassportError("passport_model_unavailable", "OpenWebUI user is unavailable")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "OpenWebUI user is unavailable"
+            )
         try:
             try:
                 response = completion_fn(
@@ -1319,16 +1560,22 @@ class Pipe:
                 )
             except TypeError:
                 try:
-                    response = completion_fn(request=request, form_data=form_data, user=user_model)
+                    response = completion_fn(
+                        request=request, form_data=form_data, user=user_model
+                    )
                 except TypeError:
                     response = completion_fn(request, form_data, user_model)
         except Exception as exc:
-            raise DocumentPassportError("passport_model_call_failed", exc.__class__.__name__) from exc
+            raise DocumentPassportError(
+                "passport_model_call_failed", exc.__class__.__name__
+            ) from exc
         if inspect.isawaitable(response):
             try:
                 response = await response
             except Exception as exc:
-                raise DocumentPassportError("passport_model_call_failed", exc.__class__.__name__) from exc
+                raise DocumentPassportError(
+                    "passport_model_call_failed", exc.__class__.__name__
+                ) from exc
         return self._extract_completion_content(response)
 
     def _openwebui_completion_dependencies(self, user_id: str):
@@ -1349,16 +1596,23 @@ class Pipe:
             try:
                 return self._completion_dict_content(json.loads(body.decode("utf-8")))
             except (UnicodeDecodeError, ValueError):
-                raise DocumentPassportError("passport_model_invalid_response", "Completion response body is not JSON")
+                raise DocumentPassportError(
+                    "passport_model_invalid_response",
+                    "Completion response body is not JSON",
+                )
         if isinstance(response, str):
             return response
-        raise DocumentPassportError("passport_model_invalid_response", "Unsupported completion response shape")
+        raise DocumentPassportError(
+            "passport_model_invalid_response", "Unsupported completion response shape"
+        )
 
     def _completion_dict_content(self, payload: dict[str, Any]) -> Any:
         choices = payload.get("choices") if isinstance(payload, dict) else None
         if isinstance(choices, list) and choices:
             first = choices[0] if isinstance(choices[0], dict) else {}
-            message = first.get("message") if isinstance(first.get("message"), dict) else {}
+            message = (
+                first.get("message") if isinstance(first.get("message"), dict) else {}
+            )
             if isinstance(message.get("content"), str) and message.get("content"):
                 return message["content"]
             if isinstance(first.get("text"), str) and first.get("text"):
@@ -1367,16 +1621,22 @@ class Pipe:
             return payload["content"]
         if isinstance(payload.get("response"), str) and payload.get("response"):
             return payload["response"]
-        raise DocumentPassportError("passport_model_invalid_response", "Completion response has no content")
+        raise DocumentPassportError(
+            "passport_model_invalid_response", "Completion response has no content"
+        )
 
     def _passport_model_id(self, body: dict[str, Any], metadata: dict[str, Any]) -> str:
         value = (
-            self._passport_config_value(body, metadata, "passport_model_id", "llm_model_id")
+            self._passport_config_value(
+                body, metadata, "passport_model_id", "llm_model_id"
+            )
             or self._passport_nested_config_value(body, metadata, "model_id")
             or self.valves.passport_model_id
         )
         if not value:
-            raise DocumentPassportError("passport_model_unavailable", "Passport model id is not configured")
+            raise DocumentPassportError(
+                "passport_model_unavailable", "Passport model id is not configured"
+            )
         return str(value)
 
     def _passport_enabled(self, body: dict[str, Any], metadata: dict[str, Any]) -> bool:
@@ -1389,17 +1649,25 @@ class Pipe:
         )
         return self._optional_bool(value, default=bool(self.valves.passport_enabled))
 
-    def _passport_prompt_config(self, body: dict[str, Any], metadata: dict[str, Any]) -> dict[str, str | None]:
+    def _passport_prompt_config(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> dict[str, str | None]:
         db_path = (
-            self._passport_config_value(body, metadata, "passport_prompt_db_path", "prompt_db_path")
+            self._passport_config_value(
+                body, metadata, "passport_prompt_db_path", "prompt_db_path"
+            )
             or self.valves.passport_prompt_db_path
         )
         prompt_id = (
-            self._passport_config_value(body, metadata, "passport_prompt_id", "prompt_id")
+            self._passport_config_value(
+                body, metadata, "passport_prompt_id", "prompt_id"
+            )
             or self.valves.passport_prompt_id
         )
         command = (
-            self._passport_config_value(body, metadata, "passport_prompt_command", "prompt_command", "command")
+            self._passport_config_value(
+                body, metadata, "passport_prompt_command", "prompt_command", "command"
+            )
             or self.valves.passport_prompt_command
         )
         return {
@@ -1408,21 +1676,29 @@ class Pipe:
             "command": str(command).strip() or None,
         }
 
-    def _passport_max_documents(self, body: dict[str, Any], metadata: dict[str, Any]) -> int | None:
-        value = self._passport_config_value(body, metadata, "passport_max_documents", "max_documents")
+    def _passport_max_documents(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> int | None:
+        value = self._passport_config_value(
+            body, metadata, "passport_max_documents", "max_documents"
+        )
         limit = self._optional_int(value)
         if limit is None:
             limit = self.valves.passport_max_documents
         return limit if limit > 0 else None
 
-    def _passport_config_value(self, body: dict[str, Any], metadata: dict[str, Any], *keys: str) -> Any:
+    def _passport_config_value(
+        self, body: dict[str, Any], metadata: dict[str, Any], *keys: str
+    ) -> Any:
         for context in self._passport_contexts(body, metadata):
             for key in keys:
                 if key in context and context.get(key) not in (None, ""):
                     return context.get(key)
         return self._passport_message_config_value(body, *keys)
 
-    def _passport_nested_config_value(self, body: dict[str, Any], metadata: dict[str, Any], *keys: str) -> Any:
+    def _passport_nested_config_value(
+        self, body: dict[str, Any], metadata: dict[str, Any], *keys: str
+    ) -> Any:
         for context in self._passport_nested_contexts(body, metadata):
             for key in keys:
                 if key in context and context.get(key) not in (None, ""):
@@ -1445,9 +1721,13 @@ class Pipe:
                     return match.group(1).strip()
         return None
 
-    def _passport_contexts(self, body: dict[str, Any], metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    def _passport_contexts(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         contexts: list[dict[str, Any]] = []
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         for source in (metadata, body, body_metadata):
             if not isinstance(source, dict):
                 continue
@@ -1463,9 +1743,13 @@ class Pipe:
             contexts.append(source)
         return contexts
 
-    def _passport_nested_contexts(self, body: dict[str, Any], metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    def _passport_nested_contexts(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         contexts: list[dict[str, Any]] = []
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         for source in (metadata, body, body_metadata):
             if not isinstance(source, dict):
                 continue
@@ -1480,7 +1764,9 @@ class Pipe:
                 contexts.append(direct)
         return contexts
 
-    def _clarification_enabled(self, body: dict[str, Any], metadata: dict[str, Any]) -> bool:
+    def _clarification_enabled(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> bool:
         value = self._clarification_config_value(
             body,
             metadata,
@@ -1488,9 +1774,13 @@ class Pipe:
             "enabled",
             "metadata_clarification_enabled",
         )
-        return self._optional_bool(value, default=bool(self.valves.clarification_enabled))
+        return self._optional_bool(
+            value, default=bool(self.valves.clarification_enabled)
+        )
 
-    def _criticality_refinement_enabled(self, body: dict[str, Any], metadata: dict[str, Any]) -> bool:
+    def _criticality_refinement_enabled(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> bool:
         value = self._clarification_config_value(
             body,
             metadata,
@@ -1503,9 +1793,13 @@ class Pipe:
             default=bool(self.valves.clarification_criticality_refinement_enabled),
         )
 
-    def _clarification_model_id(self, body: dict[str, Any], metadata: dict[str, Any]) -> str:
+    def _clarification_model_id(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> str:
         value = (
-            self._clarification_config_value(body, metadata, "clarification_model_id", "llm_model_id")
+            self._clarification_config_value(
+                body, metadata, "clarification_model_id", "llm_model_id"
+            )
             or self._clarification_nested_config_value(body, metadata, "model_id")
             or self.valves.clarification_model_id
         )
@@ -1515,20 +1809,35 @@ class Pipe:
             except DocumentPassportError:
                 value = None
         if not value:
-            raise ClarificationError("clarification_model_unavailable", "Clarification model id is not configured")
+            raise ClarificationError(
+                "clarification_model_unavailable",
+                "Clarification model id is not configured",
+            )
         return str(value)
 
-    def _clarification_prompt_config(self, body: dict[str, Any], metadata: dict[str, Any]) -> dict[str, str | None]:
+    def _clarification_prompt_config(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> dict[str, str | None]:
         db_path = (
-            self._clarification_config_value(body, metadata, "clarification_prompt_db_path", "prompt_db_path")
+            self._clarification_config_value(
+                body, metadata, "clarification_prompt_db_path", "prompt_db_path"
+            )
             or self.valves.clarification_prompt_db_path
         )
         prompt_id = (
-            self._clarification_config_value(body, metadata, "clarification_prompt_id", "prompt_id")
+            self._clarification_config_value(
+                body, metadata, "clarification_prompt_id", "prompt_id"
+            )
             or self.valves.clarification_prompt_id
         )
         command = (
-            self._clarification_config_value(body, metadata, "clarification_prompt_command", "prompt_command", "command")
+            self._clarification_config_value(
+                body,
+                metadata,
+                "clarification_prompt_command",
+                "prompt_command",
+                "command",
+            )
             or self.valves.clarification_prompt_command
         )
         return {
@@ -1537,7 +1846,9 @@ class Pipe:
             "command": str(command).strip() or None,
         }
 
-    def _clarification_answers(self, body: dict[str, Any], metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    def _clarification_answers(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         for context in self._clarification_contexts(body, metadata):
             answers = context.get("answers")
             if isinstance(answers, list):
@@ -1547,19 +1858,29 @@ class Pipe:
                 return [item for item in direct if isinstance(item, dict)]
         return []
 
-    def _clarification_answer_source(self, body: dict[str, Any], metadata: dict[str, Any]) -> str:
-        value = self._clarification_config_value(body, metadata, "answer_source", "source")
+    def _clarification_answer_source(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> str:
+        value = self._clarification_config_value(
+            body, metadata, "answer_source", "source"
+        )
         return str(value or "operator_confirmed")
 
-    def _clarification_config_value(self, body: dict[str, Any], metadata: dict[str, Any], *keys: str) -> Any:
+    def _clarification_config_value(
+        self, body: dict[str, Any], metadata: dict[str, Any], *keys: str
+    ) -> Any:
         for context in self._clarification_contexts(body, metadata):
             for key in keys:
                 if key in context and context.get(key) not in (None, ""):
                     return context.get(key)
         return self._clarification_message_config_value(body, *keys)
 
-    def _clarification_nested_config_value(self, body: dict[str, Any], metadata: dict[str, Any], *keys: str) -> Any:
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    def _clarification_nested_config_value(
+        self, body: dict[str, Any], metadata: dict[str, Any], *keys: str
+    ) -> Any:
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         for source in (metadata, body, body_metadata):
             if not isinstance(source, dict):
                 continue
@@ -1577,9 +1898,13 @@ class Pipe:
                         return direct.get(key)
         return None
 
-    def _clarification_contexts(self, body: dict[str, Any], metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    def _clarification_contexts(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         contexts: list[dict[str, Any]] = []
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         for source in (metadata, body, body_metadata):
             if not isinstance(source, dict):
                 continue
@@ -1595,7 +1920,9 @@ class Pipe:
             contexts.append(source)
         return contexts
 
-    def _clarification_message_config_value(self, body: dict[str, Any], *keys: str) -> Any:
+    def _clarification_message_config_value(
+        self, body: dict[str, Any], *keys: str
+    ) -> Any:
         messages = body.get("messages")
         if not isinstance(messages, list):
             return None
@@ -1611,12 +1938,22 @@ class Pipe:
                     return match.group(1).strip()
         return None
 
-    def _case_group_id(self, body: dict[str, Any], metadata: dict[str, Any]) -> str | None:
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    def _case_group_id(
+        self, body: dict[str, Any], metadata: dict[str, Any]
+    ) -> str | None:
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         contexts = [
-            body.get("broker_reports_gate1") if isinstance(body.get("broker_reports_gate1"), dict) else {},
-            metadata.get("broker_reports_gate1") if isinstance(metadata.get("broker_reports_gate1"), dict) else {},
-            body_metadata.get("broker_reports_gate1") if isinstance(body_metadata.get("broker_reports_gate1"), dict) else {},
+            body.get("broker_reports_gate1")
+            if isinstance(body.get("broker_reports_gate1"), dict)
+            else {},
+            metadata.get("broker_reports_gate1")
+            if isinstance(metadata.get("broker_reports_gate1"), dict)
+            else {},
+            body_metadata.get("broker_reports_gate1")
+            if isinstance(body_metadata.get("broker_reports_gate1"), dict)
+            else {},
             body,
             metadata,
             body_metadata,
@@ -1644,7 +1981,9 @@ class Pipe:
         )
 
     def _retention_policy_override(self, body: dict, metadata: dict) -> dict[str, Any]:
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         candidates = [
             metadata.get("retention_policy"),
             self._nested_retention_policy(metadata),
@@ -1723,10 +2062,14 @@ class Pipe:
         missing = sorted(required_types - set(type_counts))
         if missing:
             raise RuntimeError(f"artifact_type_missing:{missing[0]}")
-        private_records = [record for record in records if record.visibility == "private_case"]
+        private_records = [
+            record for record in records if record.visibility == "private_case"
+        ]
         if not private_records or not manifest.private_slice_refs:
             raise RuntimeError("private_slice_artifacts_missing")
-        if not all(record.payload_ref and record.payload is None for record in private_records):
+        if not all(
+            record.payload_ref and record.payload is None for record in private_records
+        ):
             raise RuntimeError("private_payload_storage_invalid")
         private_payload_paths = [
             self._payload_path(record.payload_ref)
@@ -1765,7 +2108,10 @@ class Pipe:
         handoff_record = store.get_record_unchecked(manifest.gate2_handoff_ref)
         if handoff_record is None:
             raise RuntimeError("gate2_handoff_missing")
-        if handoff_record.validation_status == "blocked" or handoff_record.lifecycle_status == "blocked":
+        if (
+            handoff_record.validation_status == "blocked"
+            or handoff_record.lifecycle_status == "blocked"
+        ):
             self._assert_resolver_denies(
                 resolver,
                 manifest.gate2_handoff_ref,
@@ -1775,7 +2121,9 @@ class Pipe:
             handoff = store.read_payload(handoff_record)
         else:
             handoff = resolver.resolve(manifest.gate2_handoff_ref, context)["payload"]
-        handoff_private_refs = [str(ref) for ref in handoff.get("private_slice_refs") or [] if ref]
+        handoff_private_refs = [
+            str(ref) for ref in handoff.get("private_slice_refs") or [] if ref
+        ]
         manifest_private_refs = {str(ref) for ref in manifest.private_slice_refs}
         if handoff.get("handoff_status") == "blocked":
             if handoff_private_refs:
@@ -1783,16 +2131,28 @@ class Pipe:
         else:
             if not handoff_private_refs:
                 raise RuntimeError("gate2_handoff_private_refs_missing")
-            if any(private_ref not in manifest_private_refs for private_ref in handoff_private_refs):
+            if any(
+                private_ref not in manifest_private_refs
+                for private_ref in handoff_private_refs
+            ):
                 raise RuntimeError("gate2_handoff_private_refs_missing")
             for private_ref in handoff_private_refs:
                 resolver.resolve(private_ref, context)
-        clarification_refs = [str(ref) for ref in handoff.get("clarification_resolution_refs") or [] if ref]
-        if any(private_ref not in manifest_private_refs for private_ref in clarification_refs):
+        clarification_refs = [
+            str(ref)
+            for ref in handoff.get("clarification_resolution_refs") or []
+            if ref
+        ]
+        if any(
+            private_ref not in manifest_private_refs
+            for private_ref in clarification_refs
+        ):
             raise RuntimeError("gate2_handoff_clarification_refs_missing")
         for private_ref in clarification_refs:
             resolver.resolve(private_ref, context)
-        if "```json" in str(handoff) or any(marker and marker in str(handoff) for marker in private_markers):
+        if "```json" in str(handoff) or any(
+            marker and marker in str(handoff) for marker in private_markers
+        ):
             raise RuntimeError("gate2_handoff_private_marker_leak")
 
         probe_result = self._normalizer.normalize(
@@ -1846,7 +2206,10 @@ class Pipe:
             or purged_private_record is None
         ):
             raise RuntimeError("purge_probe_failed")
-        if purged_private_record.storage_backend != "none_tombstone" or purged_private_record.payload_ref:
+        if (
+            purged_private_record.storage_backend != "none_tombstone"
+            or purged_private_record.payload_ref
+        ):
             raise RuntimeError("purge_tombstone_invalid")
         self._assert_resolver_denies(
             resolver,
@@ -1987,7 +2350,9 @@ class Pipe:
         elif isinstance(source, dict):
             candidates.append(source)
 
-    def _append_message_file_candidates(self, candidates: list[Any], source: Any) -> None:
+    def _append_message_file_candidates(
+        self, candidates: list[Any], source: Any
+    ) -> None:
         for message in self._message_iter(source):
             if isinstance(message, dict):
                 self._append_file_candidates(candidates, message.get("files"))
@@ -2096,7 +2461,8 @@ class Pipe:
             "messages_with_files_count": sum(
                 1
                 for message in messages
-                if isinstance(message, dict) and self._safe_len(message.get("files")) > 0
+                if isinstance(message, dict)
+                and self._safe_len(message.get("files")) > 0
             ),
         }
         source_policy = self._source_policy_context(body, metadata)
@@ -2108,7 +2474,9 @@ class Pipe:
         return len(value) if isinstance(value, list) else 0
 
     def _source_policy_context(self, body: dict, metadata: dict) -> dict[str, Any]:
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
         candidates = [
             metadata.get("source_policy"),
             self._nested_source_policy(metadata),
@@ -2130,7 +2498,9 @@ class Pipe:
             if value.get(key) is not None:
                 result[key] = str(value.get(key))[:96]
         if "explicit" in value:
-            result["explicit"] = self._optional_bool(value.get("explicit"), default=False)
+            result["explicit"] = self._optional_bool(
+                value.get("explicit"), default=False
+            )
         if "source_registry_role_hints_allowed" in value:
             result["source_registry_role_hints_allowed"] = self._optional_bool(
                 value.get("source_registry_role_hints_allowed"),
@@ -2143,8 +2513,12 @@ class Pipe:
             )
         hints = value.get("safe_registry_role_hints")
         if isinstance(hints, list):
-            sanitized_hints = [self._sanitize_source_policy_hint(item) for item in hints[:200]]
-            result["safe_registry_role_hints"] = [item for item in sanitized_hints if item]
+            sanitized_hints = [
+                self._sanitize_source_policy_hint(item) for item in hints[:200]
+            ]
+            result["safe_registry_role_hints"] = [
+                item for item in sanitized_hints if item
+            ]
         return result
 
     def _sanitize_source_policy_hint(self, hint: Any) -> dict[str, Any]:
@@ -2170,7 +2544,11 @@ class Pipe:
         if document_id is not None and "safe_document_id" not in result:
             result["safe_document_id"] = str(document_id)[:128]
         sha256 = hint.get("sha256")
-        if sha256 is not None and "sha256_prefix" not in result and "hash_prefix" not in result:
+        if (
+            sha256 is not None
+            and "sha256_prefix" not in result
+            and "hash_prefix" not in result
+        ):
             result["sha256_prefix"] = str(sha256)[:12]
         if "methodology_or_output_candidate" in hint:
             result["methodology_or_output_candidate"] = self._optional_bool(
@@ -2180,9 +2558,7 @@ class Pipe:
         secondary_roles = hint.get("secondary_role_candidates")
         if isinstance(secondary_roles, list):
             result["secondary_role_candidates"] = [
-                str(item)[:96]
-                for item in secondary_roles[:10]
-                if item is not None
+                str(item)[:96] for item in secondary_roles[:10] if item is not None
             ]
         return result
 
@@ -2264,7 +2640,9 @@ class Pipe:
                     values.extend(source[key])
         return [str(value) for value in values if value]
 
-    def _source_file_refs(self, file_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _source_file_refs(
+        self, file_refs: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         refs: list[dict[str, Any]] = []
         for file_ref in file_refs:
             refs.append(
@@ -2305,7 +2683,9 @@ class Pipe:
 
         candidate_result = self._upload_root_candidate(file_ref)
         if candidate_result.get("status") == "blocked":
-            raise BytesUnavailable(str(candidate_result.get("reason") or "upload_candidate_blocked"))
+            raise BytesUnavailable(
+                str(candidate_result.get("reason") or "upload_candidate_blocked")
+            )
         candidate = candidate_result.get("path")
         if isinstance(candidate, Path) and candidate.exists() and candidate.is_file():
             return candidate.read_bytes()
