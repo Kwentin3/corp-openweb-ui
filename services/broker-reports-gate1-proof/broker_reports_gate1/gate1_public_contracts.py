@@ -34,6 +34,12 @@ from .source_provenance import (
     validate_normalized_slice_provenance,
 )
 from .table_projection import TABLE_PROJECTION_SCHEMA_VERSION, TableProjectionValidator
+from .visual_table_review_contracts import (
+    REVIEWED_VISUAL_TABLE_ORIGIN,
+    VISUAL_REVIEW_CONTRACT_VERSION,
+    VISUAL_REVIEW_VALIDATOR_VERSION,
+    validate_reviewed_visual_projection,
+)
 
 
 FACTORY_REQUIRED = (
@@ -57,6 +63,9 @@ __all__ = [
     "SUPPORTED_PROFILE_ID",
     "TABLE_PROJECTION_SCHEMA_VERSION",
     "TableProjectionValidator",
+    "REVIEWED_VISUAL_TABLE_ORIGIN",
+    "VISUAL_REVIEW_CONTRACT_VERSION",
+    "VISUAL_REVIEW_VALIDATOR_VERSION",
     "reproduce_normalized_value",
     "resolve_pdf_layout_unit_source_value",
     "resolve_pdf_layout_unit_source_values",
@@ -69,4 +78,5 @@ __all__ = [
     "validate_pdf_source_unit_parent_linkage",
     "validate_pdf_source_unit_structure",
     "validate_pdf_text_layer_payload",
+    "validate_reviewed_visual_projection",
 ]
