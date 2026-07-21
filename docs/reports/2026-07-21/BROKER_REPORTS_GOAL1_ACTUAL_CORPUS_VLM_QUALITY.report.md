@@ -8,6 +8,8 @@ Accepted base: `9791f7828e6b83102450ac52a64386f804d0018e`
 
 Delivery branch: `codex/broker-reports-actual-corpus-vlm-quality-v1`
 
+Pull request: `#6`
+
 Status: `COMPLETED`
 
 ## Verdict
@@ -251,3 +253,12 @@ Verification result:
 `UNSUPPORTED_OR_AMBIGUOUS_INPUT: FAIL_CLOSED`
 
 `CUSTOMER_ACCEPTANCE: NOT_FALSELY_CLAIMED`
+
+## Delivery receipt
+
+- evidence commit: `67e14d4eeee2aee0b7bd5927a13db509bb5bffe4`;
+- pull request: `#6`;
+- base: `main`;
+- head: `codex/broker-reports-actual-corpus-vlm-quality-v1`;
+- required integration method: ordinary merge commit, without squash, rebase or
+  force push.
