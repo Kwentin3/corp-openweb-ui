@@ -26,6 +26,7 @@ GATE2_DOMAIN_BUNDLE_PATH = (
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 
 MODULE_ORDER = [
+    "architecture_policy",
     "contracts",
     "source_provenance",
     "broker_pdf_neutral_tables",
@@ -89,6 +90,7 @@ MODULE_ORDER = [
     "compact_report",
     "safe_report",
     "document_passport",
+    "customer_debt_policy",
     "normalizer",
     "__init__",
 ]
