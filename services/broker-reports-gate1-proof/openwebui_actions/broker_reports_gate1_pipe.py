@@ -1,19 +1,21 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.16.0-csv-supported-profile-v1
+version: 0.21.0-workload-authority-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import hashlib
 import inspect
 import json
 import re
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -43,6 +45,13 @@ from broker_reports_gate1 import (
     PromptUserContext,
     SAFETY_STATEMENT as SAFETY_STATEMENT,
     RetentionPolicyError,
+    WorkloadAccessContext,
+    WorkloadAuthorityConfig,
+    WorkloadAuthorityError,
+    WorkloadAuthorityFactory,
+    WorkloadCancelledError,
+    WorkloadKind,
+    WorkloadState,
     apply_document_passport_stage,
     apply_clarification_request_stage,
     apply_metadata_gap_report_stage,
@@ -62,6 +71,7 @@ from broker_reports_gate1 import (
     render_chat_content,
     validate_document_metadata_passport,
     validation_error_summary,
+    provider_budgets_from_json,
     PdfTableIntakeConfig,
     PdfTableIntakeError,
     PdfTableIntakeRuntimeFactory,
@@ -117,6 +127,19 @@ class Pipe:
         )
         artifact_payload_root: str = Field(
             default="/app/backend/data/broker_reports_gate1/payloads"
+        )
+        workload_store_path: str = Field(default="")
+        workload_temp_root: str = Field(default="")
+        workload_lease_seconds: float = Field(default=90.0, ge=5.0, le=600.0)
+        workload_poll_interval_seconds: float = Field(
+            default=0.2, ge=0.05, le=5.0
+        )
+        workload_provider_budgets_json: str = Field(
+            default=(
+                '{"google_gemini":1,"openai_gpt":2,"anthropic_claude":1,'
+                '"deepseek":1,"zai_glm":1,"alibaba_qwen":1,'
+                '"openwebui_completion":2}'
+            )
         )
         artifact_retention_mode: str = Field(default="api_smoke")
         artifact_retention_ttl_seconds: int = Field(default=24 * 60 * 60)
@@ -188,8 +211,120 @@ class Pipe:
         self._normalizer = Gate1Normalizer()
         self.last_safe_report: dict | None = None
         self.last_artifact_manifest: dict | None = None
+        self.last_workload_job_id: str | None = None
+        self.last_workload_snapshot: dict[str, Any] | None = None
+        self._active_workload_session = None
+        self._workload_review_items = 0
 
     async def pipe(
+        self,
+        body: dict,
+        __user__=None,
+        __request__=None,
+        __metadata__=None,
+        __files__=None,
+        __messages__=None,
+        __event_emitter__=None,
+        **kwargs,
+    ) -> str:
+        safe_body = body if isinstance(body, dict) else {}
+        messages_arg = __messages__ or kwargs.get("__messages__")
+        if self.valves.require_trigger_phrase and not self._has_trigger_phrase(
+            safe_body, messages_arg
+        ):
+            return await self._run_workload(
+                body,
+                __user__=__user__,
+                __request__=__request__,
+                __metadata__=__metadata__,
+                __files__=__files__,
+                __messages__=__messages__,
+                __event_emitter__=__event_emitter__,
+                **kwargs,
+            )
+
+        metadata = __metadata__ if isinstance(__metadata__, dict) else {}
+        session = None
+        try:
+            access = WorkloadAccessContext.from_artifact_context(
+                self._artifact_context(
+                    user=__user__,
+                    metadata=metadata,
+                    body=safe_body,
+                    kwargs=kwargs,
+                    normalization_run_id="workload_admission_preflight",
+                )
+            )
+            authority = self._workload_authority()
+            ticket = authority.submit(job_kind=WorkloadKind.GATE1, access=access)
+            self.last_workload_job_id = ticket.job_id
+            self.last_workload_snapshot = authority.snapshot(
+                job_id=ticket.job_id,
+                access=access,
+            )
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=False
+            )
+
+            async def on_wait(snapshot):
+                self.last_workload_snapshot = snapshot
+                await self._emit_workload_snapshot(
+                    __event_emitter__, snapshot, done=False
+                )
+
+            session = await authority.wait_for_admission(
+                job_id=ticket.job_id,
+                access=access,
+                on_wait=on_wait,
+            )
+            self._active_workload_session = session
+            self._workload_review_items = 0
+            self.last_workload_snapshot = session.snapshot()
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=False
+            )
+            with session.keepalive():
+                async with session.cancellation_scope():
+                    content = await self._run_workload(
+                        body,
+                        __user__=__user__,
+                        __request__=__request__,
+                        __metadata__=__metadata__,
+                        __files__=__files__,
+                        __messages__=__messages__,
+                        __event_emitter__=__event_emitter__,
+                        **kwargs,
+                    )
+                if not session.terminal:
+                    self._finalize_workload_publication()
+                else:
+                    self.last_workload_snapshot = session.snapshot()
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=True
+            )
+            return content
+        except WorkloadCancelledError:
+            if session is not None:
+                self.last_workload_snapshot = session.snapshot()
+            await self._emit(
+                __event_emitter__,
+                "Broker Reports workload cancelled; no partial success was published.",
+                done=True,
+            )
+            return "Broker Reports workload cancelled. Partial successful output was not published."
+        except asyncio.CancelledError:
+            if session is not None and not session.terminal:
+                session.cancel("caller_task_cancelled")
+            raise
+        except Exception as exc:
+            if session is not None and not session.terminal:
+                session.fail(self._workload_failure_code(exc))
+                self.last_workload_snapshot = session.snapshot()
+            raise
+        finally:
+            self._active_workload_session = None
+
+    async def _run_workload(
         self,
         body: dict,
         __user__=None,
@@ -275,6 +410,11 @@ class Pipe:
             input_context={
                 **input_context,
                 "normalizer_version": NORMALIZER_VERSION,
+                "workload_job_id": (
+                    self._active_workload_session.job_id
+                    if self._active_workload_session is not None
+                    else None
+                ),
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
@@ -304,6 +444,8 @@ class Pipe:
             },
             extra_private_markers=self._private_markers(file_refs),
             bounded_graph=bounded_graph,
+            workload_checkpoint=self._workload_checkpoint,
+            workload_progress=self._workload_progress,
         )
         table_intake = self._maybe_run_pdf_table_intake(
             result=result,
@@ -323,34 +465,64 @@ class Pipe:
         )
         result.package["pdf_dual_vlm"] = dual_vlm["safe_summary"]
         result.package["private_pdf_dual_vlm_decisions"] = dual_vlm["private_decisions"]
-        structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
-            store=artifact_store,
-            result=result,
-            context=artifact_context,
-            retention_policy=retention_policy,
-            file_inputs=file_inputs,
-            request=__request__,
-        )
+        with self._provider_slot_if_enabled(
+            bool(self.valves.pdf_structural_repair_shadow_enabled),
+            self.valves.pdf_structural_repair_provider_profile,
+        ):
+            structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                file_inputs=file_inputs,
+                request=__request__,
+            )
         result = self._attach_pdf_structural_repair_shadow(
             result=result,
             shadow_result=structural_shadow,
         )
-        result = await self._maybe_run_passport_stage(
-            result=result,
-            user=__user__,
-            request=__request__,
-            metadata=safe_metadata,
-            body=safe_body,
-            event_emitter=__event_emitter__,
+        result = await self._run_provider_awaitable(
+            self._maybe_run_passport_stage(
+                result=result,
+                user=__user__,
+                request=__request__,
+                metadata=safe_metadata,
+                body=safe_body,
+                event_emitter=__event_emitter__,
+            ),
+            enabled=bool(self.valves.passport_enabled),
+            provider_id="openwebui_completion",
         )
-        result = await self._maybe_run_clarification_stage(
-            result=result,
-            user=__user__,
-            request=__request__,
-            metadata=safe_metadata,
-            body=safe_body,
-            event_emitter=__event_emitter__,
+        result = await self._run_provider_awaitable(
+            self._maybe_run_clarification_stage(
+                result=result,
+                user=__user__,
+                request=__request__,
+                metadata=safe_metadata,
+                body=safe_body,
+                event_emitter=__event_emitter__,
+            ),
+            enabled=bool(self.valves.clarification_enabled),
+            provider_id="openwebui_completion",
         )
+        with self._provider_slot_if_enabled(
+            bool(self.valves.pdf_hybrid_shadow_enabled),
+            self.valves.pdf_hybrid_provider_profile,
+        ):
+            hybrid_shadow = self._maybe_run_pdf_hybrid_shadow(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                file_inputs=file_inputs,
+                request=__request__,
+            )
+        self._workload_review_items = sum(
+            item.get("review_required") is True
+            for item in dual_vlm.get("private_decisions") or []
+            if isinstance(item, dict)
+        )
+        self._workload_checkpoint()
         artifact_manifest = persist_gate1_result(
             store=artifact_store,
             result=result,
@@ -358,14 +530,7 @@ class Pipe:
             retention_policy=retention_policy,
             source_file_refs=self._source_file_refs(file_refs),
         )
-        hybrid_shadow = self._maybe_run_pdf_hybrid_shadow(
-            store=artifact_store,
-            result=result,
-            context=artifact_context,
-            retention_policy=retention_policy,
-            file_inputs=file_inputs,
-            request=__request__,
-        )
+        self._finalize_workload_publication()
         self.last_safe_report = result.safe_report
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
@@ -478,12 +643,18 @@ class Pipe:
                 documents_total=len(inventory),
             )
         try:
-            outcome = factory.create_for_openwebui(request).run(documents)
+            with self._provider_slot_if_enabled(
+                True,
+                config.detector_provider_profile,
+            ):
+                outcome = factory.create_for_openwebui(request).run(documents)
             return {
                 "safe_summary": outcome.safe_summary,
                 "private_candidates": outcome.private_candidates,
                 "private_detection_attempts": outcome.private_detection_attempts,
             }
+        except WorkloadAuthorityError:
+            raise
         except (PdfTableIntakeError, RuntimeError, ValueError) as exc:
             return self._pdf_table_intake_failure(
                 config,
@@ -569,13 +740,16 @@ class Pipe:
                 or intake_summary.get("status") != "completed"
             ):
                 raise PdfDualVlmRuntimeError("pdf_dual_vlm_table_intake_not_ready")
-            outcome = factory.create_for_openwebui(request).run(
-                table_intake.get("private_candidates") or []
-            )
+            outcome = factory.create_for_openwebui(
+                request,
+                provider_budget=self._dual_vlm_provider_budget,
+            ).run(table_intake.get("private_candidates") or [])
             return {
                 "safe_summary": outcome.safe_summary,
                 "private_decisions": outcome.private_decisions,
             }
+        except WorkloadAuthorityError:
+            raise
         except (PdfDualVlmRuntimeError, RuntimeError, ValueError) as exc:
             return self._pdf_dual_vlm_failure(
                 config,
@@ -2014,6 +2188,124 @@ class Pipe:
             if isinstance(candidate, dict):
                 return candidate
         return {}
+
+    def _workload_authority(self):
+        artifact_db = Path(self.valves.artifact_store_path)
+        workload_db = (
+            Path(self.valves.workload_store_path)
+            if str(self.valves.workload_store_path or "").strip()
+            else artifact_db.with_name("workloads.sqlite3")
+        )
+        temp_root = (
+            Path(self.valves.workload_temp_root)
+            if str(self.valves.workload_temp_root or "").strip()
+            else Path(self.valves.artifact_payload_root).parent / "workload-temp"
+        )
+        return WorkloadAuthorityFactory(
+            WorkloadAuthorityConfig(
+                sqlite_path=workload_db,
+                temp_root=temp_root,
+                gate1_concurrency=1,
+                gate2_concurrency=2,
+                provider_budgets=provider_budgets_from_json(
+                    self.valves.workload_provider_budgets_json
+                ),
+                lease_seconds=float(self.valves.workload_lease_seconds),
+                poll_interval_seconds=float(
+                    self.valves.workload_poll_interval_seconds
+                ),
+            )
+        ).create()
+
+    def _workload_checkpoint(self) -> None:
+        if self._active_workload_session is not None:
+            self._active_workload_session.checkpoint()
+
+    def _workload_progress(self, state: str, detail: dict[str, Any]) -> None:
+        if self._active_workload_session is not None:
+            self.last_workload_snapshot = self._active_workload_session.transition(
+                WorkloadState(state),
+                event_code=f"{state}_started",
+                safe_detail=detail,
+            )
+
+    def _provider_slot_if_enabled(self, enabled: bool, provider_id: str):
+        if not enabled or self._active_workload_session is None:
+            return nullcontext()
+        return self._active_workload_session.provider_slot(
+            str(provider_id),
+            resume_state=WorkloadState.VALIDATING,
+        )
+
+    def _dual_vlm_provider_budget(self, provider_name: str):
+        provider_ids = {"gemini": "google_gemini", "openai": "openai_gpt"}
+        try:
+            provider_id = provider_ids[provider_name]
+        except KeyError as exc:
+            raise WorkloadAuthorityError(
+                "workload_provider_mapping_missing"
+            ) from exc
+        return self._provider_slot_if_enabled(True, provider_id)
+
+    async def _run_provider_awaitable(
+        self,
+        awaitable,
+        *,
+        enabled: bool,
+        provider_id: str,
+    ):
+        if not enabled or self._active_workload_session is None:
+            return await awaitable
+        try:
+            async with self._active_workload_session.provider_slot_async(
+                provider_id,
+                resume_state=WorkloadState.VALIDATING,
+            ):
+                return await awaitable
+        except BaseException:
+            if inspect.iscoroutine(awaitable):
+                awaitable.close()
+            raise
+
+    def _finalize_workload_publication(self) -> None:
+        session = self._active_workload_session
+        if session is None or session.terminal:
+            return
+        if self._workload_review_items:
+            self.last_workload_snapshot = session.await_review(
+                safe_detail={
+                    "review_items": self._workload_review_items,
+                    "canonical_publication": False,
+                }
+            )
+        else:
+            self.last_workload_snapshot = session.complete(
+                safe_detail={"partial_success_published": False}
+            )
+
+    async def _emit_workload_snapshot(
+        self,
+        emitter,
+        snapshot: dict[str, Any] | None,
+        *,
+        done: bool,
+    ) -> None:
+        if not snapshot:
+            return
+        description = (
+            f"Broker Reports job {snapshot['job_id']} state: {snapshot['state']}"
+        )
+        if snapshot.get("queue_position") is not None:
+            description += f" (queue {snapshot['queue_position']})"
+        if snapshot.get("provider_queue_position") is not None:
+            description += f" (provider queue {snapshot['provider_queue_position']})"
+        await self._emit(emitter, description, done=done)
+
+    @staticmethod
+    def _workload_failure_code(exc: BaseException) -> str:
+        raw = str(getattr(exc, "code", "") or exc.__class__.__name__).lower()
+        normalized = re.sub(r"[^a-z0-9_.:-]+", "_", raw).strip("_")
+        return (normalized or "operation_failed")[:128]
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:

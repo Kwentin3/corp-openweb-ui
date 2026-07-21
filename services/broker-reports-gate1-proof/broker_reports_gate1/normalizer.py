@@ -5,6 +5,7 @@ import hashlib
 import time
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
+from typing import Any, Callable
 
 from . import blockers as blocker_factory
 from .archive_intake import Gate1ArchiveIntakeFactory
@@ -67,7 +68,19 @@ class Gate1Normalizer:
         input_context: dict | None = None,
         extra_private_markers: list[str] | None = None,
         bounded_graph=None,
+        workload_checkpoint: Callable[[], Any] | None = None,
+        workload_progress: Callable[[str, dict[str, Any]], Any] | None = None,
     ) -> NormalizationResult:
+        def checkpoint() -> None:
+            if workload_checkpoint is not None:
+                workload_checkpoint()
+
+        def progress(state: str, detail: dict[str, Any]) -> None:
+            checkpoint()
+            if workload_progress is not None:
+                workload_progress(state, detail)
+
+        progress("normalizing", {"root_sources_total": len(file_inputs)})
         input_summaries = [self._input_summary(item) for item in file_inputs]
         run_id = normalization_run_id(input_summaries)
         if bounded_graph is not None and bounded_graph.normalization_run_id != run_id:
@@ -136,6 +149,7 @@ class Gate1Normalizer:
 
         index = 0
         while processing_inputs:
+            checkpoint()
             file_input, root_input_ordinal = processing_inputs.popleft()
             index += 1
             extension = extension_from_name(
@@ -422,6 +436,12 @@ class Gate1Normalizer:
                 table_projection_decisions.extend(table_projection_result.decisions)
                 table_projection_summaries.append(table_projection_result.safe_summary)
             del full_source_result, table_projection_result, new_slices, content_bytes
+            checkpoint()
+
+        progress(
+            "building_document_memory",
+            {"document_sources_total": len(documents)},
+        )
 
         archive_member_document_refs = {
             str(document.get("archive_member_ref") or ""): str(
@@ -551,6 +571,13 @@ class Gate1Normalizer:
         package = apply_domain_ingestion_artifacts(
             package,
             copy_package=bounded_graph is None,
+        )
+        progress(
+            "validating",
+            {
+                "document_sources_total": len(documents),
+                "blockers_total": len(blockers),
+            },
         )
         artifact_validation = validate_artifacts(package)
         package["validation_result"] = artifact_validation

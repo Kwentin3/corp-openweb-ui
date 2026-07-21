@@ -116,6 +116,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_model_requests", source)
         self.assertIn("gate2_provider_adapters", source)
         self.assertIn("gate2_model_clients", source)
+        self.assertIn("workload_authority", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
         self.assertNotIn("sys.path.insert", source)
@@ -128,6 +129,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(
             hasattr(bundled_package, "Gate2StructuredModelClientFactory")
         )
+        self.assertTrue(hasattr(bundled_package, "WorkloadAuthorityFactory"))
         self.assertTrue(
             hasattr(bundled_package, "Gate2ProviderAdapterFactory")
         )
@@ -161,6 +163,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
     def test_gate2_domain_bundle_is_closed_world_and_is_the_narrow_customer_path(self):
         source = DOMAIN_BUNDLE.read_text(encoding="utf-8")
         for module_name in (
+            "workload_authority",
             "gate2_model_contracts",
             "gate2_model_requests",
             "gate2_provider_adapters",
@@ -182,6 +185,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(
             hasattr(bundled_package, "Gate2DomainSourceFactRuntimeFactory")
         )
+        self.assertTrue(hasattr(bundled_package, "WorkloadAuthorityFactory"))
         self.assertTrue(
             hasattr(bundled_package, "Gate2SourceFactStitcherFactory")
         )

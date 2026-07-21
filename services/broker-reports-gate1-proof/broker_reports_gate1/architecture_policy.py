@@ -30,12 +30,18 @@ VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES = frozenset(
 VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
+LOCAL_OCR_WORKER_POOL_ALLOWED = False
 PROVIDER_OUTPUT_AUTHORITY = "typed_proposal_only"
 CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_plus_explicit_review"
 MODEL_CANONICAL_AUTHORITY = 0
 GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED = False
 GATE1_INTERMEDIATE_LIFETIME = "one_document_then_seal_persist_release"
 GATE1_PRIVATE_REPRESENTATION_AUTHORITY = "artifactstore_resolver_only"
+WORKLOAD_AUTHORITY = "sqlite_cross_process_single_authority"
+WORKLOAD_ADMISSION = "capacity_queue_plus_worker_lease"
+GATE1_HEAVY_CONCURRENCY = 1
+GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
+WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
     # Maintained repository integration. Atomic stage delivery remains a
@@ -45,6 +51,7 @@ COMPONENT_RUNTIME_STATUSES = {
     "visual_review_boundary": "maintained_default_off",
     "visual_recovery_handoff": "maintained_default_off",
     "gate1_bounded_graph": "maintained",
+    "workload_authority": "maintained",
     # Preserved experiments and historical proof contours.
     "pdf_csv_experiment_provider": "proof_only",
     "pdf_grid_experiment_provider": "proof_only",
@@ -67,13 +74,15 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
 FACTORY_REQUIRED = (
     "Maintained Broker Reports entrypoints must route visual recovery through "
     "the production visual provider factory and deterministic promotion validator; "
-    "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create"
+    "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create; "
+    "all production workloads must route through WorkloadAuthorityFactory.create"
 )
 FORBIDDEN = (
     "Native OpenWebUI processing, Knowledge/RAG/vectorization, whole-document "
     "visual upload, local OCR production dependencies, and model canonical "
     "authority are forbidden; retaining decoded private representations for "
-    "the complete Gate 1 run is forbidden"
+    "the complete Gate 1 run, process-local workload queues and local OCR "
+    "worker pools are forbidden"
 )
 
 

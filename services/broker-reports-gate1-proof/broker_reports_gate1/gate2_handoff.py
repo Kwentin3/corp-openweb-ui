@@ -1527,6 +1527,11 @@ def _safe_metadata_for_payload(package: dict, artifact_type: str) -> dict[str, A
         "gate2_handoff_mode": run.get("gate2_handoff_mode"),
         "files_total": package["summary_counts"]["files_total"],
     }
+    workload_job_id = _object(package.get("input_context")).get(
+        "workload_job_id"
+    )
+    if workload_job_id:
+        metadata["workload_job_id"] = str(workload_job_id)
     if artifact_type == "gate1_issue_ledger_v0":
         summary = (package.get("gate1_issue_ledger") or {}).get("summary") or {}
         metadata.update(

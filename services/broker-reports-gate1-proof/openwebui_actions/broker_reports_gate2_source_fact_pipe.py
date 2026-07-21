@@ -1,14 +1,16 @@
 """
 title: Broker Reports Gate 2 Source Fact Extraction
 author: Alpha Soft
-version: 0.4.0
+version: 0.8.0-workload-authority-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+import re
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +31,15 @@ from broker_reports_gate1 import (
     Gate2StructuredModelClientConfig,
     Gate2StructuredModelClientFactory,
     SOURCE_REQUEST_PROFILE,
+    WorkloadAccessContext,
+    WorkloadAuthorityConfig,
+    WorkloadAuthorityError,
+    WorkloadAuthorityFactory,
+    WorkloadCancelledError,
+    WorkloadKind,
+    WorkloadState,
     gate2_resolve_extraction_model_id,
+    provider_budgets_from_json,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
 
@@ -42,6 +52,19 @@ class Pipe:
         )
         artifact_payload_root: str = Field(
             default="/app/backend/data/broker_reports_gate1/payloads"
+        )
+        workload_store_path: str = Field(default="")
+        workload_temp_root: str = Field(default="")
+        workload_lease_seconds: float = Field(default=90.0, ge=5.0, le=600.0)
+        workload_poll_interval_seconds: float = Field(
+            default=0.2, ge=0.05, le=5.0
+        )
+        workload_provider_budgets_json: str = Field(
+            default=(
+                '{"google_gemini":1,"openai_gpt":2,"anthropic_claude":1,'
+                '"deepseek":1,"zai_glm":1,"alibaba_qwen":1,'
+                '"openwebui_completion":2}'
+            )
         )
         prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         prompt_id: str = Field(default="broker_reports_gate2_source_fact_prompt_v0")
@@ -59,6 +82,8 @@ class Pipe:
         self.valves = self.Valves()
         self.last_safe_summary: dict[str, Any] | None = None
         self.last_runtime_result = None
+        self.last_workload_job_id: str | None = None
+        self.last_workload_snapshot: dict[str, Any] | None = None
 
     async def pipe(
         self,
@@ -103,13 +128,45 @@ class Pipe:
         )
         wave = str(config.get("wave") or self.valves.default_wave or "primary")
         run_mode = str(config.get("run_mode") or "customer")
+        workload_session = None
         try:
+            authority = self._workload_authority()
+            workload_access = WorkloadAccessContext.from_artifact_context(context)
+            self._assert_gate1_workload_completed(
+                authority=authority,
+                access=workload_access,
+                dcp_record=dcp_record,
+            )
             provider_profile_id = str(
                 config.get("provider_profile_id") or self.valves.provider_profile_id
             )
             model_id = gate2_resolve_extraction_model_id(
                 provider_profile_id,
                 str(config.get("model_id") or self.valves.model_id or ""),
+            )
+            ticket = authority.submit(
+                job_kind=WorkloadKind.GATE2_SOURCE,
+                access=workload_access,
+                safe_metadata={"provider_profile_id": provider_profile_id},
+            )
+            self.last_workload_job_id = ticket.job_id
+            self.last_workload_snapshot = authority.snapshot(
+                job_id=ticket.job_id,
+                access=workload_access,
+            )
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=False
+            )
+            workload_session = await authority.wait_for_admission(
+                job_id=ticket.job_id,
+                access=workload_access,
+                on_wait=lambda snapshot: self._on_workload_wait(
+                    __event_emitter__, snapshot
+                ),
+            )
+            self.last_workload_snapshot = workload_session.snapshot()
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=False
             )
             prompt = Gate2ManagedPromptResolverFactory(
                 Gate2PromptConfig(
@@ -136,6 +193,7 @@ class Pipe:
                 ).create(),
                 config=Gate2SourceFactRuntimeConfig(
                     model_id=model_id,
+                    workload_job_id=ticket.job_id,
                     wave=wave,
                     run_mode=run_mode,
                     table_max_rows=int(config.get("table_max_rows") or self.valves.table_max_rows),
@@ -155,15 +213,24 @@ class Pipe:
                 ),
             ).create()
             await self._emit(__event_emitter__, "Gate 2 structured extraction started.", done=False)
-            result = await runtime.run(
-                domain_context_packet_ref=dcp_ref,
-                context=context,
-                prompt_user_context=Gate2PromptUserContext(
-                    user_id=user_id,
-                    user_role=self._user_role(__user__),
-                    user_groups=tuple(self._user_groups(__user__)),
-                ),
-            )
+            with workload_session.keepalive():
+                async with workload_session.cancellation_scope():
+                    async with workload_session.provider_slot_async(
+                        provider_profile_id,
+                        resume_state=WorkloadState.VALIDATING,
+                    ):
+                        result = await runtime.run(
+                            domain_context_packet_ref=dcp_ref,
+                            context=context,
+                            prompt_user_context=Gate2PromptUserContext(
+                                user_id=user_id,
+                                user_role=self._user_role(__user__),
+                                user_groups=tuple(self._user_groups(__user__)),
+                            ),
+                        )
+                    self.last_workload_snapshot = workload_session.complete(
+                        safe_detail={"partial_success_published": False}
+                    )
             self.last_runtime_result = result
             self.last_safe_summary = result.safe_summary
             await self._emit(
@@ -171,8 +238,32 @@ class Pipe:
                 "Gate 2 structured extraction reached a terminal state.",
                 done=True,
             )
+            await self._emit_workload_snapshot(
+                __event_emitter__, self.last_workload_snapshot, done=True
+            )
             return result.compact_russian_summary
-        except (Gate2SourceFactRuntimeError, Gate2PromptError, ArtifactStoreError) as exc:
+        except WorkloadCancelledError:
+            if workload_session is not None:
+                self.last_workload_snapshot = workload_session.snapshot()
+            await self._emit(
+                __event_emitter__,
+                "Gate 2 workload cancelled; no partial success was published.",
+                done=True,
+            )
+            return "Gate 2 workload cancelled. Partial successful output was not published."
+        except asyncio.CancelledError:
+            if workload_session is not None and not workload_session.terminal:
+                workload_session.cancel("caller_task_cancelled")
+            raise
+        except (
+            Gate2SourceFactRuntimeError,
+            Gate2PromptError,
+            ArtifactStoreError,
+            WorkloadAuthorityError,
+        ) as exc:
+            if workload_session is not None and not workload_session.terminal:
+                workload_session.fail(self._workload_failure_code(exc))
+                self.last_workload_snapshot = workload_session.snapshot()
             await self._emit(
                 __event_emitter__,
                 f"Gate 2 blocked: {getattr(exc, 'code', 'gate2_failed_safe')}",
@@ -183,6 +274,76 @@ class Pipe:
                 "Подтверждённые исходные факты не созданы. "
                 "Расчёт налогов, декларация и XLS/XLSX не выполнялись."
             )
+        except Exception as exc:
+            if workload_session is not None and not workload_session.terminal:
+                workload_session.fail(self._workload_failure_code(exc))
+                self.last_workload_snapshot = workload_session.snapshot()
+            raise
+
+    def _workload_authority(self):
+        artifact_db = Path(self.valves.artifact_store_path)
+        workload_db = (
+            Path(self.valves.workload_store_path)
+            if str(self.valves.workload_store_path or "").strip()
+            else artifact_db.with_name("workloads.sqlite3")
+        )
+        temp_root = (
+            Path(self.valves.workload_temp_root)
+            if str(self.valves.workload_temp_root or "").strip()
+            else Path(self.valves.artifact_payload_root).parent / "workload-temp"
+        )
+        return WorkloadAuthorityFactory(
+            WorkloadAuthorityConfig(
+                sqlite_path=workload_db,
+                temp_root=temp_root,
+                gate1_concurrency=1,
+                gate2_concurrency=2,
+                provider_budgets=provider_budgets_from_json(
+                    self.valves.workload_provider_budgets_json
+                ),
+                lease_seconds=float(self.valves.workload_lease_seconds),
+                poll_interval_seconds=float(
+                    self.valves.workload_poll_interval_seconds
+                ),
+            )
+        ).create()
+
+    @staticmethod
+    def _assert_gate1_workload_completed(*, authority, access, dcp_record) -> None:
+        job_id = str(dcp_record.safe_metadata.get("workload_job_id") or "").strip()
+        if not job_id:
+            raise WorkloadAuthorityError("gate1_workload_receipt_missing")
+        snapshot = authority.snapshot(job_id=job_id, access=access)
+        if snapshot["state"] != WorkloadState.COMPLETED.value:
+            raise WorkloadAuthorityError("gate1_workload_not_completed")
+
+    async def _on_workload_wait(self, emitter, snapshot: dict[str, Any]) -> None:
+        self.last_workload_snapshot = snapshot
+        await self._emit_workload_snapshot(emitter, snapshot, done=False)
+
+    async def _emit_workload_snapshot(
+        self,
+        emitter,
+        snapshot: dict[str, Any] | None,
+        *,
+        done: bool,
+    ) -> None:
+        if not snapshot:
+            return
+        description = (
+            f"Broker Reports job {snapshot['job_id']} state: {snapshot['state']}"
+        )
+        if snapshot.get("queue_position") is not None:
+            description += f" (queue {snapshot['queue_position']})"
+        if snapshot.get("provider_queue_position") is not None:
+            description += f" (provider queue {snapshot['provider_queue_position']})"
+        await self._emit(emitter, description, done=done)
+
+    @staticmethod
+    def _workload_failure_code(exc: BaseException) -> str:
+        raw = str(getattr(exc, "code", "") or exc.__class__.__name__).lower()
+        normalized = re.sub(r"[^a-z0-9_.:-]+", "_", raw).strip("_")
+        return (normalized or "operation_failed")[:128]
 
     def _runtime_config(
         self,
