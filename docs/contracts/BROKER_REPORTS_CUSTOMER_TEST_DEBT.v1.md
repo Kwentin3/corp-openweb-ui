@@ -30,6 +30,10 @@ The maintained runtime valve is
 `broker_pdf_neutral_table_profile_v1_enabled`. Its default is `false`. It may be
 enabled explicitly only for private actual-corpus proof, deterministic test
 fixtures and the future positive-holdout procedure while this debt is open.
+The core normalizer enforces those scopes through
+`broker_reports_gate1.customer_debt_policy`; a true flag without an exact
+maintained `proof_scope` terminates with
+`sber_broker_profile_proof_scope_denied`.
 
 Current statuses are distinct:
 
