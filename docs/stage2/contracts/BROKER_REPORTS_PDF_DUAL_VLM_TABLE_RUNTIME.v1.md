@@ -135,6 +135,14 @@ invalidates the pair.
 The human reference is private evidence. Only schema versions, aggregate
 counts, hashes and the compatibility result may enter Git or a safe report.
 
+If the task owner explicitly delegates the visual review to an agent, the
+result must use the separate
+`pdf_dual_vlm_canonical_delegated_reference_contract_v1`. Its reference and
+seal keep `human_reviewed=false`, record the delegation statement only by
+SHA-256, identify the reviewer as `delegated_agent`, and retain the same
+crop-level attestations and provider-output exclusions. A delegated seal must
+never validate as the human-reference schema or be described as human review.
+
 ## Gate 1 integration and privacy
 
 The canonical valves are default-off:

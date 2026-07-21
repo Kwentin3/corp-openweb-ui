@@ -17,7 +17,10 @@ from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (  # noq
 from pdf_dual_vlm_canonical_reference import (  # noqa: E402
     build_decisions_template,
     build_review_template,
+    finalize_delegated_reference,
     finalize_human_reference,
+    validate_delegated_reference,
+    validate_delegated_reference_seal,
     validate_human_reference,
     validate_reference_seal,
     validate_review_template,
@@ -38,10 +41,17 @@ def main(argv: list[str] | None = None) -> int:
     finalize.add_argument("--decisions", type=Path, required=True)
     finalize.add_argument("--output-dir", type=Path, required=True)
 
+    delegated = subparsers.add_parser("finalize-delegated")
+    delegated.add_argument("--review-template", type=Path, required=True)
+    delegated.add_argument("--decisions", type=Path, required=True)
+    delegated.add_argument("--output-dir", type=Path, required=True)
+
     args = parser.parse_args(argv)
     if args.command == "prepare":
         return _prepare(args)
-    return _finalize(args)
+    if args.command == "finalize":
+        return _finalize(args)
+    return _finalize_delegated(args)
 
 
 def _prepare(args: argparse.Namespace) -> int:
@@ -102,6 +112,41 @@ def _finalize(args: argparse.Namespace) -> int:
             "reference_sha256": seal["reference_sha256"],
             "seal_sha256": seal["seal_sha256"],
             "human_reviewed": True,
+            "provider_outputs_used": False,
+            "provider_consensus_used": False,
+        }
+    )
+    return 0
+
+
+def _finalize_delegated(args: argparse.Namespace) -> int:
+    template = json.loads(args.review_template.read_text(encoding="utf-8"))
+    decisions = json.loads(args.decisions.read_text(encoding="utf-8"))
+    reference, seal = finalize_delegated_reference(
+        review_template=template,
+        decisions=decisions,
+    )
+    if validate_delegated_reference(reference) or validate_delegated_reference_seal(
+        reference=reference,
+        seal=seal,
+    ):
+        raise RuntimeError("canonical_delegated_reference_validation_failed")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    reference_path = args.output_dir / "reference.delegated-agent.private.json"
+    seal_path = args.output_dir / "reference.delegated-agent.private.sha256.json"
+    _write_new(reference_path, canonical_json_bytes(reference))
+    _write_new(seal_path, canonical_json_bytes(seal) + b"\n")
+    _print_safe(
+        {
+            "status": "compatible_and_sealed_under_explicit_user_delegation",
+            "cases_total": len(reference["cases"]),
+            "reference_sha256": seal["reference_sha256"],
+            "seal_sha256": seal["seal_sha256"],
+            "human_reviewed": False,
+            "delegated_agent_reviewed": True,
+            "delegation_statement_sha256": seal[
+                "delegation_statement_sha256"
+            ],
             "provider_outputs_used": False,
             "provider_consensus_used": False,
         }

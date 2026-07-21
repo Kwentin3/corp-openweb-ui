@@ -69,6 +69,23 @@ def _decisions(template: dict) -> dict:
     return decisions
 
 
+def _delegated_decisions(template: dict) -> dict:
+    decisions = REFERENCE.build_delegated_decisions_template(
+        template,
+        delegator_identity="authenticated_thread_user",
+        delegation_statement_sha256="a" * 64,
+    )
+    decisions["reviewer"] = {
+        "kind": "delegated_agent",
+        "identity": "OpenAI Codex",
+        "reviewed_at": "2026-07-21T15:30:00+03:00",
+    }
+    for entry in decisions["entries"]:
+        entry["decision"] = "approve"
+        entry["attestations"] = {key: True for key in REFERENCE.REVIEW_ATTESTATIONS}
+    return decisions
+
+
 def test_review_template_is_contract_bound_and_contains_no_provider_output() -> None:
     template = _template()
 
@@ -117,6 +134,85 @@ def test_ai_reviewer_identity_is_rejected(identity: str) -> None:
             review_template=template,
             decisions=decisions,
         )
+
+
+def test_explicit_user_delegation_can_seal_distinct_nonhuman_reference() -> None:
+    template = _template()
+    reference, seal = REFERENCE.finalize_delegated_reference(
+        review_template=template,
+        decisions=_delegated_decisions(template),
+    )
+
+    assert REFERENCE.validate_delegated_reference(reference) == []
+    assert (
+        REFERENCE.validate_delegated_reference_seal(reference=reference, seal=seal)
+        == []
+    )
+    assert reference["human_reviewed"] is False
+    assert reference["delegated_agent_reviewed"] is True
+    assert reference["reviewer"]["kind"] == "delegated_agent"
+    assert reference["delegation"] == {
+        "kind": "explicit_user_delegation",
+        "delegator_identity": "authenticated_thread_user",
+        "delegation_statement_sha256": "a" * 64,
+        "delegation_statement_retained": False,
+    }
+    assert reference["lineage"]["provider_outputs_used"] is False
+    assert reference["lineage"]["provider_consensus_used"] is False
+    assert REFERENCE.validate_human_reference(reference)
+
+
+def test_canonical_json_disk_roundtrip_preserves_finalizable_decisions() -> None:
+    template = _template()
+    human_decisions = json.loads(
+        REFERENCE.canonical_json_bytes(_decisions(template)).decode("utf-8")
+    )
+    delegated_decisions = json.loads(
+        REFERENCE.canonical_json_bytes(_delegated_decisions(template)).decode("utf-8")
+    )
+
+    human_reference, human_seal = REFERENCE.finalize_human_reference(
+        review_template=template,
+        decisions=human_decisions,
+    )
+    delegated_reference, delegated_seal = REFERENCE.finalize_delegated_reference(
+        review_template=template,
+        decisions=delegated_decisions,
+    )
+
+    assert REFERENCE.validate_reference_seal(
+        reference=human_reference,
+        seal=human_seal,
+    ) == []
+    assert REFERENCE.validate_delegated_reference_seal(
+        reference=delegated_reference,
+        seal=delegated_seal,
+    ) == []
+
+
+def test_delegated_reference_or_authority_mutation_is_detected() -> None:
+    template = _template()
+    reference, seal = REFERENCE.finalize_delegated_reference(
+        review_template=template,
+        decisions=_delegated_decisions(template),
+    )
+    tampered_reference = copy.deepcopy(reference)
+    tampered_reference["delegation"]["delegation_statement_sha256"] = "b" * 64
+    tampered_seal = copy.deepcopy(seal)
+    tampered_seal["delegated_agent_reviewed"] = False
+
+    assert "canonical_delegated_reference_seal_invalid" in (
+        REFERENCE.validate_delegated_reference_seal(
+            reference=tampered_reference,
+            seal=seal,
+        )
+    )
+    errors = REFERENCE.validate_delegated_reference_seal(
+        reference=reference,
+        seal=tampered_seal,
+    )
+    assert "canonical_delegated_reference_seal_invalid" in errors
+    assert "canonical_delegated_reference_seal_hash_invalid" in errors
 
 
 def test_incomplete_review_attestation_cannot_create_reference() -> None:
