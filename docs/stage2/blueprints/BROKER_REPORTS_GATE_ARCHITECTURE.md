@@ -1,8 +1,8 @@
 # Broker Reports Global Gate Architecture
 
-Date: 2026-07-18
+Date: 2026-07-21
 
-Status: `NORMATIVE_DOMAIN_OWNERSHIP_MODEL`
+Status: `VERSIONED_NORMATIVE_ARCHITECTURE_POLICY_V1`
 
 Scope: the global Broker Reports product pipeline. This document does not
 number repository-wide Stage 2 governance gates and does not redefine local
@@ -10,18 +10,42 @@ format-capability gates.
 
 ## 1. Authority and decision
 
-This is the canonical entry point for Broker Reports gate placement, domain
-ownership and terminology.
+This document is the single architectural authority for Broker Reports gate
+placement, runtime policy, domain ownership and terminology.  Versioned runtime
+contracts implement this authority; per-gate blueprints elaborate it; dated
+reports prove one revision and scope; research reports preserve non-normative
+history.  None of those sources may override this document implicitly.
 
-Authority is intentionally split:
+The following policy decisions are normative:
 
-1. Versioned runtime contracts and maintained runtime code define behavior,
-   schemas, validation and access semantics.
-2. This document defines which global product gate owns each decision and
-   artifact family.
-3. Maintained per-gate blueprints elaborate one gate without changing this map.
-4. Dated closure reports prove one revision and one declared scope.
-5. Research reports preserve history and are non-normative.
+1. Broker Reports is a separate controlled source-processing pipeline.  Its
+   source documents never enter native OpenWebUI document processing,
+   Knowledge, RAG, embeddings or vectorization.
+2. Gate 1 owns source text/order/layout, canonical neutral tables, visual
+   evidence, provenance and structural uncertainty.  Gate 2 starts only at
+   typed source facts and source-local financial roles.  Gate 3 and Gate 4 are
+   outside the current recovery program.
+3. Text-layer PDF processing remains deterministic.  Visual recovery is a
+   bounded exception accepting exactly one declared page or one bounded table
+   crop with source and image lineage; whole-document provider upload is
+   forbidden when that smaller scope exists.
+4. Production visual-table provider profiles are exactly `google_gemini` and
+   `openai_gpt`.  Provider output is a typed proposal.  Confidence, provider
+   agreement and raw model output have zero canonical authority.
+5. Canonical promotion belongs only to maintained deterministic validators and
+   explicit source-to-table accounting.  Ambiguity terminates in review,
+   rejection or fail-closed unresolved state.
+6. PaddleOCR, PaddleOCR-VL and comparable heavy local OCR frameworks are outside
+   production runtime.  Preserved implementations are `proof_only`,
+   `offline_only` or `unsupported_runtime`; they are not bundle dependencies or
+   capacity assumptions.
+7. Private payloads are resolved only through `ArtifactResolver` under trusted
+   server context.  Customer documents, values, crops, raw provider responses
+   and local paths never enter Git or safe reports.
+8. The frozen Sber profile and its unseen positive holdout are governed by
+   [Broker Reports Customer Test Debt v1](../../contracts/BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md):
+   implementation proof is preserved, generalization is external debt and the
+   release valve remains default-off.
 
 The global product sequence has four gates:
 
@@ -80,7 +104,7 @@ preparation belong to global Gate 4.
 | Semantic decisions allowed | Container/format detection, readability, document taxonomy/usage classification and non-financial structural labels. |
 | Semantic decisions forbidden | Typed financial facts, event consolidation, tax treatment, tax base, declaration fields and output preparation. |
 | Deterministic responsibilities | Hashing, byte/profile limits, parsing, source refs, loss/truncation accounting, normalized structures, validation, access and lifecycle metadata. |
-| LLM/VLM responsibilities | Bounded metadata classification or clarification; local PDF table-region detection under a strict contract. Model output never overrides parser/validator authority. |
+| LLM/VLM responsibilities | Bounded metadata classification or clarification; one-page/one-crop Gemini or OpenAI visual-table proposal under a strict contract. Model output never overrides parser/validator authority. |
 | Validation/completeness boundary | Completeness is asserted only for the declared normalized source/document scope and its supported format profile. Unsupported, truncated or ambiguous content remains explicit. |
 | Storage/access | Private source content uses `private_case` / `project_artifact_payload`. Safe indexes use `safe_internal` / `project_artifact_store`. Chat receives whitelist summaries only. |
 | Entry criteria | Authorized source refs, explicit retention policy and a supported or explicitly blocked format path. |
@@ -187,6 +211,7 @@ manifest.
 | Format profilers, `CsvSupportedProfileFactory`, `FullSourceArtifactFactory` | Gate 1 | Format detection and representation preservation | Normative runtime; private source content | DCP/Gate 2 | Implemented; acceptance varies by format |
 | Normalized text/table/source payload and unit contracts | Gate 1 | Source representation | Versioned/private; table projection is structural, not financial | Gate 2 | Implemented for supported paths |
 | PDF Table Intake Gate 1 | Gate 1 local child capability | PDF page -> private raster candidates | Versioned/private; local gate terminology | Downstream Gate 1 table normalizer | Closed for accepted bounded scope |
+| Bounded visual-table VLM adapters | Gate 1 | One declared page/crop -> typed structural proposal | Production Gemini/OpenAI transport; proposal-only, private | Deterministic visual validator | Maintained production policy |
 | PDF hybrid, structural-repair, dual-oracle and direct-PDF contours | Gate 1 research/shadow unless promoted | Alternative structural reconstruction evidence | Evidence-only or default-off; not product authority | Research/quality decisions | Research-only, rejected or unclosed by contour |
 | `domain_context_packet_v0` | Gate 1 | Safe handoff root and stage readiness | Normative safe-internal refs | Gate 2 | Implemented |
 | `gate1_issue_ledger_v0` | Gate 1 | Source/intake issue authority | Normative safe-internal; carried forward by ref | Gates 2-4 | Implemented |
@@ -237,7 +262,7 @@ The allowed status vocabulary is:
 | Global Gate 1 | Implemented; partially closed | Runtime exists. Named format/sub-capability closures do not imply universal format support. |
 | CSV v1 normalization | Closed for bounded supported profile | Whole accepted CSV representation is normalized under declared limits. |
 | PDF Table Intake local Gate 1 | Closed | Table regions become private raster candidates; no cells or financial meaning are claimed. |
-| Canonical PDF table reconstruction | Research only / open | The accepted raster-candidate boundary does not close canonical cells/table JSON. |
+| Canonical visual-table reconstruction | Implemented policy; bounded runtime acceptance required | Gemini/OpenAI may propose one declared page/crop. Only deterministic validation and source accounting may promote cells/table JSON. |
 | Global Gate 2 | Implemented; partially closed | Bounded typed verticals pass. Whole-document/full-corpus/all-format semantic coverage is not closed. |
 | CSV pre-Gate-3 vertical | Closed for bounded scope | One selected segment is terminal and validated; 343 segments are explicit deferred scope. |
 | Gate 3 context manifest | Implemented; stage proven for bounded CSV scope | Ready means the declared Gate 2 graph is acceptable as Gate 3 input. |
@@ -285,6 +310,7 @@ The following are not global product gates:
 - PDF hybrid/table vertical steps numbered inside their own contracts;
 - direct whole-PDF, compact JSON/CSV, dual-VLM and structural-repair research
   arms;
+- Paddle/local-OCR proof and worker experiments, which remain offline evidence;
 - dated “pre-Gate-3” or “vertical closure” proof labels;
 - Stage 2 implementation gates.
 
@@ -350,7 +376,7 @@ Bounded closure evidence remains separate:
 
 ```text
 BROKER_REPORTS_GATE_ARCHITECTURE:
-FINALIZED
+VERSIONED_AND_AUTHORITATIVE
 
 DOMAIN_OWNERSHIP:
 CONSISTENT
@@ -360,6 +386,15 @@ RECONCILED
 
 DOCUMENTATION_RUNTIME_ALIGNMENT:
 PROVEN
+
+VISUAL_RECOVERY_PRODUCTION_POLICY:
+GEMINI_AND_OPENAI_VLM
+
+PADDLE_LOCAL_OCR_PRODUCTION_STATUS:
+OUT_OF_SCOPE
+
+MODEL_CANONICAL_AUTHORITY:
+ZERO
 
 FUTURE_GATE_ASSIGNMENT_MODEL:
 READY

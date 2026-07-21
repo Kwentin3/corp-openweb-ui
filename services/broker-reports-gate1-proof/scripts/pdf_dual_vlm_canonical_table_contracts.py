@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+
+RUNTIME_STATUS = "proof_only"
+
 import hashlib
 import json
 import re
