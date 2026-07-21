@@ -265,7 +265,7 @@ Controlled PDF SHA-256:
 
 Финальный safe evidence:
 
-`local/stage2/broker_reports_pdf_structural_repair_2026-07-14-replay2/evidence.safe.json`
+ignored private replay evidence (path withheld)
 
 Safe evidence SHA-256:
 
@@ -289,7 +289,7 @@ Terminal seal:
 
 Fresh holdout safe preflight terminal:
 
-`local/stage2/broker_reports_pdf_structural_holdout_2026-07-14-preflight1/holdout.preflight.safe.json`
+ignored private holdout preflight evidence (path withheld)
 
 Fresh holdout safe SHA-256:
 
@@ -301,7 +301,7 @@ Fresh holdout private preflight SHA-256:
 
 Fresh holdout safe atom-count diagnostic:
 
-`local/stage2/broker_reports_pdf_structural_holdout_2026-07-14-preflight1/holdout.preflight.diagnostic.safe.json`
+ignored private holdout diagnostic evidence (path withheld)
 
 Diagnostic file SHA-256:
 

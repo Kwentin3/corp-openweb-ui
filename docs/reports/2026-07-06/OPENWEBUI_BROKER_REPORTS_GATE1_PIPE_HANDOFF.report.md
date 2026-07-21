@@ -299,7 +299,7 @@ Suggested implementation order:
 Use this to resume tomorrow:
 
 ```text
-We are in repo D:\Users\Roman\Desktop\Проекты\corp-openweb ui.
+We are in the canonical repository worktree.
 Continue Stage 2 Broker Reports / XLS NDFL Gate 1 work.
 Read docs/reports/2026-07-06/OPENWEBUI_BROKER_REPORTS_GATE1_PIPE_HANDOFF.report.md first.
 Current proven workflow: OpenWebUI Workspace Model uses base model Pipe Function `broker_reports_gate1_pipe`; user attaches files and sends `нормализуй`; Pipe receives file refs and returns safe Gate 1 report.

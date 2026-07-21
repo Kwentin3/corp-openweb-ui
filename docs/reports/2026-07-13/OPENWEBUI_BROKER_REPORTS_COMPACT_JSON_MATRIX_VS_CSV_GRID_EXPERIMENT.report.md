@@ -239,7 +239,7 @@ Production Gate 2 pipeline, selection policy и deployed bundles не измен
 
 ## Проверка и evidence
 
-Canonical live run: `local/stage2/broker_reports_pdf_grid_representation_2026-07-13-live2`.
+Canonical live run: ignored private evidence root (path withheld).
 
 Live1 исключен до анализа: первый старт обнаружил pre-request различие hash field у full/window crop; после исправления частичный restart встретил TLS `BAD_RECORD_MAC`. Для canonical comparison создан свежий live2. В live2 транспортных terminal failures нет.
 

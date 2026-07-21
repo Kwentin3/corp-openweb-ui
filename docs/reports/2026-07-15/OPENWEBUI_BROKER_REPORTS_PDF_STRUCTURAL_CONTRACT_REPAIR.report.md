@@ -1,7 +1,7 @@
 # OpenWebUI Broker Reports: PDF Structural Contract Repair
 
 Date: 2026-07-15
-Repository: `D:\Users\Roman\Desktop\Проекты\corp-openweb ui`
+Repository: `<repository-root>`
 Mode: default-disabled Gate 1 research; production Gate 2 authority unchanged.
 
 ## Verdict

@@ -57,7 +57,7 @@ git rev-parse HEAD
 3f23a0c5acb7c8634e229cb06b0837b26b0c59ea
 
 git worktree list
-D:/Users/Roman/Desktop/.../corp-openweb ui 3f23a0c [main]
+<redacted-worktree> 3f23a0c [main]
 
 git rev-list --left-right --count HEAD...origin/main
 0 0

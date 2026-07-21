@@ -134,10 +134,8 @@ Parser-only pre-registration заранее выбрал три таблицы E
 
 Private evidence:
 
-- `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_prereg1`;
-- `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_run1`;
-- `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_reference1`;
-- `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_score1`.
+- preregistration, run, reference and score remain in the ignored private
+  evidence root.
 
 ### Development regression после windowing
 
@@ -145,13 +143,13 @@ Private evidence:
 
 Этот прогон дополнительно нашёл ошибку терминального валидатора: он отвергал законную склейку только attempt 2 после плохого ответа attempt 1. Условие исправлено без смешивания попыток; добавлен terminal test.
 
-Evidence: `local/stage2/broker_reports_pdf_structural_holdout_development_2026-07-14_run4`.
+Evidence: ignored private development evidence root (path withheld).
 
 ## Live OpenWebUI
 
 ### Gate 1 structural canary
 
-Успешный canary: `local/stage2/broker_reports_gate1_structural_shadow_canary_2026-07-14_run3`.
+Успешный canary: ignored private evidence root (path withheld).
 
 - Live bundle SHA: `4c5d5005bce561e41b2ca50df58b0d958a070b694c9c163471c66b22af1fb150`.
 - Два synthetic фрагмента: `2/2 accepted_unique_consensus`.

@@ -85,7 +85,7 @@ of the generated package through `python-docx`.
 Commands run from:
 
 ```text
-D:\Users\Roman\Desktop\Проекты\corp-openweb ui
+<repository-root>
 shell=powershell
 ```
 
