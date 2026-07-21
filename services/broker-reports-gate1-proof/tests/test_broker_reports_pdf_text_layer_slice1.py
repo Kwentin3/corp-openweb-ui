@@ -516,7 +516,14 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             )
             self.assertTrue(source_file_id)
             self.assertTrue(
-                store.mark_source_file_deleted(openwebui_file_id=source_file_id)
+                store.mark_source_file_deleted(
+                    ArtifactAccessContext(
+                        **{
+                            **context.__dict__,
+                            "source_file_id": source_file_id,
+                        }
+                    )
+                )
             )
             after_source_delete = service.audit_and_build(
                 domain_context_packet_ref=dcp_ref,

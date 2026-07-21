@@ -7,6 +7,9 @@ from typing import Any, Protocol
 
 
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
+ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = (
+    "broker_reports_artifact_lifecycle_result_v1"
+)
 
 
 class ArtifactStoreError(RuntimeError):
@@ -210,6 +213,31 @@ class ArtifactAccessContext:
     workspace_model_id: str | None = None
     allow_private: bool = False
     require_source_available: bool = False
+    source_file_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ArtifactLifecycleResult:
+    operation: str
+    status: str
+    artifact_ids: tuple[str, ...]
+    records_changed: int
+    schema_version: str = ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION
+
+    @classmethod
+    def from_changed_ids(
+        cls,
+        *,
+        operation: str,
+        artifact_ids: list[str] | tuple[str, ...],
+    ) -> "ArtifactLifecycleResult":
+        ordered = tuple(sorted(set(artifact_ids)))
+        return cls(
+            operation=operation,
+            status="changed" if ordered else "no_op",
+            artifact_ids=ordered,
+            records_changed=len(ordered),
+        )
 
 
 @dataclass
@@ -258,3 +286,29 @@ class ArtifactStorePort(Protocol):
     def list_by_run(self, normalization_run_id: str) -> list[ArtifactRecord]: ...
 
     def read_payload(self, record: ArtifactRecord) -> Any: ...
+
+    def expire_run(
+        self,
+        context: ArtifactAccessContext,
+        now: datetime | None = None,
+    ) -> ArtifactLifecycleResult: ...
+
+    def purge_run(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult: ...
+
+    def purge_case(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult: ...
+
+    def purge_chat(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult: ...
+
+    def mark_source_file_deleted(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult: ...

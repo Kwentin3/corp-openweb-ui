@@ -47,7 +47,7 @@ Current repository:
 
 External local context inspected:
 
-- `D:\Users\Roman\Desktop\Проекты\AutoProtokol`;
+- `<external-project-root>`;
 - `stt/test-transcription-flow.ts.txt`;
 - `data/stt-providers.json`;
 - `presentation/gemini.service.ts.txt`;

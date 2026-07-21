@@ -237,8 +237,8 @@ class BrokerReportsGate1DocumentMemoryV1Test(unittest.TestCase):
             with self.assertRaises(ArtifactStoreError):
                 resolver.resolve(manifest_ref, wrong_context)
 
-            purged = store.purge_case(case_id=str(context.case_id))
-            self.assertTrue(purged)
+            purged = store.purge_case(context)
+            self.assertEqual(purged.status, "changed")
             with self.assertRaises(ArtifactStoreError):
                 resolver.resolve(manifest_ref, context)
 

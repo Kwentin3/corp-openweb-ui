@@ -1135,7 +1135,11 @@ exec(
     ),
     namespace,
 )
-from broker_reports_gate1 import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1 import (
+    ArtifactAccessContext,
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
+)
 
 payload_root = Path("/app/backend/data/broker_reports_gate1/payloads")
 payload_root_resolved = payload_root.resolve()
@@ -1167,7 +1171,29 @@ for record in active_before:
     if payload_root_resolved not in path.parents:
         raise RuntimeError("canary_artifact_payload_path_invalid")
     payload_paths.append(path)
-purged = store.purge_case(case_id=case_id)
+purge_contexts = {
+    (
+        record.user_id,
+        record.case_id,
+        record.chat_id,
+        record.workspace_model_id,
+        record.normalization_run_id,
+    )
+    for record in active_before
+}
+purged_records_total = 0
+for user_id, scoped_case_id, chat_id, workspace_model_id, run_id in sorted(
+    purge_contexts,
+    key=lambda item: tuple("" if value is None else str(value) for value in item),
+):
+    purge_result = store.purge_case(ArtifactAccessContext(
+        user_id=user_id,
+        case_id=scoped_case_id,
+        chat_id=chat_id,
+        workspace_model_id=workspace_model_id,
+        normalization_run_id=run_id,
+    ))
+    purged_records_total += purge_result.records_changed
 after = store.list_by_case(case_id)
 active_after = [
     record
@@ -1194,7 +1220,7 @@ result = {
     "active_records_before_total": len(active_before),
     "private_payload_refs_before_total": len(private_payload_refs_before),
     "payload_files_before_total": len(payload_paths),
-    "purged_records_total": len(purged),
+    "purged_records_total": purged_records_total,
     "records_after_total": len(after),
     "active_records_after_total": len(active_after),
     "private_payload_refs_after_total": len(private_payload_refs_after),

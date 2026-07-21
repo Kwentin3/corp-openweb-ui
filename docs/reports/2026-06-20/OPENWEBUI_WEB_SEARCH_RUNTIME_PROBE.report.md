@@ -14,7 +14,7 @@ or customer data. No production code was changed.
 ## 2. Operational Source
 
 - Repo: `Kwentin3/corp-openweb-ui`
-- cwd: `D:\Users\Roman\Desktop\Проекты\corp-openweb ui`
+- cwd: `<repository-root>`
 - branch: `main`
 - `HEAD == origin/main == be49bbdbcab56a50e7d88a80e22a78073740b8ca`
 - `git ls-remote --heads origin` shows only `main` at the same SHA.

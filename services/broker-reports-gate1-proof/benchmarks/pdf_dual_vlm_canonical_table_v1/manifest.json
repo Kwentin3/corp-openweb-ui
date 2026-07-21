@@ -81,7 +81,7 @@
     },
     "real_pdf": {
       "case_manifest": "../pdf_table_strategy_v1/manifest.json",
-      "historical_reference": "../pdf_table_strategy_v1/reference.private.json",
+      "historical_reference": "external_private_evidence",
       "expected_table_count": 9,
       "historical_reference_human_reviewed": false,
       "accuracy_scoring_allowed": false,

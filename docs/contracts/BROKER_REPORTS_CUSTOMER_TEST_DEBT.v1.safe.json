@@ -1,0 +1,39 @@
+{
+  "customer_values_included": false,
+  "debt_id": "SBER_BROKER_PDF_POSITIVE_HOLDOUT",
+  "exact_required_customer_input": "one_genuine_previously_unseen_same_family_sber_broker_report_pdf_with_acceptable_provenance_and_private_validation_authorization",
+  "freeze_baseline_repository_revision": "cf158fd38e3fc0a1f195b885ba94cb0094f95537",
+  "frozen_bundle_sha256": {
+    "gate1": "08d6e9d7d3e9f8669365e4bfa6c99327ccd8496e09e5c2c04eef74fa0e39dabd",
+    "gate2_domain": "3daec92cd22731d4e37de6aa8cc8237dc50425a249e6edb17ec0e916f54539cd",
+    "gate2_source_fact": "b20fb77775d4e82d6f56130a4af81675a7405b4abf912803de4f04e5d001356e"
+  },
+  "frozen_profile_id": "supported_broker_pdf_neutral_table_profile_v1",
+  "frozen_profile_source_revision": "b2d4592",
+  "frozen_reconstruction_version": "broker_pdf_ruled_grid_reconstruction_v1",
+  "frozen_validator_version": "broker_pdf_neutral_table_validator_v1",
+  "future_acceptance_procedure": [
+    "receive_authorized_genuine_unseen_same_family_pdf",
+    "preserve_frozen_rules",
+    "run_maintained_private_path_twice_with_explicit_enablement",
+    "prove_byte_and_structure_equivalent_output",
+    "review_headers_rows_columns_totals_annotations_and_continuations",
+    "reconcile_source_ownership_and_gate2_accounting",
+    "rebuild_test_deploy_read_back_and_prove_repository_live_sha256_parity",
+    "activate_release_only_after_accepted_proof"
+  ],
+  "profile_status": "implemented_on_actual_corpus",
+  "release_status": "release_gated",
+  "release_valve": {
+    "default": false,
+    "name": "broker_pdf_neutral_table_profile_v1_enabled",
+    "permitted_open_debt_scopes": [
+      "actual_customer_approved_source_evidence_pool_v1",
+      "deterministic_test_fixture",
+      "future_positive_holdout_validation_v1"
+    ]
+  },
+  "safe_output": true,
+  "schema_version": "broker_reports_customer_test_debt_v1",
+  "template_family_generalization_status": "awaiting_customer_positive_holdout"
+}

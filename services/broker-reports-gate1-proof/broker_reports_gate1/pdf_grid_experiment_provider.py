@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+
+RUNTIME_STATUS = "proof_only"
+
 import base64
 import copy
 import hashlib

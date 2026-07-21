@@ -43,7 +43,7 @@ Repository: `Kwentin3/corp-openweb-ui`
 Working directory audited:
 
 ```text
-D:\Users\Roman\Desktop\Проекты\corp-openweb ui
+<repository-root>
 ```
 
 Git state checked:

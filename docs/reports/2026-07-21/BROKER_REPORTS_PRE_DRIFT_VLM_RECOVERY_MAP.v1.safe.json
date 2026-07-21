@@ -1,0 +1,221 @@
+{
+  "schema_version": "broker_reports_pre_drift_vlm_recovery_map_v1_safe",
+  "evidence_date": "2026-07-21",
+  "authority": "repository_history_and_sealed_reports",
+  "recovery_anchor": {
+    "branch": "codex/broker-reports-clean-integration-v1",
+    "approved_base": "cf158fd38e3fc0a1f195b885ba94cb0094f95537",
+    "implementation_revision": "f94abcdeb94c0ae07ec09e137d646198c12d9018",
+    "pre_drift_code_present": true,
+    "production_promotion_claimed": false
+  },
+  "commit_map": [
+    {
+      "commit": "296c814050760b61b0422d67471fa01aa35864ab",
+      "role": "initial_gate2_provider_factory",
+      "classification": "production_implemented"
+    },
+    {
+      "commit": "d68d9eec8ef2647dd1e880764e83c2779aecae5d",
+      "role": "claude_and_gemini_route_qualification",
+      "classification": "live_verified_foundation"
+    },
+    {
+      "commit": "6924c183ac16d25fbaff5740faad17de0e2f4bf4",
+      "role": "provider_profiles_and_execution_metadata",
+      "classification": "production_implemented"
+    },
+    {
+      "commit": "894c602c46ea8b089a4dd561afad05eb5755d8d6",
+      "role": "native_provider_transport",
+      "classification": "production_implemented"
+    },
+    {
+      "commit": "cc095df7ef652c1102e19e112b627858018cc4a0",
+      "role": "openwebui_credential_boundary",
+      "classification": "production_implemented"
+    },
+    {
+      "commit": "0c027906882f973d39c7fb31666d5a6f2a1c9be3",
+      "role": "structured_model_defaults",
+      "classification": "production_implemented"
+    },
+    {
+      "commit": "7cae51eed161b4e5f4ee34f6a00d344c097b673f",
+      "role": "dual_vlm_fact_pipeline_factory_adapters_crops_prompts_schemas_runner_tests",
+      "classification": "live_provider_benchmark_only"
+    },
+    {
+      "commit": "146b04bbf7905e65c994237da562871a3604c0d1",
+      "role": "localized_operator_review",
+      "classification": "private_proof_only"
+    },
+    {
+      "commit": "0c969773e52606d7890933bdc0d28cbaaf0b382c",
+      "role": "review_streamlining",
+      "classification": "private_proof_only"
+    },
+    {
+      "commit": "47cf25cdab91cd370b46263e71229577248ecf01",
+      "role": "sealed_fact_benchmark_review_and_report",
+      "classification": "benchmark_evidence"
+    },
+    {
+      "commit": "747c808016d137c7f379edb0347b7051b2a651fc",
+      "role": "provider_schema_comparability_disclosure",
+      "classification": "benchmark_evidence"
+    },
+    {
+      "commit": "203d4ee7549f2f8f8fa121686ef5efd11cfdaae7",
+      "role": "canonical_table_and_literal_dual_vlm_live_benchmarks",
+      "classification": "live_provider_benchmark_only"
+    },
+    {
+      "commit": "203708446800fefd2bca8dcc1c3a5216c3cd42de",
+      "role": "table_intake_authority_boundary",
+      "classification": "accepted_boundary_documentation"
+    }
+  ],
+  "implementation": {
+    "factory": "PdfDualVlmFactProviderFactory.create_for_openwebui",
+    "gemini_adapter": "GeminiGridExperimentAdapter",
+    "openai_adapter": "OpenAIResponsesVisionAdapter",
+    "authentication_boundary": "Gate2OpenWebUIProviderConnectionResolver",
+    "gemini_transport": "native_generateContent_and_countTokens_with_x_goog_api_key",
+    "openai_transport": "native_Responses_and_responses_input_tokens_with_bearer_auth",
+    "models": {
+      "detector": "models/gemini-3.5-flash",
+      "gemini_extractor": "models/gemini-3.5-flash",
+      "openai_extractor": "gpt-5.4-mini-2026-03-17"
+    },
+    "budgets": {
+      "timeout_seconds": 240,
+      "maximum_counted_input_tokens": 24000,
+      "detection_maximum_output_tokens": 4096,
+      "extraction_maximum_output_tokens": 16384,
+      "maximum_response_bytes": 2097152,
+      "temperature": 0,
+      "gemini_thinking_level": "minimal",
+      "openai_image_detail": "high"
+    },
+    "execution_policy": {
+      "count_or_preflight_calls_per_operation": 1,
+      "generate_calls_per_operation": 1,
+      "attempt_number": 1,
+      "hidden_retry": false,
+      "provider_failover": false,
+      "third_llm_arbiter": false,
+      "same_crop_bytes_for_both_extractors": true,
+      "whole_document_prompt": false
+    },
+    "prompt_versions": [
+      "dual_vlm_detection_v1",
+      "dual_vlm_fact_extraction_v1",
+      "dual_vlm_canonical_table_normalizer_v4",
+      "dual_vlm_literal_table_detection_v2",
+      "dual_vlm_literal_table_extraction_v2"
+    ],
+    "schema_versions": [
+      "broker_reports_pdf_dual_vlm_detection_v1",
+      "broker_reports_pdf_dual_vlm_financial_facts_v1",
+      "broker_reports_pdf_dual_vlm_consensus_v1",
+      "broker_reports_pdf_dual_vlm_crop_v1",
+      "broker_reports_canonical_table_v1",
+      "broker_reports_pdf_dual_vlm_literal_detection_v2",
+      "broker_reports_pdf_dual_vlm_literal_observations_v2"
+    ],
+    "schema_adaptation": {
+      "gemini": "provider_projection_with_transformation_count_and_canonical_adapted_hashes",
+      "openai": "canonical_strict_json_schema_unchanged"
+    },
+    "terminal_handling": [
+      "http_failure_classification",
+      "timeout_or_transport",
+      "response_budget",
+      "provider_error_response",
+      "provider_incomplete",
+      "provider_non_terminal",
+      "provider_refusal",
+      "parse_failure",
+      "resolved_model_mismatch",
+      "contract_invalid"
+    ],
+    "metadata": [
+      "provider_profile_revision",
+      "requested_and_resolved_model",
+      "adapter_and_transport_identity",
+      "request_response_and_crop_hashes",
+      "canonical_and_adapted_schema_hashes",
+      "schema_transform_count",
+      "attempt_lineage",
+      "usage",
+      "duration",
+      "finish_reason",
+      "parse_result",
+      "retry_and_failover_truth"
+    ]
+  },
+  "evidence": {
+    "fact_benchmark": {
+      "cases": 8,
+      "paired_crop_extractions": 9,
+      "same_crop_and_model_view": true,
+      "provider_fact_scoring": "contract_limited",
+      "human_review_rate": 1.0,
+      "automatic_acceptance": false
+    },
+    "canonical_table_benchmark": {
+      "controlled_correct_consensus": "5_of_5",
+      "real_pdf_full_consensus": "0_of_9",
+      "gemini_real_contract_valid": "9_of_9",
+      "openai_real_contract_valid": "8_of_9",
+      "repeatability": "controlled_5_of_5_each; real_outputs_nondeterministic",
+      "production_authority": false
+    },
+    "literal_benchmark": {
+      "both_contract_valid": "5_of_9",
+      "exact_raw_agreements": 5,
+      "independently_parser_verified_both": 2,
+      "human_reference_sealed": false,
+      "automatic_acceptance": false
+    },
+    "stage_integration": "none_for_dual_vlm_research_pipeline"
+  },
+  "new_scaffold_comparison": {
+    "commit": "d7cc52dfdac0e3fec3fedde98f10b13ec9b4ba99",
+    "status": "rejected_architecture_not_in_clean_candidate",
+    "duplicates": [
+      "bounded_page_or_crop_scope",
+      "gemini_and_openai_profiles",
+      "provider_schema_projection",
+      "strict_json_parsing",
+      "deterministic_validation",
+      "request_response_hash_metadata"
+    ],
+    "missing_vs_pre_drift": [
+      "OpenWebUI_credential_resolution",
+      "concrete_live_Gemini_transport",
+      "concrete_live_OpenAI_transport",
+      "dual_provider_execution_and_comparison",
+      "frozen_model_allowlists",
+      "token_preflight_provenance",
+      "attempt_lineage_and_retry_truth",
+      "benchmark_and_live_provider_evidence",
+      "operator_review_and_sealed_scoring"
+    ],
+    "net_new_unproven_area": "large_single_provider_visual_table_proposal_schema_and_validator"
+  },
+  "recovery_commit_set": [
+    "6924c183ac16d25fbaff5740faad17de0e2f4bf4",
+    "894c602c46ea8b089a4dd561afad05eb5755d8d6",
+    "cc095df7ef652c1102e19e112b627858018cc4a0",
+    "7cae51eed161b4e5f4ee34f6a00d344c097b673f",
+    "146b04bbf7905e65c994237da562871a3604c0d1",
+    "0c969773e52606d7890933bdc0d28cbaaf0b382c",
+    "47cf25cdab91cd370b46263e71229577248ecf01",
+    "747c808016d137c7f379edb0347b7051b2a651fc",
+    "203d4ee7549f2f8f8fa121686ef5efd11cfdaae7",
+    "203708446800fefd2bca8dcc1c3a5216c3cd42de"
+  ],
+  "next_goal": "Broker Reports Pre-Drift Dual-VLM Selective Runtime Integration And Current-Model Requalification v1"
+}

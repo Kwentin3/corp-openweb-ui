@@ -4,7 +4,7 @@
     "generated_at":  "2026-06-25T23:08:27",
     "base_url":  "https://api.siliconflow.cn/v1",
     "synthetic_image":  {
-                            "path":  "D:\\Users\\Roman\\Desktop\\Проекты\\corp-openweb ui\\docs\\reports\\2026-06-25\\siliconflow-paddleocr-vl-probe\\synthetic_test_document.png",
+                            "path":  "synthetic_test_document.png",
                             "sha256":  "D4976F04BA0020B81E1025B6F5C1D6ABB81C0E85F0CB8684A43E246EA71344B0",
                             "bytes":  37918
                         },

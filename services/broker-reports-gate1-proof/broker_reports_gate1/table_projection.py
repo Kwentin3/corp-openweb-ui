@@ -14,7 +14,7 @@ from .broker_pdf_neutral_tables import (
     validate_canonical_neutral_projection,
 )
 from .contracts import stable_digest
-from .source_provenance import resolve_source_value, validate_source_value_refs
+from .source_provenance import resolve_source_values, validate_source_value_refs
 
 
 FACTORY_REQUIRED = (
@@ -56,6 +56,7 @@ class NormalizedTableProjectionConfig:
     max_cells: int = 100_000
     max_payload_bytes: int = 20_000_000
     min_pdf_geometry_confidence: float = 0.90
+    broker_pdf_neutral_table_profile_v1_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,11 @@ class NormalizedTableProjectionService:
             "xml": XmlTableProjectionBuilder(config),
         }
         self.pdf_builder = PdfTableCandidateProjectionBuilder(config)
-        self.broker_pdf_neutral_builder = BrokerPdfNeutralTableFactory().create()
+        self.broker_pdf_neutral_builder = (
+            BrokerPdfNeutralTableFactory().create()
+            if config.broker_pdf_neutral_table_profile_v1_enabled
+            else None
+        )
         self.validator = TableProjectionValidator()
 
     def build_for_document(
@@ -117,6 +122,7 @@ class NormalizedTableProjectionService:
                 source_units=source_units,
             )
             if normalized_format == "pdf"
+            and self.broker_pdf_neutral_builder is not None
             else None
         )
         for unit in source_units:
@@ -228,10 +234,14 @@ class _NativeTableProjectionBuilder:
         cells: list[dict[str, Any]] = []
         private_values: list[dict[str, Any]] = []
         source_value_index: list[dict[str, Any]] = []
+        source_value_refs = [
+            str(item.get("source_value_ref") or "") for item in cell_provenance
+        ]
+        resolved_values = resolve_source_values(source_unit, source_value_refs)
         for item in cell_provenance:
             cell_ref = str(item.get("cell_ref") or "")
             source_value_ref = str(item.get("source_value_ref") or "")
-            value = resolve_source_value(source_unit, source_value_ref)
+            value = resolved_values[source_value_ref]
             value_text = "" if value is None else str(value)
             value_path_ref = "tablevaluepath_" + stable_digest(
                 [projection_id, cell_ref, source_value_ref], length=24

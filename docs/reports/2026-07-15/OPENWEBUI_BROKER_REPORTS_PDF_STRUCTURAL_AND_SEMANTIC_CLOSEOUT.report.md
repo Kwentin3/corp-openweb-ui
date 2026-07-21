@@ -1,7 +1,7 @@
 # OpenWebUI Broker Reports: PDF Structural and Semantic Closeout
 
 Date: 2026-07-15
-Repository: `D:\Users\Roman\Desktop\Проекты\corp-openweb ui`
+Repository: `<repository-root>`
 Mode: default-disabled, non-authoritative Gate 1 shadow; production Gate 2 selection unchanged.
 
 ## Verdict
@@ -38,7 +38,7 @@ Not proved:
 
 Policy id: `official_public_broker_pdf_2026_07_15_v5`
 Eligibility policy checksum: `681285290faf3e87d4eccd401d2341ea2d2264e328e361ed064ec3104471b2ec`
-Corpus root: `local/stage2/broker_reports_pdf_structural_holdout_public_v5_2026-07-15/corpus`
+Corpus root: ignored private evidence root (path withheld)
 
 The durable declaration is the exact `fresh_holdout_v5` corpus hash set,
 selection rule and eligibility-policy checksum in
@@ -150,7 +150,7 @@ The structural runtime invokes synchronous `countTokens` before each generate ca
 
 Exactly one controlled canary attempt ran for case
 `case_gate1_structural_shadow_canary_112c4da12e2693db` in
-`local/stage2/broker_reports_gate1_structural_semantic_shadow_canary_2026-07-15_run1`.
+the ignored private canary evidence root.
 There was no retry.
 
 The synthetic upload and chat reached the shadow runtime. The 33 validated

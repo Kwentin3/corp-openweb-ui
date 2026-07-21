@@ -1,6 +1,6 @@
 {
   "artifactstore": {
-    "artifact_boundary_public_label": "local/stage2/broker_reports_customer_approved_package_grouping_2026-07-08/artifactstore",
+    "artifact_boundary_public_label": "ignored-private-evidence:artifactstore",
     "customer_docs_loaded_to_knowledge": false,
     "gate2_handoff_ref": "art_22Fqiyd6XvdYaVfVTBfevB4FwnzeSPqD",
     "private_payload_paths_published": false,

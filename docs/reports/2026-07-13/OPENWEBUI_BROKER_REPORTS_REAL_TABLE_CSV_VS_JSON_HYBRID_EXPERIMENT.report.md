@@ -226,10 +226,10 @@ Research-only footprint:
 
 Controlled evidence:
 
-- safe summary: `local/stage2/broker_reports_pdf_csv_vs_json_2026-07-13-live1/experiment.safe.json`;
+- safe summary: retained in the ignored private evidence root;
 - safe summary SHA-256: `27368196EC21F7E3DFBC784DD9D3F6E8F09FBA3C827E0F2D5CF2F056328C0C86`;
 - private journal SHA-256: `89341BABC725E34210A8A603C22415799D02FFFD6A6D7642471E4CA3C09B78E6`;
-- JSON control evidence: `local/stage2/broker_reports_pdf_hybrid_reliability_2026-07-13-live3/evidence.safe.json`;
+- JSON control evidence: retained in the ignored private evidence root;
 - JSON control evidence SHA-256: `C269AFB65AF764070831157C318D83D5CABA99C765B2B7E7040F09FF670C6F74`;
 - Gate 2 source-fact bundle SHA-256: `9E7E3FA0BE71C912FC4DE2B69D1B3447E90012B9FB89894E143C8A5EB8300F81`;
 - Gate 2 domain bundle SHA-256: `220BA58A59F33CA2F536D3A61B6959662A5F12E88640236438DEAC5A9523C454`.

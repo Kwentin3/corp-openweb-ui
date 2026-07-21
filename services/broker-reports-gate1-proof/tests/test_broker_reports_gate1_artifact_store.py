@@ -272,7 +272,10 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             "artifact_access_denied",
         )
 
-        self.store.expire_artifacts(now=datetime.now(timezone.utc) + timedelta(days=8))
+        self.store.expire_run(
+            context,
+            now=datetime.now(timezone.utc) + timedelta(days=8),
+        )
         self._assert_resolve_error(resolver, manifest.safe_refs[0], context, "artifact_expired")
 
         result2, context2, manifest2 = self._persist_clean_run(case_id="case-purge")
@@ -281,7 +284,7 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertIsNotNone(private_record)
         payload_path = Path(self._tmp.name) / "payloads" / str(private_record.payload_ref)
         self.assertTrue(payload_path.exists())
-        self.store.purge_run(context2.normalization_run_id)
+        self.store.purge_run(context2)
         self.assertFalse(payload_path.exists())
         self._assert_resolve_error(resolver, private_ref, context2, "artifact_purged")
         purged_record = self.store.get_record_unchecked(private_ref)
@@ -319,24 +322,51 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
 
         _result, context, manifest = self._persist_clean_run(case_id="case-delete")
         source_file_id = "openwebui-file-csv-1"
-        affected = self.store.mark_source_file_deleted(openwebui_file_id=source_file_id)
-        self.assertTrue(affected)
+        affected = self.store.mark_source_file_deleted(
+            ArtifactAccessContext(
+                **{**context.__dict__, "source_file_id": source_file_id}
+            )
+        )
+        self.assertEqual(affected.status, "changed")
         for private_ref in manifest.private_slice_refs:
             record = self.store.get_record_unchecked(private_ref)
             if (record.source_file_ref or {}).get("openwebui_file_id") == source_file_id:
                 self.assertEqual(record.purge_status, "purged")
 
         _chat_result, chat_context, _chat_manifest = self._persist_clean_run(case_id=None, chat_id="chat-delete-1")
-        purged_chat = self.store.purge_chat(chat_id="chat-delete-1")
-        self.assertTrue(purged_chat)
+        purged_chat = self.store.purge_chat(chat_context)
+        self.assertEqual(purged_chat.status, "changed")
         for record in self.store.list_by_run(chat_context.normalization_run_id):
             self.assertEqual(record.purge_status, "purged")
 
         _case_result, case_context, _case_manifest = self._persist_clean_run(case_id="case-delete-2")
-        purged_case = self.store.purge_case(case_id="case-delete-2")
-        self.assertTrue(purged_case)
+        purged_case = self.store.purge_case(case_context)
+        self.assertEqual(purged_case.status, "changed")
         for record in self.store.list_by_run(case_context.normalization_run_id):
             self.assertEqual(record.purge_status, "purged")
+
+    def test_expire_run_is_index_scoped_and_does_not_scan_other_runs(self):
+        _first_result, first_context, _first_manifest = self._persist_clean_run(
+            case_id="case-expire-run-first"
+        )
+        _second_result, second_context, _second_manifest = self._persist_clean_run(
+            case_id="case-expire-run-second"
+        )
+
+        self.assertFalse(hasattr(self.store, "_active_records"))
+        expired = self.store.expire_run(
+            first_context,
+            now=datetime.now(timezone.utc) + timedelta(days=8),
+        )
+
+        first_records = self.store.list_by_run(first_context.normalization_run_id)
+        second_records = self.store.list_by_run(second_context.normalization_run_id)
+        self.assertEqual(expired.records_changed, len(first_records))
+        self.assertEqual(expired.status, "changed")
+        self.assertTrue(all(record.lifecycle_status == "expired" for record in first_records))
+        self.assertTrue(all(record.purge_status == "expired" for record in first_records))
+        self.assertTrue(all(record.lifecycle_status != "expired" for record in second_records))
+        self.assertTrue(all(record.purge_status == "active" for record in second_records))
 
     def test_knowledge_backend_is_rejected_for_private_or_customer_artifacts(self):
         result, context, _manifest = self._persist_clean_run(case_id="knowledge-guard")

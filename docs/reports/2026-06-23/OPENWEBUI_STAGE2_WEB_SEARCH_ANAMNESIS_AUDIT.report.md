@@ -16,7 +16,7 @@ credentials, private URLs and customer data were not read.
 ## 1. Executive Summary
 
 Project: `Kwentin3/corp-openweb-ui`, local operational checkout:
-`D:\Users\Roman\Desktop\Проекты\corp-openweb ui`.
+`<repository-root>`.
 
 Current active feature: Stage 2 / PRD-1 / Web Search.
 

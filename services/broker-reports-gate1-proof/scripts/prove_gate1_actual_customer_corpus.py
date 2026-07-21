@@ -126,6 +126,7 @@ def main() -> None:
         inputs,
         input_context={
             "clarification_criticality_refinement_enabled": True,
+            "broker_pdf_neutral_table_profile_v1_enabled": True,
             "proof_scope": "actual_customer_approved_source_evidence_pool_v1",
             "case_group_id": "customer_case_alpha",
             "source_policy": {

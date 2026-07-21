@@ -234,7 +234,7 @@ No candidate-scope or visual-scope implementation defect was confirmed.
 - Reproducible audit:
   `services/broker-reports-gate1-proof/scripts/audit_restricted_source_scopes.py`.
 - Private resolver identities, review verdicts and geometry checks remain under
-  ignored `local/stage2/restricted_scope_audit_private/`; no source value, image,
+  ignored private evidence root; no source value, image,
   filename or path is tracked.
 - Prior hot-path closure:
   `BROKER_REPORTS_GATE2_PACKAGE_HOT_PATH_PERFORMANCE_CLOSURE.report.md`.

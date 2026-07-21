@@ -8,9 +8,9 @@
   "base_benchmark": {
     "manifest_path": "services/broker-reports-gate1-proof/benchmarks/pdf_table_strategy_v1/manifest.json",
     "manifest_semantic_sha256": "ddbde26c1eb49baeb8e25d35bd8ded97dc9af4e5d0ab37bd211cc7550e4a54ca",
-    "accepted_terminal_path": "local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/run/terminal.private.json",
+    "accepted_terminal_path": "external_private_evidence",
     "accepted_terminal_sha256": "d899bfbb16621350f8ffea4e46066d2529e469bea6e2bfcaaeda83a3a8bfd238",
-    "accepted_score_path": "local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/score.rescored-v2.json",
+    "accepted_score_path": "external_private_evidence",
     "accepted_score_sha256": "b7b10d0af52efc59522d2d8652f78606a08aecfce2f24afe388ac95120d1e265",
     "comparison_role": "single_gemini_provisional_baseline"
   },
