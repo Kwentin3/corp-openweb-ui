@@ -487,7 +487,7 @@ class Gate1Normalizer:
             "summary_counts": summary_counts,
             "recommended_next_step": self._recommended_next_step(file_inputs, blockers, gate2_handoff),
         }
-        package = apply_domain_ingestion_artifacts(package)
+        package = apply_domain_ingestion_artifacts(package, copy_package=False)
         artifact_validation = validate_artifacts(package)
         package["validation_result"] = artifact_validation
         safe_report = render_safe_report(package)

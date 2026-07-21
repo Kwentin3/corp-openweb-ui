@@ -52,8 +52,17 @@ STAGES = [
 ]
 
 
-def apply_domain_ingestion_artifacts(package: dict[str, Any]) -> dict[str, Any]:
-    updated = copy.deepcopy(package)
+def apply_domain_ingestion_artifacts(
+    package: dict[str, Any], *, copy_package: bool = True
+) -> dict[str, Any]:
+    """Attach domain artifacts, optionally reusing an exclusively owned graph.
+
+    Public callers retain copy-on-write behavior by default.  The normalizer
+    owns its newly assembled package and opts into the in-place path so the
+    complete decoded source graph is not duplicated at the Gate 1 peak.
+    """
+
+    updated = copy.deepcopy(package) if copy_package else package
     document_memory_builder = Gate1DocumentMemoryFactory().create()
     supported_profile = supported_pilot_profile_v1()
     supported_profile_assessment = document_memory_builder.assess_supported_profile(

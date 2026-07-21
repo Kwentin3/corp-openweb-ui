@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
+import hashlib
 import json
 import os
 import sqlite3
@@ -268,7 +269,9 @@ def _latest_store(config_path: Path, started_epoch: float) -> Path:
 
 
 def _artifact_storage_summary(database: Path) -> dict[str, Any]:
-    with sqlite3.connect(database) as conn:
+    conn = sqlite3.connect(database)
+    try:
+        conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
             SELECT artifact_type, COUNT(*), COALESCE(SUM(payload_size_bytes), 0)
@@ -283,6 +286,16 @@ def _artifact_storage_summary(database: Path) -> dict[str, Any]:
             FROM artifact_records
             """
         ).fetchone()
+        projection_rows = conn.execute(
+            """
+            SELECT payload_ref, payload_inline_json, checksum_sha256
+            FROM artifact_records
+            WHERE artifact_type = 'broker_reports_normalized_table_projection_v0'
+            ORDER BY artifact_id
+            """
+        ).fetchall()
+    finally:
+        conn.close()
     by_type = {
         str(artifact_type): {
             "records": int(records),
@@ -294,7 +307,69 @@ def _artifact_storage_summary(database: Path) -> dict[str, Any]:
         "records_total": int(totals[0]),
         "payload_bytes_total": int(totals[1]),
         "by_artifact_type": by_type,
+        "table_projections": _table_projection_storage_summary(
+            database=database,
+            rows=projection_rows,
+        ),
     }
+
+
+def _table_projection_storage_summary(
+    *, database: Path, rows: list[sqlite3.Row]
+) -> dict[str, Any]:
+    payload_root = (database.parent / "payloads").resolve()
+    by_format: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if row["payload_inline_json"]:
+            projection = json.loads(str(row["payload_inline_json"]))
+        else:
+            payload_ref = str(row["payload_ref"] or "")
+            payload_path = (payload_root / payload_ref).resolve()
+            if not payload_ref or (
+                payload_path != payload_root and payload_root not in payload_path.parents
+            ):
+                raise RuntimeError("gate1_phase_profile_payload_ref_invalid")
+            projection = json.loads(payload_path.read_text(encoding="utf-8"))
+        source_format = str(projection.get("source_format") or "unknown")
+        summary = by_format.setdefault(
+            source_format,
+            {
+                "projections_total": 0,
+                "rows_total": 0,
+                "cells_total": 0,
+                "source_value_refs_total": 0,
+                "payload_checksums": [],
+                "projection_checksums": [],
+            },
+        )
+        summary["projections_total"] += 1
+        summary["rows_total"] += int(projection.get("row_count") or 0)
+        summary["cells_total"] += int(projection.get("cell_count") or 0)
+        summary["source_value_refs_total"] += len(
+            projection.get("source_value_refs") or []
+        )
+        summary["payload_checksums"].append(str(row["checksum_sha256"] or ""))
+        summary["projection_checksums"].append(
+            str(projection.get("table_projection_checksum_ref") or "")
+        )
+    for summary in by_format.values():
+        summary["payload_checksum_set_digest"] = _string_set_digest(
+            summary.pop("payload_checksums")
+        )
+        summary["projection_checksum_set_digest"] = _string_set_digest(
+            summary.pop("projection_checksums")
+        )
+    return {
+        "by_source_format": {
+            key: value for key, value in sorted(by_format.items())
+        },
+        "customer_values_in_output": False,
+        "source_or_artifact_refs_in_output": False,
+    }
+
+
+def _string_set_digest(values: list[str]) -> str:
+    return hashlib.sha256("\n".join(sorted(values)).encode("utf-8")).hexdigest()
 
 
 def build_safe_report(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import sys
@@ -919,7 +920,16 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
             "recommended_next_step": "start_gate2_source_fact_extraction_with_issue_context",
         }
 
+        original = copy.deepcopy(package)
         applied = apply_domain_ingestion_artifacts(package)
+        in_place_package = copy.deepcopy(package)
+        in_place_applied = apply_domain_ingestion_artifacts(
+            in_place_package, copy_package=False
+        )
+
+        self.assertEqual(package, original)
+        self.assertIs(in_place_applied, in_place_package)
+        self.assertEqual(in_place_applied, applied)
         packet = applied["domain_context_packet"]
         refs = packet["next_stage_refs"]
         summary = packet["next_stage_ref_summary"]

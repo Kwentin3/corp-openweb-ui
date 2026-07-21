@@ -1,11 +1,80 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 
-from scripts.profile_gate1_actual_corpus import MetricBook, build_safe_report
+from scripts.profile_gate1_actual_corpus import (
+    MetricBook,
+    _artifact_storage_summary,
+    build_safe_report,
+)
 
 
 class BrokerReportsGate1ActualPhaseProfileTest(unittest.TestCase):
+    def test_storage_summary_proves_projection_counts_and_digests_without_refs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            database = root / "artifacts.sqlite3"
+            payload_root = root / "payloads"
+            payload_root.mkdir()
+            projection = {
+                "source_format": "csv",
+                "row_count": 2,
+                "cell_count": 4,
+                "source_value_refs": ["private-ref-1", "private-ref-2"],
+                "table_projection_checksum_ref": "tableprojchk_example",
+            }
+            payload_bytes = json.dumps(
+                projection,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            (payload_root / "projection.json").write_bytes(payload_bytes)
+            conn = sqlite3.connect(database)
+            try:
+                conn.execute(
+                    """
+                    CREATE TABLE artifact_records(
+                        artifact_id TEXT,
+                        artifact_type TEXT,
+                        payload_size_bytes INTEGER,
+                        payload_ref TEXT,
+                        payload_inline_json TEXT,
+                        checksum_sha256 TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    "INSERT INTO artifact_records VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        "artifact-private",
+                        "broker_reports_normalized_table_projection_v0",
+                        len(payload_bytes),
+                        "projection.json",
+                        None,
+                        hashlib.sha256(payload_bytes).hexdigest(),
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+            summary = _artifact_storage_summary(database)
+
+        csv = summary["table_projections"]["by_source_format"]["csv"]
+        self.assertEqual(csv["projections_total"], 1)
+        self.assertEqual(csv["rows_total"], 2)
+        self.assertEqual(csv["cells_total"], 4)
+        self.assertEqual(csv["source_value_refs_total"], 2)
+        rendered = json.dumps(summary, sort_keys=True)
+        self.assertNotIn("private-ref", rendered)
+        self.assertNotIn("artifact-private", rendered)
+
     def test_safe_report_contains_only_aggregate_phase_and_storage_evidence(self):
         metrics = MetricBook()
         metrics.add("full_source_build.pdf", 12.5)
