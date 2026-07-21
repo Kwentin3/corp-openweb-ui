@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -111,7 +112,12 @@ class PdfDualVlmRuntimeFactory:
         self.config = config or PdfDualVlmRuntimeConfig()
         self._validate_config()
 
-    def create_for_openwebui(self, request: Any) -> "PdfDualVlmRuntime":
+    def create_for_openwebui(
+        self,
+        request: Any,
+        *,
+        provider_budget=None,
+    ) -> "PdfDualVlmRuntime":
         provider_config = PdfDualVlmFactProviderConfig(
             gemini_model_id=self.config.gemini_model_id,
             openai_model_id=self.config.openai_model_id,
@@ -122,15 +128,40 @@ class PdfDualVlmRuntimeFactory:
         bundle = PdfDualVlmFactProviderFactory(provider_config).create_for_openwebui(
             request
         )
-        return self._create(gemini=bundle.gemini, openai=bundle.openai)
+        return self._create(
+            gemini=bundle.gemini,
+            openai=bundle.openai,
+            provider_budget=provider_budget,
+        )
 
-    def create_with_providers(self, *, gemini: Any, openai: Any) -> "PdfDualVlmRuntime":
+    def create_with_providers(
+        self,
+        *,
+        gemini: Any,
+        openai: Any,
+        provider_budget=None,
+    ) -> "PdfDualVlmRuntime":
         """Explicit provider seam for deterministic transport/decision tests."""
 
-        return self._create(gemini=gemini, openai=openai)
+        return self._create(
+            gemini=gemini,
+            openai=openai,
+            provider_budget=provider_budget,
+        )
 
-    def _create(self, *, gemini: Any, openai: Any) -> "PdfDualVlmRuntime":
-        return PdfDualVlmRuntime(self.config, gemini=gemini, openai=openai)
+    def _create(
+        self,
+        *,
+        gemini: Any,
+        openai: Any,
+        provider_budget,
+    ) -> "PdfDualVlmRuntime":
+        return PdfDualVlmRuntime(
+            self.config,
+            gemini=gemini,
+            openai=openai,
+            provider_budget=provider_budget,
+        )
 
     def _validate_config(self) -> None:
         if (
@@ -157,9 +188,17 @@ class PdfDualVlmRuntimeFactory:
 
 
 class PdfDualVlmRuntime:
-    def __init__(self, config: PdfDualVlmRuntimeConfig, *, gemini: Any, openai: Any):
+    def __init__(
+        self,
+        config: PdfDualVlmRuntimeConfig,
+        *,
+        gemini: Any,
+        openai: Any,
+        provider_budget,
+    ):
         self.config = config
         self.providers = {"gemini": gemini, "openai": openai}
+        self.provider_budget = provider_budget
 
     def run(self, candidates: list[dict[str, Any]]) -> PdfDualVlmRuntimeResult:
         if not self.config.enabled:
@@ -206,8 +245,11 @@ class PdfDualVlmRuntime:
         qualifications: dict[str, dict[str, Any]] = {}
         for provider_name in PROVIDER_ORDER:
             try:
-                value = self.providers[provider_name].qualify()
+                with self._provider_budget_context(provider_name):
+                    value = self.providers[provider_name].qualify()
             except Exception as exc:
+                if str(getattr(exc, "code", "")).startswith("workload_"):
+                    raise
                 raise PdfDualVlmRuntimeError(
                     f"pdf_dual_vlm_{provider_name}_qualification_failed"
                 ) from exc
@@ -358,21 +400,22 @@ class PdfDualVlmRuntime:
             length=24,
         )
         try:
-            preflight = provider.count_tokens(
-                model_view=model_view,
-                output_schema=output_schema,
-                png_bytes=png_bytes,
-                crop_sha256=lineage["crop_sha256"],
-            )
-            response = provider.invoke(
-                task_id=task_id,
-                model_view=model_view,
-                output_schema=output_schema,
-                png_bytes=png_bytes,
-                crop_sha256=lineage["crop_sha256"],
-                attempt_number=1,
-                attempt_lineage=[],
-            )
+            with self._provider_budget_context(provider_name):
+                preflight = provider.count_tokens(
+                    model_view=model_view,
+                    output_schema=output_schema,
+                    png_bytes=png_bytes,
+                    crop_sha256=lineage["crop_sha256"],
+                )
+                response = provider.invoke(
+                    task_id=task_id,
+                    model_view=model_view,
+                    output_schema=output_schema,
+                    png_bytes=png_bytes,
+                    crop_sha256=lineage["crop_sha256"],
+                    attempt_number=1,
+                    attempt_lineage=[],
+                )
             attempt = _object(response.get("attempt"))
             raw_failure = attempt.get("terminal_failure_class")
             if isinstance(raw_failure, str) and raw_failure:
@@ -385,6 +428,8 @@ class PdfDualVlmRuntime:
                 else:
                     proposal = canonicalize_table(output, table_id=table_id)
         except Exception as exc:
+            if str(getattr(exc, "code", "")).startswith("workload_"):
+                raise
             raw = getattr(exc, "failure_class", None)
             failure_class = str(raw or "provider_operation_failed")
 
@@ -457,6 +502,11 @@ class PdfDualVlmRuntime:
         }
         record["execution_hash"] = sha256_json(record)
         return record, proposal, failure_class
+
+    def _provider_budget_context(self, provider_name: str):
+        if self.provider_budget is None:
+            return nullcontext()
+        return self.provider_budget(provider_name)
 
     def _decision(
         self,

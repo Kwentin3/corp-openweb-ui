@@ -81,7 +81,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_visual_review_promotion_v1",
+            "gate1_workload_authority_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
@@ -118,6 +118,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_semantic_header_projection", module._BUNDLED_MODULES)
         self.assertIn("pdf_structural_repair_shadow", module._BUNDLED_MODULES)
         bundled_order = module._BUNDLED_MODULE_ORDER
+        self.assertLess(
+            bundled_order.index("workload_authority"),
+            bundled_order.index("normalizer"),
+        )
         self.assertLess(
             bundled_order.index("pdf_table_intake_contracts"),
             bundled_order.index("pdf_structural_repair_shadow"),
@@ -169,6 +173,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2StructuredModelClientFactory"))
+        self.assertTrue(hasattr(bundled_package, "WorkloadAuthorityFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTableIntakeRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))

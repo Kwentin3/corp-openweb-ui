@@ -12,10 +12,14 @@ from broker_reports_gate1.architecture_policy import (
     GATE1_PRIVATE_REPRESENTATION_AUTHORITY,
     GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED,
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
+    LOCAL_OCR_WORKER_POOL_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     MODEL_CANONICAL_AUTHORITY,
     NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
     PROVIDER_OUTPUT_AUTHORITY,
+    WORKLOAD_ADMISSION,
+    WORKLOAD_AUTHORITY,
+    WORKLOAD_PRIMARY_WALL_TIMEOUT,
     VISUAL_RECOVERY_INPUT_SCOPES,
     VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
@@ -76,6 +80,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "ArtifactResolver",
             "Gate1BoundedGraphFactory.create",
             "Run-wide decoded private graphs",
+            "WorkloadAuthorityFactory.create",
+            "Gate 1 heavy work at concurrency 1",
+            "maximum concurrency 2",
+            "worker_lease_expired",
         }
         self.assertEqual(
             sorted(marker for marker in required if marker not in authority),
@@ -95,6 +103,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
+        self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
         self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "typed_proposal_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
@@ -114,6 +123,35 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             COMPONENT_RUNTIME_STATUSES["gate1_bounded_graph"],
             "maintained",
         )
+        self.assertEqual(COMPONENT_RUNTIME_STATUSES["workload_authority"], "maintained")
+        self.assertEqual(WORKLOAD_AUTHORITY, "sqlite_cross_process_single_authority")
+        self.assertEqual(WORKLOAD_ADMISSION, "capacity_queue_plus_worker_lease")
+        self.assertIsNone(WORKLOAD_PRIMARY_WALL_TIMEOUT)
+
+    def test_production_pipes_use_one_persisted_workload_factory_without_local_queues(self):
+        pipe_paths = (
+            OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe.py",
+            OPENWEBUI_ACTIONS / "broker_reports_gate2_source_fact_pipe.py",
+            OPENWEBUI_ACTIONS / "broker_reports_gate2_domain_source_fact_pipe.py",
+        )
+        violations = []
+        for path in pipe_paths:
+            source = path.read_text(encoding="utf-8")
+            if "WorkloadAuthorityFactory(" not in source:
+                violations.append(f"{path.name}:factory_missing")
+            if "wait_for_admission(" not in source:
+                violations.append(f"{path.name}:admission_missing")
+            for forbidden in (
+                "asyncio.Semaphore(",
+                "ThreadPoolExecutor(",
+                "ProcessPoolExecutor(",
+                "workload_admission.py",
+            ):
+                if forbidden in source:
+                    violations.append(f"{path.name}:{forbidden}")
+            if "gate2_" in path.name and "_assert_gate1_workload_completed(" not in source:
+                violations.append(f"{path.name}:gate1_completion_gate_missing")
+        self.assertEqual(violations, [])
 
     def test_production_python_has_no_heavy_local_ocr_import(self):
         forbidden_roots = {"paddle", "paddleocr", "easyocr", "torch"}

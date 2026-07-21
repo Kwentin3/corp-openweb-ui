@@ -61,6 +61,7 @@ ALLOWED_WAVES = {"primary", "non_primary", "all"}
 @dataclass(frozen=True)
 class Gate2SourceFactRuntimeConfig:
     model_id: str
+    workload_job_id: str | None = None
     wave: str = "primary"
     run_mode: str = "customer"
     table_max_rows: int = 40
@@ -106,6 +107,13 @@ class Gate2SourceFactRuntimeFactory:
             raise Gate2SourceFactRuntimeError("gate2_wave_invalid", "Unsupported Gate 2 wave")
         if not self.config.model_id:
             raise Gate2SourceFactRuntimeError("gate2_model_unavailable", "Gate 2 model id is required")
+        if self.config.workload_job_id is not None and not str(
+            self.config.workload_job_id
+        ).startswith("brjob_"):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_workload_job_id_invalid",
+                "Gate 2 workload job id is invalid",
+            )
         if self.config.run_mode not in {"customer", "synthetic"}:
             raise Gate2SourceFactRuntimeError("gate2_run_mode_invalid", "Unsupported Gate 2 run mode")
         if self.config.max_repair_attempts not in {0, 1}:
@@ -977,6 +985,9 @@ class Gate2SourceFactRuntimeService:
         retention_policy: RetentionPolicy,
         safe_metadata: dict[str, Any],
     ) -> None:
+        terminal_metadata = dict(safe_metadata)
+        if self.config.workload_job_id:
+            terminal_metadata["workload_job_id"] = self.config.workload_job_id
         self._put_record(
             artifact_id=artifact_id,
             artifact_type=EXTRACTION_RUN_SCHEMA_VERSION,
@@ -988,7 +999,7 @@ class Gate2SourceFactRuntimeService:
             storage_backend="project_artifact_store",
             validation_status="validated",
             payload=payload,
-            safe_metadata=safe_metadata,
+            safe_metadata=terminal_metadata,
         )
 
     def _persist_issue_linkage(

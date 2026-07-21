@@ -106,6 +106,7 @@ class Gate2DomainPromptResolver(Protocol):
 @dataclass(frozen=True)
 class Gate2DomainSourceFactRuntimeConfig:
     model_id: str
+    workload_job_id: str | None = None
     provider_profile_id: str = "openai_gpt"
     provider_capability_probe: bool = False
     wave: str = "primary"
@@ -170,6 +171,13 @@ class Gate2DomainSourceFactRuntimeFactory:
         if not self.config.model_id:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_unavailable", "Gate 2 domain model id is required"
+            )
+        if self.config.workload_job_id is not None and not str(
+            self.config.workload_job_id
+        ).startswith("brjob_"):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_workload_job_id_invalid",
+                "Gate 2 workload job id is invalid",
             )
         if self.config.wave not in {"primary", "non_primary", "all"}:
             raise Gate2SourceFactRuntimeError(
@@ -1646,6 +1654,9 @@ class Gate2DomainSourceFactRuntimeService:
         )
 
     def _persist_terminal_run_record(self, *, artifact_id, payload, context, retention_policy, safe_metadata):
+        terminal_metadata = dict(safe_metadata)
+        if self.config.workload_job_id:
+            terminal_metadata["workload_job_id"] = self.config.workload_job_id
         self._put_record(
             artifact_id=artifact_id,
             artifact_type=DOMAIN_RUN_SCHEMA_VERSION,
@@ -1657,7 +1668,7 @@ class Gate2DomainSourceFactRuntimeService:
             storage_backend="project_artifact_store",
             validation_status="validated",
             payload=payload,
-            safe_metadata=safe_metadata,
+            safe_metadata=terminal_metadata,
         )
 
     def _put_record(self, *, artifact_id, artifact_type, context, retention_policy, document_id, source_file_ref, visibility, storage_backend, validation_status, payload, safe_metadata, warning_codes=None) -> ArtifactRecord:

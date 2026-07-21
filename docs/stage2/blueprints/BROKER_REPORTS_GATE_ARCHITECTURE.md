@@ -55,6 +55,14 @@ The following policy decisions are normative:
    document indexes survive into the next document. The complete logical graph
    remains resolver-backed in ArtifactStore. Run-wide decoded private graphs,
    truncation and representation removal are forbidden memory controls.
+10. All maintained Broker Reports jobs route through
+    `WorkloadAuthorityFactory.create`. The authority is one shared,
+    cross-process SQLite coordination plane rather than a process-local queue.
+    It admits Gate 1 heavy work at concurrency 1 and Gate 2 local work at a
+    maximum concurrency 2, queues excess work FIFO, and controls external model
+    calls with separate provider budgets. Worker leases detect crashes; they
+    are not a fixed wall timeout for otherwise healthy work. Local OCR worker
+    pools are forbidden.
 
 The global product sequence has four gates:
 
@@ -99,6 +107,26 @@ Global Gate 4: prepare tax/declaration result
 Financial interpretation begins in global Gate 2. Cross-document reasoning
 begins in global Gate 3. Tax-domain decisions and declaration/output
 preparation belong to global Gate 4.
+
+### Workload control plane
+
+The workload control plane is cross-cutting mechanics, not a fifth business
+gate. It distinguishes private source intake, Gate 1 normalization, Gate 2
+preparation, external provider work, review waiting and lightweight
+deterministic adapters without taking ownership of their business outputs.
+
+The persisted authenticated state vocabulary is exactly `queued`,
+`source_intake`, `normalizing`, `building_document_memory`, `validating`,
+`preparing_gate2`, `awaiting_provider`, `awaiting_review`, `completed`, `failed`
+and `cancelled`. A job is visible or cancellable only under the exact
+server-attested user/case/chat/workspace scope stored at submission.
+
+Cancellation is cooperative at document, phase and provider boundaries. It
+must reach terminal `cancelled`, release local and provider capacity, remove
+only the job-owned private temporary directory, preserve append-only audit
+evidence, and create no completed publication. A retry is a new linked job and
+new private temporary directory. Expired worker leases terminate as `failed`
+with `worker_lease_expired`; recovery can never synthesize `completed`.
 
 ## 3. Normative gate cards
 
@@ -218,6 +246,7 @@ manifest.
 | `broker_reports_gate2_source_fact_pipe` and domain bundle | Gate 2 adapters | OpenWebUI source-fact execution | Maintained runtime; safe summaries/private facts | Gate 2 factories | Implemented, deployed, parity-proven |
 | Gate-specific runtime factories | The gate whose artifact/decision they create | Factory-only routing for normalizers, packages, validators, stitchers and manifest creation | Normative runtime entrypoints; cannot bypass the owning gate contract | Same-gate runtime or next-gate handoff | Implemented for Gate 1/Gate 2 and the Gate 3 input manifest |
 | `Gate1BoundedGraphFactory` | Gate 1 | Document-bounded validation, sealing, ArtifactStore persistence and compact compatibility views | Normative heavy-run lifetime boundary; never drops a representation | Gate 1 validators, document-memory builder and Gate 2 resolver | Implemented in repository runtime; actual-corpus performance acceptance is revision-specific evidence |
+| `WorkloadAuthorityFactory` | Cross-cutting platform | Persisted FIFO admission, typed progress, worker/provider leases, authenticated status/cancel and job-owned temporary cleanup | Mechanical authority only; Gate 1 concurrency 1, Gate 2 maximum 2, provider-specific budgets, no local OCR pool | Broker Reports Gate 1/Gate 2 Pipes and authenticated operators | Maintained repository runtime; atomic stage delivery remains a separate release goal |
 | Format profilers, `CsvSupportedProfileFactory`, `FullSourceArtifactFactory` | Gate 1 | Format detection and representation preservation | Normative runtime; private source content | DCP/Gate 2 | Implemented; acceptance varies by format |
 | Normalized text/table/source payload and unit contracts | Gate 1 | Source representation | Versioned/private; table projection is structural, not financial | Gate 2 | Implemented for supported paths |
 | PDF Table Intake Gate 1 | Gate 1 local child capability | PDF page -> private raster candidates | Versioned/private; local gate terminology | Downstream Gate 1 table normalizer | Closed for accepted bounded scope |
@@ -253,6 +282,7 @@ The maintained Python implementation enforces the ownership map as follows:
 | Gate 2-owned table packages | `gate2_table_packages.py` | Financial/source-fact package construction and validation belong to Gate 2. `table_projection.py` keeps only a lazy compatibility export for older imports. |
 | Gate 2 -> Gate 3 | `gate3_context_manifest.py` | The Gate 2 exit factory creates one immutable, validator-recomputed manifest ref. Future Gate 3 code must start from this manifest, not from Gate 1 or Gate 2 internals. |
 | Cross-cutting persistence | `ArtifactStorePort`, `ArtifactResolver`, SQLite adapter | Gate runtimes depend on the domain-neutral port/resolver. The adapter permits idempotent replay of identical content but rejects semantic overwrite of an existing artifact id. |
+| Cross-cutting workload admission | `WorkloadAuthorityFactory`, SQLite job/transition/provider-lease tables | Every heavy production Pipe uses the single persisted authority. Process-local scheduler queues, direct capacity semaphores and fixed admission wall timeouts are forbidden. |
 | Gate execution history | terminal Gate 2 run artifacts | Intermediate run states remain in process memory; one terminal run record is appended. Scope expansion or rerun creates new artifact ids. |
 | Delivery | bundle builder, architecture test and parity verifier | Bundles include the same public boundary modules; tests fail on private cross-gate imports, store bypass, reverse dependencies or overwrite paths. |
 
