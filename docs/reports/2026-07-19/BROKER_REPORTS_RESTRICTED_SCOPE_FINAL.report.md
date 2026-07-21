@@ -51,7 +51,7 @@ consumer, change financial fact contracts or alter Gate 3. Stage delivery was
 not required because no runtime or bundle changed.
 
 Private images, resolver identities and operator material remain ignored under
-`local/stage2/restricted_scope_audit_private/`. The tracked safe inventory has no
+the ignored private evidence root. The tracked safe inventory has no
 customer values, filenames, private paths, source coordinates or raw media.
 
 ## Recommended next goals

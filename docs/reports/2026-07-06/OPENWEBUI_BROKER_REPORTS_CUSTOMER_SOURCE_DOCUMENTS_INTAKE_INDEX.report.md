@@ -18,8 +18,8 @@ Scope: Stage 2 Broker Reports / XLS NDFL document intake and classification
 ## 2. Outputs
 
 - Safe registry: `docs/stage2/domain/BROKER_REPORTS_CUSTOMER_SOURCE_DOCUMENTS_INDEX.v0.safe.json`
-- Private local registry: `local/stage2/broker_reports_customer_source_documents_intake_2026-07-06/private_registry.json`
-- Working script: `local/stage2/broker_reports_customer_source_documents_intake_2026-07-06/intake_indexer.py`
+- Private registry and working script: retained only in the ignored private
+  evidence root; no local path is published.
 
 ## 3. Corpus Summary
 

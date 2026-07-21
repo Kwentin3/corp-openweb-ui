@@ -71,10 +71,8 @@ Provider/model: `google_gemini`, `models/gemini-3.5-flash`, temperature 0, think
 
 Локальные пути:
 
-- terminal: `local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/run/terminal.private.json`;
-- seal: `local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/run/terminal.private.sha256.json`;
-- process evidence: `local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/gate_processes.safe.json`;
-- принятый score: `local/stage2/broker_reports_pdf_table_strategy_benchmark_2026-07-16/run2-gate/score.rescored-v2.json`.
+- terminal, seal, process evidence and accepted score remain in the ignored
+  private evidence root; only aggregate safe results are tracked.
 
 Run завершился без case failures. Terminal был записан и sealed до запуска отдельного scorer process; reference argument не передавался runner, terminal повторно проверен после scoring и не изменился.
 

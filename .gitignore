@@ -36,6 +36,8 @@ temp/
 # Local proof media and customer samples
 audio/
 /_private_test_corpora/
+*.private.json
+*.private.sha256.json
 
 # Local clipboard/delivery buffer, never repository source of truth.
 docs/out/

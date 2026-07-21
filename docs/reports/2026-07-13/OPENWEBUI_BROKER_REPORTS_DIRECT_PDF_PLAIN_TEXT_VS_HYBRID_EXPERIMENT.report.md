@@ -435,15 +435,13 @@ services/broker-reports-gate1-proof/tests/test_broker_reports_direct_pdf_plain_t
 Safe aggregate:
 
 ```text
-local/stage2/broker_reports_direct_pdf_plain_text_2026-07-13/experiment.safe.json
+ignored private safe experiment evidence (path withheld)
 ```
 
 Private ignored evidence:
 
 ```text
-local/stage2/broker_reports_direct_pdf_plain_text_2026-07-13/private/journal.private.json
-local/stage2/broker_reports_direct_pdf_plain_text_2026-07-13/private/experiment.private.json
-local/stage2/broker_reports_direct_pdf_plain_text_2026-07-13/private/journal.pre_target_header_fix.private.json
+ignored private journal, experiment and pre-fix evidence (paths withheld)
 ```
 
 Safe report содержит только aggregate metrics, hashes, safe table keys и failure classes. Raw customer values отсутствуют.

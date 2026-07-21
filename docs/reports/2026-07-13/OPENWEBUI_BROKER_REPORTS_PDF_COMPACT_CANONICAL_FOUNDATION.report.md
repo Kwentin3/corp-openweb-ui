@@ -125,7 +125,7 @@ Full 22 MB не считается permanent artifact.
 | Existing v0 validator | 9/9 mapped accepted projections passed |
 | Production Gate 2 input | unchanged |
 
-Safe proof artifact находится в ignored local proof area: `local/stage2/broker_reports_pdf_compact_canonical_2026-07-13/evidence.safe.json`. В репозиторий не записаны raw customer values, private paths или raw filenames.
+Safe proof artifact находится в ignored private evidence root; путь не публикуется. В репозиторий не записаны raw customer values, private paths или raw filenames.
 
 ## Acceptance gates
 

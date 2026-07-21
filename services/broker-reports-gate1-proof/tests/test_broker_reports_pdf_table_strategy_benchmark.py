@@ -98,6 +98,10 @@ EXPECTED_CASES = {
 }
 
 
+@unittest.skipUnless(
+    REFERENCE_PATH.exists(),
+    "offline private benchmark reference is required",
+)
 class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()

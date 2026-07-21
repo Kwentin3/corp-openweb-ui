@@ -64,10 +64,8 @@ Counterfactual reference injection не выполнялся и доказате
 
 Исследованы четыре неизменяемых набора:
 
-- preregistration: `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_prereg1`;
-- terminal: `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_run1`;
-- post-terminal reference: `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_reference1`;
-- score: `local/stage2/broker_reports_pdf_structural_holdout_fresh_v4_2026-07-14_score1`.
+- preregistration, terminal, post-terminal reference and score: retained in the
+  ignored private evidence root; paths withheld.
 
 Проверенные SHA-256 файлов:
 
