@@ -309,7 +309,19 @@ def _authenticated_session(
 ) -> requests.Session:
     session = requests.Session()
     session.headers.update({"Accept": "application/json"})
-    token = _signin(session, base_url, env)
+    deadline = time.time() + 120
+    while True:
+        try:
+            token = _signin(session, base_url, env)
+            break
+        except requests.HTTPError as error:
+            status_code = error.response.status_code if error.response is not None else 0
+            if status_code not in {404, 502, 503} or time.time() >= deadline:
+                raise
+        except requests.RequestException:
+            if time.time() >= deadline:
+                raise
+        time.sleep(2)
     session.headers.update({"Authorization": f"Bearer {token}"})
     return session
 

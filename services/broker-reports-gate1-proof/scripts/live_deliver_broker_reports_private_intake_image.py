@@ -104,7 +104,7 @@ def inspect_running():
     }
 
 
-def wait_healthy():
+def wait_healthy(external_url):
     deadline = time.time() + 120
     last = "not_started"
     while time.time() < deadline:
@@ -150,9 +150,32 @@ except urllib.error.HTTPError as error:
                 ],
                 check=False,
             )
-            if health_probe.returncode == 0 and api_probe.returncode == 0:
+            ingress_probe_code = """\
+import sys
+import urllib.error
+import urllib.request
+request = urllib.request.Request(
+    sys.argv[1] + '/api/v1/auths/signin',
+    data=b'{}',
+    headers={'Content-Type': 'application/json'},
+    method='POST',
+)
+try:
+    urllib.request.urlopen(request, timeout=5)
+except urllib.error.HTTPError as error:
+    assert error.code in {400, 401, 422}
+"""
+            ingress_probe = run(
+                ["python3", "-c", ingress_probe_code, external_url],
+                check=False,
+            )
+            if (
+                health_probe.returncode == 0
+                and api_probe.returncode == 0
+                and ingress_probe.returncode == 0
+            ):
                 return
-            last = "application_routes_not_ready"
+            last = "application_or_ingress_routes_not_ready"
         else:
             last = "container_not_running"
         time.sleep(2)
@@ -182,6 +205,11 @@ def compose_up(target):
 
 def configured_image(text):
     values = re.findall(r"(?m)^OPENWEBUI_IMAGE=(.*)$", text)
+    return values[-1].strip().strip('"').strip("'") if values else None
+
+
+def environment_value(text, key):
+    values = re.findall(r"(?m)^" + re.escape(key) + r"=(.*)$", text)
     return values[-1].strip().strip('"').strip("'") if values else None
 
 
@@ -218,6 +246,14 @@ if desired["intake"] != "server-authoritative-v2":
 rollback_image = configured_image(original_env) or before["configured_image"]
 if not rollback_image:
     raise RuntimeError("delivery_rollback_image_missing")
+external_host = environment_value(original_env, "OPENWEBUI_HOST")
+if not external_host:
+    raise RuntimeError("delivery_external_host_missing")
+external_url = (
+    external_host.rstrip("/")
+    if external_host.startswith(("http://", "https://"))
+    else "https://" + external_host.rstrip("/")
+)
 
 receipt = {
     "status": "validated" if not APPLY else "passed",
@@ -232,7 +268,7 @@ receipt = {
 if APPLY:
     try:
         compose_up(IMAGE)
-        wait_healthy()
+        wait_healthy(external_url)
         after = inspect_running()
         if after["configured_image"] != IMAGE or after["image_id"] != desired["id"]:
             raise RuntimeError("delivery_running_image_mismatch")
@@ -242,7 +278,7 @@ if APPLY:
         receipt["environment_persisted"] = True
     except Exception:
         compose_up(rollback_image)
-        wait_healthy()
+        wait_healthy(external_url)
         raise
 print(json.dumps(receipt, ensure_ascii=False, sort_keys=True))
 '''

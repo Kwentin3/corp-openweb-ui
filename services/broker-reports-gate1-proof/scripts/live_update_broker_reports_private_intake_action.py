@@ -8,6 +8,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +49,7 @@ def main() -> int:
 
     session = requests.Session()
     session.headers.update({"Accept": "application/json"})
-    token = _signin(session, base_url, env)
+    token = _signin_when_ready(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
 
     existing = _get_action(session, base_url)
@@ -142,6 +143,23 @@ def _get_action(
     if not isinstance(data, dict):
         raise RuntimeError("private_intake_action_response_invalid")
     return data
+
+
+def _signin_when_ready(
+    session: requests.Session, base_url: str, env: dict[str, str]
+) -> str:
+    deadline = time.time() + 120
+    while True:
+        try:
+            return _signin(session, base_url, env)
+        except requests.HTTPError as error:
+            status_code = error.response.status_code if error.response is not None else 0
+            if status_code not in {404, 502, 503} or time.time() >= deadline:
+                raise
+        except requests.RequestException:
+            if time.time() >= deadline:
+                raise
+        time.sleep(2)
 
 
 def _require_action(session: requests.Session, base_url: str) -> dict[str, Any]:
