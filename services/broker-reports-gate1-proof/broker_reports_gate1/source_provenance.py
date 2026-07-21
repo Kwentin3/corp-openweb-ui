@@ -759,6 +759,7 @@ def validate_source_value_refs(
 class _SourceValueResolver:
     def __init__(self, private_slice: dict[str, Any]) -> None:
         self.private_slice = private_slice
+        self.table_rows: list[list[Any]] | None = None
         self.entries: dict[str, list[dict[str, Any]]] = {}
         for item in private_slice.get("source_value_index") or []:
             if not isinstance(item, dict):
@@ -778,10 +779,18 @@ class _SourceValueResolver:
         matches = self.entries.get(str(source_value_ref), [])
         if len(matches) != 1:
             raise ValueError("source_value_ref_not_unique_or_missing")
+        path = (
+            matches[0].get("value_path")
+            if isinstance(matches[0].get("value_path"), dict)
+            else {}
+        )
+        if path.get("kind") == "table_cell" and self.table_rows is None:
+            self.table_rows = _table_rows(self.private_slice)
         return _resolve_source_value_entry(
             self.private_slice,
             matches[0],
             private_values_by_ref=self.private_values,
+            table_rows=self.table_rows,
         )
 
 
@@ -790,10 +799,11 @@ def _resolve_source_value_entry(
     entry: dict[str, Any],
     *,
     private_values_by_ref: dict[str, list[dict[str, Any]]] | None = None,
+    table_rows: list[list[Any]] | None = None,
 ) -> Any:
     path = entry.get("value_path") if isinstance(entry.get("value_path"), dict) else {}
     if path.get("kind") == "table_cell":
-        rows = _table_rows(private_slice)
+        rows = table_rows if table_rows is not None else _table_rows(private_slice)
         row_index = int(path.get("row_index"))
         column_index = int(path.get("column_index"))
         try:
