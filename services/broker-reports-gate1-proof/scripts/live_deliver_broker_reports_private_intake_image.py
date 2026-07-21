@@ -110,7 +110,7 @@ def wait_healthy():
     while time.time() < deadline:
         running = inspect_running()
         if running["running"]:
-            probe = run(
+            health_probe = run(
                 [
                     "docker",
                     "exec",
@@ -125,9 +125,34 @@ def wait_healthy():
                 ],
                 check=False,
             )
-            if probe.returncode == 0:
+            api_probe_code = """\
+import urllib.error
+import urllib.request
+request = urllib.request.Request(
+    'http://127.0.0.1:8080/api/v1/auths/signin',
+    data=b'{}',
+    headers={'Content-Type': 'application/json'},
+    method='POST',
+)
+try:
+    urllib.request.urlopen(request, timeout=5)
+except urllib.error.HTTPError as error:
+    assert error.code in {400, 401, 422}
+"""
+            api_probe = run(
+                [
+                    "docker",
+                    "exec",
+                    "openwebui",
+                    "python",
+                    "-c",
+                    api_probe_code,
+                ],
+                check=False,
+            )
+            if health_probe.returncode == 0 and api_probe.returncode == 0:
                 return
-            last = "health_probe_failed"
+            last = "application_routes_not_ready"
         else:
             last = "container_not_running"
         time.sleep(2)

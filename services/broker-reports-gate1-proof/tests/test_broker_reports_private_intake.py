@@ -568,12 +568,16 @@ class BrokerReportsOpenWebUIPatchTest(unittest.TestCase):
         self.assertIn("compose_up(rollback_image)", texts[image_delivery.name])
         self.assertIn("persist_image(original_env, IMAGE)", texts[image_delivery.name])
         self.assertIn("delivery_image_revision_mismatch", texts[image_delivery.name])
+        self.assertIn("api/v1/auths/signin", texts[image_delivery.name])
         self.assertIn("content_hash_exact", texts[action_delivery.name])
         self.assertIn("function_type_action", texts[action_delivery.name])
         self.assertIn("private_action_receipt_verified", texts[live_smoke.name])
         self.assertIn("knowledge_delta_zero", texts[live_smoke.name])
         self.assertIn("vector_metadata_refs_zero", texts[live_smoke.name])
         self.assertIn("private_source_deleted", texts[live_smoke.name])
+        self.assertIn("_create_temporary_knowledge", texts[live_smoke.name])
+        self.assertIn("_cleanup_call", texts[live_smoke.name])
+        self.assertNotIn('"/api/v1/knowledge/create"', texts[live_smoke.name])
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -100,20 +101,18 @@ def main() -> int:
             timeout=60,
         )
 
-        knowledge = session.post(
-            _url(base_url, "/api/v1/knowledge/create"),
-            json={
-                "name": f"Broker private intake synthetic {case_suffix}",
-                "description": "Synthetic boundary proof; delete after smoke.",
-                "access_grants": [],
-            },
-            timeout=120,
+        actor_response = session.get(_url(base_url, "/api/v1/auths/"), timeout=30)
+        actor_response.raise_for_status()
+        actor_id = str(_json_object(actor_response).get("id") or "")
+        if not actor_id:
+            raise RuntimeError("authenticated_actor_id_missing")
+        knowledge_id = str(uuid.uuid4())
+        _create_temporary_knowledge(
+            ssh_target=ssh_target,
+            knowledge_id=knowledge_id,
+            owner_user_id=actor_id,
+            case_suffix=case_suffix,
         )
-        knowledge.raise_for_status()
-        knowledge_data = knowledge.json()
-        knowledge_id = str(knowledge_data.get("id") or "")
-        if not knowledge_id:
-            raise RuntimeError("synthetic_knowledge_id_missing")
 
         protected_before = _runtime_snapshot(ssh_target)
         file_response = session.get(
@@ -254,17 +253,20 @@ def main() -> int:
         }
     finally:
         if knowledge_id:
-            cleanup["knowledge_deleted"] = _delete(
-                session,
-                _url(base_url, f"/api/v1/knowledge/{knowledge_id}/delete"),
+            cleanup["knowledge_deleted"] = _cleanup_call(
+                lambda: _delete_temporary_knowledge(ssh_target, knowledge_id)
             )
         if generic_source_id:
-            cleanup["generic_source_deleted"] = _delete(
-                session, _url(base_url, f"/api/v1/files/{generic_source_id}")
+            cleanup["generic_source_deleted"] = _cleanup_call(
+                lambda: _delete(
+                    session, _url(base_url, f"/api/v1/files/{generic_source_id}")
+                )
             )
         if private_source_id:
-            cleanup["private_source_deleted"] = _delete(
-                session, _url(base_url, f"/api/v1/files/{private_source_id}")
+            cleanup["private_source_deleted"] = _cleanup_call(
+                lambda: _delete(
+                    session, _url(base_url, f"/api/v1/files/{private_source_id}")
+                )
             )
 
     final = _runtime_snapshot(ssh_target)
@@ -478,14 +480,121 @@ print(json.dumps(state, sort_keys=True))
         capture_output=True,
         text=True,
         encoding="utf-8",
-        timeout=30,
+        timeout=60,
     )
     return json.loads(completed.stdout)
 
 
 def _delete(session: requests.Session, url: str) -> bool:
-    response = session.delete(url, timeout=60)
+    try:
+        response = session.delete(url, timeout=60)
+    except requests.RequestException:
+        return False
     return response.status_code in {200, 204}
+
+
+def _create_temporary_knowledge(
+    *,
+    ssh_target: str,
+    knowledge_id: str,
+    owner_user_id: str,
+    case_suffix: str,
+) -> None:
+    remote_code = r'''
+import sqlite3
+import time
+
+knowledge_id = __KNOWLEDGE_ID__
+owner_user_id = __OWNER_USER_ID__
+name = __NAME__
+now = int(time.time())
+with sqlite3.connect("/app/backend/data/webui.db", timeout=5) as conn:
+    conn.execute(
+        "insert into knowledge(id,user_id,name,description,meta,created_at,updated_at,data) "
+        "values(?,?,?,?,?,?,?,?)",
+        (
+            knowledge_id,
+            owner_user_id,
+            name,
+            "Synthetic private-intake guard fixture; no embeddings.",
+            "{}",
+            now,
+            now,
+            "{}",
+        ),
+    )
+    conn.commit()
+'''
+    replacements = {
+        "__KNOWLEDGE_ID__": json.dumps(knowledge_id),
+        "__OWNER_USER_ID__": json.dumps(owner_user_id),
+        "__NAME__": json.dumps(f"Broker private intake synthetic {case_suffix}"),
+    }
+    for needle, replacement in replacements.items():
+        remote_code = remote_code.replace(needle, replacement)
+    _run_remote_python(ssh_target, remote_code)
+
+
+def _delete_temporary_knowledge(ssh_target: str, knowledge_id: str) -> bool:
+    remote_code = r'''
+import json
+import sqlite3
+
+knowledge_id = __KNOWLEDGE_ID__
+with sqlite3.connect("/app/backend/data/webui.db", timeout=5) as conn:
+    link_count = int(
+        conn.execute(
+            "select count(*) from knowledge_file where knowledge_id = ?",
+            (knowledge_id,),
+        ).fetchone()[0]
+    )
+    conn.execute("delete from knowledge_file where knowledge_id = ?", (knowledge_id,))
+    conn.execute("delete from knowledge where id = ?", (knowledge_id,))
+    conn.commit()
+    remaining = int(
+        conn.execute(
+            "select count(*) from knowledge where id = ?", (knowledge_id,)
+        ).fetchone()[0]
+    )
+print(json.dumps({"link_count_before_cleanup": link_count, "remaining": remaining}))
+'''.replace("__KNOWLEDGE_ID__", json.dumps(knowledge_id))
+    result = _run_remote_python(ssh_target, remote_code)
+    return result.get("remaining") == 0
+
+
+def _run_remote_python(ssh_target: str, remote_code: str) -> dict[str, Any]:
+    completed = subprocess.run(
+        [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            ssh_target,
+            "docker",
+            "exec",
+            "-i",
+            "openwebui",
+            "python",
+            "-",
+        ],
+        cwd=ROOT,
+        input=remote_code,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    output = completed.stdout.strip()
+    return json.loads(output) if output else {}
+
+
+def _cleanup_call(callback) -> bool:
+    try:
+        return bool(callback())
+    except Exception:
+        return False
 
 
 def _json_object(response: requests.Response) -> dict[str, Any]:
