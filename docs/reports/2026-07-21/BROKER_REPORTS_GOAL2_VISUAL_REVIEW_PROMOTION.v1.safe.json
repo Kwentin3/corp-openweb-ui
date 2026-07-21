@@ -1,0 +1,75 @@
+{
+  "schema_version": "broker_reports_goal2_visual_review_promotion_safe_receipt_v1",
+  "generated_at": "2026-07-21T18:32:00+03:00",
+  "goal": "GOAL_2_VISUAL_REVIEW_AND_PROMOTION",
+  "status": "COMPLETED",
+  "repository": "Kwentin3/corp-openweb-ui",
+  "branch": "codex/broker-reports-visual-review-promotion-v1",
+  "accepted_base_revision": "9e927a0c654329f8c4c648240726a21a88e923a0",
+  "implementation_revision": "64d8f7325ef31d89624902b4a2b4bb22a24d717a",
+  "contract": {
+    "review_contract_version": "broker_reports_visual_table_review_contract_v1",
+    "review_receipt_schema": "broker_reports_visual_table_review_receipt_v1",
+    "review_seal_schema": "broker_reports_visual_table_review_seal_v1",
+    "region_cell_accounting_schema": "broker_reports_visual_region_cell_accounting_v1",
+    "validator_version": "broker_reports_visual_table_review_validator_v1",
+    "review_decisions": [
+      "accepted_without_correction",
+      "accepted_with_correction",
+      "rejected",
+      "unresolved",
+      "unsupported"
+    ],
+    "reviewer_types": [
+      "human_reviewed",
+      "delegated_agent_reviewed"
+    ],
+    "review_authority_source": "factory_bound_server_context",
+    "artifact_lifecycle_status": "private_ready",
+    "canonical_projection_origin": "reviewed_visual_canonical_table",
+    "gate2_entrypoint": "Gate2TablePackageFactory.create",
+    "provider_consensus_canonical_authority": false,
+    "local_ocr_evidence_used": false,
+    "whole_document_provider_upload": false
+  },
+  "acceptance": {
+    "VISUAL_REVIEW_CONTRACT": "VERSIONED",
+    "REVIEW_RECEIPT": "SOURCE_BOUND_AND_SEALED",
+    "PROVIDER_CONSENSUS_AUTO_ACCEPTANCE": "ZERO",
+    "LOCAL_OCR_EVIDENCE": "ZERO",
+    "CANONICAL_PROMOTION_WITHOUT_REVIEW": "ZERO",
+    "ACCEPTED_VISUAL_TABLE_GATE2_HANDOFF": "PASSED",
+    "REJECTED_OR_UNRESOLVED_RESULT": "NOT_PACKAGEABLE_AS_CANONICAL"
+  },
+  "verification": {
+    "focused_review_tests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "full_suite": {
+      "passed": 989,
+      "skipped": 20,
+      "failed": 0,
+      "warnings": 5,
+      "warning_class": "existing_pymupdf_swig_deprecation"
+    },
+    "focused_ruff": "PASSED",
+    "repository_wide_ruff_success_claimed": false,
+    "bundle_determinism": "PASSED",
+    "bundle_sha256": {
+      "gate1": "f9836a2bbcd0e2122bf4a11a1e317e880a750121d2dacefd57dd95594b5b4ec3",
+      "gate2_source": "44aa9187e333116708760e64a66d8241c1a168e198c347cf56742c4b814de6ed",
+      "gate2_domain": "788b9dd4a1853955d829f5c98b4625b04a790962d729ce10d9208d7e381bbdf3"
+    },
+    "heavy_local_ocr_production_imports": 0,
+    "stage_mutations": 0
+  },
+  "privacy": {
+    "customer_documents_in_receipt": false,
+    "customer_values_in_receipt": false,
+    "crop_bytes_in_receipt": false,
+    "raw_provider_outputs_in_receipt": false,
+    "private_paths_in_receipt": false,
+    "customer_acceptance_claimed": false
+  }
+}
