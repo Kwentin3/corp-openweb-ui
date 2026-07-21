@@ -34,11 +34,11 @@ class PdfGridExperimentContractTests(unittest.TestCase):
         self.assertTrue(parsed["byte_complete_parse"])
         self.assertIsNone(parsed["column_count"])
 
-    def test_compact_grid_is_schema_constrained_and_routes_to_binding_contract(self) -> None:
+    def test_compact_grid_is_schema_constrained_and_routes_to_binding_contract(
+        self,
+    ) -> None:
         package = _package()
-        schema = self.runtime.compact_output_schema(
-            expected_rows=2, expected_columns=2
-        )
+        schema = self.runtime.compact_output_schema(expected_rows=2, expected_columns=2)
         self.assertEqual(schema["$id"], PDF_COMPACT_GRID_SCHEMA)
         self.assertFalse(schema["additionalProperties"])
         parsed = self.runtime.parse_compact_output(
@@ -72,8 +72,9 @@ class PdfGridExperimentContractTests(unittest.TestCase):
             ),
         )
         for value, code in cases:
-            with self.subTest(code=code), self.assertRaisesRegex(
-                PdfGridExperimentError, code
+            with (
+                self.subTest(code=code),
+                self.assertRaisesRegex(PdfGridExperimentError, code),
             ):
                 self.runtime.parse_compact_output(
                     value,
@@ -83,23 +84,27 @@ class PdfGridExperimentContractTests(unittest.TestCase):
                 )
 
     def test_topology_is_validated_without_repeating_or_owning_grid(self) -> None:
-        topology = PdfCsvExperimentFactory().create().parse_topology_json(
-            {
-                "v": PDF_CSV_TOPOLOGY_SCHEMA,
-                "d": "a",
-                "r": 2,
-                "c": 2,
-                "h": 1,
-                "m": [],
-                "hh": [],
-                "k": None,
-                "rb": [],
-                "cb": [],
-                "u": ["header_ambiguous"],
-            },
-            expected_rows=2,
-            expected_columns=2,
-            expected_continuation=None,
+        topology = (
+            PdfCsvExperimentFactory()
+            .create()
+            .parse_topology_json(
+                {
+                    "v": PDF_CSV_TOPOLOGY_SCHEMA,
+                    "d": "a",
+                    "r": 2,
+                    "c": 2,
+                    "h": 1,
+                    "m": [],
+                    "hh": [],
+                    "k": None,
+                    "rb": [],
+                    "cb": [],
+                    "u": ["header_ambiguous"],
+                },
+                expected_rows=2,
+                expected_columns=2,
+                expected_continuation=None,
+            )
         )
         self.assertTrue(topology["independently_validated"])
         self.assertFalse(topology["grid_repeated"])
@@ -122,7 +127,9 @@ class PdfGridExperimentProviderTests(unittest.TestCase):
         with self.assertRaises(PdfGridProviderError) as raised:
             adapter.count_tokens(
                 model_view={"i": "place ids", "c": [["0", "A"]]},
-                output_schema=PdfGridExperimentFactory().create().compact_output_schema(
+                output_schema=PdfGridExperimentFactory()
+                .create()
+                .compact_output_schema(
                     expected_rows=1,
                     expected_columns=1,
                 ),
@@ -157,9 +164,13 @@ class PdfGridExperimentProviderTests(unittest.TestCase):
         png = b"png"
         crop_hash = hashlib.sha256(png).hexdigest()
         model_view = {"i": "place ids", "c": [["0", "A"]]}
-        schema = PdfGridExperimentFactory().create().compact_output_schema(
-            expected_rows=1,
-            expected_columns=1,
+        schema = (
+            PdfGridExperimentFactory()
+            .create()
+            .compact_output_schema(
+                expected_rows=1,
+                expected_columns=1,
+            )
         )
         counted = adapter.count_tokens(
             model_view=model_view,
@@ -185,6 +196,65 @@ class PdfGridExperimentProviderTests(unittest.TestCase):
         generation = request_body["generateContentRequest"]["generationConfig"]
         self.assertEqual(generation["responseMimeType"], "application/json")
         self.assertIn("responseJsonSchema", generation)
+
+    def test_gemini_refusal_incomplete_timeout_and_model_identity_fail_closed(
+        self,
+    ) -> None:
+        png = b"png"
+        crop_hash = hashlib.sha256(png).hexdigest()
+        schema = (
+            PdfGridExperimentFactory()
+            .create()
+            .compact_output_schema(
+                expected_rows=1,
+                expected_columns=1,
+            )
+        )
+        expected = {
+            "refusal": "provider_refusal",
+            "incomplete": "provider_non_terminal",
+            "timeout": "timeout_or_transport",
+            "model_mismatch": "resolved_model_mismatch",
+            "model_missing": "resolved_model_mismatch",
+        }
+        for mode, expected_failure in expected.items():
+            with self.subTest(mode=mode):
+                transport = _GeminiTerminalUrlOpen(mode)
+                adapter = PdfGridExperimentProviderFactory(
+                    PdfGridProviderConfig(maximum_counted_input_tokens=1000),
+                    urlopen_fn=transport,
+                ).create_with_connection(
+                    Gate2OpenWebUIProviderConnection(
+                        base_url=(
+                            "https://generativelanguage.googleapis.com/v1beta/openai"
+                        ),
+                        api_key="secret",
+                    )
+                )
+                counted = adapter.count_tokens(
+                    model_view={"task": "bounded crop"},
+                    output_schema=schema,
+                    png_bytes=png,
+                    crop_sha256=crop_hash,
+                )
+                result = adapter.invoke(
+                    task_id="gemini_terminal",
+                    model_view={"task": "bounded crop"},
+                    output_schema=schema,
+                    png_bytes=png,
+                    crop_sha256=crop_hash,
+                    attempt_number=1,
+                    attempt_lineage=[],
+                )
+
+                self.assertEqual(123, counted["total_tokens"])
+                self.assertIsNone(result["json_output"])
+                self.assertEqual(
+                    expected_failure,
+                    result["attempt"]["terminal_failure_class"],
+                )
+                self.assertFalse(result["attempt"]["hidden_retry"])
+                self.assertFalse(result["attempt"]["provider_failover"])
 
 
 class _Response:
@@ -227,6 +297,48 @@ class _FakeUrlOpen:
                 },
             }
         )
+
+
+class _GeminiTerminalUrlOpen:
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+        self.requests = []
+
+    def __call__(self, request, timeout: int):
+        self.requests.append(request)
+        if timeout != 240:
+            raise AssertionError("unexpected timeout")
+        if request.full_url.endswith(":countTokens"):
+            return _Response({"totalTokens": 123})
+        if not request.full_url.endswith(":generateContent"):
+            raise AssertionError(f"unexpected request: {request.full_url}")
+        if self.mode == "timeout":
+            raise TimeoutError("synthetic timeout")
+        model_version = "gemini-3.5-flash"
+        finish_reason = "STOP"
+        content = {"parts": [{"text": '{"g":[["0"]]}'}]}
+        payload: dict = {
+            "modelVersion": model_version,
+            "candidates": [
+                {
+                    "finishReason": finish_reason,
+                    "content": content,
+                }
+            ],
+        }
+        if self.mode == "refusal":
+            payload = {
+                "modelVersion": model_version,
+                "promptFeedback": {"blockReason": "SAFETY"},
+                "candidates": [],
+            }
+        elif self.mode == "incomplete":
+            payload["candidates"][0]["finishReason"] = "OTHER"
+        elif self.mode == "model_mismatch":
+            payload["modelVersion"] = "gemini-other"
+        elif self.mode == "model_missing":
+            payload.pop("modelVersion")
+        return _Response(payload)
 
 
 def _package() -> dict:

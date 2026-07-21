@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import importlib.util
 import json
 import sys
 import unittest
@@ -12,20 +11,10 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "scripts" / "pdf_dual_vlm_fact_providers.py"
+MODULE_PATH = ROOT / "broker_reports_gate1" / "pdf_dual_vlm_fact_providers.py"
+sys.path.insert(0, str(ROOT))
 
-
-def _load_module():
-    name = "pdf_dual_vlm_fact_providers_test"
-    spec = importlib.util.spec_from_file_location(name, MODULE_PATH)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-PROVIDERS = _load_module()
+from broker_reports_gate1 import pdf_dual_vlm_fact_providers as PROVIDERS  # noqa: E402
 
 
 class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
@@ -53,7 +42,7 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
         self.assertEqual(16_384, bundle.gemini.config.maximum_output_tokens)
         self.assertEqual([], transport.requests)
 
-    def test_factory_rejects_models_outside_research_allowlists(self) -> None:
+    def test_factory_rejects_models_outside_qualification_allowlists(self) -> None:
         cases = (
             PROVIDERS.PdfDualVlmFactProviderConfig(
                 gemini_model_id="models/gemini-not-allowlisted"
@@ -194,6 +183,7 @@ class OpenAIResponsesVisionAdapterTests(unittest.TestCase):
             "multiple_text": "parse_failure",
             "refusal": "provider_refusal",
             "incomplete": "provider_incomplete",
+            "timeout": "timeout_or_transport",
             "model_mismatch": "resolved_model_mismatch",
         }
         png = b"\x89PNG\r\n\x1a\nterminal-crop"
@@ -339,6 +329,8 @@ class _FakeUrlOpen:
                 }
             )
         if path == "/responses":
+            if self.mode == "timeout":
+                raise TimeoutError("synthetic transport timeout")
             return _Response(self._openai_response())
         raise AssertionError(
             f"unexpected boundary request: {request.method} {request.full_url}"

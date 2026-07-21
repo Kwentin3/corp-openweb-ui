@@ -137,6 +137,20 @@ from .pdf_table_intake_runtime import (
     table_detection_output_schema,
     validate_table_detection_output,
 )
+from .pdf_dual_vlm_runtime import (
+    DECISION_STATUSES as PDF_DUAL_VLM_DECISION_STATUSES,
+    PDF_DUAL_VLM_DECISION_SCHEMA,
+    PDF_DUAL_VLM_EXECUTION_SCHEMA,
+    PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION,
+    PDF_DUAL_VLM_RUN_SCHEMA,
+    PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
+    PDF_DUAL_VLM_VALIDATOR_VERSION,
+    PdfDualVlmRuntimeConfig,
+    PdfDualVlmRuntimeError,
+    PdfDualVlmRuntimeFactory,
+    PdfDualVlmRuntimeResult,
+    validate_pdf_dual_vlm_decision,
+)
 from .full_source import (
     FullSourceArtifactConfig,
     FullSourceArtifactFactory,

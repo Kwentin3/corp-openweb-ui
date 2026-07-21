@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-
-RUNTIME_STATUS = "proof_only"
-
 import base64
 import copy
 import hashlib
@@ -14,7 +11,10 @@ from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .gate2_model_contracts import gate2_provider_profile, gate2_provider_profile_revision
+from .gate2_model_contracts import (
+    gate2_provider_profile,
+    gate2_provider_profile_revision,
+)
 from .gate2_provider_adapters import (
     Gate2OpenWebUIProviderConnection,
     Gate2OpenWebUIProviderConnectionResolver,
@@ -23,14 +23,11 @@ from .pdf_hybrid_contracts import canonical_json_bytes, sha256_json
 from .pdf_hybrid_provider import project_gemini_schema
 
 
+RUNTIME_STATUS = "proof_only"
 PDF_GRID_PROVIDER_ADAPTER_VERSION = "gemini_native_table_crop_compact_json_v1"
 MAX_PROVIDER_RESPONSE_BYTES = 2 * 1024 * 1024
-FACTORY_REQUIRED = (
-    "PdfGridExperimentProviderFactory.create_for_openwebui is the only live compact-grid provider entrypoint"
-)
-FORBIDDEN = (
-    "Grid experiment orchestration must not construct provider payloads, resolve secrets, retry, or fail over providers"
-)
+FACTORY_REQUIRED = "PdfGridExperimentProviderFactory.create_for_openwebui is the only live compact-grid provider entrypoint"
+FORBIDDEN = "Grid experiment orchestration must not construct provider payloads, resolve secrets, retry, or fail over providers"
 
 
 class PdfGridProviderError(RuntimeError):
@@ -116,13 +113,16 @@ class GeminiGridExperimentAdapter:
         status, body = self._request("GET", self._base_url() + f"/models/{model}", None)
         payload = self._decode_json(body)
         resolved = str(payload.get("name") or "")
-        supported = set(str(item) for item in payload.get("supportedGenerationMethods") or [])
+        supported = set(
+            str(item) for item in payload.get("supportedGenerationMethods") or []
+        )
         passed = (
             status == 200
             and resolved == self.config.model_id
             and "generateContent" in supported
             and self.profile.supports_strict_final_json_schema
-            and int(payload.get("outputTokenLimit") or 0) >= self.config.maximum_output_tokens
+            and int(payload.get("outputTokenLimit") or 0)
+            >= self.config.maximum_output_tokens
             and int(payload.get("inputTokenLimit") or 0)
             >= self.config.maximum_counted_input_tokens
         )
@@ -154,13 +154,17 @@ class GeminiGridExperimentAdapter:
         crop_sha256: str,
     ) -> dict[str, Any]:
         self._validate_crop(png_bytes, crop_sha256)
-        body, canonical_schema_hash, adapted_schema_hash, transforms = self._generate_body(
-            model_view=model_view,
-            output_schema=output_schema,
-            png_bytes=png_bytes,
+        body, canonical_schema_hash, adapted_schema_hash, transforms = (
+            self._generate_body(
+                model_view=model_view,
+                output_schema=output_schema,
+                png_bytes=png_bytes,
+            )
         )
         model = self.config.model_id.removeprefix("models/")
-        request_body = {"generateContentRequest": {"model": self.config.model_id, **body}}
+        request_body = {
+            "generateContentRequest": {"model": self.config.model_id, **body}
+        }
         status, response_body = self._request(
             "POST", self._base_url() + f"/models/{model}:countTokens", request_body
         )
@@ -187,7 +191,9 @@ class GeminiGridExperimentAdapter:
             )
         return {
             "total_tokens": total,
-            "prompt_tokens_details": copy.deepcopy(payload.get("promptTokensDetails") or []),
+            "prompt_tokens_details": copy.deepcopy(
+                payload.get("promptTokensDetails") or []
+            ),
             "http_status": status,
             "request_hash": sha256_json(request_body),
             "response_hash": hashlib.sha256(response_body).hexdigest(),
@@ -215,10 +221,12 @@ class GeminiGridExperimentAdapter:
                 "pdf_grid_attempt_lineage_invalid", "attempt_policy"
             )
         self._validate_crop(png_bytes, crop_sha256)
-        body, canonical_schema_hash, adapted_schema_hash, transforms = self._generate_body(
-            model_view=model_view,
-            output_schema=output_schema,
-            png_bytes=png_bytes,
+        body, canonical_schema_hash, adapted_schema_hash, transforms = (
+            self._generate_body(
+                model_view=model_view,
+                output_schema=output_schema,
+                png_bytes=png_bytes,
+            )
         )
         model = self.config.model_id.removeprefix("models/")
         attempt_id = f"{task_id}_a{attempt_number}"
@@ -242,6 +250,8 @@ class GeminiGridExperimentAdapter:
             payload = self._decode_json(response_body)
             if status < 200 or status >= 300:
                 failure_class = _http_failure_class(status)
+            elif _gemini_has_refusal(payload):
+                failure_class = "provider_refusal"
             else:
                 text = _gemini_text(payload)
                 try:
@@ -259,7 +269,11 @@ class GeminiGridExperimentAdapter:
             failure_class = exc.failure_class
             if not response_body:
                 response_body = canonical_json_bytes({"error_code": exc.code})
-        candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
+        candidates = (
+            payload.get("candidates")
+            if isinstance(payload.get("candidates"), list)
+            else []
+        )
         finish_reason = (
             str(candidates[0].get("finishReason") or "")
             if candidates and isinstance(candidates[0], dict)
@@ -272,11 +286,17 @@ class GeminiGridExperimentAdapter:
                 else (failure_class or "provider_non_terminal")
             )
             value = None
-        usage = payload.get("usageMetadata") if isinstance(payload.get("usageMetadata"), dict) else {}
+        usage = (
+            payload.get("usageMetadata")
+            if isinstance(payload.get("usageMetadata"), dict)
+            else {}
+        )
         resolved = str(payload.get("modelVersion") or "")
         if resolved and not resolved.startswith("models/"):
             resolved = "models/" + resolved
-        if resolved and resolved != self.config.model_id:
+        if (resolved and resolved != self.config.model_id) or (
+            failure_class is None and not resolved
+        ):
             failure_class = "resolved_model_mismatch"
             value = None
         visible = text.encode("utf-8") if isinstance(text, str) else b""
@@ -323,7 +343,9 @@ class GeminiGridExperimentAdapter:
             "response_bytes": len(response_body),
             "response_hash": hashlib.sha256(response_body).hexdigest(),
             "visible_output_bytes": len(visible),
-            "visible_output_hash": hashlib.sha256(visible).hexdigest() if visible else None,
+            "visible_output_hash": hashlib.sha256(visible).hexdigest()
+            if visible
+            else None,
         }
 
     def _generate_body(
@@ -388,8 +410,12 @@ class GeminiGridExperimentAdapter:
             },
         )
         try:
-            with self.urlopen_fn(request, timeout=self.config.timeout_seconds) as response:
-                return int(response.status), response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+            with self.urlopen_fn(
+                request, timeout=self.config.timeout_seconds
+            ) as response:
+                return int(response.status), response.read(
+                    MAX_PROVIDER_RESPONSE_BYTES + 1
+                )
         except HTTPError as exc:
             return int(exc.code), exc.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
         except (TimeoutError, URLError) as exc:
@@ -430,6 +456,29 @@ def _gemini_text(payload: dict[str, Any]) -> str:
             "pdf_grid_provider_text_count_invalid", "parse_failure"
         )
     return texts[0]
+
+
+def _gemini_has_refusal(payload: dict[str, Any]) -> bool:
+    prompt_feedback = (
+        payload.get("promptFeedback")
+        if isinstance(payload.get("promptFeedback"), dict)
+        else {}
+    )
+    block_reason = str(prompt_feedback.get("blockReason") or "")
+    if block_reason and block_reason != "BLOCK_REASON_UNSPECIFIED":
+        return True
+    refusal_finish_reasons = {
+        "BLOCKLIST",
+        "PROHIBITED_CONTENT",
+        "RECITATION",
+        "SAFETY",
+        "SPII",
+    }
+    return any(
+        isinstance(candidate, dict)
+        and str(candidate.get("finishReason") or "") in refusal_finish_reasons
+        for candidate in payload.get("candidates") or []
+    )
 
 
 def _http_failure_class(status: int) -> str:

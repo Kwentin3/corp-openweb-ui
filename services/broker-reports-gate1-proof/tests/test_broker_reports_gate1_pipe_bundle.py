@@ -20,7 +20,10 @@ def run_pipe(pipe, body: dict, **kwargs) -> str:
     kwargs.setdefault("__user__", {"id": "bundle-test-user"})
     kwargs.setdefault(
         "__metadata__",
-        {"chat_id": "bundle-test-chat", "model_id": "broker_reports_gate1_pipe_bundle_test"},
+        {
+            "chat_id": "bundle-test-chat",
+            "model_id": "broker_reports_gate1_pipe_bundle_test",
+        },
     )
     return asyncio.run(pipe.pipe(body, **kwargs))
 
@@ -63,7 +66,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         for name in list(sys.modules):
-            if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
+            if name == "broker_reports_gate1" or name.startswith(
+                "broker_reports_gate1."
+            ):
                 del sys.modules[name]
 
     def test_bundled_pipe_runs_backend_normalizer_without_repo_package_import(self):
@@ -102,6 +107,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
         self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
         self.assertIn("pdf_table_intake_runtime", module._BUNDLED_MODULES)
+        self.assertIn("pdf_dual_vlm_canonical_table_contracts", module._BUNDLED_MODULES)
+        self.assertIn("pdf_dual_vlm_fact_providers", module._BUNDLED_MODULES)
+        self.assertIn("pdf_dual_vlm_runtime", module._BUNDLED_MODULES)
         self.assertIn("pdf_continuation_discovery", module._BUNDLED_MODULES)
         self.assertIn("pdf_structural_repair_runtime", module._BUNDLED_MODULES)
         self.assertIn("pdf_semantic_header_contracts", module._BUNDLED_MODULES)
@@ -129,6 +137,18 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             bundled_order.index("pdf_vlm_region_binding"),
         )
         self.assertLess(
+            bundled_order.index("pdf_grid_experiment_provider"),
+            bundled_order.index("pdf_dual_vlm_fact_providers"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_dual_vlm_canonical_table_contracts"),
+            bundled_order.index("pdf_dual_vlm_runtime"),
+        )
+        self.assertLess(
+            bundled_order.index("pdf_dual_vlm_fact_providers"),
+            bundled_order.index("pdf_dual_vlm_runtime"),
+        )
+        self.assertLess(
             bundled_order.index("pdf_vlm_product_routing"),
             bundled_order.index("pdf_structural_repair_shadow"),
         )
@@ -146,17 +166,12 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "Gate1DocumentMemoryFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
-        self.assertTrue(
-            hasattr(bundled_package, "Gate2StructuredModelClientFactory")
-        )
+        self.assertTrue(hasattr(bundled_package, "Gate2StructuredModelClientFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
-        self.assertTrue(
-            hasattr(bundled_package, "PdfTableIntakeRuntimeFactory")
-        )
+        self.assertTrue(hasattr(bundled_package, "PdfTableIntakeRuntimeFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
-        self.assertTrue(
-            hasattr(bundled_package, "PdfStructuralRowWindowFactory")
-        )
+        self.assertTrue(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
@@ -226,7 +241,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         self.assertEqual(report["duplicate_count"], 1)
         self.assertEqual(report["validation_result"]["status"], "passed")
-        self.assertIn("unsupported_format", {item["code"] for item in report["blockers"]})
+        self.assertIn(
+            "unsupported_format", {item["code"] for item in report["blockers"]}
+        )
         self.assertIn("duplicate_review", {item["code"] for item in report["blockers"]})
         self.assertFalse(report["safety_flags"]["source_fact_extraction_performed"])
         self.assertFalse(report["safety_flags"]["tax_correctness_claimed"])
@@ -248,18 +265,25 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
         self.assertFalse(pipe.valves.pdf_table_intake_enabled)
+        self.assertFalse(pipe.valves.pdf_dual_vlm_enabled)
         self.assertEqual(
-            0.08, pipe.valves.pdf_table_intake_horizontal_padding_fraction
+            "pdf_dual_vlm_provider_selection_v1",
+            pipe.valves.pdf_dual_vlm_provider_selection_policy_version,
         )
         self.assertEqual(
-            0.08, pipe.valves.pdf_table_intake_vertical_padding_fraction
+            "models/gemini-3.5-flash",
+            pipe.valves.pdf_dual_vlm_gemini_model_id,
         )
+        self.assertEqual(
+            "gpt-5.4-mini-2026-03-17",
+            pipe.valves.pdf_dual_vlm_openai_model_id,
+        )
+        self.assertEqual(0.08, pipe.valves.pdf_table_intake_horizontal_padding_fraction)
+        self.assertEqual(0.08, pipe.valves.pdf_table_intake_vertical_padding_fraction)
         self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
         self.assertFalse(pipe.valves.pdf_structural_repair_shadow_enabled)
         self.assertFalse(pipe.valves.pdf_vlm_guided_intake_shadow_enabled)
-        self.assertEqual(
-            "", pipe.valves.pdf_vlm_guided_intake_shadow_page_allowlist
-        )
+        self.assertEqual("", pipe.valves.pdf_vlm_guided_intake_shadow_page_allowlist)
         self.assertFalse(pipe.valves.pdf_semantic_header_shadow_enabled)
         pipe.valves.pdf_compact_canonical_dual_write = True
 
@@ -286,9 +310,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertEqual(
             len(refs["broker_reports_pdf_compact_canonical_document_v1"]), 1
         )
-        self.assertEqual(
-            len(refs["broker_reports_pdf_normalization_acceptance_v1"]), 1
-        )
+        self.assertEqual(len(refs["broker_reports_pdf_normalization_acceptance_v1"]), 1)
         self.assertEqual(
             pipe.last_artifact_manifest["pdf_hybrid_shadow"],
             {"enabled": False, "artifact_refs": [], "summary": None},
@@ -297,9 +319,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["enabled"]
         )
         self.assertFalse(
-            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
-                "summary"
-            ]["vlm_guided_intake_enabled"]
+            pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["summary"][
+                "vlm_guided_intake_enabled"
+            ]
         )
         self.assertEqual(
             {
@@ -314,9 +336,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             },
             pipe.last_artifact_manifest["pdf_semantic_header_shadow"],
         )
-        self.assertFalse(
-            any("pdf_hybrid" in artifact_type for artifact_type in refs)
-        )
+        self.assertFalse(any("pdf_hybrid" in artifact_type for artifact_type in refs))
         self.assertNotIn("Synthetic Table", content)
 
 
