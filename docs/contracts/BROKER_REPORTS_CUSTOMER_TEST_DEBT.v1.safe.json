@@ -28,9 +28,9 @@
     "default": false,
     "name": "broker_pdf_neutral_table_profile_v1_enabled",
     "permitted_open_debt_scopes": [
-      "deterministic_test_fixtures",
-      "future_positive_holdout_validation",
-      "private_actual_corpus_proof"
+      "actual_customer_approved_source_evidence_pool_v1",
+      "deterministic_test_fixture",
+      "future_positive_holdout_validation_v1"
     ]
   },
   "safe_output": true,
