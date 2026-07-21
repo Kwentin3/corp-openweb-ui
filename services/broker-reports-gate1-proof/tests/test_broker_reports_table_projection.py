@@ -89,6 +89,52 @@ def _broker_profile_ruled_table_pdf() -> bytes:
 
 
 class BrokerReportsTableProjectionTest(unittest.TestCase):
+    def test_native_projection_resolves_all_cells_with_single_index_and_row_scan(self):
+        content = (
+            "Date,Amount,Note\n"
+            + "".join(
+                f"2026-01-{(index % 28) + 1:02d},{index}.00,row-{index}\n"
+                for index in range(1, 201)
+            )
+        ).encode("utf-8")
+        built = FullSourceArtifactFactory().create().build(
+            normalization_run_id="norm_linear_projection",
+            document_id="doc_linear_projection",
+            profile_id="profile_linear_projection",
+            container_format="csv",
+            content_bytes=content,
+            source_checksum_sha256="a" * 64,
+        )
+        expected = NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="csv",
+            payloads=built.payloads,
+            source_units=built.units,
+        )
+
+        class CountingList(list):
+            def __init__(self, values):
+                super().__init__(values)
+                self.iterations = 0
+
+            def __iter__(self):
+                self.iterations += 1
+                return super().__iter__()
+
+        instrumented_unit = copy.deepcopy(built.units[0])
+        source_index = CountingList(instrumented_unit["source_value_index"])
+        source_cells = CountingList(instrumented_unit["cells"])
+        instrumented_unit["source_value_index"] = source_index
+        instrumented_unit["cells"] = source_cells
+        actual = NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="csv",
+            payloads=built.payloads,
+            source_units=[instrumented_unit],
+        )
+
+        self.assertEqual(actual.projections, expected.projections)
+        self.assertEqual(source_index.iterations, 1)
+        self.assertEqual(source_cells.iterations, 1)
+
     def test_batch_source_value_lookup_indexes_entries_and_private_values_once(self):
         rows = ["Date,Amount,Note"] + [
             f"2026-01-{(index % 28) + 1:02d},{index}.00,row-{index}"

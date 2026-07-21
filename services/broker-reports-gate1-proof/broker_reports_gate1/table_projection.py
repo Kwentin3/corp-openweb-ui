@@ -14,7 +14,7 @@ from .broker_pdf_neutral_tables import (
     validate_canonical_neutral_projection,
 )
 from .contracts import stable_digest
-from .source_provenance import resolve_source_value, validate_source_value_refs
+from .source_provenance import resolve_source_values, validate_source_value_refs
 
 
 FACTORY_REQUIRED = (
@@ -228,10 +228,14 @@ class _NativeTableProjectionBuilder:
         cells: list[dict[str, Any]] = []
         private_values: list[dict[str, Any]] = []
         source_value_index: list[dict[str, Any]] = []
+        source_value_refs = [
+            str(item.get("source_value_ref") or "") for item in cell_provenance
+        ]
+        resolved_values = resolve_source_values(source_unit, source_value_refs)
         for item in cell_provenance:
             cell_ref = str(item.get("cell_ref") or "")
             source_value_ref = str(item.get("source_value_ref") or "")
-            value = resolve_source_value(source_unit, source_value_ref)
+            value = resolved_values[source_value_ref]
             value_text = "" if value is None else str(value)
             value_path_ref = "tablevaluepath_" + stable_digest(
                 [projection_id, cell_ref, source_value_ref], length=24
