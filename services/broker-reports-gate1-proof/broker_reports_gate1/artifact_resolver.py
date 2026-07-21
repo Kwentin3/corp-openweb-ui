@@ -67,6 +67,14 @@ class ArtifactResolver:
             raise ArtifactStoreError("artifact_blocked", "Artifact is blocked")
         if record.lifecycle_status == "purged" or record.purge_status == "purged":
             raise ArtifactStoreError("artifact_purged", "Artifact was purged")
+        if (
+            record.lifecycle_status == "purge_pending"
+            or record.purge_status == "purge_pending"
+        ):
+            raise ArtifactStoreError(
+                "artifact_purge_pending",
+                "Artifact purge is pending",
+            )
         if record.lifecycle_status == "expired" or record.purge_status == "expired":
             raise ArtifactStoreError("artifact_expired", "Artifact is expired")
         if record.expires_at:

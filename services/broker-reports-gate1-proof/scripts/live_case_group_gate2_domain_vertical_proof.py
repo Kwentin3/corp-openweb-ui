@@ -723,14 +723,17 @@ probe_store.put_record(ArtifactRecord(
 probe_service = Gate3ContextManifestFactory(store=probe_store).create()
 probe_service.resolve_for_gate3(manifest_ref=probe_manifest_ref, context=probe_context)
 
-probe_store.expire_artifacts(datetime.now(timezone.utc) + timedelta(minutes=20))
+probe_store.expire_run(
+    probe_context,
+    datetime.now(timezone.utc) + timedelta(minutes=20),
+)
 try:
     probe_service.resolve_for_gate3(manifest_ref=probe_manifest_ref, context=probe_context)
 except ArtifactStoreError as exc:
     expiry_code = exc.code
 else:
     expiry_code = "unexpected_access_allowed"
-probe_store.purge_run(probe_run)
+probe_store.purge_run(probe_context)
 try:
     probe_service.resolve_for_gate3(manifest_ref=probe_manifest_ref, context=probe_context)
 except ArtifactStoreError as exc:

@@ -101,7 +101,12 @@ def main() -> None:
 
         wrong_context_code = _wrong_context_code(resolver, memory_ref, context)
         source_delete_observed = store.mark_source_file_deleted(
-            openwebui_file_id="synthetic-document-memory-1"
+            ArtifactAccessContext(
+                **{
+                    **context.__dict__,
+                    "source_file_id": "synthetic-document-memory-1",
+                }
+            )
         )
         source_delete_private_purged = sum(
             1
@@ -114,7 +119,7 @@ def main() -> None:
         root_survives_source_delete_as_safe_metadata = bool(
             resolver.resolve(memory_ref, context)["payload"].get("manifest_id")
         )
-        case_purged = store.purge_case(case_id=str(context.case_id))
+        case_purged = store.purge_case(context)
         purge_denial_code = _resolve_error_code(resolver, memory_ref, context)
 
         checks = {
@@ -158,10 +163,12 @@ def main() -> None:
                 "artifact_scope_forbidden",
                 "artifact_user_forbidden",
             },
-            "source_delete_cascade_observed": bool(source_delete_observed)
+            "source_delete_cascade_observed": (
+                source_delete_observed.status == "changed"
+            )
             and source_delete_private_purged > 0,
             "safe_root_retained_after_source_delete": root_survives_source_delete_as_safe_metadata,
-            "case_purge_denies_root": bool(case_purged)
+            "case_purge_denies_root": case_purged.status == "changed"
             and purge_denial_code == "artifact_purged",
             "knowledge_vector_records_absent": all(
                 item.storage_backend != "openwebui_knowledge" for item in records_before

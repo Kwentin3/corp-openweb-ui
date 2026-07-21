@@ -21,6 +21,7 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
 from broker_reports_gate1.artifact_models import (  # noqa: E402
+    ArtifactAccessContext,
     ArtifactRecord,
     ArtifactStoreError,
     RetentionPolicy,
@@ -122,6 +123,16 @@ def _status_snapshot(store, run_id: str) -> list[tuple[str, str, str]]:
     ]
 
 
+def _context(*, run_id: str, case_id: str) -> ArtifactAccessContext:
+    return ArtifactAccessContext(
+        user_id="retention-audit-user",
+        case_id=case_id,
+        chat_id="retention-audit-chat",
+        workspace_model_id=None,
+        normalization_run_id=run_id,
+    )
+
+
 def run_audit(*, unrelated_records: int) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="broker-retention-audit-") as directory:
         root = Path(directory)
@@ -135,6 +146,11 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
         target_run = "retention-audit-target-run"
         unrelated_run = "retention-audit-unrelated-run"
         concurrent_run = "retention-audit-concurrent-run"
+        target_context = _context(run_id=target_run, case_id="target-case")
+        concurrent_context = _context(
+            run_id=concurrent_run,
+            case_id="concurrent-case",
+        )
         for _ in range(unrelated_records):
             _put(
                 store,
@@ -155,22 +171,27 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
         started = time.perf_counter()
         with probe.installed():
             expired_ids = store.expire_run(
-                target_run,
+                target_context,
                 now=datetime.now(timezone.utc),
             )
         expiry_wall = time.perf_counter() - started
         unrelated_after = _status_snapshot(store, unrelated_run)
         target_after_first = _status_snapshot(store, target_run)
-        time.sleep(0.001)
         repeated_ids = store.expire_run(
-            target_run,
+            target_context,
             now=datetime.now(timezone.utc),
         )
         target_after_second = _status_snapshot(store, target_run)
 
         empty_scope_denied = False
         try:
-            store.expire_run("")
+            store.expire_run(
+                ArtifactAccessContext(
+                    user_id="",
+                    case_id="",
+                    normalization_run_id="",
+                )
+            )
         except ArtifactStoreError as exc:
             empty_scope_denied = exc.code == "artifact_scope_unverified"
 
@@ -181,14 +202,16 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
                 case_id="concurrent-case",
                 expired=True,
             )
-        concurrent_results: list[list[str]] = []
+        concurrent_results = []
         concurrent_errors: list[str] = []
+        concurrent_start = threading.Barrier(2)
 
         def expire_concurrently() -> None:
             try:
+                concurrent_start.wait()
                 concurrent_results.append(
                     store.expire_run(
-                        concurrent_run,
+                        concurrent_context,
                         now=datetime.now(timezone.utc),
                     )
                 )
@@ -213,13 +236,21 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
             expired=False,
             payload_ref=failing_ref,
         )
-        (root / "payloads" / failing_ref).mkdir()
+        failing_path = root / "payloads" / failing_ref
+        failing_path.mkdir()
         partial_failure_raised = False
         try:
-            store.purge_run(failing_run)
+            store.purge_run(
+                _context(run_id=failing_run, case_id="failure-case")
+            )
         except OSError:
             partial_failure_raised = True
-        failing_after = store.get_record_unchecked(failing_record.artifact_id)
+        failing_pending = store.get_record_unchecked(failing_record.artifact_id)
+        failing_path.rmdir()
+        recovery_result = store.purge_run(
+            _context(run_id=failing_run, case_id="failure-case")
+        )
+        failing_recovered = store.get_record_unchecked(failing_record.artifact_id)
 
         first_updated = {item[0]: item[2] for item in target_after_first}
         second_updated = {item[0]: item[2] for item in target_after_second}
@@ -228,7 +259,7 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
         )
         run_scoped_query = (
             probe.statements.get("select") == 1
-            and probe.statements.get("update") == len(expired_ids)
+            and probe.statements.get("update") == 1
         )
         state_idempotent = all(
             lifecycle == "expired" for _ref, lifecycle, _updated in target_after_second
@@ -236,6 +267,12 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
         concurrency_state_correct = (
             not concurrent_errors
             and len(concurrent_results) == 2
+            and sorted(result.status for result in concurrent_results)
+            == ["changed", "no_op"]
+            and sum(
+                result.records_changed for result in concurrent_results
+            )
+            == len(concurrent_after)
             and all(
                 lifecycle == "expired"
                 for _ref, lifecycle, _updated in concurrent_after
@@ -243,7 +280,7 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
         )
         return {
             "schema_version": SCHEMA_VERSION,
-            "status": "passed_with_contract_gaps",
+            "status": "passed",
             "workload": {
                 "target_records": len(target_before),
                 "unrelated_records": unrelated_records,
@@ -251,7 +288,7 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
             },
             "run_scoped_expiry": {
                 "records_examined": len(target_before),
-                "records_changed": len(expired_ids),
+                "records_changed": expired_ids.records_changed,
                 "unrelated_records_examined_by_result_materialization": 0,
                 "unrelated_records_unchanged": unrelated_before == unrelated_after,
                 "sql_shape_run_predicate_present": run_scoped_query,
@@ -259,15 +296,16 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
                 "operation_wall_seconds": round(expiry_wall, 6),
                 "sql_probe": probe.safe_summary(),
                 "empty_run_scope_denied": empty_scope_denied,
-                "context_bound_api": False,
-                "case_or_tenant_predicate_present": False,
+                "context_bound_api": True,
+                "case_or_tenant_predicate_present": True,
             },
             "repeated_expiry": {
                 "terminal_state_idempotent": state_idempotent,
-                "second_call_returned_ids": len(repeated_ids),
+                "second_call_returned_ids": repeated_ids.records_changed,
                 "audit_timestamp_mutations": repeated_timestamp_mutations,
                 "strict_idempotence": (
-                    not repeated_ids and repeated_timestamp_mutations == 0
+                    repeated_ids.status == "no_op"
+                    and repeated_timestamp_mutations == 0
                 ),
             },
             "concurrent_expiry": {
@@ -276,23 +314,31 @@ def run_audit(*, unrelated_records: int) -> dict[str, Any]:
                 "operation_wall_seconds": round(concurrent_wall, 6),
                 "terminal_state_correct": concurrency_state_correct,
                 "result_cardinalities": sorted(
-                    len(result) for result in concurrent_results
+                    result.records_changed for result in concurrent_results
                 ),
             },
             "partial_cleanup_failure": {
                 "exception_propagated": partial_failure_raised,
                 "false_terminal_success": False,
                 "record_left_recoverably_purge_pending": bool(
-                    failing_after
-                    and failing_after.lifecycle_status == "purge_pending"
+                    failing_pending
+                    and failing_pending.lifecycle_status == "purge_pending"
+                    and failing_pending.purge_status == "purge_pending"
+                ),
+                "same_context_retry_completed": bool(
+                    recovery_result.status == "changed"
+                    and recovery_result.records_changed == 1
+                    and failing_recovered
+                    and failing_recovered.lifecycle_status == "purged"
+                    and failing_recovered.purge_status == "purged"
                 ),
             },
             "global_scan_audit": {
                 "approved_expire_run_flow": "absent",
                 "purge_run": "run_scoped",
-                "purge_case": "global_active_record_scan_present",
-                "mark_source_file_deleted": "global_active_record_scan_present",
-                "expire_artifacts": "global_api_still_exists_but_not_used_by_approved_flow",
+                "purge_case": "context_scoped_indexed",
+                "mark_source_file_deleted": "context_scoped_indexed",
+                "expire_artifacts": "removed",
             },
             "privacy": {
                 "synthetic_records_only": True,

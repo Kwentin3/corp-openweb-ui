@@ -1822,7 +1822,7 @@ class Pipe:
             source_file_refs=self._source_file_refs(file_refs),
         )
         store.expire_run(
-            probe_context.normalization_run_id,
+            probe_context,
             now=datetime.now(timezone.utc) + timedelta(seconds=2),
         )
         self._assert_resolver_denies(
@@ -1838,9 +1838,13 @@ class Pipe:
         purge_payload_path = self._payload_path(purge_private_record.payload_ref)
         if not purge_payload_path.exists():
             raise RuntimeError("purge_probe_payload_file_missing")
-        purged_ids = store.purge_run(probe_context.normalization_run_id)
+        purge_result = store.purge_run(probe_context)
         purged_private_record = store.get_record_unchecked(purge_private_ref)
-        if not purged_ids or purge_payload_path.exists() or purged_private_record is None:
+        if (
+            purge_result.status != "changed"
+            or purge_payload_path.exists()
+            or purged_private_record is None
+        ):
             raise RuntimeError("purge_probe_failed")
         if purged_private_record.storage_backend != "none_tombstone" or purged_private_record.payload_ref:
             raise RuntimeError("purge_tombstone_invalid")
@@ -2191,17 +2195,33 @@ class Pipe:
         kwargs: dict[str, Any],
         normalization_run_id: str,
     ) -> ArtifactAccessContext:
-        user_id = self._user_id(user, metadata)
-        chat_id = (
-            metadata.get("chat_id")
-            or kwargs.get("__chat_id__")
-            or kwargs.get("chat_id")
-            or body.get("chat_id")
-            or metadata.get("session_id")
-        )
-        body_metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
-        case_id = metadata.get("case_id") or body_metadata.get("case_id") or body.get("case_id")
-        workspace_model_id = metadata.get("model_id") or body.get("model") or body.get("model_id")
+        del body  # Raw request fields are never lifecycle authority.
+        if not isinstance(user, dict):
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Authenticated server user context is required",
+            )
+        user_id = str(user.get("id") or user.get("user_id") or "").strip()
+        if not user_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Authenticated server user identity is required",
+            )
+
+        # __metadata__ and double-underscore kwargs are injected by OpenWebUI's
+        # function runtime. Client body/metadata fallbacks are intentionally
+        # excluded so a caller cannot select another lifecycle scope.
+        chat_id = metadata.get("chat_id") or kwargs.get("__chat_id__")
+        case_id = metadata.get("case_id")
+        model_context = kwargs.get("__model__")
+        if isinstance(model_context, dict):
+            model_context = model_context.get("id") or model_context.get("model_id")
+        workspace_model_id = metadata.get("model_id") or model_context
+        if not case_id and not chat_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Server-attested case or chat context is required",
+            )
         return ArtifactAccessContext(
             user_id=user_id,
             normalization_run_id=normalization_run_id,

@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from broker_reports_gate1 import RetentionPolicyError
+from broker_reports_gate1 import ArtifactStoreError, RetentionPolicyError
 from broker_reports_gate1 import ManagedPrompt
 from broker_reports_gate1.document_passport import document_metadata_passport_schema_hash, prompt_hash
 from openwebui_actions.broker_reports_gate1_pipe import NORMALIZER_VERSION, SAFETY_STATEMENT, Pipe
@@ -172,6 +172,54 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertFalse(
             pipe.valves.broker_pdf_neutral_table_profile_v1_enabled
         )
+
+    def test_artifact_context_ignores_client_selected_scope(self):
+        context = self._pipe()._artifact_context(
+            user={"id": "trusted-user"},
+            metadata={
+                "chat_id": "trusted-chat",
+                "model_id": "trusted-model",
+            },
+            body={
+                "chat_id": "forged-chat",
+                "case_id": "forged-case",
+                "model_id": "forged-model",
+                "metadata": {"case_id": "forged-nested-case"},
+            },
+            kwargs={"chat_id": "forged-kwarg-chat"},
+            normalization_run_id="trusted-run",
+        )
+
+        self.assertEqual(context.user_id, "trusted-user")
+        self.assertEqual(context.chat_id, "trusted-chat")
+        self.assertIsNone(context.case_id)
+        self.assertEqual(context.workspace_model_id, "trusted-model")
+        self.assertEqual(context.normalization_run_id, "trusted-run")
+
+    def test_artifact_context_requires_server_user_and_case_or_chat(self):
+        pipe = self._pipe()
+        with self.assertRaisesRegex(
+            ArtifactStoreError,
+            "Authenticated server user context is required",
+        ):
+            pipe._artifact_context(
+                user=None,
+                metadata={"chat_id": "trusted-chat"},
+                body={"user_id": "forged-user"},
+                kwargs={},
+                normalization_run_id="trusted-run",
+            )
+        with self.assertRaisesRegex(
+            ArtifactStoreError,
+            "Server-attested case or chat context is required",
+        ):
+            pipe._artifact_context(
+                user={"id": "trusted-user"},
+                metadata={"model_id": "trusted-model"},
+                body={"case_id": "forged-case", "chat_id": "forged-chat"},
+                kwargs={"chat_id": "forged-kwarg-chat"},
+                normalization_run_id="trusted-run",
+            )
 
     def test_pipe_clarification_model_id_ignores_workspace_model_metadata(self):
         pipe = self._pipe()
@@ -391,6 +439,11 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
                         ],
                     }
                 ],
+            },
+            __metadata__={
+                "case_id": "case-live-smoke",
+                "chat_id": "pipe-test-chat",
+                "model_id": "broker_reports_gate1_pipe_test",
             },
         )
 

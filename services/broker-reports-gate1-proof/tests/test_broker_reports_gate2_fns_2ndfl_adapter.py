@@ -338,7 +338,7 @@ class BrokerReportsGate2Fns2NdflAdapterTest(unittest.TestCase):
                     ),
                 )
             self.assertEqual(denied.exception.code, "artifact_access_denied")
-            store.purge_run(run_id)
+            store.purge_run(context)
             with self.assertRaises(ArtifactStoreError) as purged:
                 Gate2InputReadinessFactory(store=store).create().audit_and_build(
                     domain_context_packet_ref=dcp_ref, context=context

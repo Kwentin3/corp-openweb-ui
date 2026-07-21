@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -9,13 +10,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .artifact_lifecycle import assert_transition
 from .artifact_models import (
     ARTIFACT_TYPES,
     PURGE_STATUSES,
     STORAGE_BACKENDS,
     VALIDATION_STATUSES,
     VISIBILITIES,
+    ArtifactAccessContext,
+    ArtifactLifecycleResult,
     ArtifactRecord,
     ArtifactStoreError,
     RetentionPolicy,
@@ -33,6 +35,12 @@ class ArtifactStoreConfig:
     mode: str
     sqlite_path: Path
     payload_root: Path
+
+
+@dataclass(frozen=True)
+class _LifecycleScope:
+    predicate: str
+    parameters: tuple[Any, ...]
 
 
 class ArtifactStoreFactory:
@@ -209,6 +217,16 @@ class SqliteArtifactStoreAdapter:
     def read_payload(self, record: ArtifactRecord) -> Any:
         if record.purge_status == "purged" or record.lifecycle_status == "purged":
             raise ArtifactStoreError("artifact_purged", "Artifact payload was purged")
+        if (
+            record.purge_status == "purge_pending"
+            or record.lifecycle_status == "purge_pending"
+        ):
+            raise ArtifactStoreError(
+                "artifact_purge_pending",
+                "Artifact payload purge is pending",
+            )
+        if record.purge_status == "expired" or record.lifecycle_status == "expired":
+            raise ArtifactStoreError("artifact_expired", "Artifact payload expired")
         if record.payload is not None:
             return record.payload
         if not record.payload_ref:
@@ -218,173 +236,485 @@ class SqliteArtifactStoreAdapter:
             raise ArtifactStoreError("artifact_payload_unavailable", "Artifact payload file is missing")
         return json.loads(payload_path.read_text(encoding="utf-8"))
 
-    def expire_artifacts(self, now: datetime | None = None) -> list[str]:
-        return self._expire_records(now=now, normalization_run_id=None)
-
     def expire_run(
         self,
-        normalization_run_id: str,
+        context: ArtifactAccessContext,
         now: datetime | None = None,
-    ) -> list[str]:
-        if not normalization_run_id:
-            raise ArtifactStoreError(
-                "artifact_scope_unverified",
-                "Artifact normalization run context is required",
-            )
-        return self._expire_records(
-            now=now,
-            normalization_run_id=normalization_run_id,
+    ) -> ArtifactLifecycleResult:
+        scope = self._lifecycle_scope(context, required_scope="run")
+        transition_at = utc_now_iso()
+        current = _normalized_utc_iso(now or datetime.now(timezone.utc))
+        with self._connect(immediate=True) as conn:
+            self._authorize_lifecycle_scope(conn, scope)
+            rows = conn.execute(
+                f"""
+                UPDATE artifact_records
+                SET lifecycle_status = 'expired',
+                    purge_status = 'expired',
+                    updated_at = ?
+                WHERE {scope.predicate}
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ?
+                  AND lifecycle_status IN (
+                      'validated', 'visible_safe', 'private_ready'
+                  )
+                  AND purge_status = 'active'
+                RETURNING artifact_id
+                """,
+                (transition_at, *scope.parameters, current),
+            ).fetchall()
+        return ArtifactLifecycleResult.from_changed_ids(
+            operation="expire_run",
+            artifact_ids=[str(row["artifact_id"]) for row in rows],
         )
 
-    def _expire_records(
+    def purge_run(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult:
+        return self._purge_scope(
+            context=context,
+            operation="purge_run",
+            required_scope="run",
+        )
+
+    def purge_case(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult:
+        return self._purge_scope(
+            context=context,
+            operation="purge_case",
+            required_scope="case",
+        )
+
+    def purge_chat(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult:
+        return self._purge_scope(
+            context=context,
+            operation="purge_chat",
+            required_scope="chat",
+            extra_predicate=(
+                "COALESCE(json_extract(retention_policy_json, "
+                "'$.chat_delete_cascades'), 1) = 1"
+            ),
+        )
+
+    def mark_source_file_deleted(
+        self,
+        context: ArtifactAccessContext,
+    ) -> ArtifactLifecycleResult:
+        scope = self._lifecycle_scope(context, required_scope="source")
+        source_file_id = str(context.source_file_id or "").strip()
+        source_predicate = (
+            "json_extract(source_file_ref_json, '$.openwebui_file_id') = ?"
+        )
+        claim_id = f"claim_{secrets.token_urlsafe(24)}"
+        transition_at = utc_now_iso()
+        claimed_records: list[ArtifactRecord] = []
+        changed_ids: list[str] = []
+        with self._connect(immediate=True) as conn:
+            self._authorize_lifecycle_scope(
+                conn,
+                scope,
+                extra_predicate=source_predicate,
+                extra_parameters=(source_file_id,),
+            )
+            retry_rows = conn.execute(
+                f"""
+                UPDATE artifact_records
+                SET lifecycle_claim_id = ?,
+                    lifecycle_claimed_at = ?,
+                    updated_at = ?
+                WHERE {scope.predicate}
+                  AND {source_predicate}
+                  AND visibility = 'private_case'
+                  AND COALESCE(
+                      json_extract(
+                          retention_policy_json,
+                          '$.source_delete_cascades'
+                      ),
+                      1
+                  ) = 1
+                  AND lifecycle_status = 'purge_pending'
+                  AND purge_status = 'purge_pending'
+                  AND lifecycle_claim_id IS NULL
+                RETURNING *
+                """,
+                (
+                    claim_id,
+                    transition_at,
+                    transition_at,
+                    *scope.parameters,
+                    source_file_id,
+                ),
+            ).fetchall()
+            claimed_rows = conn.execute(
+                f"""
+                UPDATE artifact_records
+                SET source_file_ref_json = json_set(
+                        source_file_ref_json,
+                        '$.source_deleted', json('true'),
+                        '$.source_delete_observed_at', ?
+                    ),
+                    lifecycle_status = 'purge_pending',
+                    purge_status = 'purge_pending',
+                    lifecycle_claim_id = ?,
+                    lifecycle_claimed_at = ?,
+                    updated_at = ?
+                WHERE {scope.predicate}
+                  AND {source_predicate}
+                  AND COALESCE(
+                      json_extract(source_file_ref_json, '$.source_deleted'),
+                      0
+                  ) != 1
+                  AND visibility = 'private_case'
+                  AND COALESCE(
+                      json_extract(
+                          retention_policy_json,
+                          '$.source_delete_cascades'
+                      ),
+                      1
+                  ) = 1
+                  AND lifecycle_status IN (
+                      'validated', 'visible_safe', 'private_ready', 'blocked',
+                      'expired', 'privacy_failed'
+                  )
+                  AND purge_status NOT IN ('purged', 'purge_pending')
+                RETURNING *
+                """,
+                (
+                    transition_at,
+                    claim_id,
+                    transition_at,
+                    transition_at,
+                    *scope.parameters,
+                    source_file_id,
+                ),
+            ).fetchall()
+            claimed_records = [
+                _row_to_record(row) for row in (*retry_rows, *claimed_rows)
+            ]
+            changed_ids.extend(record.artifact_id for record in claimed_records)
+            marked_rows = conn.execute(
+                f"""
+                UPDATE artifact_records
+                SET source_file_ref_json = json_set(
+                        source_file_ref_json,
+                        '$.source_deleted', json('true'),
+                        '$.source_delete_observed_at', ?
+                    ),
+                    updated_at = ?
+                WHERE {scope.predicate}
+                  AND {source_predicate}
+                  AND COALESCE(
+                      json_extract(source_file_ref_json, '$.source_deleted'),
+                      0
+                  ) != 1
+                  AND lifecycle_status != 'purged'
+                  AND purge_status != 'purged'
+                RETURNING artifact_id
+                """,
+                (
+                    transition_at,
+                    transition_at,
+                    *scope.parameters,
+                    source_file_id,
+                ),
+            ).fetchall()
+            changed_ids.extend(str(row["artifact_id"]) for row in marked_rows)
+
+        try:
+            finalized = self._delete_and_finalize_claim(
+                records=claimed_records,
+                claim_id=claim_id,
+            )
+        except Exception:
+            self._release_failed_claim(
+                records=claimed_records,
+                claim_id=claim_id,
+            )
+            raise
+        changed_ids.extend(finalized)
+        return ArtifactLifecycleResult.from_changed_ids(
+            operation="mark_source_file_deleted",
+            artifact_ids=changed_ids,
+        )
+
+    def _purge_scope(
         self,
         *,
-        now: datetime | None,
-        normalization_run_id: str | None,
-    ) -> list[str]:
-        current = now or datetime.now(timezone.utc)
-        expired_ids: list[str] = []
-        with self._connect() as conn:
-            if normalization_run_id is None:
-                rows = conn.execute(
-                    """
-                    SELECT *
-                    FROM artifact_records
-                    WHERE purge_status NOT IN ('purged')
-                      AND lifecycle_status NOT IN ('purged')
-                      AND expires_at IS NOT NULL
-                    ORDER BY expires_at ASC, created_at ASC
-                    """
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT *
-                    FROM artifact_records
-                    WHERE normalization_run_id = ?
-                      AND purge_status NOT IN ('purged')
-                      AND lifecycle_status NOT IN ('purged')
-                      AND expires_at IS NOT NULL
-                    ORDER BY expires_at ASC, created_at ASC
-                    """,
-                    (normalization_run_id,),
-                ).fetchall()
-            updated_at = utc_now_iso()
-            for row in rows:
-                record = _row_to_record(row)
-                try:
-                    expires_at = datetime.fromisoformat(str(record.expires_at))
-                except ValueError as exc:
-                    raise ArtifactStoreError(
-                        "artifact_payload_unavailable",
-                        "Invalid artifact expires_at",
-                    ) from exc
-                if expires_at > current:
-                    continue
+        context: ArtifactAccessContext,
+        operation: str,
+        required_scope: str,
+        extra_predicate: str | None = None,
+    ) -> ArtifactLifecycleResult:
+        scope = self._lifecycle_scope(context, required_scope=required_scope)
+        claim_id = f"claim_{secrets.token_urlsafe(24)}"
+        transition_at = utc_now_iso()
+        predicates = [scope.predicate]
+        if extra_predicate:
+            predicates.append(extra_predicate)
+        with self._connect(immediate=True) as conn:
+            self._authorize_lifecycle_scope(conn, scope)
+            rows = conn.execute(
+                f"""
+                UPDATE artifact_records
+                SET lifecycle_status = 'purge_pending',
+                    purge_status = 'purge_pending',
+                    lifecycle_claim_id = ?,
+                    lifecycle_claimed_at = ?,
+                    updated_at = ?
+                WHERE {' AND '.join(predicates)}
+                  AND (
+                      (
+                          lifecycle_status IN (
+                              'validated', 'visible_safe', 'private_ready',
+                              'blocked', 'expired', 'privacy_failed'
+                          )
+                          AND purge_status NOT IN ('purged', 'purge_pending')
+                      )
+                      OR (
+                          lifecycle_status = 'purge_pending'
+                          AND purge_status = 'purge_pending'
+                          AND lifecycle_claim_id IS NULL
+                      )
+                  )
+                RETURNING *
+                """,
+                (
+                    claim_id,
+                    transition_at,
+                    transition_at,
+                    *scope.parameters,
+                ),
+            ).fetchall()
+        records = [_row_to_record(row) for row in rows]
+        try:
+            purged_ids = self._delete_and_finalize_claim(
+                records=records,
+                claim_id=claim_id,
+            )
+        except Exception:
+            self._release_failed_claim(
+                records=records,
+                claim_id=claim_id,
+            )
+            raise
+        return ArtifactLifecycleResult.from_changed_ids(
+            operation=operation,
+            artifact_ids=purged_ids,
+        )
+
+    def _release_failed_claim(
+        self,
+        *,
+        records: list[ArtifactRecord],
+        claim_id: str,
+    ) -> None:
+        """Make only this failed operation's pending rows available for retry."""
+
+        transition_at = utc_now_iso()
+        with self._connect(immediate=True) as conn:
+            for record in records:
                 conn.execute(
                     """
                     UPDATE artifact_records
-                    SET lifecycle_status = 'expired',
-                        purge_status = 'expired',
+                    SET lifecycle_claim_id = NULL,
+                        lifecycle_claimed_at = NULL,
                         updated_at = ?
                     WHERE artifact_id = ?
+                      AND lifecycle_status = 'purge_pending'
+                      AND purge_status = 'purge_pending'
+                      AND lifecycle_claim_id = ?
                     """,
-                    (updated_at, record.artifact_id),
+                    (transition_at, record.artifact_id, claim_id),
                 )
-                expired_ids.append(record.artifact_id)
-        return expired_ids
 
-    def purge_run(self, normalization_run_id: str) -> list[str]:
+    def _delete_and_finalize_claim(
+        self,
+        *,
+        records: list[ArtifactRecord],
+        claim_id: str,
+    ) -> list[str]:
         purged_ids: list[str] = []
-        for record in self.list_by_run(normalization_run_id):
-            if record.lifecycle_status == "purged":
-                continue
-            self._transition_to_purge_pending(record)
+        for record in records:
             self._delete_payload(record)
-            self._set_status(
-                record.artifact_id,
-                lifecycle_status="purged",
-                purge_status="purged",
-                storage_backend="none_tombstone",
-                payload_ref=None,
-                payload_inline=None,
-                purged_at=utc_now_iso(),
-            )
-            purged_ids.append(record.artifact_id)
+            transition_at = utc_now_iso()
+            with self._connect(immediate=True) as conn:
+                row = conn.execute(
+                    """
+                    UPDATE artifact_records
+                    SET lifecycle_status = 'purged',
+                        purge_status = 'purged',
+                        storage_backend = 'none_tombstone',
+                        payload_ref = NULL,
+                        payload_inline_json = NULL,
+                        lifecycle_claim_id = NULL,
+                        lifecycle_claimed_at = NULL,
+                        purged_at = ?,
+                        updated_at = ?
+                    WHERE artifact_id = ?
+                      AND lifecycle_status = 'purge_pending'
+                      AND purge_status = 'purge_pending'
+                      AND lifecycle_claim_id = ?
+                    RETURNING artifact_id
+                    """,
+                    (
+                        transition_at,
+                        transition_at,
+                        record.artifact_id,
+                        claim_id,
+                    ),
+                ).fetchone()
+            if row is None:
+                raise ArtifactStoreError(
+                    "artifact_lifecycle_claim_lost",
+                    "Artifact purge claim was not owned by this operation",
+                )
+            purged_ids.append(str(row["artifact_id"]))
         return purged_ids
 
-    def mark_source_file_deleted(self, *, openwebui_file_id: str) -> list[str]:
-        affected: list[str] = []
-        for record in self._active_records():
-            source_ref = dict(record.source_file_ref or {})
-            if source_ref.get("openwebui_file_id") != openwebui_file_id:
-                continue
-            source_ref["source_deleted"] = True
-            source_ref["source_delete_observed_at"] = utc_now_iso()
-            self._update_source_ref(record.artifact_id, source_ref)
-            affected.append(record.artifact_id)
-            if record.retention_policy.source_delete_cascades and record.visibility == "private_case":
-                self._transition_to_purge_pending(record)
-                self._delete_payload(record)
-                self._set_status(
-                    record.artifact_id,
-                    lifecycle_status="purged",
-                    purge_status="purged",
-                    storage_backend="none_tombstone",
-                    payload_ref=None,
-                    payload_inline=None,
-                    purged_at=utc_now_iso(),
+    def _lifecycle_scope(
+        self,
+        context: ArtifactAccessContext,
+        *,
+        required_scope: str,
+    ) -> _LifecycleScope:
+        if not isinstance(context, ArtifactAccessContext):
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Trusted ArtifactAccessContext is required",
+            )
+        user_id = str(context.user_id or "").strip()
+        run_id = str(context.normalization_run_id or "").strip()
+        case_id = str(context.case_id or "").strip()
+        chat_id = str(context.chat_id or "").strip()
+        if not user_id or not run_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Artifact user and normalization run context are required",
+            )
+        if required_scope == "case":
+            if not case_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified",
+                    "Artifact case context is required",
                 )
-        return affected
-
-    def purge_chat(self, *, chat_id: str) -> list[str]:
-        purged: list[str] = []
-        for record in self._active_records():
-            if record.chat_id != chat_id or record.case_id:
-                continue
-            if not record.retention_policy.chat_delete_cascades:
-                continue
-            self._transition_to_purge_pending(record)
-            self._delete_payload(record)
-            self._set_status(
-                record.artifact_id,
-                lifecycle_status="purged",
-                purge_status="purged",
-                storage_backend="none_tombstone",
-                payload_ref=None,
-                payload_inline=None,
-                purged_at=utc_now_iso(),
+            return _LifecycleScope(
+                predicate=(
+                    "user_id = ? AND case_id = ? "
+                    "AND workspace_model_id IS ? AND normalization_run_id = ?"
+                ),
+                parameters=(
+                    user_id,
+                    case_id,
+                    context.workspace_model_id,
+                    run_id,
+                ),
             )
-            purged.append(record.artifact_id)
-        return purged
-
-    def purge_case(self, *, case_id: str) -> list[str]:
-        purged: list[str] = []
-        for record in self._active_records():
-            if record.case_id != case_id:
-                continue
-            self._transition_to_purge_pending(record)
-            self._delete_payload(record)
-            self._set_status(
-                record.artifact_id,
-                lifecycle_status="purged",
-                purge_status="purged",
-                storage_backend="none_tombstone",
-                payload_ref=None,
-                payload_inline=None,
-                purged_at=utc_now_iso(),
+        if required_scope == "chat":
+            if case_id or not chat_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified",
+                    "Case-free artifact chat context is required",
+                )
+            return _LifecycleScope(
+                predicate=(
+                    "user_id = ? AND case_id IS NULL AND chat_id = ? "
+                    "AND workspace_model_id IS ? AND normalization_run_id = ?"
+                ),
+                parameters=(
+                    user_id,
+                    chat_id,
+                    context.workspace_model_id,
+                    run_id,
+                ),
             )
-            purged.append(record.artifact_id)
-        return purged
+        if required_scope not in {"run", "source"}:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Artifact lifecycle scope is unsupported",
+            )
+        if required_scope == "source" and not str(
+            context.source_file_id or ""
+        ).strip():
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Artifact source identity is required",
+            )
+        if case_id:
+            return _LifecycleScope(
+                predicate=(
+                    "user_id = ? AND case_id = ? "
+                    "AND workspace_model_id IS ? AND normalization_run_id = ?"
+                ),
+                parameters=(
+                    user_id,
+                    case_id,
+                    context.workspace_model_id,
+                    run_id,
+                ),
+            )
+        if chat_id:
+            return _LifecycleScope(
+                predicate=(
+                    "user_id = ? AND case_id IS NULL AND chat_id = ? "
+                    "AND workspace_model_id IS ? AND normalization_run_id = ?"
+                ),
+                parameters=(
+                    user_id,
+                    chat_id,
+                    context.workspace_model_id,
+                    run_id,
+                ),
+            )
+        raise ArtifactStoreError(
+            "artifact_scope_unverified",
+            "Artifact case or chat context is required",
+        )
+
+    @staticmethod
+    def _authorize_lifecycle_scope(
+        conn: sqlite3.Connection,
+        scope: _LifecycleScope,
+        *,
+        extra_predicate: str | None = None,
+        extra_parameters: tuple[Any, ...] = (),
+    ) -> None:
+        predicates = [scope.predicate]
+        if extra_predicate:
+            predicates.append(extra_predicate)
+        row = conn.execute(
+            f"""
+            SELECT artifact_id
+            FROM artifact_records
+            WHERE {' AND '.join(predicates)}
+            LIMIT 1
+            """,
+            (*scope.parameters, *extra_parameters),
+        ).fetchone()
+        if row is None:
+            raise ArtifactStoreError(
+                "artifact_access_denied",
+                "Artifact lifecycle context does not own the requested scope",
+            )
 
     @contextmanager
-    def _connect(self):
+    def _connect(self, *, immediate: bool = False):
         self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.sqlite_path)
+        conn = sqlite3.connect(self.sqlite_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
+            if immediate:
+                conn.execute("BEGIN IMMEDIATE")
             yield conn
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 
@@ -424,15 +754,76 @@ class SqliteArtifactStoreAdapter:
                     safe_metadata_json TEXT NOT NULL,
                     warning_codes_json TEXT NOT NULL,
                     deleted_at TEXT NULL,
-                    purged_at TEXT NULL
+                    purged_at TEXT NULL,
+                    lifecycle_claim_id TEXT NULL,
+                    lifecycle_claimed_at TEXT NULL
                 )
                 """
             )
+            existing_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(artifact_records)")
+            }
+            if "lifecycle_claim_id" not in existing_columns:
+                conn.execute(
+                    "ALTER TABLE artifact_records "
+                    "ADD COLUMN lifecycle_claim_id TEXT NULL"
+                )
+            if "lifecycle_claimed_at" not in existing_columns:
+                conn.execute(
+                    "ALTER TABLE artifact_records "
+                    "ADD COLUMN lifecycle_claimed_at TEXT NULL"
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_artifact_run ON artifact_records(normalization_run_id)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_artifact_scope ON artifact_records(user_id, case_id, chat_id)"
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_case_run
+                ON artifact_records(
+                    user_id,
+                    case_id,
+                    workspace_model_id,
+                    normalization_run_id,
+                    lifecycle_status,
+                    purge_status,
+                    expires_at
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_chat_run
+                ON artifact_records(
+                    user_id,
+                    chat_id,
+                    workspace_model_id,
+                    normalization_run_id,
+                    lifecycle_status,
+                    purge_status,
+                    expires_at
+                )
+                WHERE case_id IS NULL
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_artifact_lifecycle_source_run
+                ON artifact_records(
+                    user_id,
+                    case_id,
+                    workspace_model_id,
+                    normalization_run_id,
+                    json_extract(
+                        source_file_ref_json,
+                        '$.openwebui_file_id'
+                    )
+                )
+                WHERE source_file_ref_json IS NOT NULL
+                """
             )
 
     def _validate_record(self, record: ArtifactRecord) -> None:
@@ -491,71 +882,6 @@ class SqliteArtifactStoreAdapter:
         payload_path = self._payload_path_from_ref(record.payload_ref)
         if payload_path.exists():
             payload_path.unlink()
-
-    def _active_records(self) -> list[ArtifactRecord]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT *
-                FROM artifact_records
-                WHERE purge_status NOT IN ('purged') AND lifecycle_status NOT IN ('purged')
-                ORDER BY created_at ASC
-                """
-            ).fetchall()
-        return [_row_to_record(row) for row in rows]
-
-    def _transition_to_purge_pending(self, record: ArtifactRecord) -> None:
-        if record.lifecycle_status != "purge_pending":
-            assert_transition(record.lifecycle_status, "purge_pending")
-        self._set_status(record.artifact_id, lifecycle_status="purge_pending", purge_status="purge_pending")
-
-    def _set_status(
-        self,
-        artifact_id: str,
-        *,
-        lifecycle_status: str,
-        purge_status: str,
-        storage_backend: str | None = None,
-        payload_ref: str | None = None,
-        payload_inline: Any = "__unchanged__",
-        purged_at: str | None = None,
-    ) -> None:
-        assignments = [
-            "lifecycle_status = ?",
-            "purge_status = ?",
-            "updated_at = ?",
-        ]
-        values: list[Any] = [lifecycle_status, purge_status, utc_now_iso()]
-        if storage_backend is not None:
-            assignments.append("storage_backend = ?")
-            values.append(storage_backend)
-        if payload_ref is not None or purge_status == "purged":
-            assignments.append("payload_ref = ?")
-            values.append(payload_ref)
-        if payload_inline != "__unchanged__" or purge_status == "purged":
-            assignments.append("payload_inline_json = ?")
-            values.append(_json_or_none(None if payload_inline == "__unchanged__" else payload_inline))
-        if purged_at is not None:
-            assignments.append("purged_at = ?")
-            values.append(purged_at)
-        values.append(artifact_id)
-        with self._connect() as conn:
-            conn.execute(
-                f"UPDATE artifact_records SET {', '.join(assignments)} WHERE artifact_id = ?",
-                values,
-            )
-
-    def _update_source_ref(self, artifact_id: str, source_ref: dict[str, Any]) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE artifact_records
-                SET source_file_ref_json = ?, updated_at = ?
-                WHERE artifact_id = ?
-                """,
-                (_json(source_ref), utc_now_iso(), artifact_id),
-            )
-
 
 def _row_to_record(row: sqlite3.Row) -> ArtifactRecord:
     retention_policy = RetentionPolicy.from_dict(json.loads(str(row["retention_policy_json"])))
@@ -635,3 +961,12 @@ def _json_or_none(value: Any) -> str | None:
 
 def _json_bytes(value: Any) -> bytes:
     return _json(value).encode("utf-8")
+
+
+def _normalized_utc_iso(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ArtifactStoreError(
+            "artifact_scope_unverified",
+            "Artifact lifecycle time must be timezone-aware",
+        )
+    return value.astimezone(timezone.utc).isoformat()

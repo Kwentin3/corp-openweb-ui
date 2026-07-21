@@ -15,7 +15,11 @@ from .architecture_policy import (
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
     component_runtime_status,
 )
-from .artifact_models import ArtifactAccessContext
+from .artifact_models import (
+    ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION,
+    ArtifactAccessContext,
+    ArtifactLifecycleResult,
+)
 from .artifact_resolver import ArtifactResolver
 from .artifact_retention import RetentionPolicyError, build_retention_policy
 from .artifact_store import ArtifactStoreConfig, ArtifactStoreError, ArtifactStoreFactory
@@ -476,6 +480,8 @@ __all__ = [
     "WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED",
     "component_runtime_status",
     "ArtifactAccessContext",
+    "ArtifactLifecycleResult",
+    "ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION",
     "ArtifactResolver",
     "ArtifactStoreConfig",
     "ArtifactStoreError",

@@ -784,8 +784,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 )
             self.assertEqual(denied.exception.code, "artifact_access_denied")
 
-        self.store.expire_artifacts(
-            datetime.now(timezone.utc) + timedelta(days=2)
+        self.store.expire_run(
+            self.context,
+            datetime.now(timezone.utc) + timedelta(days=2),
         )
         with self.assertRaises(ArtifactStoreError) as expired:
             service.resolve_for_gate3(
@@ -793,7 +794,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 context=self.context,
             )
         self.assertEqual(expired.exception.code, "artifact_expired")
-        self.store.purge_run(self.context.normalization_run_id)
+        self.store.purge_run(self.context)
         with self.assertRaises(ArtifactStoreError) as purged:
             service.resolve_for_gate3(
                 manifest_ref=str(result.gate3_context_manifest_ref),
@@ -1373,15 +1374,25 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
 
         result = self._run(FullUnionBoundaryModel())
         facts_ref = result.source_facts_refs[0]
-        affected = self.store.mark_source_file_deleted(openwebui_file_id="synthetic-source-file")
-        self.assertIn(facts_ref, affected)
+        affected = self.store.mark_source_file_deleted(
+            ArtifactAccessContext(
+                **{
+                    **self.context.__dict__,
+                    "source_file_id": "synthetic-source-file",
+                }
+            )
+        )
+        self.assertIn(facts_ref, affected.artifact_ids)
         with self.assertRaises(ArtifactStoreError) as purged:
             ArtifactResolver(self.store).resolve(facts_ref, self.context)
         self.assertEqual(purged.exception.code, "artifact_purged")
 
         context, dcp_ref = self._persist_gate1(case_id="case-expiry")
         expiring = self._run(FullUnionBoundaryModel(), context=context, dcp_ref=dcp_ref)
-        self.store.expire_artifacts(datetime.now(timezone.utc) + timedelta(days=2))
+        self.store.expire_run(
+            context,
+            datetime.now(timezone.utc) + timedelta(days=2),
+        )
         with self.assertRaises(ArtifactStoreError) as expired:
             ArtifactResolver(self.store).resolve(expiring.source_facts_refs[0], context)
         self.assertEqual(expired.exception.code, "artifact_expired")
