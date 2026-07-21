@@ -1,7 +1,7 @@
 # Broker Reports Gate 1 Normalization Pipeline Blueprint
 
-Status: `MAINTAINED_GLOBAL_GATE1_ARCHITECTURE`; runtime implementation delivered
-Date: 2026-07-07; status reconciled 2026-07-17
+Status: `MAINTAINED_GLOBAL_GATE1_ARCHITECTURE`; bounded runtime implementation delivered
+Date: 2026-07-07; status reconciled 2026-07-21
 Scope: Stage 2 Broker Reports / XLS NDFL, Gate 1 "Document Intake & Normalization"
 
 Authority note: this document defines the broader global Broker Reports Gate 1.
@@ -55,8 +55,9 @@ If Gate 1 starts reading for tax facts, it will lose the audit boundary that mak
 | OpenWebUI Workspace Model | OpenWebUI workspace config | User-facing model name, instructions, primary UX route, chat report delivery. |
 | Pipe Function | Gate 1 OpenWebUI function | Collect same-request file refs, call normalization run, return safe report. |
 | OpenWebUI file layer | OpenWebUI runtime | Uploaded file ids, access control, original bytes or upload storage boundary. |
-| Gate 1 normalizer | Internal helper/service module | Byte access, hashing, container detection, format profiling, private slices, taxonomy candidates, blockers. |
-| Artifact store | Internal/private + safe docs surfaces | Private registries and slices stay private; safe artifacts can be cited by id. |
+| Gate 1 normalizer | Internal helper/service module | Byte access, hashing, container detection, format profiling, taxonomy candidates, blockers and document-bounded representation construction. |
+| Bounded graph factory | `Gate1BoundedGraphFactory.create` | Validate, seal and persist each document's private representations; retain only compact artifact refs, hashes, counts and document indexes between documents. |
+| Artifact store | Internal/private + safe docs surfaces | Append-only authority for sealed private representations and safe artifacts; resolver access reconstructs complete document memory without a run-wide decoded graph. |
 | Contract validator | Gate 1 validation module/tests | Enforce schema, privacy, blocker, and chat-visible report invariants. |
 | Gate 2 consumer | Future source-fact extraction pipeline | Consumes safe document refs and private slice refs only after Gate 1 validation passes. |
 
@@ -84,7 +85,7 @@ Gate 1 must not perform:
 | 3. Byte access and hashing | Prove original bytes are accessible and stable. | Private file registry. | SHA-256, size, duplicate groups. | `hashlib`; approved OpenWebUI file API/storage boundary. | `bytes_unavailable` blocker per affected file. | Byte stream, upload path, raw filename. | Size, sha256 or sha256 prefix only where allowed, duplicate count. | Stable hash on repeat; no path escape. |
 | 4. Container and MIME detection | Classify file container before parsing. | Bytes, MIME, extension. | `container_format`, detected MIME, confidence. | Magic bytes + extension + MIME; optional `filetype`/`python-magic`. | `unknown_format` or `unsupported_format` blocker. | Raw extension/name only in private registry. | Container counts. | Extension/MIME disagreements recorded. |
 | 5. Format-specific profiling | Build technical readability profile. | Container-specific bytes. | `technical_readability_profile_v0`. | Format parsers listed in tooling audit. | `parser_failed`, `encrypted_file`, `corrupt_file`, or `raster_requires_ocr_or_review`. | Parser diagnostics, raw extracted text, raw rows/cells. | Counts and safe capability flags. | Profiles exist for every supported readable file. |
-| 6. Structural normalization | Create bounded slices for later gates. | Parser outputs. | Private `normalized_text_slice_v0` and `normalized_table_slice_v0`. | Parser-backed text/table extraction. | Skip slices and create blocker when structure is unreliable. | Text slices, table rows, source locations, row ranges. | Slice counts and safe refs only. | Slices are bounded and source-located. |
+| 6. Structural normalization | Create complete neutral representations for later gates with bounded lifetime. | One document's parser outputs. | Private slices, source payloads, source units and canonical table projections. | Parser-backed extraction through `Gate1BoundedGraphFactory.create`. | A unit that does not validate is not sealed; the run cannot publish a successful handoff. | Text/layout/visual representations, table rows, source locations and provenance. | Counts, hashes and safe refs only. | Each document is validated, sealed and persisted before its decoded graph is released. |
 | 7. Taxonomy candidates | Assign document role candidates without tax extraction. | Inventory, profile, safe structural signals. | `taxonomy_candidates_v0`. | Deterministic/rule-assisted classifier. | `unknown_role` blocker if weak. | Optional private reason evidence. | Class label, confidence, safe reason codes. | LLM is not authoritative in Gate 1. |
 | 8. Blockers and review issues | Make unresolved technical problems explicit. | All prior artifacts. | `normalization_blockers_v0`. | Rule validator. | Block advancement to Gate 2 for affected documents. | Private debug context. | Blocker code, safe document id, action. | Every failure maps to typed blocker. |
 | 9. Safe chat report | Return only safe aggregate status. | Validated safe artifacts. | `chat_visible_normalization_report_v0`. | Report renderer. | If privacy validation fails, do not publish report. | None. | Counts, class counts, case groups, blocker counts, next step, safety statement. | Privacy denylist and schema checks pass. |
@@ -102,6 +103,10 @@ collect_file_refs()
 -> profile_by_format()
 -> create_private_slices()
 -> assign_taxonomy_candidates()
+-> validate_and_seal_document_representations()
+-> persist_through_artifactstore_factory()
+-> retain_compact_refs_hashes_counts_only()
+-> release_document_parser_and_projection_graph()
 -> create_blockers()
 -> validate_artifacts()
 -> render_safe_chat_report()
@@ -109,6 +114,16 @@ collect_file_refs()
 ```
 
 No later step can compensate for a missing earlier safety check. For example, taxonomy cannot run on a file whose byte access failed, and Gate 2 cannot start from an unvalidated chat report.
+
+The heavy production route must not accumulate decoded source payloads, units,
+layout projections or canonical tables across the whole run. Compatibility
+views are ArtifactStore-backed and immutable after sealing. They may resolve
+one document at a time for content-bearing review. Run-level accounting,
+document-memory construction and final validation use compact pre-validation
+receipts instead of decoding the persisted payload again. Deep copy must
+preserve the sealed view rather than materialize it. Complete source and
+representation authority remains in ArtifactStore; memory reduction never
+authorizes truncation, sampling or representation removal.
 
 ## 7. Format Profiling Rules
 

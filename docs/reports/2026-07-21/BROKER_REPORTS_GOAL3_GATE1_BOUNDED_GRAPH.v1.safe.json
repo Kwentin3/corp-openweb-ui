@@ -1,0 +1,100 @@
+{
+  "acceptance": {
+    "artifactstore_contract": "preserved",
+    "gate1_output_equivalence": "passed",
+    "gate1_peak_rss": "at_or_below_5_gib",
+    "intermediate_lifetime": "bounded",
+    "representation_loss": "zero",
+    "source_loss": "zero"
+  },
+  "actual_corpus": {
+    "artifact_records_total": 1531,
+    "document_sources_total": 104,
+    "logical_documents_total": 80,
+    "representation_counts": {
+      "broker_reports_normalized_table_projection_v0": 259,
+      "private_normalized_source_payload_v0": 162,
+      "private_normalized_source_unit_v0": 934,
+      "private_normalized_table_slice_v0": 6,
+      "private_normalized_text_slice_v0": 49
+    },
+    "terminal_status_counts": {
+      "complete": 26,
+      "review_required": 78
+    },
+    "top_level_inputs_total": 56,
+    "zero_silent_loss_status": "passed_for_all_profile_accepted_documents"
+  },
+  "baselines": {
+    "artifact_equivalence_revision": "17da0ae385fe6c9ba93ddc858f9c55da6ba2611a",
+    "resource_profile_revision": "f0e0c4a023f3e5bcf85c5797f039b102c11702f2"
+  },
+  "bundle_sha256": {
+    "gate1": "654c2a54a7ba11c052bd2d92307c8d620746a55866a88c28ecf52550298ad6b4",
+    "gate2_domain_source_fact": "9ed753d576e31cdb09fc7c917eee236c646d080807021f0599901f576a8b8a22",
+    "gate2_source_fact": "3fcfa180d430f25615f35918e11dd07cb23da11f1ce85caaf5e1f09be0930646"
+  },
+  "equivalence": {
+    "all_artifact_payloads_deterministically_equivalent": true,
+    "artifact_record_contracts_equivalent": true,
+    "artifact_type_counts_equal": true,
+    "artifactstore_immutable_after_gate2": true,
+    "gate2_public_boundary_validated": true,
+    "raw_payload_bytes_delta": 4,
+    "record_contract_digest": "707ed1f2930dbeb5bab586520ab3398e4e586f17312621248f13ade0408381e6",
+    "records_by_type_digest": "cdba5e49de0821dd16a28aa514acea7fd909ce997fc31477379399cbd41a9f0a",
+    "representation_counts_equal": true,
+    "representation_differences_limited_to_declared_volatile_fields": true,
+    "representation_payloads_byte_identical": false,
+    "representation_payloads_deterministically_equivalent": true,
+    "semantic_contract_digest": "679de6e809dea1cce310ab3b194f6abce7c7657878d5ace121477a34b125eb6e",
+    "volatile_payload_keys": [
+      "created_at",
+      "elapsed_milliseconds_total",
+      "layout_elapsed_milliseconds"
+    ]
+  },
+  "implementation_revision": "7e0316f035015c4a24d93ab3f938571bd8590bed",
+  "privacy": {
+    "artifact_ids_in_output": false,
+    "customer_values_in_output": false,
+    "private_paths_in_output": false,
+    "subprocess_output_in_output": false
+  },
+  "resources": {
+    "normalization": {
+      "baseline_seconds": 705.168564,
+      "candidate_seconds": 788.03711,
+      "limit_seconds": 810.943849,
+      "regression_percent": 11.751594,
+      "status": "passed"
+    },
+    "peak_rss": {
+      "baseline_bytes": 7041015808,
+      "candidate_bytes": 712183808,
+      "limit_bytes": 5368709120,
+      "reduction_percent": 89.885212,
+      "status": "passed"
+    },
+    "proof_wall": {
+      "baseline_seconds": 851.643532,
+      "candidate_seconds": 887.812302,
+      "limit_seconds": 979.390062,
+      "regression_percent": 4.246938,
+      "status": "passed"
+    }
+  },
+  "schema_version": "broker_reports_goal3_gate1_bounded_graph_safe_v1",
+  "status": "passed",
+  "verification": {
+    "bounded_tests_passed": 7,
+    "compileall": "passed",
+    "expanded_tests_passed": 103,
+    "focused_ruff": "passed",
+    "full_pytest_passed": 996,
+    "full_pytest_skipped": 20,
+    "git_diff_check": "passed",
+    "global_ruff_inherited_diagnostics": 235,
+    "measurement_profile_safe_sha256": "1b0b738ed0a25528f247a782d00bd45cc46e8b165e918aff7a09004082e823e7"
+  }
+}

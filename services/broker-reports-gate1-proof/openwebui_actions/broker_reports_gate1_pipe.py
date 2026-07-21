@@ -35,6 +35,8 @@ from broker_reports_gate1 import (
     DocumentPassportPromptResolverFactory,
     FileInput,
     FileProcessingOutcomeFactory,
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphFactory,
     Gate1Normalizer,
     ManagedPrompt,
     NORMALIZER_VERSION,
@@ -243,6 +245,29 @@ class Pipe:
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
         retention_policy = self._retention_policy(safe_body, safe_metadata)
+        planned_run_id = self._normalizer.plan_run_id(file_inputs)
+        artifact_context = self._artifact_context(
+            user=__user__,
+            metadata=safe_metadata,
+            body=safe_body,
+            kwargs=kwargs,
+            normalization_run_id=planned_run_id,
+        )
+        artifact_store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=Path(self.valves.artifact_store_path),
+                payload_root=Path(self.valves.artifact_payload_root),
+            )
+        ).create()
+        bounded_graph = Gate1BoundedGraphFactory(
+            Gate1BoundedGraphConfig(
+                store=artifact_store,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                source_file_refs=tuple(self._source_file_refs(file_refs)),
+            )
+        ).create(normalization_run_id=planned_run_id)
         result = self._normalizer.normalize(
             file_inputs,
             entrypoint="broker_reports_gate1_pipe",
@@ -278,21 +303,8 @@ class Pipe:
                 ),
             },
             extra_private_markers=self._private_markers(file_refs),
+            bounded_graph=bounded_graph,
         )
-        artifact_context = self._artifact_context(
-            user=__user__,
-            metadata=safe_metadata,
-            body=safe_body,
-            kwargs=kwargs,
-            normalization_run_id=result.package["normalization_run"]["run_id"],
-        )
-        artifact_store = ArtifactStoreFactory(
-            ArtifactStoreConfig(
-                mode="sqlite",
-                sqlite_path=Path(self.valves.artifact_store_path),
-                payload_root=Path(self.valves.artifact_payload_root),
-            )
-        ).create()
         table_intake = self._maybe_run_pdf_table_intake(
             result=result,
             file_inputs=file_inputs,
@@ -760,6 +772,7 @@ class Pipe:
             package=result.package,
             safe_report=safe_report,
             private_markers=result.private_markers,
+            bounded_graph=result.bounded_graph,
         )
 
     @staticmethod
@@ -1060,6 +1073,7 @@ class Pipe:
             package=applied["package"],
             safe_report=applied["safe_report"],
             private_markers=result.private_markers,
+            bounded_graph=result.bounded_graph,
         )
 
     async def _maybe_run_clarification_stage(
@@ -1099,6 +1113,7 @@ class Pipe:
                 package=applied_gap["package"],
                 safe_report=applied_gap["safe_report"],
                 private_markers=result.private_markers,
+                bounded_graph=result.bounded_graph,
             )
         try:
             prompt = self._resolve_clarification_prompt(
@@ -1120,6 +1135,7 @@ class Pipe:
                 package=applied_gap["package"],
                 safe_report=applied_gap["safe_report"],
                 private_markers=result.private_markers,
+                bounded_graph=result.bounded_graph,
             )
         await self._emit(
             event_emitter,
@@ -1183,6 +1199,7 @@ class Pipe:
                 package=applied_gap["package"],
                 safe_report=applied_gap["safe_report"],
                 private_markers=result.private_markers,
+                bounded_graph=result.bounded_graph,
             )
         await self._emit(
             event_emitter, "Gate 1 clarification questions prepared.", done=False
@@ -1191,6 +1208,7 @@ class Pipe:
             package=applied["package"],
             safe_report=applied["safe_report"],
             private_markers=result.private_markers,
+            bounded_graph=result.bounded_graph,
         )
 
     def _resolve_passport_prompt(

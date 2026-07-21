@@ -8,6 +8,9 @@ from broker_reports_gate1.architecture_policy import (
     ARCHITECTURE_AUTHORITY,
     CANONICAL_PROMOTION_AUTHORITY,
     COMPONENT_RUNTIME_STATUSES,
+    GATE1_INTERMEDIATE_LIFETIME,
+    GATE1_PRIVATE_REPRESENTATION_AUTHORITY,
+    GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED,
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     MODEL_CANONICAL_AUTHORITY,
@@ -30,6 +33,7 @@ GATE2_MODULES = {
 } | {"gate3_context_manifest"}
 GATE1_PRIVATE_IMPLEMENTATIONS = {
     "csv_profile",
+    "bounded_graph",
     "document_memory",
     "full_source",
     "pdf_layout_units",
@@ -70,6 +74,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "MODEL_CANONICAL_AUTHORITY:",
             "BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md",
             "ArtifactResolver",
+            "Gate1BoundedGraphFactory.create",
+            "Run-wide decoded private graphs",
         }
         self.assertEqual(
             sorted(marker for marker in required if marker not in authority),
@@ -95,6 +101,19 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "deterministic_validator_plus_explicit_review",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
+        self.assertFalse(GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED)
+        self.assertEqual(
+            GATE1_INTERMEDIATE_LIFETIME,
+            "one_document_then_seal_persist_release",
+        )
+        self.assertEqual(
+            GATE1_PRIVATE_REPRESENTATION_AUTHORITY,
+            "artifactstore_resolver_only",
+        )
+        self.assertEqual(
+            COMPONENT_RUNTIME_STATUSES["gate1_bounded_graph"],
+            "maintained",
+        )
 
     def test_production_python_has_no_heavy_local_ocr_import(self):
         forbidden_roots = {"paddle", "paddleocr", "easyocr", "torch"}

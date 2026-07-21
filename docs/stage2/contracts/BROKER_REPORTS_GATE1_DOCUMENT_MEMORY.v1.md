@@ -15,6 +15,31 @@ the maintained Gate 1 artifact graph. It does not replace private normalized
 payloads, source units, table projections, the issue ledger, DCP or
 ArtifactStore. It links them without exposing customer values.
 
+## Runtime lifetime boundary
+
+The complete manifest is a logical graph, not permission to retain the full
+decoded graph in process memory. The maintained heavy-run route uses
+`Gate1BoundedGraphFactory.create` and applies this ownership sequence to each
+document:
+
+```text
+construct complete neutral representations
+-> validate local lineage, schema and accounting
+-> seal and append to ArtifactStore
+-> retain artifact refs, logical refs, hashes and counts
+-> release parser, payload, unit and projection objects
+-> process the next document
+```
+
+ArtifactStore remains the only private representation authority. A sealed
+compatibility view exposes compact pre-validation receipts to the manifest and
+run validator, so those consumers do not decode persisted source values again.
+A content-bearing consumer may resolve one document at a time; the view cannot
+be deep-copied into a run-wide graph. Run-level validation and the Gate 2
+handoff are persisted only after all documents are accounted. A failed or
+interrupted run therefore cannot publish a partial successful handoff.
+Truncation, sampling and representation removal are not memory controls.
+
 ```text
 case / normalization run
   -> source file

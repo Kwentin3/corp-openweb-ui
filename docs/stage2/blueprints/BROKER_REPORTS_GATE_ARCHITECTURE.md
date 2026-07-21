@@ -49,6 +49,12 @@ The following policy decisions are normative:
    [Broker Reports Customer Test Debt v1](../../contracts/BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md):
    implementation proof is preserved, generalization is external debt and the
    release valve remains default-off.
+9. Heavy Gate 1 execution is document-bounded. Each complete neutral
+   representation set is validated, sealed and appended through
+   `Gate1BoundedGraphFactory.create`; only compact refs, hashes, counts and
+   document indexes survive into the next document. The complete logical graph
+   remains resolver-backed in ArtifactStore. Run-wide decoded private graphs,
+   truncation and representation removal are forbidden memory controls.
 
 The global product sequence has four gates:
 
@@ -109,7 +115,7 @@ preparation belong to global Gate 4.
 | Deterministic responsibilities | Hashing, byte/profile limits, parsing, source refs, loss/truncation accounting, normalized structures, validation, access and lifecycle metadata. |
 | LLM/VLM responsibilities | Bounded metadata classification or clarification; one-page/one-crop Gemini or OpenAI visual-table proposal under a strict contract. Model output never overrides parser/validator authority. |
 | Validation/completeness boundary | Completeness is asserted only for the declared normalized source/document scope and its supported format profile. Unsupported, truncated or ambiguous content remains explicit. |
-| Storage/access | Private source content uses `private_case` / `project_artifact_payload`. Safe indexes use `safe_internal` / `project_artifact_store`. Chat receives whitelist summaries only. |
+| Storage/access | Private source content uses `private_case` / `project_artifact_payload`. Heavy runs persist and release it one document at a time through the bounded-graph factory. Safe indexes use `safe_internal` / `project_artifact_store`. Chat receives whitelist summaries only. |
 | Entry criteria | Authorized source refs, explicit retention policy and a supported or explicitly blocked format path. |
 | Exit/acceptance criteria | Valid artifact graph, exact source/ref accounting, privacy checks, explicit blockers/deferred scope and DCP readiness for the requested next stage. |
 | Downstream consumer | Global Gate 2. |
@@ -211,6 +217,7 @@ manifest.
 | `broker_reports_gate1_pipe` bundle | Gate 1 adapter | OpenWebUI intake/orchestration | Maintained runtime; safe chat projection plus private descendants | Gate 1 factories | Implemented, deployed, parity-proven |
 | `broker_reports_gate2_source_fact_pipe` and domain bundle | Gate 2 adapters | OpenWebUI source-fact execution | Maintained runtime; safe summaries/private facts | Gate 2 factories | Implemented, deployed, parity-proven |
 | Gate-specific runtime factories | The gate whose artifact/decision they create | Factory-only routing for normalizers, packages, validators, stitchers and manifest creation | Normative runtime entrypoints; cannot bypass the owning gate contract | Same-gate runtime or next-gate handoff | Implemented for Gate 1/Gate 2 and the Gate 3 input manifest |
+| `Gate1BoundedGraphFactory` | Gate 1 | Document-bounded validation, sealing, ArtifactStore persistence and compact compatibility views | Normative heavy-run lifetime boundary; never drops a representation | Gate 1 validators, document-memory builder and Gate 2 resolver | Implemented in repository runtime; actual-corpus performance acceptance is revision-specific evidence |
 | Format profilers, `CsvSupportedProfileFactory`, `FullSourceArtifactFactory` | Gate 1 | Format detection and representation preservation | Normative runtime; private source content | DCP/Gate 2 | Implemented; acceptance varies by format |
 | Normalized text/table/source payload and unit contracts | Gate 1 | Source representation | Versioned/private; table projection is structural, not financial | Gate 2 | Implemented for supported paths |
 | PDF Table Intake Gate 1 | Gate 1 local child capability | PDF page -> private raster candidates | Versioned/private; local gate terminology | Downstream Gate 1 table normalizer | Closed for accepted bounded scope |
@@ -264,7 +271,7 @@ The allowed status vocabulary is:
 
 | Surface | Current status | Exact claim |
 | --- | --- | --- |
-| Global Gate 1 | Implemented; partially closed | Runtime exists. Named format/sub-capability closures do not imply universal format support. |
+| Global Gate 1 | Implemented; partially closed | Runtime exists and the heavy representation graph has a maintained document-bounded lifetime. Named format/sub-capability closures do not imply universal format support. |
 | CSV v1 normalization | Closed for bounded supported profile | Whole accepted CSV representation is normalized under declared limits. |
 | PDF Table Intake local Gate 1 | Closed | Table regions become private raster candidates; no cells or financial meaning are claimed. |
 | Canonical visual-table reconstruction | Maintained repository runtime, default-off; atomic stage delivery remains pending | Recovered Gemini/OpenAI adapters process one declared crop under a versioned dual-provider policy. Agreement remains evidence-only. `PdfVisualTableReviewFactory` requires authenticated explicit review, complete region/cell accounting and a valid mutation seal before the existing Gate 2 table-package boundary accepts the projection. |

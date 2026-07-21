@@ -4,6 +4,9 @@ from .architecture_policy import (
     CANONICAL_PROMOTION_AUTHORITY,
     COMPONENT_RUNTIME_STATUSES,
     GATE_OWNERSHIP,
+    GATE1_INTERMEDIATE_LIFETIME,
+    GATE1_PRIVATE_REPRESENTATION_AUTHORITY,
+    GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED,
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     MODEL_CANONICAL_AUTHORITY,
@@ -32,6 +35,13 @@ from .artifact_models import (
 from .artifact_resolver import ArtifactResolver
 from .artifact_retention import RetentionPolicyError, build_retention_policy
 from .artifact_store import ArtifactStoreConfig, ArtifactStoreError, ArtifactStoreFactory
+from .bounded_graph import (
+    BOUNDED_GRAPH_CONTRACT_VERSION,
+    ArtifactStoreBackedList,
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphError,
+    Gate1BoundedGraphFactory,
+)
 from .archive_intake import (
     ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION,
     ARCHIVE_SOURCE_PROFILE_ID,
@@ -504,6 +514,14 @@ __all__ = [
     "FileProcessingOutcomeError",
     "FileProcessingOutcomeFactory",
     "Gate1Normalizer",
+    "Gate1BoundedGraphConfig",
+    "Gate1BoundedGraphError",
+    "Gate1BoundedGraphFactory",
+    "ArtifactStoreBackedList",
+    "BOUNDED_GRAPH_CONTRACT_VERSION",
+    "GATE1_INTERMEDIATE_LIFETIME",
+    "GATE1_PRIVATE_REPRESENTATION_AUTHORITY",
+    "GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED",
     "Gate1ArchiveIntakeFactory",
     "Gate1ArtifactManifest",
     "FullSourceArtifactConfig",
