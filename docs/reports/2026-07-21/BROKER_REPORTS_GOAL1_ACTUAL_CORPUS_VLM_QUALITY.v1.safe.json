@@ -1,0 +1,94 @@
+{
+  "schema_version": "broker_reports_actual_corpus_vlm_quality_v1_safe",
+  "status": "completed",
+  "source_revision": "9791f7828e6b83102450ac52a64386f804d0018e",
+  "actual_corpus": {
+    "authorized_by_explicit_user_delegation": true,
+    "bounded_source_documents": 6,
+    "table_crops": 9,
+    "independent_repeats": 2,
+    "provider_executions": 36,
+    "source_values_included": false,
+    "source_filenames_included": false,
+    "private_paths_included": false
+  },
+  "reference_authority": {
+    "human_reviewed": false,
+    "delegated_agent_reviewed": true,
+    "customer_accepted": false,
+    "provider_outputs_used": false,
+    "provider_consensus_used": false
+  },
+  "metrics": {
+    "contract_validity_rate": 0.805556,
+    "structural_usefulness_rate": 0.138889,
+    "structurally_useful_provider_outputs": 5,
+    "structurally_useful_distinct_crops": 2,
+    "cross_provider_repeat_qualified_crops": 0,
+    "exact_literal_cell_value_agreement_rate": 0.480337,
+    "numeric_value_agreement_rate": 0.674699,
+    "row_binding_support_rate": 0.480337,
+    "omission_rate": 0.519663,
+    "numeric_value_hallucination_rate": 0.03653,
+    "exact_proposal_repeatability_rate": 0.5,
+    "nondeterministic_unit_provider_pairs": 9,
+    "repeatability_unit_provider_pairs": 18,
+    "provider_disagreement_rate": 0.5,
+    "provider_disagreement_decisions": 9,
+    "review_rate": 1.0,
+    "runtime_rejection_rate": 0.388889,
+    "provider_terminal_failure_rate": 0.194444,
+    "unsupported_layout_rejection_rate": 0.111111,
+    "canonical_tables_published": 0,
+    "provider_proposals_with_canonical_authority": 0,
+    "layout_coverage": {
+      "borderless": 5,
+      "complex_broker_layout": 3,
+      "long_form_prose": 1,
+      "merged_headers": 3,
+      "simple_grid": 4,
+      "sparse_cells": 8,
+      "totals_subtotals": 6
+    },
+    "page_continuations_present": 0,
+    "unreadable_or_obscured_actual_units_present": 0,
+    "reference_entry_opportunities": 356,
+    "numeric_value_opportunities": 332
+  },
+  "product_envelope": {
+    "safe_for_proposal_generation": true,
+    "safe_for_assisted_review": true,
+    "assisted_review_condition": "the exact source crop remains visible and every proposed cell is checked; a proposal may be discarded without publication",
+    "safe_for_unattended_extraction": false,
+    "safe_for_automatic_publication": false,
+    "automatic_publication_reason": "every actual-corpus runtime decision requires review; provider output and consensus have zero canonical authority",
+    "supported_layout_boundary": "source-bound single-page numeric table crops may yield useful review proposals, but only the measured subset meeting the strict usefulness threshold is supported",
+    "measured_useful_subset": {
+      "provider_outputs": 5,
+      "distinct_crops": 2,
+      "cross_provider_repeat_qualified_crops": 0
+    },
+    "unsupported_layout_families": [
+      "long-form prose grids rejected by delegated source review",
+      "cross-page continuations not present in the bounded actual contour",
+      "unreadable or obscured values not present in the bounded actual contour"
+    ],
+    "unsupported_or_ambiguous_fail_closed": true,
+    "customer_acceptance_claimed": false,
+    "universal_visual_table_automation_claimed": false
+  },
+  "acceptance": {
+    "ACTUAL_CORPUS_VLM_EVALUATION": "COMPLETED",
+    "PROVIDER_OUTPUT_AS_REFERENCE_TRUTH": "ZERO",
+    "REAL_DISAGREEMENT": "VISIBLE",
+    "REAL_NONDETERMINISM": "MEASURED",
+    "REVIEW_RATE": "MEASURED",
+    "SUPPORTED_PRODUCT_ENVELOPE": "EXPLICIT",
+    "UNSUPPORTED_OR_AMBIGUOUS_INPUT": "FAIL_CLOSED",
+    "CUSTOMER_ACCEPTANCE": "NOT_FALSELY_CLAIMED"
+  },
+  "raw_provider_responses_included": false,
+  "provider_output_values_included": false,
+  "customer_values_included": false,
+  "receipt_hash": "f8862b9a2104a8b4f08b24b6ebe06fc784ce78bb27524e2dd67e8cce92eff1f5"
+}
