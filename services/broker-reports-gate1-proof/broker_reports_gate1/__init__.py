@@ -231,6 +231,27 @@ from .gate2_input_readiness import (
     Gate2InputReadinessResult,
     validate_dry_run_source_fact_package,
 )
+from .gate2_fns_2ndfl_adapter import (
+    Gate2Fns2NdflAdapter,
+    Gate2Fns2NdflAdapterConfig,
+    Gate2Fns2NdflAdapterFactory,
+    Gate2Fns2NdflError,
+)
+from .gate2_fns_2ndfl_contracts import (
+    ADAPTER_ID as FNS_2NDFL_ADAPTER_ID,
+    ADAPTER_VERSION as FNS_2NDFL_ADAPTER_VERSION,
+    TYPED_FACTS_SCHEMA_VERSION as FNS_2NDFL_TYPED_FACTS_SCHEMA_VERSION,
+    render_fns_2ndfl_safe_report,
+    validate_fns_2ndfl_typed_output,
+)
+from .gate2_fns_2ndfl_parity import (
+    PARITY_SCHEMA_VERSION as FNS_2NDFL_PARITY_SCHEMA_VERSION,
+    Gate2Fns2NdflParityConfig,
+    Gate2Fns2NdflParityError,
+    Gate2Fns2NdflParityFactory,
+    render_fns_2ndfl_parity_safe_report,
+    validate_fns_2ndfl_parity,
+)
 from .gate2_source_fact_contracts import (
     FACT_TYPES,
     Gate2ManagedPrompt,
@@ -634,6 +655,21 @@ __all__ = [
     "Gate2InputReadinessError",
     "Gate2InputReadinessFactory",
     "Gate2InputReadinessResult",
+    "Gate2Fns2NdflAdapter",
+    "Gate2Fns2NdflAdapterConfig",
+    "Gate2Fns2NdflAdapterFactory",
+    "Gate2Fns2NdflError",
+    "FNS_2NDFL_ADAPTER_ID",
+    "FNS_2NDFL_ADAPTER_VERSION",
+    "FNS_2NDFL_TYPED_FACTS_SCHEMA_VERSION",
+    "FNS_2NDFL_PARITY_SCHEMA_VERSION",
+    "Gate2Fns2NdflParityConfig",
+    "Gate2Fns2NdflParityError",
+    "Gate2Fns2NdflParityFactory",
+    "render_fns_2ndfl_safe_report",
+    "render_fns_2ndfl_parity_safe_report",
+    "validate_fns_2ndfl_typed_output",
+    "validate_fns_2ndfl_parity",
     "ISSUE_LEDGER_SCHEMA_VERSION",
     "ManagedPrompt",
     "NORMALIZER_VERSION",

@@ -98,6 +98,11 @@ def main() -> None:
     parser.add_argument("--baseline-safe", type=Path, default=DEFAULT_BASELINE_SAFE)
     parser.add_argument("--baseline-store", type=Path, required=True)
     parser.add_argument("--safe-output", type=Path, default=DEFAULT_SAFE_OUTPUT)
+    parser.add_argument(
+        "--full-gate2-packages",
+        action="store_true",
+        help="Include the maintained full Gate 2 readiness/package contour.",
+    )
     args = parser.parse_args()
 
     config = _read_json(args.config)
@@ -113,6 +118,8 @@ def main() -> None:
         "--safe-output",
         str(acceptance_output),
     ]
+    if args.full_gate2_packages:
+        command.append("--full-gate2-packages")
 
     started = time.perf_counter()
     process = subprocess.Popen(
@@ -180,7 +187,7 @@ def main() -> None:
     candidate = _store_signature(candidate_store)
     acceptance = _read_json(acceptance_output)
 
-    baseline_resources = baseline_safe["resource_profile"]
+    baseline_resources = _baseline_resource_profile(baseline_safe)
     baseline_wall = float(baseline_resources["proof_wall_seconds"])
     baseline_normalization = float(baseline_resources["normalization_wall_seconds"])
     normalization_seconds = _checkpoint_delta(
@@ -224,7 +231,7 @@ def main() -> None:
         ),
         "terminal_status_counts_equal": (
             acceptance["actual_execution"]["terminal_status_counts"]
-            == baseline_safe["terminal_outcome"]["terminal_status_counts"]
+            == _baseline_terminal_status_counts(baseline_safe)
         ),
         "zero_silent_loss_passed": (
             acceptance["actual_execution"]["zero_silent_loss_status"]
@@ -247,7 +254,7 @@ def main() -> None:
         "status": status,
         "checks": checks,
         "baseline": {
-            "repository_revision": baseline_safe.get("repository_revision"),
+            "repository_revision": _baseline_repository_revision(baseline_safe),
             "proof_wall_seconds": baseline_wall,
             "normalization_wall_seconds": baseline_normalization,
             "process_peak_rss_bytes": int(baseline_resources["process_peak_rss_bytes"]),
@@ -520,6 +527,52 @@ def _sha256_json(value: Any) -> str:
             separators=(",", ":"),
         ).encode("utf-8")
     ).hexdigest()
+
+
+def _baseline_resource_profile(value: dict[str, Any]) -> dict[str, Any]:
+    legacy = value.get("resource_profile")
+    if isinstance(legacy, dict):
+        return legacy
+    candidate = value.get("candidate")
+    if (
+        value.get("schema_version") == SCHEMA_VERSION
+        and isinstance(candidate, dict)
+    ):
+        return {
+            "proof_wall_seconds": candidate.get("proof_wall_seconds"),
+            "normalization_wall_seconds": candidate.get(
+                "normalization_wall_seconds"
+            ),
+            "process_peak_rss_bytes": candidate.get("process_peak_rss_bytes"),
+        }
+    raise RuntimeError("bounded_profile_baseline_resource_profile_invalid")
+
+
+def _baseline_terminal_status_counts(value: dict[str, Any]) -> dict[str, Any]:
+    legacy = value.get("terminal_outcome")
+    if isinstance(legacy, dict) and isinstance(
+        legacy.get("terminal_status_counts"), dict
+    ):
+        return legacy["terminal_status_counts"]
+    terminal = value.get("terminal")
+    if (
+        value.get("schema_version") == SCHEMA_VERSION
+        and isinstance(terminal, dict)
+        and isinstance(terminal.get("terminal_status_counts"), dict)
+    ):
+        return terminal["terminal_status_counts"]
+    raise RuntimeError("bounded_profile_baseline_terminal_status_invalid")
+
+
+def _baseline_repository_revision(value: dict[str, Any]) -> Any:
+    if value.get("repository_revision"):
+        return value["repository_revision"]
+    baseline = value.get("baseline")
+    if value.get("schema_version") == SCHEMA_VERSION and isinstance(
+        baseline, dict
+    ):
+        return baseline.get("repository_revision")
+    return None
 
 
 def _read_json(path: Path) -> dict[str, Any]:

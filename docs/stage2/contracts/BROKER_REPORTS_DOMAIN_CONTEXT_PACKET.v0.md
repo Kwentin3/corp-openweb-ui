@@ -63,6 +63,8 @@ must retain that blocker; resolver readability does not resolve it.
 - `cross_check_refs`
 - `declaration_support_refs`
 - `audit_reference_refs`
+- `archive_lineage_refs`
+- `visual_review_refs`
 - `duplicate_or_non_primary_refs`
 - `source_ready_not_primary_refs`
 - `dropped_source_ready_refs`
@@ -89,6 +91,17 @@ Bucket meaning:
 - `audit_reference_refs` are docs retained for traceability/audit context.
 - `duplicate_or_non_primary_refs` are source-ready duplicates or non-primary
   refs that must not vanish just because they are outside the reduced subset.
+- `archive_lineage_refs` are accepted ZIP containers retained only to bind
+  promoted members, signatures and archive provenance. They must be disjoint
+  from `source_fact_ready_refs`.
+- `visual_review_refs` are documents with a ready visual scope but no ready
+  text, neutral-structure or validated canonical-table scope. They remain
+  review-required and must be disjoint from `source_fact_ready_refs` until a
+  separately sealed visual-review projection is produced.
+
+The validator derives `archive_lineage_refs` and `visual_review_refs` from the
+DocumentMemory scope contract and requires exact set equality. A caller cannot
+self-classify a blocked archive or visual-only document as source-ready.
 
 `next_stage_ref_summary` mirrors these buckets as counts. It is safe for chat
 and reports.

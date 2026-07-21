@@ -1,0 +1,125 @@
+{
+  "schema_version": "broker_reports_goal5_integrated_actual_corpus_reproof_v1",
+  "generated_at": "2026-07-21",
+  "implementation_commit": "29827e6312eede62802d45d84e86f5fb6df62933",
+  "branch": "codex/broker-reports-goal5-integrated-reproof-v1",
+  "verdict": "accepted_for_delivery",
+  "actual_corpus": {
+    "required_top_level_inputs": 56,
+    "source_identities": 104,
+    "logical_documents": 80,
+    "formats": {
+      "csv": 2,
+      "pdf": 50,
+      "zip": 24,
+      "html_text": 4,
+      "xml": 24
+    },
+    "terminal_status_counts": {
+      "complete": 26,
+      "review_required": 78
+    },
+    "source_fact_ready_refs": 75,
+    "archive_lineage_refs": 24,
+    "visual_review_refs": 5,
+    "silent_loss": 0,
+    "unexplained_terminal_states": 0
+  },
+  "fns_typed_facts": {
+    "typed_outputs": 24,
+    "typed_facts": 351,
+    "structural_variants": 17,
+    "paired_groups": 24,
+    "paired_pdf_candidates": 180,
+    "unmatched_errors": 0,
+    "provider_calls": 0,
+    "safe_digest": "b79f2a1eeda636bdd715ae6e02ee34c7700ac60c1ac724adbb738b6fdd9ad183"
+  },
+  "visual_review": {
+    "receipts": 18,
+    "accepted_with_correction": 1,
+    "canonical_cells": 49,
+    "gate2_packages": 1,
+    "terminal_status_counts": {
+      "usable": 1,
+      "review_required": 8,
+      "rejected": 7,
+      "unsupported": 2
+    }
+  },
+  "provider_accounting": {
+    "sealed_prior_calls": 36,
+    "score_samples": 36,
+    "new_calls": 0,
+    "unaccounted_calls": 0
+  },
+  "gate2": {
+    "packages": 681,
+    "validation_errors": 0,
+    "warnings": 0
+  },
+  "artifact_store": {
+    "records_before": 1531,
+    "records_after": 1531,
+    "payloads_before": 1410,
+    "payloads_after": 1410,
+    "aggregate_signature_unchanged": true
+  },
+  "private_lifecycle": {
+    "persisted_records": 37,
+    "purge_probe_records": 3,
+    "purged_records": 3,
+    "remaining_probe_payloads": 0
+  },
+  "bounded_profile": {
+    "checks_passed": 14,
+    "checks_total": 14,
+    "normalization_wall_seconds": 686.282965,
+    "proof_wall_seconds": 824.999425,
+    "peak_rss_bytes": 4121800704,
+    "peak_rss_bound_bytes": 5368709120,
+    "integrated_review_wall_seconds": 9.00789
+  },
+  "acceptance": {
+    "ACTUAL_CORPUS_ACCOUNTING": "COMPLETE",
+    "ZERO_SILENT_LOSS": "PASSED",
+    "UNEXPLAINED_TERMINAL_STATES": "ZERO",
+    "KNOWLEDGE_RAG_VECTOR_USE": "ZERO",
+    "PROVIDER_CALLS": "FULLY_ACCOUNTED",
+    "REVIEWED_VISUAL_HANDOFF": "PASSED",
+    "ARTIFACTSTORE_IMMUTABILITY": "PASSED",
+    "GATE2_VALIDATION_ERRORS": "ZERO"
+  },
+  "verification": {
+    "focused_tests_passed": 74,
+    "bundle_tests_passed": 11,
+    "full_tests": {
+      "passed": 1030,
+      "skipped": 20,
+      "failed": 0,
+      "warnings": 5,
+      "warning_scope": "swig_deprecation_only"
+    },
+    "changed_source_ruff": "passed",
+    "repository_wide_ruff": "not_claimed_legacy_violations",
+    "py_compile": "passed",
+    "git_diff_check": "passed",
+    "bundle_generation": "deterministic"
+  },
+  "bundle_sha256": {
+    "gate1": "F38E2C57570C916362D2104CACA52954DFB379E8F98B1A3CC1C1B2C8CD802F62",
+    "gate2_source_fact": "8629FD8848B886E118F882367DF0B8B273770018C97DBA40B9CBB44D7CA464C4",
+    "gate2_domain": "AF0FC5E8D76E3D4D80DB4D374580CA77BA2DF728DCEDE62FE98D87C621A8FD07"
+  },
+  "integrated_safe_digest": "36d3625acb593593572a1bfcaa95d0a76cc089fff444aae5acdf2c1fea9b478d",
+  "privacy": {
+    "knowledge_rag_vector_used": false,
+    "corpus_payload_recorded_in_git": false,
+    "private_review_recorded_in_git": false,
+    "source_name_recorded_in_git": false,
+    "source_path_recorded_in_git": false,
+    "artifact_identifier_recorded_in_git": false,
+    "live_deployment_mutated": false,
+    "production_data_mutated": false
+  }
+}
