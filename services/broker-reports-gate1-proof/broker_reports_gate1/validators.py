@@ -6,7 +6,12 @@ from typing import Iterable
 
 from .blockers import privacy_violation
 from .archive_intake import ARCHIVE_SOURCE_MANIFEST_SCHEMA_VERSION
-from .contracts import BLOCKER_CODES, GATE2_HANDOFF_MODES, OCR_POLICY_STATUSES, SOURCE_ELIGIBILITY_STATUSES
+from .contracts import (
+    BLOCKER_CODES,
+    GATE2_HANDOFF_MODES,
+    OCR_POLICY_STATUSES,
+    SOURCE_ELIGIBILITY_STATUSES,
+)
 from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
 from .pdf_text_layer import validate_pdf_text_layer_payload
@@ -111,17 +116,41 @@ def validate_artifacts(package: dict) -> dict:
     taxonomy_candidates = package.get("taxonomy_candidates", [])
     blockers = package.get("normalization_blockers", [])
     eligibility_payload = package.get("document_source_eligibility", {})
-    eligibility_entries = eligibility_payload.get("entries", []) if isinstance(eligibility_payload, dict) else []
-    gate2_handoff = package.get("gate2_handoff", {}) if isinstance(package.get("gate2_handoff"), dict) else {}
-    issue_ledger = package.get("gate1_issue_ledger", {}) if isinstance(package.get("gate1_issue_ledger"), dict) else {}
-    issue_entries = issue_ledger.get("entries", []) if isinstance(issue_ledger.get("entries"), list) else []
+    eligibility_entries = (
+        eligibility_payload.get("entries", [])
+        if isinstance(eligibility_payload, dict)
+        else []
+    )
+    gate2_handoff = (
+        package.get("gate2_handoff", {})
+        if isinstance(package.get("gate2_handoff"), dict)
+        else {}
+    )
+    issue_ledger = (
+        package.get("gate1_issue_ledger", {})
+        if isinstance(package.get("gate1_issue_ledger"), dict)
+        else {}
+    )
+    issue_entries = (
+        issue_ledger.get("entries", [])
+        if isinstance(issue_ledger.get("entries"), list)
+        else []
+    )
     usage_classification = (
         package.get("document_usage_classification", {})
         if isinstance(package.get("document_usage_classification"), dict)
         else {}
     )
-    usage_entries = usage_classification.get("entries", []) if isinstance(usage_classification.get("entries"), list) else []
-    domain_context_packet = package.get("domain_context_packet", {}) if isinstance(package.get("domain_context_packet"), dict) else {}
+    usage_entries = (
+        usage_classification.get("entries", [])
+        if isinstance(usage_classification.get("entries"), list)
+        else []
+    )
+    domain_context_packet = (
+        package.get("domain_context_packet", {})
+        if isinstance(package.get("domain_context_packet"), dict)
+        else {}
+    )
     supported_profile_assessment = (
         package.get("gate1_supported_profile_assessment", {})
         if isinstance(package.get("gate1_supported_profile_assessment"), dict)
@@ -137,16 +166,59 @@ def validate_artifacts(package: dict) -> dict:
     llm_packages = package.get("llm_document_packages", [])
     run_id = package.get("normalization_run", {}).get("run_id")
 
+    bounded_receipts = {
+        name: _bounded_validation_receipt(value)
+        for name, value in {
+            "private_normalized_slices": slices,
+            "private_normalized_source_payloads": source_payloads,
+            "private_normalized_source_units": source_units,
+            "private_normalized_table_projections": table_projections,
+        }.items()
+    }
+    bounded_receipts_present = {
+        name: receipt is not None for name, receipt in bounded_receipts.items()
+    }
+    bounded_graph = all(bounded_receipts_present.values())
+    if any(bounded_receipts_present.values()) and not bounded_graph:
+        errors.append(_error("bounded_graph_collection_set_incomplete", run_id))
+    if bounded_graph:
+        for name, receipt in bounded_receipts.items():
+            if (
+                receipt.get("sealed") is not True
+                or receipt.get("artifact_records_total")
+                != receipt.get("prevalidated_compact_entries_total")
+                or receipt.get("validation_authority")
+                != "validated_before_final_artifactstore_persistence"
+            ):
+                errors.append(_error("bounded_graph_validation_receipt_invalid", name))
+
+    slices_to_validate = [] if bounded_graph else slices
+    source_payloads_to_validate = [] if bounded_graph else source_payloads
+    source_units_to_validate = [] if bounded_graph else source_units
+    table_projections_to_validate = [] if bounded_graph else table_projections
+
     blocker_ids = {item.get("blocker_id") for item in blockers}
     profile_by_doc = {item.get("document_id"): item for item in profiles}
     document_by_id = {item.get("document_id"): item for item in documents}
     document_ids = {item.get("document_id") for item in documents}
     taxonomy_doc_ids = {item.get("document_id") for item in taxonomy_candidates}
-    eligibility_doc_ids = {item.get("document_id") for item in eligibility_entries if isinstance(item, dict)}
-    usage_doc_ids = {item.get("document_ref") for item in usage_entries if isinstance(item, dict)}
-    issue_ids = {item.get("issue_id") for item in issue_entries if isinstance(item, dict)}
-    passport_doc_ids = {item.get("document_id") for item in passports if isinstance(item, dict)}
-    llm_package_doc_ids = {item.get("document_id") for item in llm_packages if isinstance(item, dict)}
+    eligibility_doc_ids = {
+        item.get("document_id")
+        for item in eligibility_entries
+        if isinstance(item, dict)
+    }
+    usage_doc_ids = {
+        item.get("document_ref") for item in usage_entries if isinstance(item, dict)
+    }
+    issue_ids = {
+        item.get("issue_id") for item in issue_entries if isinstance(item, dict)
+    }
+    passport_doc_ids = {
+        item.get("document_id") for item in passports if isinstance(item, dict)
+    }
+    llm_package_doc_ids = {
+        item.get("document_id") for item in llm_packages if isinstance(item, dict)
+    }
 
     for blocker in blockers:
         if blocker.get("code") not in BLOCKER_CODES:
@@ -164,7 +236,9 @@ def validate_artifacts(package: dict) -> dict:
             if ref not in blocker_ids:
                 errors.append(_error("document_unknown_blocker_ref", document_id))
 
-        if document.get("bytes_status") == "available" and document.get("container_format") in {
+        if document.get("bytes_status") == "available" and document.get(
+            "container_format"
+        ) in {
             "csv",
             "txt",
             "html_text",
@@ -176,7 +250,11 @@ def validate_artifacts(package: dict) -> dict:
             "image",
         }:
             if document_id not in profile_by_doc and not refs:
-                errors.append(_error("supported_readable_file_has_no_profile_or_blocker", document_id))
+                errors.append(
+                    _error(
+                        "supported_readable_file_has_no_profile_or_blocker", document_id
+                    )
+                )
 
         if document_id not in taxonomy_doc_ids:
             errors.append(_error("document_missing_taxonomy_candidate", document_id))
@@ -189,17 +267,25 @@ def validate_artifacts(package: dict) -> dict:
         if llm_packages and document_id not in llm_package_doc_ids:
             errors.append(_error("document_missing_llm_package", document_id))
 
-    for private_slice in slices:
+    for private_slice in slices_to_validate:
         slice_document_id = private_slice.get("document_id")
         if not private_slice.get("document_id"):
-            errors.append(_error("slice_missing_document_id", private_slice.get("slice_id")))
+            errors.append(
+                _error("slice_missing_document_id", private_slice.get("slice_id"))
+            )
         if not private_slice.get("profile_id"):
-            errors.append(_error("slice_missing_profile_id", private_slice.get("slice_id")))
+            errors.append(
+                _error("slice_missing_profile_id", private_slice.get("slice_id"))
+            )
         if not private_slice.get("source_location"):
-            errors.append(_error("slice_missing_source_location", private_slice.get("slice_id")))
+            errors.append(
+                _error("slice_missing_source_location", private_slice.get("slice_id"))
+            )
         document = document_by_id.get(slice_document_id)
         if document is None:
-            errors.append(_error("slice_unknown_document_ref", private_slice.get("slice_id")))
+            errors.append(
+                _error("slice_unknown_document_ref", private_slice.get("slice_id"))
+            )
             continue
         provenance_validation = validate_normalized_slice_provenance(
             private_slice=private_slice,
@@ -211,10 +297,10 @@ def validate_artifacts(package: dict) -> dict:
 
     payload_refs = {
         str(item.get("source_payload_ref"))
-        for item in source_payloads
+        for item in source_payloads_to_validate
         if isinstance(item, dict) and item.get("source_payload_ref")
     }
-    for payload in source_payloads:
+    for payload in source_payloads_to_validate:
         if not isinstance(payload, dict):
             errors.append(_error("full_source_payload_not_object", run_id))
             continue
@@ -222,28 +308,38 @@ def validate_artifacts(package: dict) -> dict:
         if payload.get("schema_version") != SOURCE_PAYLOAD_SCHEMA_VERSION:
             errors.append(_error("full_source_payload_schema_mismatch", payload_ref))
         if payload.get("document_ref") not in document_ids:
-            errors.append(_error("full_source_payload_unknown_document_ref", payload_ref))
+            errors.append(
+                _error("full_source_payload_unknown_document_ref", payload_ref)
+            )
         if payload.get("visibility") != "private_case":
             errors.append(_error("full_source_payload_visibility_invalid", payload_ref))
         if payload.get("knowledge_rag_used") is not False:
-            errors.append(_error("full_source_payload_knowledge_guard_failed", payload_ref))
+            errors.append(
+                _error("full_source_payload_knowledge_guard_failed", payload_ref)
+            )
         if payload.get("vectorization_performed") is not False:
-            errors.append(_error("full_source_payload_vector_guard_failed", payload_ref))
+            errors.append(
+                _error("full_source_payload_vector_guard_failed", payload_ref)
+            )
         if payload.get("container_format") == "pdf":
             pdf_validation = validate_pdf_text_layer_payload(payload)
             errors.extend(copy.deepcopy(pdf_validation.get("errors") or []))
 
-    for unit in source_units:
+    for unit in source_units_to_validate:
         if not isinstance(unit, dict):
             errors.append(_error("full_source_unit_not_object", run_id))
             continue
         document_id = str(unit.get("document_id") or "")
         document = document_by_id.get(document_id)
         if document is None:
-            errors.append(_error("full_source_unit_unknown_document_ref", unit.get("unit_ref")))
+            errors.append(
+                _error("full_source_unit_unknown_document_ref", unit.get("unit_ref"))
+            )
             continue
         if str(unit.get("parent_payload_ref") or "") not in payload_refs:
-            errors.append(_error("full_source_unit_parent_payload_missing", unit.get("unit_ref")))
+            errors.append(
+                _error("full_source_unit_parent_payload_missing", unit.get("unit_ref"))
+            )
         unit_validation = validate_full_source_unit(
             unit=unit,
             normalization_run_id=str(run_id or ""),
@@ -254,25 +350,34 @@ def validate_artifacts(package: dict) -> dict:
 
     source_unit_refs = {
         str(item.get("unit_ref") or "")
-        for item in source_units
+        for item in source_units_to_validate
         if isinstance(item, dict)
     }
     table_validator = TableProjectionValidator()
-    for projection in table_projections:
+    for projection in table_projections_to_validate:
         if not isinstance(projection, dict):
             errors.append(_error("table_projection_not_object", run_id))
             continue
         projection_ref = projection.get("table_projection_id")
         if projection.get("source_document_ref") not in document_ids:
-            errors.append(_error("table_projection_unknown_document_ref", projection_ref))
+            errors.append(
+                _error("table_projection_unknown_document_ref", projection_ref)
+            )
         if str(projection.get("source_unit_ref") or "") not in source_unit_refs:
-            errors.append(_error("table_projection_unknown_source_unit_ref", projection_ref))
+            errors.append(
+                _error("table_projection_unknown_source_unit_ref", projection_ref)
+            )
         projection_validation = table_validator.validate(projection)
         errors.extend(copy.deepcopy(projection_validation.get("errors") or []))
 
     for taxonomy_candidate in taxonomy_candidates:
         if taxonomy_candidate.get("document_id") not in document_ids:
-            errors.append(_error("taxonomy_unknown_document_ref", taxonomy_candidate.get("taxonomy_candidate_id")))
+            errors.append(
+                _error(
+                    "taxonomy_unknown_document_ref",
+                    taxonomy_candidate.get("taxonomy_candidate_id"),
+                )
+            )
 
     for entry in eligibility_entries:
         document_id = entry.get("document_id")
@@ -291,16 +396,30 @@ def validate_artifacts(package: dict) -> dict:
         for ref in refs:
             if ref not in blocker_ids:
                 errors.append(_error("eligibility_unknown_blocker_ref", document_id))
-        if entry.get("included_in_reduced_subset") and entry.get("can_enter_gate2") is not True:
+        if (
+            entry.get("included_in_reduced_subset")
+            and entry.get("can_enter_gate2") is not True
+        ):
             errors.append(_error("included_document_cannot_enter_gate2", document_id))
-        if entry.get("included_in_reduced_subset") and entry.get("exclusion_is_terminal"):
+        if entry.get("included_in_reduced_subset") and entry.get(
+            "exclusion_is_terminal"
+        ):
             errors.append(_error("terminal_document_included_for_gate2", document_id))
 
     if issue_ledger:
         if issue_ledger.get("schema_version") != "gate1_issue_ledger_v0":
-            errors.append(_error("issue_ledger_schema_mismatch", issue_ledger.get("schema_version")))
+            errors.append(
+                _error(
+                    "issue_ledger_schema_mismatch", issue_ledger.get("schema_version")
+                )
+            )
         if issue_ledger.get("normalization_run_id") != run_id:
-            errors.append(_error("issue_ledger_run_ref_mismatch", issue_ledger.get("normalization_run_id")))
+            errors.append(
+                _error(
+                    "issue_ledger_run_ref_mismatch",
+                    issue_ledger.get("normalization_run_id"),
+                )
+            )
         for issue in issue_entries:
             issue_id = issue.get("issue_id")
             if issue.get("normalization_run_id") != run_id:
@@ -312,10 +431,23 @@ def validate_artifacts(package: dict) -> dict:
                     errors.append(_error("issue_unknown_document_ref", issue_id))
 
     if usage_classification:
-        if usage_classification.get("schema_version") != "document_usage_classification_v0":
-            errors.append(_error("usage_classification_schema_mismatch", usage_classification.get("schema_version")))
+        if (
+            usage_classification.get("schema_version")
+            != "document_usage_classification_v0"
+        ):
+            errors.append(
+                _error(
+                    "usage_classification_schema_mismatch",
+                    usage_classification.get("schema_version"),
+                )
+            )
         if usage_classification.get("normalization_run_id") != run_id:
-            errors.append(_error("usage_classification_run_ref_mismatch", usage_classification.get("normalization_run_id")))
+            errors.append(
+                _error(
+                    "usage_classification_run_ref_mismatch",
+                    usage_classification.get("normalization_run_id"),
+                )
+            )
         for entry in usage_entries:
             document_ref = entry.get("document_ref")
             if document_ref not in document_ids:
@@ -329,12 +461,24 @@ def validate_artifacts(package: dict) -> dict:
 
     if domain_context_packet:
         if domain_context_packet.get("schema_version") != "domain_context_packet_v0":
-            errors.append(_error("domain_context_packet_schema_mismatch", domain_context_packet.get("schema_version")))
+            errors.append(
+                _error(
+                    "domain_context_packet_schema_mismatch",
+                    domain_context_packet.get("schema_version"),
+                )
+            )
         if domain_context_packet.get("normalization_run_id") != run_id:
-            errors.append(_error("domain_context_packet_run_ref_mismatch", domain_context_packet.get("normalization_run_id")))
+            errors.append(
+                _error(
+                    "domain_context_packet_run_ref_mismatch",
+                    domain_context_packet.get("normalization_run_id"),
+                )
+            )
         for document_ref in domain_context_packet.get("document_refs") or []:
             if document_ref not in document_ids:
-                errors.append(_error("domain_packet_unknown_document_ref", document_ref))
+                errors.append(
+                    _error("domain_packet_unknown_document_ref", document_ref)
+                )
         for issue_ref in domain_context_packet.get("unresolved_issue_refs") or []:
             if issue_ref not in issue_ids:
                 errors.append(_error("domain_packet_unknown_issue_ref", issue_ref))
@@ -342,20 +486,37 @@ def validate_artifacts(package: dict) -> dict:
         if isinstance(next_stage_refs, dict):
             for bucket, refs in next_stage_refs.items():
                 if not isinstance(refs, list):
-                    errors.append(_error("domain_packet_next_stage_bucket_not_list", bucket))
+                    errors.append(
+                        _error("domain_packet_next_stage_bucket_not_list", bucket)
+                    )
                     continue
                 for document_ref in refs:
                     if document_ref not in document_ids:
-                        errors.append(_error("domain_packet_next_stage_unknown_document_ref", document_ref))
+                        errors.append(
+                            _error(
+                                "domain_packet_next_stage_unknown_document_ref",
+                                document_ref,
+                            )
+                        )
             source_ready_refs = {
                 entry.get("document_ref")
                 for entry in usage_entries
                 if isinstance(entry, dict)
-                and (entry.get("readiness_by_stage") or {}).get("source_fact_extraction") in {"ready", "ready_with_issues"}
+                and (entry.get("readiness_by_stage") or {}).get(
+                    "source_fact_extraction"
+                )
+                in {"ready", "ready_with_issues"}
             }
-            packet_source_ready_refs = set(next_stage_refs.get("source_fact_ready_refs") or [])
+            packet_source_ready_refs = set(
+                next_stage_refs.get("source_fact_ready_refs") or []
+            )
             if packet_source_ready_refs != source_ready_refs:
-                errors.append(_error("domain_packet_source_ready_refs_mismatch", ",".join(sorted(source_ready_refs ^ packet_source_ready_refs))))
+                errors.append(
+                    _error(
+                        "domain_packet_source_ready_refs_mismatch",
+                        ",".join(sorted(source_ready_refs ^ packet_source_ready_refs)),
+                    )
+                )
             classified_source_ready_refs = set()
             for bucket in (
                 "primary_source_extraction_refs",
@@ -366,31 +527,64 @@ def validate_artifacts(package: dict) -> dict:
                 classified_source_ready_refs.update(next_stage_refs.get(bucket) or [])
             missing_source_ready_refs = source_ready_refs - classified_source_ready_refs
             if missing_source_ready_refs:
-                errors.append(_error("domain_packet_source_ready_ref_not_classified", ",".join(sorted(missing_source_ready_refs))))
+                errors.append(
+                    _error(
+                        "domain_packet_source_ready_ref_not_classified",
+                        ",".join(sorted(missing_source_ready_refs)),
+                    )
+                )
             if next_stage_refs.get("dropped_source_ready_refs"):
-                errors.append(_error("domain_packet_dropped_source_ready_refs", ",".join(next_stage_refs.get("dropped_source_ready_refs") or [])))
+                errors.append(
+                    _error(
+                        "domain_packet_dropped_source_ready_refs",
+                        ",".join(
+                            next_stage_refs.get("dropped_source_ready_refs") or []
+                        ),
+                    )
+                )
         document_issue_refs = domain_context_packet.get("document_issue_refs")
         if isinstance(document_issue_refs, dict):
             for document_ref, refs in document_issue_refs.items():
                 if document_ref not in document_ids:
-                    errors.append(_error("domain_packet_issue_map_unknown_document_ref", document_ref))
+                    errors.append(
+                        _error(
+                            "domain_packet_issue_map_unknown_document_ref", document_ref
+                        )
+                    )
                 if not isinstance(refs, list):
-                    errors.append(_error("domain_packet_issue_map_refs_not_list", document_ref))
+                    errors.append(
+                        _error("domain_packet_issue_map_refs_not_list", document_ref)
+                    )
                     continue
                 for issue_ref in refs:
                     if issue_ref not in issue_ids:
-                        errors.append(_error("domain_packet_issue_map_unknown_issue_ref", issue_ref))
+                        errors.append(
+                            _error(
+                                "domain_packet_issue_map_unknown_issue_ref", issue_ref
+                            )
+                        )
         private_slice_access = (
             domain_context_packet.get("private_slice_access")
             if isinstance(domain_context_packet.get("private_slice_access"), dict)
             else {}
         )
-        if private_slice_access.get("source_unit_schema_version") != "source_unit_provenance_v0":
+        if (
+            private_slice_access.get("source_unit_schema_version")
+            != "source_unit_provenance_v0"
+        ):
             errors.append(_error("domain_packet_source_unit_schema_mismatch", run_id))
-        if private_slice_access.get("source_value_projection_policy") != "private_payload_path_plus_checksum_v0":
+        if (
+            private_slice_access.get("source_value_projection_policy")
+            != "private_payload_path_plus_checksum_v0"
+        ):
             errors.append(_error("domain_packet_source_value_policy_mismatch", run_id))
-        if private_slice_access.get("row_segment_coverage_policy") != "source_unit_coverage_v0":
-            errors.append(_error("domain_packet_source_unit_coverage_policy_mismatch", run_id))
+        if (
+            private_slice_access.get("row_segment_coverage_policy")
+            != "source_unit_coverage_v0"
+        ):
+            errors.append(
+                _error("domain_packet_source_unit_coverage_policy_mismatch", run_id)
+            )
         document_memory_boundary = (
             domain_context_packet.get("document_memory_boundary")
             if isinstance(domain_context_packet.get("document_memory_boundary"), dict)
@@ -425,32 +619,64 @@ def validate_artifacts(package: dict) -> dict:
                 errors.append(_error("passport_run_ref_mismatch", document_id))
             if document_id not in document_ids:
                 errors.append(_error("passport_unknown_document_ref", document_id))
-            if passport.get("validator_status") not in {"passed", "failed", "privacy_failed", "pending"}:
+            if passport.get("validator_status") not in {
+                "passed",
+                "failed",
+                "privacy_failed",
+                "pending",
+            }:
                 errors.append(_error("passport_validator_status_invalid", document_id))
     if passport_validation:
-        if passport_validation.get("schema_version") != "document_metadata_passport_validation_v0":
-            errors.append(_error("passport_validation_schema_mismatch", passport_validation.get("schema_version")))
+        if (
+            passport_validation.get("schema_version")
+            != "document_metadata_passport_validation_v0"
+        ):
+            errors.append(
+                _error(
+                    "passport_validation_schema_mismatch",
+                    passport_validation.get("schema_version"),
+                )
+            )
         if passport_validation.get("normalization_run_id") != run_id:
-            errors.append(_error("passport_validation_run_ref_mismatch", passport_validation.get("normalization_run_id")))
+            errors.append(
+                _error(
+                    "passport_validation_run_ref_mismatch",
+                    passport_validation.get("normalization_run_id"),
+                )
+            )
 
     for profile in profiles:
         if profile.get("container_format") == "zip":
-            has_inventory = bool(profile.get("member_inventory")) or bool(profile.get("member_count"))
+            has_inventory = bool(profile.get("member_inventory")) or bool(
+                profile.get("member_count")
+            )
             doc_refs = {
                 blocker.get("code")
                 for blocker in blockers
                 if blocker.get("document_id") == profile.get("document_id")
             }
-            if not has_inventory and not ({"parser_failed", "unsupported_format", "corrupt_file"} & doc_refs):
-                errors.append(_error("zip_missing_inventory_or_blocker", profile.get("document_id")))
-        if profile.get("container_format") == "pdf" and profile.get("raster_or_scan_likelihood") in {"medium", "high"}:
+            if not has_inventory and not (
+                {"parser_failed", "unsupported_format", "corrupt_file"} & doc_refs
+            ):
+                errors.append(
+                    _error(
+                        "zip_missing_inventory_or_blocker", profile.get("document_id")
+                    )
+                )
+        if profile.get("container_format") == "pdf" and profile.get(
+            "raster_or_scan_likelihood"
+        ) in {"medium", "high"}:
             doc_refs = {
                 blocker.get("code")
                 for blocker in blockers
                 if blocker.get("document_id") == profile.get("document_id")
             }
             if "raster_requires_ocr_or_review" not in doc_refs:
-                errors.append(_error("raster_pdf_missing_gate2_blocker", profile.get("document_id")))
+                errors.append(
+                    _error(
+                        "raster_pdf_missing_gate2_blocker", profile.get("document_id")
+                    )
+                )
 
     for manifest in package.get("archive_source_manifests") or []:
         if not isinstance(manifest, dict):
@@ -475,7 +701,9 @@ def validate_artifacts(package: dict) -> dict:
             errors.append(_error("archive_manifest_member_ref_invalid", archive_ref))
         if manifest.get("terminal_status") == "complete":
             if manifest.get("all_members_accounted") is not True:
-                errors.append(_error("archive_manifest_member_accounting_failed", archive_ref))
+                errors.append(
+                    _error("archive_manifest_member_accounting_failed", archive_ref)
+                )
             for member in members:
                 if member.get("disposition") == "promoted_source_document":
                     promoted_ref = str(member.get("promoted_document_ref") or "")
@@ -506,15 +734,37 @@ def validate_artifacts(package: dict) -> dict:
         if blocker.get("blocks_gate2") and blocker.get("document_id")
     }
     if blocking_docs & included_doc_ids:
-        errors.append(_error("gate2_included_doc_has_terminal_blocker", ",".join(sorted(blocking_docs & included_doc_ids))))
-    if gate2_status in {"ready_with_safe_refs", "ready_with_reduced_subset"} and not included_doc_ids:
+        errors.append(
+            _error(
+                "gate2_included_doc_has_terminal_blocker",
+                ",".join(sorted(blocking_docs & included_doc_ids)),
+            )
+        )
+    if (
+        gate2_status in {"ready_with_safe_refs", "ready_with_reduced_subset"}
+        and not included_doc_ids
+    ):
         errors.append(_error("gate2_ready_without_included_documents", gate2_status))
-    if gate2_mode == "reduced_subset_ready_for_gate2" and gate2_handoff.get("reduced_subset_validated") is not True:
+    if (
+        gate2_mode == "reduced_subset_ready_for_gate2"
+        and gate2_handoff.get("reduced_subset_validated") is not True
+    ):
         errors.append(_error("reduced_subset_not_validated", gate2_status))
-    if gate2_mode != "reduced_subset_ready_for_gate2" and gate2_status == "ready_with_reduced_subset":
+    if (
+        gate2_mode != "reduced_subset_ready_for_gate2"
+        and gate2_status == "ready_with_reduced_subset"
+    ):
         errors.append(_error("reduced_subset_status_mode_mismatch", gate2_mode))
 
     return _validation_result(errors=errors, privacy_blocker=None)
+
+
+def _bounded_validation_receipt(value: object) -> dict | None:
+    receipt_builder = getattr(value, "bounded_validation_receipt", None)
+    if not callable(receipt_builder):
+        return None
+    receipt = receipt_builder()
+    return receipt if isinstance(receipt, dict) else None
 
 
 def validate_safe_report(
@@ -532,7 +782,11 @@ def validate_safe_report(
     for path in forbidden_paths:
         errors.append(_error("safe_report_forbidden_field", path))
 
-    flags = safe_report.get("safety_flags") if isinstance(safe_report.get("safety_flags"), dict) else {}
+    flags = (
+        safe_report.get("safety_flags")
+        if isinstance(safe_report.get("safety_flags"), dict)
+        else {}
+    )
     for flag in FALSE_SAFETY_FLAGS:
         if flags.get(flag) is not False:
             errors.append(_error("safety_flag_not_false", flag))
@@ -543,7 +797,9 @@ def validate_safe_report(
         for marker in private_markers
         if isinstance(marker, str) and len(marker) >= 3 and marker in rendered
     ]
-    privacy_blocker = privacy_violation(run_id, "private_marker_detected") if leaked else None
+    privacy_blocker = (
+        privacy_violation(run_id, "private_marker_detected") if leaked else None
+    )
     return _validation_result(errors=errors, privacy_blocker=privacy_blocker)
 
 

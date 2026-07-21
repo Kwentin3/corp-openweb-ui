@@ -33,6 +33,9 @@ LOCAL_OCR_PRODUCTION_ALLOWED = False
 PROVIDER_OUTPUT_AUTHORITY = "typed_proposal_only"
 CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_plus_explicit_review"
 MODEL_CANONICAL_AUTHORITY = 0
+GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED = False
+GATE1_INTERMEDIATE_LIFETIME = "one_document_then_seal_persist_release"
+GATE1_PRIVATE_REPRESENTATION_AUTHORITY = "artifactstore_resolver_only"
 
 COMPONENT_RUNTIME_STATUSES = {
     # Maintained repository integration. Atomic stage delivery remains a
@@ -41,6 +44,7 @@ COMPONENT_RUNTIME_STATUSES = {
     "visual_neutral_tables": "maintained_default_off",
     "visual_review_boundary": "maintained_default_off",
     "visual_recovery_handoff": "maintained_default_off",
+    "gate1_bounded_graph": "maintained",
     # Preserved experiments and historical proof contours.
     "pdf_csv_experiment_provider": "proof_only",
     "pdf_grid_experiment_provider": "proof_only",
@@ -62,12 +66,14 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
 
 FACTORY_REQUIRED = (
     "Maintained Broker Reports entrypoints must route visual recovery through "
-    "the production visual provider factory and deterministic promotion validator"
+    "the production visual provider factory and deterministic promotion validator; "
+    "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create"
 )
 FORBIDDEN = (
     "Native OpenWebUI processing, Knowledge/RAG/vectorization, whole-document "
     "visual upload, local OCR production dependencies, and model canonical "
-    "authority are forbidden"
+    "authority are forbidden; retaining decoded private representations for "
+    "the complete Gate 1 run is forbidden"
 )
 
 

@@ -21,14 +21,16 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from pypdf import PdfReader
+from pypdf import PdfReader  # noqa: E402
 
-from broker_reports_gate1 import (
+from broker_reports_gate1 import (  # noqa: E402
     ArtifactAccessContext,
     ArtifactResolver,
     ArtifactStoreConfig,
     ArtifactStoreFactory,
     FileInput,
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphFactory,
     Gate1Normalizer,
     build_retention_policy,
     persist_gate1_result,
@@ -121,8 +123,49 @@ def main() -> None:
         mode="customer_approved_test", explicit=True
     )
 
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_root = proof_root / f"actual_gate1_{timestamp}"
+    artifact_root = run_root / "artifact_store"
+    artifact_root.mkdir(parents=True, exist_ok=False)
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=artifact_root / "artifacts.sqlite3",
+            payload_root=artifact_root / "payloads",
+        )
+    ).create()
+    normalizer = Gate1Normalizer()
+    planned_run_id = normalizer.plan_run_id(inputs)
+    context = ArtifactAccessContext(
+        user_id="agent-operator-technical-reviewer",
+        case_id="customer-case-alpha-gate1-acceptance",
+        chat_id="customer-case-alpha-gate1-acceptance-run",
+        workspace_model_id="broker_reports_gate1_pipe",
+        normalization_run_id=planned_run_id,
+        allow_private=True,
+        require_source_available=True,
+    )
+    source_file_refs = [
+        {
+            "provider": "private_customer_corpus",
+            "openwebui_file_id": f"private-corpus-{record['document_id']}",
+            "content_type": file_input.mime_type,
+            "size_bytes": file_input.declared_size_bytes,
+            "source_deleted": False,
+        }
+        for record, file_input in zip(required_records, inputs)
+    ]
+    bounded_graph = Gate1BoundedGraphFactory(
+        Gate1BoundedGraphConfig(
+            store=store,
+            context=context,
+            retention_policy=retention_policy,
+            source_file_refs=tuple(source_file_refs),
+        )
+    ).create(normalization_run_id=planned_run_id)
+
     print("proof_checkpoint=normalization_started", file=sys.stderr, flush=True)
-    result = Gate1Normalizer().normalize(
+    result = normalizer.normalize(
         inputs,
         input_context={
             "clarification_criticality_refinement_enabled": True,
@@ -139,40 +182,11 @@ def main() -> None:
         },
         entrypoint="gate1_actual_customer_corpus_proof",
         trigger_type="backend_core",
+        bounded_graph=bounded_graph,
     )
     package = result.package
     print("proof_checkpoint=normalization_completed", file=sys.stderr, flush=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    run_root = proof_root / f"actual_gate1_{timestamp}"
-    artifact_root = run_root / "artifact_store"
-    artifact_root.mkdir(parents=True, exist_ok=False)
-    store = ArtifactStoreFactory(
-        ArtifactStoreConfig(
-            mode="sqlite",
-            sqlite_path=artifact_root / "artifacts.sqlite3",
-            payload_root=artifact_root / "payloads",
-        )
-    ).create()
-    context = ArtifactAccessContext(
-        user_id="agent-operator-technical-reviewer",
-        case_id="customer-case-alpha-gate1-acceptance",
-        chat_id="customer-case-alpha-gate1-acceptance-run",
-        workspace_model_id="broker_reports_gate1_pipe",
-        normalization_run_id=package["normalization_run"]["run_id"],
-        allow_private=True,
-        require_source_available=True,
-    )
-    source_file_refs = [
-        {
-            "provider": "private_customer_corpus",
-            "openwebui_file_id": f"private-corpus-{record['document_id']}",
-            "content_type": file_input.mime_type,
-            "size_bytes": file_input.declared_size_bytes,
-            "source_deleted": False,
-        }
-        for record, file_input in zip(required_records, inputs)
-    ]
     persisted = persist_gate1_result(
         store=store,
         result=result,
@@ -214,15 +228,14 @@ def main() -> None:
         )
     records_after = store.list_by_run(context.normalization_run_id)
 
-    document_bytes = _document_bytes(package, root_sources)
-    resolved_private = _resolved_private_artifacts(
-        records_before, resolver=resolver, context=context
-    )
+    document_bytes = _DocumentBytesResolver(package, root_sources)
     private_review, safe_documents = _review_documents(
         package=package,
         memory=resolved_memory,
         document_bytes=document_bytes,
-        resolved_private=resolved_private,
+        artifact_records=records_before,
+        resolver=resolver,
+        context=context,
         required_records=required_records,
     )
     print("proof_checkpoint=operator_review_completed", file=sys.stderr, flush=True)
@@ -526,50 +539,60 @@ def _role_for_record(record: dict[str, Any]) -> str:
     raise RuntimeError(f"required_source_role_missing:{document_id}")
 
 
-def _document_bytes(
-    package: dict[str, Any], root_sources: list[dict[str, Any]]
-) -> dict[str, bytes]:
-    documents = package["document_inventory"]["documents"]
-    result: dict[str, bytes] = {}
-    roots_by_document: dict[str, bytes] = {}
-    for document in documents:
-        if document.get("archive_parent_document_ref"):
-            continue
-        ordinal = int(document["root_input_ordinal"])
-        content = Path(root_sources[ordinal - 1]["path"]).read_bytes()
-        result[str(document["document_id"])] = content
-        roots_by_document[str(document["document_id"])] = content
-    for document in documents:
+class _DocumentBytesResolver:
+    """Read one source document for review without retaining corpus bytes."""
+
+    def __init__(
+        self,
+        package: dict[str, Any],
+        root_sources: list[dict[str, Any]],
+    ) -> None:
+        self._documents = {
+            str(item["document_id"]): item
+            for item in package["document_inventory"]["documents"]
+        }
+        self._root_paths = tuple(
+            Path(item["path"]) for item in root_sources
+        )
+
+    def read(self, document_id: str) -> bytes:
+        document = self._documents[document_id]
         parent_ref = str(document.get("archive_parent_document_ref") or "")
         if not parent_ref:
-            continue
-        with zipfile.ZipFile(io.BytesIO(roots_by_document[parent_ref])) as archive:
-            info = archive.infolist()[int(document["archive_member_index"]) - 1]
-            result[str(document["document_id"])] = archive.read(info)
-    return result
+            ordinal = int(document["root_input_ordinal"])
+            return self._root_paths[ordinal - 1].read_bytes()
+        parent = self._documents[parent_ref]
+        parent_ordinal = int(parent["root_input_ordinal"])
+        with zipfile.ZipFile(self._root_paths[parent_ordinal - 1]) as archive:
+            info = archive.infolist()[
+                int(document["archive_member_index"]) - 1
+            ]
+            return archive.read(info)
 
 
-def _resolved_private_artifacts(
-    records: list[Any], *, resolver: ArtifactResolver, context: ArtifactAccessContext
-) -> dict[str, dict[str, list[dict[str, Any]]]]:
+def _resolved_private_artifacts_for_document(
+    records: list[Any],
+    *,
+    document_id: str,
+    resolver: ArtifactResolver,
+    context: ArtifactAccessContext,
+) -> dict[str, list[dict[str, Any]]]:
     private_types = {
         "private_normalized_source_payload_v0": "payloads",
         "private_normalized_source_unit_v0": "units",
         "broker_reports_normalized_table_projection_v0": "projections",
     }
-    result: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
+    result: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         bucket = private_types.get(record.artifact_type)
         if (
             not bucket
-            or not record.document_id
+            or str(record.document_id or "") != document_id
             or record.validation_status != "validated"
         ):
             continue
         resolved = resolver.resolve(record.artifact_id, context)["payload"]
-        result[str(record.document_id)][bucket].append(resolved)
+        result[bucket].append(resolved)
     return result
 
 
@@ -618,8 +641,10 @@ def _review_documents(
     *,
     package: dict[str, Any],
     memory: dict[str, Any],
-    document_bytes: dict[str, bytes],
-    resolved_private: dict[str, dict[str, list[dict[str, Any]]]],
+    document_bytes: _DocumentBytesResolver,
+    artifact_records: list[Any],
+    resolver: ArtifactResolver,
+    context: ArtifactAccessContext,
     required_records: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     documents = {
@@ -653,12 +678,18 @@ def _review_documents(
     private_entries = []
     safe_entries = []
     for document_id, document in documents.items():
+        content = document_bytes.read(document_id)
         assessment = assessments[document_id]
         memory_entry = memory_entries[document_id]
-        artifacts = resolved_private.get(document_id, {})
+        artifacts = _resolved_private_artifacts_for_document(
+            artifact_records,
+            document_id=document_id,
+            resolver=resolver,
+            context=context,
+        )
         direct = _direct_review(
             document=document,
-            content=document_bytes[document_id],
+            content=content,
             profile=profiles.get(document_id, {}),
             assessment=assessment,
             memory_entry=memory_entry,
@@ -669,10 +700,10 @@ def _review_documents(
         )
         generic_checks = {
             "identity_and_material_metadata": hashlib.sha256(
-                document_bytes[document_id]
+                content
             ).hexdigest()
             == document.get("sha256")
-            and len(document_bytes[document_id]) == int(document.get("size_bytes") or 0),
+            and len(content) == int(document.get("size_bytes") or 0),
             "terminal_state_honest": assessment["terminal_status"]
             in {"complete", "review_required"},
             "accounting_passed": assessment["accounting_status"] == "passed",
@@ -727,6 +758,7 @@ def _review_documents(
                 "verdict": verdict,
             }
         )
+        del artifacts, content
     return (
         {
             "schema_version": "broker_reports_gate1_agent_operator_review_private_v1",

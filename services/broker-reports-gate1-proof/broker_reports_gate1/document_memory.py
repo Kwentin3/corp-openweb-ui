@@ -6,6 +6,7 @@ import json
 from collections import Counter, defaultdict
 from typing import Any
 
+from .bounded_graph import ArtifactStoreBackedList
 from .contracts import stable_digest
 
 
@@ -181,18 +182,6 @@ class Gate1DocumentMemoryBuilder:
             )
             if item.get("document_ref")
         }
-        payloads_by_doc = _group_by(
-            _dicts(package.get("private_normalized_source_payloads")),
-            "document_ref",
-        )
-        units_by_doc = _group_by(
-            _dicts(package.get("private_normalized_source_units")),
-            "document_id",
-        )
-        projections_by_doc = _group_by(
-            _dicts(package.get("private_normalized_table_projections")),
-            "source_document_ref",
-        )
         decisions_by_doc = _group_by(
             _dicts(package.get("table_projection_decisions")),
             "document_ref",
@@ -215,9 +204,21 @@ class Gate1DocumentMemoryBuilder:
                 self._assess_document(
                     document=document,
                     summary=summaries.get(document_ref, {}),
-                    payloads=payloads_by_doc.get(document_ref, []),
-                    units=units_by_doc.get(document_ref, []),
-                    projections=projections_by_doc.get(document_ref, []),
+                    payloads=_items_for_document(
+                        package.get("private_normalized_source_payloads"),
+                        document_ref,
+                        field="document_ref",
+                    ),
+                    units=_items_for_document(
+                        package.get("private_normalized_source_units"),
+                        document_ref,
+                        field="document_id",
+                    ),
+                    projections=_items_for_document(
+                        package.get("private_normalized_table_projections"),
+                        document_ref,
+                        field="source_document_ref",
+                    ),
                     decisions=decisions_by_doc.get(document_ref, []),
                     technical_profile=technical_profiles.get(document_ref, {}),
                     archive_manifest=archive_manifests.get(document_ref, {}),
@@ -232,7 +233,9 @@ class Gate1DocumentMemoryBuilder:
             "summary": {
                 "documents_total": len(entries),
                 "profile_accepted_total": sum(
-                    1 for item in entries if item.get("profile_acceptance") == "accepted"
+                    1
+                    for item in entries
+                    if item.get("profile_acceptance") == "accepted"
                 ),
                 "archive_containers_accepted_total": sum(
                     1
@@ -245,8 +248,7 @@ class Gate1DocumentMemoryBuilder:
                 "gate2_memory_restricted_total": sum(
                     1
                     for item in entries
-                    if item.get("gate2_memory_status")
-                    == "ready_with_restrictions"
+                    if item.get("gate2_memory_status") == "ready_with_restrictions"
                 ),
                 "terminal_status_counts": dict(sorted(status_counts.items())),
             },
@@ -272,18 +274,6 @@ class Gate1DocumentMemoryBuilder:
                 if issue.get("issue_id"):
                     issue_refs_by_doc[document_ref].append(str(issue["issue_id"]))
 
-        payloads_by_doc = _group_by(
-            _dicts(package.get("private_normalized_source_payloads")),
-            "document_ref",
-        )
-        units_by_doc = _group_by(
-            _dicts(package.get("private_normalized_source_units")),
-            "document_id",
-        )
-        projections_by_doc = _group_by(
-            _dicts(package.get("private_normalized_table_projections")),
-            "source_document_ref",
-        )
         decisions_by_doc = _group_by(
             _dicts(package.get("table_projection_decisions")),
             "document_ref",
@@ -291,9 +281,7 @@ class Gate1DocumentMemoryBuilder:
         summaries_by_doc = {
             str(item.get("document_ref") or ""): item
             for item in _dicts(
-                _object(package.get("full_source_coverage_summary")).get(
-                    "documents"
-                )
+                _object(package.get("full_source_coverage_summary")).get("documents")
             )
             if item.get("document_ref")
         }
@@ -306,9 +294,21 @@ class Gate1DocumentMemoryBuilder:
         for document in _documents(package):
             document_ref = str(document.get("document_id") or "")
             assessment_entry = assessment_by_doc.get(document_ref, {})
-            payloads = payloads_by_doc.get(document_ref, [])
-            units = units_by_doc.get(document_ref, [])
-            projections = projections_by_doc.get(document_ref, [])
+            payloads = _items_for_document(
+                package.get("private_normalized_source_payloads"),
+                document_ref,
+                field="document_ref",
+            )
+            units = _items_for_document(
+                package.get("private_normalized_source_units"),
+                document_ref,
+                field="document_id",
+            )
+            projections = _items_for_document(
+                package.get("private_normalized_table_projections"),
+                document_ref,
+                field="source_document_ref",
+            )
             is_archive_container = document.get("container_format") == "zip"
             logical_document_refs = (
                 []
@@ -351,15 +351,11 @@ class Gate1DocumentMemoryBuilder:
                             "archive_parent_document_ref"
                         ),
                         "archive_member_ref": document.get("archive_member_ref"),
-                        "archive_member_index": document.get(
-                            "archive_member_index"
-                        ),
+                        "archive_member_index": document.get("archive_member_index"),
                         "archive_manifest_ref": _object(
                             archive_by_parent.get(document_ref)
                         ).get("archive_ref"),
-                        "duplicate_group_ref": document.get(
-                            "duplicate_group_id"
-                        ),
+                        "duplicate_group_ref": document.get("duplicate_group_id"),
                         "duplicate_of_source_file_ref": document.get(
                             "duplicate_of_document_id"
                         ),
@@ -439,7 +435,9 @@ class Gate1DocumentMemoryBuilder:
                 - len(set(all_artifact_refs)),
                 "terminal_status_counts": dict(sorted(status_counts.items())),
                 "accepted_documents_total": sum(
-                    1 for item in entries if item.get("profile_acceptance") == "accepted"
+                    1
+                    for item in entries
+                    if item.get("profile_acceptance") == "accepted"
                 ),
                 "accepted_archive_containers_total": sum(
                     1
@@ -452,8 +450,7 @@ class Gate1DocumentMemoryBuilder:
                 "gate2_memory_restricted_total": sum(
                     1
                     for item in entries
-                    if item.get("gate2_memory_status")
-                    == "ready_with_restrictions"
+                    if item.get("gate2_memory_status") == "ready_with_restrictions"
                 ),
                 "zero_silent_loss_status": (
                     "passed_for_all_profile_accepted_documents"
@@ -511,7 +508,9 @@ class Gate1DocumentMemoryBuilder:
             "zip": "bounded_source_container_v1",
         }.get(container, "outside_supported_profile_v1")
 
-        if document.get("bytes_status") != "available" or document.get("read_error_class"):
+        if document.get("bytes_status") != "available" or document.get(
+            "read_error_class"
+        ):
             terminal_status = "unreadable"
             reasons.append("source_bytes_unavailable_or_unreadable")
         elif container not in SUPPORTED_CONTAINERS:
@@ -553,7 +552,10 @@ class Gate1DocumentMemoryBuilder:
             reasons.append("full_source_summary_missing")
         else:
             parser_status = str(summary.get("parser_completeness_status") or "blocked")
-            if parser_status != "complete" or summary.get("full_coverage_available") is not True:
+            if (
+                parser_status != "complete"
+                or summary.get("full_coverage_available") is not True
+            ):
                 terminal_status = "partial" if parser_status == "partial" else "blocked"
                 reasons.extend(
                     _strings(summary.get("parser_completeness_reason_codes"))
@@ -603,11 +605,11 @@ class Gate1DocumentMemoryBuilder:
                 if int(document.get("size_bytes") or 0) > 50_000_000:
                     terminal_status = "partial"
                     reasons.append("pdf_document_budget_exceeded")
-                visual_complete = (
-                    summary.get("pdf_visual_fallback_status") == "complete"
-                    and int(summary.get("pdf_visual_pages_total") or 0)
-                    == int(summary.get("pdf_visual_requested_pages_total") or 0)
-                )
+                visual_complete = summary.get(
+                    "pdf_visual_fallback_status"
+                ) == "complete" and int(
+                    summary.get("pdf_visual_pages_total") or 0
+                ) == int(summary.get("pdf_visual_requested_pages_total") or 0)
                 if summary.get("pdf_text_layer_projection_status") != "complete":
                     if visual_complete:
                         terminal_status = "review_required"
@@ -618,7 +620,9 @@ class Gate1DocumentMemoryBuilder:
                 if summary.get("pdf_layout_projection_status") != "complete":
                     if visual_complete:
                         terminal_status = "review_required"
-                        reasons.append("pdf_layout_scope_restricted_visual_fallback_ready")
+                        reasons.append(
+                            "pdf_layout_scope_restricted_visual_fallback_ready"
+                        )
                     elif (
                         summary.get("pdf_text_layer_projection_status") == "complete"
                         and summary.get("pdf_visible_content_coverage_status")
@@ -650,13 +654,16 @@ class Gate1DocumentMemoryBuilder:
                 blocked_decisions = sum(
                     1
                     for item in decisions
-                    if item.get("status") in {"blocked", "rejected_to_line_cluster", "partial"}
+                    if item.get("status")
+                    in {"blocked", "rejected_to_line_cluster", "partial"}
                 )
                 if terminal_status == "complete" and (
                     table_candidates > pdf_projections or blocked_decisions
                 ):
                     terminal_status = "review_required"
-                    reasons.append("pdf_table_structure_requires_review_with_text_fallback")
+                    reasons.append(
+                        "pdf_table_structure_requires_review_with_text_fallback"
+                    )
 
         accounting_errors = _accounting_errors(
             document=document,
@@ -670,7 +677,9 @@ class Gate1DocumentMemoryBuilder:
             terminal_status = "partial"
         reasons.extend(accounting_errors)
         profile_acceptance = (
-            "accepted" if terminal_status in GATE2_MEMORY_READY_STATES else "not_accepted"
+            "accepted"
+            if terminal_status in GATE2_MEMORY_READY_STATES
+            else "not_accepted"
         )
         accounting_status = "passed" if not accounting_errors else "failed"
         zero_silent_loss = (
@@ -680,8 +689,7 @@ class Gate1DocumentMemoryBuilder:
         )
         if terminal_status in GATE2_MEMORY_READY_STATES:
             if container == "xml" or (
-                container == "pdf"
-                and int(summary.get("pdf_pages_with_text") or 0) == 0
+                container == "pdf" and int(summary.get("pdf_pages_with_text") or 0) == 0
             ):
                 memory_status = "ready_with_restrictions"
             else:
@@ -717,7 +725,8 @@ class Gate1DocumentMemoryBuilder:
     ) -> dict[str, Any]:
         pages = max(
             (
-                len(_strings(item.get("page_refs")))
+                int(item.get("page_refs_count") or 0)
+                or len(_strings(item.get("page_refs")))
                 for item in payloads
                 if item.get("container_format") == "pdf"
             ),
@@ -745,8 +754,7 @@ class Gate1DocumentMemoryBuilder:
         unresolved_decisions = [
             item
             for item in decisions
-            if item.get("status")
-            in {"blocked", "partial", "rejected_to_line_cluster"}
+            if item.get("status") in {"blocked", "partial", "rejected_to_line_cluster"}
         ]
         declared = {
             "source_files": 1,
@@ -840,13 +848,17 @@ class Gate1DocumentMemoryBuilder:
                 length=24,
             ),
             "declared": declared,
-            "normalized": copy.deepcopy(declared) if accepted else {
+            "normalized": copy.deepcopy(declared)
+            if accepted
+            else {
                 **copy.deepcopy(declared),
                 "logical_content_artifacts": len(units),
             },
             "deferred": 0 if accepted else 1,
             "unreadable": 1 if assessment.get("terminal_status") == "unreadable" else 0,
-            "unsupported": 1 if assessment.get("terminal_status") == "unsupported" else 0,
+            "unsupported": 1
+            if assessment.get("terminal_status") == "unsupported"
+            else 0,
             "review_required": (
                 1 if assessment.get("terminal_status") == "review_required" else 0
             ),
@@ -871,43 +883,83 @@ def validate_document_memory_manifest(
 ) -> dict[str, Any]:
     errors: list[dict[str, str]] = []
     if manifest.get("schema_version") != DOCUMENT_MEMORY_SCHEMA_VERSION:
-        errors.append(_error("document_memory_schema_mismatch", manifest.get("schema_version")))
+        errors.append(
+            _error("document_memory_schema_mismatch", manifest.get("schema_version"))
+        )
     if manifest.get("policy_version") != DOCUMENT_MEMORY_POLICY_VERSION:
-        errors.append(_error("document_memory_policy_mismatch", manifest.get("policy_version")))
+        errors.append(
+            _error("document_memory_policy_mismatch", manifest.get("policy_version"))
+        )
     if manifest.get("profile_id") != SUPPORTED_PROFILE_ID:
-        errors.append(_error("document_memory_profile_mismatch", manifest.get("profile_id")))
+        errors.append(
+            _error("document_memory_profile_mismatch", manifest.get("profile_id"))
+        )
     if manifest.get("integrity_hash") != _integrity_hash(manifest):
-        errors.append(_error("document_memory_integrity_mismatch", manifest.get("manifest_id")))
+        errors.append(
+            _error("document_memory_integrity_mismatch", manifest.get("manifest_id"))
+        )
     if _contains_private_fields(manifest):
-        errors.append(_error("document_memory_private_field_forbidden", manifest.get("manifest_id")))
+        errors.append(
+            _error(
+                "document_memory_private_field_forbidden", manifest.get("manifest_id")
+            )
+        )
 
     documents = _dicts(manifest.get("documents"))
     source_refs = [str(item.get("source_file_ref") or "") for item in documents]
     if not source_refs or any(not ref for ref in source_refs):
-        errors.append(_error("document_memory_source_ref_missing", manifest.get("manifest_id")))
+        errors.append(
+            _error("document_memory_source_ref_missing", manifest.get("manifest_id"))
+        )
     if len(source_refs) != len(set(source_refs)):
-        errors.append(_error("document_memory_source_ref_duplicate", manifest.get("manifest_id")))
+        errors.append(
+            _error("document_memory_source_ref_duplicate", manifest.get("manifest_id"))
+        )
     all_artifact_refs: list[str] = []
     for entry in documents:
         terminal_status = str(
             _object(entry.get("completeness")).get("terminal_status") or ""
         )
         if terminal_status not in TERMINAL_STATES:
-            errors.append(_error("document_memory_terminal_status_invalid", entry.get("source_file_ref")))
-        expected_logical_documents = (
-            0 if entry.get("container_format") == "zip" else 1
-        )
-        if len(_strings(entry.get("logical_document_refs"))) != expected_logical_documents:
-            errors.append(_error("document_memory_logical_document_identity_invalid", entry.get("source_file_ref")))
+            errors.append(
+                _error(
+                    "document_memory_terminal_status_invalid",
+                    entry.get("source_file_ref"),
+                )
+            )
+        expected_logical_documents = 0 if entry.get("container_format") == "zip" else 1
+        if (
+            len(_strings(entry.get("logical_document_refs")))
+            != expected_logical_documents
+        ):
+            errors.append(
+                _error(
+                    "document_memory_logical_document_identity_invalid",
+                    entry.get("source_file_ref"),
+                )
+            )
         completeness = _object(entry.get("completeness"))
         if entry.get("profile_acceptance") in {"accepted", "container_accepted"} and (
             terminal_status not in GATE2_MEMORY_READY_STATES
             or completeness.get("accounting_status") != "passed"
             or completeness.get("zero_silent_loss") != "passed"
         ):
-            errors.append(_error("document_memory_accepted_document_not_complete", entry.get("source_file_ref")))
-        if entry.get("gate2_memory_status") in {"ready", "ready_with_restrictions"} and terminal_status not in GATE2_MEMORY_READY_STATES:
-            errors.append(_error("document_memory_gate2_ready_status_invalid", entry.get("source_file_ref")))
+            errors.append(
+                _error(
+                    "document_memory_accepted_document_not_complete",
+                    entry.get("source_file_ref"),
+                )
+            )
+        if (
+            entry.get("gate2_memory_status") in {"ready", "ready_with_restrictions"}
+            and terminal_status not in GATE2_MEMORY_READY_STATES
+        ):
+            errors.append(
+                _error(
+                    "document_memory_gate2_ready_status_invalid",
+                    entry.get("source_file_ref"),
+                )
+            )
         if (
             entry.get("profile_acceptance") == "container_accepted"
             and entry.get("gate2_memory_status") != "lineage_only"
@@ -919,9 +971,11 @@ def validate_document_memory_manifest(
                 )
             )
         readiness = _object(_object(entry.get("source_scope")).get("scope_readiness"))
-        if not readiness or readiness.get(
-            "review_required_does_not_imply_canonical_table"
-        ) is not True:
+        if (
+            not readiness
+            or readiness.get("review_required_does_not_imply_canonical_table")
+            is not True
+        ):
             errors.append(
                 _error(
                     "document_memory_scope_readiness_missing",
@@ -940,7 +994,11 @@ def validate_document_memory_manifest(
         for refs in _object(entry.get("normalized_artifact_refs")).values():
             all_artifact_refs.extend(_strings(refs))
     if len(all_artifact_refs) != len(set(all_artifact_refs)):
-        errors.append(_error("document_memory_artifact_ref_duplicate", manifest.get("manifest_id")))
+        errors.append(
+            _error(
+                "document_memory_artifact_ref_duplicate", manifest.get("manifest_id")
+            )
+        )
 
     guard = _object(manifest.get("knowledge_vector_guard"))
     if guard != {
@@ -948,13 +1006,24 @@ def validate_document_memory_manifest(
         "rag_used": False,
         "vectorization_performed": False,
     }:
-        errors.append(_error("document_memory_knowledge_guard_failed", manifest.get("manifest_id")))
+        errors.append(
+            _error(
+                "document_memory_knowledge_guard_failed", manifest.get("manifest_id")
+            )
+        )
     if package is not None and assessment is not None and issue_ledger is not None:
-        expected = Gate1DocumentMemoryFactory().create().build_manifest(
-            package, assessment, issue_ledger
+        expected = (
+            Gate1DocumentMemoryFactory()
+            .create()
+            .build_manifest(package, assessment, issue_ledger)
         )
         if expected != manifest:
-            errors.append(_error("document_memory_package_graph_mismatch", manifest.get("manifest_id")))
+            errors.append(
+                _error(
+                    "document_memory_package_graph_mismatch",
+                    manifest.get("manifest_id"),
+                )
+            )
     return {
         "schema_version": "broker_reports_gate1_document_memory_validation_v1",
         "manifest_id": manifest.get("manifest_id"),
@@ -996,7 +1065,9 @@ def _accounting_errors(
         errors.append("document_memory_source_unit_missing")
     if unit_refs != declared_unit_refs:
         errors.append("document_memory_payload_unit_ref_mismatch")
-    if any(str(item.get("parent_payload_ref") or "") not in payload_refs for item in units):
+    if any(
+        str(item.get("parent_payload_ref") or "") not in payload_refs for item in units
+    ):
         errors.append("document_memory_unit_parent_missing")
     if int(summary.get("payloads_total") or 0) != len(payloads):
         errors.append("document_memory_payload_count_mismatch")
@@ -1042,7 +1113,7 @@ def _accounting_errors(
             if item.get("slice_type") == "table_rows"
         )
         unit_cells_total = sum(
-            len(item.get("cell_refs") or [])
+            int(item.get("cell_refs_count") or 0) or len(item.get("cell_refs") or [])
             for item in units
             if item.get("slice_type") == "table_rows"
         )
@@ -1051,13 +1122,20 @@ def _accounting_errors(
             for item in units
             if item.get("slice_type") == "text_excerpt"
         )
-        if sum(int(item.get("rows_total") or 0) for item in payloads) != unit_rows_total:
+        if (
+            sum(int(item.get("rows_total") or 0) for item in payloads)
+            != unit_rows_total
+        ):
             errors.append("document_memory_row_count_mismatch")
-        if sum(int(item.get("cells_total") or 0) for item in payloads) != unit_cells_total:
+        if (
+            sum(int(item.get("cells_total") or 0) for item in payloads)
+            != unit_cells_total
+        ):
             errors.append("document_memory_cell_count_mismatch")
-        if sum(
-            int(item.get("text_characters_total") or 0) for item in payloads
-        ) != unit_text_characters_total:
+        if (
+            sum(int(item.get("text_characters_total") or 0) for item in payloads)
+            != unit_text_characters_total
+        ):
             errors.append("document_memory_text_character_count_mismatch")
     if document.get("container_format") == "pdf":
         if int(summary.get("pdf_pages_total") or 0) <= 0:
@@ -1068,9 +1146,7 @@ def _accounting_errors(
         ):
             errors.append("document_memory_pdf_page_accounting_mismatch")
         visual_units_total = sum(
-            1
-            for item in units
-            if item.get("pdf_unit_type") == "pdf_visual_page_unit"
+            1 for item in units if item.get("pdf_unit_type") == "pdf_visual_page_unit"
         )
         if int(summary.get("pdf_visual_pages_total") or 0) != visual_units_total:
             errors.append("document_memory_pdf_visual_unit_count_mismatch")
@@ -1114,13 +1190,34 @@ def _contains_private_fields(value: Any) -> bool:
     return False
 
 
-def _group_by(items: list[dict[str, Any]], field: str) -> dict[str, list[dict[str, Any]]]:
+def _group_by(
+    items: list[dict[str, Any]], field: str
+) -> dict[str, list[dict[str, Any]]]:
     result: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in items:
         value = str(item.get(field) or "")
         if value:
             result[value].append(item)
     return result
+
+
+def _items_for_document(
+    value: Any,
+    document_ref: str,
+    *,
+    field: str,
+) -> list[dict[str, Any]]:
+    if isinstance(value, ArtifactStoreBackedList):
+        return list(value.iter_document_compact(document_ref))
+    return (
+        [
+            item
+            for item in value or []
+            if isinstance(item, dict) and str(item.get(field) or "") == document_ref
+        ]
+        if isinstance(value, list)
+        else []
+    )
 
 
 def _documents(package: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1140,8 +1237,16 @@ def _object(value: Any) -> dict[str, Any]:
 
 
 def _dicts(value: Any) -> list[dict[str, Any]]:
-    return [item for item in value or [] if isinstance(item, dict)] if isinstance(value, list) else []
+    return (
+        [item for item in value or [] if isinstance(item, dict)]
+        if isinstance(value, list)
+        else []
+    )
 
 
 def _strings(value: Any) -> list[str]:
-    return [str(item) for item in value or [] if item is not None and str(item)] if isinstance(value, list) else []
+    return (
+        [str(item) for item in value or [] if item is not None and str(item)]
+        if isinstance(value, list)
+        else []
+    )

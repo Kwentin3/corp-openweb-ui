@@ -56,22 +56,98 @@ def persist_gate1_result(
 ) -> Gate1ArtifactManifest:
     package = result.package
     safe_report = result.safe_report
+    bounded_graph = getattr(result, "bounded_graph", None)
     run_id = package["normalization_run"]["run_id"]
     validation_status = _validation_status(package)
     documents = package.get("document_inventory", {}).get("documents", [])
     source_refs = _source_refs_for_documents(documents, source_file_refs or [])
-    refs_by_type: dict[str, list[str]] = {}
-    safe_refs: list[str] = []
-    private_refs: list[str] = []
-    private_refs_by_doc: dict[str, list[str]] = {}
-    private_source_payload_refs: list[str] = []
-    private_source_payload_refs_by_doc: dict[str, list[str]] = {}
-    private_source_unit_refs: list[str] = []
-    private_source_unit_refs_by_doc: dict[str, list[str]] = {}
+    if bounded_graph is not None:
+        bounded_graph.assert_compatible(
+            store=store,
+            context=context,
+            retention_policy=retention_policy,
+        )
+    refs_by_type: dict[str, list[str]] = (
+        {
+            key: list(value)
+            for key, value in bounded_graph.refs_by_type.items()
+        }
+        if bounded_graph is not None
+        else {}
+    )
+    source_records_by_doc: dict[str, dict[str, Any]] = (
+        dict(bounded_graph.source_records_by_doc)
+        if bounded_graph is not None
+        else {}
+    )
+    source_artifact_ids_by_doc: dict[str, str] = (
+        dict(bounded_graph.source_artifact_ids_by_doc)
+        if bounded_graph is not None
+        else {}
+    )
+    safe_refs: list[str] = list(source_artifact_ids_by_doc.values())
+    private_refs_by_doc: dict[str, list[str]] = (
+        {
+            key: list(value)
+            for key, value in bounded_graph.private_refs_by_doc.items()
+        }
+        if bounded_graph is not None
+        else {}
+    )
+    private_refs: list[str] = (
+        list(
+            bounded_graph.collection(
+                "private_normalized_slices"
+            ).artifact_ids
+        )
+        if bounded_graph is not None
+        else []
+    )
+    private_source_payload_refs_by_doc: dict[str, list[str]] = (
+        {
+            key: list(value)
+            for key, value in bounded_graph.private_source_payload_refs_by_doc.items()
+        }
+        if bounded_graph is not None
+        else {}
+    )
+    private_source_payload_refs: list[str] = (
+        list(
+            bounded_graph.collection(
+                "private_normalized_source_payloads"
+            ).artifact_ids
+        )
+        if bounded_graph is not None
+        else []
+    )
+    private_source_unit_refs_by_doc: dict[str, list[str]] = (
+        {
+            key: list(value)
+            for key, value in bounded_graph.private_source_unit_refs_by_doc.items()
+        }
+        if bounded_graph is not None
+        else {}
+    )
+    private_source_unit_refs: list[str] = (
+        list(
+            bounded_graph.collection(
+                "private_normalized_source_units"
+            ).artifact_ids
+        )
+        if bounded_graph is not None
+        else []
+    )
     pdf_table_candidate_refs: list[str] = []
     pdf_table_candidate_refs_by_doc: dict[str, list[str]] = {}
     pdf_table_detection_attempt_refs: list[str] = []
-    table_projection_refs_by_doc: dict[str, list[str]] = {}
+    table_projection_refs_by_doc: dict[str, list[str]] = (
+        {
+            key: list(value)
+            for key, value in bounded_graph.table_projection_refs_by_doc.items()
+        }
+        if bounded_graph is not None
+        else {}
+    )
     clarification_resolution_refs: list[str] = []
     passport_refs_by_doc: dict[str, str] = {}
     blocker_refs: list[str] = []
@@ -87,9 +163,16 @@ def persist_gate1_result(
         "requires_workspace_model_id_when_present": bool(context.workspace_model_id),
     }
 
-    source_records_by_doc: dict[str, dict[str, Any]] = {}
-    source_artifact_ids_by_doc: dict[str, str] = {}
-    for document, source_ref in zip(documents, source_refs):
+    if bounded_graph is not None:
+        bounded_source_refs = [
+            source_records_by_doc.get(str(document.get("document_id") or ""))
+            for document in documents
+        ]
+        if bounded_source_refs != source_refs:
+            raise ValueError("bounded_graph_source_refs_mismatch")
+    for document, source_ref in (
+        [] if bounded_graph is not None else zip(documents, source_refs)
+    ):
         source_record = put(
             _record(
                 artifact_type="source_file_ref_v0",
@@ -259,7 +342,11 @@ def persist_gate1_result(
         )
         pdf_table_detection_attempt_refs.append(record.artifact_id)
 
-    for private_slice in package.get("private_normalized_slices", []):
+    for private_slice in (
+        []
+        if bounded_graph is not None
+        else package.get("private_normalized_slices", [])
+    ):
         artifact_type = (
             "private_normalized_table_slice_v0"
             if private_slice.get("slice_type") == "table_rows"
@@ -302,7 +389,11 @@ def persist_gate1_result(
         private_refs.append(record.artifact_id)
         private_refs_by_doc.setdefault(str(document_id), []).append(record.artifact_id)
 
-    for source_payload in package.get("private_normalized_source_payloads", []):
+    for source_payload in (
+        []
+        if bounded_graph is not None
+        else package.get("private_normalized_source_payloads", [])
+    ):
         document_id = source_payload.get("document_ref")
         record = put(
             _record(
@@ -360,7 +451,11 @@ def persist_gate1_result(
             record.artifact_id
         )
 
-    for source_unit in package.get("private_normalized_source_units", []):
+    for source_unit in (
+        []
+        if bounded_graph is not None
+        else package.get("private_normalized_source_units", [])
+    ):
         document_id = source_unit.get("document_id")
         record = put(
             _record(
@@ -416,8 +511,10 @@ def persist_gate1_result(
             record.artifact_id
         )
 
-    for table_projection in package.get(
-        "private_normalized_table_projections", []
+    for table_projection in (
+        []
+        if bounded_graph is not None
+        else package.get("private_normalized_table_projections", [])
     ):
         document_id = table_projection.get("source_document_ref")
         record = put(
@@ -1048,25 +1145,29 @@ def _persist_pdf_compact_dual_write(
     ) is not True:
         return
     run_id = str(_object(package.get("normalization_run")).get("run_id") or "")
-    all_payloads = _dicts(package.get("private_normalized_source_payloads"))
-    all_units = _dicts(package.get("private_normalized_source_units"))
-    all_projections = _dicts(package.get("private_normalized_table_projections"))
     all_decisions = _dicts(package.get("table_projection_decisions"))
     for document in documents:
         if document.get("container_format") != "pdf":
             continue
         document_id = str(document.get("document_id") or "")
-        source_payloads = [
-            item for item in all_payloads if str(item.get("document_ref") or "") == document_id
-        ]
-        source_units = [
-            item for item in all_units if str(item.get("document_id") or "") == document_id
-        ]
+        source_payloads = _document_items(
+            package.get("private_normalized_source_payloads"),
+            document_id,
+            field="document_ref",
+        )
+        source_units = _document_items(
+            package.get("private_normalized_source_units"),
+            document_id,
+            field="document_id",
+        )
         table_projections = [
             item
-            for item in all_projections
-            if str(item.get("source_document_ref") or "") == document_id
-            and item.get("source_format") == "pdf"
+            for item in _document_items(
+                package.get("private_normalized_table_projections"),
+                document_id,
+                field="source_document_ref",
+            )
+            if item.get("source_format") == "pdf"
         ]
         table_decisions = [
             item for item in all_decisions if str(item.get("document_ref") or "") == document_id
@@ -1471,3 +1572,20 @@ def _object(value: Any) -> dict[str, Any]:
 
 def _dicts(value: Any) -> list[dict[str, Any]]:
     return [item for item in value or [] if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _document_items(
+    value: Any,
+    document_id: str,
+    *,
+    field: str,
+) -> list[dict[str, Any]]:
+    iter_document = getattr(value, "iter_document", None)
+    if callable(iter_document):
+        return list(iter_document(document_id))
+    return [
+        item
+        for item in value or []
+        if isinstance(item, dict)
+        and str(item.get(field) or "") == document_id
+    ] if isinstance(value, list) else []

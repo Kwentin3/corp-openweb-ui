@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 
 from . import blockers as blocker_factory
@@ -39,7 +39,11 @@ from .table_projection import (
 )
 from .customer_debt_policy import sber_broker_profile_enabled
 from .taxonomy import classify_document
-from .validators import merge_validation_results, validate_artifacts, validate_safe_report
+from .validators import (
+    merge_validation_results,
+    validate_artifacts,
+    validate_safe_report,
+)
 
 
 @dataclass
@@ -47,9 +51,13 @@ class NormalizationResult:
     package: dict
     safe_report: dict
     private_markers: list[str]
+    bounded_graph: object | None = None
 
 
 class Gate1Normalizer:
+    def plan_run_id(self, file_inputs: list[FileInput]) -> str:
+        return normalization_run_id([self._input_summary(item) for item in file_inputs])
+
     def normalize(
         self,
         file_inputs: list[FileInput],
@@ -58,25 +66,43 @@ class Gate1Normalizer:
         trigger_type: str = "backend_core",
         input_context: dict | None = None,
         extra_private_markers: list[str] | None = None,
+        bounded_graph=None,
     ) -> NormalizationResult:
         input_summaries = [self._input_summary(item) for item in file_inputs]
         run_id = normalization_run_id(input_summaries)
+        if bounded_graph is not None and bounded_graph.normalization_run_id != run_id:
+            raise ValueError("bounded_graph_run_id_mismatch")
         artifact_refs = safe_artifact_refs(run_id)
         private_markers = []
         for item in file_inputs:
             private_markers.extend(item.private_markers())
         private_markers.extend(extra_private_markers or [])
-        processing_inputs: list[tuple[FileInput, int]] = [
-            (item, index)
-            for index, item in enumerate(file_inputs, start=1)
-        ]
+        processing_inputs = deque(
+            (item, index) for index, item in enumerate(file_inputs, start=1)
+        )
 
         documents: list[dict] = []
         profiles: list[dict] = []
-        private_slices: list[dict] = []
-        private_source_payloads: list[dict] = []
-        private_source_units: list[dict] = []
-        private_table_projections: list[dict] = []
+        private_slices = (
+            bounded_graph.collection("private_normalized_slices")
+            if bounded_graph is not None
+            else []
+        )
+        private_source_payloads = (
+            bounded_graph.collection("private_normalized_source_payloads")
+            if bounded_graph is not None
+            else []
+        )
+        private_source_units = (
+            bounded_graph.collection("private_normalized_source_units")
+            if bounded_graph is not None
+            else []
+        )
+        private_table_projections = (
+            bounded_graph.collection("private_normalized_table_projections")
+            if bounded_graph is not None
+            else []
+        )
         table_projection_decisions: list[dict] = []
         table_projection_summaries: list[dict] = []
         table_projection_runtime_seconds = 0.0
@@ -87,7 +113,6 @@ class Gate1Normalizer:
         blockers: list[dict] = []
         sha_to_first_doc: dict[str, str] = {}
         sha_counts: Counter[str] = Counter()
-        doc_private_slices: dict[str, list[dict]] = defaultdict(list)
         slice_provenance = NormalizedSliceProvenanceFactory().create()
         full_source_builder = FullSourceArtifactFactory(
             FullSourceArtifactConfig(
@@ -104,17 +129,27 @@ class Gate1Normalizer:
             )
         ).create()
         archive_intake = Gate1ArchiveIntakeFactory().create()
+        source_policy_context = self._source_policy_context(input_context or {})
 
         if not file_inputs:
             blockers.append(blocker_factory.no_files(run_id))
 
-        for index, (file_input, root_input_ordinal) in enumerate(
-            processing_inputs, start=1
-        ):
-            extension = extension_from_name(file_input.original_filename_private, file_input.mime_type)
+        index = 0
+        while processing_inputs:
+            file_input, root_input_ordinal = processing_inputs.popleft()
+            index += 1
+            extension = extension_from_name(
+                file_input.original_filename_private, file_input.mime_type
+            )
             read_result = file_input.read_bytes()
-            content_bytes = read_result.content_bytes if read_result.status == "available" else None
-            content_sha256 = hashlib.sha256(content_bytes).hexdigest() if content_bytes is not None else None
+            content_bytes = (
+                read_result.content_bytes if read_result.status == "available" else None
+            )
+            content_sha256 = (
+                hashlib.sha256(content_bytes).hexdigest()
+                if content_bytes is not None
+                else None
+            )
             doc_id = document_id(
                 index=index,
                 content_sha256=content_sha256,
@@ -148,9 +183,7 @@ class Gate1Normalizer:
                         mime_type=self._archive_member_mime(member.extension),
                         source_kind="archive_member_private",
                         declared_size_bytes=len(member.content_bytes),
-                        bytes_provider=(
-                            lambda content=member.content_bytes: content
-                        ),
+                        bytes_provider=(lambda content=member.content_bytes: content),
                         provider_label="bounded_zip_member_bytes",
                         root_input_ordinal=root_input_ordinal,
                         archive_parent_document_ref=doc_id,
@@ -175,7 +208,11 @@ class Gate1Normalizer:
                 duplicate_group_id = None
 
             if read_result.status != "available":
-                doc_blockers.append(blocker_factory.bytes_unavailable(run_id, doc_id, read_result.reason))
+                doc_blockers.append(
+                    blocker_factory.bytes_unavailable(
+                        run_id, doc_id, read_result.reason
+                    )
+                )
 
             if container == "unknown":
                 doc_blockers.append(blocker_factory.unsupported_format(run_id, doc_id))
@@ -187,9 +224,13 @@ class Gate1Normalizer:
             profile_blockers: list[dict] = []
             if content_bytes is not None:
                 if container == "csv":
-                    profile, new_slices, profile_blockers = profile_csv(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_csv(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "txt":
-                    profile, new_slices, profile_blockers = profile_txt(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_txt(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "html_text":
                     profile, new_slices, profile_blockers = profile_txt(
                         run_id,
@@ -210,13 +251,21 @@ class Gate1Normalizer:
                         run_id, doc_id, content_bytes
                     )
                 elif container == "xlsx":
-                    profile, new_slices, profile_blockers = profile_xlsx(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_xlsx(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "pdf":
-                    profile, new_slices, profile_blockers = profile_pdf(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_pdf(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "docx":
-                    profile, new_slices, profile_blockers = profile_docx(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_docx(
+                        run_id, doc_id, content_bytes
+                    )
                 elif container == "image":
-                    profile, new_slices, profile_blockers = profile_image(run_id, doc_id, content_bytes)
+                    profile, new_slices, profile_blockers = profile_image(
+                        run_id, doc_id, content_bytes
+                    )
 
             doc_blockers.extend(profile_blockers)
             blockers.extend(doc_blockers)
@@ -233,14 +282,9 @@ class Gate1Normalizer:
                     | {item["blocker_id"] for item in doc_blockers}
                 )
                 profiles.append(profile)
-            private_slices.extend(new_slices)
-            doc_private_slices[doc_id].extend(new_slices)
-
-            if (
-                content_bytes is not None
-                and content_sha256
-                and container != "zip"
-            ):
+            full_source_result = None
+            table_projection_result = None
+            if content_bytes is not None and content_sha256 and container != "zip":
                 full_source_result = full_source_builder.build(
                     normalization_run_id=run_id,
                     document_id=doc_id,
@@ -249,8 +293,6 @@ class Gate1Normalizer:
                     content_bytes=content_bytes,
                     source_checksum_sha256=content_sha256,
                 )
-                private_source_payloads.extend(full_source_result.payloads)
-                private_source_units.extend(full_source_result.units)
                 full_source_document_summaries.append(full_source_result.summary)
                 table_projection_started = time.perf_counter()
                 table_projection_result = table_projection_builder.build_for_document(
@@ -258,15 +300,14 @@ class Gate1Normalizer:
                     payloads=full_source_result.payloads,
                     source_units=full_source_result.units,
                 )
-                table_projection_elapsed = time.perf_counter() - table_projection_started
+                table_projection_elapsed = (
+                    time.perf_counter() - table_projection_started
+                )
                 table_projection_runtime_seconds += table_projection_elapsed
                 table_projection_runtime_seconds_max = max(
                     table_projection_runtime_seconds_max,
                     table_projection_elapsed,
                 )
-                private_table_projections.extend(table_projection_result.projections)
-                table_projection_decisions.extend(table_projection_result.decisions)
-                table_projection_summaries.append(table_projection_result.safe_summary)
             elif container == "zip" and archive_manifest is not None:
                 archive_complete = (
                     archive_manifest.get("terminal_status") == "complete"
@@ -290,9 +331,7 @@ class Gate1Normalizer:
                         "text_characters_total": 0,
                         "text_segments_total": 0,
                         "full_coverage_available": archive_complete,
-                        "archive_manifest_ref": archive_manifest.get(
-                            "archive_ref"
-                        ),
+                        "archive_manifest_ref": archive_manifest.get("archive_ref"),
                         "archive_members_total": int(
                             archive_manifest.get("members_total") or 0
                         ),
@@ -313,16 +352,16 @@ class Gate1Normalizer:
                 )
 
             declared_size = file_input.declared_size_bytes
-            size_bytes = len(content_bytes) if content_bytes is not None else declared_size
+            size_bytes = (
+                len(content_bytes) if content_bytes is not None else declared_size
+            )
             document = {
                 "document_id": doc_id,
                 "source_kind": file_input.source_kind,
                 "root_input_ordinal": (
                     file_input.root_input_ordinal or root_input_ordinal
                 ),
-                "archive_parent_document_ref": (
-                    file_input.archive_parent_document_ref
-                ),
+                "archive_parent_document_ref": (file_input.archive_parent_document_ref),
                 "archive_member_ref": file_input.archive_member_ref,
                 "archive_member_index": file_input.archive_member_index,
                 "sha256": content_sha256,
@@ -335,14 +374,54 @@ class Gate1Normalizer:
                 "container_detection_basis": detection["basis"],
                 "declared_mime_type": file_input.mime_type or None,
                 "extension": extension or None,
-                "technical_profile_ref": profile["profile_id"] if profile else profile_id(doc_id),
+                "technical_profile_ref": profile["profile_id"]
+                if profile
+                else profile_id(doc_id),
                 "taxonomy_candidate_ref": taxonomy_candidate_id(doc_id),
                 "readable": "yes" if content_bytes is not None else "conditional",
-                "read_error_class": None if content_bytes is not None else "bytes_unavailable",
-                "machine_readable": profile.get("machine_readable") if profile else machine_readable_baseline(container),
+                "read_error_class": None
+                if content_bytes is not None
+                else "bytes_unavailable",
+                "machine_readable": profile.get("machine_readable")
+                if profile
+                else machine_readable_baseline(container),
                 "blocker_refs": [item["blocker_id"] for item in doc_blockers],
             }
             documents.append(document)
+
+            doc_blocker_codes = {item["code"] for item in doc_blockers}
+            taxonomy_candidate = classify_document(
+                document=document,
+                profile=profile,
+                private_slices=new_slices,
+                blocker_codes=doc_blocker_codes,
+                source_policy_context=source_policy_context,
+                source_policy_hint=self._source_policy_hint_for_document(
+                    document, source_policy_context
+                ),
+            )
+            if (
+                taxonomy_candidate["document_class_candidate"]
+                == "unknown_or_needs_review"
+                and "bytes_unavailable" not in doc_blocker_codes
+            ):
+                role_blocker = blocker_factory.unknown_role(run_id, doc_id)
+                blockers.append(role_blocker)
+                document["blocker_refs"].append(role_blocker["blocker_id"])
+                taxonomy_candidate["requires_review"] = True
+            taxonomy_candidates.append(taxonomy_candidate)
+
+            if bounded_graph is not None:
+                bounded_graph.register_document(document)
+            private_slices.extend(new_slices)
+            if full_source_result is not None:
+                private_source_payloads.extend(full_source_result.payloads)
+                private_source_units.extend(full_source_result.units)
+            if table_projection_result is not None:
+                private_table_projections.extend(table_projection_result.projections)
+                table_projection_decisions.extend(table_projection_result.decisions)
+                table_projection_summaries.append(table_projection_result.safe_summary)
+            del full_source_result, table_projection_result, new_slices, content_bytes
 
         archive_member_document_refs = {
             str(document.get("archive_member_ref") or ""): str(
@@ -357,8 +436,8 @@ class Gate1Normalizer:
                     continue
                 member_ref = str(member.get("safe_member_ref") or "")
                 if member.get("disposition") == "promoted_source_document":
-                    member["promoted_document_ref"] = (
-                        archive_member_document_refs.get(member_ref)
+                    member["promoted_document_ref"] = archive_member_document_refs.get(
+                        member_ref
                     )
 
         blockers_by_doc: dict[str, list[dict]] = defaultdict(list)
@@ -367,39 +446,15 @@ class Gate1Normalizer:
             if doc_id:
                 blockers_by_doc[doc_id].append(blocker)
 
-        source_policy_context = self._source_policy_context(input_context or {})
-        for document in documents:
-            profile = next(
-                (item for item in profiles if item.get("document_id") == document["document_id"]),
-                None,
-            )
-            doc_blocker_codes = {item["code"] for item in blockers_by_doc.get(document["document_id"], [])}
-            taxonomy_candidate = classify_document(
-                document=document,
-                profile=profile,
-                private_slices=doc_private_slices.get(document["document_id"], []),
-                blocker_codes=doc_blocker_codes,
-                source_policy_context=source_policy_context,
-                source_policy_hint=self._source_policy_hint_for_document(document, source_policy_context),
-            )
-            if (
-                taxonomy_candidate["document_class_candidate"] == "unknown_or_needs_review"
-                and "bytes_unavailable" not in doc_blocker_codes
-            ):
-                role_blocker = blocker_factory.unknown_role(run_id, document["document_id"])
-                blockers.append(role_blocker)
-                document["blocker_refs"].append(role_blocker["blocker_id"])
-                doc_blocker_codes.add(role_blocker["code"])
-                taxonomy_candidate["requires_review"] = True
-            taxonomy_candidates.append(taxonomy_candidate)
-
         blocker_ids_by_doc: dict[str, list[str]] = defaultdict(list)
         for blocker in blockers:
             doc_id = blocker.get("document_id")
             if doc_id:
                 blocker_ids_by_doc[doc_id].append(blocker["blocker_id"])
         for document in documents:
-            document["blocker_refs"] = sorted(set(blocker_ids_by_doc.get(document["document_id"], [])))
+            document["blocker_refs"] = sorted(
+                set(blocker_ids_by_doc.get(document["document_id"], []))
+            )
 
         document_source_eligibility, source_eligibility_summary, gate2_handoff = (
             build_document_source_eligibility(
@@ -409,10 +464,14 @@ class Gate1Normalizer:
                 blockers=blockers,
                 ocr_policy_status=self._ocr_policy_status(input_context or {}),
                 input_context=input_context or {},
-                criticality_refinement_enabled=self._criticality_refinement_enabled(input_context or {}),
+                criticality_refinement_enabled=self._criticality_refinement_enabled(
+                    input_context or {}
+                ),
             )
         )
-        summary_counts = self._summary_counts(documents, taxonomy_candidates, blockers, sha_counts)
+        summary_counts = self._summary_counts(
+            documents, taxonomy_candidates, blockers, sha_counts
+        )
         full_source_coverage_summary = self._full_source_coverage_summary(
             documents=full_source_document_summaries,
             payloads=private_source_payloads,
@@ -483,9 +542,16 @@ class Gate1Normalizer:
             "source_eligibility_summary": source_eligibility_summary,
             "gate2_handoff": gate2_handoff,
             "summary_counts": summary_counts,
-            "recommended_next_step": self._recommended_next_step(file_inputs, blockers, gate2_handoff),
+            "recommended_next_step": self._recommended_next_step(
+                file_inputs, blockers, gate2_handoff
+            ),
         }
-        package = apply_domain_ingestion_artifacts(package)
+        if bounded_graph is not None:
+            bounded_graph.seal()
+        package = apply_domain_ingestion_artifacts(
+            package,
+            copy_package=bounded_graph is None,
+        )
         artifact_validation = validate_artifacts(package)
         package["validation_result"] = artifact_validation
         safe_report = render_safe_report(package)
@@ -501,10 +567,16 @@ class Gate1Normalizer:
             package["normalization_run"]["run_status"] = "privacy_failed"
             package["normalization_run"]["privacy_validation_status"] = "failed"
             package["normalization_run"]["gate2_handoff_status"] = "blocked"
-            package["normalization_run"]["gate2_handoff_mode"] = "gate2_blocked_no_eligible_sources"
-            package["gate2_handoff"]["handoff_mode"] = "gate2_blocked_no_eligible_sources"
+            package["normalization_run"]["gate2_handoff_mode"] = (
+                "gate2_blocked_no_eligible_sources"
+            )
+            package["gate2_handoff"]["handoff_mode"] = (
+                "gate2_blocked_no_eligible_sources"
+            )
             package["gate2_handoff"]["gate2_handoff_status"] = "blocked"
-            package["summary_counts"]["blockers_total"] = len(package["normalization_blockers"])
+            package["summary_counts"]["blockers_total"] = len(
+                package["normalization_blockers"]
+            )
             package["validation_result"] = validation
             safe_report = render_privacy_failed_report(
                 run_id=run_id,
@@ -512,7 +584,9 @@ class Gate1Normalizer:
                 input_context=input_context,
             )
         else:
-            package["normalization_run"]["privacy_validation_status"] = validation["status"]
+            package["normalization_run"]["privacy_validation_status"] = validation[
+                "status"
+            ]
             package["validation_result"] = validation
             safe_report = render_safe_report(package)
         self.last_table_projection_runtime_seconds = round(
@@ -521,7 +595,12 @@ class Gate1Normalizer:
         self.last_table_projection_runtime_seconds_max = round(
             table_projection_runtime_seconds_max, 6
         )
-        return NormalizationResult(package=package, safe_report=safe_report, private_markers=private_markers)
+        return NormalizationResult(
+            package=package,
+            safe_report=safe_report,
+            private_markers=private_markers,
+            bounded_graph=bounded_graph,
+        )
 
     @staticmethod
     def _table_projection_summary(summaries: list[dict]) -> dict:
@@ -530,17 +609,34 @@ class Gate1Normalizer:
             quality_counts.update(summary.get("quality_counts") or {})
         return {
             "schema_version": "broker_reports_table_projection_safe_summary_v0",
-            "table_projections_total": sum(int(item.get("table_projections_total") or 0) for item in summaries),
-            "native_table_projections_total": sum(int(item.get("native_table_projections_total") or 0) for item in summaries),
-            "pdf_table_projections_total": sum(int(item.get("pdf_table_projections_total") or 0) for item in summaries),
+            "table_projections_total": sum(
+                int(item.get("table_projections_total") or 0) for item in summaries
+            ),
+            "native_table_projections_total": sum(
+                int(item.get("native_table_projections_total") or 0)
+                for item in summaries
+            ),
+            "pdf_table_projections_total": sum(
+                int(item.get("pdf_table_projections_total") or 0) for item in summaries
+            ),
             "quality_counts": dict(sorted(quality_counts.items())),
             "rows_total": sum(int(item.get("rows_total") or 0) for item in summaries),
             "cells_total": sum(int(item.get("cells_total") or 0) for item in summaries),
-            "source_value_refs_total": sum(int(item.get("source_value_refs_total") or 0) for item in summaries),
-            "fallback_refs_total": sum(int(item.get("fallback_refs_total") or 0) for item in summaries),
-            "unaccounted_refs_total": sum(int(item.get("unaccounted_refs_total") or 0) for item in summaries),
-            "duplicate_refs_total": sum(int(item.get("duplicate_refs_total") or 0) for item in summaries),
-            "blocked_decisions_total": sum(int(item.get("blocked_decisions_total") or 0) for item in summaries),
+            "source_value_refs_total": sum(
+                int(item.get("source_value_refs_total") or 0) for item in summaries
+            ),
+            "fallback_refs_total": sum(
+                int(item.get("fallback_refs_total") or 0) for item in summaries
+            ),
+            "unaccounted_refs_total": sum(
+                int(item.get("unaccounted_refs_total") or 0) for item in summaries
+            ),
+            "duplicate_refs_total": sum(
+                int(item.get("duplicate_refs_total") or 0) for item in summaries
+            ),
+            "blocked_decisions_total": sum(
+                int(item.get("blocked_decisions_total") or 0) for item in summaries
+            ),
             "raw_values_in_summary": False,
             "knowledge_rag_used": False,
             "vectorization_performed": False,
@@ -554,13 +650,24 @@ class Gate1Normalizer:
         units: list[dict],
     ) -> dict:
         status_counts = Counter(
-            str(item.get("parser_completeness_status") or "blocked") for item in documents
+            str(item.get("parser_completeness_status") or "blocked")
+            for item in documents
         )
         format_status_counts: dict[str, Counter] = defaultdict(Counter)
         for item in documents:
             format_status_counts[str(item.get("container_format") or "unknown")][
                 str(item.get("parser_completeness_status") or "blocked")
             ] += 1
+        payload_values = (
+            payloads.iter_compact()
+            if hasattr(payloads, "iter_compact")
+            else iter(payloads)
+        )
+        rows_total = 0
+        text_characters_total = 0
+        for item in payload_values:
+            rows_total += int(item.get("rows_total") or 0)
+            text_characters_total += int(item.get("text_characters_total") or 0)
         return {
             "schema_version": "full_source_coverage_summary_v0",
             "documents_total": len(documents),
@@ -571,10 +678,8 @@ class Gate1Normalizer:
             },
             "payloads_total": len(payloads),
             "extraction_units_total": len(units),
-            "rows_total": sum(int(item.get("rows_total") or 0) for item in payloads),
-            "text_characters_total": sum(
-                int(item.get("text_characters_total") or 0) for item in payloads
-            ),
+            "rows_total": rows_total,
+            "text_characters_total": text_characters_total,
             "full_coverage_documents_total": sum(
                 1 for item in documents if item.get("full_coverage_available") is True
             ),
@@ -585,7 +690,9 @@ class Gate1Normalizer:
         }
 
     def _input_summary(self, file_input: FileInput) -> dict:
-        extension = extension_from_name(file_input.original_filename_private, file_input.mime_type)
+        extension = extension_from_name(
+            file_input.original_filename_private, file_input.mime_type
+        )
         return {
             "private_ref_hash": file_input.private_ref_hash,
             "extension": extension,
@@ -604,7 +711,9 @@ class Gate1Normalizer:
         value = input_context.get("source_policy")
         return value if isinstance(value, dict) else {}
 
-    def _source_policy_hint_for_document(self, document: dict, source_policy_context: dict) -> dict:
+    def _source_policy_hint_for_document(
+        self, document: dict, source_policy_context: dict
+    ) -> dict:
         hints = source_policy_context.get("safe_registry_role_hints")
         if not isinstance(hints, list):
             return {}
@@ -629,12 +738,16 @@ class Gate1Normalizer:
         blockers: list[dict],
         sha_counts: Counter[str],
     ) -> dict:
-        container_counts = Counter(document["container_format"] for document in documents)
+        container_counts = Counter(
+            document["container_format"] for document in documents
+        )
         class_counts = Counter(
             item["document_class_candidate"] for item in taxonomy_candidates
         )
         duplicate_hashes = sum(1 for count in sha_counts.values() if count > 1)
-        duplicate_count = sum(1 for document in documents if document.get("duplicate_of_document_id"))
+        duplicate_count = sum(
+            1 for document in documents if document.get("duplicate_of_document_id")
+        )
         return {
             "files_total": len(documents),
             "container_counts": dict(sorted(container_counts.items())),
@@ -683,7 +796,11 @@ class Gate1Normalizer:
             file_ref = str(document["document_id"])
             codes = blockers_by_document.get(file_ref, set())
             terminal = next(
-                ((reason_code, stage) for reason_code, stage in terminal_reasons if reason_code in codes),
+                (
+                    (reason_code, stage)
+                    for reason_code, stage in terminal_reasons
+                    if reason_code in codes
+                ),
                 None,
             )
             if terminal is not None:
@@ -743,7 +860,12 @@ class Gate1Normalizer:
         )
         if value in {"enabled", "ocr_enabled"}:
             return "enabled-not-executed"
-        if value in {"required-before-gate2", "manual-review-only", "enabled-not-executed", "disabled"}:
+        if value in {
+            "required-before-gate2",
+            "manual-review-only",
+            "enabled-not-executed",
+            "disabled",
+        }:
             return str(value)
         return "disabled"
 
