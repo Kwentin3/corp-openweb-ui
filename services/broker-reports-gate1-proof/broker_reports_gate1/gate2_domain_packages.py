@@ -673,11 +673,10 @@ def _deterministic_value_candidates(
     unit: dict[str, Any], *, domain: str
 ) -> list[dict[str, str]]:
     projection = _object(unit.get("model_source_projection"))
-    if not _dict_list(projection.get("rows")):
-        return []
     pseudo_slice = copy.deepcopy(unit)
     normalized = _object(unit.get("normalized_source_projection"))
     pseudo_slice["cells"] = copy.deepcopy(normalized.get("cells") or [])
+    pseudo_slice["text"] = str(normalized.get("text") or "")
     header_mapping = {
         "date": ("date", "iso_date_exact"),
         "amount": ("amount", "decimal_dot"),
@@ -708,6 +707,32 @@ def _deterministic_value_candidates(
                     "normalized_value": value,
                     "normalization_kind": normalization_kind,
                     "policy_id": "exact_header_mechanical_value_candidate_v0",
+                }
+            )
+    if domain == "document_summary_evidence":
+        for segment in _dict_list(projection.get("segments")):
+            source_ref = str(segment.get("text_segment_ref") or "")
+            source_value_ref = str(segment.get("source_value_ref") or "")
+            if not source_ref or not source_value_ref:
+                continue
+            try:
+                value = reproduce_normalized_value(
+                    pseudo_slice,
+                    source_value_ref,
+                    "trimmed_text",
+                )
+            except ValueError:
+                continue
+            if not value:
+                continue
+            result.append(
+                {
+                    "source_ref": source_ref,
+                    "field": "label",
+                    "source_value_ref": source_value_ref,
+                    "normalized_value": value,
+                    "normalization_kind": "trimmed_text",
+                    "policy_id": "document_summary_text_label_candidate_v0",
                 }
             )
     if domain == "cash_movement":

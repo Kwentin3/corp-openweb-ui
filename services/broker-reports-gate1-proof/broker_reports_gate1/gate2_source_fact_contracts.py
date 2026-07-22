@@ -671,35 +671,34 @@ def _bind_provider_schema_to_package(
             ]
             for field in NORMALIZED_VALUE_FIELDS:
                 field_candidates = deterministic_candidates.get(field, [])
-                if unit.get("source_input_mode") == "normalized_table_projection":
-                    candidate_values = sorted(
-                        {
-                            str(item["normalized_value"])
-                            for item in field_candidates
-                        }
+                candidate_values = sorted(
+                    {
+                        str(item["normalized_value"])
+                        for item in field_candidates
+                    }
+                )
+                candidate_refs = sorted(
+                    {
+                        str(item["source_value_ref"])
+                        for item in field_candidates
+                    }
+                )
+                if candidate_values:
+                    normalized_properties[field] = {
+                        "type": ["string", "null"],
+                        "enum": [*candidate_values, None],
+                    }
+                    original_properties[field] = _provider_restricted_ref_array(
+                        candidate_refs
                     )
-                    candidate_refs = sorted(
-                        {
-                            str(item["source_value_ref"])
-                            for item in field_candidates
-                        }
-                    )
-                    if candidate_values:
-                        normalized_properties[field] = {
-                            "type": ["string", "null"],
-                            "enum": [*candidate_values, None],
-                        }
-                        original_properties[field] = _provider_restricted_ref_array(
-                            candidate_refs
-                        )
-                        original_properties[field]["maxItems"] = 1
-                    else:
-                        normalized_properties[field] = {"type": "null"}
-                        original_properties[field] = {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "maxItems": 0,
-                        }
+                    original_properties[field]["maxItems"] = 1
+                elif unit.get("source_input_mode") == "normalized_table_projection":
+                    normalized_properties[field] = {"type": "null"}
+                    original_properties[field] = {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 0,
+                    }
                 else:
                     original_properties[field] = _provider_restricted_ref_array(
                         allowed_values
