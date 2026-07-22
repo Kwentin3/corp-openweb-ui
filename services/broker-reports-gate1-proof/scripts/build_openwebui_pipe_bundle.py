@@ -203,8 +203,8 @@ def main() -> None:
             modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
-            version="0.13.0-semantic-selection-v1-bundled",
-            package_version="gate2_semantic_visual_v1",
+            version="0.14.0-semantic-selection-v2-bundled",
+            package_version="gate2_semantic_selection_v2",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
         )

@@ -125,7 +125,10 @@ class FullUnionBoundaryModel(RuntimeBoundaryModel):
             candidate["facts"][0]["extracted_fields"][
                 "source_visible_direction_refs"
             ] = ["srcval_foreign"]
-        elif self.mutation == "overcomplete_issue" and candidate["facts"][0]["linked_issue_refs"]:
+        elif (
+            self.mutation == "overcomplete_issue"
+            and candidate["facts"][0]["linked_issue_refs"]
+        ):
             candidate["facts"][0]["completeness"] = "complete"
         if self.mutation == "fallback":
             return Gate2StructuredModelResult(
@@ -219,8 +222,7 @@ class SemanticSelectionBoundaryModel(RuntimeBoundaryModel):
     async def extract(self, *, prompt, package, model_id, response_format):
         expectation = package["coverage_expectation"]
         mandatory_refs = {
-            item["source_ref"]
-            for item in expectation["mandatory_no_fact_results"]
+            item["source_ref"] for item in expectation["mandatory_no_fact_results"]
         }
         decision_refs = [
             item
@@ -232,59 +234,47 @@ class SemanticSelectionBoundaryModel(RuntimeBoundaryModel):
                 {
                     "source_ref": source_ref,
                     "fact_type": "unknown_source_row",
-                    "fact_subtype": "unknown",
                     "value_bindings": [],
-                    "confidence": "low",
-                    "completeness": "uncertain",
-                    "uncertainty_codes": ["synthetic_unknown"],
                 }
                 for source_ref in decision_refs
             ],
             "no_fact_results": [],
         }
-        if self.mutation in {"typed", "cross_row_value_ref"}:
+        if self.mutation in {
+            "typed",
+            "cross_row_value_ref",
+            "wrong_field_value_ref",
+        }:
             rows = {
                 row["row_ref"]: row
-                for row in package["source_unit"]["model_source_projection"][
-                    "rows"
-                ]
+                for row in package["source_unit"]["model_source_projection"]["rows"]
             }
             typed_facts = []
             for source_ref in decision_refs:
                 cells = rows[source_ref]["cells"]
-                values = {
-                    cell["header_label"]: cell for cell in cells
-                }
+                values = {cell["header_label"]: cell for cell in cells}
                 operation = values["operation"]["value"]
-                fact_type = (
-                    "trade_operation" if operation == "sell" else "income"
-                )
+                fact_type = "trade_operation" if operation == "sell" else "income"
                 typed_facts.append(
                     {
                         "source_ref": source_ref,
                         "fact_type": fact_type,
-                        "fact_subtype": operation,
                         "value_bindings": [
                             {
                                 "field": field,
-                                "source_value_ref": values[field][
-                                    "source_value_ref"
-                                ],
+                                "source_value_ref": values[field]["source_value_ref"],
                             }
                             for field in ("date", "amount", "currency")
                         ],
-                        "confidence": "high",
-                        "completeness": "complete",
-                        "uncertainty_codes": [],
                     }
                 )
             selection["facts"] = typed_facts
             if self.mutation == "cross_row_value_ref":
-                selection["facts"][0]["value_bindings"][0][
-                    "source_value_ref"
-                ] = selection["facts"][1]["value_bindings"][0][
-                    "source_value_ref"
-                ]
+                selection["facts"][0]["value_bindings"][0]["source_value_ref"] = (
+                    selection["facts"][1]["value_bindings"][0]["source_value_ref"]
+                )
+            elif self.mutation == "wrong_field_value_ref":
+                selection["facts"][0]["value_bindings"][1]["field"] = "quantity"
         elif self.mutation == "coverage_gap" and selection["facts"]:
             selection["facts"].pop()
         elif self.mutation == "system_metadata":
@@ -316,9 +306,9 @@ class NarrowDomainBoundaryModel(RuntimeBoundaryModel):
                 "allowed_fact_types": copy.deepcopy(package["allowed_fact_types"]),
                 "provider_fact_types": sorted(
                     item["properties"]["fact_type"]["const"]
-                    for item in response_format["json_schema"]["schema"][
-                        "properties"
-                    ]["facts"]["items"]["anyOf"]
+                    for item in response_format["json_schema"]["schema"]["properties"][
+                        "facts"
+                    ]["items"]["anyOf"]
                 ),
             }
         )
@@ -332,7 +322,12 @@ class NarrowDomainBoundaryModel(RuntimeBoundaryModel):
                 item["row_kind"] = (
                     "fact"
                     if item.get("row_role")
-                    not in {"header_row", "repeated_header_row", "blank_row", "layout_row"}
+                    not in {
+                        "header_row",
+                        "repeated_header_row",
+                        "blank_row",
+                        "layout_row",
+                    }
                     else "layout"
                 )
                 item["row_range_ref"] = helper_unit["table_ref"]
@@ -537,9 +532,7 @@ class CandidateBindingBoundaryModel:
             adapter_version="1.0.0",
             requested_model_id=model_id,
             resolved_model_id=model_id if resolved else None,
-            provider_response_id=(
-                "private-provider-response-id" if resolved else None
-            ),
+            provider_response_id=("private-provider-response-id" if resolved else None),
             structured_output_mode="openwebui_response_format_json_schema",
             response_format_type="json_schema",
             response_format_schema_mode="strict_json_schema",
@@ -604,7 +597,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertFalse(provider_schema["additionalProperties"])
         self.assertEqual(len(source_facts_schema_hash()), 64)
         self.assertEqual(len(source_facts_provider_schema_hash()), 64)
-        self.assertNotEqual(source_facts_schema_hash(), source_facts_provider_schema_hash())
+        self.assertNotEqual(
+            source_facts_schema_hash(), source_facts_provider_schema_hash()
+        )
 
     def test_semantic_selection_runtime_materializes_canonical_facts(self):
         model = SemanticSelectionBoundaryModel()
@@ -624,6 +619,10 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             self.assertEqual(set(schema["properties"]), {"facts", "no_fact_results"})
             self.assertNotIn("schema_version", schema["properties"])
             self.assertEqual(
+                set(schema["properties"]["facts"]["items"]["properties"]),
+                {"source_ref", "fact_type", "value_bindings"},
+            )
+            self.assertEqual(
                 call["provider_schema_hash"],
                 self.store.get_record_unchecked(package_ref).safe_metadata[
                     "package_response_schema_hash"
@@ -637,7 +636,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             record = self.store.get_record_unchecked(ref)
             self.assertEqual(
                 record.artifact_type,
-                "broker_reports_source_fact_selection_validation_v1",
+                "broker_reports_source_fact_selection_validation_v2",
             )
             self.assertEqual(record.safe_metadata["validator_status"], "passed")
             self.assertEqual(
@@ -661,13 +660,28 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 )
             )
 
-    def test_semantic_selection_reproduces_bound_values_and_rejects_cross_row_refs(self):
+    def test_semantic_selection_reproduces_bound_values_and_rejects_cross_row_refs(
+        self,
+    ):
+        model = SemanticSelectionBoundaryModel(mutation="typed")
         result = self._run(
-            SemanticSelectionBoundaryModel(mutation="typed"),
+            model,
             semantic_selection_enabled=True,
         )
 
         self.assertEqual(result.terminal_status, "completed")
+        binding_variants = model.calls[0]["response_format"]["json_schema"]["schema"][
+            "properties"
+        ]["facts"]["items"]["properties"]["value_bindings"]["items"]["anyOf"]
+        refs_by_field = {
+            item["properties"]["field"]["const"]: item["properties"][
+                "source_value_ref"
+            ]["enum"]
+            for item in binding_variants
+        }
+        self.assertTrue({"date", "amount", "currency"} <= set(refs_by_field))
+        self.assertTrue(all(refs_by_field[field] for field in refs_by_field))
+        self.assertTrue(set(refs_by_field["date"]).isdisjoint(refs_by_field["amount"]))
         payload = self.store.read_payload(
             self.store.get_record_unchecked(result.source_facts_refs[0])
         )
@@ -679,6 +693,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             all(
                 fact["normalized_values"]["amount"] is not None
                 and len(fact["original_value_refs"]["amount"]) == 1
+                and fact["fact_subtype"] == "unknown"
+                and fact["confidence"] == "medium"
+                and fact["completeness"] == "partial"
                 for fact in payload["facts"]
             )
         )
@@ -689,12 +706,26 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
         self.assertEqual(rejected.terminal_status, "completed_with_rejections")
         validation = self.store.read_payload(
-            self.store.get_record_unchecked(
-                rejected.selection_validation_refs[0]
-            )
+            self.store.get_record_unchecked(rejected.selection_validation_refs[0])
         )
         self.assertIn(
             "source_fact_selection_value_ref_out_of_scope",
+            validation["error_code_counts"],
+        )
+
+        wrong_field = self._run(
+            SemanticSelectionBoundaryModel(mutation="wrong_field_value_ref"),
+            semantic_selection_enabled=True,
+        )
+        self.assertEqual(
+            wrong_field.terminal_status,
+            "completed_with_rejections",
+        )
+        validation = self.store.read_payload(
+            self.store.get_record_unchecked(wrong_field.selection_validation_refs[0])
+        )
+        self.assertIn(
+            "source_fact_selection_value_binding_not_admissible",
             validation["error_code_counts"],
         )
 
@@ -709,9 +740,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertTrue(result.selection_validation_refs)
         self.assertTrue(
             all(
-                self.store.get_record_unchecked(ref).safe_metadata[
-                    "validator_status"
-                ]
+                self.store.get_record_unchecked(ref).safe_metadata["validator_status"]
                 == "failed"
                 for ref in result.selection_validation_refs
             )
@@ -746,9 +775,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 "selected_source_refs": [f"source-{index}" for index in range(196)],
                 "mandatory_no_fact_results": [],
             },
-            "allowed_source_value_refs": [
-                f"value-{index}" for index in range(59)
-            ],
+            "allowed_source_value_refs": [f"value-{index}" for index in range(59)],
             "allowed_fact_types": sorted(FACT_TYPES),
         }
 
@@ -757,12 +784,14 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
 
         self.assertNotIn("anyOf", fact_schema)
         self.assertEqual(
-            set(fact_schema["properties"]["fact_type"]["enum"]),
-            FACT_TYPES,
+            fact_schema["properties"]["fact_type"]["enum"],
+            ["unknown_source_row"],
         )
         self.assertLessEqual(_enum_value_count(schema), 1000)
 
-    def test_gate2_execution_appends_artifacts_without_mutating_gate1_source_memory(self):
+    def test_gate2_execution_appends_artifacts_without_mutating_gate1_source_memory(
+        self,
+    ):
         gate1_before = {
             record.artifact_id: self._artifact_semantic_snapshot(record)
             for record in self.store.list_by_run(self.context.normalization_run_id)
@@ -833,7 +862,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
         self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
         self.assertTrue(result.safe_summary["ready_for_primary_expansion"])
-        self.assertEqual({item["domain"] for item in model.calls}, {"income", "trade_operation"})
+        self.assertEqual(
+            {item["domain"] for item in model.calls}, {"income", "trade_operation"}
+        )
         for call in model.calls:
             self.assertTrue(
                 set(call["provider_fact_types"]) <= set(call["allowed_fact_types"])
@@ -842,7 +873,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             self.assertEqual(len(call["candidate_source_refs"]), 1)
         for ref in result.domain_package_refs:
             record = self.store.get_record_unchecked(ref)
-            self.assertEqual(record.artifact_type, "broker_reports_domain_extraction_package_v0")
+            self.assertEqual(
+                record.artifact_type, "broker_reports_domain_extraction_package_v0"
+            )
             self.assertEqual(record.storage_backend, "project_artifact_payload")
         for ref in result.source_facts_refs:
             self.assertEqual(
@@ -896,9 +929,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(len(result.route_refs), 1)
         self.assertEqual(len(result.domain_package_refs), 1)
         self.assertEqual(result.safe_summary["typed_facts_total"], 1)
-        self.assertEqual(
-            result.safe_summary["facts_by_type"], {"trade_operation": 1}
-        )
+        self.assertEqual(result.safe_summary["facts_by_type"], {"trade_operation": 1})
         self.assertEqual(result.safe_summary["coverage"]["selected_total"], 1)
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
         self.assertEqual(result.safe_summary["source_units"]["truncated_total"], 0)
@@ -910,9 +941,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
         self.assertTrue(result.safe_summary["ready_for_primary_expansion"])
 
-        plan_record = self.store.get_record_unchecked(
-            result.segmentation_plan_refs[0]
-        )
+        plan_record = self.store.get_record_unchecked(result.segmentation_plan_refs[0])
         self.assertEqual(
             plan_record.artifact_type,
             "broker_reports_source_unit_segmentation_plan_v0",
@@ -937,13 +966,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         derived_payload = ArtifactResolver(self.store).resolve(
             result.derived_source_unit_refs[0], context
         )["payload"]
+        self.assertFalse(derived_payload["source_unit"]["source_slice_truncated"])
         self.assertFalse(
-            derived_payload["source_unit"]["source_slice_truncated"]
-        )
-        self.assertFalse(
-            derived_payload["source_unit"][
-                "parent_source_slice_truncated"
-            ]
+            derived_payload["source_unit"]["parent_source_slice_truncated"]
         )
         self.assertEqual(
             derived_payload["source_unit"]["parent_remainder_status"],
@@ -951,7 +976,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
         self.assertEqual({item["domain"] for item in model.calls}, {"trade_operation"})
 
-    def test_csv_gate3_manifest_is_authoritative_private_safe_and_lifecycle_closed(self):
+    def test_csv_gate3_manifest_is_authoritative_private_safe_and_lifecycle_closed(
+        self,
+    ):
         model = ResolvedNarrowDomainBoundaryModel()
         runtime = Gate2DomainSourceFactRuntimeFactory(
             store=self.store,
@@ -993,11 +1020,13 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             result.answer_context_selection_summary["selection_status"],
             "passed",
         )
-        answer_context = AnswerContextSelectionFactory(
-            store=self.store
-        ).create().resolve_for_answer(
-            context_ref=str(result.answer_context_ref),
-            context=self.context,
+        answer_context = (
+            AnswerContextSelectionFactory(store=self.store)
+            .create()
+            .resolve_for_answer(
+                context_ref=str(result.answer_context_ref),
+                context=self.context,
+            )
         )
         self.assertTrue(answer_context["evidence_groups"])
         self.assertTrue(
@@ -1024,9 +1053,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             manifest_ref=str(result.gate3_context_manifest_ref),
             context=self.context,
         )
-        record = self.store.get_record_unchecked(
-            str(result.gate3_context_manifest_ref)
-        )
+        record = self.store.get_record_unchecked(str(result.gate3_context_manifest_ref))
         self.assertEqual(record.visibility, "safe_internal")
         self.assertEqual(record.storage_backend, "project_artifact_store")
         self.assertEqual(manifest["gate3_input_status"], "ready")
@@ -1035,9 +1062,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             "bounded_deterministic_csv_segments",
         )
         self.assertEqual(manifest["terminal_gate2"]["typed_facts_total"], 1)
-        self.assertEqual(
-            manifest["terminal_gate2"]["rejected_packages_total"], 0
-        )
+        self.assertEqual(manifest["terminal_gate2"]["rejected_packages_total"], 0)
         self.assertEqual(manifest["zero_loss_reconciliation"]["status"], "reconciled")
         self.assertEqual(manifest["decision_metrics"]["uncovered_total"], 0)
         self.assertEqual(manifest["decision_metrics"]["conflict_total"], 0)
@@ -1059,9 +1084,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             {"case_id": "wrong-case"},
             {"workspace_model_id": "wrong-workspace"},
         ):
-            wrong = ArtifactAccessContext(
-                **{**self.context.__dict__, **changed}
-            )
+            wrong = ArtifactAccessContext(**{**self.context.__dict__, **changed})
             with self.assertRaises(ArtifactStoreError) as denied:
                 service.resolve_for_gate3(
                     manifest_ref=str(result.gate3_context_manifest_ref),
@@ -1088,12 +1111,16 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(purged.exception.code, "artifact_purged")
 
     def test_domain_runtime_opt_in_consumes_validated_table_projection(self):
-        readiness = Gate2InputReadinessFactory(
-            store=self.store,
-            config=Gate2InputReadinessConfig(prefer_table_projections=True),
-        ).create().audit_and_build(
-            domain_context_packet_ref=self.dcp_ref,
-            context=self.context,
+        readiness = (
+            Gate2InputReadinessFactory(
+                store=self.store,
+                config=Gate2InputReadinessConfig(prefer_table_projections=True),
+            )
+            .create()
+            .audit_and_build(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+            )
         )
         self.assertEqual(
             readiness.validation["validator_status"],
@@ -1155,7 +1182,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
         self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
 
-    def test_domain_runtime_candidate_binding_opt_in_reaches_strict_validation_and_stitch(self):
+    def test_domain_runtime_candidate_binding_opt_in_reaches_strict_validation_and_stitch(
+        self,
+    ):
         model = CandidateBindingBoundaryModel()
         runtime = Gate2DomainSourceFactRuntimeFactory(
             store=self.store,
@@ -1206,9 +1235,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(len(result.raw_output_refs), 1)
         self.assertEqual(len(result.validation_refs), 1)
 
-        package = resolver.resolve(
-            result.domain_package_refs[0], self.context
-        )["payload"]
+        package = resolver.resolve(result.domain_package_refs[0], self.context)[
+            "payload"
+        ]
         raw = resolver.resolve(result.raw_output_refs[0], self.context)["payload"]
         facts = resolver.resolve(result.source_facts_refs[0], self.context)["payload"]
         validation = validations[0]
@@ -1245,7 +1274,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         )
         self.assertEqual(package["candidate_binding_profile"]["domain"], "income")
         self.assertTrue(package["source_value_candidate_set"]["candidates"])
-        self.assertEqual(call["candidate_binding_mode"], package["candidate_binding_mode"])
+        self.assertEqual(
+            call["candidate_binding_mode"], package["candidate_binding_mode"]
+        )
 
         self.assertEqual(call["profile_domain"], "income")
         self.assertEqual(
@@ -1275,9 +1306,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             "provider_response_id",
             raw["provider_execution_safe"],
         )
-        self.assertTrue(
-            raw["provider_execution_safe"]["provider_response_id_present"]
-        )
+        self.assertTrue(raw["provider_execution_safe"]["provider_response_id_present"])
         self.assertNotIn(
             "private-provider-response-id",
             json.dumps(raw_record.safe_metadata, sort_keys=True),
@@ -1305,9 +1334,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             validation["provider_execution"],
             raw["provider_execution_safe"],
         )
-        validation_record = self.store.get_record_unchecked(
-            result.validation_refs[0]
-        )
+        validation_record = self.store.get_record_unchecked(result.validation_refs[0])
         self.assertEqual(
             validation_record.safe_metadata["provider_execution"],
             raw["provider_execution_safe"],
@@ -1337,9 +1364,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             fact["original_value_refs"]["amount"],
             selected_candidate["source_value_refs"],
         )
-        self.assertEqual(
-            fact["extraction_package_ref"], result.domain_package_refs[0]
-        )
+        self.assertEqual(fact["extraction_package_ref"], result.domain_package_refs[0])
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
         run_payload = resolver.resolve(
             result.extraction_run_ref,
@@ -1368,9 +1393,13 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 for record in self.store.list_by_run(self.context.normalization_run_id)
             )
         )
-        manifest = Gate3ContextManifestFactory(store=self.store).create().resolve_for_gate3(
-            manifest_ref=str(result.gate3_context_manifest_ref),
-            context=self.context,
+        manifest = (
+            Gate3ContextManifestFactory(store=self.store)
+            .create()
+            .resolve_for_gate3(
+                manifest_ref=str(result.gate3_context_manifest_ref),
+                context=self.context,
+            )
         )
         roots = manifest["artifact_roots"]
         self.assertEqual(
@@ -1412,8 +1441,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
     def test_managed_prompt_resolver_enforces_gate2_contract_access_and_hash(self):
         db_path = Path(self._tmp.name) / "webui.db"
         content = (
-            "Managed Gate 2 source facts prompt.\n"
-            "Input: {{source_fact_package_json}}"
+            "Managed Gate 2 source facts prompt.\nInput: {{source_fact_package_json}}"
         )
         meta = {
             "template_kind": "broker_reports_source_fact_extraction",
@@ -1463,10 +1491,14 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             Gate2PromptUserContext(user_id="prompt-owner", user_role="user")
         )
         self.assertEqual(resolved.hash, gate2_prompt_hash(content))
-        self.assertEqual(resolved.output_schema_id, "broker_reports.source_facts.schema.v0")
+        self.assertEqual(
+            resolved.output_schema_id, "broker_reports.source_facts.schema.v0"
+        )
         self.assertEqual(resolved.command, "broker_gate2_source_facts_v0")
         with self.assertRaises(Gate2PromptError) as denied:
-            resolver.resolve(Gate2PromptUserContext(user_id="foreign", user_role="user"))
+            resolver.resolve(
+                Gate2PromptUserContext(user_id="foreign", user_role="user")
+            )
         self.assertEqual(denied.exception.code, "gate2_prompt_access_denied")
 
     def test_runtime_persists_only_validator_accepted_full_union(self):
@@ -1475,7 +1507,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
 
         self.assertIn("Gate2SourceFactRuntimeFactory.create", RUNTIME_FACTORY_REQUIRED)
         self.assertIn("must not call models", RUNTIME_FORBIDDEN)
-        self.assertIn("Gate2SourceFactValidatorFactory.create", VALIDATOR_FACTORY_REQUIRED)
+        self.assertIn(
+            "Gate2SourceFactValidatorFactory.create", VALIDATOR_FACTORY_REQUIRED
+        )
         self.assertIn("must not promote model candidates", VALIDATOR_FORBIDDEN)
         self.assertEqual(result.terminal_status, "completed")
         self.assertEqual(result.safe_summary["facts_total"], 9)
@@ -1531,15 +1565,13 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             64,
         )
         projection = package["payload"]["source_unit"]["model_source_projection"]
-        self.assertEqual(projection["schema_version"], "gate2_model_table_projection_v0")
-        self.assertTrue(projection["rows"])
-        self.assertTrue(
-            all(row["row_kind"] == "fact" for row in projection["rows"])
+        self.assertEqual(
+            projection["schema_version"], "gate2_model_table_projection_v0"
         )
+        self.assertTrue(projection["rows"])
+        self.assertTrue(all(row["row_kind"] == "fact" for row in projection["rows"]))
         self.assertTrue(
-            package["payload"]["coverage_expectation"][
-                "mandatory_no_fact_results"
-            ]
+            package["payload"]["coverage_expectation"]["mandatory_no_fact_results"]
         )
         self.assertTrue(
             all(
@@ -1549,9 +1581,21 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             )
         )
         self.assertEqual(facts["payload"]["validator_status"], "passed")
-        self.assertTrue(all(item["validator_status"] == "passed" for item in facts["payload"]["facts"]))
-        self.assertTrue(all(item["validation_ref"] == result.validation_refs[0] for item in facts["payload"]["facts"]))
-        self.assertTrue(all(item["fact_id"].startswith("sf_") for item in facts["payload"]["facts"]))
+        self.assertTrue(
+            all(
+                item["validator_status"] == "passed"
+                for item in facts["payload"]["facts"]
+            )
+        )
+        self.assertTrue(
+            all(
+                item["validation_ref"] == result.validation_refs[0]
+                for item in facts["payload"]["facts"]
+            )
+        )
+        self.assertTrue(
+            all(item["fact_id"].startswith("sf_") for item in facts["payload"]["facts"])
+        )
         self.assertEqual(raw["payload"]["model_call_status"], "passed")
         self.assertEqual(
             raw["payload"]["provider_execution"]["provider_response_id"],
@@ -1598,8 +1642,13 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             ),
         )
         self.assertNotIn("100.00", result.compact_russian_summary)
-        self.assertNotIn("synthetic_gate2_value_refs.csv", result.compact_russian_summary)
-        self.assertIn("Расчёт налогов, декларация и XLS/XLSX не выполнялись.", result.compact_russian_summary)
+        self.assertNotIn(
+            "synthetic_gate2_value_refs.csv", result.compact_russian_summary
+        )
+        self.assertIn(
+            "Расчёт налогов, декларация и XLS/XLSX не выполнялись.",
+            result.compact_russian_summary,
+        )
         self.assertTrue(
             all(
                 record.storage_backend != "openwebui_knowledge"
@@ -1607,7 +1656,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             )
         )
 
-    def test_runtime_accepts_anthropic_native_strict_mode_without_accepting_fallback(self):
+    def test_runtime_accepts_anthropic_native_strict_mode_without_accepting_fallback(
+        self,
+    ):
         result = self._run(FullUnionBoundaryModel(mutation="anthropic_strict"))
 
         self.assertEqual(result.terminal_status, "completed")
@@ -1616,7 +1667,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(len(result.source_facts_refs), 1)
         self.assertEqual(len(result.validation_refs), 1)
 
-    def test_foreign_value_ref_and_gate3_semantics_fail_closed_after_private_raw_persistence(self):
+    def test_foreign_value_ref_and_gate3_semantics_fail_closed_after_private_raw_persistence(
+        self,
+    ):
         for mutation, expected_code in (
             ("foreign_ref", "source_fact_unknown_value_ref"),
             ("gate3_field", "source_fact_gate3_boundary_forbidden"),
@@ -1640,11 +1693,15 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 self.assertEqual(len(result.raw_output_refs), 1)
                 self.assertEqual(len(result.validation_refs), 1)
                 raw_record = self.store.get_record_unchecked(result.raw_output_refs[0])
-                validation_record = self.store.get_record_unchecked(result.validation_refs[0])
+                validation_record = self.store.get_record_unchecked(
+                    result.validation_refs[0]
+                )
                 self.assertEqual(raw_record.visibility, "private_case")
                 self.assertEqual(validation_record.visibility, "safe_internal")
                 validation = self.store.read_payload(validation_record)
-                self.assertIn(expected_code, {item["code"] for item in validation["errors"]})
+                self.assertIn(
+                    expected_code, {item["code"] for item in validation["errors"]}
+                )
                 self.assertEqual(validation["accepted_fact_ids"], [])
 
     def test_wrong_user_expiry_purge_and_source_delete_remain_fail_closed(self):
@@ -1817,7 +1874,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         }
 
     def _domain_prompt(self, domain: str) -> Gate2ManagedPrompt:
-        content = f"Synthetic managed {domain} prompt with {{{{source_fact_package_json}}}}."
+        content = (
+            f"Synthetic managed {domain} prompt with {{{{source_fact_package_json}}}}."
+        )
         return Gate2ManagedPrompt(
             prompt_ref=f"prompt_gate2_{domain}_test",
             command=f"broker_gate2_{domain}_v0",
@@ -1887,7 +1946,10 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 "evidence_refs": [slice_ref],
                 "blocker_refs": [],
                 "reason_codes": ["synthetic_confirmation_limit"],
-                "provenance": {"source_artifact_type": "synthetic_fixture", "source_ref": slice_ref},
+                "provenance": {
+                    "source_artifact_type": "synthetic_fixture",
+                    "source_ref": slice_ref,
+                },
                 "created_at": "2026-07-10T00:00:00Z",
                 "updated_at": "2026-07-10T00:00:00Z",
                 "safe_explanation": "Synthetic unresolved confirmation limit.",
@@ -1902,12 +1964,16 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         usage_entry["warning_issue_refs"] = sorted(
             set(usage_entry["warning_issue_refs"] + [issue_ref])
         )
-        usage_entry["issue_refs_by_stage"].setdefault("source_fact_extraction", []).append(
-            issue_ref
+        usage_entry["issue_refs_by_stage"].setdefault(
+            "source_fact_extraction", []
+        ).append(issue_ref)
+        usage_entry["readiness_by_stage"]["source_fact_extraction"] = (
+            "ready_with_issues"
         )
-        usage_entry["readiness_by_stage"]["source_fact_extraction"] = "ready_with_issues"
         dcp = package["domain_context_packet"]
-        dcp["unresolved_issue_refs"] = sorted(set(dcp["unresolved_issue_refs"] + [issue_ref]))
+        dcp["unresolved_issue_refs"] = sorted(
+            set(dcp["unresolved_issue_refs"] + [issue_ref])
+        )
         dcp["document_issue_refs"].setdefault(document_ref, []).append(issue_ref)
         dcp["stage_readiness"]["source_fact_extraction"] = "ready_with_issue_context"
         package["gate2_handoff"].setdefault("document_issue_refs", {}).setdefault(
@@ -1965,14 +2031,16 @@ def _full_union_candidate(package: dict[str, Any]) -> dict[str, Any]:
         return next(
             item["source_value_ref"]
             for item in cell_provenance
-            if item["row_ordinal"] == row_ordinal and item["column_ordinal"] == column_ordinal
+            if item["row_ordinal"] == row_ordinal
+            and item["column_ordinal"] == column_ordinal
         )
 
     def cell_ref(row_ordinal: int, column_ordinal: int) -> str:
         return next(
             item["cell_ref"]
             for item in cell_provenance
-            if item["row_ordinal"] == row_ordinal and item["column_ordinal"] == column_ordinal
+            if item["row_ordinal"] == row_ordinal
+            and item["column_ordinal"] == column_ordinal
         )
 
     issue_policy = _issue_policy(package)
@@ -2017,9 +2085,7 @@ def _full_union_candidate(package: dict[str, Any]) -> dict[str, Any]:
             "identifier": str(row_values[1]).strip(),
             "label": None,
         }
-        current_cell_refs = [
-            cell_ref(row_ordinal, column) for column in (1, 2, 3, 4)
-        ]
+        current_cell_refs = [cell_ref(row_ordinal, column) for column in (1, 2, 3, 4)]
         evidence_refs = sorted(
             {
                 row["row_ref"],
@@ -2085,9 +2151,9 @@ def _full_union_candidate(package: dict[str, Any]) -> dict[str, Any]:
                     ],
                 },
                 "confidence": "low" if fact_type == "unknown_source_row" else "medium",
-                "completeness": "uncertain" if fact_type == "unknown_source_row" else (
-                    "partial" if issue_policy["linked_issue_refs"] else "complete"
-                ),
+                "completeness": "uncertain"
+                if fact_type == "unknown_source_row"
+                else ("partial" if issue_policy["linked_issue_refs"] else "complete"),
                 "evidence_refs": evidence_refs,
                 "linked_issue_refs": issue_policy["linked_issue_refs"],
                 "issue_impact": issue_policy["issue_impact"],
@@ -2142,7 +2208,9 @@ def _full_union_candidate(package: dict[str, Any]) -> dict[str, Any]:
         },
         "issue_linkage_summary": {
             "package_issue_refs": package["allowed_issue_refs"],
-            "fact_issue_links_total": sum(len(item["linked_issue_refs"]) for item in facts),
+            "fact_issue_links_total": sum(
+                len(item["linked_issue_refs"]) for item in facts
+            ),
             "unresolved_issue_refs": sorted(
                 item["issue_ref"]
                 for item in package["issue_context"]
