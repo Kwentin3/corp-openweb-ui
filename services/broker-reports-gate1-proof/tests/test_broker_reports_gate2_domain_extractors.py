@@ -33,6 +33,9 @@ from broker_reports_gate1.gate2_source_fact_stitching import (
     Gate2SourceFactStitcherFactory,
     validate_source_fact_stitch_result,
 )
+from broker_reports_gate1.gate2_source_fact_validation import (
+    _deterministic_fact_id,
+)
 from broker_reports_gate1.gate2_source_unit_segmentation import (
     FACTORY_REQUIRED as SEGMENTER_FACTORY_REQUIRED,
     FORBIDDEN as SEGMENTER_FORBIDDEN,
@@ -764,6 +767,43 @@ class BrokerReportsGate2DomainExtractorsTest(unittest.TestCase):
         self.assertEqual(
             result["rejected_candidate_refs"][0]["error_codes"],
             ["source_fact_provenance_missing"],
+        )
+
+    def test_domain_fact_identity_separates_cross_domain_unknown_candidates(self):
+        shared = {
+            "source_unit": {"unit_id": "unit"},
+            "primary_ref": "row_unknown",
+            "fact_type": "unknown_source_row",
+            "original_refs": [],
+        }
+        fee_id = _deterministic_fact_id(
+            package={
+                "extraction_run_id": "run",
+                "document_ref": "document",
+                "extractor_domain": "fee_commission",
+            },
+            **shared,
+        )
+        position_id = _deterministic_fact_id(
+            package={
+                "extraction_run_id": "run",
+                "document_ref": "document",
+                "extractor_domain": "position_snapshot",
+            },
+            **shared,
+        )
+
+        self.assertNotEqual(fee_id, position_id)
+        self.assertEqual(
+            fee_id,
+            _deterministic_fact_id(
+                package={
+                    "extraction_run_id": "run",
+                    "document_ref": "document",
+                    "extractor_domain": "fee_commission",
+                },
+                **shared,
+            ),
         )
 
 

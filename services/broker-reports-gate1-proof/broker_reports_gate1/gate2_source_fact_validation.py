@@ -527,8 +527,13 @@ class Gate2SourceFactValidator:
         boundary_errors.extend(_forbidden_field_errors(fact, FORBIDDEN_GATE3_FIELDS, "source_fact_gate3_boundary_forbidden", prefix=path))
 
         primary_ref = sorted(covered)[0] if covered else "missing"
-        deterministic_id = f"sf_{stable_digest([package.get('extraction_run_id'), package.get('document_ref'), source_unit.get('unit_id'), primary_ref, fact_type, sorted(set(all_original_refs))], length=24)}"
-        return deterministic_id
+        return _deterministic_fact_id(
+            package=package,
+            source_unit=source_unit,
+            primary_ref=primary_ref,
+            fact_type=fact_type,
+            original_refs=all_original_refs,
+        )
 
     def _validate_source_location(
         self,
@@ -809,6 +814,28 @@ def _package_source_slice(package: dict[str, Any]) -> dict[str, Any]:
     unit["text"] = str(projection.get("text") or "")
     unit["source_value_refs"] = _string_list(package.get("allowed_source_value_refs"))
     return unit
+
+
+def _deterministic_fact_id(
+    *,
+    package: dict[str, Any],
+    source_unit: dict[str, Any],
+    primary_ref: str,
+    fact_type: str,
+    original_refs: list[str],
+) -> str:
+    return "sf_" + stable_digest(
+        [
+            package.get("extraction_run_id"),
+            package.get("document_ref"),
+            source_unit.get("unit_id"),
+            package.get("extractor_domain") or "broad_source_fact",
+            primary_ref,
+            fact_type,
+            sorted(set(original_refs)),
+        ],
+        length=24,
+    )
 
 
 def _finalize_candidate(
