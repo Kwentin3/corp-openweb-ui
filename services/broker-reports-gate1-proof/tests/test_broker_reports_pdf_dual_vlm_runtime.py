@@ -206,6 +206,7 @@ def test_disabled_runtime_performs_no_provider_work() -> None:
 
     assert result.safe_summary["status"] == "disabled"
     assert result.private_decisions == []
+    assert result.private_provider_evidence == []
     assert gemini.qualify_calls == openai.qualify_calls == 0
 
 
@@ -229,6 +230,16 @@ def test_default_valid_gemini_is_selected_without_any_openai_work() -> None:
     assert openai.qualify_calls == openai.count_calls == openai.invoke_calls == 0
     assert result.safe_summary["semantic_transcriptions_valid"] == 1
     assert result.safe_summary["canonical_tables_published"] == 0
+    evidence = result.private_provider_evidence
+    assert len(evidence) == 1
+    assert evidence[0]["decision_id"] == decision["decision_id"]
+    assert evidence[0]["execution_hash"] == decision["executions"][0][
+        "execution_hash"
+    ]
+    assert evidence[0]["raw_provider_response"] == {"must_not_escape": True}
+    assert evidence[0]["parsed_semantic_response"] == _transcription()
+    assert "raw_provider_response" not in result.safe_summary
+    assert "raw_provider_response" not in decision
 
 
 def test_explicit_openai_fallback_keeps_provider_identity_and_never_merges() -> None:
@@ -258,6 +269,10 @@ def test_explicit_openai_fallback_keeps_provider_identity_and_never_merges() -> 
     assert decision["executions"][1]["provider"] == "openai"
     assert decision["executions"][1]["invocation_role"] == "fallback"
     assert result.safe_summary["openai_fallbacks"] == 1
+    assert [item["provider"] for item in result.private_provider_evidence] == [
+        "gemini",
+        "openai",
+    ]
 
 
 def test_diagnostic_control_cannot_overwrite_valid_gemini() -> None:

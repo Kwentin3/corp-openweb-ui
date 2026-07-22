@@ -35,6 +35,7 @@ BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 
 MODULE_ORDER = [
     "semantic_visual_table_contracts",
+    "semantic_visual_table_projection_contracts",
     "architecture_policy",
     "workload_authority",
     "contracts",
@@ -138,6 +139,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_dual_vlm_legacy_decision_contracts",
     "pdf_dual_vlm_fact_providers",
     "pdf_dual_vlm_runtime",
+    "semantic_visual_table_materialization",
     "pdf_visual_table_review",
     "pdf_continuation_discovery",
     "pdf_structural_repair_runtime",

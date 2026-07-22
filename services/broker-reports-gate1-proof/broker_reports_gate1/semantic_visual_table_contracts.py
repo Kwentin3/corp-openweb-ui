@@ -14,6 +14,8 @@ from typing import Any
 SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION = (
     "broker_reports_semantic_table_transcription_v1"
 )
+SEMANTIC_LOGICAL_TABLE_PROFILE_ID = "semantic_visual_logical_table_v1"
+SEMANTIC_VISUAL_TABLE_ORIGIN = "semantic_vlm_transcription"
 SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS = frozenset({"description", "rows"})
 SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION = (
     "broker_reports_semantic_table_transcription_prompt_v1"

@@ -473,6 +473,9 @@ class Pipe:
         )
         result.package["pdf_dual_vlm"] = dual_vlm["safe_summary"]
         result.package["private_pdf_dual_vlm_decisions"] = dual_vlm["private_decisions"]
+        result.package["private_pdf_dual_vlm_provider_evidence"] = dual_vlm[
+            "private_provider_evidence"
+        ]
         with self._provider_slot_if_enabled(
             bool(self.valves.pdf_structural_repair_shadow_enabled),
             self.valves.pdf_structural_repair_provider_profile,
@@ -743,6 +746,7 @@ class Pipe:
                 return {
                     "safe_summary": disabled.safe_summary,
                     "private_decisions": [],
+                    "private_provider_evidence": [],
                 }
             intake_summary = table_intake.get("safe_summary")
             if (
@@ -758,6 +762,7 @@ class Pipe:
             return {
                 "safe_summary": outcome.safe_summary,
                 "private_decisions": outcome.private_decisions,
+                "private_provider_evidence": outcome.private_provider_evidence,
             }
         except WorkloadAuthorityError:
             raise
@@ -815,6 +820,7 @@ class Pipe:
                 "paddle_dependency": False,
             },
             "private_decisions": [],
+            "private_provider_evidence": [],
         }
 
     def _maybe_run_pdf_structural_repair_shadow(

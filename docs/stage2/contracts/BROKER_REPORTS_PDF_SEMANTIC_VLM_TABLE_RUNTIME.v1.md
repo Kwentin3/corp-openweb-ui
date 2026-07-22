@@ -62,7 +62,8 @@ usage, terminal state, response hash, and strict boundary validation result.
 It publishes neither a physical grid nor a canonical table in this goal.
 Deterministic logical materialization, canonical IDs, rectangular padding,
 integrity hashes, persistence, and Gate 2 packaging remain application-owned
-work in the subsequent contract goals.
+work. Their maintained boundary is defined by
+`BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_MATERIALIZATION.v1.md`.
 
 ## Legacy disposition
 

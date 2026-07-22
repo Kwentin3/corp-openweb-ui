@@ -37,6 +37,9 @@ PDF_DUAL_VLM_DECISION_SCHEMA = "broker_reports_pdf_semantic_vlm_decision_v1"
 PDF_DUAL_VLM_EXECUTION_SCHEMA = "broker_reports_pdf_semantic_vlm_execution_v1"
 PDF_DUAL_VLM_RUN_SCHEMA = "broker_reports_pdf_semantic_vlm_run_v1"
 PDF_DUAL_VLM_VALIDATOR_VERSION = "pdf_semantic_vlm_boundary_validator_v1"
+PDF_SEMANTIC_VLM_PRIVATE_EVIDENCE_SCHEMA = (
+    "broker_reports_pdf_semantic_vlm_private_provider_evidence_v1"
+)
 PDF_DUAL_VLM_PROMPT_ID = "pdf_semantic_visual_table_transcription"
 
 DECISION_STATUSES = frozenset(
@@ -119,6 +122,7 @@ class PdfDualVlmRuntimeConfig:
 class PdfDualVlmRuntimeResult:
     safe_summary: dict[str, Any]
     private_decisions: list[dict[str, Any]]
+    private_provider_evidence: list[dict[str, Any]]
 
 
 class PdfDualVlmRuntimeFactory:
@@ -244,6 +248,7 @@ class PdfDualVlmRuntime:
                     qualifications=None,
                 ),
                 private_decisions=[],
+                private_provider_evidence=[],
             )
         if not isinstance(candidates, list):
             raise PdfDualVlmRuntimeError("pdf_dual_vlm_candidates_invalid")
@@ -258,13 +263,19 @@ class PdfDualVlmRuntime:
                     qualifications=None,
                 ),
                 private_decisions=[],
+                private_provider_evidence=[],
             )
 
         qualifications = self._qualify_providers()
-        decisions = [
-            self._run_candidate(candidate, qualifications=qualifications)
-            for candidate in candidates
-        ]
+        decisions: list[dict[str, Any]] = []
+        private_provider_evidence: list[dict[str, Any]] = []
+        for candidate in candidates:
+            decision, candidate_evidence = self._run_candidate(
+                candidate,
+                qualifications=qualifications,
+            )
+            decisions.append(decision)
+            private_provider_evidence.extend(candidate_evidence)
         return PdfDualVlmRuntimeResult(
             safe_summary=self._summary(
                 status="completed",
@@ -273,6 +284,7 @@ class PdfDualVlmRuntime:
                 qualifications=qualifications,
             ),
             private_decisions=decisions,
+            private_provider_evidence=private_provider_evidence,
         )
 
     def _qualify_providers(self) -> dict[str, dict[str, Any]]:
@@ -312,17 +324,20 @@ class PdfDualVlmRuntime:
         candidate: dict[str, Any],
         *,
         qualifications: dict[str, dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         try:
             bounded = _bounded_candidate(candidate)
         except PdfDualVlmRuntimeError as exc:
-            return self._decision(
-                status="unresolved_visual_scope",
-                reason_codes=[exc.code],
-                lineage=None,
-                executions=[],
-                proposals={},
-                comparison=None,
+            return (
+                self._decision(
+                    status="unresolved_visual_scope",
+                    reason_codes=[exc.code],
+                    lineage=None,
+                    executions=[],
+                    proposals={},
+                    comparison=None,
+                ),
+                [],
             )
 
         manifest = bounded["manifest"]
@@ -334,7 +349,9 @@ class PdfDualVlmRuntime:
         executions: list[dict[str, Any]] = []
         proposals: dict[str, dict[str, Any] | None] = {}
         failures: dict[str, str] = {}
-        gemini_record, gemini_proposal, gemini_failure = self._invoke_provider(
+        evidence_seeds: list[dict[str, Any]] = []
+        gemini_record, gemini_proposal, gemini_failure, gemini_evidence = (
+            self._invoke_provider(
             provider_name="gemini",
             invocation_role="master",
             provider=self.providers["gemini"],
@@ -344,8 +361,10 @@ class PdfDualVlmRuntime:
             output_schema=output_schema,
             png_bytes=png_bytes,
             table_id=table_id,
+            )
         )
         executions.append(gemini_record)
+        evidence_seeds.append(gemini_evidence)
         proposals["gemini"] = gemini_proposal
         if gemini_failure:
             failures["gemini"] = gemini_failure
@@ -365,7 +384,8 @@ class PdfDualVlmRuntime:
             openai_invocation_role = "fallback"
 
         if should_call_openai:
-            openai_record, openai_proposal, openai_failure = self._invoke_provider(
+            openai_record, openai_proposal, openai_failure, openai_evidence = (
+                self._invoke_provider(
                 provider_name="openai",
                 invocation_role=str(openai_invocation_role),
                 provider=self.providers["openai"],
@@ -375,8 +395,10 @@ class PdfDualVlmRuntime:
                 output_schema=output_schema,
                 png_bytes=png_bytes,
                 table_id=table_id,
+                )
             )
             executions.append(openai_record)
+            evidence_seeds.append(openai_evidence)
             proposals["openai"] = openai_proposal
             if openai_failure:
                 failures["openai"] = openai_failure
@@ -408,7 +430,7 @@ class PdfDualVlmRuntime:
                 if provider_name in failures
             ]
 
-        return self._decision(
+        decision = self._decision(
             status=status,
             reason_codes=reasons,
             lineage=lineage,
@@ -418,6 +440,11 @@ class PdfDualVlmRuntime:
             selected_provider=selected_provider,
             openai_invocation_role=openai_invocation_role,
         )
+        evidence = [
+            _bind_private_provider_evidence(decision, item)
+            for item in evidence_seeds
+        ]
+        return decision, evidence
 
     def _invoke_provider(
         self,
@@ -431,7 +458,12 @@ class PdfDualVlmRuntime:
         output_schema: dict[str, Any],
         png_bytes: bytes,
         table_id: str,
-    ) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any] | None,
+        str | None,
+        dict[str, Any],
+    ]:
         started = datetime.now(timezone.utc)
         preflight: dict[str, Any] | None = None
         response: dict[str, Any] | None = None
@@ -552,7 +584,19 @@ class PdfDualVlmRuntime:
             "whole_document_uploaded": False,
         }
         record["execution_hash"] = sha256_json(record)
-        return record, proposal, failure_class
+        evidence_seed = {
+            "execution_hash": record["execution_hash"],
+            "provider": provider_name,
+            "invocation_role": invocation_role,
+            "input_hash": lineage["crop_sha256"],
+            "response_hash": record["response_hash"],
+            "terminal_provider_status": record["terminal_provider_status"],
+            "raw_provider_response": copy.deepcopy(
+                response.get("raw_private_response") if response else None
+            ),
+            "parsed_semantic_response": copy.deepcopy(proposal),
+        }
+        return record, proposal, failure_class, evidence_seed
 
     def _provider_budget_context(self, provider_name: str):
         if self.provider_budget is None:
@@ -1112,6 +1156,18 @@ def sha256_json(value: Any) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _bind_private_provider_evidence(
+    decision: dict[str, Any], seed: dict[str, Any]
+) -> dict[str, Any]:
+    evidence = {
+        "schema_version": PDF_SEMANTIC_VLM_PRIVATE_EVIDENCE_SCHEMA,
+        "decision_id": decision["decision_id"],
+        **copy.deepcopy(seed),
+    }
+    evidence["evidence_hash"] = sha256_json(evidence)
+    return evidence
 
 
 def _is_sha256(value: Any) -> bool:

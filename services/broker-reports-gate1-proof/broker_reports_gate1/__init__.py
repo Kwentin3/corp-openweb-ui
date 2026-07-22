@@ -187,6 +187,15 @@ from .pdf_dual_vlm_runtime import (
     PdfDualVlmRuntimeResult,
     validate_pdf_dual_vlm_decision,
 )
+from .semantic_visual_table_materialization import (
+    SEMANTIC_LOGICAL_TABLE_SCHEMA_VERSION,
+    SEMANTIC_VISUAL_TABLE_ENVELOPE_SCHEMA_VERSION,
+    SemanticVisualTableMaterializationConfig,
+    SemanticVisualTableMaterializationError,
+    SemanticVisualTableMaterializationFactory,
+    SemanticVisualTableMaterializationResult,
+    validate_semantic_visual_table_envelope,
+)
 from .full_source import (
     FullSourceArtifactConfig,
     FullSourceArtifactFactory,
