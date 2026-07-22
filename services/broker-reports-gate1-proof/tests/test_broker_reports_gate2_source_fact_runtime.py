@@ -51,7 +51,10 @@ from broker_reports_gate1 import (
     source_fact_selection_provider_json_schema,
     validate_source_fact_selection,
 )
-from broker_reports_gate1.gate2_source_fact_contracts import FACT_TYPES
+from broker_reports_gate1.gate2_source_fact_contracts import (
+    FACT_TYPES,
+    NO_FACT_REASON_VALUES,
+)
 from broker_reports_gate1.gate2_source_fact_runtime import (
     FACTORY_REQUIRED as RUNTIME_FACTORY_REQUIRED,
     FORBIDDEN as RUNTIME_FORBIDDEN,
@@ -230,15 +233,13 @@ class SemanticSelectionBoundaryModel(RuntimeBoundaryModel):
             if item not in mandatory_refs
         ]
         selection = {
-            "facts": [
+            "decisions": [
                 {
-                    "source_ref": source_ref,
-                    "fact_type": "unknown_source_row",
+                    "decision_type": "unknown_source_row",
                     "value_bindings": [],
                 }
-                for source_ref in decision_refs
+                for _source_ref in decision_refs
             ],
-            "no_fact_results": [],
         }
         if self.mutation in {
             "typed",
@@ -249,16 +250,15 @@ class SemanticSelectionBoundaryModel(RuntimeBoundaryModel):
                 row["row_ref"]: row
                 for row in package["source_unit"]["model_source_projection"]["rows"]
             }
-            typed_facts = []
+            typed_decisions = []
             for source_ref in decision_refs:
                 cells = rows[source_ref]["cells"]
                 values = {cell["header_label"]: cell for cell in cells}
                 operation = values["operation"]["value"]
                 fact_type = "trade_operation" if operation == "sell" else "income"
-                typed_facts.append(
+                typed_decisions.append(
                     {
-                        "source_ref": source_ref,
-                        "fact_type": fact_type,
+                        "decision_type": fact_type,
                         "value_bindings": [
                             {
                                 "field": field,
@@ -268,15 +268,17 @@ class SemanticSelectionBoundaryModel(RuntimeBoundaryModel):
                         ],
                     }
                 )
-            selection["facts"] = typed_facts
+            selection["decisions"] = typed_decisions
             if self.mutation == "cross_row_value_ref":
-                selection["facts"][0]["value_bindings"][0]["source_value_ref"] = (
-                    selection["facts"][1]["value_bindings"][0]["source_value_ref"]
+                selection["decisions"][0]["value_bindings"][0]["source_value_ref"] = (
+                    selection["decisions"][1]["value_bindings"][0]["source_value_ref"]
                 )
             elif self.mutation == "wrong_field_value_ref":
-                selection["facts"][0]["value_bindings"][1]["field"] = "quantity"
-        elif self.mutation == "coverage_gap" and selection["facts"]:
-            selection["facts"].pop()
+                selection["decisions"][0]["value_bindings"][1]["field"] = "quantity"
+        elif self.mutation == "coverage_gap" and selection["decisions"]:
+            selection["decisions"].pop()
+        elif self.mutation == "positional_no_fact" and selection["decisions"]:
+            selection["decisions"][0]["decision_type"] = "non_fact_annotation"
         elif self.mutation == "system_metadata":
             selection["schema_version"] = "forbidden_model_metadata"
         self.calls.append(
@@ -616,11 +618,15 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertTrue(model.calls)
         for call, package_ref in zip(model.calls, result.package_refs, strict=True):
             schema = call["response_format"]["json_schema"]["schema"]
-            self.assertEqual(set(schema["properties"]), {"facts", "no_fact_results"})
+            self.assertEqual(set(schema["properties"]), {"decisions"})
             self.assertNotIn("schema_version", schema["properties"])
             self.assertEqual(
-                set(schema["properties"]["facts"]["items"]["properties"]),
-                {"source_ref", "fact_type", "value_bindings"},
+                set(schema["properties"]["decisions"]["items"]["properties"]),
+                {"decision_type", "value_bindings"},
+            )
+            self.assertEqual(
+                schema["properties"]["decisions"]["minItems"],
+                schema["properties"]["decisions"]["maxItems"],
             )
             self.assertEqual(
                 call["provider_schema_hash"],
@@ -630,13 +636,13 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             )
             self.assertEqual(
                 set(call["selection"]),
-                {"facts", "no_fact_results"},
+                {"decisions"},
             )
         for ref in result.selection_validation_refs:
             record = self.store.get_record_unchecked(ref)
             self.assertEqual(
                 record.artifact_type,
-                "broker_reports_source_fact_selection_validation_v2",
+                "broker_reports_source_fact_selection_validation_v3",
             )
             self.assertEqual(record.safe_metadata["validator_status"], "passed")
             self.assertEqual(
@@ -660,6 +666,43 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 )
             )
 
+    def test_semantic_selection_maps_positional_no_fact_to_source_ownership(self):
+        model = SemanticSelectionBoundaryModel(mutation="positional_no_fact")
+
+        result = self._run(model, semantic_selection_enabled=True)
+
+        self.assertEqual(result.terminal_status, "completed")
+        self.assertNotIn("source_ref", model.calls[0]["selection"]["decisions"][0])
+        package = self.store.read_payload(
+            self.store.get_record_unchecked(result.package_refs[0])
+        )
+        mandatory_refs = {
+            item["source_ref"]
+            for item in package["coverage_expectation"]["mandatory_no_fact_results"]
+        }
+        decision_refs = [
+            source_ref
+            for source_ref in package["coverage_expectation"]["selected_source_refs"]
+            if source_ref not in mandatory_refs
+        ]
+        payload = self.store.read_payload(
+            self.store.get_record_unchecked(result.source_facts_refs[0])
+        )
+        positional = [
+            item
+            for item in payload["coverage"]["no_fact_results"]
+            if item["source_ref"] == decision_refs[0]
+        ]
+        self.assertEqual(
+            positional,
+            [
+                {
+                    "source_ref": decision_refs[0],
+                    "reason_code": "non_fact_annotation",
+                }
+            ],
+        )
+
     def test_semantic_selection_reproduces_bound_values_and_rejects_cross_row_refs(
         self,
     ):
@@ -672,7 +715,7 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertEqual(result.terminal_status, "completed")
         binding_variants = model.calls[0]["response_format"]["json_schema"]["schema"][
             "properties"
-        ]["facts"]["items"]["properties"]["value_bindings"]["items"]["anyOf"]
+        ]["decisions"]["items"]["properties"]["value_bindings"]["items"]["anyOf"]
         refs_by_field = {
             item["properties"]["field"]["const"]: item["properties"][
                 "source_value_ref"
@@ -729,7 +772,9 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
             validation["error_code_counts"],
         )
 
-    def test_semantic_selection_rejects_missing_coverage_without_canonical_output(self):
+    def test_semantic_selection_rejects_wrong_decision_count_without_canonical_output(
+        self,
+    ):
         result = self._run(
             SemanticSelectionBoundaryModel(mutation="coverage_gap"),
             semantic_selection_enabled=True,
@@ -744,6 +789,21 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
                 == "failed"
                 for ref in result.selection_validation_refs
             )
+        )
+        validation = self.store.read_payload(
+            self.store.get_record_unchecked(result.selection_validation_refs[0])
+        )
+        self.assertIn(
+            "source_fact_selection_decision_count_mismatch",
+            validation["error_code_counts"],
+        )
+        self.assertNotIn(
+            "source_fact_selection_coverage_gap",
+            validation["error_code_counts"],
+        )
+        self.assertNotIn(
+            "source_fact_selection_duplicate_source_ownership",
+            validation["error_code_counts"],
         )
 
     def test_semantic_selection_schema_forbids_model_system_metadata(self):
@@ -780,13 +840,15 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         }
 
         schema = source_fact_selection_provider_json_schema(package)
-        fact_schema = schema["properties"]["facts"]["items"]
+        decision_schema = schema["properties"]["decisions"]["items"]
 
-        self.assertNotIn("anyOf", fact_schema)
+        self.assertNotIn("anyOf", decision_schema)
         self.assertEqual(
-            fact_schema["properties"]["fact_type"]["enum"],
-            ["unknown_source_row"],
+            decision_schema["properties"]["decision_type"]["enum"],
+            sorted(NO_FACT_REASON_VALUES | {"unknown_source_row"}),
         )
+        self.assertEqual(schema["properties"]["decisions"]["minItems"], 196)
+        self.assertEqual(schema["properties"]["decisions"]["maxItems"], 196)
         self.assertLessEqual(_enum_value_count(schema), 1000)
 
     def test_gate2_execution_appends_artifacts_without_mutating_gate1_source_memory(

@@ -18,9 +18,9 @@ from .gate2_source_fact_contracts import (
 FACTORY_REQUIRED = "Gate2SourceFactSelectionFactory.create is the only production semantic-selection validation/materialization entrypoint"
 FORBIDDEN = "The semantic-selection materializer must not invent model-selected fact types, source ownership, values or refs"
 
-SOURCE_FACT_SELECTION_SCHEMA_VERSION = "broker_reports_source_fact_selection_v2"
+SOURCE_FACT_SELECTION_SCHEMA_VERSION = "broker_reports_source_fact_selection_v3"
 SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION = (
-    "broker_reports_source_fact_selection_validation_v2"
+    "broker_reports_source_fact_selection_validation_v3"
 )
 
 _NORMALIZATION_KIND_BY_FIELD = {
@@ -133,12 +133,11 @@ def source_fact_selection_provider_json_schema(
             }
         )
     )
-    fact = _strict_object(
+    decision = _strict_object(
         {
-            "source_ref": _enum_or_uninhabited(decision_refs),
-            "fact_type": {
+            "decision_type": {
                 "type": "string",
-                "enum": sorted(allowed_fact_types),
+                "enum": sorted(allowed_fact_types | NO_FACT_REASON_VALUES),
             },
             "value_bindings": {
                 "type": "array",
@@ -147,27 +146,14 @@ def source_fact_selection_provider_json_schema(
             },
         }
     )
-    no_fact = _strict_object(
-        {
-            "source_ref": _enum_or_uninhabited(decision_refs),
-            "reason_code": {
-                "type": "string",
-                "enum": sorted(NO_FACT_REASON_VALUES),
-            },
-        }
-    )
     return _strict_object(
         {
-            "facts": {
+            "decisions": {
                 "type": "array",
-                "items": fact,
+                "items": decision,
+                "minItems": len(decision_refs),
                 "maxItems": len(decision_refs),
-            },
-            "no_fact_results": {
-                "type": "array",
-                "items": no_fact,
-                "maxItems": len(decision_refs),
-            },
+            }
         }
     )
 
@@ -201,69 +187,40 @@ def validate_source_fact_selection(
 ) -> dict[str, Any]:
     errors: list[dict[str, str]] = []
     model_system_metadata_fields_total = _unexpected_field_count(selection)
-    _require_exact_keys(selection, {"facts", "no_fact_results"}, "$", errors)
-    facts_value = selection.get("facts")
-    no_fact_value = selection.get("no_fact_results")
-    if not isinstance(facts_value, list):
-        errors.append(_error("source_fact_selection_schema_mismatch", "$.facts"))
-    if not isinstance(no_fact_value, list):
-        errors.append(
-            _error("source_fact_selection_schema_mismatch", "$.no_fact_results")
-        )
-    facts = _dict_list(facts_value)
-    no_fact_results = _dict_list(no_fact_value)
-    if isinstance(facts_value, list) and len(facts) != len(facts_value):
-        errors.append(_error("source_fact_selection_schema_mismatch", "$.facts"))
-    if isinstance(no_fact_value, list) and len(no_fact_results) != len(no_fact_value):
-        errors.append(
-            _error("source_fact_selection_schema_mismatch", "$.no_fact_results")
-        )
-
+    _require_exact_keys(selection, {"decisions"}, "$", errors)
     decision_refs = _decision_source_refs(package)
-    decision_ref_set = set(decision_refs)
+    decisions_value = selection.get("decisions")
+    decisions = decisions_value if isinstance(decisions_value, list) else []
+    if not isinstance(decisions_value, list):
+        errors.append(_error("source_fact_selection_schema_mismatch", "$.decisions"))
+    elif len(decisions) != len(decision_refs):
+        errors.append(
+            _error("source_fact_selection_decision_count_mismatch", "$.decisions")
+        )
     reproducible_refs = _reproducible_value_refs_by_field(package)
     allowed_fact_types = _provider_allowed_fact_types(
         package=package,
         reproducible_fields=set(reproducible_refs),
     )
-    accounted: list[str] = []
     materialized_values: dict[int, dict[str, tuple[str, str]]] = {}
+    facts_total = 0
+    no_fact_results_total = 0
 
-    for index, fact in enumerate(facts):
-        path = f"$.facts[{index}]"
+    for index, decision in enumerate(decisions):
+        path = f"$.decisions[{index}]"
+        if not isinstance(decision, dict):
+            errors.append(_error("source_fact_selection_schema_mismatch", path))
+            continue
         _require_exact_keys(
-            fact,
+            decision,
             {
-                "source_ref",
-                "fact_type",
+                "decision_type",
                 "value_bindings",
             },
             path,
             errors,
         )
-        source_ref = str(fact.get("source_ref") or "")
-        accounted.append(source_ref)
-        if source_ref not in decision_ref_set:
-            errors.append(
-                _error("source_fact_selection_cross_package_scope", source_ref)
-            )
-        fact_type = str(fact.get("fact_type") or "")
-        if fact_type not in allowed_fact_types:
-            errors.append(
-                _error("source_fact_selection_fact_type_forbidden", f"{path}.fact_type")
-            )
-        hinted_fact_type = _fact_type_hint_for_source(
-            package=package,
-            source_ref=source_ref,
-        )
-        if hinted_fact_type and fact_type != hinted_fact_type:
-            errors.append(_error("source_fact_selection_fact_type_hint_mismatch", path))
-        if fact_type == "unknown_source_row" and fact.get("value_bindings"):
-            errors.append(
-                _error("source_fact_selection_unknown_binding_forbidden", path)
-            )
-
-        bindings_value = fact.get("value_bindings")
+        bindings_value = decision.get("value_bindings")
         bindings = _dict_list(bindings_value)
         if not isinstance(bindings_value, list) or len(bindings) != len(
             bindings_value if isinstance(bindings_value, list) else []
@@ -274,6 +231,36 @@ def validate_source_fact_selection(
                 )
             )
             continue
+        decision_type = str(decision.get("decision_type") or "")
+        if decision_type in NO_FACT_REASON_VALUES:
+            no_fact_results_total += 1
+            if bindings:
+                errors.append(
+                    _error("source_fact_selection_no_fact_binding_forbidden", path)
+                )
+            continue
+        facts_total += 1
+        fact_type = decision_type
+        if fact_type not in allowed_fact_types:
+            errors.append(
+                _error(
+                    "source_fact_selection_fact_type_forbidden",
+                    f"{path}.decision_type",
+                )
+            )
+        if index >= len(decision_refs):
+            continue
+        source_ref = decision_refs[index]
+        hinted_fact_type = _fact_type_hint_for_source(
+            package=package,
+            source_ref=source_ref,
+        )
+        if hinted_fact_type and fact_type != hinted_fact_type:
+            errors.append(_error("source_fact_selection_fact_type_hint_mismatch", path))
+        if fact_type == "unknown_source_row" and bindings:
+            errors.append(
+                _error("source_fact_selection_unknown_binding_forbidden", path)
+            )
         seen_fields: set[str] = set()
         resolved: dict[str, tuple[str, str]] = {}
         for binding_index, binding in enumerate(bindings):
@@ -340,26 +327,6 @@ def validate_source_fact_selection(
             errors=errors,
         )
 
-    for index, item in enumerate(no_fact_results):
-        path = f"$.no_fact_results[{index}]"
-        _require_exact_keys(item, {"source_ref", "reason_code"}, path, errors)
-        source_ref = str(item.get("source_ref") or "")
-        accounted.append(source_ref)
-        if source_ref not in decision_ref_set:
-            errors.append(
-                _error("source_fact_selection_cross_package_scope", source_ref)
-            )
-        if item.get("reason_code") not in NO_FACT_REASON_VALUES:
-            errors.append(
-                _error("source_fact_selection_no_fact_reason_forbidden", path)
-            )
-
-    if len(accounted) != len(set(accounted)):
-        errors.append(
-            _error("source_fact_selection_duplicate_source_ownership", "$.coverage")
-        )
-    if set(accounted) != decision_ref_set:
-        errors.append(_error("source_fact_selection_coverage_gap", "$.coverage"))
     validation = {
         "schema_version": SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION,
         "validator_status": "passed" if not errors else "failed",
@@ -369,9 +336,9 @@ def validate_source_fact_selection(
             sorted(Counter(item["code"] for item in errors).items())
         ),
         "decision_source_refs_total": len(decision_refs),
-        "accounted_source_refs_total": len(set(accounted) & decision_ref_set),
-        "facts_total": len(facts),
-        "no_fact_results_total": len(no_fact_results),
+        "accounted_source_refs_total": min(len(decisions), len(decision_refs)),
+        "facts_total": facts_total,
+        "no_fact_results_total": no_fact_results_total,
         "value_bindings_total": sum(len(item) for item in materialized_values.values()),
         "model_system_metadata_fields_total": model_system_metadata_fields_total,
     }
@@ -384,8 +351,20 @@ def materialize_source_fact_selection(
     package: dict[str, Any],
 ) -> dict[str, Any]:
     facts = []
-    for fact in _dict_list(selection.get("facts")):
-        fact_type = str(fact["fact_type"])
+    model_no_fact_results = []
+    decision_refs = _decision_source_refs(package)
+    decisions = _dict_list(selection.get("decisions"))
+    for source_ref, decision in zip(decision_refs, decisions, strict=True):
+        decision_type = str(decision["decision_type"])
+        if decision_type in NO_FACT_REASON_VALUES:
+            model_no_fact_results.append(
+                {
+                    "source_ref": source_ref,
+                    "reason_code": decision_type,
+                }
+            )
+            continue
+        fact_type = decision_type
         subtype = "unknown"
         uncertainty_codes = (
             ["source_fact_selection_unknown"]
@@ -394,8 +373,7 @@ def materialize_source_fact_selection(
         )
         normalized = {field: None for field in NORMALIZED_VALUE_FIELDS}
         original = {field: [] for field in NORMALIZED_VALUE_FIELDS}
-        source_ref = str(fact["source_ref"])
-        for binding in _dict_list(fact.get("value_bindings")):
+        for binding in _dict_list(decision.get("value_bindings")):
             field = str(binding["field"])
             source_value_ref = str(binding["source_value_ref"])
             normalized[field] = reproduce_normalized_value(
@@ -461,7 +439,7 @@ def materialize_source_fact_selection(
         "coverage": {
             "no_fact_results": [
                 *mandatory,
-                *copy.deepcopy(_dict_list(selection.get("no_fact_results"))),
+                *model_no_fact_results,
             ]
         },
     }
@@ -715,18 +693,12 @@ def _enum_or_uninhabited(values: list[str]) -> dict[str, Any]:
 
 
 def _unexpected_field_count(selection: dict[str, Any]) -> int:
-    total = len(set(selection) - {"facts", "no_fact_results"})
-    fact_fields = {
-        "source_ref",
-        "fact_type",
-        "value_bindings",
-    }
-    for fact in _dict_list(selection.get("facts")):
-        total += len(set(fact) - fact_fields)
-        for binding in _dict_list(fact.get("value_bindings")):
+    total = len(set(selection) - {"decisions"})
+    decision_fields = {"decision_type", "value_bindings"}
+    for decision in _dict_list(selection.get("decisions")):
+        total += len(set(decision) - decision_fields)
+        for binding in _dict_list(decision.get("value_bindings")):
             total += len(set(binding) - {"field", "source_value_ref"})
-    for item in _dict_list(selection.get("no_fact_results")):
-        total += len(set(item) - {"source_ref", "reason_code"})
     return total
 
 

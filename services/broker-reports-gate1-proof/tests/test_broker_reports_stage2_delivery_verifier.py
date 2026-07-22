@@ -45,7 +45,7 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         ]
         self.assertEqual(
             source_prompt["meta"]["provider_output_schema_version"],
-            "broker_reports_source_fact_selection_v2",
+            "broker_reports_source_fact_selection_v3",
         )
         self.assertEqual(
             self.module.content_sha256(source_prompt["content"]),
