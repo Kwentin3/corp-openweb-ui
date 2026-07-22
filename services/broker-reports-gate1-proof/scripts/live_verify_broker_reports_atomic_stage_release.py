@@ -379,6 +379,9 @@ def main() -> int:
         }
         for item in function_checks
     ]
+    semantic_boundary = manifest["provider_policy"][
+        "semantic_visual_table_contract"
+    ]["runtime_boundary"]
     release_checks = {
         "all_function_bundles_exact": all(
             item["passed"] for item in function_checks
@@ -387,14 +390,44 @@ def main() -> int:
         "all_managed_prompts_exact": all(item["passed"] for item in prompt_checks),
         "all_runtime_identities_exact": all(runtime_checks.values()),
         "repository_factory_boundary_passed": all(factory_checks.values()),
+        "no_paddle_or_local_ocr_dependency": factory_checks[
+            "production_python_has_no_paddle_or_local_ocr_import"
+        ]
+        and semantic_boundary["local_ocr_production_allowed"] is False
+        and semantic_boundary["local_ocr_worker_pool_allowed"] is False,
+        "knowledge_rag_vectorization_forbidden": semantic_boundary[
+            "knowledge_rag_vectorization_allowed"
+        ]
+        is False
+        and semantic_boundary[
+            "native_openwebui_document_processing_allowed"
+        ]
+        is False,
         "single_workload_authority_configuration": all(
             item == workload_valves[0] for item in workload_valves[1:]
         ),
-        "vlm_default_off": function_checks[0]["valves"].get(
+        "qualified_semantic_vlm_default_on": function_checks[0]["valves"].get(
             "pdf_table_intake_enabled"
         )
-        is False
-        and function_checks[0]["valves"].get("pdf_dual_vlm_enabled") is False,
+        is True
+        and function_checks[0]["valves"].get("pdf_dual_vlm_enabled") is True
+        and function_checks[0]["valves"].get(
+            "pdf_semantic_visual_table_downstream_enabled"
+        )
+        is True
+        and function_checks[2]["valves"].get(
+            "allow_standalone_semantic_visual_projections"
+        )
+        is True,
+        "semantic_contract_identity_exact": (
+            manifest["provider_policy"].get("semantic_visual_table_contract")
+            is not None
+            and manifest["runtime"].get("vlm_default_enabled") is True
+            and manifest["runtime"].get(
+                "semantic_visual_profile_default_enabled"
+            )
+            is True
+        ),
         "vlm_bounded_input_configured": (
             function_checks[0]["valves"].get("pdf_table_intake_maximum_pages")
             == 64
@@ -411,7 +444,7 @@ def main() -> int:
             )
             == 24_000
         ),
-        "visual_auto_publication_disabled": manifest["runtime"][
+        "legacy_visual_auto_publication_disabled": manifest["runtime"][
             "visual_auto_publication_enabled"
         ]
         is False,

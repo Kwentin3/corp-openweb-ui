@@ -172,16 +172,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
 
     def test_visual_components_are_explicitly_classified(self):
         expected = {
-            "visual_table_vlm": "maintained_default_off",
-            "visual_neutral_tables": "maintained_default_off",
+            "visual_table_vlm": "maintained_qualified_default_on",
+            "visual_neutral_tables": "maintained_qualified_default_on",
             "visual_review_boundary": "maintained_default_off",
-            "visual_recovery_handoff": "maintained_default_off",
+            "visual_recovery_handoff": "maintained_qualified_default_on",
             "pdf_csv_experiment_provider": "proof_only",
             "pdf_grid_experiment_provider": "proof_only",
             "pdf_hybrid_provider": "proof_only",
-            "pdf_dual_vlm_fact_providers": "maintained_default_off",
+            "pdf_dual_vlm_fact_providers": "maintained_qualified_default_on",
             "pdf_dual_vlm_canonical_table": "maintained_default_off",
-            "pdf_dual_vlm_runtime": "maintained_default_off",
+            "pdf_dual_vlm_runtime": "maintained_qualified_default_on",
             "prove_visual_neutral_tables_actual_corpus": "offline_only",
         }
         self.assertEqual(

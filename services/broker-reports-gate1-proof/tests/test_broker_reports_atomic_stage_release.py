@@ -57,9 +57,34 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
         )
-        self.assertFalse(manifest["runtime"]["vlm_default_enabled"])
+        self.assertTrue(manifest["runtime"]["vlm_default_enabled"])
+        self.assertTrue(
+            manifest["runtime"]["semantic_visual_profile_default_enabled"]
+        )
         self.assertFalse(
             manifest["runtime"]["visual_auto_publication_enabled"]
+        )
+        semantic = manifest["provider_policy"]["semantic_visual_table_contract"]
+        self.assertEqual(
+            "broker_reports_semantic_table_transcription_prompt_v1",
+            semantic["prompt_version"],
+        )
+        self.assertEqual(
+            "broker_reports_semantic_visual_numeric_profile_v1",
+            semantic["accepted_profile_id"],
+        )
+        self.assertEqual(64, len(semantic["prompt_sha256"]))
+        self.assertEqual(64, len(semantic["canonical_schema_sha256"]))
+        self.assertEqual(
+            {
+                "architecture_policy_version": "broker_reports_architecture_policy_v2",
+                "knowledge_rag_vectorization_allowed": False,
+                "local_ocr_production_allowed": False,
+                "local_ocr_worker_pool_allowed": False,
+                "native_openwebui_document_processing_allowed": False,
+                "whole_document_provider_upload_allowed": False,
+            },
+            semantic["runtime_boundary"],
         )
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
@@ -70,28 +95,43 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
     def test_manifest_digest_tampering_fails_closed(self):
         manifest = _manifest()
-        manifest["runtime"]["vlm_default_enabled"] = True
+        manifest["runtime"]["vlm_default_enabled"] = False
 
         with self.assertRaisesRegex(ValueError, "manifest_digest_mismatch"):
             validate_manifest(manifest)
 
-    def test_release_valves_force_default_off_and_preserve_unrelated_settings(self):
+    def test_release_valves_enable_only_qualified_semantic_route(self):
         function_id = FUNCTION_CONTRACTS[0].function_id
         valves = merged_valves(
             function_id,
             {
                 "unrelated_operator_setting": "preserved",
-                "pdf_table_intake_enabled": True,
-                "pdf_dual_vlm_enabled": True,
+                "pdf_table_intake_enabled": False,
+                "pdf_dual_vlm_enabled": False,
             },
         )
 
         self.assertEqual("preserved", valves["unrelated_operator_setting"])
-        self.assertFalse(valves["pdf_table_intake_enabled"])
-        self.assertFalse(valves["pdf_dual_vlm_enabled"])
+        self.assertTrue(valves["pdf_table_intake_enabled"])
+        self.assertTrue(valves["pdf_dual_vlm_enabled"])
+        self.assertTrue(valves["pdf_semantic_visual_table_downstream_enabled"])
+        self.assertEqual(
+            "broker_reports_semantic_visual_table_migration_policy_v1",
+            valves["pdf_semantic_visual_table_migration_policy_version"],
+        )
+        self.assertFalse(valves["pdf_hybrid_shadow_enabled"])
+        self.assertFalse(valves["pdf_structural_repair_shadow_enabled"])
         self.assertTrue(valves_match(function_id, valves))
         self.assertEqual(64, valves["pdf_table_intake_maximum_pages"])
         self.assertEqual(8, valves["pdf_dual_vlm_maximum_candidates"])
+
+        domain_valves = merged_valves(
+            FUNCTION_CONTRACTS[-1].function_id,
+            {"allow_standalone_semantic_visual_projections": False},
+        )
+        self.assertTrue(
+            domain_valves["allow_standalone_semantic_visual_projections"]
+        )
 
     def test_quiescence_counts_every_nonterminal_state(self):
         self.assertEqual(

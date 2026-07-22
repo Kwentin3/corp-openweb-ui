@@ -141,6 +141,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_dual_vlm_fact_providers",
     "pdf_dual_vlm_runtime",
     "semantic_visual_table_materialization",
+    "semantic_visual_table_migration",
     "pdf_visual_table_review",
     "pdf_continuation_discovery",
     "pdf_structural_repair_runtime",
@@ -156,6 +157,9 @@ GATE1_MODULE_ORDER = [
     *MODULE_ORDER[:_GATE1_HYBRID_INSERT_AT],
     *GATE1_HYBRID_MODULES,
     *MODULE_ORDER[_GATE1_HYBRID_INSERT_AT:],
+]
+GATE2_MODULE_ORDER = [
+    name for name in MODULE_ORDER if name != "gate2_handoff"
 ]
 
 
@@ -177,8 +181,8 @@ def main() -> None:
             modules={name: modules[name] for name in GATE1_MODULE_ORDER},
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.21.0-workload-authority-v1-bundled",
-            package_version="gate1_workload_authority_v1",
+            version="0.22.0-semantic-visual-v1-bundled",
+            package_version="gate1_semantic_visual_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
@@ -188,7 +192,7 @@ def main() -> None:
         gate2_pipe_source = _strip_openwebui_metadata(
             GATE2_PIPE_SOURCE.read_text(encoding="utf-8")
         )
-        gate2_modules = {name: modules[name] for name in MODULE_ORDER}
+        gate2_modules = {name: modules[name] for name in GATE2_MODULE_ORDER}
         gate2_modules["__init__"] = _project_package_init(
             gate2_modules["__init__"], included_modules=set(gate2_modules)
         )
@@ -196,8 +200,8 @@ def main() -> None:
             modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
-            version="0.8.0-workload-authority-v1-bundled",
-            package_version="gate2_workload_authority_v1",
+            version="0.9.0-semantic-visual-v1-bundled",
+            package_version="gate2_semantic_visual_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
         )
@@ -207,7 +211,9 @@ def main() -> None:
         gate2_domain_pipe_source = _strip_openwebui_metadata(
             GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
         )
-        gate2_domain_modules = {name: modules[name] for name in MODULE_ORDER}
+        gate2_domain_modules = {
+            name: modules[name] for name in GATE2_MODULE_ORDER
+        }
         gate2_domain_modules["__init__"] = _project_package_init(
             gate2_domain_modules["__init__"],
             included_modules=set(gate2_domain_modules),
@@ -216,8 +222,8 @@ def main() -> None:
             modules=gate2_domain_modules,
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
-            version="0.10.0-workload-authority-v1-bundled",
-            package_version="gate2_domain_workload_authority_v1",
+            version="0.11.0-semantic-visual-v1-bundled",
+            package_version="gate2_domain_semantic_visual_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
         )

@@ -78,6 +78,9 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         checks = self.module.repository_factory_boundary_checks()
 
         self.assertTrue(all(checks.values()), checks)
+        self.assertTrue(
+            checks["production_python_has_no_paddle_or_local_ocr_import"]
+        )
 
     def test_function_active_state_is_strict(self):
         contract = self.module.FUNCTION_CONTRACTS[0]
@@ -103,8 +106,15 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
 
     def test_gate1_operational_state_requires_supported_table_intake_config(self):
         table_intake_valves = {
-            "pdf_table_intake_enabled": False,
-            "pdf_dual_vlm_enabled": False,
+            "pdf_table_intake_enabled": True,
+            "pdf_dual_vlm_enabled": True,
+            "pdf_semantic_visual_table_downstream_enabled": True,
+            "pdf_semantic_visual_table_migration_policy_version": (
+                "broker_reports_semantic_visual_table_migration_policy_v1"
+            ),
+            "pdf_semantic_visual_table_accepted_profile_id": (
+                "broker_reports_semantic_visual_numeric_profile_v1"
+            ),
             "pdf_table_intake_provider_profile": "google_gemini",
             "pdf_table_intake_model_id": "models/gemini-3.5-flash",
             "pdf_table_intake_dpi": 150,
@@ -145,8 +155,10 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         self.assertTrue(passed["guided_page_allowlist_empty"])
         self.assertTrue(passed["semantic_header_shadow_disabled"])
         self.assertTrue(passed["fitz_version_match"])
-        self.assertTrue(passed["table_intake_disabled"])
-        self.assertTrue(passed["dual_vlm_disabled"])
+        self.assertTrue(passed["table_intake_enabled"])
+        self.assertTrue(passed["dual_vlm_enabled"])
+        self.assertTrue(passed["semantic_downstream_enabled"])
+        self.assertTrue(passed["semantic_migration_identity_exact"])
         self.assertTrue(passed["table_intake_provider_configured"])
         self.assertTrue(passed["table_intake_model_configured"])
         self.assertTrue(passed["table_intake_dpi_configured"])

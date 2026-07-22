@@ -65,21 +65,21 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    # Maintained repository integration. Atomic stage delivery remains a
-    # separate release goal, and the route is default-off until then.
-    "visual_table_vlm": "maintained_default_off",
-    "visual_neutral_tables": "maintained_default_off",
+    # Goal 5-qualified semantic numeric-table route. Fresh code objects remain
+    # safe-off; the atomic release manifest owns the persisted default-on valve.
+    "visual_table_vlm": "maintained_qualified_default_on",
+    "visual_neutral_tables": "maintained_qualified_default_on",
     "visual_review_boundary": "maintained_default_off",
-    "visual_recovery_handoff": "maintained_default_off",
+    "visual_recovery_handoff": "maintained_qualified_default_on",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
     # Preserved experiments and historical proof contours.
     "pdf_csv_experiment_provider": "proof_only",
     "pdf_grid_experiment_provider": "proof_only",
     "pdf_hybrid_provider": "proof_only",
-    "pdf_dual_vlm_fact_providers": "maintained_default_off",
+    "pdf_dual_vlm_fact_providers": "maintained_qualified_default_on",
     "pdf_dual_vlm_canonical_table": "maintained_default_off",
-    "pdf_dual_vlm_runtime": "maintained_default_off",
+    "pdf_dual_vlm_runtime": "maintained_qualified_default_on",
     "prove_visual_neutral_tables_actual_corpus": "offline_only",
 }
 

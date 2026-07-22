@@ -51,11 +51,17 @@ dependency contract still passes.
 
 ## Release decisions
 
-- Visual VLM is default-off unless a release decision explicitly enables the
-  accepted review-assisted contour.
-- Provider output and provider consensus have zero canonical authority.
-- Automatic visual-table publication remains disabled. A source-bound review
-  receipt and valid seal are mandatory for canonical promotion.
+- Goal 5 qualification passed for the bounded semantic numeric-table profile.
+  Goal 7 therefore enables the Gemini-master raster intake, semantic
+  transcription migration and standalone semantic Gate 2 projection through
+  one versioned release-valve set.
+- Model-facing output remains only `description + rows`; code owns provenance,
+  identities, logical grid materialization and the Gate 2 package boundary.
+- The legacy geometric/review-assisted visual path is not selected by the new
+  default. Its immutable artifacts, source-bound receipts and seals remain
+  readable and available for rollback or explicit legacy review.
+- Provider consensus has no publication authority, OpenAI stays disabled in the
+  default route, and out-of-profile semantic tables remain fail-closed.
 - Sber remains default-off and customer-holdout-gated.
 - Unfinished or externally blocked work is not included to manufacture a global
   success status.
@@ -82,7 +88,8 @@ The final dated receipt records:
 1. the release candidate revision, final `main` merge revision and pull request;
 2. clean-tree and one-worktree status;
 3. exact image, Function, Action, loader and prompt hashes;
-4. provider-policy version, model IDs and release valve states;
+4. provider-policy version, model IDs, exact semantic prompt/schema and Goal 5
+   qualification hashes, and release valve states;
 5. atomic transaction and exercised rollback identities;
 6. private-intake and bounded safe stage smoke results;
 7. Knowledge, RAG, vector and repository-sink before/after deltas;

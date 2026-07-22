@@ -179,8 +179,10 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         ):
             self.assertIn(module_name, source)
         self.assertIn("prefer_table_projections", source)
+        self.assertIn("allow_standalone_semantic_visual_projections", source)
         self.assertNotIn("sys.path.insert", source)
         module = load_domain_bundle_module()
+        self.assertNotIn("gate2_handoff", module._BUNDLED_MODULES)
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(
             hasattr(bundled_package, "Gate2DomainSourceFactRuntimeFactory")
@@ -194,6 +196,9 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertEqual(pipe.valves.default_source_unit_limit, 1)
         self.assertTrue(pipe.valves.segmentation_enabled)
         self.assertFalse(pipe.valves.prefer_table_projections)
+        self.assertFalse(
+            pipe.valves.allow_standalone_semantic_visual_projections
+        )
         self.assertFalse(pipe.valves.candidate_binding_enabled)
         self.assertTrue(
             hasattr(bundled_package, "Gate2CandidateBindingKernelFactory")
