@@ -135,6 +135,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_grid_experiment_provider",
     "pdf_table_intake_runtime",
     "pdf_dual_vlm_canonical_table_contracts",
+    "pdf_dual_vlm_legacy_decision_contracts",
     "pdf_dual_vlm_fact_providers",
     "pdf_dual_vlm_runtime",
     "pdf_visual_table_review",

@@ -3,23 +3,13 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import json
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .contracts import stable_digest
-from .pdf_dual_vlm_canonical_table_contracts import (
-    CANONICAL_TABLE_SCHEMA_VERSION,
-    NORMALIZER_PROMPT,
-    PROMPT_CONTRACT_VERSION,
-    canonical_table_schema,
-    canonicalize_table,
-    compare_tables,
-    normalizer_model_view,
-    sha256_json,
-    validate_table_output,
-)
 from .pdf_dual_vlm_fact_providers import (
     DEFAULT_GEMINI_MODEL_ID,
     DEFAULT_OPENAI_MODEL_ID,
@@ -27,18 +17,31 @@ from .pdf_dual_vlm_fact_providers import (
     PdfDualVlmFactProviderFactory,
 )
 from .pdf_table_raster import PDF_TABLE_CANDIDATE_SCHEMA
+from .semantic_visual_table_contracts import (
+    SEMANTIC_TABLE_TRANSCRIPTION_PROMPT,
+    SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
+    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+    parse_semantic_table_transcription,
+    semantic_table_transcription_boundary_errors,
+    semantic_table_transcription_model_view,
+    semantic_table_transcription_schema,
+)
 
 
-PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION = "pdf_dual_vlm_provider_selection_v1"
-PDF_DUAL_VLM_RUNTIME_POLICY_VERSION = "pdf_dual_vlm_runtime_policy_v1"
-PDF_DUAL_VLM_DECISION_SCHEMA = "broker_reports_pdf_dual_vlm_decision_v1"
-PDF_DUAL_VLM_EXECUTION_SCHEMA = "broker_reports_pdf_dual_vlm_execution_v1"
-PDF_DUAL_VLM_RUN_SCHEMA = "broker_reports_pdf_dual_vlm_run_v1"
-PDF_DUAL_VLM_VALIDATOR_VERSION = "pdf_dual_vlm_deterministic_validator_v1"
-PDF_DUAL_VLM_PROMPT_ID = "pdf_dual_vlm_canonical_table_normalizer"
+PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION = (
+    "pdf_semantic_vlm_provider_selection_v1"
+)
+PDF_DUAL_VLM_OPENAI_POLICY_VERSION = "pdf_semantic_vlm_openai_policy_v1"
+PDF_DUAL_VLM_RUNTIME_POLICY_VERSION = "pdf_semantic_vlm_runtime_policy_v1"
+PDF_DUAL_VLM_DECISION_SCHEMA = "broker_reports_pdf_semantic_vlm_decision_v1"
+PDF_DUAL_VLM_EXECUTION_SCHEMA = "broker_reports_pdf_semantic_vlm_execution_v1"
+PDF_DUAL_VLM_RUN_SCHEMA = "broker_reports_pdf_semantic_vlm_run_v1"
+PDF_DUAL_VLM_VALIDATOR_VERSION = "pdf_semantic_vlm_boundary_validator_v1"
+PDF_DUAL_VLM_PROMPT_ID = "pdf_semantic_visual_table_transcription"
 
 DECISION_STATUSES = frozenset(
     {
+        "semantic_transcription_valid",
         "proposal_validated_and_accepted",
         "proposal_requires_review",
         "proposal_rejected",
@@ -49,6 +52,14 @@ DECISION_STATUSES = frozenset(
     }
 )
 PROVIDER_ORDER = ("gemini", "openai")
+DEFAULT_PROVIDER_ORDER = ("gemini",)
+OPENAI_INVOCATION_POLICIES = frozenset(
+    {
+        "disabled",
+        "fallback_on_gemini_terminal_failure",
+        "diagnostic_control",
+    }
+)
 REFUSAL_OR_INCOMPLETE_FAILURES = frozenset(
     {
         "provider_refusal",
@@ -63,18 +74,19 @@ MALFORMED_FAILURES = frozenset(
     {
         "parse_failure",
         "provider_invalid_json",
+        "semantic_schema_violation",
         "resolved_model_mismatch",
     }
 )
 
 FACTORY_REQUIRED = (
     "PdfDualVlmRuntimeFactory.create_for_openwebui is the only maintained "
-    "dual-provider visual-table runtime entrypoint"
+    "semantic visual-table runtime entrypoint"
 )
 FORBIDDEN = (
     "Callers must not construct provider payloads, resolve credentials, upload "
-    "whole documents, retry, fail over, hide disagreement, or promote provider "
-    "agreement to canonical authority"
+    "whole documents, retry, merge or repair provider output, invoke OpenAI "
+    "without the versioned policy, or promote provider agreement to authority"
 )
 
 
@@ -90,9 +102,11 @@ class PdfDualVlmRuntimeConfig:
     provider_selection_policy_version: str = (
         PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
     )
-    execution_mode: str = "dual_provider_comparison"
+    execution_mode: str = "gemini_master"
     primary_provider: str = "gemini"
     review_provider: str = "openai"
+    openai_policy_version: str = PDF_DUAL_VLM_OPENAI_POLICY_VERSION
+    openai_invocation_policy: str = "disabled"
     gemini_model_id: str = DEFAULT_GEMINI_MODEL_ID
     openai_model_id: str = DEFAULT_OPENAI_MODEL_ID
     timeout_seconds: int = 240
@@ -126,7 +140,8 @@ class PdfDualVlmRuntimeFactory:
             maximum_counted_input_tokens=self.config.maximum_counted_input_tokens,
         )
         bundle = PdfDualVlmFactProviderFactory(provider_config).create_for_openwebui(
-            request
+            request,
+            include_openai=self.config.openai_invocation_policy != "disabled",
         )
         return self._create(
             gemini=bundle.gemini,
@@ -138,7 +153,7 @@ class PdfDualVlmRuntimeFactory:
         self,
         *,
         gemini: Any,
-        openai: Any,
+        openai: Any = None,
         provider_budget=None,
     ) -> "PdfDualVlmRuntime":
         """Explicit provider seam for deterministic transport/decision tests."""
@@ -156,6 +171,8 @@ class PdfDualVlmRuntimeFactory:
         openai: Any,
         provider_budget,
     ) -> "PdfDualVlmRuntime":
+        if self.config.openai_invocation_policy != "disabled" and openai is None:
+            raise PdfDualVlmRuntimeError("pdf_semantic_vlm_openai_provider_required")
         return PdfDualVlmRuntime(
             self.config,
             gemini=gemini,
@@ -167,9 +184,24 @@ class PdfDualVlmRuntimeFactory:
         if (
             self.config.provider_selection_policy_version
             != PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
-            or self.config.execution_mode != "dual_provider_comparison"
+            or self.config.execution_mode not in {
+                "gemini_master",
+                "diagnostic_control",
+            }
             or self.config.primary_provider != "gemini"
             or self.config.review_provider != "openai"
+            or self.config.openai_policy_version
+            != PDF_DUAL_VLM_OPENAI_POLICY_VERSION
+            or self.config.openai_invocation_policy
+            not in OPENAI_INVOCATION_POLICIES
+            or (
+                self.config.execution_mode == "diagnostic_control"
+                and self.config.openai_invocation_policy != "diagnostic_control"
+            )
+            or (
+                self.config.execution_mode == "gemini_master"
+                and self.config.openai_invocation_policy == "diagnostic_control"
+            )
         ):
             raise PdfDualVlmRuntimeError(
                 "pdf_dual_vlm_provider_selection_policy_invalid"
@@ -197,7 +229,9 @@ class PdfDualVlmRuntime:
         provider_budget,
     ):
         self.config = config
-        self.providers = {"gemini": gemini, "openai": openai}
+        self.providers = {"gemini": gemini}
+        if openai is not None:
+            self.providers["openai"] = openai
         self.provider_budget = provider_budget
 
     def run(self, candidates: list[dict[str, Any]]) -> PdfDualVlmRuntimeResult:
@@ -243,7 +277,10 @@ class PdfDualVlmRuntime:
 
     def _qualify_providers(self) -> dict[str, dict[str, Any]]:
         qualifications: dict[str, dict[str, Any]] = {}
-        for provider_name in PROVIDER_ORDER:
+        provider_names = ["gemini"]
+        if self.config.openai_invocation_policy != "disabled":
+            provider_names.append("openai")
+        for provider_name in provider_names:
             try:
                 with self._provider_budget_context(provider_name):
                     value = self.providers[provider_name].qualify()
@@ -291,75 +328,85 @@ class PdfDualVlmRuntime:
         manifest = bounded["manifest"]
         png_bytes = bounded["png_bytes"]
         table_id = str(manifest["candidate_ref"])
-        model_view = normalizer_model_view(
-            crop_sha256=str(manifest["png_sha256"]),
-            table_id=table_id,
-            image_width=int(manifest["width"]),
-            image_height=int(manifest["height"]),
-        )
-        output_schema = canonical_table_schema()
+        model_view = semantic_table_transcription_model_view()
+        output_schema = semantic_table_transcription_schema()
         lineage = _lineage(manifest)
         executions: list[dict[str, Any]] = []
         proposals: dict[str, dict[str, Any] | None] = {}
         failures: dict[str, str] = {}
+        gemini_record, gemini_proposal, gemini_failure = self._invoke_provider(
+            provider_name="gemini",
+            invocation_role="master",
+            provider=self.providers["gemini"],
+            qualification=qualifications["gemini"],
+            lineage=lineage,
+            model_view=model_view,
+            output_schema=output_schema,
+            png_bytes=png_bytes,
+            table_id=table_id,
+        )
+        executions.append(gemini_record)
+        proposals["gemini"] = gemini_proposal
+        if gemini_failure:
+            failures["gemini"] = gemini_failure
 
-        for provider_name in PROVIDER_ORDER:
-            record, proposal, failure_class = self._invoke_provider(
-                provider_name=provider_name,
-                provider=self.providers[provider_name],
-                qualification=qualifications[provider_name],
+        selected_provider = "gemini" if gemini_proposal is not None else None
+        openai_invocation_role: str | None = None
+        should_call_openai = False
+        if self.config.openai_invocation_policy == "diagnostic_control":
+            should_call_openai = True
+            openai_invocation_role = "control"
+        elif (
+            self.config.openai_invocation_policy
+            == "fallback_on_gemini_terminal_failure"
+            and gemini_failure is not None
+        ):
+            should_call_openai = True
+            openai_invocation_role = "fallback"
+
+        if should_call_openai:
+            openai_record, openai_proposal, openai_failure = self._invoke_provider(
+                provider_name="openai",
+                invocation_role=str(openai_invocation_role),
+                provider=self.providers["openai"],
+                qualification=qualifications["openai"],
                 lineage=lineage,
                 model_view=model_view,
                 output_schema=output_schema,
                 png_bytes=png_bytes,
                 table_id=table_id,
             )
-            executions.append(record)
-            proposals[provider_name] = proposal
-            if failure_class:
-                failures[provider_name] = failure_class
+            executions.append(openai_record)
+            proposals["openai"] = openai_proposal
+            if openai_failure:
+                failures["openai"] = openai_failure
+            if openai_invocation_role == "fallback" and openai_proposal is not None:
+                selected_provider = "openai"
 
-        if any(value in MALFORMED_FAILURES for value in failures.values()):
-            status = "malformed_provider_output"
-            reasons = [
-                f"{provider_name}_{failures[provider_name]}"
-                for provider_name in PROVIDER_ORDER
-                if provider_name in failures
-            ]
-            comparison = None
-        elif any(
-            value in REFUSAL_OR_INCOMPLETE_FAILURES for value in failures.values()
-        ):
-            status = "provider_refusal_or_incomplete"
-            reasons = [
-                f"{provider_name}_{failures[provider_name]}"
-                for provider_name in PROVIDER_ORDER
-                if provider_name in failures
-            ]
-            comparison = None
-        elif failures:
-            status = "proposal_requires_review"
-            reasons = [
-                f"{provider_name}_{failures[provider_name]}"
-                for provider_name in PROVIDER_ORDER
-                if provider_name in failures
-            ]
-            comparison = None
+        if selected_provider is not None:
+            status = "semantic_transcription_valid"
+            reasons = [f"{selected_provider}_semantic_transcription_valid"]
+            if openai_invocation_role == "control":
+                control_failure = failures.get("openai")
+                reasons.append(
+                    "openai_diagnostic_control_valid"
+                    if control_failure is None
+                    else f"openai_diagnostic_control_{control_failure}"
+                )
+            elif openai_invocation_role == "fallback":
+                reasons.extend(
+                    [
+                        f"gemini_{gemini_failure}",
+                        "openai_explicit_fallback_selected",
+                    ]
+                )
         else:
-            comparison = compare_tables(
-                proposals["gemini"] or {}, proposals["openai"] or {}
-            )
-            status = "proposal_requires_review"
-            if comparison["FULL_TABLE_CONSENSUS"] is True:
-                reasons = [
-                    "provider_agreement_has_no_canonical_authority",
-                    "source_to_table_accounting_unavailable",
-                ]
-            else:
-                reasons = [
-                    "provider_disagreement",
-                    "source_to_table_accounting_unavailable",
-                ]
+            status = _terminal_status(failures.values())
+            reasons = [
+                f"{provider_name}_{failures[provider_name]}"
+                for provider_name in PROVIDER_ORDER
+                if provider_name in failures
+            ]
 
         return self._decision(
             status=status,
@@ -367,13 +414,16 @@ class PdfDualVlmRuntime:
             lineage=lineage,
             executions=executions,
             proposals=proposals,
-            comparison=comparison,
+            comparison=None,
+            selected_provider=selected_provider,
+            openai_invocation_role=openai_invocation_role,
         )
 
     def _invoke_provider(
         self,
         *,
         provider_name: str,
+        invocation_role: str,
         provider: Any,
         qualification: dict[str, Any],
         lineage: dict[str, Any],
@@ -395,7 +445,7 @@ class PdfDualVlmRuntime:
                 lineage["crop_sha256"],
                 table_id,
                 qualification.get("requested_model_id"),
-                PROMPT_CONTRACT_VERSION,
+                SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
             ],
             length=24,
         )
@@ -422,11 +472,11 @@ class PdfDualVlmRuntime:
                 failure_class = raw_failure
             else:
                 output = response.get("json_output")
-                validator_errors = validate_table_output(output, table_id=table_id)
+                validator_errors = semantic_table_transcription_boundary_errors(output)
                 if validator_errors:
-                    failure_class = "parse_failure"
+                    failure_class = "semantic_schema_violation"
                 else:
-                    proposal = canonicalize_table(output, table_id=table_id)
+                    proposal = parse_semantic_table_transcription(output)
         except Exception as exc:
             if str(getattr(exc, "code", "")).startswith("workload_"):
                 raise
@@ -447,6 +497,7 @@ class PdfDualVlmRuntime:
             "crop_sha256": lineage["crop_sha256"],
             "input_hash": lineage["crop_sha256"],
             "provider": provider_name,
+            "invocation_role": invocation_role,
             "provider_profile": attempt.get("provider_profile")
             or qualification.get("provider_profile"),
             "provider_profile_revision": attempt.get("provider_profile_revision")
@@ -456,12 +507,12 @@ class PdfDualVlmRuntime:
             "resolved_model_id": attempt.get("model_resolved")
             or qualification.get("resolved_model_id"),
             "prompt_id": PDF_DUAL_VLM_PROMPT_ID,
-            "prompt_version": PROMPT_CONTRACT_VERSION,
+            "prompt_version": SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
             "prompt_hash": hashlib.sha256(
-                NORMALIZER_PROMPT.encode("utf-8")
+                SEMANTIC_TABLE_TRANSCRIPTION_PROMPT.encode("utf-8")
             ).hexdigest(),
             "model_view_hash": sha256_json(model_view),
-            "output_schema_version": CANONICAL_TABLE_SCHEMA_VERSION,
+            "output_schema_version": SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
             "canonical_schema_hash": attempt.get("canonical_schema_hash")
             or _object(preflight).get("canonical_schema_hash")
             or sha256_json(output_schema),
@@ -491,7 +542,7 @@ class PdfDualVlmRuntime:
                 "validator_version": PDF_DUAL_VLM_VALIDATOR_VERSION,
                 "status": "passed" if proposal is not None else "failed",
                 "error_codes": validator_errors,
-                "canonical_proposal_hash": (
+                "semantic_transcription_hash": (
                     sha256_json(proposal) if proposal is not None else None
                 ),
             },
@@ -517,6 +568,8 @@ class PdfDualVlmRuntime:
         executions: list[dict[str, Any]],
         proposals: dict[str, dict[str, Any] | None],
         comparison: dict[str, Any] | None,
+        selected_provider: str | None = None,
+        openai_invocation_role: str | None = None,
     ) -> dict[str, Any]:
         if status not in DECISION_STATUSES:
             raise PdfDualVlmRuntimeError("pdf_dual_vlm_decision_status_invalid")
@@ -543,6 +596,11 @@ class PdfDualVlmRuntime:
             "executions": copy.deepcopy(executions),
             "proposals": copy.deepcopy(proposals),
             "comparison": copy.deepcopy(comparison),
+            "selected_provider": selected_provider,
+            "semantic_transcription": copy.deepcopy(
+                proposals.get(selected_provider) if selected_provider else None
+            ),
+            "openai_invocation_role": openai_invocation_role,
             "deterministic_validator": {
                 "validator_version": PDF_DUAL_VLM_VALIDATOR_VERSION,
                 "provider_contracts_valid": bool(executions)
@@ -552,14 +610,23 @@ class PdfDualVlmRuntime:
                 ),
                 "same_bounded_input_for_all_providers": bool(executions)
                 and len({item.get("input_hash") for item in executions}) == 1,
+                "selected_provider_contract_valid": selected_provider is not None
+                and any(
+                    item.get("provider") == selected_provider
+                    and _object(item.get("validator_result")).get("status") == "passed"
+                    for item in executions
+                ),
+                "semantic_response_contract_passed": selected_provider is not None,
                 "source_to_table_accounting": "unavailable",
                 "canonical_promotion_allowed": False,
             },
             "canonical_table": None,
             "provider_proposal_canonical_authority": False,
-            "review_required": status != "proposal_validated_and_accepted",
+            "review_required": status != "semantic_transcription_valid",
             "hidden_retry": False,
             "provider_failover": False,
+            "provider_merge": False,
+            "openai_fallback_used": openai_invocation_role == "fallback",
             "whole_document_provider_upload": False,
         }
         decision["decision_hash"] = sha256_json(decision)
@@ -572,14 +639,18 @@ class PdfDualVlmRuntime:
         return {
             "policy_version": self.config.provider_selection_policy_version,
             "execution_mode": self.config.execution_mode,
-            "primary_provider": self.config.primary_provider,
-            "primary_model_id": self.config.gemini_model_id,
-            "review_provider": self.config.review_provider,
-            "review_model_id": self.config.openai_model_id,
-            "provider_order": list(PROVIDER_ORDER),
+            "master_provider": self.config.primary_provider,
+            "master_model_id": self.config.gemini_model_id,
+            "optional_provider": self.config.review_provider,
+            "optional_model_id": self.config.openai_model_id,
+            "default_provider_order": list(DEFAULT_PROVIDER_ORDER),
+            "openai_policy_version": self.config.openai_policy_version,
+            "openai_invocation_policy": self.config.openai_invocation_policy,
+            "mandatory_consensus": False,
             "hidden_retry": False,
             "provider_failover": False,
             "provider_switch": False,
+            "provider_merge": False,
         }
 
     def _summary(
@@ -635,9 +706,19 @@ class PdfDualVlmRuntime:
             "decision_hashes": [item.get("decision_hash") for item in decisions],
             "provider_proposal_canonical_authority": False,
             "canonical_tables_published": 0,
+            "semantic_transcriptions_valid": status_counts.get(
+                "semantic_transcription_valid", 0
+            ),
             "whole_document_provider_uploads": 0,
             "hidden_retries": 0,
             "provider_failovers": 0,
+            "provider_merges": 0,
+            "openai_fallbacks": sum(
+                item.get("openai_fallback_used") is True for item in decisions
+            ),
+            "openai_control_calls": sum(
+                item.get("openai_invocation_role") == "control" for item in decisions
+            ),
             "paddle_dependency": False,
         }
         summary["configuration_hash"] = sha256_json(
@@ -649,8 +730,10 @@ class PdfDualVlmRuntime:
                     self.config.maximum_counted_input_tokens
                 ),
                 "maximum_candidates": self.config.maximum_candidates,
-                "prompt_version": PROMPT_CONTRACT_VERSION,
-                "canonical_schema_version": CANONICAL_TABLE_SCHEMA_VERSION,
+                "prompt_version": SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
+                "output_schema_version": (
+                    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
+                ),
             }
         )
         return summary
@@ -774,12 +857,17 @@ def validate_pdf_dual_vlm_decision(value: Any) -> list[str]:
         "executions",
         "proposals",
         "comparison",
+        "selected_provider",
+        "semantic_transcription",
+        "openai_invocation_role",
         "deterministic_validator",
         "canonical_table",
         "provider_proposal_canonical_authority",
         "review_required",
         "hidden_retry",
         "provider_failover",
+        "provider_merge",
+        "openai_fallback_used",
         "whole_document_provider_upload",
         "decision_hash",
     }
@@ -795,15 +883,39 @@ def validate_pdf_dual_vlm_decision(value: Any) -> list[str]:
         errors.append("pdf_dual_vlm_decision_invalid")
     selection = _object(value.get("provider_selection"))
     if (
-        selection.get("policy_version")
+        set(selection)
+        != {
+            "policy_version",
+            "execution_mode",
+            "master_provider",
+            "master_model_id",
+            "optional_provider",
+            "optional_model_id",
+            "default_provider_order",
+            "openai_policy_version",
+            "openai_invocation_policy",
+            "mandatory_consensus",
+            "hidden_retry",
+            "provider_failover",
+            "provider_switch",
+            "provider_merge",
+        }
+        or selection.get("policy_version")
         != PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
-        or selection.get("execution_mode") != "dual_provider_comparison"
-        or selection.get("primary_provider") != "gemini"
-        or selection.get("review_provider") != "openai"
-        or selection.get("provider_order") != list(PROVIDER_ORDER)
+        or selection.get("execution_mode")
+        not in {"gemini_master", "diagnostic_control"}
+        or selection.get("master_provider") != "gemini"
+        or selection.get("optional_provider") != "openai"
+        or selection.get("default_provider_order") != list(DEFAULT_PROVIDER_ORDER)
+        or selection.get("openai_policy_version")
+        != PDF_DUAL_VLM_OPENAI_POLICY_VERSION
+        or selection.get("openai_invocation_policy")
+        not in OPENAI_INVOCATION_POLICIES
+        or selection.get("mandatory_consensus") is not False
         or selection.get("hidden_retry") is not False
         or selection.get("provider_failover") is not False
         or selection.get("provider_switch") is not False
+        or selection.get("provider_merge") is not False
     ):
         errors.append("pdf_dual_vlm_provider_selection_invalid")
     executions = value.get("executions")
@@ -812,39 +924,77 @@ def validate_pdf_dual_vlm_decision(value: Any) -> list[str]:
         executions = []
     for execution in executions:
         errors.extend(_execution_errors(execution))
-    if executions and [item.get("provider") for item in executions] != list(
-        PROVIDER_ORDER
-    ):
+    provider_names = [item.get("provider") for item in executions]
+    if provider_names not in ([], ["gemini"], ["gemini", "openai"]):
         errors.append("pdf_dual_vlm_provider_order_invalid")
+    proposals = value.get("proposals")
+    if not isinstance(proposals, dict) or set(proposals) != set(provider_names):
+        errors.append("pdf_dual_vlm_proposals_invalid")
+        proposals = {}
+    openai_role = value.get("openai_invocation_role")
+    openai_policy = selection.get("openai_invocation_policy")
+    if (
+        openai_role not in {None, "control", "fallback"}
+        or ("openai" not in provider_names and openai_role is not None)
+        or ("openai" in provider_names and openai_role is None)
+        or (openai_role == "control" and openai_policy != "diagnostic_control")
+        or (
+            openai_role == "fallback"
+            and openai_policy != "fallback_on_gemini_terminal_failure"
+        )
+        or (openai_policy == "disabled" and "openai" in provider_names)
+    ):
+        errors.append("pdf_dual_vlm_openai_invocation_policy_invalid")
     validator = _object(value.get("deterministic_validator"))
-    if validator.get(
-        "validator_version"
-    ) != PDF_DUAL_VLM_VALIDATOR_VERSION or validator.get(
-        "source_to_table_accounting"
-    ) not in {"unavailable", "passed", "failed"}:
-        errors.append("pdf_dual_vlm_validator_envelope_invalid")
-    accepted = status == "proposal_validated_and_accepted"
-    canonical = value.get("canonical_table")
-    if accepted:
-        if (
-            validate_table_output(canonical)
-            or validator.get("provider_contracts_valid") is not True
-            or validator.get("same_bounded_input_for_all_providers") is not True
-            or validator.get("source_to_table_accounting") != "passed"
-            or validator.get("canonical_promotion_allowed") is not True
-            or value.get("review_required") is not False
-        ):
-            errors.append("pdf_dual_vlm_acceptance_authority_invalid")
-    elif (
-        canonical is not None
+    if (
+        set(validator)
+        != {
+            "validator_version",
+            "provider_contracts_valid",
+            "same_bounded_input_for_all_providers",
+            "selected_provider_contract_valid",
+            "semantic_response_contract_passed",
+            "source_to_table_accounting",
+            "canonical_promotion_allowed",
+        }
+        or validator.get("validator_version") != PDF_DUAL_VLM_VALIDATOR_VERSION
+        or validator.get("source_to_table_accounting") != "unavailable"
         or validator.get("canonical_promotion_allowed") is not False
+    ):
+        errors.append("pdf_dual_vlm_validator_envelope_invalid")
+    selected_provider = value.get("selected_provider")
+    semantic = value.get("semantic_transcription")
+    semantic_valid = status == "semantic_transcription_valid"
+    if semantic_valid:
+        if (
+            selected_provider not in provider_names
+            or selected_provider not in {"gemini", "openai"}
+            or semantic != proposals.get(selected_provider)
+            or semantic_table_transcription_boundary_errors(semantic)
+            or validator.get("selected_provider_contract_valid") is not True
+            or validator.get("semantic_response_contract_passed") is not True
+            or validator.get("same_bounded_input_for_all_providers") is not True
+            or value.get("review_required") is not False
+            or (selected_provider == "openai" and openai_role != "fallback")
+            or (openai_role == "control" and selected_provider != "gemini")
+        ):
+            errors.append("pdf_dual_vlm_semantic_selection_invalid")
+    elif (
+        selected_provider is not None
+        or semantic is not None
+        or validator.get("selected_provider_contract_valid") is not False
+        or validator.get("semantic_response_contract_passed") is not False
         or value.get("review_required") is not True
     ):
-        errors.append("pdf_dual_vlm_nonaccepted_canonical_invalid")
+        errors.append("pdf_dual_vlm_terminal_selection_invalid")
     if (
-        value.get("provider_proposal_canonical_authority") is not False
+        value.get("comparison") is not None
+        or value.get("canonical_table") is not None
+        or value.get("provider_proposal_canonical_authority") is not False
         or value.get("hidden_retry") is not False
         or value.get("provider_failover") is not False
+        or value.get("provider_merge") is not False
+        or value.get("openai_fallback_used") is not (openai_role == "fallback")
         or value.get("whole_document_provider_upload") is not False
     ):
         errors.append("pdf_dual_vlm_authority_or_transport_invalid")
@@ -870,6 +1020,7 @@ def _execution_errors(value: Any) -> list[str]:
         "crop_sha256",
         "input_hash",
         "provider",
+        "invocation_role",
         "provider_profile",
         "provider_profile_revision",
         "requested_model_id",
@@ -911,7 +1062,20 @@ def _execution_errors(value: Any) -> list[str]:
         value.get("schema_version") != PDF_DUAL_VLM_EXECUTION_SCHEMA
         or value.get("policy_version") != PDF_DUAL_VLM_RUNTIME_POLICY_VERSION
         or value.get("provider") not in PROVIDER_ORDER
+        or (
+            value.get("provider") == "gemini"
+            and value.get("invocation_role") != "master"
+        )
+        or (
+            value.get("provider") == "openai"
+            and value.get("invocation_role") not in {"control", "fallback"}
+        )
         or value.get("input_hash") != value.get("crop_sha256")
+        or value.get("prompt_id") != PDF_DUAL_VLM_PROMPT_ID
+        or value.get("prompt_version")
+        != SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION
+        or value.get("output_schema_version")
+        != SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
         or value.get("attempt_number") != 1
         or value.get("attempt_lineage") != []
         or value.get("deadline_policy") != "per_native_request_no_retry"
@@ -928,6 +1092,26 @@ def _execution_errors(value: Any) -> list[str]:
     if not _is_sha256(actual_hash) or sha256_json(unhashed) != actual_hash:
         errors.append("pdf_dual_vlm_execution_hash_invalid")
     return errors
+
+
+def _terminal_status(failures: Any) -> str:
+    values = list(failures)
+    if any(value in MALFORMED_FAILURES for value in values):
+        return "malformed_provider_output"
+    if any(value in REFUSAL_OR_INCOMPLETE_FAILURES for value in values):
+        return "provider_refusal_or_incomplete"
+    return "proposal_rejected"
+
+
+def sha256_json(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _is_sha256(value: Any) -> bool:

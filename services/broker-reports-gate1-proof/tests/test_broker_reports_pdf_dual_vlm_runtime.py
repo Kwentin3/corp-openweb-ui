@@ -3,70 +3,38 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
-    CANONICAL_TABLE_SCHEMA_VERSION,
-    sha256_json,
-)
 from broker_reports_gate1.pdf_dual_vlm_runtime import (
     DECISION_STATUSES,
     PDF_DUAL_VLM_EXECUTION_SCHEMA,
+    PDF_DUAL_VLM_OPENAI_POLICY_VERSION,
+    PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION,
     PdfDualVlmRuntimeConfig,
     PdfDualVlmRuntimeError,
     PdfDualVlmRuntimeFactory,
+    sha256_json,
     validate_pdf_dual_vlm_decision,
 )
 from broker_reports_gate1.pdf_table_raster import PDF_TABLE_CANDIDATE_SCHEMA
+from broker_reports_gate1.semantic_visual_table_contracts import (
+    SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
+    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+)
 
 
-def _table(table_id: str, value: str = "1,000") -> dict[str, Any]:
+def _transcription(value: str = "1,000") -> dict[str, Any]:
     return {
-        "schema_version": CANONICAL_TABLE_SCHEMA_VERSION,
-        "table_id": table_id,
-        "row_count": 2,
-        "column_count": 2,
-        "cells": [
-            {
-                "row_index": 0,
-                "column_index": 0,
-                "row_span": 1,
-                "column_span": 1,
-                "content_state": "present",
-                "source_text": "Item",
-            },
-            {
-                "row_index": 0,
-                "column_index": 1,
-                "row_span": 1,
-                "column_span": 1,
-                "content_state": "present",
-                "source_text": "Value",
-            },
-            {
-                "row_index": 1,
-                "column_index": 0,
-                "row_span": 1,
-                "column_span": 1,
-                "content_state": "present",
-                "source_text": "Cash",
-            },
-            {
-                "row_index": 1,
-                "column_index": 1,
-                "row_span": 1,
-                "column_span": 1,
-                "content_state": "present",
-                "source_text": value,
-            },
-        ],
+        "description": "Two-column cash table.",
+        "rows": [["Item", "Value"], ["Cash", value]],
     }
 
 
 def _candidate() -> dict[str, Any]:
-    png = b"\x89PNG\r\n\x1a\nsynthetic-dual-vlm-runtime"
+    png = b"\x89PNG\r\n\x1a\nsynthetic-semantic-vlm-runtime"
     png_hash = hashlib.sha256(png).hexdigest()
     manifest = {
         "schema_version": PDF_TABLE_CANDIDATE_SCHEMA,
@@ -107,7 +75,7 @@ def _candidate() -> dict[str, Any]:
         "vertical_padding_fraction": 0.08,
         "padding_x_points": 48.96,
         "padding_y_points": 63.36,
-        "detector_contract_version": ("broker_reports_pdf_table_detection_response_v2"),
+        "detector_contract_version": "broker_reports_pdf_table_detection_response_v2",
         "detector_identity": {"response_hash": "b" * 64},
         "downstream_contract": "gate2_raster_candidate",
         "semantic_interpretation_performed": False,
@@ -172,7 +140,7 @@ class _Provider:
             "request_hash": "c" * 64,
             "response_hash": "d" * 64,
             "canonical_schema_hash": schema_hash,
-            "adapted_schema_hash": ("e" * 64 if self.name == "gemini" else schema_hash),
+            "adapted_schema_hash": "e" * 64,
             "schema_transform_count": 7 if self.name == "gemini" else 0,
             "model_requested": self.qualify()["requested_model_id"],
             "transport_identity": self.name + "_native_count",
@@ -182,10 +150,9 @@ class _Provider:
     def invoke(self, **kwargs: Any) -> dict[str, Any]:
         self.invoke_calls += 1
         qualification = self.qualify()
-        table_id = kwargs["model_view"]["input_identity"]["table_id"]
-        output: Any = _table(table_id, self.value)
+        output: Any = _transcription(self.value)
         if self.malformed:
-            output = {"schema_version": CANONICAL_TABLE_SCHEMA_VERSION}
+            output = {"description": "missing rows"}
         attempt = {
             "attempt_number": 1,
             "attempt_lineage": [],
@@ -212,9 +179,22 @@ class _Provider:
         }
 
 
-def _runtime(gemini: _Provider, openai: _Provider, *, enabled: bool = True):
+def _runtime(
+    gemini: _Provider,
+    openai: _Provider | None = None,
+    *,
+    enabled: bool = True,
+    openai_policy: str = "disabled",
+):
+    execution_mode = (
+        "diagnostic_control" if openai_policy == "diagnostic_control" else "gemini_master"
+    )
     return PdfDualVlmRuntimeFactory(
-        PdfDualVlmRuntimeConfig(enabled=enabled)
+        PdfDualVlmRuntimeConfig(
+            enabled=enabled,
+            execution_mode=execution_mode,
+            openai_invocation_policy=openai_policy,
+        )
     ).create_with_providers(gemini=gemini, openai=openai)
 
 
@@ -229,107 +209,154 @@ def test_disabled_runtime_performs_no_provider_work() -> None:
     assert gemini.qualify_calls == openai.qualify_calls == 0
 
 
-def test_full_provider_agreement_remains_review_only_without_source_accounting() -> (
-    None
-):
-    result = _runtime(_Provider("gemini"), _Provider("openai")).run([_candidate()])
+def test_default_valid_gemini_is_selected_without_any_openai_work() -> None:
+    gemini = _Provider("gemini")
+    openai = _Provider("openai")
+
+    result = _runtime(gemini, openai).run([_candidate()])
     decision = result.private_decisions[0]
 
-    assert decision["status"] == "proposal_requires_review"
-    assert decision["comparison"]["FULL_TABLE_CONSENSUS"] is True
-    assert decision["canonical_table"] is None
-    assert decision["provider_proposal_canonical_authority"] is False
-    assert decision["deterministic_validator"] == {
-        "validator_version": "pdf_dual_vlm_deterministic_validator_v1",
-        "provider_contracts_valid": True,
-        "same_bounded_input_for_all_providers": True,
-        "source_to_table_accounting": "unavailable",
-        "canonical_promotion_allowed": False,
-    }
-    assert "source_to_table_accounting_unavailable" in decision["reason_codes"]
+    assert decision["status"] == "semantic_transcription_valid"
+    assert decision["selected_provider"] == "gemini"
+    assert decision["semantic_transcription"] == _transcription()
+    assert decision["proposals"] == {"gemini": _transcription()}
+    assert decision["comparison"] is None
+    assert decision["review_required"] is False
+    assert decision["provider_merge"] is False
+    assert decision["openai_fallback_used"] is False
+    assert [item["provider"] for item in decision["executions"]] == ["gemini"]
+    assert gemini.invoke_calls == 1
+    assert openai.qualify_calls == openai.count_calls == openai.invoke_calls == 0
+    assert result.safe_summary["semantic_transcriptions_valid"] == 1
     assert result.safe_summary["canonical_tables_published"] == 0
-    assert result.safe_summary["whole_document_provider_uploads"] == 0
 
 
-def test_real_disagreement_is_preserved_and_fails_closed() -> None:
+def test_explicit_openai_fallback_keeps_provider_identity_and_never_merges() -> None:
+    gemini = _Provider("gemini", malformed=True)
+    openai = _Provider("openai", value="1,001")
+
     result = _runtime(
-        _Provider("gemini", value="1,000"),
-        _Provider("openai", value="1,001"),
+        gemini,
+        openai,
+        openai_policy="fallback_on_gemini_terminal_failure",
     ).run([_candidate()])
     decision = result.private_decisions[0]
 
-    assert decision["status"] == "proposal_requires_review"
-    assert decision["comparison"]["FULL_TABLE_CONSENSUS"] is False
-    assert decision["comparison"]["smallest_difference"]["class"] == (
-        "differing_source_text"
+    assert decision["status"] == "semantic_transcription_valid"
+    assert decision["selected_provider"] == "openai"
+    assert decision["semantic_transcription"] == _transcription("1,001")
+    assert decision["proposals"] == {
+        "gemini": None,
+        "openai": _transcription("1,001"),
+    }
+    assert decision["openai_invocation_role"] == "fallback"
+    assert decision["openai_fallback_used"] is True
+    assert decision["provider_merge"] is False
+    assert decision["executions"][0]["terminal_provider_status"] == (
+        "semantic_schema_violation"
     )
-    assert "provider_disagreement" in decision["reason_codes"]
-    assert decision["canonical_table"] is None
+    assert decision["executions"][1]["provider"] == "openai"
+    assert decision["executions"][1]["invocation_role"] == "fallback"
+    assert result.safe_summary["openai_fallbacks"] == 1
 
 
-def test_execution_record_preserves_required_lineage_and_drops_raw_response() -> None:
-    result = _runtime(_Provider("gemini"), _Provider("openai")).run([_candidate()])
+def test_diagnostic_control_cannot_overwrite_valid_gemini() -> None:
+    result = _runtime(
+        _Provider("gemini", value="1,000"),
+        _Provider("openai", value="9,999"),
+        openai_policy="diagnostic_control",
+    ).run([_candidate()])
+    decision = result.private_decisions[0]
 
-    for execution in result.private_decisions[0]["executions"]:
-        assert execution["schema_version"] == PDF_DUAL_VLM_EXECUTION_SCHEMA
-        assert execution["source_ref"] == "document_test"
-        assert execution["source_sha256"] == "a" * 64
-        assert execution["page_number"] == 2
-        assert execution["input_hash"] == execution["crop_sha256"]
-        assert execution["requested_model_id"] == execution["resolved_model_id"]
-        assert execution["prompt_id"] == ("pdf_dual_vlm_canonical_table_normalizer")
-        assert execution["prompt_version"] == ("dual_vlm_canonical_table_normalizer_v4")
-        assert len(execution["prompt_hash"]) == 64
-        assert len(execution["canonical_schema_hash"]) == 64
-        assert len(execution["provider_adapted_schema_hash"]) == 64
-        assert execution["maximum_output_tokens"] == 16_384
-        assert execution["maximum_counted_input_tokens"] == 24_000
-        assert execution["transport_timeout_seconds"] == 240
-        assert execution["deadline_policy"] == "per_native_request_no_retry"
-        assert execution["attempt_number"] == 1
-        assert execution["attempt_lineage"] == []
-        assert execution["usage"]["output_tokens"] == 123
-        assert execution["latency_ms"] == 15
-        assert execution["terminal_provider_status"] == "completed"
-        assert len(execution["response_hash"]) == 64
-        assert execution["validator_result"]["status"] == "passed"
-        assert execution["hidden_retry"] is False
-        assert execution["provider_failover"] is False
-        assert execution["whole_document_uploaded"] is False
-        assert "raw_private_response" not in execution
-        assert "text" not in execution
+    assert decision["status"] == "semantic_transcription_valid"
+    assert decision["selected_provider"] == "gemini"
+    assert decision["semantic_transcription"] == _transcription("1,000")
+    assert decision["proposals"]["openai"] == _transcription("9,999")
+    assert decision["comparison"] is None
+    assert decision["openai_invocation_role"] == "control"
+    assert decision["openai_fallback_used"] is False
+    assert decision["provider_merge"] is False
+    assert result.safe_summary["openai_control_calls"] == 1
+
+
+def test_failed_control_does_not_invalidate_valid_gemini() -> None:
+    result = _runtime(
+        _Provider("gemini"),
+        _Provider("openai", failure_class="provider_refusal"),
+        openai_policy="diagnostic_control",
+    ).run([_candidate()])
+    decision = result.private_decisions[0]
+
+    assert decision["status"] == "semantic_transcription_valid"
+    assert decision["selected_provider"] == "gemini"
+    assert decision["proposals"]["openai"] is None
+    assert "openai_diagnostic_control_provider_refusal" in decision["reason_codes"]
+
+
+def test_execution_record_preserves_lineage_and_content_only_contract() -> None:
+    result = _runtime(_Provider("gemini")).run([_candidate()])
+    execution = result.private_decisions[0]["executions"][0]
+
+    assert execution["schema_version"] == PDF_DUAL_VLM_EXECUTION_SCHEMA
+    assert execution["source_ref"] == "document_test"
+    assert execution["source_sha256"] == "a" * 64
+    assert execution["page_number"] == 2
+    assert execution["input_hash"] == execution["crop_sha256"]
+    assert execution["provider"] == "gemini"
+    assert execution["invocation_role"] == "master"
+    assert execution["requested_model_id"] == execution["resolved_model_id"]
+    assert execution["prompt_id"] == "pdf_semantic_visual_table_transcription"
+    assert execution["prompt_version"] == SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION
+    assert execution["output_schema_version"] == (
+        SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
+    )
+    assert len(execution["prompt_hash"]) == 64
+    assert len(execution["canonical_schema_hash"]) == 64
+    assert len(execution["provider_adapted_schema_hash"]) == 64
+    assert execution["attempt_number"] == 1
+    assert execution["attempt_lineage"] == []
+    assert execution["deadline_policy"] == "per_native_request_no_retry"
+    assert execution["validator_result"]["status"] == "passed"
+    assert execution["hidden_retry"] is False
+    assert execution["provider_failover"] is False
+    assert execution["provider_switch"] is False
+    assert execution["whole_document_uploaded"] is False
+    assert "raw_private_response" not in execution
+    assert "text" not in execution
 
 
 @pytest.mark.parametrize(
-    ("provider", "expected"),
+    ("gemini", "expected"),
     [
-        (_Provider("openai", malformed=True), "malformed_provider_output"),
+        (_Provider("gemini", malformed=True), "malformed_provider_output"),
         (
-            _Provider("openai", failure_class="provider_refusal"),
+            _Provider("gemini", failure_class="provider_refusal"),
             "provider_refusal_or_incomplete",
         ),
         (
-            _Provider("openai", failure_class="provider_incomplete"),
+            _Provider("gemini", failure_class="provider_incomplete"),
             "provider_refusal_or_incomplete",
         ),
         (
-            _Provider("openai", failure_class="timeout_or_transport"),
+            _Provider("gemini", failure_class="timeout_or_transport"),
             "provider_refusal_or_incomplete",
         ),
     ],
 )
-def test_terminal_provider_outcomes_are_explicit(
-    provider: _Provider, expected: str
+def test_default_terminal_gemini_failures_do_not_call_openai(
+    gemini: _Provider, expected: str
 ) -> None:
-    result = _runtime(_Provider("gemini"), provider).run([_candidate()])
+    openai = _Provider("openai")
+
+    result = _runtime(gemini, openai).run([_candidate()])
 
     assert result.private_decisions[0]["status"] == expected
+    assert result.private_decisions[0]["selected_provider"] is None
     assert result.private_decisions[0]["canonical_table"] is None
+    assert openai.qualify_calls == openai.count_calls == openai.invoke_calls == 0
 
 
-def test_whole_document_or_mutated_crop_envelope_is_rejected_before_generation() -> (
-    None
-):
+def test_whole_document_or_mutated_crop_is_rejected_before_generation() -> None:
     gemini = _Provider("gemini")
     openai = _Provider("openai")
     candidate = _candidate()
@@ -354,28 +381,61 @@ def test_provider_selection_policy_is_closed_and_versioned() -> None:
                 provider_selection_policy_version="unversioned",
             )
         )
+    with pytest.raises(
+        PdfDualVlmRuntimeError,
+        match="pdf_dual_vlm_provider_selection_policy_invalid",
+    ):
+        PdfDualVlmRuntimeFactory(
+            PdfDualVlmRuntimeConfig(
+                enabled=True,
+                openai_invocation_policy="always_compare",
+            )
+        )
 
-    assert "proposal_validated_and_accepted" in DECISION_STATUSES
-    assert "proposal_requires_review" in DECISION_STATUSES
-    assert "provider_refusal_or_incomplete" in DECISION_STATUSES
+    config = PdfDualVlmRuntimeConfig()
+    assert config.provider_selection_policy_version == (
+        PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
+    )
+    assert config.openai_policy_version == PDF_DUAL_VLM_OPENAI_POLICY_VERSION
+    assert config.execution_mode == "gemini_master"
+    assert config.openai_invocation_policy == "disabled"
+    assert "semantic_transcription_valid" in DECISION_STATUSES
 
 
-def test_decision_validator_rejects_canonical_promotion_without_source_accounting() -> (
-    None
-):
-    result = _runtime(_Provider("gemini"), _Provider("openai")).run([_candidate()])
+def test_decision_validator_rejects_control_overwrite_and_provider_merge() -> None:
+    result = _runtime(
+        _Provider("gemini"),
+        _Provider("openai", value="9,999"),
+        openai_policy="diagnostic_control",
+    ).run([_candidate()])
     decision = result.private_decisions[0]
     assert validate_pdf_dual_vlm_decision(decision) == []
 
     forged = copy.deepcopy(decision)
-    forged["status"] = "proposal_validated_and_accepted"
-    forged["canonical_table"] = copy.deepcopy(forged["proposals"]["gemini"])
-    forged["review_required"] = False
-    forged["deterministic_validator"]["canonical_promotion_allowed"] = True
+    forged["selected_provider"] = "openai"
+    forged["semantic_transcription"] = copy.deepcopy(forged["proposals"]["openai"])
+    forged["provider_merge"] = True
     unhashed = copy.deepcopy(forged)
     unhashed.pop("decision_hash")
     forged["decision_hash"] = sha256_json(unhashed)
 
-    assert "pdf_dual_vlm_acceptance_authority_invalid" in (
-        validate_pdf_dual_vlm_decision(forged)
-    )
+    errors = validate_pdf_dual_vlm_decision(forged)
+    assert "pdf_dual_vlm_semantic_selection_invalid" in errors
+    assert "pdf_dual_vlm_authority_or_transport_invalid" in errors
+
+
+def test_maintained_runtime_cannot_drift_back_to_geometric_model_contract() -> None:
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "broker_reports_gate1"
+        / "pdf_dual_vlm_runtime.py"
+    ).read_text(encoding="utf-8")
+
+    for forbidden in (
+        "pdf_dual_vlm_canonical_table_contracts",
+        "normalizer_model_view",
+        "validate_table_output",
+        "canonicalize_table",
+        "compare_tables(",
+    ):
+        assert forbidden not in source

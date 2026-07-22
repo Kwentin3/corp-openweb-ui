@@ -76,8 +76,9 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "pdf_table_intake_vertical_padding_fraction": 0.08,
     "pdf_dual_vlm_enabled": False,
     "pdf_dual_vlm_provider_selection_policy_version": (
-        "pdf_dual_vlm_provider_selection_v1"
+        "pdf_semantic_vlm_provider_selection_v1"
     ),
+    "pdf_dual_vlm_openai_invocation_policy": "disabled",
     "pdf_dual_vlm_gemini_model_id": "models/gemini-3.5-flash",
     "pdf_dual_vlm_openai_model_id": "gpt-5.4-mini-2026-03-17",
     "pdf_dual_vlm_timeout_seconds": 240,
@@ -356,7 +357,7 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
         )
     return {
         "gate2_profile_contract": "gate2_provider_profile_registry_v1",
-        "gate1_visual_selection_policy": "pdf_dual_vlm_provider_selection_v1",
+        "gate1_visual_selection_policy": "pdf_semantic_vlm_provider_selection_v1",
         "gate1_visual_model_ids": {
             "google_gemini": "models/gemini-3.5-flash",
             "openai_gpt": "gpt-5.4-mini-2026-03-17",

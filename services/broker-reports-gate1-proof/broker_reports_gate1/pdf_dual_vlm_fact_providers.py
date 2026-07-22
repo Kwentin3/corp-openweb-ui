@@ -41,17 +41,18 @@ OPENAI_MODEL_QUALIFICATION_ALLOWLIST = frozenset(
         "gpt-5.6-sol",
     }
 )
-OPENAI_ADAPTER_VERSION = "openai_responses_png_fact_json_schema_v1"
-OPENAI_SCHEMA_NAME = "broker_reports_pdf_dual_vlm_fact_output_v1"
+OPENAI_ADAPTER_VERSION = "openai_responses_png_semantic_table_json_schema_v1"
+OPENAI_SCHEMA_NAME = "broker_reports_semantic_table_transcription_v1"
 MAX_OPENAI_RESPONSE_BYTES = 2 * 1024 * 1024
 
 FACTORY_REQUIRED = (
-    "PdfDualVlmFactProviderFactory.create_for_openwebui is the only live dual-VLM "
-    "fact provider entrypoint"
+    "PdfDualVlmFactProviderFactory.create_for_openwebui is the only live visual-table "
+    "provider entrypoint"
 )
 FORBIDDEN = (
-    "Dual-VLM benchmark orchestration must not construct provider payloads, resolve "
-    "secrets, instantiate adapters, retry, or fail over providers"
+    "Visual-table orchestration must not construct provider payloads, resolve secrets, "
+    "instantiate adapters, retry, merge providers, or invoke OpenAI without an explicit "
+    "versioned control/fallback policy"
 )
 
 
@@ -85,14 +86,16 @@ class PdfDualVlmFactProviderConfig:
 class PdfDualVlmFactProviderBundle:
     detector: Any
     gemini: Any
-    openai: "OpenAIResponsesVisionAdapter"
+    openai: "OpenAIResponsesVisionAdapter | None"
 
     def qualify(self) -> dict[str, Any]:
-        return {
+        result = {
             "detector": self.detector.qualify(),
             "gemini": self.gemini.qualify(),
-            "openai": self.openai.qualify(),
         }
+        if self.openai is not None:
+            result["openai"] = self.openai.qualify()
+        return result
 
 
 class PdfDualVlmFactProviderFactory:
@@ -105,7 +108,12 @@ class PdfDualVlmFactProviderFactory:
         self.config = config or PdfDualVlmFactProviderConfig()
         self.urlopen_fn = urlopen_fn
 
-    def create_for_openwebui(self, request: Any) -> PdfDualVlmFactProviderBundle:
+    def create_for_openwebui(
+        self,
+        request: Any,
+        *,
+        include_openai: bool = False,
+    ) -> PdfDualVlmFactProviderBundle:
         self._validate_config()
         detector = PdfGridExperimentProviderFactory(
             PdfGridProviderConfig(
@@ -130,16 +138,18 @@ class PdfDualVlmFactProviderFactory:
             urlopen_fn=self.urlopen_fn,
         ).create_for_openwebui(request)
 
-        openai_profile = gate2_provider_profile("openai_gpt")
-        openai_connection = Gate2OpenWebUIProviderConnectionResolver(request).resolve(
-            openai_profile
-        )
-        openai = OpenAIResponsesVisionAdapter(
-            config=self.config,
-            profile=openai_profile,
-            connection=openai_connection,
-            urlopen_fn=self.urlopen_fn,
-        )
+        openai = None
+        if include_openai:
+            openai_profile = gate2_provider_profile("openai_gpt")
+            openai_connection = Gate2OpenWebUIProviderConnectionResolver(
+                request
+            ).resolve(openai_profile)
+            openai = OpenAIResponsesVisionAdapter(
+                config=self.config,
+                profile=openai_profile,
+                connection=openai_connection,
+                urlopen_fn=self.urlopen_fn,
+            )
         return PdfDualVlmFactProviderBundle(
             detector=detector,
             gemini=gemini,

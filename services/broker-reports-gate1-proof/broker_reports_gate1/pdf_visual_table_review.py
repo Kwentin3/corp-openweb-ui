@@ -14,7 +14,10 @@ from .pdf_dual_vlm_canonical_table_contracts import (
     sha256_json,
     validate_table_output,
 )
-from .pdf_dual_vlm_runtime import PROVIDER_ORDER, validate_pdf_dual_vlm_decision
+from .pdf_dual_vlm_legacy_decision_contracts import (
+    LEGACY_PROVIDER_ORDER as PROVIDER_ORDER,
+    validate_legacy_pdf_dual_vlm_decision,
+)
 from .visual_table_review_contracts import (
     ACCEPTED_REVIEW_DECISIONS,
     REVIEW_DECISIONS,
@@ -287,7 +290,7 @@ def _reviewer(authority: VisualReviewAuthorityContext) -> dict[str, Any]:
 
 
 def _validate_input_decision(decision: Any) -> None:
-    errors = validate_pdf_dual_vlm_decision(decision)
+    errors = validate_legacy_pdf_dual_vlm_decision(decision)
     if errors:
         raise PdfVisualTableReviewError(errors[0])
     lineage = _object(decision.get("source_lineage"))

@@ -21,10 +21,6 @@ from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
     compare_tables,
     sha256_json,
 )
-from broker_reports_gate1.pdf_dual_vlm_runtime import (
-    PdfDualVlmRuntimeConfig,
-    PdfDualVlmRuntimeFactory,
-)
 from broker_reports_gate1.pdf_table_raster import PDF_TABLE_CANDIDATE_SCHEMA
 from broker_reports_gate1.pdf_visual_table_review import (
     VISUAL_REGION_ACCOUNTING_SUBMISSION_SCHEMA_VERSION,
@@ -407,13 +403,136 @@ def _attestations(*, accepted: bool) -> dict[str, bool]:
 
 
 def _decision(*, openai_value: str = "1,000") -> dict[str, Any]:
-    runtime = PdfDualVlmRuntimeFactory(
-        PdfDualVlmRuntimeConfig(enabled=True)
-    ).create_with_providers(
-        gemini=_Provider("gemini", value="1,000"),
-        openai=_Provider("openai", value=openai_value),
+    manifest = _candidate()["manifest"]
+    lineage = {
+        "declared_scope": "one_table_crop",
+        "source_ref": manifest["document_ref"],
+        "source_sha256": manifest["pdf_sha256"],
+        "page_number": manifest["page_number"],
+        "crop_id": manifest["crop_id"],
+        "candidate_ref": manifest["candidate_ref"],
+        "crop_sha256": manifest["png_sha256"],
+        "crop_manifest_hash": manifest["manifest_hash"],
+        "declared_table_bbox": copy.deepcopy(manifest["declared_table_bbox"]),
+        "rendered_bbox": copy.deepcopy(manifest["rendered_bbox"]),
+        "renderer": manifest["renderer"],
+        "renderer_version": manifest["renderer_version"],
+        "dpi": manifest["dpi"],
+        "image_width": manifest["width"],
+        "image_height": manifest["height"],
+        "whole_document_available": False,
+    }
+    proposals = {
+        "gemini": _table("pdftable_test", "1,000"),
+        "openai": _table("pdftable_test", openai_value),
+    }
+    executions = [
+        _legacy_execution(provider, proposals[provider], lineage)
+        for provider in ("gemini", "openai")
+    ]
+    decision = {
+        "schema_version": "broker_reports_pdf_dual_vlm_decision_v1",
+        "policy_version": "pdf_dual_vlm_runtime_policy_v1",
+        "decision_id": "pdfdualvlmdecision_legacyreviewfixture",
+        "status": "proposal_requires_review",
+        "reason_codes": ["provider_agreement_has_no_canonical_authority"],
+        "source_lineage": lineage,
+        "input_hash": lineage["crop_sha256"],
+        "provider_selection": {
+            "policy_version": "pdf_dual_vlm_provider_selection_v1",
+            "execution_mode": "dual_provider_comparison",
+            "primary_provider": "gemini",
+            "primary_model_id": "models/gemini-3.5-flash",
+            "review_provider": "openai",
+            "review_model_id": "gpt-5.4-mini-2026-03-17",
+            "provider_order": ["gemini", "openai"],
+            "hidden_retry": False,
+            "provider_failover": False,
+            "provider_switch": False,
+        },
+        "executions": executions,
+        "proposals": proposals,
+        "comparison": compare_tables(proposals["gemini"], proposals["openai"]),
+        "deterministic_validator": {
+            "validator_version": "pdf_dual_vlm_deterministic_validator_v1",
+            "provider_contracts_valid": True,
+            "same_bounded_input_for_all_providers": True,
+            "source_to_table_accounting": "unavailable",
+            "canonical_promotion_allowed": False,
+        },
+        "canonical_table": None,
+        "provider_proposal_canonical_authority": False,
+        "review_required": True,
+        "hidden_retry": False,
+        "provider_failover": False,
+        "whole_document_provider_upload": False,
+    }
+    decision["decision_hash"] = sha256_json(decision)
+    return decision
+
+
+def _legacy_execution(
+    provider: str,
+    proposal: dict[str, Any],
+    lineage: dict[str, Any],
+) -> dict[str, Any]:
+    model_id = (
+        "models/gemini-3.5-flash"
+        if provider == "gemini"
+        else "gpt-5.4-mini-2026-03-17"
     )
-    return runtime.run([_candidate()]).private_decisions[0]
+    execution = {
+        "schema_version": "broker_reports_pdf_dual_vlm_execution_v1",
+        "policy_version": "pdf_dual_vlm_runtime_policy_v1",
+        "task_id": f"pdfdualvlm_legacy_{provider}",
+        "source_lineage_hash": sha256_json(lineage),
+        "source_ref": lineage["source_ref"],
+        "source_sha256": lineage["source_sha256"],
+        "page_number": lineage["page_number"],
+        "crop_id": lineage["crop_id"],
+        "crop_sha256": lineage["crop_sha256"],
+        "input_hash": lineage["crop_sha256"],
+        "provider": provider,
+        "provider_profile": "google_gemini" if provider == "gemini" else "openai_gpt",
+        "provider_profile_revision": f"{provider}_profile_revision",
+        "requested_model_id": model_id,
+        "resolved_model_id": model_id,
+        "prompt_id": "pdf_dual_vlm_canonical_table_normalizer",
+        "prompt_version": "broker_reports_pdf_dual_vlm_prompt_v1",
+        "prompt_hash": "a" * 64,
+        "model_view_hash": "b" * 64,
+        "output_schema_version": CANONICAL_TABLE_SCHEMA_VERSION,
+        "canonical_schema_hash": "c" * 64,
+        "provider_adapted_schema_hash": "c" * 64,
+        "schema_transform_count": 0,
+        "maximum_output_tokens": 16_384,
+        "maximum_counted_input_tokens": 24_000,
+        "transport_timeout_seconds": 240,
+        "deadline_policy": "per_native_request_no_retry",
+        "operation_started_at": "2026-07-21T12:00:00+00:00",
+        "operation_deadline_at": "2026-07-21T12:04:00+00:00",
+        "operation_ended_at": "2026-07-21T12:00:01+00:00",
+        "attempt_number": 1,
+        "attempt_lineage": [],
+        "preflight": {},
+        "usage": {},
+        "latency_ms": 10,
+        "terminal_provider_status": "completed",
+        "finish_reason": "completed",
+        "response_hash": "d" * 64,
+        "validator_result": {
+            "validator_version": "pdf_dual_vlm_deterministic_validator_v1",
+            "status": "passed",
+            "error_codes": [],
+            "canonical_proposal_hash": sha256_json(proposal),
+        },
+        "hidden_retry": False,
+        "provider_failover": False,
+        "provider_switch": False,
+        "whole_document_uploaded": False,
+    }
+    execution["execution_hash"] = sha256_json(execution)
+    return execution
 
 
 def _table(table_id: str, value: str) -> dict[str, Any]:
