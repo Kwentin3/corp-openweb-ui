@@ -196,6 +196,14 @@ from .semantic_visual_table_materialization import (
     SemanticVisualTableMaterializationResult,
     validate_semantic_visual_table_envelope,
 )
+from .semantic_visual_table_validator import (
+    SEMANTIC_VISUAL_TABLE_VALIDATION_SCHEMA_VERSION,
+    SEMANTIC_VISUAL_TABLE_VALIDATOR_VERSION,
+    SemanticVisualTableValidatorConfig,
+    SemanticVisualTableValidatorFactory,
+    count_description_tokens,
+    validate_semantic_visual_table_response,
+)
 from .full_source import (
     FullSourceArtifactConfig,
     FullSourceArtifactFactory,

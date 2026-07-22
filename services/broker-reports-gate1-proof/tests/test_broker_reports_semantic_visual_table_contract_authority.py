@@ -27,7 +27,10 @@ def test_semantic_model_schema_is_closed_and_content_only() -> None:
     assert schema["additionalProperties"] is False
     assert set(schema["required"]) == {"description", "rows"}
     assert set(schema["properties"]) == {"description", "rows"}
-    assert schema["properties"]["description"] == {"type": "string"}
+    assert schema["properties"]["description"] == {
+        "type": "string",
+        "maxLength": contracts.MAX_SEMANTIC_DESCRIPTION_CHARACTERS,
+    }
     assert contracts.DESCRIPTION_TOKEN_BUDGET == 120
 
     rows = schema["properties"]["rows"]

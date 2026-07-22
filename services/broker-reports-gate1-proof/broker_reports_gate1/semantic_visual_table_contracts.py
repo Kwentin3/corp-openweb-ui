@@ -24,6 +24,7 @@ DESCRIPTION_TOKEN_BUDGET = 120
 MAX_SEMANTIC_ROWS = 200
 MAX_SEMANTIC_COLUMNS = 200
 MAX_SEMANTIC_CELL_CHARACTERS = 12_000
+MAX_SEMANTIC_DESCRIPTION_CHARACTERS = 2_048
 
 MODEL_FORBIDDEN_FIELDS = frozenset(
     {
@@ -101,7 +102,10 @@ def semantic_table_transcription_schema() -> dict[str, Any]:
         "additionalProperties": False,
         "required": sorted(SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS),
         "properties": {
-            "description": {"type": "string"},
+            "description": {
+                "type": "string",
+                "maxLength": MAX_SEMANTIC_DESCRIPTION_CHARACTERS,
+            },
             "rows": {
                 "type": "array",
                 "items": row,
@@ -126,34 +130,11 @@ def semantic_table_transcription_boundary_errors(value: Any) -> list[str]:
     text normalization.
     """
 
-    if not isinstance(value, dict):
-        return ["semantic_table_transcription_not_object"]
-    errors: list[str] = []
-    if set(value) != SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS:
-        errors.append("semantic_table_transcription_fields_invalid")
-    if not isinstance(value.get("description"), str):
-        errors.append("semantic_table_transcription_description_invalid")
-    rows = value.get("rows")
-    if not isinstance(rows, list) or not rows or len(rows) > MAX_SEMANTIC_ROWS:
-        errors.append("semantic_table_transcription_rows_invalid")
-        return errors
-    for row_index, row in enumerate(rows):
-        if (
-            not isinstance(row, list)
-            or not row
-            or len(row) > MAX_SEMANTIC_COLUMNS
-        ):
-            errors.append(f"semantic_table_transcription_row_{row_index}_invalid")
-            continue
-        for column_index, cell in enumerate(row):
-            if cell is None:
-                continue
-            if not isinstance(cell, str) or len(cell) > MAX_SEMANTIC_CELL_CHARACTERS:
-                errors.append(
-                    "semantic_table_transcription_cell_"
-                    f"{row_index}_{column_index}_invalid"
-                )
-    return errors
+    from .semantic_visual_table_validator import (
+        validate_semantic_visual_table_response,
+    )
+
+    return validate_semantic_visual_table_response(value)["error_codes"]
 
 
 def parse_semantic_table_transcription(value: Any) -> dict[str, Any]:

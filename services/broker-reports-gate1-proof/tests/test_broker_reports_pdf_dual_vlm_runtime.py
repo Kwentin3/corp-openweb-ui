@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -95,11 +96,13 @@ class _Provider:
         value: str = "1,000",
         failure_class: str | None = None,
         malformed: bool = False,
+        raw_text_override: str | None = None,
     ) -> None:
         self.name = name
         self.value = value
         self.failure_class = failure_class
         self.malformed = malformed
+        self.raw_text_override = raw_text_override
         self.qualify_calls = 0
         self.count_calls = 0
         self.invoke_calls = 0
@@ -172,7 +175,9 @@ class _Provider:
             "attempt": attempt,
             "json_output": None if self.failure_class else output,
             "raw_private_response": {"must_not_escape": True},
-            "text": "must not escape",
+            "text": self.raw_text_override
+            if self.raw_text_override is not None
+            else json.dumps(output, ensure_ascii=False),
             "response_hash": hashlib.sha256(
                 (self.name + self.value).encode()
             ).hexdigest(),
@@ -369,6 +374,28 @@ def test_default_terminal_gemini_failures_do_not_call_openai(
     assert result.private_decisions[0]["selected_provider"] is None
     assert result.private_decisions[0]["canonical_table"] is None
     assert openai.qualify_calls == openai.count_calls == openai.invoke_calls == 0
+
+
+def test_runtime_rejects_explanation_outside_json_without_repair() -> None:
+    gemini = _Provider(
+        "gemini",
+        raw_text_override=(
+            '{"description":"Two-column cash table.",'
+            '"rows":[["Item","Value"],["Cash","1,000"]]} explanation'
+        ),
+    )
+
+    result = _runtime(gemini).run([_candidate()])
+    decision = result.private_decisions[0]
+
+    assert decision["status"] == "malformed_provider_output"
+    assert decision["semantic_transcription"] is None
+    validator = decision["executions"][0]["validator_result"]
+    assert validator["status"] == "failed"
+    assert "semantic_table_transcription_raw_json_invalid" in validator[
+        "error_codes"
+    ]
+    assert validator["hidden_repair_performed"] is False
 
 
 def test_whole_document_or_mutated_crop_is_rejected_before_generation() -> None:
