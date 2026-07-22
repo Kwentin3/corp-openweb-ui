@@ -34,6 +34,9 @@ from broker_reports_gate1.workload_authority import (
     WorkloadState,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe as Gate1Pipe
+from openwebui_actions.broker_reports_gate2_domain_source_fact_pipe import (
+    Pipe as Gate2DomainPipe,
+)
 from openwebui_actions.broker_reports_gate2_source_fact_pipe import Pipe as Gate2Pipe
 
 
@@ -792,37 +795,69 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
 
     def test_gate2_rejects_dcp_until_owning_gate1_workload_is_completed(self):
         authority = self._authority()
-        pending = self._submit(authority, WorkloadKind.GATE1)
+        gate1_access = WorkloadAccessContext(
+            user_id=self.access.user_id,
+            case_id=self.access.case_id,
+            chat_id=self.access.chat_id,
+            workspace_model_id="broker_reports_gate1_pipe",
+        )
+        pending = authority.submit(
+            job_kind=WorkloadKind.GATE1,
+            access=gate1_access,
+        )
+        dcp_context = SimpleNamespace(
+            user_id=self.access.user_id,
+            case_id=self.access.case_id,
+            chat_id=self.access.chat_id,
+            workspace_model_id=None,
+        )
         pending_record = SimpleNamespace(
             safe_metadata={"workload_job_id": pending.job_id}
         )
 
-        with self.assertRaises(WorkloadAuthorityError) as not_completed:
-            Gate2Pipe._assert_gate1_workload_completed(
-                authority=authority,
-                access=self.access,
-                dcp_record=pending_record,
+        for pipe_type in (Gate2Pipe, Gate2DomainPipe):
+            with self.assertRaises(WorkloadAuthorityError) as not_completed:
+                pipe_type._assert_gate1_workload_completed(
+                    authority=authority,
+                    context=dcp_context,
+                    dcp_record=pending_record,
+                )
+            self.assertEqual(
+                not_completed.exception.code,
+                "gate1_workload_not_completed",
             )
-        self.assertEqual(
-            not_completed.exception.code,
-            "gate1_workload_not_completed",
-        )
 
-        session = authority.try_admit(job_id=pending.job_id, access=self.access)
+        session = authority.try_admit(job_id=pending.job_id, access=gate1_access)
         session.transition(WorkloadState.NORMALIZING)
         session.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
         session.transition(WorkloadState.VALIDATING)
         session.complete()
-        Gate2Pipe._assert_gate1_workload_completed(
-            authority=authority,
-            access=self.access,
-            dcp_record=pending_record,
+
+        for pipe_type in (Gate2Pipe, Gate2DomainPipe):
+            pipe_type._assert_gate1_workload_completed(
+                authority=authority,
+                context=dcp_context,
+                dcp_record=pending_record,
+            )
+
+        wrong_user_context = SimpleNamespace(
+            user_id="different-user",
+            case_id=self.access.case_id,
+            chat_id=self.access.chat_id,
+            workspace_model_id=None,
         )
+        with self.assertRaises(WorkloadAuthorityError) as wrong_user:
+            Gate2Pipe._assert_gate1_workload_completed(
+                authority=authority,
+                context=wrong_user_context,
+                dcp_record=pending_record,
+            )
+        self.assertEqual(wrong_user.exception.code, "workload_access_denied")
 
         with self.assertRaises(WorkloadAuthorityError) as missing:
             Gate2Pipe._assert_gate1_workload_completed(
                 authority=authority,
-                access=self.access,
+                context=dcp_context,
                 dcp_record=SimpleNamespace(safe_metadata={}),
             )
         self.assertEqual(missing.exception.code, "gate1_workload_receipt_missing")
