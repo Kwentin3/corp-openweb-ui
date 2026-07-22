@@ -15,6 +15,7 @@ from .artifact_models import (
 from .artifact_resolver import ArtifactResolver
 from .contracts import stable_digest
 from .gate2_domain_contracts import DOMAIN_RUN_SCHEMA_VERSION
+from .gate2_source_fact_stitching import STITCH_RESULT_SCHEMA_VERSION
 from .semantic_visual_table_contracts import SEMANTIC_VISUAL_TABLE_ORIGIN
 from .table_projection import TableProjectionValidator
 
@@ -262,6 +263,7 @@ class AnswerContextSelectionService:
         package_refs = _strings(run.get("domain_package_refs"))
         facts_refs = _strings(run.get("source_facts_refs"))
         derived_refs = _strings(run.get("derived_source_unit_refs"))
+        owner_fact_ids = self._owner_fact_ids(run=run, context=context)
         packages = {ref: self._resolve_payload(ref, context) for ref in package_refs}
         facts_by_package: dict[str, list[tuple[str, dict[str, Any]]]] = {}
         for facts_ref in facts_refs:
@@ -442,6 +444,8 @@ class AnswerContextSelectionService:
                         fact_id = str(fact.get("fact_id") or "")
                         if not fact_id or fact_id in seen_fact_ids:
                             continue
+                        if owner_fact_ids is not None and fact_id not in owner_fact_ids:
+                            continue
                         seen_fact_ids.add(fact_id)
                         compact_facts.append(_compact_fact(fact))
             if not compact_facts:
@@ -514,6 +518,36 @@ class AnswerContextSelectionService:
             "semantic_groups_total": len(semantic_groups),
             "provenance_only_representations_total": provenance_only_total,
         }
+
+    def _owner_fact_ids(
+        self,
+        *,
+        run: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> set[str] | None:
+        stitch_refs = _strings(run.get("stitch_result_refs"))
+        if not stitch_refs:
+            return None
+        owner_fact_ids: set[str] = set()
+        for stitch_ref in stitch_refs:
+            stitch = self._resolve_payload(stitch_ref, context)
+            if stitch.get("schema_version") != STITCH_RESULT_SCHEMA_VERSION:
+                raise AnswerContextSelectionError(
+                    "answer_context_stitch_result_type_mismatch"
+                )
+            for ownership in _dicts(stitch.get("ownership_map")):
+                if ownership.get("ownership_status") not in {
+                    "accepted_fact",
+                    "unknown_source_row",
+                }:
+                    continue
+                fact_id = str(ownership.get("owner_fact_id") or "")
+                if not fact_id:
+                    raise AnswerContextSelectionError(
+                        "answer_context_owner_fact_id_missing"
+                    )
+                owner_fact_ids.add(fact_id)
+        return owner_fact_ids
 
     def _resolve_payload(
         self, ref: str, context: ArtifactAccessContext
