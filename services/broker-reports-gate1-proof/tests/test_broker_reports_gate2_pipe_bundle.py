@@ -200,6 +200,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             pipe.valves.allow_standalone_semantic_visual_projections
         )
         self.assertFalse(pipe.valves.candidate_binding_enabled)
+        self.assertTrue(pipe.valves.answer_context_selection_enabled)
         self.assertTrue(
             hasattr(bundled_package, "Gate2CandidateBindingKernelFactory")
         )

@@ -101,6 +101,7 @@ MODULE_ORDER = [
     "gate2_source_fact_validation",
     "gate2_source_fact_runtime",
     "gate2_source_fact_stitching",
+    "answer_context_selection",
     "gate3_context_manifest",
     "gate2_domain_runtime",
     "gate2_handoff",
@@ -200,7 +201,7 @@ def main() -> None:
             modules=gate2_modules,
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
-            version="0.9.0-semantic-visual-v1-bundled",
+            version="0.10.0-answer-context-v1-bundled",
             package_version="gate2_semantic_visual_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
@@ -222,7 +223,7 @@ def main() -> None:
             modules=gate2_domain_modules,
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
-            version="0.11.0-semantic-visual-v1-bundled",
+            version="0.12.0-answer-context-v1-bundled",
             package_version="gate2_domain_semantic_visual_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
@@ -326,12 +327,18 @@ def assert_gate2_bundle_contract(
         "model_clients_module": '"gate2_model_clients"',
         "csv_profile_module": '"csv_profile"',
         "gate3_context_manifest_module": '"gate3_context_manifest"',
+        "answer_context_selection_module": '"answer_context_selection"',
         "csv_profile_factory": "CsvSupportedProfileFactory(",
         "csv_profile_factory_anchor": (
             "CsvSupportedProfileFactory.create is the only production "
             "supported-CSV parser entrypoint"
         ),
         "gate3_context_manifest_factory": "Gate3ContextManifestFactory(",
+        "answer_context_selection_factory": "AnswerContextSelectionFactory(",
+        "answer_context_selection_factory_anchor": (
+            "AnswerContextSelectionFactory.create is the only production "
+            "answer-context selection entrypoint"
+        ),
         "gate3_context_manifest_factory_anchor": (
             "Gate3ContextManifestFactory.create is the only production Gate 3 "
             "context-manifest build and resolution entrypoint"

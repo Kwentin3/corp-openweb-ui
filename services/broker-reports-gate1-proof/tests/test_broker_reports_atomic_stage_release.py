@@ -132,6 +132,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(
             domain_valves["allow_standalone_semantic_visual_projections"]
         )
+        self.assertTrue(domain_valves["answer_context_selection_enabled"])
 
     def test_quiescence_counts_every_nonterminal_state(self):
         self.assertEqual(

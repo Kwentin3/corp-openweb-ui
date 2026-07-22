@@ -17,6 +17,7 @@ REPO = ROOT.parents[1]
 sys.path.insert(0, str(ROOT))
 
 from broker_reports_gate1 import (
+    AnswerContextSelectionFactory,
     ArtifactAccessContext,
     ArtifactResolver,
     ArtifactStoreConfig,
@@ -729,6 +730,33 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
 
         self.assertEqual(result.terminal_status, "completed")
         self.assertIsNotNone(result.gate3_context_manifest_ref)
+        self.assertIsNotNone(result.answer_context_ref)
+        self.assertIsNotNone(result.answer_context_receipt_ref)
+        self.assertEqual(
+            result.answer_context_selection_summary["selection_status"],
+            "passed",
+        )
+        answer_context = AnswerContextSelectionFactory(
+            store=self.store
+        ).create().resolve_for_answer(
+            context_ref=str(result.answer_context_ref),
+            context=self.context,
+        )
+        self.assertTrue(answer_context["evidence_groups"])
+        self.assertTrue(
+            all(
+                len(
+                    [
+                        representation
+                        for representation in group["representations"]
+                        if representation["interpretation_selection_role"]
+                        == "interpretation_bearing"
+                    ]
+                )
+                == 1
+                for group in answer_context["evidence_groups"]
+            )
+        )
         self.assertEqual(
             result.gate3_context_manifest_summary["gate3_input_status"],
             "ready",

@@ -60,6 +60,17 @@ from .artifact_models import (
 from .artifact_resolver import ArtifactResolver
 from .artifact_retention import RetentionPolicyError, build_retention_policy
 from .artifact_store import ArtifactStoreConfig, ArtifactStoreError, ArtifactStoreFactory
+from .answer_context_selection import (
+    ANSWER_CONTEXT_POLICY_VERSION,
+    ANSWER_CONTEXT_RECEIPT_SCHEMA_VERSION,
+    ANSWER_CONTEXT_SCHEMA_VERSION,
+    AnswerContextSelectionError,
+    AnswerContextSelectionFactory,
+    AnswerContextSelectionResult,
+    answer_context_receipt_ref_for_run,
+    answer_context_ref_for_run,
+    validate_answer_context,
+)
 from .bounded_graph import (
     BOUNDED_GRAPH_CONTRACT_VERSION,
     ArtifactStoreBackedList,
@@ -819,6 +830,15 @@ __all__ = [
     "Gate2DomainSourceFactRuntimeConfig",
     "Gate2DomainSourceFactRuntimeFactory",
     "Gate2DomainSourceFactRuntimeResult",
+    "ANSWER_CONTEXT_POLICY_VERSION",
+    "ANSWER_CONTEXT_RECEIPT_SCHEMA_VERSION",
+    "ANSWER_CONTEXT_SCHEMA_VERSION",
+    "AnswerContextSelectionError",
+    "AnswerContextSelectionFactory",
+    "AnswerContextSelectionResult",
+    "answer_context_receipt_ref_for_run",
+    "answer_context_ref_for_run",
+    "validate_answer_context",
     "GATE3_CONTEXT_MANIFEST_POLICY_VERSION",
     "GATE3_CONTEXT_MANIFEST_SCHEMA_VERSION",
     "Gate3ContextManifestError",
