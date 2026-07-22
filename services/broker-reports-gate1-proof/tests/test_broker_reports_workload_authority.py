@@ -645,11 +645,13 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             )
         )
         authority = pipe._workload_authority()
-        access = WorkloadAccessContext(
-            user_id=self.access.user_id,
-            case_id=self.access.case_id,
-            chat_id=self.access.chat_id,
-            workspace_model_id=self.access.workspace_model_id,
+        access = pipe._canonical_workload_access(
+            WorkloadAccessContext(
+                user_id=self.access.user_id,
+                case_id=self.access.case_id,
+                chat_id=self.access.chat_id,
+                workspace_model_id=self.access.workspace_model_id,
+            )
         )
         states = [
             item["to_state"]

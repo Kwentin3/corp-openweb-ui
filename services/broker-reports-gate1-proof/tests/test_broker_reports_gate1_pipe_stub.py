@@ -823,7 +823,11 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
                 ]
             }
 
-        first_content = run_pipe(pipe, request_body())
+        first_content = run_pipe(
+            pipe,
+            request_body(),
+            __metadata__={"chat_id": "pipe-test-chat"},
+        )
         artifact_db = Path(pipe.valves.artifact_store_path)
         workload_db = artifact_db.with_name("workloads.sqlite3")
         with closing(sqlite3.connect(artifact_db)) as conn:
@@ -831,7 +835,14 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
                 "SELECT COUNT(*) FROM artifact_records"
             ).fetchone()[0]
 
-        replay_content = run_pipe(pipe, request_body())
+        replay_content = run_pipe(
+            pipe,
+            request_body(),
+            __metadata__={
+                "chat_id": "pipe-test-chat",
+                "model_id": "broker_reports_gate1_pipe",
+            },
+        )
 
         self.assertTrue(first_content)
         self.assertIn("available for questions", replay_content)
@@ -850,9 +861,16 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
                 1,
             )
         with closing(sqlite3.connect(workload_db)) as conn:
+            conn.row_factory = sqlite3.Row
             self.assertEqual(
                 conn.execute("SELECT COUNT(*) FROM workload_jobs").fetchone()[0],
                 1,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT workspace_model_id FROM workload_jobs"
+                ).fetchone()["workspace_model_id"],
+                "broker_reports_gate1_pipe",
             )
             self.assertEqual(
                 conn.execute(
