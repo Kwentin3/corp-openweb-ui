@@ -1,0 +1,113 @@
+{
+  "schema_version": "broker_reports_semantic_actual_corpus_manifest_v1",
+  "experiment_id": "semantic_visual_actual_corpus_qualification_2026_07_22",
+  "frozen_before_provider_execution": true,
+  "source_revision": "3ccfde4c87f55822ff9dbbb32013f0d74b9214b0",
+  "inputs": {
+    "corpus_manifest": {
+      "repository_relative_path": "services/broker-reports-gate1-proof/benchmarks/pdf_table_strategy_v1/manifest.json",
+      "sha256": "582c9777d68cb6f5d0199031a4424eafac81b6c0f782c1cf4c8667739a6eb695"
+    },
+    "detection_terminal": {
+      "repository_relative_path": "local/stage2/broker_reports_pdf_dual_vlm_literal_benchmark_2026-07-17/detection-run3-coordinate-contract-v2/detection.terminal.private.json",
+      "sha256": "301a328a70ac90e228e1bdc01d010381f226479c37f9fbe85c15537df24bd65a"
+    },
+    "detection_seal": {
+      "repository_relative_path": "local/stage2/broker_reports_pdf_dual_vlm_literal_benchmark_2026-07-17/detection-run3-coordinate-contract-v2/detection.terminal.private.sha256.json",
+      "sha256": "1e20954d5adb8df700ffb63ad261858bb5c10d6176f0aa51ef3c58f941e330c6"
+    },
+    "corpus_root_repository_relative": "local/stage2/broker_reports_pdf_structural_holdout_public_v5_2026-07-15/corpus",
+    "delegated_reference": {
+      "repository_relative_path": "local/stage2/broker_reports_actual_corpus_vlm_quality_2026-07-21/reference-v1/reference.delegated-agent.private.json",
+      "file_sha256": "4b5ddaa3923e7543533767a847966d6793decb56a16a09fd07aefbc6b3117ef2",
+      "canonical_sha256": "681dffecf7169addb127a7c7d861c76b98e57d8b0b46747444cb83d03a389d5a"
+    },
+    "delegated_reference_seal": {
+      "repository_relative_path": "local/stage2/broker_reports_actual_corpus_vlm_quality_2026-07-21/reference-v1/reference.delegated-agent.private.sha256.json",
+      "sha256": "8bba3894fa238a98874783796bf22af4b9faec903af3c383a65c783144c03164"
+    },
+    "semantic_reference_supplement": {
+      "repository_relative_path": "local/stage2/broker_reports_semantic_actual_corpus_source_reference_2026-07-22/semantic_reference_supplement.private.json",
+      "sha256": "050237d830a8389c61d9b7f1bd4d291c815e51ae0849487fd8d99bae8bc54ff3",
+      "source_only": true,
+      "provider_outputs_used": false,
+      "provider_agreement_used": false
+    },
+    "projected_semantic_reference": {
+      "canonical_sha256": "ac719b8d951921485126fe1a011eab16f3b0d18246b546dddd0e98f38b702af0",
+      "accepted_table_count": 8,
+      "unsupported_table_count": 1
+    },
+    "prior_low_level_baseline": {
+      "repository_relative_path": "local/stage2/broker_reports_actual_corpus_vlm_quality_2026-07-21/score-v3/score.private.json",
+      "sha256": "4f168c08390b6404aeaa473fc485a32ac49a08ba8bc39ea02a5171fd412092e4",
+      "provider_outputs_used_as_reference_truth": false,
+      "contract_validity_rate": 0.805556,
+      "numeric_value_agreement_rate": 0.674699,
+      "row_binding_support_rate": 0.480337,
+      "numeric_value_hallucination_rate": 0.03653,
+      "structurally_useful_distinct_crops": 2,
+      "bounded_crop_count": 9
+    }
+  },
+  "provider_contracts": {
+    "gemini": {
+      "provider_profile": "google_gemini",
+      "model_id": "models/gemini-3.5-flash",
+      "transport": "native_google_gemini_generate_content",
+      "executions": 18,
+      "runs_per_table": 2,
+      "hidden_retry": false
+    },
+    "openai": {
+      "provider_profile": "openai_gpt",
+      "model_id": "gpt-5.4-mini-2026-03-17",
+      "transport": "native_openai_responses",
+      "executions": 9,
+      "runs_per_table": 1,
+      "role": "diagnostic_control",
+      "hidden_retry": false
+    }
+  },
+  "semantic_contract": {
+    "schema_version": "broker_reports_semantic_table_transcription_v1",
+    "schema_sha256": "71584a0564b2175c4233ec8072873a72054a7a61e8fb81f6fd88e54690dbadc1",
+    "prompt_version": "broker_reports_semantic_table_transcription_prompt_v1",
+    "prompt_sha256": "9b54abe91313a87aacfe756ccec662b0c669188919b5db0bd0aab3bcee58dee2",
+    "model_view_sha256": "1149f389d48f00a055d6e54977adc3b26a09d141ce1e43a8133e29426c28ac1e",
+    "tuning_on_frozen_tables_allowed": false
+  },
+  "execution_policy": {
+    "runtime_factory": "PdfDualVlmRuntimeFactory.create_for_openwebui",
+    "raster_factory": "PdfTableRasterFactory",
+    "credential_resolver": "Gate2OpenWebUIProviderConnectionResolver",
+    "gemini_master": true,
+    "openai_control_non_authoritative": true,
+    "provider_merge": false,
+    "provider_repair": false,
+    "provider_consensus_as_truth": false,
+    "geometric_metrics": false,
+    "markdown_runtime_dependency": false,
+    "maximum_candidates_per_runtime_call": 8
+  },
+  "gate": {
+    "accepted_numeric_table_count": 8,
+    "gemini_execution_count": 16,
+    "amount_fidelity_required": 1.0,
+    "row_value_binding_required": 1.0,
+    "hallucinated_amount_count_required": 0,
+    "unexplained_terminal_count_required": 0,
+    "unsupported_layouts_fail_closed": true
+  },
+  "cases": [
+    {"candidate_ref":"goal1_betterment_p04_table_0","crop_sha256":"3ceb1b9fdc4ab135a93f06df31fc9765e13b7096e2ab918c6bd73de36edc1496","width":1255,"height":913,"page_number":4,"pdf_sha256":"fbe6a299b05615643a0f0264568c65a64bd857b6b77752163b8c2e52bbcbf71e","disposition":"accepted_numeric_profile_candidate","layout_families":["borderless","sparse_cells","totals_subtotals"]},
+    {"candidate_ref":"goal1_drivewealth_p07_table_1","crop_sha256":"cff740d95347d65ea17ed5ca21c6871e9280dc0dddbb98d0386392c730af7d3b","width":1256,"height":792,"page_number":7,"pdf_sha256":"738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57","disposition":"accepted_numeric_profile_candidate","layout_families":["borderless","sparse_cells","totals_subtotals"]},
+    {"candidate_ref":"goal1_drivewealth_p09_table_1","crop_sha256":"65690a9359529524831db66a61b6728fbb4bb3a356cba76abc0699c649b5771e","width":1242,"height":382,"page_number":9,"pdf_sha256":"738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57","disposition":"accepted_numeric_profile_candidate","layout_families":["simple_grid","sparse_cells","totals_subtotals"]},
+    {"candidate_ref":"goal1_ibkr_annual_p11_table_1","crop_sha256":"5efd8d2501ca0ef14e6d411884fe94919063747df535e4d8f5b8ce8af2d6f162","width":1275,"height":557,"page_number":11,"pdf_sha256":"6486885e58867d382bd433228193e476a07b6cea2061ddbd74bef1dc6c65a118","disposition":"unsupported_layout","layout_families":["complex_broker_layout","long_form_prose","merged_headers"]},
+    {"candidate_ref":"goal1_ibkr_midyear_p03_table_1","crop_sha256":"cd6f9e42e06de80add9370c4ec7675c8f682a67df6ec4a4c8e2afc4b4f410ea8","width":1275,"height":1196,"page_number":3,"pdf_sha256":"d635df4866a040ce665bfde0da74dbf4dc8933931337a1b023377bf02cf60c2c","disposition":"accepted_numeric_profile_candidate","layout_families":["borderless","complex_broker_layout","sparse_cells","totals_subtotals"]},
+    {"candidate_ref":"goal1_moomoo_annual_p14_table_1","crop_sha256":"c58acddbd4fe1b458d4141fca46b0d04c37a1fd504521f404399c7c7914039ef","width":711,"height":381,"page_number":14,"pdf_sha256":"bad1e5fa045f0735f02487aca14236d84037f82fd2b1230ee3c56ba3420aee67","disposition":"accepted_numeric_profile_candidate","layout_families":["borderless","simple_grid","sparse_cells"]},
+    {"candidate_ref":"goal1_moomoo_annual_p14_table_2","crop_sha256":"f2bb4eaf668f89565dd0737ee10e4007c0bba258f505cb3094446bddf1b9c752","width":840,"height":624,"page_number":14,"pdf_sha256":"bad1e5fa045f0735f02487aca14236d84037f82fd2b1230ee3c56ba3420aee67","disposition":"accepted_numeric_profile_candidate","layout_families":["complex_broker_layout","merged_headers","sparse_cells","totals_subtotals"]},
+    {"candidate_ref":"goal1_moomoo_midyear_p10_table_0","crop_sha256":"1d948c5a052d106d01784a9b78092d682e116006bda46d1b5587b661df96666a","width":697,"height":377,"page_number":10,"pdf_sha256":"766448b2bf8b9ebe9172e4a07b0392134787a3b642288a93fbe6c0f9999ed0d3","disposition":"accepted_numeric_profile_candidate","layout_families":["borderless","simple_grid","sparse_cells"]},
+    {"candidate_ref":"goal1_moomoo_midyear_p10_table_1","crop_sha256":"3555dee6305a121eab692bc22ea1ccf4b21bd6c544bb6c524bdbc27ffc7fc7e8","width":653,"height":478,"page_number":10,"pdf_sha256":"766448b2bf8b9ebe9172e4a07b0392134787a3b642288a93fbe6c0f9999ed0d3","disposition":"accepted_numeric_profile_candidate","layout_families":["merged_headers","simple_grid","sparse_cells","totals_subtotals"]}
+  ]
+}

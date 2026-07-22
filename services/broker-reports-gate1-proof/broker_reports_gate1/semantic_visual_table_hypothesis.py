@@ -21,6 +21,9 @@ SEMANTIC_THREE_TABLE_GATE_SCHEMA = (
 SEMANTIC_THREE_TABLE_REFERENCE_SCHEMA = (
     "broker_reports_semantic_three_table_source_reference_v1_private"
 )
+SEMANTIC_ACTUAL_CORPUS_REFERENCE_SCHEMA = (
+    "broker_reports_semantic_actual_corpus_source_reference_v1_private"
+)
 SEMANTIC_THREE_TABLE_GATE_SCOPE = "six_gemini_master_executions"
 
 FACTORY_REQUIRED = (
@@ -45,14 +48,19 @@ class SemanticThreeTableHypothesisError(ValueError):
         super().__init__(code)
 
 
-def validate_source_reference(value: Any) -> dict[str, Any]:
+def validate_source_reference(
+    value: Any,
+    *,
+    expected_table_count: int = 3,
+    expected_schema_version: str = SEMANTIC_THREE_TABLE_REFERENCE_SCHEMA,
+) -> dict[str, Any]:
     errors: list[str] = []
     if not isinstance(value, dict):
         raise SemanticThreeTableHypothesisError(
             "semantic_three_table_reference_not_object"
         )
     if (
-        value.get("schema_version") != SEMANTIC_THREE_TABLE_REFERENCE_SCHEMA
+        value.get("schema_version") != expected_schema_version
         or value.get("source_only") is not True
         or value.get("provider_outputs_used") is not False
         or value.get("provider_agreement_used") is not False
@@ -60,7 +68,13 @@ def validate_source_reference(value: Any) -> dict[str, Any]:
     ):
         errors.append("semantic_three_table_reference_authority_invalid")
     tables = value.get("tables")
-    if not isinstance(tables, list) or len(tables) != 3:
+    if (
+        not isinstance(expected_table_count, int)
+        or isinstance(expected_table_count, bool)
+        or expected_table_count < 1
+        or not isinstance(tables, list)
+        or len(tables) != expected_table_count
+    ):
         errors.append("semantic_three_table_reference_table_count_invalid")
         tables = []
     table_ids: list[str] = []
@@ -143,6 +157,9 @@ def score_semantic_response(
         "hallucinated_labels": _expanded(observed["hallucinated_labels"]),
         "hallucinated_amounts": _expanded(observed["hallucinated_amounts"]),
         "hallucinated_markers": _expanded(observed["hallucinated_markers"]),
+        "typographic_label_variants": _expanded(
+            observed["typographic_label_variants"]
+        ),
         "unexpected_empty_string_count": observed["unexpected_empty_string_count"],
         "missing_labels": label_metric["missing_values"],
         "missing_amounts": amount_metric["missing_values"],
@@ -277,6 +294,9 @@ def public_score_summary(score: dict[str, Any]) -> dict[str, Any]:
         "hallucinated_label_count": len(score.get("hallucinated_labels") or []),
         "hallucinated_amount_count": len(score.get("hallucinated_amounts") or []),
         "hallucinated_marker_count": len(score.get("hallucinated_markers") or []),
+        "typographic_label_variant_count": len(
+            score.get("typographic_label_variants") or []
+        ),
         "unexpected_empty_string_count": score.get(
             "unexpected_empty_string_count"
         ),
@@ -363,6 +383,7 @@ def _classify_observed(
     hallucinated_labels: Counter[str] = Counter()
     hallucinated_amounts: Counter[str] = Counter()
     hallucinated_markers: Counter[str] = Counter()
+    typographic_label_variants: Counter[str] = Counter()
     unexpected_empty_string_count = 0
     label_order: list[str] = []
     for row in rows:
@@ -376,6 +397,11 @@ def _classify_observed(
                 amounts[token] += 1
             elif token in expected["markers"]:
                 markers[token] += 1
+            elif (canonical_label := _typographic_label_equivalent(
+                token, expected["labels"]
+            )) is not None:
+                typographic_label_variants[token] += 1
+                label_order.append(canonical_label)
             elif _MARKER_RE.fullmatch(token):
                 hallucinated_markers[token] += 1
             elif _AMOUNT_RE.fullmatch(token):
@@ -390,6 +416,7 @@ def _classify_observed(
         "hallucinated_labels": hallucinated_labels,
         "hallucinated_amounts": hallucinated_amounts,
         "hallucinated_markers": hallucinated_markers,
+        "typographic_label_variants": typographic_label_variants,
         "unexpected_empty_string_count": unexpected_empty_string_count,
         "label_order": label_order,
     }
@@ -404,7 +431,7 @@ def _diagnostic_literal_tokens(rows: list[list[str]]) -> list[list[str]]:
     """
 
     result: list[list[str]] = []
-    combined = re.compile(r"^([$€£¥₽]) ([^\s].*)$")
+    combined = re.compile(r"^([$€£¥₽])\s*([^\s].*)$")
     for row in rows:
         projected: list[str] = []
         for token in row:
@@ -467,16 +494,30 @@ def _binding_metric(
 ) -> dict[str, Any]:
     expected_bindings = []
     for row in table["rows"]:
-        if row["amounts"]:
+        if row["amounts"] or row["markers"]:
             expected_bindings.append(
-                (Counter(row["labels"]), Counter(row["amounts"]))
+                (
+                    Counter(row["labels"]),
+                    Counter(row["amounts"]),
+                    Counter(row["markers"]),
+                )
             )
     observed_bindings = []
     for row in observed_rows:
         observed_bindings.append(
             (
-                Counter(token for token in row if token in expected["labels"]),
+                Counter(
+                    canonical
+                    for token in row
+                    if (
+                        canonical := _binding_label(
+                            token, expected["labels"]
+                        )
+                    )
+                    is not None
+                ),
                 Counter(token for token in row if token in expected["amounts"]),
+                Counter(token for token in row if token in expected["markers"]),
             )
         )
     remaining = list(observed_bindings)
@@ -495,6 +536,30 @@ def _binding_metric(
         "rate": _rate(matches, total),
         "missing_binding_count": total - matches,
     }
+
+
+def _binding_label(
+    value: str, expected_labels: Counter[str]
+) -> str | None:
+    if value in expected_labels:
+        return value
+    return _typographic_label_equivalent(value, expected_labels)
+
+
+def _typographic_label_equivalent(
+    value: str, expected_labels: Counter[str]
+) -> str | None:
+    normalized = _normalize_apostrophes(value)
+    matches = [
+        label
+        for label in expected_labels
+        if label != value and _normalize_apostrophes(label) == normalized
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _normalize_apostrophes(value: str) -> str:
+    return value.replace("’", "'").replace("‘", "'")
 
 
 def _reference_label_order(table: dict[str, Any]) -> list[str]:

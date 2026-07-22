@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from broker_reports_gate1.semantic_visual_table_hypothesis import (
+    SEMANTIC_ACTUAL_CORPUS_REFERENCE_SCHEMA,
     SEMANTIC_THREE_TABLE_REFERENCE_SCHEMA,
     SemanticThreeTableHypothesisError,
     compare_material_repeatability,
@@ -82,6 +83,15 @@ def test_source_reference_is_source_only_and_role_accounted() -> None:
         validate_source_reference(invalid)
     assert caught.value.code.endswith("role_accounting_invalid")
 
+    bounded = copy.deepcopy(value)
+    bounded["schema_version"] = SEMANTIC_ACTUAL_CORPUS_REFERENCE_SCHEMA
+    bounded["tables"] = bounded["tables"][:2]
+    assert validate_source_reference(
+        bounded,
+        expected_table_count=2,
+        expected_schema_version=SEMANTIC_ACTUAL_CORPUS_REFERENCE_SCHEMA,
+    ) == bounded
+
 
 def test_perfect_semantic_response_scores_literal_content_without_geometry() -> None:
     response = _response()
@@ -122,6 +132,42 @@ def test_combined_currency_and_amount_cell_is_literal_semantic_equivalent() -> N
     assert score["manual_correction_count"] == 0
 
 
+def test_combined_currency_without_space_is_literal_semantic_equivalent() -> None:
+    response = {
+        "description": "A small source table.",
+        "rows": [["Assets", None], ["Synthetic lease asset", "$(1,234.56)"]],
+    }
+    score = score_semantic_response(
+        _reference()["tables"][0],
+        response,
+        raw_json_text=json.dumps(response),
+    )
+
+    assert score["amount_fidelity"]["rate"] == 1.0
+    assert score["row_value_binding"]["rate"] == 1.0
+    assert score["hallucinated_amounts"] == []
+
+
+def test_binding_accepts_apostrophe_glyph_variant_but_literal_metric_keeps_it() -> None:
+    reference = _reference()["tables"][0]
+    reference["rows"][1]["cells"][0] = "Member’s equity"
+    reference["rows"][1]["labels"][0] = "Member’s equity"
+    response = {
+        "description": "A small source table.",
+        "rows": [["Assets", None], ["Member's equity", "$", "(1,234.56)"]],
+    }
+    score = score_semantic_response(
+        reference,
+        response,
+        raw_json_text=json.dumps(response),
+    )
+
+    assert score["label_completeness"]["rate"] == 0.5
+    assert score["row_value_binding"]["rate"] == 1.0
+    assert score["typographic_label_variants"] == ["Member's equity"]
+    assert score["hallucinated_labels"] == []
+
+
 def test_scorer_detects_omission_hallucination_binding_and_order() -> None:
     response = {
         "description": "Source table.",
@@ -144,6 +190,25 @@ def test_scorer_detects_omission_hallucination_binding_and_order() -> None:
     assert score["hallucinated_labels"] == ["Invented label"]
     assert score["hallucinated_amounts"] == ["9,999"]
     assert score["manual_correction_count"] > 0
+
+
+def test_row_binding_includes_visible_marker_or_placeholder() -> None:
+    response = {
+        "description": "Source table.",
+        "rows": [
+            ["Assets", "$"],
+            ["Synthetic lease asset", "(1,234.56)"],
+        ],
+    }
+    score = score_semantic_response(
+        _reference()["tables"][0],
+        response,
+        raw_json_text=json.dumps(response),
+    )
+    assert score["label_completeness"]["rate"] == 1.0
+    assert score["amount_fidelity"]["rate"] == 1.0
+    assert score["currency_sign_parenthesis_fidelity"]["rate"] == 1.0
+    assert score["row_value_binding"]["rate"] == 0.0
 
 
 def test_empty_string_is_a_null_semantics_violation_not_a_hallucinated_label() -> None:
