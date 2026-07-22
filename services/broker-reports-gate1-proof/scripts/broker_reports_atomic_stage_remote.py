@@ -3,8 +3,9 @@
 
 The local release driver copies this file and a validated release payload to a
 restricted stage directory.  This program must run on the stage host as root.
-It updates all maintained Function rows in one SQLite transaction while the
-OpenWebUI container is stopped.  Any failure restores the exact previous rows.
+It updates all maintained Function and managed Prompt rows in one SQLite
+transaction while the OpenWebUI container is stopped. Any failure restores the
+exact previous rows.
 """
 
 from __future__ import annotations
@@ -112,7 +113,7 @@ def _validated_staging_dir(value: str) -> Path:
 
 
 def _validate_manifest(manifest: Mapping[str, Any]) -> None:
-    if manifest.get("schema_version") != "broker_reports_atomic_stage_release_v1":
+    if manifest.get("schema_version") != "broker_reports_atomic_stage_release_v2":
         raise StageReleaseError("stage_release_manifest_schema_invalid")
     release_id = str(manifest.get("release_id") or "")
     if not STAGING_NAME_RE.fullmatch(release_id):
@@ -142,6 +143,23 @@ def _validate_payload(staging_dir: Path, manifest: Mapping[str, Any]) -> None:
         markers = item.get("required_markers") or []
         if not all(str(marker) in content for marker in markers):
             raise StageReleaseError("stage_release_bundle_markers_missing")
+    prompts = manifest.get("managed_prompts") or []
+    if not prompts or any(not isinstance(item, dict) for item in prompts):
+        raise StageReleaseError("stage_release_prompt_contract_invalid")
+    prompt_ids = [str(item.get("prompt_id") or "") for item in prompts]
+    if len(prompt_ids) != len(set(prompt_ids)) or any(not item for item in prompt_ids):
+        raise StageReleaseError("stage_release_prompt_set_invalid")
+    for item in prompts:
+        content = item.get("content")
+        if (
+            not isinstance(content, str)
+            or not content.strip()
+            or _sha256_text(content) != item.get("content_sha256")
+            or not str(item.get("command") or "")
+            or not str(item.get("version") or "")
+            or not isinstance(item.get("meta"), dict)
+        ):
+            raise StageReleaseError("stage_release_prompt_contract_invalid")
 
 
 def _volume_mount() -> Path:
@@ -176,6 +194,24 @@ def _function_rows(db_path: Path, function_ids: list[str]) -> dict[str, dict[str
     result = {str(row["id"]): dict(row) for row in rows}
     if set(result) != set(function_ids):
         raise StageReleaseError("stage_release_function_set_missing")
+    return result
+
+
+def _prompt_rows(db_path: Path, prompt_ids: list[str]) -> dict[str, dict[str, Any]]:
+    placeholders = ",".join("?" for _ in prompt_ids)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, command, version_id, is_active, content, meta, updated_at "
+            f"FROM prompt WHERE id IN ({placeholders}) ORDER BY id",
+            tuple(prompt_ids),
+        ).fetchall()
+    finally:
+        conn.close()
+    result = {str(row["id"]): dict(row) for row in rows}
+    if set(result) != set(prompt_ids):
+        raise StageReleaseError("stage_release_prompt_set_missing")
     return result
 
 
@@ -420,12 +456,29 @@ def _assert_static_contracts(state: Mapping[str, Any], manifest: Mapping[str, An
         raise StageReleaseError("stage_release_loader_contract_mismatch")
     if state.get("fitz_version") != manifest["runtime"]["fitz_version"]:
         raise StageReleaseError("stage_release_runtime_dependency_mismatch")
+
+
+def _assert_prompt_set_present(
+    state: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> None:
     expected_prompts = {
         str(item["prompt_id"]): item for item in manifest["managed_prompts"]
     }
     live_prompts = {str(item["prompt_id"]): item for item in state["managed_prompts"]}
     if set(live_prompts) != set(expected_prompts):
         raise StageReleaseError("stage_release_prompt_set_mismatch")
+    if any(item.get("present") is not True for item in live_prompts.values()):
+        raise StageReleaseError("stage_release_prompt_set_missing")
+
+
+def _assert_prompt_contracts(
+    state: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> None:
+    _assert_prompt_set_present(state, manifest)
+    expected_prompts = {
+        str(item["prompt_id"]): item for item in manifest["managed_prompts"]
+    }
+    live_prompts = {str(item["prompt_id"]): item for item in state["managed_prompts"]}
     for prompt_id, expected in expected_prompts.items():
         live = live_prompts[prompt_id]
         if (
@@ -467,9 +520,12 @@ def _assert_candidate(state: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
             raise StageReleaseError(
                 "stage_release_candidate_function_mismatch:" + function_id
             )
+    _assert_prompt_contracts(state, manifest)
 
 
-def _snapshot_rows(rows: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+def _snapshot_function_rows(
+    rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
     return {
         function_id: {
             key: row.get(key)
@@ -487,10 +543,30 @@ def _snapshot_rows(rows: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _snapshot_prompt_rows(
+    rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    return {
+        prompt_id: {
+            key: row.get(key)
+            for key in (
+                "command",
+                "version_id",
+                "is_active",
+                "content",
+                "meta",
+                "updated_at",
+            )
+        }
+        for prompt_id, row in rows.items()
+    }
+
+
 def _rollback_artifact(
     *,
     manifest: Mapping[str, Any],
-    rows: Mapping[str, Mapping[str, Any]],
+    function_rows: Mapping[str, Mapping[str, Any]],
+    prompt_rows: Mapping[str, Mapping[str, Any]],
     before_state: Mapping[str, Any],
 ) -> tuple[dict[str, Any], str, bool]:
     release_id = str(manifest["release_id"])
@@ -499,11 +575,12 @@ def _rollback_artifact(
     os.chmod(rollback_dir, 0o700)
     path = rollback_dir / "function_rows.rollback.json"
     value = {
-        "schema_version": "broker_reports_atomic_stage_rollback_v1",
+        "schema_version": "broker_reports_atomic_stage_rollback_v2",
         "release_id": release_id,
         "source_revision": manifest["source_revision"],
         "manifest_sha256": manifest["manifest_sha256"],
-        "previous_function_rows": _snapshot_rows(rows),
+        "previous_function_rows": _snapshot_function_rows(function_rows),
+        "previous_prompt_rows": _snapshot_prompt_rows(prompt_rows),
         "previous_object_identities": {
             "functions": before_state["functions"],
             "action": before_state["action"],
@@ -581,32 +658,92 @@ def _desired_rows(
     return result
 
 
-def _replace_rows(
+def _desired_prompt_rows(
+    *,
+    manifest: Mapping[str, Any],
+    current_rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    now = int(time.time())
+    for contract in manifest["managed_prompts"]:
+        prompt_id = str(contract["prompt_id"])
+        current = current_rows[prompt_id]
+        meta = {
+            **_json_object(current.get("meta")),
+            **_json_object(contract.get("meta")),
+        }
+        unchanged = (
+            current.get("command") == contract.get("command")
+            and current.get("version_id") == contract.get("version")
+            and current.get("is_active") in (1, True)
+            and current.get("content") == contract.get("content")
+            and _json_object(current.get("meta")) == meta
+        )
+        result[prompt_id] = {
+            "command": str(contract["command"]),
+            "version_id": str(contract["version"]),
+            "is_active": 1,
+            "content": str(contract["content"]),
+            "meta": (
+                current.get("meta") if unchanged else _canonical_json(meta)
+            ),
+            "updated_at": current.get("updated_at") if unchanged else now,
+        }
+    return result
+
+
+def _replace_release_rows(
     *,
     db_path: Path,
-    replacement_rows: Mapping[str, Mapping[str, Any]],
-    expected_hashes: Mapping[str, str] | None,
+    replacement_function_rows: Mapping[str, Mapping[str, Any]],
+    replacement_prompt_rows: Mapping[str, Mapping[str, Any]],
+    expected_function_hashes: Mapping[str, str] | None,
+    expected_prompt_hashes: Mapping[str, str] | None,
 ) -> None:
     conn = sqlite3.connect(db_path, timeout=60)
     try:
         conn.execute("PRAGMA busy_timeout = 60000")
         conn.execute("BEGIN IMMEDIATE")
         try:
-            for function_id in sorted(replacement_rows):
+            for function_id in sorted(replacement_function_rows):
                 current = conn.execute(
                     "SELECT content FROM function WHERE id = ?", (function_id,)
                 ).fetchone()
                 if current is None:
                     raise StageReleaseError("stage_release_function_missing_during_write")
-                if expected_hashes is not None:
+                if expected_function_hashes is not None:
                     current_hash = _sha256_text(str(current[0] or ""))
-                    if current_hash != expected_hashes.get(function_id):
+                    if current_hash != expected_function_hashes.get(function_id):
                         raise StageReleaseError(
                             "stage_release_function_changed_during_release:"
                             + function_id
                         )
-            for function_id in sorted(replacement_rows):
-                row = replacement_rows[function_id]
+            for prompt_id in sorted(replacement_prompt_rows):
+                current = conn.execute(
+                    "SELECT command, version_id, is_active, content, meta, updated_at "
+                    "FROM prompt WHERE id = ?",
+                    (prompt_id,),
+                ).fetchone()
+                if current is None:
+                    raise StageReleaseError("stage_release_prompt_missing_during_write")
+                if expected_prompt_hashes is not None:
+                    current_hash = _prompt_row_hash(dict(zip(
+                        (
+                            "command",
+                            "version_id",
+                            "is_active",
+                            "content",
+                            "meta",
+                            "updated_at",
+                        ),
+                        current,
+                    )))
+                    if current_hash != expected_prompt_hashes.get(prompt_id):
+                        raise StageReleaseError(
+                            "stage_release_prompt_changed_during_release:" + prompt_id
+                        )
+            for function_id in sorted(replacement_function_rows):
+                row = replacement_function_rows[function_id]
                 updated = conn.execute(
                     "UPDATE function SET content = ?, meta = ?, valves = ?, type = ?, "
                     "is_active = ?, is_global = ?, updated_at = ? WHERE id = ?",
@@ -623,6 +760,23 @@ def _replace_rows(
                 )
                 if updated.rowcount != 1:
                     raise StageReleaseError("stage_release_function_update_count_invalid")
+            for prompt_id in sorted(replacement_prompt_rows):
+                row = replacement_prompt_rows[prompt_id]
+                updated = conn.execute(
+                    "UPDATE prompt SET command = ?, version_id = ?, is_active = ?, "
+                    "content = ?, meta = ?, updated_at = ? WHERE id = ?",
+                    (
+                        row.get("command"),
+                        row.get("version_id"),
+                        row.get("is_active"),
+                        row.get("content"),
+                        row.get("meta"),
+                        row.get("updated_at"),
+                        prompt_id,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise StageReleaseError("stage_release_prompt_update_count_invalid")
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -635,6 +789,33 @@ def _content_hashes(rows: Mapping[str, Mapping[str, Any]]) -> dict[str, str]:
     return {
         function_id: _sha256_text(str(row.get("content") or ""))
         for function_id, row in rows.items()
+    }
+
+
+def _prompt_row_hash(row: Mapping[str, Any]) -> str:
+    return _sha256_text(
+        _canonical_json(
+            {
+                key: row.get(key)
+                for key in (
+                    "command",
+                    "version_id",
+                    "is_active",
+                    "content",
+                    "meta",
+                    "updated_at",
+                )
+            }
+        )
+    )
+
+
+def _prompt_hashes(
+    rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, str]:
+    return {
+        prompt_id: _prompt_row_hash(row)
+        for prompt_id, row in rows.items()
     }
 
 
@@ -738,10 +919,17 @@ except urllib.error.HTTPError as error:
 def _restore_after_failure(
     *,
     db_path: Path,
-    rollback_rows: Mapping[str, Mapping[str, Any]],
+    rollback_function_rows: Mapping[str, Mapping[str, Any]],
+    rollback_prompt_rows: Mapping[str, Mapping[str, Any]],
 ) -> None:
     _stop_container()
-    _replace_rows(db_path=db_path, replacement_rows=rollback_rows, expected_hashes=None)
+    _replace_release_rows(
+        db_path=db_path,
+        replacement_function_rows=rollback_function_rows,
+        replacement_prompt_rows=rollback_prompt_rows,
+        expected_function_hashes=None,
+        expected_prompt_hashes=None,
+    )
     _start_container()
     _wait_healthy()
 
@@ -753,9 +941,12 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     data_root = _volume_mount()
     db_path = _webui_db(data_root)
     function_ids = [str(item["function_id"]) for item in manifest["functions"]]
-    current_rows = _function_rows(db_path, function_ids)
+    prompt_ids = [str(item["prompt_id"]) for item in manifest["managed_prompts"]]
+    current_function_rows = _function_rows(db_path, function_ids)
+    current_prompt_rows = _prompt_rows(db_path, prompt_ids)
     before = _live_state(db_path=db_path, data_root=data_root, manifest=manifest)
     _assert_static_contracts(before, manifest)
+    _assert_prompt_set_present(before, manifest)
     _assert_quiescent(before)
     if not all(
         item.get("active") is True
@@ -767,10 +958,16 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     desired_rows = _desired_rows(
         staging_dir=staging_dir,
         manifest=manifest,
-        current_rows=current_rows,
+        current_rows=current_function_rows,
+    )
+    desired_prompt_rows = _desired_prompt_rows(
+        manifest=manifest,
+        current_rows=current_prompt_rows,
     )
     desired_hashes = _content_hashes(desired_rows)
-    before_hashes = _content_hashes(current_rows)
+    before_hashes = _content_hashes(current_function_rows)
+    desired_prompt_hashes = _prompt_hashes(desired_prompt_rows)
+    before_prompt_hashes = _prompt_hashes(current_prompt_rows)
     plan = {
         function_id: {
             "before_sha256": before_hashes[function_id],
@@ -778,6 +975,17 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "change_required": before_hashes[function_id] != desired_hashes[function_id],
         }
         for function_id in function_ids
+    }
+    prompt_plan = {
+        prompt_id: {
+            "before_sha256": before_prompt_hashes[prompt_id],
+            "candidate_sha256": desired_prompt_hashes[prompt_id],
+            "change_required": (
+                before_prompt_hashes[prompt_id]
+                != desired_prompt_hashes[prompt_id]
+            ),
+        }
+        for prompt_id in prompt_ids
     }
     if not apply:
         return {
@@ -788,6 +996,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "source_revision": manifest["source_revision"],
             "manifest_sha256": manifest["manifest_sha256"],
             "plan": plan,
+            "managed_prompt_plan": prompt_plan,
             "static_contracts": {
                 "image": before["image"],
                 "action": before["action"],
@@ -802,10 +1011,14 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
 
     rollback, rollback_identity, rollback_created = _rollback_artifact(
         manifest=manifest,
-        rows=current_rows,
+        function_rows=current_function_rows,
+        prompt_rows=current_prompt_rows,
         before_state=before,
     )
     rollback_rows = _json_object(rollback.get("previous_function_rows"))
+    rollback_prompt_rows = _json_object(rollback.get("previous_prompt_rows"))
+    if not rollback_prompt_rows:
+        raise StageReleaseError("stage_release_prompt_rollback_missing")
     modified = False
     health_checks = 0
     rollback_proof = {
@@ -815,10 +1028,12 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     }
     try:
         _stop_container()
-        _replace_rows(
+        _replace_release_rows(
             db_path=db_path,
-            replacement_rows=desired_rows,
-            expected_hashes=before_hashes,
+            replacement_function_rows=desired_rows,
+            replacement_prompt_rows=desired_prompt_rows,
+            expected_function_hashes=before_hashes,
+            expected_prompt_hashes=before_prompt_hashes,
         )
         modified = True
         _start_container()
@@ -830,29 +1045,39 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         _assert_quiescent(candidate)
         if prove_rollback:
             _stop_container()
-            _replace_rows(
+            _replace_release_rows(
                 db_path=db_path,
-                replacement_rows=rollback_rows,
-                expected_hashes=desired_hashes,
+                replacement_function_rows=rollback_rows,
+                replacement_prompt_rows=rollback_prompt_rows,
+                expected_function_hashes=desired_hashes,
+                expected_prompt_hashes=desired_prompt_hashes,
             )
             _start_container()
             _wait_healthy()
             health_checks += 1
             restored_rows = _function_rows(db_path, function_ids)
-            if _snapshot_rows(restored_rows) != rollback_rows:
+            restored_prompt_rows = _prompt_rows(db_path, prompt_ids)
+            if (
+                _snapshot_function_rows(restored_rows) != rollback_rows
+                or _snapshot_prompt_rows(restored_prompt_rows)
+                != rollback_prompt_rows
+            ):
                 raise StageReleaseError("stage_release_rollback_rehearsal_mismatch")
             restored = _live_state(
                 db_path=db_path, data_root=data_root, manifest=manifest
             )
             _assert_static_contracts(restored, manifest)
+            _assert_prompt_set_present(restored, manifest)
             _assert_quiescent(restored)
             rollback_proof["previous_state_restored"] = True
 
             _stop_container()
-            _replace_rows(
+            _replace_release_rows(
                 db_path=db_path,
-                replacement_rows=desired_rows,
-                expected_hashes=before_hashes,
+                replacement_function_rows=desired_rows,
+                replacement_prompt_rows=desired_prompt_rows,
+                expected_function_hashes=before_hashes,
+                expected_prompt_hashes=before_prompt_hashes,
             )
             _start_container()
             _wait_healthy()
@@ -868,7 +1093,11 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             raise StageReleaseError("stage_release_repository_sink_delta_detected")
     except BaseException:
         if modified:
-            _restore_after_failure(db_path=db_path, rollback_rows=rollback_rows)
+            _restore_after_failure(
+                db_path=db_path,
+                rollback_function_rows=rollback_rows,
+                rollback_prompt_rows=rollback_prompt_rows,
+            )
         elif not _container_running():
             _start_container()
             _wait_healthy()
@@ -886,6 +1115,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         "rollback_proof": rollback_proof,
         "health_checks_passed": health_checks,
         "plan": plan,
+        "managed_prompt_plan": prompt_plan,
         "functions": candidate["functions"],
         "action": candidate["action"],
         "image": candidate["image"],

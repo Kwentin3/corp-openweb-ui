@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,9 @@ from live_verify_broker_reports_stage2_delivery import (  # noqa: E402
 
 class StageReleaseDriverError(RuntimeError):
     pass
+
+
+SAFE_REMOTE_ERROR_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 
 
 def _run(
@@ -192,13 +196,26 @@ def _run_remote_release(
         command.append("--apply")
     if prove_rollback:
         command.append("--prove-rollback")
-    completed = _run(command, timeout=900)
+    completed = _run(command, check=False, timeout=900)
+    return _validated_remote_receipt(completed, apply=apply)
+
+
+def _validated_remote_receipt(
+    completed: subprocess.CompletedProcess[str],
+    *,
+    apply: bool,
+) -> dict[str, Any]:
     try:
         value = json.loads(completed.stdout)
     except ValueError as exc:
         raise StageReleaseDriverError("stage_release_remote_receipt_invalid") from exc
     if not isinstance(value, dict):
         raise StageReleaseDriverError("stage_release_remote_receipt_invalid")
+    if completed.returncode != 0:
+        remote_code = str(value.get("code") or "")
+        if not SAFE_REMOTE_ERROR_RE.fullmatch(remote_code):
+            remote_code = "stage_release_remote_error_unclassified"
+        raise StageReleaseDriverError("stage_release_remote_failed:" + remote_code)
     expected_status = "passed" if apply else "validated"
     if value.get("status") != expected_status:
         raise StageReleaseDriverError("stage_release_remote_status_invalid")

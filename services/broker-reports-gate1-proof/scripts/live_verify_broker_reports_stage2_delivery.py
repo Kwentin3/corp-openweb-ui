@@ -322,6 +322,9 @@ def expected_prompt_contracts() -> dict[str, dict[str, Any]]:
             "meta": {
                 "template_id": "broker_reports.source_fact_extraction.v0",
                 "output_schema_version": "broker_reports_source_facts_v0",
+                "provider_output_schema_version": (
+                    source_update.SOURCE_FACT_SELECTION_SCHEMA_VERSION
+                ),
                 "structured_output_required": True,
             },
         },
@@ -346,7 +349,7 @@ def expected_prompt_contracts() -> dict[str, dict[str, Any]]:
         )
     result: dict[str, dict[str, Any]] = {}
     for item in rows:
-        content = str(item.pop("content"))
+        content = str(item["content"])
         result[str(item["prompt_id"])] = {
             **item,
             "content_sha256": content_sha256(content),
