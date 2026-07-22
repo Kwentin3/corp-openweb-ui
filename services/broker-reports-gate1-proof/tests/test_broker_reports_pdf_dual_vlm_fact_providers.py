@@ -18,7 +18,7 @@ from broker_reports_gate1 import pdf_dual_vlm_fact_providers as PROVIDERS  # noq
 
 
 class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
-    def test_factory_returns_frozen_gemini_and_openai_adapters(self) -> None:
+    def test_factory_default_returns_gemini_without_openai_adapter(self) -> None:
         transport = _FakeUrlOpen()
         bundle = PROVIDERS.PdfDualVlmFactProviderFactory(
             urlopen_fn=transport
@@ -32,15 +32,23 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
             PROVIDERS.DEFAULT_GEMINI_MODEL_ID,
             bundle.gemini.config.model_id,
         )
+        self.assertEqual("google_gemini", bundle.gemini.profile.profile_id)
+        self.assertIsNone(bundle.openai)
+        self.assertEqual(4_096, bundle.detector.config.maximum_output_tokens)
+        self.assertEqual(16_384, bundle.gemini.config.maximum_output_tokens)
+        self.assertEqual([], transport.requests)
+
+    def test_explicit_policy_can_construct_existing_openai_adapter(self) -> None:
+        bundle = PROVIDERS.PdfDualVlmFactProviderFactory(
+            urlopen_fn=_FakeUrlOpen()
+        ).create_for_openwebui(_openwebui_request(), include_openai=True)
+
+        self.assertIsNotNone(bundle.openai)
         self.assertEqual(
             PROVIDERS.DEFAULT_OPENAI_MODEL_ID,
             bundle.openai.config.openai_model_id,
         )
-        self.assertEqual("google_gemini", bundle.gemini.profile.profile_id)
         self.assertEqual("openai_gpt", bundle.openai.profile.profile_id)
-        self.assertEqual(4_096, bundle.detector.config.maximum_output_tokens)
-        self.assertEqual(16_384, bundle.gemini.config.maximum_output_tokens)
-        self.assertEqual([], transport.requests)
 
     def test_factory_rejects_models_outside_qualification_allowlists(self) -> None:
         cases = (
@@ -62,7 +70,7 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
                 ).create_for_openwebui(_openwebui_request())
             self.assertEqual("provider_configuration", raised.exception.failure_class)
 
-    def test_bundle_qualifies_both_exact_models_without_generation(self) -> None:
+    def test_default_bundle_qualifies_only_gemini_without_generation(self) -> None:
         transport = _FakeUrlOpen()
         bundle = PROVIDERS.PdfDualVlmFactProviderFactory(
             urlopen_fn=transport
@@ -72,14 +80,11 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
 
         self.assertEqual("qualified", result["detector"]["status"])
         self.assertEqual("qualified", result["gemini"]["status"])
-        self.assertEqual("qualified", result["openai"]["status"])
         self.assertTrue(result["detector"]["exact_model_match"])
         self.assertTrue(result["gemini"]["exact_model_match"])
-        self.assertTrue(result["openai"]["exact_model_match"])
-        self.assertEqual(3, len(transport.requests))
+        self.assertNotIn("openai", result)
+        self.assertEqual(2, len(transport.requests))
         self.assertTrue(all(request.method == "GET" for request in transport.requests))
-        self.assertFalse(result["openai"]["hidden_retry"])
-        self.assertFalse(result["openai"]["provider_failover"])
 
     def test_factory_and_transport_anti_drift_anchors_are_enforced(self) -> None:
         source = MODULE_PATH.read_text(encoding="utf-8")
@@ -89,6 +94,7 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
             PROVIDERS.FACTORY_REQUIRED,
         )
         self.assertIn("must not construct provider payloads", PROVIDERS.FORBIDDEN)
+        self.assertIn("explicit versioned control/fallback policy", PROVIDERS.FORBIDDEN)
         self.assertNotIn("import requests", source)
         self.assertFalse(any(isinstance(node, ast.While) for node in ast.walk(tree)))
 
@@ -382,7 +388,7 @@ class _FakeUrlOpen:
 def _bundle(transport: _FakeUrlOpen):
     return PROVIDERS.PdfDualVlmFactProviderFactory(
         urlopen_fn=transport
-    ).create_for_openwebui(_openwebui_request())
+    ).create_for_openwebui(_openwebui_request(), include_openai=True)
 
 
 def _openwebui_request() -> Any:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from broker_reports_gate1 import architecture_policy
 from broker_reports_gate1 import semantic_visual_table_contracts as contracts
 from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
@@ -37,6 +39,36 @@ def test_semantic_model_schema_is_closed_and_content_only() -> None:
         {"type": "null"},
     ]
     assert _property_names(schema).isdisjoint(contracts.MODEL_FORBIDDEN_FIELDS)
+
+
+def test_model_view_contains_only_the_semantic_task() -> None:
+    model_view = contracts.semantic_table_transcription_model_view()
+    task = " ".join(model_view["task"].split())
+
+    assert set(model_view) == {"task"}
+    assert model_view["task"] == contracts.SEMANTIC_TABLE_TRANSCRIPTION_PROMPT
+    assert "Preserve every source-visible label, amount" in task
+    assert "Do not repair, infer, normalize" in task
+    assert all(field not in model_view for field in contracts.MODEL_FORBIDDEN_FIELDS)
+
+
+def test_boundary_parse_is_strict_and_performs_no_repair() -> None:
+    source = {
+        "description": "Visible grouped balance table.",
+        "rows": [["Cash", "1 000,00 ₽"], ["Total", None]],
+    }
+
+    parsed = contracts.parse_semantic_table_transcription(source)
+
+    assert parsed == source
+    assert parsed is not source
+    with pytest.raises(
+        contracts.SemanticTableTranscriptionContractError,
+        match="semantic_table_transcription_fields_invalid",
+    ):
+        contracts.parse_semantic_table_transcription(
+            {**source, "table_id": "model_generated_forbidden_metadata"}
+        )
 
 
 def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:

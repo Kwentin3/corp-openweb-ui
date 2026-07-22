@@ -1,6 +1,11 @@
 # Broker Reports PDF Dual-VLM Table Runtime v1
 
-Status: `MAINTAINED_REPOSITORY_DEFAULT_OFF`
+Status: `LEGACY_READ_ONLY_EVIDENCE_CONTRACT`
+
+Superseded as the maintained model-facing route by
+`BROKER_REPORTS_PDF_SEMANTIC_VLM_TABLE_RUNTIME.v1.md`. This document remains
+authoritative only for persisted pre-semantic decisions and immutable review
+evidence. It does not authorize new dual-provider geometric extraction.
 
 Authority: this contract defines the maintained Gemini/OpenAI visual-table
 proposal boundary in Broker Reports Gate 1. Atomic stage delivery is outside

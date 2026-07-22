@@ -78,6 +78,10 @@ from broker_reports_gate1 import (
     PdfDualVlmRuntimeConfig,
     PdfDualVlmRuntimeError,
     PdfDualVlmRuntimeFactory,
+    PDF_DUAL_VLM_OPENAI_POLICY_VERSION,
+    PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION,
+    PDF_DUAL_VLM_RUN_SCHEMA,
+    PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
 )
 from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
@@ -176,8 +180,9 @@ class Pipe:
         )
         pdf_dual_vlm_enabled: bool = Field(default=False)
         pdf_dual_vlm_provider_selection_policy_version: str = Field(
-            default="pdf_dual_vlm_provider_selection_v1"
+            default=PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
         )
+        pdf_dual_vlm_openai_invocation_policy: str = Field(default="disabled")
         pdf_dual_vlm_gemini_model_id: str = Field(default="models/gemini-3.5-flash")
         pdf_dual_vlm_openai_model_id: str = Field(default="gpt-5.4-mini-2026-03-17")
         pdf_dual_vlm_timeout_seconds: int = Field(default=240, ge=1, le=600)
@@ -434,6 +439,9 @@ class Pipe:
                 "pdf_dual_vlm_enabled": bool(self.valves.pdf_dual_vlm_enabled),
                 "pdf_dual_vlm_provider_selection_policy_version": (
                     self.valves.pdf_dual_vlm_provider_selection_policy_version
+                ),
+                "pdf_dual_vlm_openai_invocation_policy": (
+                    self.valves.pdf_dual_vlm_openai_invocation_policy
                 ),
                 "pdf_semantic_header_shadow_enabled": bool(
                     self.valves.pdf_semantic_header_shadow_enabled
@@ -713,6 +721,9 @@ class Pipe:
             provider_selection_policy_version=(
                 self.valves.pdf_dual_vlm_provider_selection_policy_version
             ),
+            openai_invocation_policy=(
+                self.valves.pdf_dual_vlm_openai_invocation_policy
+            ),
             gemini_model_id=self.valves.pdf_dual_vlm_gemini_model_id,
             openai_model_id=self.valves.pdf_dual_vlm_openai_model_id,
             timeout_seconds=self.valves.pdf_dual_vlm_timeout_seconds,
@@ -766,8 +777,8 @@ class Pipe:
     ) -> dict[str, Any]:
         return {
             "safe_summary": {
-                "schema_version": "broker_reports_pdf_dual_vlm_run_v1",
-                "policy_version": "pdf_dual_vlm_runtime_policy_v1",
+                "schema_version": PDF_DUAL_VLM_RUN_SCHEMA,
+                "policy_version": PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
                 "enabled": config.enabled,
                 "status": "failed",
                 "terminal_failure_code": failure_code,
@@ -777,22 +788,30 @@ class Pipe:
                 "provider_selection": {
                     "policy_version": config.provider_selection_policy_version,
                     "execution_mode": config.execution_mode,
-                    "primary_provider": config.primary_provider,
-                    "primary_model_id": config.gemini_model_id,
-                    "review_provider": config.review_provider,
-                    "review_model_id": config.openai_model_id,
-                    "provider_order": ["gemini", "openai"],
+                    "master_provider": config.primary_provider,
+                    "master_model_id": config.gemini_model_id,
+                    "optional_provider": config.review_provider,
+                    "optional_model_id": config.openai_model_id,
+                    "default_provider_order": ["gemini"],
+                    "openai_policy_version": PDF_DUAL_VLM_OPENAI_POLICY_VERSION,
+                    "openai_invocation_policy": config.openai_invocation_policy,
+                    "mandatory_consensus": False,
                     "hidden_retry": False,
                     "provider_failover": False,
                     "provider_switch": False,
+                    "provider_merge": False,
                 },
                 "provider_qualifications": None,
                 "decision_hashes": [],
                 "provider_proposal_canonical_authority": False,
                 "canonical_tables_published": 0,
+                "semantic_transcriptions_valid": 0,
                 "whole_document_provider_uploads": 0,
                 "hidden_retries": 0,
                 "provider_failovers": 0,
+                "provider_merges": 0,
+                "openai_fallbacks": 0,
+                "openai_control_calls": 0,
                 "paddle_dependency": False,
             },
             "private_decisions": [],
