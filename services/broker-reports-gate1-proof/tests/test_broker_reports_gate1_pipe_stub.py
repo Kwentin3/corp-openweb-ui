@@ -14,8 +14,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from broker_reports_gate1 import ArtifactStoreError, RetentionPolicyError
+from broker_reports_gate1 import (
+    ArtifactStoreError,
+    BytesUnavailable,
+    RetentionPolicyError,
+)
 from broker_reports_gate1 import ManagedPrompt
+from broker_reports_gate1.private_intake_bytes import PrivateIntakeBytesError
 from broker_reports_gate1.document_passport import document_metadata_passport_schema_hash, prompt_hash
 from openwebui_actions.broker_reports_gate1_pipe import NORMALIZER_VERSION, SAFETY_STATEMENT, Pipe
 from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
@@ -196,6 +201,73 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertIsNone(context.case_id)
         self.assertEqual(context.workspace_model_id, "trusted-model")
         self.assertEqual(context.normalization_run_id, "trusted-run")
+
+    def test_private_intake_bytes_ignore_client_inline_content_and_path(self):
+        pipe = self._pipe()
+        trusted = b"trusted receipt-owned bytes"
+
+        class Resolver:
+            async def resolve(self, *, source_id: str, actor_user_id: str):
+                self.call = (source_id, actor_user_id)
+                return trusted
+
+        resolver = Resolver()
+        file_ref_value = {
+            "file_id": "br-11111111-2222-3333-4444-555555555555",
+            "filename": "synthetic.pdf",
+            "_private_file_obj": {
+                "content_bytes": b"forged client bytes",
+                "path": "forged/client/path",
+            },
+        }
+
+        with patch.object(
+            pipe,
+            "_private_intake_bytes_resolver",
+            return_value=resolver,
+        ):
+            asyncio.run(
+                pipe._hydrate_private_intake_file_refs(
+                    [file_ref_value],
+                    actor_user_id="trusted-user",
+                )
+            )
+
+        self.assertEqual(
+            resolver.call,
+            ("br-11111111-2222-3333-4444-555555555555", "trusted-user"),
+        )
+        self.assertEqual(pipe._read_original_bytes(file_ref_value), trusted)
+
+    def test_private_intake_resolution_failure_does_not_use_client_bytes(self):
+        pipe = self._pipe()
+
+        class Resolver:
+            async def resolve(self, *, source_id: str, actor_user_id: str):
+                raise PrivateIntakeBytesError("private_intake_receipt_invalid")
+
+        file_ref_value = {
+            "file_id": "br-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "filename": "synthetic.pdf",
+            "_private_file_obj": {"content_bytes": b"forged client bytes"},
+        }
+        with patch.object(
+            pipe,
+            "_private_intake_bytes_resolver",
+            return_value=Resolver(),
+        ):
+            asyncio.run(
+                pipe._hydrate_private_intake_file_refs(
+                    [file_ref_value],
+                    actor_user_id="trusted-user",
+                )
+            )
+
+        with self.assertRaisesRegex(
+            BytesUnavailable,
+            "private_intake_receipt_invalid",
+        ):
+            pipe._read_original_bytes(file_ref_value)
 
     def test_artifact_context_requires_server_user_and_case_or_chat(self):
         pipe = self._pipe()

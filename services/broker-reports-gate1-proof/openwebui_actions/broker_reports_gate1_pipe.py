@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.24.0-native-workload-scope-v1
+version: 0.25.0-private-intake-bytes-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -99,6 +99,11 @@ from broker_reports_gate1.pdf_hybrid_provider import (
 from broker_reports_gate1.pdf_hybrid_shadow import (
     PdfHybridShadowConfig,
     PdfHybridShadowFactory,
+)
+from broker_reports_gate1.private_intake_bytes import (
+    OpenWebUIPrivateIntakeBytesResolverFactory,
+    PrivateIntakeBytesError,
+    is_private_intake_source_id,
 )
 from broker_reports_gate1.pdf_grid_experiment_provider import (
     PdfGridExperimentProviderFactory,
@@ -482,6 +487,10 @@ class Pipe:
 
         file_refs = self._collect_file_refs(
             safe_body, safe_metadata, files_arg, messages_arg
+        )
+        await self._hydrate_private_intake_file_refs(
+            file_refs,
+            actor_user_id=self._authenticated_user_id(__user__),
         )
         input_context = self._safe_input_context(
             safe_body, safe_metadata, files_arg, messages_arg
@@ -3106,17 +3115,7 @@ class Pipe:
         normalization_run_id: str,
     ) -> ArtifactAccessContext:
         del body  # Raw request fields are never lifecycle authority.
-        if not isinstance(user, dict):
-            raise ArtifactStoreError(
-                "artifact_scope_unverified",
-                "Authenticated server user context is required",
-            )
-        user_id = str(user.get("id") or user.get("user_id") or "").strip()
-        if not user_id:
-            raise ArtifactStoreError(
-                "artifact_scope_unverified",
-                "Authenticated server user identity is required",
-            )
+        user_id = self._authenticated_user_id(user)
 
         # __metadata__ and double-underscore kwargs are injected by OpenWebUI's
         # function runtime. Client body/metadata fallbacks are intentionally
@@ -3140,6 +3139,21 @@ class Pipe:
             workspace_model_id=str(workspace_model_id) if workspace_model_id else None,
             allow_private=True,
         )
+
+    @staticmethod
+    def _authenticated_user_id(user: Any) -> str:
+        if not isinstance(user, dict):
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Authenticated server user context is required",
+            )
+        user_id = str(user.get("id") or user.get("user_id") or "").strip()
+        if not user_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Authenticated server user identity is required",
+            )
+        return user_id
 
     def _user_id(self, user: Any, metadata: dict) -> str:
         if isinstance(user, dict):
@@ -3206,6 +3220,17 @@ class Pipe:
         )
 
     def _read_original_bytes(self, file_ref: dict[str, Any]) -> bytes:
+        if is_private_intake_source_id(file_ref.get("file_id")):
+            trusted = file_ref.get("_trusted_private_intake_bytes")
+            if isinstance(trusted, bytes) and trusted:
+                return trusted
+            raise BytesUnavailable(
+                str(
+                    file_ref.get("_private_intake_bytes_error")
+                    or "private_intake_bytes_unresolved"
+                )
+            )
+
         file_obj = file_ref.get("_private_file_obj")
         if isinstance(file_obj, dict):
             inline = self._inline_bytes(file_obj)
@@ -3224,6 +3249,30 @@ class Pipe:
         if isinstance(candidate, Path) and candidate.exists() and candidate.is_file():
             return candidate.read_bytes()
         raise BytesUnavailable("upload_file_not_found")
+
+    async def _hydrate_private_intake_file_refs(
+        self,
+        file_refs: list[dict[str, Any]],
+        *,
+        actor_user_id: str,
+    ) -> None:
+        resolver = None
+        for file_ref in file_refs:
+            source_id = str(file_ref.get("file_id") or "")
+            if not is_private_intake_source_id(source_id):
+                continue
+            if resolver is None:
+                resolver = self._private_intake_bytes_resolver()
+            try:
+                file_ref["_trusted_private_intake_bytes"] = await resolver.resolve(
+                    source_id=source_id,
+                    actor_user_id=actor_user_id,
+                )
+            except PrivateIntakeBytesError as exc:
+                file_ref["_private_intake_bytes_error"] = exc.code
+
+    def _private_intake_bytes_resolver(self):
+        return OpenWebUIPrivateIntakeBytesResolverFactory().create()
 
     def _inline_bytes(self, file_obj: dict[str, Any]) -> bytes | None:
         for key in ("content_bytes", "bytes", "data_bytes"):

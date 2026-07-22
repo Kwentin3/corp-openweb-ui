@@ -114,6 +114,7 @@ MODULE_ORDER = [
 ]
 
 GATE1_HYBRID_MODULES = [
+    "private_intake_bytes",
     "pdf_hybrid_contracts",
     "pdf_table_intake_contracts",
     "pdf_table_classification",
