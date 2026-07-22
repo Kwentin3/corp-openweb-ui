@@ -273,6 +273,12 @@ from broker_reports_gate1.safe_report import render_safe_report
 from broker_reports_gate1.validators import validate_safe_report
 
 
+_GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
+_GATE1_IDEMPOTENCY_POLICY_VERSION = (
+    "broker_reports_gate1_native_request_idempotency_v1"
+)
+
+
 class Pipe:
     """OpenWebUI adapter: file refs -> backend Gate 1 normalizer -> safe report."""
 
@@ -428,6 +434,7 @@ class Pipe:
                     normalization_run_id="workload_admission_preflight",
                 )
             )
+            access = self._canonical_workload_access(access)
             files_arg = __files__ or kwargs.get("__files__")
             file_refs = self._collect_file_refs(
                 safe_body,
@@ -446,7 +453,7 @@ class Pipe:
                 idempotency_key=idempotency_key,
                 safe_metadata={
                     "idempotency_policy_version": (
-                        "broker_reports_gate1_native_request_idempotency_v1"
+                        _GATE1_IDEMPOTENCY_POLICY_VERSION
                     ),
                     "idempotency_key_present": idempotency_key is not None,
                     "source_refs_total": len(file_refs),
@@ -532,6 +539,17 @@ class Pipe:
             self._active_workload_session = None
 
     @staticmethod
+    def _canonical_workload_access(
+        access: WorkloadAccessContext,
+    ) -> WorkloadAccessContext:
+        return WorkloadAccessContext(
+            user_id=access.user_id,
+            case_id=access.case_id,
+            chat_id=access.chat_id,
+            workspace_model_id=_GATE1_WORKLOAD_SCOPE_MODEL_ID,
+        )
+
+    @staticmethod
     def _workload_idempotency_key(
         *,
         access: WorkloadAccessContext,
@@ -549,7 +567,7 @@ class Pipe:
         material = json.dumps(
             {
                 "policy_version": (
-                    "broker_reports_gate1_native_request_idempotency_v1"
+                    _GATE1_IDEMPOTENCY_POLICY_VERSION
                 ),
                 "user_id": access.user_id,
                 "case_id": access.case_id,

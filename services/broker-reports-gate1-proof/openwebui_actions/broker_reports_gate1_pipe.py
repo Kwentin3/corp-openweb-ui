@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.23.0-native-idempotency-v1
+version: 0.24.0-native-workload-scope-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -115,6 +115,12 @@ from broker_reports_gate1.pdf_structural_repair_shadow import (
 )
 from broker_reports_gate1.safe_report import render_safe_report
 from broker_reports_gate1.validators import validate_safe_report
+
+
+_GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
+_GATE1_IDEMPOTENCY_POLICY_VERSION = (
+    "broker_reports_gate1_native_request_idempotency_v1"
+)
 
 
 class Pipe:
@@ -272,6 +278,7 @@ class Pipe:
                     normalization_run_id="workload_admission_preflight",
                 )
             )
+            access = self._canonical_workload_access(access)
             files_arg = __files__ or kwargs.get("__files__")
             file_refs = self._collect_file_refs(
                 safe_body,
@@ -290,7 +297,7 @@ class Pipe:
                 idempotency_key=idempotency_key,
                 safe_metadata={
                     "idempotency_policy_version": (
-                        "broker_reports_gate1_native_request_idempotency_v1"
+                        _GATE1_IDEMPOTENCY_POLICY_VERSION
                     ),
                     "idempotency_key_present": idempotency_key is not None,
                     "source_refs_total": len(file_refs),
@@ -376,6 +383,17 @@ class Pipe:
             self._active_workload_session = None
 
     @staticmethod
+    def _canonical_workload_access(
+        access: WorkloadAccessContext,
+    ) -> WorkloadAccessContext:
+        return WorkloadAccessContext(
+            user_id=access.user_id,
+            case_id=access.case_id,
+            chat_id=access.chat_id,
+            workspace_model_id=_GATE1_WORKLOAD_SCOPE_MODEL_ID,
+        )
+
+    @staticmethod
     def _workload_idempotency_key(
         *,
         access: WorkloadAccessContext,
@@ -393,7 +411,7 @@ class Pipe:
         material = json.dumps(
             {
                 "policy_version": (
-                    "broker_reports_gate1_native_request_idempotency_v1"
+                    _GATE1_IDEMPOTENCY_POLICY_VERSION
                 ),
                 "user_id": access.user_id,
                 "case_id": access.case_id,
