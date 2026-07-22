@@ -141,6 +141,7 @@ DOMAIN_RELEASE_VALVES: dict[str, Any] = {
     "allow_standalone_semantic_visual_projections": True,
     "candidate_binding_enabled": False,
     "gate3_context_manifest_enabled": False,
+    "answer_context_selection_enabled": True,
     "default_source_segment_limit": 1,
     "table_segment_max_refs": 8,
     "text_segment_max_refs": 12,
@@ -204,6 +205,8 @@ FUNCTION_CONTRACTS = (
             "Gate2DomainSourceFactRuntimeFactory",
             "Gate2CandidateBindingRuntimeFactory",
             "allow_standalone_semantic_visual_projections",
+            "AnswerContextSelectionFactory",
+            "broker_reports_answer_context_selection_receipt_v1",
         ),
     ),
 )

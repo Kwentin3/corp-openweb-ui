@@ -16,6 +16,11 @@ from .artifact_models import (
     utc_now_iso,
 )
 from .artifact_resolver import ArtifactResolver
+from .answer_context_selection import (
+    AnswerContextSelectionFactory,
+    answer_context_receipt_ref_for_run,
+    answer_context_ref_for_run,
+)
 from .contracts import stable_digest
 from .gate2_candidate_binding import (
     BINDING_VALIDATION_SCHEMA_VERSION,
@@ -128,6 +133,7 @@ class Gate2DomainSourceFactRuntimeConfig:
     allow_standalone_semantic_visual_projections: bool = False
     candidate_binding_enabled: bool = False
     gate3_context_manifest_enabled: bool = False
+    answer_context_selection_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -150,6 +156,9 @@ class Gate2DomainSourceFactRuntimeResult:
     stitch_result_refs: list[str]
     gate3_context_manifest_ref: str | None
     gate3_context_manifest_summary: dict[str, Any] | None
+    answer_context_ref: str | None
+    answer_context_receipt_ref: str | None
+    answer_context_selection_summary: dict[str, Any] | None
     safe_summary: dict[str, Any]
     compact_russian_summary: str
 
@@ -585,6 +594,26 @@ class Gate2DomainSourceFactRuntimeService:
                 normalization_run_id=context.normalization_run_id,
             )
             run_payload["gate3_context_manifest_ref"] = planned_manifest_ref
+        planned_answer_context_ref = None
+        planned_answer_context_receipt_ref = None
+        if (
+            self.config.answer_context_selection_enabled
+            and terminal_status == "completed"
+        ):
+            planned_answer_context_ref = answer_context_ref_for_run(
+                extraction_run_ref=extraction_run_ref,
+                normalization_run_id=context.normalization_run_id,
+            )
+            planned_answer_context_receipt_ref = (
+                answer_context_receipt_ref_for_run(
+                    extraction_run_ref=extraction_run_ref,
+                    normalization_run_id=context.normalization_run_id,
+                )
+            )
+            run_payload["answer_context_ref"] = planned_answer_context_ref
+            run_payload["answer_context_receipt_ref"] = (
+                planned_answer_context_receipt_ref
+            )
         self._persist_terminal_run_record(
             artifact_id=extraction_run_ref,
             payload=run_payload,
@@ -598,6 +627,8 @@ class Gate2DomainSourceFactRuntimeService:
                 "accepted_packages": sum(accepted_counts.values()),
                 "rejected_packages": total_rejected,
                 "gate3_context_manifest_ref": planned_manifest_ref,
+                "answer_context_ref": planned_answer_context_ref,
+                "answer_context_receipt_ref": planned_answer_context_receipt_ref,
             },
         )
         gate3_manifest = None
@@ -612,6 +643,23 @@ class Gate2DomainSourceFactRuntimeService:
                 raise Gate2SourceFactRuntimeError(
                     "gate3_context_manifest_ref_mismatch",
                     "Persisted Gate 3 context manifest does not match its planned immutable ref",
+                )
+        answer_context = None
+        if planned_answer_context_ref is not None:
+            answer_context = AnswerContextSelectionFactory(
+                store=self.store
+            ).create().build_and_persist(
+                extraction_run_ref=extraction_run_ref,
+                context=context,
+            )
+            if (
+                answer_context.context_ref != planned_answer_context_ref
+                or answer_context.receipt_ref
+                != planned_answer_context_receipt_ref
+            ):
+                raise Gate2SourceFactRuntimeError(
+                    "answer_context_ref_mismatch",
+                    "Persisted answer context does not match its planned immutable refs",
                 )
         compact = render_domain_compact_russian_summary(
             stitch_results=stitch_results,
@@ -659,6 +707,15 @@ class Gate2DomainSourceFactRuntimeService:
             ),
             gate3_context_manifest_summary=(
                 gate3_manifest.safe_summary if gate3_manifest else None
+            ),
+            answer_context_ref=(
+                answer_context.context_ref if answer_context else None
+            ),
+            answer_context_receipt_ref=(
+                answer_context.receipt_ref if answer_context else None
+            ),
+            answer_context_selection_summary=(
+                answer_context.safe_summary if answer_context else None
             ),
             safe_summary=summary,
             compact_russian_summary=compact,
@@ -1460,6 +1517,8 @@ class Gate2DomainSourceFactRuntimeService:
             "stitch_result_refs": [],
             "summary_ref": None,
             "gate3_context_manifest_ref": None,
+            "answer_context_ref": None,
+            "answer_context_receipt_ref": None,
             "started_at": started_at,
             "finished_at": None,
         }
@@ -1656,6 +1715,9 @@ class Gate2DomainSourceFactRuntimeService:
             gate3_context_manifest_summary=(
                 gate3_manifest.safe_summary if gate3_manifest else None
             ),
+            answer_context_ref=None,
+            answer_context_receipt_ref=None,
+            answer_context_selection_summary=None,
             safe_summary=summary,
             compact_russian_summary="Gate 2 заблокирован: безопасное извлечение не начато.",
         )

@@ -82,6 +82,8 @@ FUNCTION_CONTRACTS = (
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
             "allow_standalone_semantic_visual_projections",
+            "AnswerContextSelectionFactory",
+            "broker_reports_answer_context_selection_receipt_v1",
         ),
     ),
     FunctionContract(
@@ -93,6 +95,8 @@ FUNCTION_CONTRACTS = (
             "Gate2StructuredModelClientFactory",
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
+            "AnswerContextSelectionFactory",
+            "broker_reports_answer_context_selection_receipt_v1",
         ),
     ),
 )
@@ -594,6 +598,10 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         ),
         "model_client_has_no_json_object_downgrade": "json_object" not in model_clients,
         "candidate_binding_default_is_false": "candidate_binding_enabled: bool = Field(default=False)" in domain_pipe,
+        "answer_context_selection_default_is_true": (
+            "answer_context_selection_enabled: bool = Field(default=True)"
+            in domain_pipe
+        ),
         "live_smokes_use_function_boundary": all(
             '"model": FUNCTION_ID' in source for source in smoke_sources
         ),

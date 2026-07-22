@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.11.0-semantic-visual-v1
+version: 0.12.0-answer-context-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -79,6 +79,7 @@ class Pipe:
         allow_standalone_semantic_visual_projections: bool = Field(default=False)
         candidate_binding_enabled: bool = Field(default=False)
         gate3_context_manifest_enabled: bool = Field(default=False)
+        answer_context_selection_enabled: bool = Field(default=True)
         default_source_segment_limit: int = Field(default=1)
         table_segment_max_refs: int = Field(default=8)
         text_segment_max_refs: int = Field(default=12)
@@ -261,6 +262,10 @@ class Pipe:
                     gate3_context_manifest_enabled=self._config_bool(
                         config.get("gate3_context_manifest_enabled"),
                         default=self.valves.gate3_context_manifest_enabled,
+                    ),
+                    answer_context_selection_enabled=self._config_bool(
+                        config.get("answer_context_selection_enabled"),
+                        default=self.valves.answer_context_selection_enabled,
                     ),
                     source_segment_start=int(
                         config.get("source_segment_start") or 0
