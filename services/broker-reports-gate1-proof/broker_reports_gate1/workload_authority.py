@@ -270,6 +270,7 @@ class WorkloadTicket:
     job_id: str
     job_kind: WorkloadKind
     resource_class: WorkloadResourceClass
+    reused_existing: bool = False
 
 
 class WorkloadAuthorityFactory:
@@ -308,6 +309,7 @@ class WorkloadAuthority:
         access: WorkloadAccessContext,
         retry_of_job_id: str | None = None,
         safe_metadata: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> WorkloadTicket:
         kind = _workload_kind(job_kind)
         resource_class = _KIND_RESOURCE[kind]
@@ -315,21 +317,44 @@ class WorkloadAuthority:
         if retry_of:
             self._validate_retry_source(retry_of, access, kind)
         metadata = _safe_metadata(safe_metadata)
+        idempotency = _optional_idempotency_key(idempotency_key)
         job_id = "brjob_" + secrets.token_hex(16)
         temp_dir = self.config.temp_root / job_id
-        self._create_private_temp_dir(temp_dir)
         now_iso = _utc_now_iso()
+        temp_created = False
         try:
             with self._connect(immediate=True) as conn:
+                if idempotency:
+                    existing = conn.execute(
+                        "SELECT * FROM workload_jobs WHERE idempotency_key = ?",
+                        (idempotency,),
+                    ).fetchone()
+                    if existing is not None:
+                        existing = self._authorized_row(
+                            conn, str(existing["job_id"]), access
+                        )
+                        if str(existing["job_kind"]) != kind.value:
+                            raise WorkloadAuthorityError(
+                                "workload_idempotency_kind_mismatch"
+                            )
+                        return WorkloadTicket(
+                            str(existing["job_id"]),
+                            kind,
+                            resource_class,
+                            reused_existing=True,
+                        )
+                self._create_private_temp_dir(temp_dir)
+                temp_created = True
                 conn.execute(
                     """
                     INSERT INTO workload_jobs(
                         job_id, job_kind, resource_class,
                         user_id, case_id, chat_id, workspace_model_id,
                         state, progress_sequence, cancel_requested,
-                        retry_of_job_id, safe_metadata_json, temp_dir,
+                        retry_of_job_id, idempotency_key,
+                        safe_metadata_json, temp_dir,
                         cleanup_status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, 0, ?, ?, ?,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, 0, ?, ?, ?, ?,
                               'pending', ?, ?)
                     """,
                     (
@@ -341,6 +366,7 @@ class WorkloadAuthority:
                         access.chat_id,
                         access.workspace_model_id,
                         retry_of,
+                        idempotency,
                         _canonical_json(metadata),
                         str(temp_dir),
                         now_iso,
@@ -357,7 +383,8 @@ class WorkloadAuthority:
                     safe_detail={"retry_of_job_id": retry_of},
                 )
         except BaseException:
-            self._remove_owned_temp_dir(temp_dir)
+            if temp_created:
+                self._remove_owned_temp_dir(temp_dir)
             raise
         return WorkloadTicket(job_id, kind, resource_class)
 
@@ -1461,6 +1488,7 @@ class WorkloadAuthority:
                     provider_id TEXT NULL,
                     provider_lease_token TEXT NULL,
                     retry_of_job_id TEXT NULL,
+                    idempotency_key TEXT NULL,
                     safe_metadata_json TEXT NOT NULL,
                     temp_dir TEXT NOT NULL,
                     cleanup_status TEXT NOT NULL,
@@ -1522,6 +1550,21 @@ class WorkloadAuthority:
                         provider_id, released_at, lease_expires_epoch
                     );
                 """
+            )
+            existing_job_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(workload_jobs)")
+            }
+            if "idempotency_key" not in existing_job_columns:
+                conn.execute(
+                    "ALTER TABLE workload_jobs "
+                    "ADD COLUMN idempotency_key TEXT NULL"
+                )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "workload_jobs_idempotency_idx "
+                "ON workload_jobs(idempotency_key) "
+                "WHERE idempotency_key IS NOT NULL"
             )
             conn.execute(
                 """
@@ -1886,6 +1929,15 @@ def _optional_text(value: Any) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _optional_idempotency_key(value: Any) -> str | None:
+    normalized = _optional_text(value)
+    if normalized is None:
+        return None
+    if not _SAFE_REF_RE.fullmatch(normalized):
+        raise WorkloadAuthorityError("workload_idempotency_key_invalid")
+    return normalized
 
 
 def _utc_now_iso() -> str:

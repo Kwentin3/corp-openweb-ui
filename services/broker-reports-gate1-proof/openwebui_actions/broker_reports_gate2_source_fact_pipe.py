@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Source Fact Extraction
 author: Alpha Soft
-version: 0.10.0-answer-context-v1
+version: 0.11.0-workload-idempotency-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
