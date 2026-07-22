@@ -1,9 +1,13 @@
 # Broker Reports Workflow Goal 5A — Context Selection Correction
 
-Date: 2026-07-22  
-Branch: `codex/broker-reports-workflow-goal5-context-selection-v1`  
-Correction family: context representation selection and answer-context assembly  
-Implementation status: PASSED  
+Date: 2026-07-22
+
+Branch: `codex/broker-reports-workflow-goal5-context-selection-v1`
+
+Correction family: context representation selection and answer-context assembly
+
+Implementation status: PASSED
+
 Live three-metric reproof: PENDING AFTER MERGE
 
 ## Trigger
