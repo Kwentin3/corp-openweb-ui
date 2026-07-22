@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.13.0-workload-idempotency-v1
+version: 0.14.0-gate1-workload-scope-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -42,6 +42,9 @@ from broker_reports_gate1 import (
     provider_budgets_from_json,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
+
+
+_GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
 
 
 class Pipe:
@@ -149,7 +152,7 @@ class Pipe:
             workload_access = WorkloadAccessContext.from_artifact_context(context)
             self._assert_gate1_workload_completed(
                 authority=authority,
-                access=workload_access,
+                context=context,
                 dcp_record=dcp_record,
             )
             run_mode = str(config.get("run_mode") or "customer")
@@ -414,11 +417,17 @@ class Pipe:
         ).create()
 
     @staticmethod
-    def _assert_gate1_workload_completed(*, authority, access, dcp_record) -> None:
+    def _assert_gate1_workload_completed(*, authority, context, dcp_record) -> None:
         job_id = str(dcp_record.safe_metadata.get("workload_job_id") or "").strip()
         if not job_id:
             raise WorkloadAuthorityError("gate1_workload_receipt_missing")
-        snapshot = authority.snapshot(job_id=job_id, access=access)
+        gate1_access = WorkloadAccessContext(
+            user_id=context.user_id,
+            case_id=context.case_id,
+            chat_id=context.chat_id,
+            workspace_model_id=_GATE1_WORKLOAD_SCOPE_MODEL_ID,
+        )
+        snapshot = authority.snapshot(job_id=job_id, access=gate1_access)
         if snapshot["state"] != WorkloadState.COMPLETED.value:
             raise WorkloadAuthorityError("gate1_workload_not_completed")
 
