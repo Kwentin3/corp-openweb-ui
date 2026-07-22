@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,6 +15,7 @@ SCRIPTS = SERVICE_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import broker_reports_atomic_stage_remote as remote  # noqa: E402
+import live_release_broker_reports_atomic_stage as driver  # noqa: E402
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
     build_manifest,
@@ -53,6 +55,18 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(3, len(manifest["functions"]))
         self.assertEqual(12, len(manifest["managed_prompts"]))
+        self.assertEqual(
+            "broker_reports_atomic_stage_release_v2",
+            manifest["schema_version"],
+        )
+        self.assertTrue(
+            all(
+                item["content"]
+                and remote._sha256_text(item["content"])
+                == item["content_sha256"]
+                for item in manifest["managed_prompts"]
+            )
+        )
         self.assertEqual(
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
@@ -231,6 +245,34 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(all(checks.values()), checks)
         self.assertFalse(failed["workload_quiescent"])
 
+    def test_local_driver_surfaces_only_typed_safe_remote_error(self):
+        completed = subprocess.CompletedProcess(
+            args=["ssh"],
+            returncode=1,
+            stdout=json.dumps(
+                {
+                    "status": "error",
+                    "code": "stage_release_prompt_contract_mismatch",
+                }
+            ),
+            stderr="private remote traceback is not propagated",
+        )
+
+        with self.assertRaisesRegex(
+            driver.StageReleaseDriverError,
+            "stage_release_remote_failed:stage_release_prompt_contract_mismatch",
+        ):
+            driver._validated_remote_receipt(completed, apply=True)
+
+        completed.stdout = json.dumps(
+            {"status": "error", "code": "unsafe value with spaces"}
+        )
+        with self.assertRaisesRegex(
+            driver.StageReleaseDriverError,
+            "stage_release_remote_error_unclassified",
+        ):
+            driver._validated_remote_receipt(completed, apply=False)
+
 
 class AtomicStageRemoteTransactionTests(unittest.TestCase):
     def _database(self, path: Path) -> None:
@@ -261,19 +303,49 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                         index,
                     ),
                 )
+            conn.execute(
+                """
+                CREATE TABLE prompt(
+                    id TEXT PRIMARY KEY,
+                    command TEXT,
+                    version_id TEXT,
+                    is_active INTEGER,
+                    content TEXT,
+                    meta TEXT,
+                    updated_at INTEGER
+                )
+                """
+            )
+            for index, contract in enumerate(_manifest()["managed_prompts"]):
+                conn.execute(
+                    "INSERT INTO prompt VALUES (?, ?, ?, 1, ?, ?, ?)",
+                    (
+                        contract["prompt_id"],
+                        "old-command-" + str(index),
+                        "old-version-" + str(index),
+                        "old-content-" + str(index),
+                        json.dumps({"old": index}),
+                        index,
+                    ),
+                )
             conn.commit()
         finally:
             conn.close()
 
-    def _rows(self, path: Path):
+    def _function_rows(self, path: Path):
         ids = [contract.function_id for contract in FUNCTION_CONTRACTS]
         return remote._function_rows(path, ids)
+
+    def _prompt_rows(self, path: Path):
+        ids = [item["prompt_id"] for item in _manifest()["managed_prompts"]]
+        return remote._prompt_rows(path, ids)
 
     def test_hash_guard_rolls_back_entire_sqlite_transaction(self):
         with tempfile.TemporaryDirectory() as temp:
             db = Path(temp) / "webui.db"
             self._database(db)
-            before = self._rows(db)
+            before = self._function_rows(db)
+            before_prompts = self._prompt_rows(db)
             replacement = {
                 function_id: {
                     **row,
@@ -282,6 +354,10 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 }
                 for function_id, row in before.items()
             }
+            replacement_prompts = {
+                prompt_id: {**row, "content": "new-" + prompt_id}
+                for prompt_id, row in before_prompts.items()
+            }
             expected = remote._content_hashes(before)
             expected[FUNCTION_CONTRACTS[-1].function_id] = "0" * 64
 
@@ -289,23 +365,107 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 remote.StageReleaseError,
                 "function_changed_during_release",
             ):
-                remote._replace_rows(
+                remote._replace_release_rows(
                     db_path=db,
-                    replacement_rows=replacement,
-                    expected_hashes=expected,
+                    replacement_function_rows=replacement,
+                    replacement_prompt_rows=replacement_prompts,
+                    expected_function_hashes=expected,
+                    expected_prompt_hashes=remote._prompt_hashes(
+                        before_prompts
+                    ),
                 )
 
             self.assertEqual(
                 remote._content_hashes(before),
-                remote._content_hashes(self._rows(db)),
+                remote._content_hashes(self._function_rows(db)),
             )
+            self.assertEqual(
+                remote._prompt_hashes(before_prompts),
+                remote._prompt_hashes(self._prompt_rows(db)),
+            )
+
+    def test_prompt_drift_blocks_function_and_prompt_updates_in_one_transaction(self):
+        with tempfile.TemporaryDirectory() as temp:
+            db = Path(temp) / "webui.db"
+            self._database(db)
+            before = self._function_rows(db)
+            before_prompts = self._prompt_rows(db)
+            replacement = {
+                function_id: {**row, "content": "new-" + function_id}
+                for function_id, row in before.items()
+            }
+            replacement_prompts = remote._desired_prompt_rows(
+                manifest=_manifest(),
+                current_rows=before_prompts,
+            )
+            expected_prompt_hashes = remote._prompt_hashes(before_prompts)
+            last_prompt_id = sorted(expected_prompt_hashes)[-1]
+            expected_prompt_hashes[last_prompt_id] = "0" * 64
+
+            with self.assertRaisesRegex(
+                remote.StageReleaseError,
+                "prompt_changed_during_release",
+            ):
+                remote._replace_release_rows(
+                    db_path=db,
+                    replacement_function_rows=replacement,
+                    replacement_prompt_rows=replacement_prompts,
+                    expected_function_hashes=remote._content_hashes(before),
+                    expected_prompt_hashes=expected_prompt_hashes,
+                )
+
+            self.assertEqual(
+                remote._content_hashes(before),
+                remote._content_hashes(self._function_rows(db)),
+            )
+            self.assertEqual(
+                remote._prompt_hashes(before_prompts),
+                remote._prompt_hashes(self._prompt_rows(db)),
+            )
+
+    def test_desired_prompt_rows_preserve_exact_unchanged_rows(self):
+        manifest = _manifest()
+        current = {
+            item["prompt_id"]: {
+                "command": item["command"],
+                "version_id": item["version"],
+                "is_active": 1,
+                "content": item["content"],
+                "meta": json.dumps(
+                    {**item["meta"], "preserved_operator_key": True},
+                    ensure_ascii=False,
+                ),
+                "updated_at": index,
+            }
+            for index, item in enumerate(manifest["managed_prompts"])
+        }
+
+        desired = remote._desired_prompt_rows(
+            manifest=manifest,
+            current_rows=current,
+        )
+
+        self.assertEqual(
+            remote._prompt_hashes(current),
+            remote._prompt_hashes(desired),
+        )
+        self.assertTrue(
+            all(
+                json.loads(row["meta"])["preserved_operator_key"] is True
+                for row in desired.values()
+            )
+        )
 
     def test_candidate_apply_and_exact_rollback_reach_terminal_states(self):
         with tempfile.TemporaryDirectory() as temp:
             db = Path(temp) / "webui.db"
             self._database(db)
-            before = self._rows(db)
-            rollback_rows = remote._snapshot_rows(before)
+            before = self._function_rows(db)
+            before_prompts = self._prompt_rows(db)
+            rollback_rows = remote._snapshot_function_rows(before)
+            rollback_prompt_rows = remote._snapshot_prompt_rows(
+                before_prompts
+            )
             desired = {
                 function_id: {
                     **row,
@@ -316,24 +476,54 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 }
                 for function_id, row in before.items()
             }
+            manifest = _manifest()
+            desired_prompts = remote._desired_prompt_rows(
+                manifest=manifest,
+                current_rows=before_prompts,
+            )
             before_hashes = remote._content_hashes(before)
             desired_hashes = remote._content_hashes(desired)
+            before_prompt_hashes = remote._prompt_hashes(before_prompts)
+            desired_prompt_hashes = remote._prompt_hashes(desired_prompts)
 
-            remote._replace_rows(
+            remote._replace_release_rows(
                 db_path=db,
-                replacement_rows=desired,
-                expected_hashes=before_hashes,
+                replacement_function_rows=desired,
+                replacement_prompt_rows=desired_prompts,
+                expected_function_hashes=before_hashes,
+                expected_prompt_hashes=before_prompt_hashes,
             )
-            self.assertEqual(desired_hashes, remote._content_hashes(self._rows(db)))
+            self.assertEqual(
+                desired_hashes,
+                remote._content_hashes(self._function_rows(db)),
+            )
+            self.assertEqual(
+                desired_prompt_hashes,
+                remote._prompt_hashes(self._prompt_rows(db)),
+            )
 
-            remote._replace_rows(
+            remote._replace_release_rows(
                 db_path=db,
-                replacement_rows=rollback_rows,
-                expected_hashes=desired_hashes,
+                replacement_function_rows=rollback_rows,
+                replacement_prompt_rows=rollback_prompt_rows,
+                expected_function_hashes=desired_hashes,
+                expected_prompt_hashes=desired_prompt_hashes,
             )
-            restored = self._rows(db)
+            restored = self._function_rows(db)
+            restored_prompts = self._prompt_rows(db)
             self.assertEqual(before_hashes, remote._content_hashes(restored))
-            self.assertEqual(rollback_rows, remote._snapshot_rows(restored))
+            self.assertEqual(
+                before_prompt_hashes,
+                remote._prompt_hashes(restored_prompts),
+            )
+            self.assertEqual(
+                rollback_rows,
+                remote._snapshot_function_rows(restored),
+            )
+            self.assertEqual(
+                rollback_prompt_rows,
+                remote._snapshot_prompt_rows(restored_prompts),
+            )
 
     def test_remote_cleanup_and_ssh_are_fail_closed(self):
         remote_source = (SCRIPTS / "broker_reports_atomic_stage_remote.py").read_text(

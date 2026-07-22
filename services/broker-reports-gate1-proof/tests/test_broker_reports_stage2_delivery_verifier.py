@@ -40,6 +40,17 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
 
         self.assertEqual(len(self.module.FUNCTION_CONTRACTS), 3)
         self.assertEqual(len(prompts), 12)
+        source_prompt = prompts[
+            "broker_reports_gate2_source_fact_prompt_v0"
+        ]
+        self.assertEqual(
+            source_prompt["meta"]["provider_output_schema_version"],
+            "broker_reports_source_fact_selection_v1",
+        )
+        self.assertEqual(
+            self.module.content_sha256(source_prompt["content"]),
+            source_prompt["content_sha256"],
+        )
         self.assertEqual(
             sorted(
                 profile.profile_id

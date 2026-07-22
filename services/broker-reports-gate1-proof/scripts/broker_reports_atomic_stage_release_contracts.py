@@ -36,7 +36,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v1"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v2"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -319,6 +319,7 @@ def build_manifest(
                 "prompt_id": prompt_id,
                 "command": item["command"],
                 "version": item["version"],
+                "content": item["content"],
                 "content_sha256": item["content_sha256"],
                 "meta": dict(item.get("meta") or {}),
             }
@@ -373,6 +374,23 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     function_ids = [item.get("function_id") for item in manifest.get("functions", [])]
     if function_ids != [contract.function_id for contract in FUNCTION_CONTRACTS]:
         raise ValueError("stage_release_manifest_function_set_invalid")
+    prompts = manifest.get("managed_prompts") or []
+    if not prompts or any(not isinstance(item, dict) for item in prompts):
+        raise ValueError("stage_release_manifest_prompt_set_invalid")
+    prompt_ids = [str(item.get("prompt_id") or "") for item in prompts]
+    if len(prompt_ids) != len(set(prompt_ids)) or any(not item for item in prompt_ids):
+        raise ValueError("stage_release_manifest_prompt_set_invalid")
+    for item in prompts:
+        content = item.get("content")
+        if (
+            not isinstance(content, str)
+            or not content.strip()
+            or sha256_text(content) != item.get("content_sha256")
+            or not str(item.get("command") or "")
+            or not str(item.get("version") or "")
+            or not isinstance(item.get("meta"), dict)
+        ):
+            raise ValueError("stage_release_manifest_prompt_contract_invalid")
     if manifest.get("image") != {
         "configured_image": PINNED_IMAGE,
         "image_id": PINNED_IMAGE_ID,
