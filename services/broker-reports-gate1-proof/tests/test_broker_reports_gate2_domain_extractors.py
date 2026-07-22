@@ -604,6 +604,64 @@ class BrokerReportsGate2DomainExtractorsTest(unittest.TestCase):
             "document_summary_evidence",
         )
 
+    def test_document_summary_text_package_exposes_only_reproducible_label_candidates(
+        self,
+    ):
+        base = _text_package_with_section_refs()
+        for index, item in enumerate(base["source_unit"]["source_value_index"]):
+            item["value_path"] = {
+                "kind": "text_span",
+                "character_start": index * len("summary"),
+                "character_end": (index + 1) * len("summary"),
+            }
+        route = Gate2SourceUnitRouterFactory().create().route(base)
+
+        package = next(
+            item
+            for item in Gate2DomainPackageBuilderFactory().create().build(
+                base_package=base,
+                route=route,
+            )
+            if item["extractor_domain"] == "document_summary_evidence"
+        )
+
+        candidates = package["deterministic_value_candidates"]
+        self.assertEqual(len(candidates), 3)
+        self.assertEqual({item["field"] for item in candidates}, {"label"})
+        self.assertEqual(
+            {item["normalized_value"] for item in candidates},
+            {"summary"},
+        )
+        self.assertEqual(
+            {item["policy_id"] for item in candidates},
+            {"document_summary_text_label_candidate_v0"},
+        )
+        response_format = domain_source_facts_response_format(package)
+        summary_variant = next(
+            item
+            for item in response_format["json_schema"]["schema"]["properties"][
+                "facts"
+            ]["items"]["anyOf"]
+            if item["properties"]["fact_type"]["const"]
+            == "document_summary_evidence"
+        )
+        self.assertEqual(
+            set(
+                summary_variant["properties"]["original_value_refs"][
+                    "properties"
+                ]["label"]["items"]["enum"]
+            ),
+            {item["source_value_ref"] for item in candidates},
+        )
+        self.assertEqual(
+            set(
+                summary_variant["properties"]["normalized_values"][
+                    "properties"
+                ]["label"]["enum"]
+            ),
+            {None, "summary"},
+        )
+
     def test_stitcher_detects_double_claim_preserves_unknown_and_accounts_no_fact(self):
         package = _base_package()
         route = Gate2SourceUnitRouterFactory().create().route(package)
