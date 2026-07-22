@@ -745,6 +745,7 @@ try:
                 key: meta.get(key)
                 for key in (
                     "template_id", "output_schema_version",
+                    "provider_output_schema_version",
                     "structured_output_required", "extractor_domain",
                     "knowledge_rag_allowed", "vectorization_allowed",
                 )

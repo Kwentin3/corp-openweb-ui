@@ -216,9 +216,11 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             )
 
         command = run.call_args.args[0]
+        remote_code = run.call_args.kwargs["input"]
         self.assertEqual({}, prompts)
         self.assertIn("StrictHostKeyChecking=yes", command)
         self.assertNotIn("StrictHostKeyChecking=no", command)
+        self.assertIn('"provider_output_schema_version"', remote_code)
 
 
 if __name__ == "__main__":
