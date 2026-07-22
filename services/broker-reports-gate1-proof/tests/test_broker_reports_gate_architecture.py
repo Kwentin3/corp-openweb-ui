@@ -104,10 +104,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
-        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "typed_proposal_only")
+        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "semantic_transcription_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
-            "deterministic_validator_plus_explicit_review",
+            "deterministic_validator_for_accepted_profile_else_review_or_fail_closed",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
         self.assertFalse(GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED)

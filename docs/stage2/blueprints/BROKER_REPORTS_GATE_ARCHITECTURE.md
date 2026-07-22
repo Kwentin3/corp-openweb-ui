@@ -1,8 +1,8 @@
 # Broker Reports Global Gate Architecture
 
-Date: 2026-07-21
+Date: 2026-07-22
 
-Status: `VERSIONED_NORMATIVE_ARCHITECTURE_POLICY_V1`
+Status: `VERSIONED_NORMATIVE_ARCHITECTURE_POLICY_V2`
 
 Scope: the global Broker Reports product pipeline. This document does not
 number repository-wide Stage 2 governance gates and does not redefine local
@@ -30,32 +30,42 @@ The following policy decisions are normative:
    crop with source and image lineage; whole-document provider upload is
    forbidden when that smaller scope exists.
 4. Production visual-table provider profiles are exactly `google_gemini` and
-   `openai_gpt`.  Provider output is a typed proposal.  Confidence, provider
-   agreement and raw model output have zero canonical authority.
-5. Canonical promotion belongs only to the maintained review/promotion factory
-   after deterministic validation, explicit source-to-table accounting and an
-   authenticated human or explicitly delegated review authority.  The sealed
-   receipt binds the source/crop, provider proposal hashes, canonical candidate,
-   corrections and lifecycle.  Mutation invalidates the seal.  Ambiguity
-   terminates in rejection, unsupported or fail-closed unresolved state.
-6. PaddleOCR, PaddleOCR-VL and comparable heavy local OCR frameworks are outside
+   `openai_gpt`. Gemini is the master visual-table extractor. OpenAI is an
+   optional control or explicit fallback under a versioned policy. Provider
+   agreement is not required for success, and a valid Gemini result does not
+   trigger a mandatory OpenAI consensus call.
+5. The authoritative model-facing contract is
+   `broker_reports_semantic_table_transcription_v1`: the VLM returns only a
+   short source-oriented `description` and logical `rows`. Physical PDF
+   geometry is not a VLM responsibility. Deterministic application code owns
+   system metadata, logical indexes, empty-cell padding, canonical object
+   construction, hashes, persistence and terminal status. Markdown is not a
+   runtime dependency. Financial interpretation remains in global Gate 2.
+6. A schema-valid provider response proves only that the semantic response
+   contract passed. A qualified accepted semantic profile may proceed through
+   deterministic validation without mandatory human review. Unsupported or
+   ambiguous layouts terminate as review-required, unsupported, rejected or
+   fail-closed. Provider output cannot accept, repair or overwrite itself.
+   Historical geometric visual proposals retain their existing explicit
+   review/promotion boundary.
+7. PaddleOCR, PaddleOCR-VL and comparable heavy local OCR frameworks are outside
    production runtime.  Preserved implementations are `proof_only`,
    `offline_only` or `unsupported_runtime`; they are not bundle dependencies or
    capacity assumptions.
-7. Private payloads are resolved only through `ArtifactResolver` under trusted
+8. Private payloads are resolved only through `ArtifactResolver` under trusted
    server context.  Customer documents, values, crops, raw provider responses
    and local paths never enter Git or safe reports.
-8. The frozen Sber profile and its unseen positive holdout are governed by
+9. The frozen Sber profile and its unseen positive holdout are governed by
    [Broker Reports Customer Test Debt v1](../../contracts/BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md):
    implementation proof is preserved, generalization is external debt and the
    release valve remains default-off.
-9. Heavy Gate 1 execution is document-bounded. Each complete neutral
+10. Heavy Gate 1 execution is document-bounded. Each complete neutral
    representation set is validated, sealed and appended through
    `Gate1BoundedGraphFactory.create`; only compact refs, hashes, counts and
    document indexes survive into the next document. The complete logical graph
    remains resolver-backed in ArtifactStore. Run-wide decoded private graphs,
    truncation and representation removal are forbidden memory controls.
-10. All maintained Broker Reports jobs route through
+11. All maintained Broker Reports jobs route through
     `WorkloadAuthorityFactory.create`. The authority is one shared,
     cross-process SQLite coordination plane rather than a process-local queue.
     It admits Gate 1 heavy work at concurrency 1 and Gate 2 local work at a
@@ -141,7 +151,7 @@ with `worker_lease_expired`; recovery can never synthesize `completed`.
 | Semantic decisions allowed | Container/format detection, readability, document taxonomy/usage classification and non-financial structural labels. |
 | Semantic decisions forbidden | Typed financial facts, event consolidation, tax treatment, tax base, declaration fields and output preparation. |
 | Deterministic responsibilities | Hashing, byte/profile limits, parsing, source refs, loss/truncation accounting, normalized structures, validation, access and lifecycle metadata. |
-| LLM/VLM responsibilities | Bounded metadata classification or clarification; one-page/one-crop Gemini or OpenAI visual-table proposal under a strict contract. Model output never overrides parser/validator authority. |
+| LLM/VLM responsibilities | Bounded metadata classification or clarification; one-page/one-crop semantic visual-table transcription. Gemini is master and OpenAI is optional control/fallback. The model returns only `description` and logical `rows`; it supplies no system metadata or physical geometry and never overrides validator authority. |
 | Validation/completeness boundary | Completeness is asserted only for the declared normalized source/document scope and its supported format profile. Unsupported, truncated or ambiguous content remains explicit. |
 | Storage/access | Private source content uses `private_case` / `project_artifact_payload`. Heavy runs persist and release it one document at a time through the bounded-graph factory. Safe indexes use `safe_internal` / `project_artifact_store`. Chat receives whitelist summaries only. |
 | Entry criteria | Authorized source refs, explicit retention policy and a supported or explicitly blocked format path. |
@@ -152,6 +162,26 @@ with `worker_lease_expired`; recovery can never synthesize `completed`.
 Representation-preserving normalization ends here. Mechanically normalized
 dates/numbers and structural table labels are allowed only when reproducible
 from source values. Assigning a financial fact type is not normalization.
+
+### 3.1.1 Semantic visual-table boundary
+
+The normative model-facing contract is
+[Broker Reports Semantic Visual Table Transcription v1](../contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md).
+It is semantic transcription, not physical table reconstruction. VLM output is
+limited to a source-oriented description and logical rows containing strings or
+`null`. All source names, labels, amounts, currency signs, parentheses,
+percentage signs and separators remain literal strings.
+
+Deterministic code derives the rectangular logical table, indexes, explicit
+empty cells, provenance envelope, hashes, persistence and terminal state. Every
+materialized cell has logical span 1; this is a processing representation and
+never a claim about physical PDF topology. Gate 1 preserves this representation;
+financial meaning begins only in Gate 2.
+
+The prior `broker_reports_canonical_table_v1` model-facing grid contract remains
+readable for historical evidence and immutable artifacts. It is not the default
+model-facing contract for new semantic extraction and is never silently
+rewritten or auto-upgraded.
 
 ### 3.2 Global Gate 2 — Source-Local Semantic Interpretation
 
@@ -250,8 +280,9 @@ manifest.
 | Format profilers, `CsvSupportedProfileFactory`, `FullSourceArtifactFactory` | Gate 1 | Format detection and representation preservation | Normative runtime; private source content | DCP/Gate 2 | Implemented; acceptance varies by format |
 | Normalized text/table/source payload and unit contracts | Gate 1 | Source representation | Versioned/private; table projection is structural, not financial | Gate 2 | Implemented for supported paths |
 | PDF Table Intake Gate 1 | Gate 1 local child capability | PDF page -> private raster candidates | Versioned/private; local gate terminology | Downstream Gate 1 table normalizer | Closed for accepted bounded scope |
-| Bounded visual-table VLM adapters | Gate 1 | One declared page/crop -> typed structural proposal | Production Gemini/OpenAI transport; proposal-only, private | Deterministic visual validator | Maintained production policy |
-| Visual review/promotion boundary | Gate 1 | Validated proposal + authenticated explicit review + region/cell accounting -> sealed canonical projection or non-canonical terminal receipt | Versioned/private; provider consensus and local OCR have no acceptance authority | Gate 2 table-package factory | Maintained repository runtime, default-off pending atomic stage delivery |
+| Semantic visual-table contract | Gate 1 | One declared crop -> `description` plus source-visible logical `rows` | `broker_reports_semantic_table_transcription_v1`; Gemini master; OpenAI optional control/fallback; private | Deterministic semantic validator/materializer | Contracted; runtime migration separately gated |
+| Deterministic semantic materialization | Gate 1 | Semantic rows -> application-owned envelope and rectangular logical table | Code-owned indexes, null padding, span 1 and explicit semantic origin; no physical topology claim | Gate 2 table-package factory after qualification | Planned in a separate implementation goal |
+| Legacy visual review/promotion boundary | Gate 1 | Historical geometric proposal + authenticated explicit review + region/cell accounting -> sealed canonical projection or non-canonical terminal receipt | Versioned/private; retained for immutable legacy artifacts, not the new default model-facing contract | Gate 2 table-package factory | Maintained legacy readability, default-off |
 | PDF hybrid, structural-repair, dual-oracle and direct-PDF contours | Gate 1 research/shadow unless promoted | Alternative structural reconstruction evidence | Evidence-only or default-off; not product authority | Research/quality decisions | Research-only, rejected or unclosed by contour |
 | `domain_context_packet_v0` | Gate 1 | Safe handoff root and stage readiness | Normative safe-internal refs | Gate 2 | Implemented |
 | `gate1_issue_ledger_v0` | Gate 1 | Source/intake issue authority | Normative safe-internal; carried forward by ref | Gates 2-4 | Implemented |
@@ -304,7 +335,8 @@ The allowed status vocabulary is:
 | Global Gate 1 | Implemented; partially closed | Runtime exists and the heavy representation graph has a maintained document-bounded lifetime. Named format/sub-capability closures do not imply universal format support. |
 | CSV v1 normalization | Closed for bounded supported profile | Whole accepted CSV representation is normalized under declared limits. |
 | PDF Table Intake local Gate 1 | Closed | Table regions become private raster candidates; no cells or financial meaning are claimed. |
-| Canonical visual-table reconstruction | Maintained repository runtime, default-off; atomic stage delivery remains pending | Recovered Gemini/OpenAI adapters process one declared crop under a versioned dual-provider policy. Agreement remains evidence-only. `PdfVisualTableReviewFactory` requires authenticated explicit review, complete region/cell accounting and a valid mutation seal before the existing Gate 2 table-package boundary accepts the projection. |
+| Semantic visual-table contract | Contracted; runtime migration not yet active | `broker_reports_semantic_table_transcription_v1` is the authoritative model-facing shape. Gemini is master, OpenAI is optional, geometry and system metadata are application-owned, and Markdown/local OCR are absent from the runtime boundary. |
+| Legacy geometric visual-table reconstruction | Maintained repository runtime, default-off | `broker_reports_canonical_table_v1` remains readable for historical evidence and immutable artifacts. Its dual-provider/review contour is not the default model-facing route for new semantic extraction. |
 | Global Gate 2 | Implemented; partially closed | Bounded typed verticals pass. Whole-document/full-corpus/all-format semantic coverage is not closed. |
 | CSV pre-Gate-3 vertical | Closed for bounded scope | One selected segment is terminal and validated; 343 segments are explicit deferred scope. |
 | Gate 3 context manifest | Implemented; stage proven for bounded CSV scope | Ready means the declared Gate 2 graph is acceptable as Gate 3 input. |
@@ -430,7 +462,22 @@ DOCUMENTATION_RUNTIME_ALIGNMENT:
 PROVEN
 
 VISUAL_RECOVERY_PRODUCTION_POLICY:
-GEMINI_AND_OPENAI_VLM
+GEMINI_MASTER_OPENAI_OPTIONAL_CONTROL_OR_FALLBACK
+
+SEMANTIC_VLM_CONTRACT:
+VERSIONED_AND_AUTHORITATIVE
+
+VLM_PHYSICAL_GEOMETRY_RESPONSIBILITY:
+ZERO
+
+OPENAI_MANDATORY_CONSENSUS:
+ZERO
+
+MARKDOWN_RUNTIME_DEPENDENCY:
+ZERO
+
+LEGACY_CONTRACT_DISPOSITION:
+EXPLICIT
 
 PADDLE_LOCAL_OCR_PRODUCTION_STATUS:
 OUT_OF_SCOPE

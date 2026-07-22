@@ -34,6 +34,7 @@ GATE2_DOMAIN_BUNDLE_PATH = (
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 
 MODULE_ORDER = [
+    "semantic_visual_table_contracts",
     "architecture_policy",
     "workload_authority",
     "contracts",
