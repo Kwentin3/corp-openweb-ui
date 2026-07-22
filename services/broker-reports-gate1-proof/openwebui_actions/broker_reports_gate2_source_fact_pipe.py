@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Source Fact Extraction
 author: Alpha Soft
-version: 0.12.0-gate1-workload-scope-v1
+version: 0.13.0-semantic-selection-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -80,6 +80,7 @@ class Pipe:
         table_max_rows: int = Field(default=40)
         text_max_chars: int = Field(default=6000)
         max_estimated_input_tokens: int = Field(default=12000)
+        semantic_selection_enabled: bool = Field(default=True)
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -204,6 +205,12 @@ class Pipe:
                     max_estimated_input_tokens=int(
                         config.get("max_estimated_input_tokens")
                         or self.valves.max_estimated_input_tokens
+                    ),
+                    semantic_selection_enabled=bool(
+                        config.get(
+                            "semantic_selection_enabled",
+                            self.valves.semantic_selection_enabled,
+                        )
                     ),
                     document_batch_start=int(
                         config.get("document_batch_start") or 0

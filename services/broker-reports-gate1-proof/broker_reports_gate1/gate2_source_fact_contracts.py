@@ -971,6 +971,7 @@ def model_call_audit_metadata(
     prompt: Gate2ManagedPrompt,
     model_id: str,
     raw_output_artifact_ref: str | None,
+    provider_response_schema_hash: str | None = None,
     extraction_attempt_ordinal: int = 1,
     repair_attempt_count: int = 0,
     created_at: str,
@@ -985,7 +986,10 @@ def model_call_audit_metadata(
         "output_schema_id": prompt.output_schema_id,
         "output_schema_version": prompt.output_schema_version,
         "output_schema_hash": source_facts_schema_hash(),
-        "provider_response_schema_hash": source_facts_provider_schema_hash(),
+        "provider_response_schema_hash": (
+            provider_response_schema_hash
+            or source_facts_provider_schema_hash()
+        ),
         "provider_union_keyword": "anyOf",
         "model_id": model_id,
         "structured_output_mode": STRUCTURED_OUTPUT_MODE,
