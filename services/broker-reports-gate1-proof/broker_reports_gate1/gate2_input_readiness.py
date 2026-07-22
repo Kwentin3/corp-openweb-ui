@@ -43,6 +43,10 @@ from .gate2_table_packages import (
     Gate2TablePackageFactory,
     validate_gate2_table_package,
 )
+from .semantic_visual_table_contracts import (
+    SEMANTIC_LOGICAL_TABLE_PROFILE_ID,
+    SEMANTIC_VISUAL_TABLE_ORIGIN,
+)
 
 
 FACTORY_REQUIRED = (
@@ -94,6 +98,7 @@ class Gate2InputReadinessConfig:
     allow_legacy_slice_provenance_upgrade: bool = True
     prefer_full_source_units: bool = True
     prefer_table_projections: bool = False
+    allow_standalone_semantic_visual_projections: bool = False
 
 
 @dataclass(frozen=True)
@@ -789,6 +794,38 @@ class Gate2InputReadinessService:
             if record.artifact_type == "broker_reports_normalized_table_projection_v0"
             and requested(record)
         ]
+
+        def semantic_visual_projection(record: ArtifactRecord) -> bool:
+            return (
+                record.safe_metadata.get("table_origin")
+                == SEMANTIC_VISUAL_TABLE_ORIGIN
+                and record.safe_metadata.get("canonical_profile_id")
+                == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
+            )
+
+        def projection_scope_allowed(record: ArtifactRecord) -> bool:
+            memory_entry = memory_by_document.get(
+                str(record.document_id or "")
+            ) or {}
+            if (
+                semantic_visual_projection(record)
+                and self.config.allow_standalone_semantic_visual_projections
+            ):
+                return _gate2_scope_decision(memory_entry=memory_entry)[0]
+            return _gate2_record_scope_decision(record, memory_entry)[0]
+
+        projection_identity_counts = Counter(
+            str(record.safe_metadata.get("table_projection_id") or "")
+            for record in projection_records
+        )
+        for projection_id, count in sorted(projection_identity_counts.items()):
+            if not projection_id or count > 1:
+                errors.append(
+                    _error(
+                        "gate2_table_projection_identity_ambiguous",
+                        projection_id or "missing",
+                    )
+                )
         canonical_pdf_projection_anchor_unit_refs = {
             str(record.safe_metadata.get("source_unit_ref") or "")
             for record in projection_records
@@ -801,10 +838,8 @@ class Gate2InputReadinessService:
             and record.safe_metadata.get("canonical_table_scope")
             == "ready_validated_projection_only"
             and record.safe_metadata.get("canonical_validation_status") == "passed"
-            and _gate2_record_scope_decision(
-                record,
-                memory_by_document.get(str(record.document_id or "")) or {},
-            )[0]
+            and not semantic_visual_projection(record)
+            and projection_scope_allowed(record)
             and record.safe_metadata.get("source_unit_ref")
         }
         full_unit_documents = {
@@ -873,24 +908,48 @@ class Gate2InputReadinessService:
                     == "passed"
                 )
             )
-            and str(record.safe_metadata.get("source_unit_ref") or "")
-            in selected_full_unit_refs
-            and _gate2_record_scope_decision(
-                record,
-                memory_by_document.get(str(record.document_id or "")) or {},
-            )[0]
+            and (
+                (
+                    not semantic_visual_projection(record)
+                    and str(record.safe_metadata.get("source_unit_ref") or "")
+                    in selected_full_unit_refs
+                )
+                or (
+                    semantic_visual_projection(record)
+                    and self.config.allow_standalone_semantic_visual_projections
+                )
+            )
+            and projection_scope_allowed(record)
         ]
         selected_projection_records_by_unit: dict[str, ArtifactRecord] = {}
         for record in eligible_projection_records:
             if (
-                self.config.prefer_table_projections
-                or record.safe_metadata.get("source_format") == "pdf"
-                and record.safe_metadata.get("canonical_table_scope")
-                == "ready_validated_projection_only"
+                (
+                    semantic_visual_projection(record)
+                    and self.config.allow_standalone_semantic_visual_projections
+                )
+                or (
+                    not semantic_visual_projection(record)
+                    and (
+                        self.config.prefer_table_projections
+                        or record.safe_metadata.get("source_format") == "pdf"
+                        and record.safe_metadata.get("canonical_table_scope")
+                        == "ready_validated_projection_only"
+                    )
+                )
             ):
-                selected_projection_records_by_unit[
-                    str(record.safe_metadata.get("source_unit_ref") or "")
-                ] = record
+                source_unit_ref = str(
+                    record.safe_metadata.get("source_unit_ref") or ""
+                )
+                if source_unit_ref in selected_projection_records_by_unit:
+                    errors.append(
+                        _error(
+                            "gate2_table_projection_source_scope_ambiguous",
+                            source_unit_ref or "missing",
+                        )
+                    )
+                    continue
+                selected_projection_records_by_unit[source_unit_ref] = record
         selected_projection_record_ids = {
             record.artifact_id
             for record in selected_projection_records_by_unit.values()
@@ -934,10 +993,25 @@ class Gate2InputReadinessService:
                 )
                 continue
             projection_validation = table_validator.validate(payload)
-            allowed, selected_scope, reason = _gate2_private_slice_scope_decision(
-                payload,
-                memory_by_document.get(document_id) or {},
-            )
+            if (
+                payload.get("table_origin") == SEMANTIC_VISUAL_TABLE_ORIGIN
+                and payload.get("canonical_profile_id")
+                == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
+                and self.config.allow_standalone_semantic_visual_projections
+            ):
+                allowed, _scope, reason = _gate2_scope_decision(
+                    memory_entry=memory_by_document.get(document_id) or {}
+                )
+                selected_scope = (
+                    "semantic_visual_table" if allowed else "blocked"
+                )
+            else:
+                allowed, selected_scope, reason = (
+                    _gate2_private_slice_scope_decision(
+                        payload,
+                        memory_by_document.get(document_id) or {},
+                    )
+                )
             if not allowed:
                 unselected_scope_reason_counts[reason] += 1
                 continue
@@ -1078,21 +1152,64 @@ class Gate2InputReadinessService:
                     if payload.get("projection_status") == "ready"
                     and _validation.get("validator_status") == "passed"
                     and (
-                        self.config.prefer_table_projections
-                        or payload.get("source_format") == "pdf"
-                        and payload.get("canonical_table_scope")
-                        == "ready_validated_projection_only"
+                        (
+                            payload.get("table_origin")
+                            == SEMANTIC_VISUAL_TABLE_ORIGIN
+                            and payload.get("canonical_profile_id")
+                            == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
+                            and self.config.allow_standalone_semantic_visual_projections
+                        )
+                        or (
+                            payload.get("table_origin")
+                            != SEMANTIC_VISUAL_TABLE_ORIGIN
+                            and (
+                                self.config.prefer_table_projections
+                                or payload.get("source_format") == "pdf"
+                                and payload.get("canonical_table_scope")
+                                == "ready_validated_projection_only"
+                            )
+                        )
                     )
                 }
                 selected = []
+                full_unit_refs = {
+                    str(item[1].get("unit_ref") or "") for item in full_units
+                }
                 for item in full_units:
                     source_unit_ref = str(item[1].get("unit_ref") or "")
                     selected.append(projections_by_unit.get(source_unit_ref, item))
+                selected.extend(
+                    item
+                    for item in table_projections_by_document.get(document_id, [])
+                    if item[1].get("table_origin")
+                    == SEMANTIC_VISUAL_TABLE_ORIGIN
+                    and item[1].get("canonical_profile_id")
+                    == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
+                    and self.config.allow_standalone_semantic_visual_projections
+                    and str(item[1].get("source_unit_ref") or "")
+                    not in full_unit_refs
+                    and item[1].get("projection_status") == "ready"
+                    and item[2].get("validator_status") == "passed"
+                )
                 selected_by_document[document_id] = selected
                 full_source_documents_total += 1
             else:
                 selected_by_document[document_id] = legacy_by_document.get(document_id, [])
-                if selected_by_document[document_id]:
+                legacy_selected = bool(selected_by_document[document_id])
+                if self.config.allow_standalone_semantic_visual_projections:
+                    selected_by_document[document_id].extend(
+                        item
+                        for item in table_projections_by_document.get(
+                            document_id, []
+                        )
+                        if item[1].get("table_origin")
+                        == SEMANTIC_VISUAL_TABLE_ORIGIN
+                        and item[1].get("canonical_profile_id")
+                        == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
+                        and item[1].get("projection_status") == "ready"
+                        and item[2].get("validator_status") == "passed"
+                    )
+                if legacy_selected:
                     legacy_fallback_documents_total += 1
         return selected_by_document, {
             "private_slices_total": table_total + text_total,
@@ -1124,6 +1241,13 @@ class Gate2InputReadinessService:
             "table_projections_unselected_total": (
                 len(projection_records) - len(selected_projection_record_ids)
             ),
+            "semantic_visual_projections_selected_total": sum(
+                semantic_visual_projection(record)
+                for record in selected_projection_records_by_unit.values()
+            ),
+            "standalone_semantic_visual_projections_allowed": (
+                self.config.allow_standalone_semantic_visual_projections
+            ),
             "selected_scope_counts": dict(sorted(selected_scope_counts.items())),
             "unselected_scope_reason_counts": dict(
                 sorted(unselected_scope_reason_counts.items())
@@ -1136,12 +1260,16 @@ class Gate2InputReadinessService:
             "full_source_documents_total": full_source_documents_total,
             "legacy_fallback_documents_total": legacy_fallback_documents_total,
             "input_priority": (
-                "normalized_table_projection_then_full_source_unit_then_legacy_preview"
-                if self.config.prefer_table_projections
+                "semantic_visual_projection_plus_maintained_source_units"
+                if self.config.allow_standalone_semantic_visual_projections
                 else (
-                    "validated_pdf_canonical_projection_then_full_source_unit_then_legacy_preview"
-                    if canonical_pdf_projection_anchor_unit_refs
-                    else "full_source_unit_then_legacy_preview"
+                    "normalized_table_projection_then_full_source_unit_then_legacy_preview"
+                    if self.config.prefer_table_projections
+                    else (
+                        "validated_pdf_canonical_projection_then_full_source_unit_then_legacy_preview"
+                        if canonical_pdf_projection_anchor_unit_refs
+                        else "full_source_unit_then_legacy_preview"
+                    )
                 )
             ),
             "legacy_provenance_upgrade_total": legacy_upgrade_total,

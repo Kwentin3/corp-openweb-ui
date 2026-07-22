@@ -196,6 +196,13 @@ from .semantic_visual_table_materialization import (
     SemanticVisualTableMaterializationResult,
     validate_semantic_visual_table_envelope,
 )
+from .semantic_visual_table_migration import (
+    SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID,
+    SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION,
+    SemanticVisualTableMigrationConfig,
+    SemanticVisualTableMigrationError,
+    SemanticVisualTableMigrationFactory,
+)
 from .semantic_visual_table_validator import (
     SEMANTIC_VISUAL_TABLE_VALIDATION_SCHEMA_VERSION,
     SEMANTIC_VISUAL_TABLE_VALIDATOR_VERSION,
@@ -650,6 +657,11 @@ __all__ = [
     "PdfTableIntakeError",
     "PdfTableIntakeResult",
     "PdfTableIntakeRuntimeFactory",
+    "SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID",
+    "SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION",
+    "SemanticVisualTableMigrationConfig",
+    "SemanticVisualTableMigrationError",
+    "SemanticVisualTableMigrationFactory",
     "PdfParserCapabilityRequest",
     "PdfStructuralRepairRuntimeConfig",
     "PdfStructuralRepairRuntimeError",

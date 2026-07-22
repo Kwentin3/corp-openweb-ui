@@ -14,6 +14,11 @@ from .pdf_compact_canonical import (
 )
 from .pdf_compact_gate2_adapter import PdfCompactGate2MappingValidator
 from .pdf_normalization_acceptance import PdfNormalizationAcceptanceFactory
+from .semantic_visual_table_materialization import (
+    SEMANTIC_VISUAL_TABLE_ENVELOPE_SCHEMA_VERSION,
+    validate_semantic_visual_table_envelope,
+)
+from .table_projection import TableProjectionValidator
 
 
 @dataclass(frozen=True)
@@ -67,6 +72,11 @@ def persist_gate1_result(
             context=context,
             retention_policy=retention_policy,
         )
+    _preflight_semantic_visual_migration_inputs(
+        package=package,
+        documents=documents,
+        bounded_graph=bounded_graph,
+    )
     refs_by_type: dict[str, list[str]] = (
         {
             key: list(value)
@@ -233,6 +243,11 @@ def persist_gate1_result(
         (
             "broker_reports_pdf_table_intake_run_v1",
             package.get("pdf_table_intake"),
+            None,
+        ),
+        (
+            "broker_reports_semantic_visual_table_migration_policy_v1",
+            package.get("semantic_visual_table_migration"),
             None,
         ),
         ("validation_result_v0", package["validation_result"], None),
@@ -511,12 +526,78 @@ def persist_gate1_result(
             record.artifact_id
         )
 
-    for table_projection in (
-        []
+    seen_envelope_ids: set[str] = set()
+    for envelope in package.get("private_semantic_visual_table_envelopes", []):
+        errors = validate_semantic_visual_table_envelope(envelope)
+        if errors:
+            raise ValueError(errors[0])
+        envelope_id = str(envelope.get("envelope_id") or "")
+        if not envelope_id or envelope_id in seen_envelope_ids:
+            raise ValueError("duplicate_semantic_visual_table_envelope_identity")
+        seen_envelope_ids.add(envelope_id)
+        lineage = envelope.get("source_lineage") or {}
+        execution = envelope.get("provider_execution") or {}
+        document_id = lineage.get("source_ref")
+        if str(document_id) not in source_records_by_doc:
+            raise ValueError("semantic_visual_table_envelope_source_not_registered")
+        put(
+            _record(
+                artifact_type=SEMANTIC_VISUAL_TABLE_ENVELOPE_SCHEMA_VERSION,
+                context=context,
+                retention_policy=retention_policy,
+                document_id=document_id,
+                source_file_ref=source_records_by_doc.get(str(document_id)),
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status="validated",
+                payload=envelope,
+                safe_metadata={
+                    "schema_version": envelope.get("schema_version"),
+                    "envelope_id": envelope.get("envelope_id"),
+                    "envelope_hash": envelope.get("envelope_hash"),
+                    "origin": envelope.get("origin"),
+                    "table_id": envelope.get("table_id"),
+                    "document_ref": document_id,
+                    "candidate_ref": lineage.get("candidate_ref"),
+                    "crop_sha256": lineage.get("crop_sha256"),
+                    "provider": execution.get("provider"),
+                    "model_id": execution.get("resolved_model_id"),
+                    "physical_geometry_claimed": envelope.get(
+                        "physical_geometry_claimed"
+                    ),
+                    "raw_values_present": False,
+                },
+                access_policy={**access_policy, "requires_gate2_resolver": True},
+            )
+        )
+
+    existing_projection_ids = (
+        {
+            str(item.get("table_projection_id") or "")
+            for item in bounded_graph.collection(
+                "private_normalized_table_projections"
+            ).iter_compact()
+            if item.get("table_projection_id")
+        }
         if bounded_graph is not None
-        else package.get("private_normalized_table_projections", [])
-    ):
+        else set()
+    )
+    table_projections = [
+        *(
+            []
+            if bounded_graph is not None
+            else package.get("private_normalized_table_projections", [])
+        ),
+        *package.get("private_semantic_visual_table_projections", []),
+    ]
+    for table_projection in table_projections:
+        projection_id = str(table_projection.get("table_projection_id") or "")
+        if not projection_id or projection_id in existing_projection_ids:
+            raise ValueError("duplicate_table_projection_identity")
+        existing_projection_ids.add(projection_id)
         document_id = table_projection.get("source_document_ref")
+        if str(document_id) not in source_records_by_doc:
+            raise ValueError("table_projection_source_not_registered")
         record = put(
             _record(
                 artifact_type="broker_reports_normalized_table_projection_v0",
@@ -1515,6 +1596,66 @@ def _handoff_record_validation_status(
     if package.get("normalization_run", {}).get("gate2_handoff_status") == "blocked":
         return "blocked"
     return gate1_validation_status
+
+
+def _preflight_semantic_visual_migration_inputs(
+    *, package: dict[str, Any], documents: list[dict[str, Any]], bounded_graph
+) -> None:
+    envelopes = package.get("private_semantic_visual_table_envelopes", [])
+    projections = package.get("private_semantic_visual_table_projections", [])
+    if not isinstance(envelopes, list) or not isinstance(projections, list):
+        raise ValueError("semantic_visual_table_migration_payload_invalid")
+    document_ids = {
+        str(document.get("document_id") or "") for document in documents
+    }
+    envelope_ids: set[str] = set()
+    for envelope in envelopes:
+        errors = validate_semantic_visual_table_envelope(envelope)
+        if errors:
+            raise ValueError(errors[0])
+        envelope_id = str(envelope.get("envelope_id") or "")
+        document_id = str(
+            (envelope.get("source_lineage") or {}).get("source_ref") or ""
+        )
+        if not envelope_id or envelope_id in envelope_ids:
+            raise ValueError("duplicate_semantic_visual_table_envelope_identity")
+        if document_id not in document_ids:
+            raise ValueError("semantic_visual_table_envelope_source_not_registered")
+        envelope_ids.add(envelope_id)
+
+    projection_ids = (
+        {
+            str(item.get("table_projection_id") or "")
+            for item in bounded_graph.collection(
+                "private_normalized_table_projections"
+            ).iter_compact()
+            if item.get("table_projection_id")
+        }
+        if bounded_graph is not None
+        else {
+            str(item.get("table_projection_id") or "")
+            for item in package.get("private_normalized_table_projections", [])
+            if isinstance(item, dict) and item.get("table_projection_id")
+        }
+    )
+    validator = TableProjectionValidator()
+    for projection in projections:
+        if not isinstance(projection, dict):
+            raise ValueError("semantic_visual_table_projection_invalid")
+        projection_id = str(projection.get("table_projection_id") or "")
+        document_id = str(projection.get("source_document_ref") or "")
+        validation = validator.validate(projection)
+        if validation.get("validator_status") != "passed":
+            errors = validation.get("errors") or []
+            first = errors[0] if errors else {}
+            raise ValueError(
+                str(first.get("code") or "semantic_visual_table_projection_invalid")
+            )
+        if not projection_id or projection_id in projection_ids:
+            raise ValueError("duplicate_table_projection_identity")
+        if document_id not in document_ids:
+            raise ValueError("table_projection_source_not_registered")
+        projection_ids.add(projection_id)
 
 
 def _safe_metadata_for_payload(package: dict, artifact_type: str) -> dict[str, Any]:

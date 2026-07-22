@@ -125,6 +125,7 @@ class Gate2DomainSourceFactRuntimeConfig:
     table_max_rows: int = 40
     text_max_chars: int = 6000
     prefer_table_projections: bool = False
+    allow_standalone_semantic_visual_projections: bool = False
     candidate_binding_enabled: bool = False
     gate3_context_manifest_enabled: bool = False
 
@@ -272,7 +273,10 @@ class Gate2DomainSourceFactRuntimeService:
             readiness = Gate2InputReadinessFactory(
                 store=self.store,
                 config=Gate2InputReadinessConfig(
-                    prefer_table_projections=self.config.prefer_table_projections
+                    prefer_table_projections=self.config.prefer_table_projections,
+                    allow_standalone_semantic_visual_projections=(
+                        self.config.allow_standalone_semantic_visual_projections
+                    ),
                 ),
             ).create().audit_and_build(
                 domain_context_packet_ref=domain_context_packet_ref,
@@ -1417,6 +1421,9 @@ class Gate2DomainSourceFactRuntimeService:
             },
             "domain_allowlist": list(self.config.domain_allowlist),
             "prefer_table_projections": self.config.prefer_table_projections,
+            "allow_standalone_semantic_visual_projections": (
+                self.config.allow_standalone_semantic_visual_projections
+            ),
             "candidate_binding_enabled": self.config.candidate_binding_enabled,
             "router_policy": "gate2_source_unit_domain_routing_v1",
             "package_policy": "gate2_domain_package_projection_v0",

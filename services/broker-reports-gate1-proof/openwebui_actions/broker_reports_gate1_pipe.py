@@ -82,6 +82,11 @@ from broker_reports_gate1 import (
     PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION,
     PDF_DUAL_VLM_RUN_SCHEMA,
     PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
+    SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID,
+    SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION,
+    SemanticVisualTableMigrationConfig,
+    SemanticVisualTableMigrationError,
+    SemanticVisualTableMigrationFactory,
 )
 from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
@@ -191,6 +196,13 @@ class Pipe:
             default=24_000, ge=1, le=128_000
         )
         pdf_dual_vlm_maximum_candidates: int = Field(default=8, ge=1, le=32)
+        pdf_semantic_visual_table_downstream_enabled: bool = Field(default=False)
+        pdf_semantic_visual_table_migration_policy_version: str = Field(
+            default=SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
+        )
+        pdf_semantic_visual_table_accepted_profile_id: str = Field(
+            default=SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID
+        )
         pdf_hybrid_shadow_enabled: bool = Field(default=False)
         pdf_hybrid_shadow_table_allowlist: str = Field(default="")
         pdf_hybrid_provider_profile: str = Field(default="google_gemini")
@@ -443,6 +455,15 @@ class Pipe:
                 "pdf_dual_vlm_openai_invocation_policy": (
                     self.valves.pdf_dual_vlm_openai_invocation_policy
                 ),
+                "pdf_semantic_visual_table_downstream_enabled": bool(
+                    self.valves.pdf_semantic_visual_table_downstream_enabled
+                ),
+                "pdf_semantic_visual_table_migration_policy_version": (
+                    self.valves.pdf_semantic_visual_table_migration_policy_version
+                ),
+                "pdf_semantic_visual_table_accepted_profile_id": (
+                    self.valves.pdf_semantic_visual_table_accepted_profile_id
+                ),
                 "pdf_semantic_header_shadow_enabled": bool(
                     self.valves.pdf_semantic_header_shadow_enabled
                 ),
@@ -476,6 +497,18 @@ class Pipe:
         result.package["private_pdf_dual_vlm_provider_evidence"] = dual_vlm[
             "private_provider_evidence"
         ]
+        semantic_migration = self._maybe_migrate_pdf_semantic_tables(
+            dual_vlm=dual_vlm
+        )
+        result.package["semantic_visual_table_migration"] = semantic_migration[
+            "safe_summary"
+        ]
+        result.package["private_semantic_visual_table_envelopes"] = (
+            semantic_migration["private_envelopes"]
+        )
+        result.package["private_semantic_visual_table_projections"] = (
+            semantic_migration["gate2_projections"]
+        )
         with self._provider_slot_if_enabled(
             bool(self.valves.pdf_structural_repair_shadow_enabled),
             self.valves.pdf_structural_repair_provider_profile,
@@ -532,6 +565,11 @@ class Pipe:
             item.get("review_required") is True
             for item in dual_vlm.get("private_decisions") or []
             if isinstance(item, dict)
+        ) + int(
+            semantic_migration["safe_summary"].get(
+                "review_required_or_unsupported_total"
+            )
+            or 0
         )
         self._workload_checkpoint()
         artifact_manifest = persist_gate1_result(
@@ -547,6 +585,7 @@ class Pipe:
             **artifact_manifest.to_dict(),
             "pdf_table_intake": table_intake["safe_summary"],
             "pdf_dual_vlm": dual_vlm["safe_summary"],
+            "semantic_visual_table_migration": semantic_migration["safe_summary"],
             "pdf_structural_repair_shadow": structural_shadow,
             "pdf_semantic_header_shadow": self._semantic_shadow_manifest(
                 structural_shadow
@@ -822,6 +861,57 @@ class Pipe:
             "private_decisions": [],
             "private_provider_evidence": [],
         }
+
+    def _maybe_migrate_pdf_semantic_tables(
+        self, *, dual_vlm: dict[str, Any]
+    ) -> dict[str, Any]:
+        config = SemanticVisualTableMigrationConfig(
+            enabled=bool(
+                self.valves.pdf_semantic_visual_table_downstream_enabled
+            ),
+            policy_version=(
+                self.valves.pdf_semantic_visual_table_migration_policy_version
+            ),
+            accepted_profile_id=(
+                self.valves.pdf_semantic_visual_table_accepted_profile_id
+            ),
+        )
+        try:
+            migrated = SemanticVisualTableMigrationFactory(config).create().migrate(
+                decisions=dual_vlm.get("private_decisions") or [],
+                provider_evidence=(
+                    dual_vlm.get("private_provider_evidence") or []
+                ),
+            )
+            return {
+                "safe_summary": migrated.safe_summary,
+                "private_envelopes": migrated.private_envelopes,
+                "gate2_projections": migrated.gate2_projections,
+            }
+        except SemanticVisualTableMigrationError as exc:
+            return {
+                "safe_summary": {
+                    "schema_version": (
+                        SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
+                    ),
+                    "status": "failed",
+                    "enabled": config.enabled,
+                    "accepted_profile_id": config.accepted_profile_id,
+                    "terminal_failure_code": exc.code,
+                    "accepted_for_gate2_total": 0,
+                    "review_required_or_unsupported_total": len(
+                        dual_vlm.get("private_decisions") or []
+                    ),
+                    "legacy_artifacts_auto_migrated_total": 0,
+                    "mandatory_human_review_for_accepted_profile": False,
+                    "provider_merge_performed": False,
+                    "provider_repair_performed": False,
+                    "other_source_families_changed": False,
+                    "raw_values_present": False,
+                },
+                "private_envelopes": [],
+                "gate2_projections": [],
+            }
 
     def _maybe_run_pdf_structural_repair_shadow(
         self,
