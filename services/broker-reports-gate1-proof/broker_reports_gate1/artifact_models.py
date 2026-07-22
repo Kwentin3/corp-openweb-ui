@@ -149,6 +149,7 @@ ARTIFACT_TYPES = {
     "broker_reports_source_facts_v0",
     "broker_reports_source_fact_validation_v0",
     "broker_reports_source_fact_selection_validation_v1",
+    "broker_reports_source_fact_selection_validation_v2",
     "broker_reports_issue_fact_linkage_v0",
     "broker_reports_source_fact_extraction_summary_v0",
     "broker_reports_source_unit_domain_route_v0",

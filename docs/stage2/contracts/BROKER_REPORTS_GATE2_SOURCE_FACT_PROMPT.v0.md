@@ -10,7 +10,7 @@ Contract id: `broker_reports_source_fact_prompt_v0`
 
 This contract binds a private `broker_reports_source_fact_package_v0` to an
 OpenWebUI managed Prompt and the strict
-`broker_reports_source_fact_selection_v1` provider schema. Deterministic code
+`broker_reports_source_fact_selection_v2` provider schema. Deterministic code
 materializes the unchanged canonical `broker_reports_source_facts_v0` object
 before the existing final validator and persistence boundary.
 
@@ -40,7 +40,7 @@ Required prompt `meta`:
   "input_contract": "broker_reports_source_fact_package_v0",
   "output_schema_id": "broker_reports.source_facts.schema.v0",
   "output_schema_version": "broker_reports_source_facts_v0",
-  "provider_output_schema_version": "broker_reports_source_fact_selection_v1",
+  "provider_output_schema_version": "broker_reports_source_fact_selection_v2",
   "gate": "gate2",
   "structured_output_required": true,
   "forbidden_tasks": [
@@ -139,7 +139,7 @@ Primary/customer/production mode:
 {
   "type": "json_schema",
   "json_schema": {
-    "name": "broker_reports_source_fact_selection_v1",
+    "name": "broker_reports_source_fact_selection_v2",
     "strict": true,
     "schema": "<resolved schema object>"
   }
@@ -214,11 +214,12 @@ The model must not:
 - perform OCR/VLM;
 - recommend loading source or derived artifacts into Knowledge.
 
-## 11. Reference Managed-Prompt Content (Semantic Selection v1)
+## 11. Reference Managed-Prompt Content (Semantic Selection v2)
 
 The maintained customer path uses a compact semantic-selection response. The
 model does not reproduce the canonical source-fact envelope. It selects source
-ownership, a fact type/subtype and zero or more source-value bindings; code
+ownership, a fact type and zero or more mechanically admissible source-value
+bindings; code
 then materializes and validates the unchanged canonical
 `broker_reports_source_facts_v0` artifact.
 
@@ -240,26 +241,27 @@ the supplied strict provider schema. Return no markdown or commentary.
 Model-owned choices:
 1. For every source ref exposed by the response schema, choose exactly one
    fact or one allowed no-fact result.
-2. A fact contains only source_ref, fact_type, fact_subtype, value_bindings,
-   confidence, completeness and uncertainty_codes.
+2. A fact contains only source_ref, fact_type and value_bindings.
 3. Every value binding selects one schema-enumerated normalized field and one
-   schema-enumerated source_value_ref from the same source ref.
+   schema-enumerated source_value_ref from the same source ref. The schema
+   exposes a field/ref pair only when code has already proved that exact value
+   mechanically reproducible for that field.
 4. Do not copy or rewrite visible values into the response. Code reproduces
    the normalized value deterministically from the selected source_value_ref.
-5. Use unknown_source_row with subtype unknown, confidence low/none,
-   completeness uncertain/blocked, no value bindings and at least one concise
-   uncertainty code when no safe typed fact can be selected.
+5. Use unknown_source_row with no value bindings when no safe typed fact can be
+   selected.
 6. Use an allowed no-fact reason only when the source is genuinely a header,
    blank/layout material, repeated header, non-fact annotation, excluded
    scope, blocked scope or unsupported source shape.
 
 Application-owned fields:
-Do not return schema version, run/package/document/unit ids, provenance
-objects, evidence arrays, normalized values, issue policy, downstream policy,
-coverage scaffolding, prompt/provider audit, validation state, hashes or
-timestamps. Deterministic code adds those fields after validating the semantic
-selection. Mandatory package-known no-fact rows are also added by code and are
-not exposed as model decisions.
+Do not return fact subtype, confidence, completeness, uncertainty codes, schema
+version, run/package/document/unit ids, provenance objects, evidence arrays,
+normalized values, issue policy, downstream policy, coverage scaffolding,
+prompt/provider audit, validation state, hashes or timestamps. Deterministic
+code adds those fields after validating the semantic selection. Mandatory
+package-known no-fact rows are also added by code and are not exposed as model
+decisions.
 
 Safety:
 Do not calculate totals, profit/loss, cost basis, tax, FX conversions or

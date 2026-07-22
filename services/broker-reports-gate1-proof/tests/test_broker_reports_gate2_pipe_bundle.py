@@ -286,7 +286,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("business runtimes must not build vendor payloads", adapters_module.FORBIDDEN)
 
     def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
-        self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-22-semantic-selection-v1")
+        self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-22-semantic-selection-v2")
         self.assertEqual(
             DOMAIN_PROMPT_VERSION,
             "2026-07-11-candidate-binding-provider-factory-v0",

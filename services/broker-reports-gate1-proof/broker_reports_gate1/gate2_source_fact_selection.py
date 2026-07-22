@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -10,8 +9,6 @@ from typing import Any
 from .contracts import stable_digest
 from .gate1_public_contracts import reproduce_normalized_value
 from .gate2_source_fact_contracts import (
-    COMPLETENESS_VALUES,
-    CONFIDENCE_VALUES,
     FACT_TYPES,
     NO_FACT_REASON_VALUES,
     NORMALIZED_VALUE_FIELDS,
@@ -19,11 +16,11 @@ from .gate2_source_fact_contracts import (
 
 
 FACTORY_REQUIRED = "Gate2SourceFactSelectionFactory.create is the only production semantic-selection validation/materialization entrypoint"
-FORBIDDEN = "The semantic-selection materializer must not invent fact types, source ownership, values, refs or uncertainty decisions"
+FORBIDDEN = "The semantic-selection materializer must not invent model-selected fact types, source ownership, values or refs"
 
-SOURCE_FACT_SELECTION_SCHEMA_VERSION = "broker_reports_source_fact_selection_v1"
+SOURCE_FACT_SELECTION_SCHEMA_VERSION = "broker_reports_source_fact_selection_v2"
 SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION = (
-    "broker_reports_source_fact_selection_validation_v1"
+    "broker_reports_source_fact_selection_validation_v2"
 )
 
 _NORMALIZATION_KIND_BY_FIELD = {
@@ -37,57 +34,27 @@ _NORMALIZATION_KIND_BY_FIELD = {
     "label": "trimmed_text",
 }
 
-_SUBTYPES_BY_FACT_TYPE = {
-    "trade_operation": (
-        "buy",
-        "sell",
-        "redemption",
-        "transfer",
-        "corporate_action",
-        "unknown",
-    ),
-    "income": (
-        "dividend",
-        "coupon",
-        "interest",
-        "sale_proceeds",
-        "other",
-        "unknown",
-    ),
-    "withholding_tax": ("domestic", "foreign", "unknown"),
-    "fee_commission": (
-        "broker_commission",
-        "exchange_fee",
-        "custody_fee",
-        "other",
-        "unknown",
-    ),
-    "cash_movement": ("deposit", "withdrawal", "credit", "debit", "unknown"),
-    "currency_fx": (
-        "currency_amount",
-        "explicit_rate",
-        "source_provided_conversion",
-        "unknown",
-    ),
-    "position_snapshot": (
-        "security_position",
-        "cash_position",
-        "other",
-        "unknown",
-    ),
-    "document_summary_evidence": (
-        "total",
-        "subtotal",
-        "opening_balance",
-        "ending_balance",
-        "aggregate_result",
-        "other",
-        "unknown",
-    ),
-    "unknown_source_row": ("unknown",),
+_FIELD_BY_HEADER_LABEL = {
+    "date": "date",
+    "amount": "amount",
+    "currency": "currency",
+    "quantity": "quantity",
+    "rate": "rate",
+    "converted_amount": "converted_amount",
+    "identifier": "identifier",
+    "instrument": "identifier",
+    "label": "label",
 }
 
-_SAFE_CODE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+_REQUIRED_ANY_FIELDS_BY_FACT_TYPE = {
+    "trade_operation": {"date", "amount", "quantity", "identifier"},
+    "income": {"amount"},
+    "fee_commission": {"amount"},
+    "cash_movement": {"amount"},
+    "currency_fx": {"amount", "rate", "converted_amount"},
+    "position_snapshot": {"date", "quantity", "amount", "identifier"},
+    "document_summary_evidence": set(NORMALIZED_VALUE_FIELDS),
+}
 
 
 @dataclass(frozen=True)
@@ -141,23 +108,30 @@ def source_fact_selection_provider_json_schema(
     package: dict[str, Any],
 ) -> dict[str, Any]:
     decision_refs = _decision_source_refs(package)
-    allowed_value_refs = sorted(set(_strings(package.get("allowed_source_value_refs"))))
-    allowed_fact_types = _allowed_fact_types(package)
-    value_binding = _strict_object(
-        {
-            "field": {
-                "type": "string",
-                "enum": list(NORMALIZED_VALUE_FIELDS),
-            },
-            "source_value_ref": _enum_or_uninhabited(allowed_value_refs),
-        }
+    reproducible_refs = _reproducible_value_refs_by_field(package)
+    allowed_fact_types = _provider_allowed_fact_types(
+        package=package,
+        reproducible_fields=set(reproducible_refs),
     )
-    allowed_subtypes = sorted(
-        {
-            subtype
-            for fact_type in allowed_fact_types
-            for subtype in _SUBTYPES_BY_FACT_TYPE[fact_type]
-        }
+    binding_variants = [
+        _strict_object(
+            {
+                "field": {"type": "string", "const": field},
+                "source_value_ref": _enum_or_uninhabited(refs),
+            }
+        )
+        for field, refs in sorted(reproducible_refs.items())
+        if refs
+    ]
+    value_binding = (
+        {"anyOf": binding_variants}
+        if binding_variants
+        else _strict_object(
+            {
+                "field": _enum_or_uninhabited([]),
+                "source_value_ref": _enum_or_uninhabited([]),
+            }
+        )
     )
     fact = _strict_object(
         {
@@ -166,27 +140,10 @@ def source_fact_selection_provider_json_schema(
                 "type": "string",
                 "enum": sorted(allowed_fact_types),
             },
-            "fact_subtype": {
-                "type": "string",
-                "enum": allowed_subtypes,
-            },
             "value_bindings": {
                 "type": "array",
                 "items": copy.deepcopy(value_binding),
-                "maxItems": len(NORMALIZED_VALUE_FIELDS),
-            },
-            "confidence": {
-                "type": "string",
-                "enum": sorted(CONFIDENCE_VALUES),
-            },
-            "completeness": {
-                "type": "string",
-                "enum": sorted(COMPLETENESS_VALUES),
-            },
-            "uncertainty_codes": {
-                "type": "array",
-                "items": {"type": "string"},
-                "maxItems": 8,
+                "maxItems": len(binding_variants),
             },
         }
     )
@@ -264,7 +221,11 @@ def validate_source_fact_selection(
 
     decision_refs = _decision_source_refs(package)
     decision_ref_set = set(decision_refs)
-    allowed_fact_types = _allowed_fact_types(package)
+    reproducible_refs = _reproducible_value_refs_by_field(package)
+    allowed_fact_types = _provider_allowed_fact_types(
+        package=package,
+        reproducible_fields=set(reproducible_refs),
+    )
     accounted: list[str] = []
     materialized_values: dict[int, dict[str, tuple[str, str]]] = {}
 
@@ -275,11 +236,7 @@ def validate_source_fact_selection(
             {
                 "source_ref",
                 "fact_type",
-                "fact_subtype",
                 "value_bindings",
-                "confidence",
-                "completeness",
-                "uncertainty_codes",
             },
             path,
             errors,
@@ -295,53 +252,16 @@ def validate_source_fact_selection(
             errors.append(
                 _error("source_fact_selection_fact_type_forbidden", f"{path}.fact_type")
             )
-        elif fact.get("fact_subtype") not in _SUBTYPES_BY_FACT_TYPE[fact_type]:
-            errors.append(
-                _error(
-                    "source_fact_selection_subtype_forbidden", f"{path}.fact_subtype"
-                )
-            )
         hinted_fact_type = _fact_type_hint_for_source(
             package=package,
             source_ref=source_ref,
         )
         if hinted_fact_type and fact_type != hinted_fact_type:
             errors.append(_error("source_fact_selection_fact_type_hint_mismatch", path))
-        if fact.get("confidence") not in CONFIDENCE_VALUES:
+        if fact_type == "unknown_source_row" and fact.get("value_bindings"):
             errors.append(
-                _error("source_fact_selection_confidence_invalid", f"{path}.confidence")
+                _error("source_fact_selection_unknown_binding_forbidden", path)
             )
-        if fact.get("completeness") not in COMPLETENESS_VALUES:
-            errors.append(
-                _error(
-                    "source_fact_selection_completeness_invalid",
-                    f"{path}.completeness",
-                )
-            )
-        uncertainty_codes = fact.get("uncertainty_codes")
-        if not isinstance(uncertainty_codes, list) or any(
-            not isinstance(item, str) or not _SAFE_CODE.fullmatch(item)
-            for item in uncertainty_codes or []
-        ):
-            errors.append(
-                _error(
-                    "source_fact_selection_uncertainty_code_invalid",
-                    f"{path}.uncertainty_codes",
-                )
-            )
-        if fact_type == "unknown_source_row":
-            if fact.get("fact_subtype") != "unknown":
-                errors.append(_error("source_fact_selection_subtype_forbidden", path))
-            if fact.get("confidence") not in {"low", "none"}:
-                errors.append(_error("source_fact_selection_confidence_invalid", path))
-            if fact.get("completeness") not in {"uncertain", "blocked"}:
-                errors.append(
-                    _error("source_fact_selection_completeness_invalid", path)
-                )
-            if not uncertainty_codes:
-                errors.append(
-                    _error("source_fact_selection_unknown_reason_missing", path)
-                )
 
         bindings_value = fact.get("value_bindings")
         bindings = _dict_list(bindings_value)
@@ -377,6 +297,14 @@ def validate_source_fact_selection(
                 )
                 continue
             seen_fields.add(field)
+            if source_value_ref not in set(reproducible_refs.get(field, [])):
+                errors.append(
+                    _error(
+                        "source_fact_selection_value_binding_not_admissible",
+                        binding_path,
+                    )
+                )
+                continue
             if not _source_value_ref_matches_source(
                 package=package,
                 source_value_ref=source_value_ref,
@@ -458,6 +386,12 @@ def materialize_source_fact_selection(
     facts = []
     for fact in _dict_list(selection.get("facts")):
         fact_type = str(fact["fact_type"])
+        subtype = "unknown"
+        uncertainty_codes = (
+            ["source_fact_selection_unknown"]
+            if fact_type == "unknown_source_row"
+            else []
+        )
         normalized = {field: None for field in NORMALIZED_VALUE_FIELDS}
         original = {field: [] for field in NORMALIZED_VALUE_FIELDS}
         source_ref = str(fact["source_ref"])
@@ -474,7 +408,7 @@ def materialize_source_fact_selection(
             {
                 "fact_id": "pending",
                 "fact_type": fact_type,
-                "fact_subtype": str(fact["fact_subtype"]),
+                "fact_subtype": subtype,
                 "document_ref": None,
                 "extraction_package_ref": None,
                 "source_unit_ref": None,
@@ -484,8 +418,8 @@ def materialize_source_fact_selection(
                 },
                 "extracted_fields": _default_extracted_fields(
                     fact_type=fact_type,
-                    subtype=str(fact["fact_subtype"]),
-                    uncertainty_codes=_strings(fact.get("uncertainty_codes")),
+                    subtype=subtype,
+                    uncertainty_codes=uncertainty_codes,
                 ),
                 "normalized_values": normalized,
                 "original_value_refs": original,
@@ -494,12 +428,14 @@ def materialize_source_fact_selection(
                 "currency": None,
                 "quantity": None,
                 "instrument": None,
-                "confidence": fact["confidence"],
-                "completeness": fact["completeness"],
+                "confidence": "low" if fact_type == "unknown_source_row" else "medium",
+                "completeness": (
+                    "uncertain" if fact_type == "unknown_source_row" else "partial"
+                ),
                 "evidence_refs": [source_ref],
                 "linked_issue_refs": [],
                 "issue_impact": {},
-                "extraction_warnings": _strings(fact.get("uncertainty_codes")),
+                "extraction_warnings": uncertainty_codes,
                 "downstream_use": {
                     "downstream_usable": fact_type != "unknown_source_row",
                     "gate3_ledger_candidate": False,
@@ -545,6 +481,80 @@ def _decision_source_refs(package: dict[str, Any]) -> list[str]:
 def _allowed_fact_types(package: dict[str, Any]) -> set[str]:
     allowed = set(_strings(package.get("allowed_fact_types")))
     return (allowed & FACT_TYPES) or set(FACT_TYPES)
+
+
+def _provider_allowed_fact_types(
+    *,
+    package: dict[str, Any],
+    reproducible_fields: set[str],
+) -> set[str]:
+    result = {"unknown_source_row"}
+    for fact_type in _allowed_fact_types(package) - {"unknown_source_row"}:
+        if fact_type == "withholding_tax":
+            if {"amount", "currency"} <= reproducible_fields:
+                result.add(fact_type)
+            continue
+        if (
+            _REQUIRED_ANY_FIELDS_BY_FACT_TYPE.get(fact_type, set())
+            & reproducible_fields
+        ):
+            result.add(fact_type)
+    return result
+
+
+def _reproducible_value_refs_by_field(
+    package: dict[str, Any],
+) -> dict[str, list[str]]:
+    unit = _object(package.get("source_unit"))
+    projection = _object(unit.get("model_source_projection"))
+    candidates: dict[str, set[str]] = {
+        field: set() for field in NORMALIZED_VALUE_FIELDS
+    }
+    allowed_refs = set(_strings(package.get("allowed_source_value_refs")))
+
+    for item in _dict_list(package.get("deterministic_value_candidates")):
+        field = str(item.get("field") or "")
+        source_value_ref = str(item.get("source_value_ref") or "")
+        if field in candidates and source_value_ref in allowed_refs:
+            candidates[field].add(source_value_ref)
+
+    for row in _dict_list(projection.get("rows")):
+        for cell in _dict_list(row.get("cells")):
+            field = _FIELD_BY_HEADER_LABEL.get(str(cell.get("header_label") or ""))
+            source_value_ref = str(cell.get("source_value_ref") or "")
+            if field and source_value_ref in allowed_refs:
+                candidates[field].add(source_value_ref)
+
+    for segment in _dict_list(projection.get("segments")):
+        source_value_ref = str(segment.get("source_value_ref") or "")
+        if source_value_ref in allowed_refs:
+            candidates["label"].add(source_value_ref)
+
+    for item in _dict_list(unit.get("segment_provenance")):
+        for source_value_ref in [
+            *_strings(item.get("source_value_refs")),
+            *([str(item["source_value_ref"])] if item.get("source_value_ref") else []),
+        ]:
+            if source_value_ref in allowed_refs:
+                candidates["label"].add(source_value_ref)
+
+    source_slice = _package_source_slice(package)
+    result: dict[str, list[str]] = {}
+    for field, refs in candidates.items():
+        reproducible = []
+        for source_value_ref in sorted(refs):
+            try:
+                reproduce_normalized_value(
+                    source_slice,
+                    source_value_ref,
+                    _NORMALIZATION_KIND_BY_FIELD[field],
+                )
+            except ValueError:
+                continue
+            reproducible.append(source_value_ref)
+        if reproducible:
+            result[field] = reproducible
+    return result
 
 
 def _source_value_ref_matches_source(
@@ -641,23 +651,13 @@ def _validate_fact_minimum_values(
     errors: list[dict[str, str]],
 ) -> None:
     fields = set(resolved)
-    required_any = {
-        "trade_operation": {"date", "amount", "quantity", "identifier"},
-        "income": {"amount"},
-        "withholding_tax": {"amount", "currency"},
-        "fee_commission": {"amount"},
-        "cash_movement": {"amount"},
-        "currency_fx": {"amount", "rate", "converted_amount"},
-        "position_snapshot": {"date", "quantity", "amount", "identifier"},
-        "document_summary_evidence": set(NORMALIZED_VALUE_FIELDS),
-    }
     if fact_type == "unknown_source_row":
         return
     if fact_type == "withholding_tax":
         if not {"amount", "currency"} <= fields:
             errors.append(_error("source_fact_selection_required_value_missing", path))
         return
-    required = required_any.get(fact_type, set())
+    required = _REQUIRED_ANY_FIELDS_BY_FACT_TYPE.get(fact_type, set())
     if required and not required & fields:
         errors.append(_error("source_fact_selection_required_value_missing", path))
 
@@ -719,11 +719,7 @@ def _unexpected_field_count(selection: dict[str, Any]) -> int:
     fact_fields = {
         "source_ref",
         "fact_type",
-        "fact_subtype",
         "value_bindings",
-        "confidence",
-        "completeness",
-        "uncertainty_codes",
     }
     for fact in _dict_list(selection.get("facts")):
         total += len(set(fact) - fact_fields)
