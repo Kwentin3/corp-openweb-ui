@@ -65,6 +65,15 @@ from broker_reports_gate1.gate2_source_fact_validation import (
 FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
 
 
+def _enum_value_count(value: Any) -> int:
+    if isinstance(value, dict):
+        own = len(value.get("enum") or []) if isinstance(value.get("enum"), list) else 0
+        return own + sum(_enum_value_count(item) for item in value.values())
+    if isinstance(value, list):
+        return sum(_enum_value_count(item) for item in value)
+    return 0
+
+
 class RuntimeBoundaryModel:
     @staticmethod
     def execution_contract(model_id: str) -> Gate2ProviderExecutionMetadata:
@@ -730,6 +739,28 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         schema = source_fact_selection_provider_json_schema(package)
         self.assertFalse(schema["additionalProperties"])
         self.assertNotIn("schema_version", schema["properties"])
+
+    def test_semantic_selection_schema_does_not_duplicate_bounded_enums(self):
+        package = {
+            "coverage_expectation": {
+                "selected_source_refs": [f"source-{index}" for index in range(196)],
+                "mandatory_no_fact_results": [],
+            },
+            "allowed_source_value_refs": [
+                f"value-{index}" for index in range(59)
+            ],
+            "allowed_fact_types": sorted(FACT_TYPES),
+        }
+
+        schema = source_fact_selection_provider_json_schema(package)
+        fact_schema = schema["properties"]["facts"]["items"]
+
+        self.assertNotIn("anyOf", fact_schema)
+        self.assertEqual(
+            set(fact_schema["properties"]["fact_type"]["enum"]),
+            FACT_TYPES,
+        )
+        self.assertLessEqual(_enum_value_count(schema), 1000)
 
     def test_gate2_execution_appends_artifacts_without_mutating_gate1_source_memory(self):
         gate1_before = {

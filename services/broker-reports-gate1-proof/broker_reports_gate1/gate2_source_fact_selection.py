@@ -152,38 +152,44 @@ def source_fact_selection_provider_json_schema(
             "source_value_ref": _enum_or_uninhabited(allowed_value_refs),
         }
     )
-    fact_variants = []
-    for fact_type in sorted(allowed_fact_types):
-        fact_variants.append(
-            _strict_object(
-                {
-                    "source_ref": _enum_or_uninhabited(decision_refs),
-                    "fact_type": {"type": "string", "const": fact_type},
-                    "fact_subtype": {
-                        "type": "string",
-                        "enum": list(_SUBTYPES_BY_FACT_TYPE[fact_type]),
-                    },
-                    "value_bindings": {
-                        "type": "array",
-                        "items": copy.deepcopy(value_binding),
-                        "maxItems": len(NORMALIZED_VALUE_FIELDS),
-                    },
-                    "confidence": {
-                        "type": "string",
-                        "enum": sorted(CONFIDENCE_VALUES),
-                    },
-                    "completeness": {
-                        "type": "string",
-                        "enum": sorted(COMPLETENESS_VALUES),
-                    },
-                    "uncertainty_codes": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "maxItems": 8,
-                    },
-                }
-            )
-        )
+    allowed_subtypes = sorted(
+        {
+            subtype
+            for fact_type in allowed_fact_types
+            for subtype in _SUBTYPES_BY_FACT_TYPE[fact_type]
+        }
+    )
+    fact = _strict_object(
+        {
+            "source_ref": _enum_or_uninhabited(decision_refs),
+            "fact_type": {
+                "type": "string",
+                "enum": sorted(allowed_fact_types),
+            },
+            "fact_subtype": {
+                "type": "string",
+                "enum": allowed_subtypes,
+            },
+            "value_bindings": {
+                "type": "array",
+                "items": copy.deepcopy(value_binding),
+                "maxItems": len(NORMALIZED_VALUE_FIELDS),
+            },
+            "confidence": {
+                "type": "string",
+                "enum": sorted(CONFIDENCE_VALUES),
+            },
+            "completeness": {
+                "type": "string",
+                "enum": sorted(COMPLETENESS_VALUES),
+            },
+            "uncertainty_codes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 8,
+            },
+        }
+    )
     no_fact = _strict_object(
         {
             "source_ref": _enum_or_uninhabited(decision_refs),
@@ -197,7 +203,7 @@ def source_fact_selection_provider_json_schema(
         {
             "facts": {
                 "type": "array",
-                "items": {"anyOf": fact_variants},
+                "items": fact,
                 "maxItems": len(decision_refs),
             },
             "no_fact_results": {
