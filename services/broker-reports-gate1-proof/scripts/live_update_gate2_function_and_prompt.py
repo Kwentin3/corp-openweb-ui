@@ -29,7 +29,7 @@ PROMPT_CONTRACT_PATH = (
 FUNCTION_ID = "broker_reports_gate2_source_fact_pipe"
 PROMPT_ID = "broker_reports_gate2_source_fact_prompt_v0"
 PROMPT_COMMAND = "broker_gate2_source_facts_v0"
-PROMPT_VERSION = "2026-07-22-semantic-selection-v2"
+PROMPT_VERSION = "2026-07-22-positional-coverage-v1"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))

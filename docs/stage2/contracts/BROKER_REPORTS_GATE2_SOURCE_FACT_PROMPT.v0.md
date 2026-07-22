@@ -10,7 +10,7 @@ Contract id: `broker_reports_source_fact_prompt_v0`
 
 This contract binds a private `broker_reports_source_fact_package_v0` to an
 OpenWebUI managed Prompt and the strict
-`broker_reports_source_fact_selection_v2` provider schema. Deterministic code
+`broker_reports_source_fact_selection_v3` provider schema. Deterministic code
 materializes the unchanged canonical `broker_reports_source_facts_v0` object
 before the existing final validator and persistence boundary.
 
@@ -40,7 +40,7 @@ Required prompt `meta`:
   "input_contract": "broker_reports_source_fact_package_v0",
   "output_schema_id": "broker_reports.source_facts.schema.v0",
   "output_schema_version": "broker_reports_source_facts_v0",
-  "provider_output_schema_version": "broker_reports_source_fact_selection_v2",
+  "provider_output_schema_version": "broker_reports_source_fact_selection_v3",
   "gate": "gate2",
   "structured_output_required": true,
   "forbidden_tasks": [
@@ -139,7 +139,7 @@ Primary/customer/production mode:
 {
   "type": "json_schema",
   "json_schema": {
-    "name": "broker_reports_source_fact_selection_v2",
+    "name": "broker_reports_source_fact_selection_v3",
     "strict": true,
     "schema": "<resolved schema object>"
   }
@@ -214,13 +214,13 @@ The model must not:
 - perform OCR/VLM;
 - recommend loading source or derived artifacts into Knowledge.
 
-## 11. Reference Managed-Prompt Content (Semantic Selection v2)
+## 11. Reference Managed-Prompt Content (Positional Coverage v1)
 
 The maintained customer path uses a compact semantic-selection response. The
-model does not reproduce the canonical source-fact envelope. It selects source
-ownership, a fact type and zero or more mechanically admissible source-value
-bindings; code
-then materializes and validates the unchanged canonical
+model does not reproduce the canonical source-fact envelope or source
+ownership. It returns one ordered semantic decision per model-decidable source;
+code maps each array position to the authoritative source ref, materializes and
+validates the unchanged canonical
 `broker_reports_source_facts_v0` artifact.
 
 ```text
@@ -235,31 +235,37 @@ Use only the embedded package. Do not use chat history, external memory, web
 search, OpenWebUI Knowledge/RAG, uploaded files, OCR, VLM, or assumptions.
 
 Output boundary:
-Return exactly one JSON object with only `facts` and `no_fact_results`, matching
-the supplied strict provider schema. Return no markdown or commentary.
+Return exactly one JSON object with only `decisions`, matching the supplied
+strict provider schema. Return no markdown or commentary.
 
 Model-owned choices:
-1. For every source ref exposed by the response schema, choose exactly one
-   fact or one allowed no-fact result.
-2. A fact contains only source_ref, fact_type and value_bindings.
+1. Read coverage_expectation.selected_source_refs in order, excluding refs
+   already listed in mandatory_no_fact_results. Return exactly one decision for
+   every remaining ref, in that same order. Do not add, remove, reorder or
+   merge decisions.
+2. A decision contains only decision_type and value_bindings. decision_type is
+   either one schema-enumerated fact type or one schema-enumerated no-fact
+   reason.
 3. Every value binding selects one schema-enumerated normalized field and one
-   schema-enumerated source_value_ref from the same source ref. The schema
-   exposes a field/ref pair only when code has already proved that exact value
-   mechanically reproducible for that field.
+   schema-enumerated source_value_ref belonging to the source at the same array
+   position. The schema exposes a field/ref pair only when code has already
+   proved that exact value mechanically reproducible for that field.
 4. Do not copy or rewrite visible values into the response. Code reproduces
    the normalized value deterministically from the selected source_value_ref.
-5. Use unknown_source_row with no value bindings when no safe typed fact can be
-   selected.
-6. Use an allowed no-fact reason only when the source is genuinely a header,
-   blank/layout material, repeated header, non-fact annotation, excluded
-   scope, blocked scope or unsupported source shape.
+5. Use unknown_source_row with no value bindings when the source is a possible
+   fact but no safe typed fact can be selected.
+6. Use an allowed no-fact decision_type with no value bindings only when the
+   source is genuinely a header, blank/layout material, repeated header,
+   non-fact annotation, excluded scope, blocked scope or unsupported source
+   shape.
 
 Application-owned fields:
-Do not return fact subtype, confidence, completeness, uncertainty codes, schema
-version, run/package/document/unit ids, provenance objects, evidence arrays,
-normalized values, issue policy, downstream policy, coverage scaffolding,
-prompt/provider audit, validation state, hashes or timestamps. Deterministic
-code adds those fields after validating the semantic selection. Mandatory
+Do not return source refs, source ownership, fact subtype, confidence,
+completeness, uncertainty codes, schema version, run/package/document/unit ids,
+provenance objects, evidence arrays, normalized values, issue policy,
+downstream policy, coverage scaffolding, prompt/provider audit, validation
+state, hashes or timestamps. Deterministic code maps array positions to source
+refs and adds those fields after validating the semantic selection. Mandatory
 package-known no-fact rows are also added by code and are not exposed as model
 decisions.
 
