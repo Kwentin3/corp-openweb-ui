@@ -478,7 +478,7 @@ class Gate2SourceFactValidator:
                 continue
             if str(value) != reproduced:
                 errors.append(_error("source_fact_normalized_value_unreproducible", f"{path}.normalized_values.{field}"))
-        if not all_original_refs:
+        if not all_original_refs and fact_type != "unknown_source_row":
             errors.append(_error("source_fact_provenance_missing", f"{path}.original_value_refs"))
 
         extracted = _object(fact.get("extracted_fields"))

@@ -117,6 +117,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_provider_adapters", source)
         self.assertIn("gate2_model_clients", source)
         self.assertIn("workload_authority", source)
+        self.assertIn("gate2_source_fact_selection", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
         self.assertNotIn("sys.path.insert", source)
@@ -139,6 +140,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertEqual(len(bundled_package.GATE2_PROVIDER_PROFILES), 6)
         pipe = module.Pipe()
         self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
+        self.assertTrue(pipe.valves.semantic_selection_enabled)
         events = []
 
         async def emitter(event):
@@ -284,7 +286,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("business runtimes must not build vendor payloads", adapters_module.FORBIDDEN)
 
     def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
-        self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-11-provider-factory-v0")
+        self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-22-semantic-selection-v1")
         self.assertEqual(
             DOMAIN_PROMPT_VERSION,
             "2026-07-11-candidate-binding-provider-factory-v0",

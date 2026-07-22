@@ -29,7 +29,7 @@ PROMPT_CONTRACT_PATH = (
 FUNCTION_ID = "broker_reports_gate2_source_fact_pipe"
 PROMPT_ID = "broker_reports_gate2_source_fact_prompt_v0"
 PROMPT_COMMAND = "broker_gate2_source_facts_v0"
-PROMPT_VERSION = "2026-07-11-provider-factory-v0"
+PROMPT_VERSION = "2026-07-22-semantic-selection-v1"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -42,7 +42,11 @@ from live_no_rag_source_intake_smoke import (
     _url,
 )
 from build_openwebui_pipe_bundle import assert_gate2_bundle_contract
-from broker_reports_gate1 import gate2_prompt_hash, source_facts_schema_hash
+from broker_reports_gate1 import (
+    SOURCE_FACT_SELECTION_SCHEMA_VERSION,
+    gate2_prompt_hash,
+    source_facts_schema_hash,
+)
 
 
 def main() -> int:
@@ -77,7 +81,7 @@ def main() -> int:
     bundle_sha = hashlib.sha256(bundle_source.encode("utf-8")).hexdigest()
     prompt_content = _prompt_content_from_contract(
         PROMPT_CONTRACT_PATH,
-        "You are the Broker Reports Gate 2 bounded source-fact extractor.",
+        "You are the Broker Reports Gate 2 bounded semantic source-fact selector.",
     )
 
     session = requests.Session()
@@ -239,6 +243,7 @@ def _seed_prompt(
         "output_schema_id": "broker_reports.source_facts.schema.v0",
         "output_schema_version": "broker_reports_source_facts_v0",
         "output_schema_hash": source_facts_schema_hash(),
+        "provider_output_schema_version": SOURCE_FACT_SELECTION_SCHEMA_VERSION,
         "gate": "gate2",
         "structured_output_required": True,
         "forbidden_tasks": [

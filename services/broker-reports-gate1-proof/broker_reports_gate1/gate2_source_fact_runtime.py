@@ -17,6 +17,10 @@ from .artifact_models import (
 )
 from .artifact_resolver import ArtifactResolver
 from .contracts import stable_digest
+from .gate2_domain_finalization import (
+    Gate2DomainCandidateFinalizerConfig,
+    Gate2DomainCandidateFinalizerFactory,
+)
 from .gate2_input_readiness import Gate2InputReadinessFactory
 from .gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
@@ -46,6 +50,14 @@ from .gate2_source_fact_contracts import (
     source_facts_schema_hash,
 )
 from .gate2_source_fact_validation import Gate2SourceFactValidatorFactory
+from .gate2_source_fact_selection import (
+    SOURCE_FACT_SELECTION_SCHEMA_VERSION,
+    SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION,
+    Gate2SourceFactSelectionFactory,
+    parse_source_fact_selection_model_output,
+    source_fact_selection_response_format,
+    source_fact_selection_schema_hash,
+)
 
 
 FACTORY_REQUIRED = (
@@ -70,6 +82,7 @@ class Gate2SourceFactRuntimeConfig:
     model_call_concurrency_limit: int = 1
     max_repair_attempts: int = 1
     enable_exact_fact_type_hints: bool = True
+    semantic_selection_enabled: bool = False
     document_batch_start: int = 0
     document_batch_limit: int | None = None
 
@@ -82,6 +95,7 @@ class Gate2SourceFactRuntimeResult:
     summary_ref: str
     source_facts_refs: list[str]
     validation_refs: list[str]
+    selection_validation_refs: list[str]
     raw_output_refs: list[str]
     package_refs: list[str]
     safe_summary: dict[str, Any]
@@ -283,6 +297,7 @@ class Gate2SourceFactRuntimeService:
             "raw_output_refs": [],
             "source_facts_refs": [],
             "validation_refs": [],
+            "selection_validation_refs": [],
         }
         package_outcomes: list[dict[str, Any]] = []
         issue_fact_links: list[dict[str, str]] = []
@@ -296,27 +311,76 @@ class Gate2SourceFactRuntimeService:
             package_artifact_ref = new_artifact_id()
             package["package_artifact_ref"] = package_artifact_ref
             package["expected_source_facts_set_id"] = f"sfset_{stable_digest([extraction_run_id, package_artifact_ref], length=24)}"
-            package["expected_repair_candidate_audit"] = model_call_audit_metadata(
-                prompt=prompt,
-                model_id=self.config.model_id,
-                raw_output_artifact_ref=None,
-                extraction_attempt_ordinal=2,
-                repair_attempt_count=1,
-                created_at=str(package.get("created_at") or utc_now_iso()),
-            )
-            package_response_schema_hash = source_facts_provider_schema_hash(package)
-            package["output_schema"]["package_response_schema_hash"] = package_response_schema_hash
-            repair_schema_package = copy.deepcopy(package)
-            repair_schema_package["expected_candidate_audit"] = copy.deepcopy(
-                package["expected_repair_candidate_audit"]
-            )
-            repair_package_response_schema_hash = source_facts_provider_schema_hash(
-                repair_schema_package
-            )
-            package["output_schema"][
-                "repair_package_response_schema_hash"
-            ] = repair_package_response_schema_hash
-            response_format = source_facts_response_format(package)
+            if self.config.semantic_selection_enabled:
+                package_response_schema_hash = source_fact_selection_schema_hash(
+                    package
+                )
+                package["output_schema"].update(
+                    {
+                        "provider_output_schema_version": (
+                            SOURCE_FACT_SELECTION_SCHEMA_VERSION
+                        ),
+                        "provider_response_schema_hash": (
+                            package_response_schema_hash
+                        ),
+                        "package_response_schema_hash": (
+                            package_response_schema_hash
+                        ),
+                        "repair_package_response_schema_hash": (
+                            package_response_schema_hash
+                        ),
+                    }
+                )
+                package["expected_candidate_audit"] = model_call_audit_metadata(
+                    prompt=prompt,
+                    model_id=self.config.model_id,
+                    raw_output_artifact_ref=None,
+                    provider_response_schema_hash=package_response_schema_hash,
+                    extraction_attempt_ordinal=1,
+                    repair_attempt_count=0,
+                    created_at=str(package.get("created_at") or utc_now_iso()),
+                )
+                package["expected_repair_candidate_audit"] = (
+                    model_call_audit_metadata(
+                        prompt=prompt,
+                        model_id=self.config.model_id,
+                        raw_output_artifact_ref=None,
+                        provider_response_schema_hash=package_response_schema_hash,
+                        extraction_attempt_ordinal=2,
+                        repair_attempt_count=1,
+                        created_at=str(package.get("created_at") or utc_now_iso()),
+                    )
+                )
+                repair_package_response_schema_hash = package_response_schema_hash
+                response_format = source_fact_selection_response_format(package)
+            else:
+                package_response_schema_hash = source_facts_provider_schema_hash(
+                    package
+                )
+                package["output_schema"][
+                    "package_response_schema_hash"
+                ] = package_response_schema_hash
+                package["expected_repair_candidate_audit"] = (
+                    model_call_audit_metadata(
+                        prompt=prompt,
+                        model_id=self.config.model_id,
+                        raw_output_artifact_ref=None,
+                        extraction_attempt_ordinal=2,
+                        repair_attempt_count=1,
+                        created_at=str(package.get("created_at") or utc_now_iso()),
+                    )
+                )
+                repair_schema_package = copy.deepcopy(package)
+                repair_schema_package["expected_candidate_audit"] = copy.deepcopy(
+                    package["expected_repair_candidate_audit"]
+                )
+                repair_package_response_schema_hash = (
+                    source_facts_provider_schema_hash(repair_schema_package)
+                )
+                package["output_schema"][
+                    "repair_package_response_schema_hash"
+                ] = repair_package_response_schema_hash
+                response_format = source_facts_response_format(package)
             source_unit = _object(package.get("source_unit"))
             slice_record = self.resolver.resolve_record(
                 str(source_unit.get("private_slice_artifact_ref") or ""), context
@@ -344,6 +408,14 @@ class Gate2SourceFactRuntimeService:
                     "coverage_selected_total": int(_object(package.get("coverage_expectation")).get("required_accounting_total") or 0),
                     "budget_status": "blocked" if budget_error else "passed",
                     "package_response_schema_hash": package_response_schema_hash,
+                    "provider_output_schema_version": (
+                        SOURCE_FACT_SELECTION_SCHEMA_VERSION
+                        if self.config.semantic_selection_enabled
+                        else SOURCE_FACTS_SCHEMA_VERSION
+                    ),
+                    "semantic_selection_enabled": (
+                        self.config.semantic_selection_enabled
+                    ),
                 },
                 warning_codes=[budget_error] if budget_error else [],
             )
@@ -387,8 +459,10 @@ class Gate2SourceFactRuntimeService:
                             "values or assumptions and do not relax any rule."
                         ),
                     }
-                    attempt_response_format = source_facts_response_format(
-                        attempt_package
+                    attempt_response_format = (
+                        source_fact_selection_response_format(attempt_package)
+                        if self.config.semantic_selection_enabled
+                        else source_facts_response_format(attempt_package)
                     )
                     attempt_schema_hash = repair_package_response_schema_hash
 
@@ -396,6 +470,12 @@ class Gate2SourceFactRuntimeService:
                     prompt=prompt,
                     package=attempt_package,
                     response_format=attempt_response_format,
+                    provider_response_schema_hash=str(
+                        _object(package.get("output_schema")).get(
+                            "provider_response_schema_hash"
+                        )
+                        or ""
+                    ),
                     package_response_schema_hash=attempt_schema_hash,
                     repair_attempt_count=repair_attempt_count,
                     extraction_run_id=extraction_run_id,
@@ -412,31 +492,89 @@ class Gate2SourceFactRuntimeService:
                 validation_ref = new_artifact_id()
                 if raw_payload["model_call_status"] == "passed":
                     try:
-                        candidate = parse_source_facts_model_output(
-                            raw_payload["raw_output"]
-                        )
-                        outcome = Gate2SourceFactValidatorFactory(
-                            resolver=self.resolver,
-                            context=context,
-                        ).create().validate(
-                            candidate=candidate,
-                            package=package,
-                            package_artifact_ref=package_artifact_ref,
-                            raw_output_artifact_ref=raw_output_ref,
-                            validation_artifact_ref=validation_ref,
-                            prompt=prompt,
-                            model_id=self.config.model_id,
-                            expected_candidate_audit=_object(
-                                attempt_package.get("expected_candidate_audit")
-                            ),
-                        )
-                        validation = outcome.validation
-                        finalized = outcome.finalized_source_facts
-                    except Gate2PromptError as exc:
+                        if self.config.semantic_selection_enabled:
+                            selection = parse_source_fact_selection_model_output(
+                                raw_payload["raw_output"]
+                            )
+                            selection_outcome = (
+                                Gate2SourceFactSelectionFactory()
+                                .create()
+                                .validate_and_materialize(
+                                    selection=selection,
+                                    package=attempt_package,
+                                )
+                            )
+                            selection_validation_ref = new_artifact_id()
+                            self._persist_selection_validation(
+                                validation_ref=selection_validation_ref,
+                                validation=selection_outcome.validation,
+                                package=package,
+                                raw_output_ref=raw_output_ref,
+                                repair_attempt_count=repair_attempt_count,
+                                context=context,
+                                retention_policy=retention_policy,
+                            )
+                            refs["selection_validation_refs"].append(
+                                selection_validation_ref
+                            )
+                            candidate = selection_outcome.canonical_candidate
+                            if candidate is None:
+                                validation = _selection_failed_validation(
+                                    package=package,
+                                    package_ref=package_artifact_ref,
+                                    selection_validation=(
+                                        selection_outcome.validation
+                                    ),
+                                )
+                            else:
+                                candidate = (
+                                    Gate2DomainCandidateFinalizerFactory(
+                                        Gate2DomainCandidateFinalizerConfig(
+                                            fill_mechanical_header_values=False
+                                        )
+                                    )
+                                    .create()
+                                    .finalize(
+                                        candidate=candidate,
+                                        package=attempt_package,
+                                    )
+                                )
+                        else:
+                            candidate = parse_source_facts_model_output(
+                                raw_payload["raw_output"]
+                            )
+                        if candidate is not None:
+                            outcome = Gate2SourceFactValidatorFactory(
+                                resolver=self.resolver,
+                                context=context,
+                            ).create().validate(
+                                candidate=candidate,
+                                package=package,
+                                package_artifact_ref=package_artifact_ref,
+                                raw_output_artifact_ref=raw_output_ref,
+                                validation_artifact_ref=validation_ref,
+                                prompt=prompt,
+                                model_id=self.config.model_id,
+                                expected_candidate_audit=_object(
+                                    attempt_package.get(
+                                        "expected_candidate_audit"
+                                    )
+                                ),
+                            )
+                            validation = outcome.validation
+                            finalized = outcome.finalized_source_facts
+                    except (Gate2PromptError, ValueError) as exc:
                         validation = _failed_validation(
                             package=package,
                             package_ref=package_artifact_ref,
-                            code=exc.code,
+                            code=str(
+                                getattr(
+                                    exc,
+                                    "code",
+                                    str(exc)
+                                    or "source_fact_selection_schema_mismatch",
+                                )
+                            ),
                         )
                         finalized = None
                 else:
@@ -573,6 +711,9 @@ class Gate2SourceFactRuntimeService:
             "coverage": dict(coverage_totals),
             "source_fact_refs_total": len(refs["source_facts_refs"]),
             "validation_refs_total": len(refs["validation_refs"]),
+            "selection_validation_refs_total": len(
+                refs["selection_validation_refs"]
+            ),
             "raw_output_refs_total": len(refs["raw_output_refs"]),
             "issue_fact_linkage_ref": linkage_ref,
             "gate3_handoff_ready": gate3_handoff_ready,
@@ -601,6 +742,9 @@ class Gate2SourceFactRuntimeService:
                 "raw_output_refs": refs["raw_output_refs"],
                 "source_facts_refs": refs["source_facts_refs"],
                 "validation_refs": refs["validation_refs"],
+                "selection_validation_refs": refs[
+                    "selection_validation_refs"
+                ],
                 "issue_fact_linkage_ref": linkage_ref,
                 "summary_ref": summary_ref,
                 "coverage_summary": dict(coverage_totals),
@@ -675,6 +819,22 @@ class Gate2SourceFactRuntimeService:
             "output_schema_hash": source_facts_schema_hash(),
             "provider_response_schema_hash": source_facts_provider_schema_hash(),
             "provider_union_keyword": "anyOf",
+            "provider_output_contract": {
+                "semantic_selection_enabled": (
+                    self.config.semantic_selection_enabled
+                ),
+                "schema_version": (
+                    SOURCE_FACT_SELECTION_SCHEMA_VERSION
+                    if self.config.semantic_selection_enabled
+                    else SOURCE_FACTS_SCHEMA_VERSION
+                ),
+                "model_system_metadata_fields": 0
+                if self.config.semantic_selection_enabled
+                else None,
+                "canonical_materialization_required": (
+                    self.config.semantic_selection_enabled
+                ),
+            },
             "model_id": self.config.model_id,
             "structured_output_policy": {
                 "required_mode": "json_schema",
@@ -688,6 +848,7 @@ class Gate2SourceFactRuntimeService:
             "raw_output_refs": [],
             "source_facts_refs": [],
             "validation_refs": [],
+            "selection_validation_refs": [],
             "issue_fact_linkage_ref": None,
             "summary_ref": None,
             "coverage_summary": {},
@@ -754,6 +915,7 @@ class Gate2SourceFactRuntimeService:
         prompt: Gate2ManagedPrompt,
         package: dict[str, Any],
         response_format: dict[str, Any],
+        provider_response_schema_hash: str,
         package_response_schema_hash: str,
         repair_attempt_count: int,
         extraction_run_id: str,
@@ -766,6 +928,10 @@ class Gate2SourceFactRuntimeService:
         raw_output_ref = new_artifact_id()
         execution_metadata = gate2_model_execution_contract(
             self.model_client, self.config.model_id
+        )
+        prompt_snapshot = prompt.snapshot()
+        prompt_snapshot["provider_response_schema_hash"] = (
+            provider_response_schema_hash
         )
         try:
             model_result = await self.model_client.extract(
@@ -800,10 +966,14 @@ class Gate2SourceFactRuntimeService:
                 "fallback_used": model_result.fallback_used,
                 "repair_attempt_count": repair_attempt_count,
                 "extraction_attempt_ordinal": repair_attempt_count + 1,
-                "provider_response_schema_hash": source_facts_provider_schema_hash(),
+                "provider_response_schema_hash": provider_response_schema_hash,
                 "package_response_schema_hash": package_response_schema_hash,
+                "provider_output_schema_version": _object(
+                    package.get("output_schema")
+                ).get("provider_output_schema_version")
+                or SOURCE_FACTS_SCHEMA_VERSION,
                 "provider_union_keyword": "anyOf",
-                "prompt_snapshot": prompt.snapshot(),
+                "prompt_snapshot": copy.deepcopy(prompt_snapshot),
                 "model_id": self.config.model_id,
                 "provider_profile_id": execution_metadata.provider_profile_id,
                 "provider_execution": execution_metadata.snapshot(),
@@ -837,10 +1007,14 @@ class Gate2SourceFactRuntimeService:
                 "fallback_used": False,
                 "repair_attempt_count": repair_attempt_count,
                 "extraction_attempt_ordinal": repair_attempt_count + 1,
-                "provider_response_schema_hash": source_facts_provider_schema_hash(),
+                "provider_response_schema_hash": provider_response_schema_hash,
                 "package_response_schema_hash": package_response_schema_hash,
+                "provider_output_schema_version": _object(
+                    package.get("output_schema")
+                ).get("provider_output_schema_version")
+                or SOURCE_FACTS_SCHEMA_VERSION,
                 "provider_union_keyword": "anyOf",
-                "prompt_snapshot": prompt.snapshot(),
+                "prompt_snapshot": copy.deepcopy(prompt_snapshot),
                 "model_id": self.config.model_id,
                 "provider_profile_id": execution_metadata.provider_profile_id,
                 "provider_execution": execution_metadata.snapshot(),
@@ -873,13 +1047,74 @@ class Gate2SourceFactRuntimeService:
                 "prompt_ref": prompt.prompt_ref,
                 "prompt_hash": prompt.hash,
                 "output_schema_hash": source_facts_schema_hash(),
-                "provider_response_schema_hash": source_facts_provider_schema_hash(),
+                "provider_response_schema_hash": provider_response_schema_hash,
                 "package_response_schema_hash": package_response_schema_hash,
+                "provider_output_schema_version": _object(
+                    package.get("output_schema")
+                ).get("provider_output_schema_version")
+                or SOURCE_FACTS_SCHEMA_VERSION,
                 "provider_union_keyword": "anyOf",
                 "provider_execution": raw_payload["provider_execution_safe"],
             },
         )
         return raw_output_ref, raw_payload
+
+    def _persist_selection_validation(
+        self,
+        *,
+        validation_ref: str,
+        validation: dict[str, Any],
+        package: dict[str, Any],
+        raw_output_ref: str,
+        repair_attempt_count: int,
+        context: ArtifactAccessContext,
+        retention_policy: RetentionPolicy,
+    ) -> None:
+        payload = copy.deepcopy(validation)
+        payload.update(
+            {
+                "package_ref": package.get("package_artifact_ref"),
+                "raw_output_artifact_ref": raw_output_ref,
+                "repair_attempt_count": repair_attempt_count,
+            }
+        )
+        self._put_record(
+            artifact_id=validation_ref,
+            artifact_type=SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION,
+            context=context,
+            retention_policy=retention_policy,
+            document_id=str(package.get("document_ref") or "") or None,
+            source_file_ref=None,
+            visibility="safe_internal",
+            storage_backend="project_artifact_store",
+            validation_status="validated",
+            payload=payload,
+            safe_metadata={
+                "validator_status": validation.get("validator_status"),
+                "errors_count": int(validation.get("errors_count") or 0),
+                "error_code_counts": copy.deepcopy(
+                    validation.get("error_code_counts") or {}
+                ),
+                "decision_source_refs_total": int(
+                    validation.get("decision_source_refs_total") or 0
+                ),
+                "accounted_source_refs_total": int(
+                    validation.get("accounted_source_refs_total") or 0
+                ),
+                "facts_total": int(validation.get("facts_total") or 0),
+                "no_fact_results_total": int(
+                    validation.get("no_fact_results_total") or 0
+                ),
+                "value_bindings_total": int(
+                    validation.get("value_bindings_total") or 0
+                ),
+                "model_system_metadata_fields_total": int(
+                    validation.get("model_system_metadata_fields_total") or 0
+                ),
+                "repair_attempt_count": repair_attempt_count,
+                "raw_output_artifact_ref": raw_output_ref,
+            },
+        )
 
     def _persist_validation_attempt(
         self,
@@ -1081,6 +1316,7 @@ class Gate2SourceFactRuntimeService:
             "coverage": {"selected": 0, "fact_covered": 0, "no_fact": 0, "pending": 0, "rejected": 0},
             "source_fact_refs_total": 0,
             "validation_refs_total": 0,
+            "selection_validation_refs_total": 0,
             "raw_output_refs_total": 0,
             "issue_fact_linkage_ref": None,
             "gate3_handoff_ready": False,
@@ -1111,6 +1347,9 @@ def _runtime_result(
         summary_ref=summary_ref,
         source_facts_refs=list(refs.get("source_facts_refs") or []),
         validation_refs=list(refs.get("validation_refs") or []),
+        selection_validation_refs=list(
+            refs.get("selection_validation_refs") or []
+        ),
         raw_output_refs=list(refs.get("raw_output_refs") or []),
         package_refs=list(refs.get("package_refs") or []),
         safe_summary=copy.deepcopy(summary),
@@ -1296,6 +1535,69 @@ def _failed_validation(
         "privacy_status": "passed",
         "boundary_status": "passed",
         "prompt_schema_model_audit": copy.deepcopy(package.get("expected_candidate_audit") or {}),
+        "validated_at": utc_now_iso(),
+    }
+
+
+def _selection_failed_validation(
+    *,
+    package: dict[str, Any],
+    package_ref: str,
+    selection_validation: dict[str, Any],
+) -> dict[str, Any]:
+    errors = [
+        {
+            "code": str(item.get("code") or "source_fact_selection_failed"),
+            "subject": str(item.get("subject") or "")[:240],
+        }
+        for item in _dict_list(selection_validation.get("errors"))
+    ]
+    if not errors:
+        errors = [
+            {
+                "code": "source_fact_selection_failed",
+                "subject": package_ref,
+            }
+        ]
+    return {
+        "schema_version": VALIDATION_SCHEMA_VERSION,
+        "validation_id": f"sfval_{stable_digest([package_ref, errors], length=20)}",
+        "extraction_run_id": package.get("extraction_run_id"),
+        "package_ref": package_ref,
+        "document_ref": package.get("document_ref"),
+        "source_unit_ref": _object(package.get("source_unit")).get("unit_id"),
+        "validator_status": "failed",
+        "accepted_fact_ids": [],
+        "rejected_fact_ids": [],
+        "errors": errors,
+        "warnings": [],
+        "coverage": {
+            "selected_total": int(
+                _object(package.get("coverage_expectation")).get(
+                    "required_accounting_total"
+                )
+                or 0
+            ),
+            "fact_covered_total": 0,
+            "no_fact_total": 0,
+            "rejected_total": 0,
+            "pending_total": int(
+                _object(package.get("coverage_expectation")).get(
+                    "required_accounting_total"
+                )
+                or 0
+            ),
+            "coverage_status": "blocked",
+        },
+        "issue_carry_forward": {
+            "allowed_issue_refs": _string_list(package.get("allowed_issue_refs")),
+            "issue_linked_facts_total": 0,
+        },
+        "privacy_status": "passed",
+        "boundary_status": "passed",
+        "prompt_schema_model_audit": copy.deepcopy(
+            package.get("expected_candidate_audit") or {}
+        ),
         "validated_at": utc_now_iso(),
     }
 

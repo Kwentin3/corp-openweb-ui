@@ -291,7 +291,7 @@ def expected_prompt_contracts() -> dict[str, dict[str, Any]]:
     )
     source_content = source_update._prompt_content_from_contract(
         source_update.PROMPT_CONTRACT_PATH,
-        "You are the Broker Reports Gate 2 bounded source-fact extractor.",
+        "You are the Broker Reports Gate 2 bounded semantic source-fact selector.",
     )
     rows: list[dict[str, Any]] = [
         {
