@@ -27,6 +27,12 @@ Release gate: `PASSED`
 
 Подробное evidence каждого Goal находится в отдельном одноимённом отчёте этой директории. Скрытых `NOT_CLOSED` внутренних Goal нет.
 
+## Delivery
+
+- Pull request: [#19](https://github.com/Kwentin3/corp-openweb-ui/pull/19), merged 2026-07-22.
+- Final `main` merge revision: `e8c75cdfb127de22b8b49fa6aa24b1dc72b31e09`.
+- Live release candidate remains `54d5a6dc48a94e3ae0cb0d9b8814ff4561c48f4e`; the later receipt commit changes documentation only.
+
 ## Release identity
 
 | Объект | Identity |
