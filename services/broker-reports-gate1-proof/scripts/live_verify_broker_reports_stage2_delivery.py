@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import subprocess
@@ -54,6 +55,8 @@ FUNCTION_CONTRACTS = (
             "gate2_provider_execution_metadata_v1",
             "PdfGridExperimentProviderFactory",
             "PdfTableIntakeRuntimeFactory",
+            "SemanticVisualTableMigrationFactory",
+            "broker_reports_semantic_visual_table_envelope_v1",
             "broker_reports_pdf_table_detection_response_v2",
             "broker_reports_pdf_table_candidate_v1",
             "pdf_table_candidate_raster_policy_v1",
@@ -78,6 +81,7 @@ FUNCTION_CONTRACTS = (
             "Gate2OpenWebUIStructuredModelClient",
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
+            "allow_standalone_semantic_visual_projections",
         ),
     ),
     FunctionContract(
@@ -225,11 +229,17 @@ def main() -> int:
         "gate1_structural_runtime_dependency_ready": gate1_operational_state[
             "fitz_version_match"
         ],
-        "gate1_pdf_table_intake_default_off": gate1_operational_state[
-            "table_intake_disabled"
+        "gate1_pdf_table_intake_default_on": gate1_operational_state[
+            "table_intake_enabled"
         ],
-        "gate1_pdf_dual_vlm_default_off": gate1_operational_state[
-            "dual_vlm_disabled"
+        "gate1_pdf_dual_vlm_default_on": gate1_operational_state[
+            "dual_vlm_enabled"
+        ],
+        "gate1_semantic_downstream_default_on": gate1_operational_state[
+            "semantic_downstream_enabled"
+        ],
+        "gate1_semantic_migration_identity_exact": gate1_operational_state[
+            "semantic_migration_identity_exact"
         ],
         "gate1_pdf_table_intake_provider_configured": gate1_operational_state[
             "table_intake_provider_configured"
@@ -392,6 +402,15 @@ def evaluate_gate1_operational_state(
     semantic_value = valves.get("pdf_semantic_header_shadow_enabled", False)
     table_intake_enabled = valves.get("pdf_table_intake_enabled", False)
     dual_vlm_enabled = valves.get("pdf_dual_vlm_enabled", False)
+    semantic_downstream_enabled = valves.get(
+        "pdf_semantic_visual_table_downstream_enabled", False
+    )
+    semantic_migration_policy = valves.get(
+        "pdf_semantic_visual_table_migration_policy_version"
+    )
+    semantic_profile = valves.get(
+        "pdf_semantic_visual_table_accepted_profile_id"
+    )
     table_intake_provider = valves.get("pdf_table_intake_provider_profile")
     table_intake_model = valves.get("pdf_table_intake_model_id")
     table_intake_dpi = valves.get("pdf_table_intake_dpi")
@@ -411,8 +430,15 @@ def evaluate_gate1_operational_state(
         "guided_page_allowlist_empty": isinstance(page_allowlist, str)
         and not page_allowlist.strip(),
         "semantic_header_shadow_disabled": semantic_value is False,
-        "table_intake_disabled": table_intake_enabled is False,
-        "dual_vlm_disabled": dual_vlm_enabled is False,
+        "table_intake_enabled": table_intake_enabled is True,
+        "dual_vlm_enabled": dual_vlm_enabled is True,
+        "semantic_downstream_enabled": semantic_downstream_enabled is True,
+        "semantic_migration_identity_exact": (
+            semantic_migration_policy
+            == "broker_reports_semantic_visual_table_migration_policy_v1"
+            and semantic_profile
+            == "broker_reports_semantic_visual_numeric_profile_v1"
+        ),
         "table_intake_provider_configured": table_intake_provider
         == "google_gemini",
         "table_intake_model_configured": table_intake_model
@@ -495,6 +521,9 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
     )
     smoke_sources = [path.read_text(encoding="utf-8") for path in smoke_paths]
     return {
+        "production_python_has_no_paddle_or_local_ocr_import": (
+            _production_python_has_no_heavy_local_ocr_import()
+        ),
         "gate1_pipe_uses_pdf_table_intake_factory": (
             "PdfTableIntakeRuntimeFactory(config)" in gate1_pipe
         ),
@@ -577,6 +606,26 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
             for source in smoke_sources
         ),
     }
+
+
+def _production_python_has_no_heavy_local_ocr_import() -> bool:
+    forbidden_roots = {"paddle", "paddleocr", "easyocr", "torch"}
+    source_paths = (
+        *sorted((SERVICE_ROOT / "broker_reports_gate1").glob("*.py")),
+        *sorted((SERVICE_ROOT / "openwebui_actions").glob("*.py")),
+    )
+    for path in source_paths:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imports = {alias.name.split(".", 1)[0] for alias in node.names}
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imports = {node.module.split(".", 1)[0]}
+            else:
+                continue
+            if imports & forbidden_roots:
+                return False
+    return True
 
 
 def _get_live_function(

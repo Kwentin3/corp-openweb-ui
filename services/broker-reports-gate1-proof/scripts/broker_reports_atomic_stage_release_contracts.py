@@ -9,6 +9,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from broker_reports_gate1.architecture_policy import (
+    ARCHITECTURE_POLICY_VERSION,
+    KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
+    LOCAL_OCR_PRODUCTION_ALLOWED,
+    LOCAL_OCR_WORKER_POOL_ALLOWED,
+    NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
+    WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
+)
+from broker_reports_gate1.pdf_hybrid_provider import project_gemini_schema
+from broker_reports_gate1.semantic_visual_table_contracts import (
+    SEMANTIC_TABLE_TRANSCRIPTION_PROMPT,
+    SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
+    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+    semantic_table_transcription_schema,
+)
+from broker_reports_gate1.semantic_visual_table_migration import (
+    GOAL5_QUALIFICATION_GATE_HASH,
+    GOAL5_QUALIFICATION_RECEIPT_HASH,
+    SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID,
+    SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION,
+)
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
@@ -66,7 +88,7 @@ COMMON_WORKLOAD_VALVES: dict[str, Any] = {
 
 GATE1_RELEASE_VALVES: dict[str, Any] = {
     **COMMON_WORKLOAD_VALVES,
-    "pdf_table_intake_enabled": False,
+    "pdf_table_intake_enabled": True,
     "pdf_table_intake_provider_profile": "google_gemini",
     "pdf_table_intake_model_id": "models/gemini-3.5-flash",
     "pdf_table_intake_dpi": 150,
@@ -74,7 +96,7 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "pdf_table_intake_maximum_candidates_per_page": 32,
     "pdf_table_intake_horizontal_padding_fraction": 0.08,
     "pdf_table_intake_vertical_padding_fraction": 0.08,
-    "pdf_dual_vlm_enabled": False,
+    "pdf_dual_vlm_enabled": True,
     "pdf_dual_vlm_provider_selection_policy_version": (
         "pdf_semantic_vlm_provider_selection_v1"
     ),
@@ -85,6 +107,13 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "pdf_dual_vlm_maximum_output_tokens": 16_384,
     "pdf_dual_vlm_maximum_counted_input_tokens": 24_000,
     "pdf_dual_vlm_maximum_candidates": 8,
+    "pdf_semantic_visual_table_downstream_enabled": True,
+    "pdf_semantic_visual_table_migration_policy_version": (
+        SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
+    ),
+    "pdf_semantic_visual_table_accepted_profile_id": (
+        SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID
+    ),
     "pdf_hybrid_shadow_enabled": False,
     "pdf_hybrid_shadow_table_allowlist": "",
     "pdf_structural_repair_shadow_enabled": False,
@@ -109,6 +138,7 @@ DOMAIN_RELEASE_VALVES: dict[str, Any] = {
     "default_source_unit_limit": 1,
     "segmentation_enabled": True,
     "prefer_table_projections": False,
+    "allow_standalone_semantic_visual_projections": True,
     "candidate_binding_enabled": False,
     "gate3_context_manifest_enabled": False,
     "default_source_segment_limit": 1,
@@ -141,6 +171,8 @@ FUNCTION_CONTRACTS = (
             "WorkloadAuthorityFactory",
             "PdfVisualTableReviewFactory",
             "Gate2TablePackageFactory",
+            "SemanticVisualTableMigrationFactory",
+            "broker_reports_semantic_visual_table_envelope_v1",
             "broker_reports_visual_table_review_receipt_v1",
             "broker_reports_fns_2ndfl_source_facts_v1",
         ),
@@ -171,6 +203,7 @@ FUNCTION_CONTRACTS = (
             "WorkloadAuthorityFactory",
             "Gate2DomainSourceFactRuntimeFactory",
             "Gate2CandidateBindingRuntimeFactory",
+            "allow_standalone_semantic_visual_projections",
         ),
     ),
 )
@@ -310,7 +343,8 @@ def build_manifest(
         "provider_policy": dict(provider_policy),
         "runtime": {
             "fitz_version": REQUIRED_FITZ_VERSION,
-            "vlm_default_enabled": False,
+            "vlm_default_enabled": True,
+            "semantic_visual_profile_default_enabled": True,
             "visual_auto_publication_enabled": False,
             "gate1_heavy_concurrency": 1,
             "gate2_local_maximum_concurrency": 2,
@@ -342,6 +376,18 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         "private_intake_contract": PRIVATE_INTAKE_CONTRACT,
     }:
         raise ValueError("stage_release_manifest_image_invalid")
+    runtime = manifest.get("runtime") or {}
+    if (
+        runtime.get("vlm_default_enabled") is not True
+        or runtime.get("semantic_visual_profile_default_enabled") is not True
+        or runtime.get("visual_auto_publication_enabled") is not False
+    ):
+        raise ValueError("stage_release_manifest_semantic_activation_invalid")
+    semantic = (manifest.get("provider_policy") or {}).get(
+        "semantic_visual_table_contract"
+    ) or {}
+    if semantic != semantic_visual_table_contract_manifest():
+        raise ValueError("stage_release_manifest_semantic_contract_invalid")
 
 
 def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, Any]:
@@ -362,5 +408,43 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
             "google_gemini": "models/gemini-3.5-flash",
             "openai_gpt": "gpt-5.4-mini-2026-03-17",
         },
+        "semantic_visual_table_contract": semantic_visual_table_contract_manifest(),
         "profiles": profiles,
+    }
+
+
+def semantic_visual_table_contract_manifest() -> dict[str, Any]:
+    schema = semantic_table_transcription_schema()
+    gemini_schema, gemini_transforms = project_gemini_schema(schema)
+    return {
+        "prompt_version": SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
+        "prompt_sha256": sha256_text(SEMANTIC_TABLE_TRANSCRIPTION_PROMPT),
+        "schema_version": SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+        "canonical_schema_sha256": sha256_text(canonical_json(schema)),
+        "gemini_adapted_schema_sha256": sha256_text(
+            canonical_json(gemini_schema)
+        ),
+        "gemini_schema_transform_count": gemini_transforms,
+        "openai_adapted_schema_sha256": sha256_text(canonical_json(schema)),
+        "openai_schema_transform_count": 0,
+        "migration_policy_version": (
+            SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
+        ),
+        "accepted_profile_id": SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID,
+        "qualification_receipt_sha256": GOAL5_QUALIFICATION_RECEIPT_HASH,
+        "qualification_gate_sha256": GOAL5_QUALIFICATION_GATE_HASH,
+        "runtime_boundary": {
+            "architecture_policy_version": ARCHITECTURE_POLICY_VERSION,
+            "knowledge_rag_vectorization_allowed": (
+                KNOWLEDGE_RAG_VECTORIZATION_ALLOWED
+            ),
+            "local_ocr_production_allowed": LOCAL_OCR_PRODUCTION_ALLOWED,
+            "local_ocr_worker_pool_allowed": LOCAL_OCR_WORKER_POOL_ALLOWED,
+            "native_openwebui_document_processing_allowed": (
+                NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED
+            ),
+            "whole_document_provider_upload_allowed": (
+                WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED
+            ),
+        },
     }

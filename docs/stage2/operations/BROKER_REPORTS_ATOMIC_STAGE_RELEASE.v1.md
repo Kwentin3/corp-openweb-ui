@@ -58,17 +58,19 @@ content, database backups or private paths.
 
 ## Release valves
 
-Visual VLM remains default-off:
+The Goal 5-qualified semantic numeric-table route is enabled as one boundary:
 
-- `pdf_table_intake_enabled=false`;
-- `pdf_dual_vlm_enabled=false`;
-- all shadow visual paths disabled and allowlists empty.
+- `pdf_table_intake_enabled=true`;
+- `pdf_dual_vlm_enabled=true`;
+- `pdf_semantic_visual_table_downstream_enabled=true`;
+- `allow_standalone_semantic_visual_projections=true` in Gate 2 domain;
+- migration policy and accepted profile identities are pinned in valves;
+- OpenAI invocation, all shadow visual paths and their allowlists remain disabled.
 
 Provider/model identities and bounded page, crop, candidate, token and output
-limits remain configured so a later explicit release decision can enable only
-the already accepted review-assisted contour. Provider consensus cannot publish
-a canonical visual table. The review receipt, seal and Gate 2 handoff contracts
-remain mandatory, and automatic visual publication remains disabled.
+limits prevent expansion beyond the accepted numeric profile. Provider
+consensus cannot publish a semantic table. Legacy geometric promotion continues
+to require its review receipt and seal and is not selected by the new default.
 
 All three Functions receive the same persisted workload-authority configuration.
 Gate 1 heavy concurrency remains one and Gate 2 local concurrency remains at
@@ -82,7 +84,7 @@ Terminal verification must prove:
 - exact Function, protected Action, loader and managed-prompt hashes;
 - exact pinned image tag, image ID, image source revision and private-intake
   contract label;
-- exact provider-policy and model IDs;
+- exact provider-policy, model IDs, semantic prompt/schema and qualification hashes;
 - exact release valve projection;
 - required runtime dependency version;
 - zero non-terminal workloads, owned workload temp entries and release staging
