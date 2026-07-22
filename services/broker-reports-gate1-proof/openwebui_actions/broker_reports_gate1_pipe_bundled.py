@@ -283,6 +283,10 @@ _GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
 _GATE1_IDEMPOTENCY_POLICY_VERSION = (
     "broker_reports_gate1_native_request_idempotency_v1"
 )
+_GATE2_USABLE_HANDOFF_STATUSES = frozenset(
+    {"ready_with_safe_refs", "ready_with_reduced_subset"}
+)
+_COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 
 
 class Pipe:
@@ -591,6 +595,12 @@ class Pipe:
     def _reused_workload_content(snapshot: dict[str, Any]) -> str:
         state = str(snapshot.get("state") or "")
         if state == "completed":
+            if snapshot.get("terminal_code") == _COMPLETED_WITH_REVIEW_ADVISORY:
+                return (
+                    "Broker Reports processing completed. "
+                    "The processed data are available for questions. "
+                    "Some unsupported scopes require review."
+                )
             return (
                 "Broker Reports processing completed. "
                 "The processed data are available for questions."
@@ -854,7 +864,14 @@ class Pipe:
             retention_policy=retention_policy,
             source_file_refs=self._source_file_refs(file_refs),
         )
-        self._finalize_workload_publication()
+        self._finalize_workload_publication(
+            gate2_handoff_status=str(
+                result.package.get("normalization_run", {}).get(
+                    "gate2_handoff_status"
+                )
+                or ""
+            )
+        )
         self.last_safe_report = result.safe_report
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
@@ -2657,17 +2674,36 @@ class Pipe:
                 awaitable.close()
             raise
 
-    def _finalize_workload_publication(self) -> None:
+    def _finalize_workload_publication(
+        self,
+        *,
+        gate2_handoff_status: str | None = None,
+    ) -> None:
         session = self._active_workload_session
         if session is None or session.terminal:
             return
         if self._workload_review_items:
-            self.last_workload_snapshot = session.await_review(
-                safe_detail={
-                    "review_items": self._workload_review_items,
-                    "canonical_publication": False,
-                }
-            )
+            safe_detail = {
+                "review_items": self._workload_review_items,
+                "gate2_handoff_status": str(gate2_handoff_status or "unknown"),
+            }
+            if gate2_handoff_status in _GATE2_USABLE_HANDOFF_STATUSES:
+                self.last_workload_snapshot = session.complete(
+                    terminal_code=_COMPLETED_WITH_REVIEW_ADVISORY,
+                    safe_detail={
+                        **safe_detail,
+                        "canonical_publication": True,
+                        "review_advisory_preserved": True,
+                        "partial_success_published": False,
+                    },
+                )
+            else:
+                self.last_workload_snapshot = session.await_review(
+                    safe_detail={
+                        **safe_detail,
+                        "canonical_publication": False,
+                    }
+                )
         else:
             self.last_workload_snapshot = session.complete(
                 safe_detail={"partial_success_published": False}

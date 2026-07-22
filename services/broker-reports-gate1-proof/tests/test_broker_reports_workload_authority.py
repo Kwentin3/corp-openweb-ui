@@ -521,6 +521,66 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
         self.assertEqual(resolved["state"], "completed")
         self.assertEqual(resolved["terminal_code"], "review_accepted")
 
+    def test_gate1_ready_handoff_completes_with_preserved_review_advisory(self):
+        authority = self._authority()
+        ticket = self._submit(authority, WorkloadKind.GATE1)
+        session = authority.try_admit(job_id=ticket.job_id, access=self.access)
+        session.transition(WorkloadState.NORMALIZING)
+        session.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
+        session.transition(WorkloadState.VALIDATING)
+        pipe = Gate1Pipe()
+        pipe._active_workload_session = session
+        pipe._workload_review_items = 1
+
+        pipe._finalize_workload_publication(
+            gate2_handoff_status="ready_with_safe_refs"
+        )
+
+        snapshot = authority.snapshot(job_id=ticket.job_id, access=self.access)
+        self.assertEqual(snapshot["state"], "completed")
+        self.assertEqual(
+            snapshot["terminal_code"], "completed_with_review_advisory"
+        )
+        detail = authority.transitions(job_id=ticket.job_id, access=self.access)[
+            -1
+        ]["safe_detail"]
+        self.assertEqual(detail["review_items"], 1)
+        self.assertTrue(detail["canonical_publication"])
+        self.assertTrue(detail["review_advisory_preserved"])
+        self.assertIn(
+            "available for questions",
+            pipe._reused_workload_content(snapshot),
+        )
+        self.assertIn(
+            "unsupported scopes require review",
+            pipe._reused_workload_content(snapshot),
+        )
+
+    def test_gate1_blocked_handoff_still_waits_for_required_review(self):
+        authority = self._authority()
+        ticket = self._submit(authority, WorkloadKind.GATE1)
+        session = authority.try_admit(job_id=ticket.job_id, access=self.access)
+        session.transition(WorkloadState.NORMALIZING)
+        session.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
+        session.transition(WorkloadState.VALIDATING)
+        pipe = Gate1Pipe()
+        pipe._active_workload_session = session
+        pipe._workload_review_items = 1
+
+        pipe._finalize_workload_publication(gate2_handoff_status="blocked")
+
+        snapshot = authority.snapshot(job_id=ticket.job_id, access=self.access)
+        self.assertEqual(snapshot["state"], "awaiting_review")
+        detail = authority.transitions(job_id=ticket.job_id, access=self.access)[
+            -1
+        ]["safe_detail"]
+        self.assertEqual(detail["gate2_handoff_status"], "blocked")
+        self.assertFalse(detail["canonical_publication"])
+        self.assertIn(
+            "requires review before",
+            pipe._reused_workload_content(snapshot),
+        )
+
     def test_progress_is_typed_ordered_persisted_and_invalid_jump_fails_closed(self):
         authority = self._authority()
         ticket = self._submit(authority, WorkloadKind.GATE1)
