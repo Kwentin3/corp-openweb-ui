@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -344,5 +345,6 @@ class _Provider:
             "raw_private_response": {
                 "provider_payload": {"candidate": "raw-private"}
             },
+            "text": json.dumps(output, ensure_ascii=False),
             "response_hash": hashlib.sha256(repr(output).encode()).hexdigest(),
         }

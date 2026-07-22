@@ -22,9 +22,12 @@ from .semantic_visual_table_contracts import (
     SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
     SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
     parse_semantic_table_transcription,
-    semantic_table_transcription_boundary_errors,
     semantic_table_transcription_model_view,
     semantic_table_transcription_schema,
+)
+from .semantic_visual_table_validator import (
+    SEMANTIC_VISUAL_TABLE_VALIDATOR_VERSION,
+    validate_semantic_visual_table_response,
 )
 
 
@@ -36,7 +39,7 @@ PDF_DUAL_VLM_RUNTIME_POLICY_VERSION = "pdf_semantic_vlm_runtime_policy_v1"
 PDF_DUAL_VLM_DECISION_SCHEMA = "broker_reports_pdf_semantic_vlm_decision_v1"
 PDF_DUAL_VLM_EXECUTION_SCHEMA = "broker_reports_pdf_semantic_vlm_execution_v1"
 PDF_DUAL_VLM_RUN_SCHEMA = "broker_reports_pdf_semantic_vlm_run_v1"
-PDF_DUAL_VLM_VALIDATOR_VERSION = "pdf_semantic_vlm_boundary_validator_v1"
+PDF_DUAL_VLM_VALIDATOR_VERSION = SEMANTIC_VISUAL_TABLE_VALIDATOR_VERSION
 PDF_SEMANTIC_VLM_PRIVATE_EVIDENCE_SCHEMA = (
     "broker_reports_pdf_semantic_vlm_private_provider_evidence_v1"
 )
@@ -469,6 +472,7 @@ class PdfDualVlmRuntime:
         response: dict[str, Any] | None = None
         failure_class: str | None = None
         validator_errors: list[str] = []
+        semantic_validation: dict[str, Any] | None = None
         proposal: dict[str, Any] | None = None
         task_id = "pdfdualvlm_" + stable_digest(
             [
@@ -504,7 +508,12 @@ class PdfDualVlmRuntime:
                 failure_class = raw_failure
             else:
                 output = response.get("json_output")
-                validator_errors = semantic_table_transcription_boundary_errors(output)
+                semantic_validation = validate_semantic_visual_table_response(
+                    output,
+                    raw_json_text=response.get("text"),
+                    require_raw_json=True,
+                )
+                validator_errors = semantic_validation["error_codes"]
                 if validator_errors:
                     failure_class = "semantic_schema_violation"
                 else:
@@ -577,6 +586,22 @@ class PdfDualVlmRuntime:
                 "semantic_transcription_hash": (
                     sha256_json(proposal) if proposal is not None else None
                 ),
+                "semantic_response_contract_passed": (
+                    _object(semantic_validation).get(
+                        "semantic_response_contract_passed"
+                    )
+                    is True
+                ),
+                "description_token_count": _object(semantic_validation).get(
+                    "description_token_count"
+                ),
+                "description_token_budget": _object(semantic_validation).get(
+                    "description_token_budget"
+                ),
+                "geometric_validation_performed": False,
+                "source_content_correctness_claimed": False,
+                "financial_correctness_claimed": False,
+                "hidden_repair_performed": False,
             },
             "hidden_retry": False,
             "provider_failover": False,
@@ -593,6 +618,9 @@ class PdfDualVlmRuntime:
             "terminal_provider_status": record["terminal_provider_status"],
             "raw_provider_response": copy.deepcopy(
                 response.get("raw_private_response") if response else None
+            ),
+            "raw_response_text": copy.deepcopy(
+                response.get("text") if response else None
             ),
             "parsed_semantic_response": copy.deepcopy(proposal),
         }
@@ -1014,7 +1042,10 @@ def validate_pdf_dual_vlm_decision(value: Any) -> list[str]:
             selected_provider not in provider_names
             or selected_provider not in {"gemini", "openai"}
             or semantic != proposals.get(selected_provider)
-            or semantic_table_transcription_boundary_errors(semantic)
+            or validate_semantic_visual_table_response(semantic)[
+                "semantic_response_contract_passed"
+            ]
+            is not True
             or validator.get("selected_provider_contract_valid") is not True
             or validator.get("semantic_response_contract_passed") is not True
             or validator.get("same_bounded_input_for_all_providers") is not True

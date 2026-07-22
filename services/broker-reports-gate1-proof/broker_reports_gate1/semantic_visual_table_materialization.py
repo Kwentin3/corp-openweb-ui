@@ -26,6 +26,9 @@ from .semantic_visual_table_contracts import (
 from .semantic_visual_table_projection_contracts import (
     SEMANTIC_VISUAL_TABLE_PROJECTION_VALIDATOR_VERSION,
 )
+from .semantic_visual_table_validator import (
+    validate_semantic_visual_table_response,
+)
 from .table_projection import (
     TABLE_COVERAGE_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
@@ -255,6 +258,13 @@ def validate_semantic_visual_table_envelope(value: Any) -> list[str]:
         errors.append("semantic_visual_table_provenance_invalid")
     if _private_evidence_errors(evidence):
         errors.append("semantic_visual_table_private_evidence_invalid")
+    semantic_validation = validate_semantic_visual_table_response(
+        evidence.get("parsed_semantic_response"),
+        raw_json_text=evidence.get("raw_response_text"),
+        require_raw_json=True,
+    )
+    if semantic_validation["semantic_response_contract_passed"] is not True:
+        errors.append("semantic_visual_table_response_contract_invalid")
     errors.extend(_logical_table_errors(value.get("logical_table")))
     logical = _object(value.get("logical_table"))
     if logical.get("table_id") != value.get("table_id"):
@@ -437,6 +447,7 @@ def _private_evidence_errors(value: Any) -> list[str]:
         "response_hash",
         "terminal_provider_status",
         "raw_provider_response",
+        "raw_response_text",
         "parsed_semantic_response",
         "evidence_hash",
     }

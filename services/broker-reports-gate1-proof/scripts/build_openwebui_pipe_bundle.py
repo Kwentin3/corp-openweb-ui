@@ -35,6 +35,7 @@ BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 
 MODULE_ORDER = [
     "semantic_visual_table_contracts",
+    "semantic_visual_table_validator",
     "semantic_visual_table_projection_contracts",
     "architecture_policy",
     "workload_authority",

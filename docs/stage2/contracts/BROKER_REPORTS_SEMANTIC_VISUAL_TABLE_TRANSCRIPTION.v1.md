@@ -36,6 +36,8 @@ The root fields are exactly `description` and `rows`.
 
 - is a short observation about the visible table;
 - has a maximum budget of 120 tokens;
+- is counted deterministically with the versioned
+  `unicode_word_or_punctuation_v1` policy and has a 2,048-character hard guard;
 - may identify the table subject, visible sections, ambiguous layout, or
   unreadable material;
 - must not calculate, interpret financially, or repeat the entire table.
@@ -127,3 +129,6 @@ rewritten, or silently upgraded.
 Schema validity means only that the semantic response contract passed. It is
 not proof of literal, visual, financial, or tax correctness. Content-fidelity
 qualification remains a separate evidence gate.
+
+The maintained validator contract is
+`BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md`.
