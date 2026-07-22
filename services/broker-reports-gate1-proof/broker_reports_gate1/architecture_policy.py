@@ -9,8 +9,12 @@ authority.
 
 from __future__ import annotations
 
+from .semantic_visual_table_contracts import (
+    SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS,
+    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+)
 
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v1"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v2"
 ARCHITECTURE_AUTHORITY = "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
 PIPELINE_ID = "broker_reports_controlled_source_processing"
 
@@ -31,9 +35,26 @@ VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 LOCAL_OCR_WORKER_POOL_ALLOWED = False
-PROVIDER_OUTPUT_AUTHORITY = "typed_proposal_only"
-CANONICAL_PROMOTION_AUTHORITY = "deterministic_validator_plus_explicit_review"
+PROVIDER_OUTPUT_AUTHORITY = "semantic_transcription_only"
+CANONICAL_PROMOTION_AUTHORITY = (
+    "deterministic_validator_for_accepted_profile_else_review_or_fail_closed"
+)
 MODEL_CANONICAL_AUTHORITY = 0
+
+VISUAL_TABLE_MODEL_FACING_CONTRACT = SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
+VISUAL_TABLE_MODEL_RESPONSE_FIELDS = SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS
+VISUAL_TABLE_MASTER_PROVIDER_PROFILE = "google_gemini"
+VISUAL_TABLE_OPENAI_ROLE = "optional_control_or_explicit_fallback"
+VISUAL_TABLE_PROVIDER_CONSENSUS_REQUIRED = False
+VISUAL_TABLE_VLM_PHYSICAL_GEOMETRY_RESPONSIBILITY = 0
+VISUAL_TABLE_MODEL_SYSTEM_METADATA_FIELDS = frozenset()
+VISUAL_TABLE_MARKDOWN_RUNTIME_DEPENDENCY = False
+VISUAL_TABLE_SYSTEM_ENVELOPE_OWNER = "deterministic_application_code"
+VISUAL_TABLE_FINANCIAL_INTERPRETATION_OWNER = "gate2"
+LEGACY_VISUAL_TABLE_MODEL_CONTRACT = "broker_reports_canonical_table_v1"
+LEGACY_VISUAL_TABLE_CONTRACT_DISPOSITION = (
+    "historical_evidence_and_immutable_artifacts_readable_not_default_model_facing"
+)
 GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED = False
 GATE1_INTERMEDIATE_LIFETIME = "one_document_then_seal_persist_release"
 GATE1_PRIVATE_REPRESENTATION_AUTHORITY = "artifactstore_resolver_only"
@@ -73,7 +94,8 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
 
 FACTORY_REQUIRED = (
     "Maintained Broker Reports entrypoints must route visual recovery through "
-    "the production visual provider factory and deterministic promotion validator; "
+    "the production visual provider factory and deterministic semantic "
+    "validator/materializer; "
     "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create; "
     "all production workloads must route through WorkloadAuthorityFactory.create"
 )
@@ -82,7 +104,9 @@ FORBIDDEN = (
     "visual upload, local OCR production dependencies, and model canonical "
     "authority are forbidden; retaining decoded private representations for "
     "the complete Gate 1 run, process-local workload queues and local OCR "
-    "worker pools are forbidden"
+    "worker pools are forbidden; model-generated physical table geometry, "
+    "model-generated system metadata, mandatory dual-provider consensus, and "
+    "Markdown parser dependencies are forbidden in semantic visual extraction"
 )
 
 
