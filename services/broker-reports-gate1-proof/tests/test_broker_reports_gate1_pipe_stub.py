@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -799,6 +800,73 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("pipe-file-1", content)
         self.assertNotIn("first.txt", content)
         self.assertNotIn(duplicate, content)
+
+    def test_repeated_native_source_scope_reuses_one_terminal_gate1_result(self):
+        pipe = self._pipe()
+        csv_bytes = b"synthetic_symbol,synthetic_quantity\nSYNTH-IDEM,1\n"
+
+        def request_body() -> dict:
+            return {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 normalization",
+                        "files": [
+                            file_ref(
+                                "pipe-file-idempotent-1",
+                                "synthetic_idempotent.csv",
+                                "text/csv",
+                                content_bytes=csv_bytes,
+                            )
+                        ],
+                    }
+                ]
+            }
+
+        first_content = run_pipe(pipe, request_body())
+        artifact_db = Path(pipe.valves.artifact_store_path)
+        workload_db = artifact_db.with_name("workloads.sqlite3")
+        with closing(sqlite3.connect(artifact_db)) as conn:
+            first_artifact_count = conn.execute(
+                "SELECT COUNT(*) FROM artifact_records"
+            ).fetchone()[0]
+
+        replay_content = run_pipe(pipe, request_body())
+
+        self.assertTrue(first_content)
+        self.assertIn("available for questions", replay_content)
+        self.assertTrue(pipe.last_workload_snapshot["idempotency_reused"])
+        self.assertEqual(pipe.last_workload_snapshot["state"], "completed")
+        with closing(sqlite3.connect(artifact_db)) as conn:
+            self.assertEqual(
+                conn.execute("SELECT COUNT(*) FROM artifact_records").fetchone()[0],
+                first_artifact_count,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM artifact_records "
+                    "WHERE artifact_type = 'domain_context_packet_v0'"
+                ).fetchone()[0],
+                1,
+            )
+        with closing(sqlite3.connect(workload_db)) as conn:
+            self.assertEqual(
+                conn.execute("SELECT COUNT(*) FROM workload_jobs").fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM workload_jobs WHERE state = 'completed'"
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM workload_transitions "
+                    "WHERE to_state = 'completed'"
+                ).fetchone()[0],
+                1,
+            )
 
     def test_pipe_marks_unknown_container_with_typed_blocker(self):
         pipe = self._pipe()

@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.22.0-semantic-visual-v1
+version: 0.23.0-native-idempotency-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -272,13 +272,47 @@ class Pipe:
                     normalization_run_id="workload_admission_preflight",
                 )
             )
+            files_arg = __files__ or kwargs.get("__files__")
+            file_refs = self._collect_file_refs(
+                safe_body,
+                metadata,
+                files_arg,
+                messages_arg,
+            )
+            idempotency_key = self._workload_idempotency_key(
+                access=access,
+                file_refs=file_refs,
+            )
             authority = self._workload_authority()
-            ticket = authority.submit(job_kind=WorkloadKind.GATE1, access=access)
+            ticket = authority.submit(
+                job_kind=WorkloadKind.GATE1,
+                access=access,
+                idempotency_key=idempotency_key,
+                safe_metadata={
+                    "idempotency_policy_version": (
+                        "broker_reports_gate1_native_request_idempotency_v1"
+                    ),
+                    "idempotency_key_present": idempotency_key is not None,
+                    "source_refs_total": len(file_refs),
+                },
+            )
             self.last_workload_job_id = ticket.job_id
             self.last_workload_snapshot = authority.snapshot(
                 job_id=ticket.job_id,
                 access=access,
             )
+            if ticket.reused_existing:
+                self.last_workload_snapshot = {
+                    **self.last_workload_snapshot,
+                    "idempotency_reused": True,
+                }
+                await self._emit_workload_snapshot(
+                    __event_emitter__,
+                    self.last_workload_snapshot,
+                    done=self.last_workload_snapshot.get("state")
+                    in {"completed", "failed", "cancelled", "awaiting_review"},
+                )
+                return self._reused_workload_content(self.last_workload_snapshot)
             await self._emit_workload_snapshot(
                 __event_emitter__, self.last_workload_snapshot, done=False
             )
@@ -340,6 +374,63 @@ class Pipe:
             raise
         finally:
             self._active_workload_session = None
+
+    @staticmethod
+    def _workload_idempotency_key(
+        *,
+        access: WorkloadAccessContext,
+        file_refs: list[dict[str, Any]],
+    ) -> str | None:
+        source_ids = sorted(
+            {
+                str(item.get("file_id") or "").strip()
+                for item in file_refs
+                if str(item.get("file_id") or "").strip()
+            }
+        )
+        if not source_ids:
+            return None
+        material = json.dumps(
+            {
+                "policy_version": (
+                    "broker_reports_gate1_native_request_idempotency_v1"
+                ),
+                "user_id": access.user_id,
+                "case_id": access.case_id,
+                "chat_id": access.chat_id,
+                "workspace_model_id": access.workspace_model_id,
+                "source_file_ids": source_ids,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return "bridem_" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _reused_workload_content(snapshot: dict[str, Any]) -> str:
+        state = str(snapshot.get("state") or "")
+        if state == "completed":
+            return (
+                "Broker Reports processing completed. "
+                "The processed data are available for questions."
+            )
+        if state == "awaiting_review":
+            return (
+                "Broker Reports processing requires review before the data can "
+                "be used for questions."
+            )
+        if state == "failed":
+            return (
+                "Broker Reports processing failed. "
+                "No completed result was published."
+            )
+        if state == "cancelled":
+            return (
+                "Broker Reports processing was cancelled. "
+                "No partial result was published."
+            )
+        return "Broker Reports processing is already in progress."
 
     async def _run_workload(
         self,

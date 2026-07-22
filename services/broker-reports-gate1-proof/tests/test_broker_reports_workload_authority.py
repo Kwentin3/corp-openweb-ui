@@ -201,6 +201,124 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             if snapshot["state"] == "queued":
                 first_authority.request_cancel(job_id=ticket.job_id, access=self.access)
 
+    def test_idempotent_submit_reuses_one_terminal_gate1_job(self):
+        first_authority = self._authority()
+        second_authority = WorkloadAuthorityFactory(self._config()).create()
+        key = "bridem_" + "a" * 64
+
+        first = first_authority.submit(
+            job_kind=WorkloadKind.GATE1,
+            access=self.access,
+            idempotency_key=key,
+            safe_metadata={"idempotency_key_present": True},
+        )
+        first_session = first_authority.try_admit(
+            job_id=first.job_id,
+            access=self.access,
+            worker_id="idempotent-worker",
+        )
+        self.assertIsNotNone(first_session)
+        first_session.transition(WorkloadState.NORMALIZING)
+        first_session.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
+        first_session.transition(WorkloadState.VALIDATING)
+        first_session.complete()
+
+        replay = second_authority.submit(
+            job_kind=WorkloadKind.GATE1,
+            access=self.access,
+            idempotency_key=key,
+        )
+
+        self.assertEqual(replay.job_id, first.job_id)
+        self.assertTrue(replay.reused_existing)
+        self.assertEqual(
+            second_authority.snapshot(job_id=replay.job_id, access=self.access)[
+                "state"
+            ],
+            "completed",
+        )
+        with closing(sqlite3.connect(self._config().sqlite_path)) as conn:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM workload_jobs WHERE idempotency_key = ?",
+                    (key,),
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                conn.execute(
+                    "SELECT COUNT(*) FROM workload_transitions WHERE job_id = ? "
+                    "AND to_state = 'completed'",
+                    (first.job_id,),
+                ).fetchone()[0],
+                1,
+            )
+
+    def test_idempotency_key_rejects_scope_substitution(self):
+        authority = self._authority()
+        key = "bridem_" + "b" * 64
+        ticket = authority.submit(
+            job_kind=WorkloadKind.GATE1,
+            access=self.access,
+            idempotency_key=key,
+        )
+        forged = WorkloadAccessContext(
+            user_id="other-user",
+            case_id=self.access.case_id,
+            chat_id=self.access.chat_id,
+            workspace_model_id=self.access.workspace_model_id,
+        )
+
+        with self.assertRaises(WorkloadAuthorityError) as denied:
+            authority.submit(
+                job_kind=WorkloadKind.GATE1,
+                access=forged,
+                idempotency_key=key,
+            )
+        self.assertEqual(denied.exception.code, "workload_access_denied")
+
+        session = authority.try_admit(
+            job_id=ticket.job_id,
+            access=self.access,
+            worker_id="idempotency-scope-worker",
+        )
+        self.assertIsNotNone(session)
+        session.cancel("test_terminal_cleanup")
+        self.assertEqual(session.snapshot()["state"], "cancelled")
+
+    def test_existing_workload_database_migrates_idempotency_column_in_place(self):
+        self._authority()
+        database = self._config().sqlite_path
+        with closing(sqlite3.connect(database)) as conn:
+            conn.execute("DROP INDEX workload_jobs_idempotency_idx")
+            conn.execute("ALTER TABLE workload_jobs DROP COLUMN idempotency_key")
+            conn.commit()
+
+        upgraded = WorkloadAuthorityFactory(self._config()).create()
+        with closing(sqlite3.connect(database)) as conn:
+            columns = {
+                str(row[1]) for row in conn.execute("PRAGMA table_info(workload_jobs)")
+            }
+            indexes = {
+                str(row[1]) for row in conn.execute("PRAGMA index_list(workload_jobs)")
+            }
+        self.assertIn("idempotency_key", columns)
+        self.assertIn("workload_jobs_idempotency_idx", indexes)
+
+        ticket = upgraded.submit(
+            job_kind=WorkloadKind.GATE1,
+            access=self.access,
+            idempotency_key="bridem_" + "c" * 64,
+        )
+        session = upgraded.try_admit(
+            job_id=ticket.job_id,
+            access=self.access,
+            worker_id="migrated-schema-worker",
+        )
+        self.assertIsNotNone(session)
+        session.cancel("test_terminal_cleanup")
+        self.assertEqual(session.snapshot()["state"], "cancelled")
+
     def test_provider_budget_is_separate_persisted_fifo_capacity(self):
         async def scenario() -> None:
             authority = self._authority(gate2_concurrency=2)
