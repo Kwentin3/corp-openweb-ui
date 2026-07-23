@@ -36,7 +36,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v2"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v3"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -341,6 +341,7 @@ def build_manifest(
             "global": False,
         },
         "loader": {
+            "file_name": LOADER_PATH.name,
             "content_sha256": sha256_bytes(LOADER_PATH.read_bytes()),
         },
         "functions": functions,
@@ -398,6 +399,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         "private_intake_contract": PRIVATE_INTAKE_CONTRACT,
     }:
         raise ValueError("stage_release_manifest_image_invalid")
+    if manifest.get("loader") != {
+        "file_name": LOADER_PATH.name,
+        "content_sha256": sha256_bytes(LOADER_PATH.read_bytes()),
+    }:
+        raise ValueError("stage_release_manifest_loader_invalid")
     runtime = manifest.get("runtime") or {}
     if (
         runtime.get("vlm_default_enabled") is not True

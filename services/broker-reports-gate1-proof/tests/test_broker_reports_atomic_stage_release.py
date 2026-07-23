@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -56,8 +58,20 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(3, len(manifest["functions"]))
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v2",
+            "broker_reports_atomic_stage_release_v3",
             manifest["schema_version"],
+        )
+        self.assertEqual("loader.js", manifest["loader"]["file_name"])
+        self.assertEqual(
+            remote._sha256_bytes(
+                (
+                    ROOT
+                    / "deploy"
+                    / "openwebui-static"
+                    / "loader.js"
+                ).read_bytes()
+            ),
+            manifest["loader"]["content_sha256"],
         )
         self.assertTrue(
             all(
@@ -228,6 +242,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             "workload": {"nonterminal_jobs": 0, "owned_temp_entries": 0},
             "release_staging_entries": 0,
             "rollback_identity_sha256": "c" * 64,
+            "rollback_loader_hash_exact": True,
         }
         checks = evaluate_remote_runtime(
             expected_manifest=manifest,
@@ -340,6 +355,30 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
         ids = [item["prompt_id"] for item in _manifest()["managed_prompts"]]
         return remote._prompt_rows(path, ids)
 
+    def test_payload_requires_exact_staged_loader_bytes(self):
+        manifest = _manifest()
+        with tempfile.TemporaryDirectory() as temp:
+            staging = Path(temp) / manifest["release_id"]
+            staging.mkdir()
+            for contract in FUNCTION_CONTRACTS:
+                shutil.copyfile(
+                    contract.bundle_path,
+                    staging / contract.bundle_path.name,
+                )
+            loader_path = staging / manifest["loader"]["file_name"]
+            shutil.copyfile(
+                ROOT / "deploy" / "openwebui-static" / "loader.js",
+                loader_path,
+            )
+
+            remote._validate_payload(staging, manifest)
+            loader_path.write_bytes(b"tampered-loader")
+            with self.assertRaisesRegex(
+                remote.StageReleaseError,
+                "loader_payload_digest_mismatch",
+            ):
+                remote._validate_payload(staging, manifest)
+
     def test_hash_guard_rolls_back_entire_sqlite_transaction(self):
         with tempfile.TemporaryDirectory() as temp:
             db = Path(temp) / "webui.db"
@@ -383,6 +422,116 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 remote._prompt_hashes(before_prompts),
                 remote._prompt_hashes(self._prompt_rows(db)),
             )
+
+    def test_loader_candidate_diff_is_validated_before_apply_and_replaced_exactly(
+        self,
+    ):
+        manifest = _manifest()
+        prior = b"prior-loader"
+        candidate = b"candidate-loader"
+        with tempfile.TemporaryDirectory() as temp:
+            loader_path = Path(temp) / "loader.js"
+            loader_path.write_bytes(prior)
+            state = {
+                "image": {
+                    **manifest["image"],
+                    "running": True,
+                    "restart_count": 0,
+                },
+                "action": {
+                    **manifest["action"],
+                    "type": "action",
+                },
+                "loader": {
+                    "content_sha256": remote._sha256_bytes(prior),
+                },
+                "fitz_version": manifest["runtime"]["fitz_version"],
+            }
+
+            remote._assert_static_contracts(
+                state,
+                manifest,
+                require_candidate_loader=False,
+            )
+            with self.assertRaisesRegex(
+                remote.StageReleaseError,
+                "loader_contract_mismatch",
+            ):
+                remote._assert_static_contracts(
+                    state,
+                    manifest,
+                    require_candidate_loader=True,
+                )
+
+            with mock.patch.object(remote, "LOADER_PATH", loader_path):
+                remote._replace_loader(
+                    content=candidate,
+                    expected_sha256=remote._sha256_bytes(prior),
+                )
+                self.assertEqual(candidate, loader_path.read_bytes())
+                with self.assertRaisesRegex(
+                    remote.StageReleaseError,
+                    "loader_changed_during_release",
+                ):
+                    remote._replace_loader(
+                        content=prior,
+                        expected_sha256=remote._sha256_bytes(prior),
+                    )
+
+    def test_rollback_artifact_retains_exact_loader_and_detects_tampering(self):
+        manifest = _manifest()
+        loader_bytes = b"previous-loader-bytes"
+        with tempfile.TemporaryDirectory() as temp:
+            db = Path(temp) / "webui.db"
+            self._database(db)
+            before_state = {
+                "functions": [],
+                "action": {},
+                "image": {},
+                "loader": {
+                    "content_sha256": remote._sha256_bytes(loader_bytes),
+                },
+                "managed_prompts": [],
+            }
+            rollback_root = Path(temp) / "rollbacks"
+            with mock.patch.object(remote, "ROLLBACK_ROOT", rollback_root):
+                value, identity, created, restored_loader = (
+                    remote._rollback_artifact(
+                        manifest=manifest,
+                        function_rows=self._function_rows(db),
+                        prompt_rows=self._prompt_rows(db),
+                        before_state=before_state,
+                        loader_bytes=loader_bytes,
+                    )
+                )
+                rollback_dir = rollback_root / manifest["release_id"]
+                metadata_path = rollback_dir / "function_rows.rollback.json"
+                loader_path = rollback_dir / "loader.rollback.js"
+
+                self.assertTrue(created)
+                self.assertEqual(loader_bytes, restored_loader)
+                self.assertEqual(loader_bytes, loader_path.read_bytes())
+                self.assertEqual(
+                    remote._sha256_bytes(metadata_path.read_bytes()),
+                    identity,
+                )
+                self.assertEqual(
+                    remote._sha256_bytes(loader_bytes),
+                    value["previous_loader"]["content_sha256"],
+                )
+
+                loader_path.write_bytes(b"tampered-rollback-loader")
+                with self.assertRaisesRegex(
+                    remote.StageReleaseError,
+                    "rollback_loader_invalid",
+                ):
+                    remote._rollback_artifact(
+                        manifest=manifest,
+                        function_rows=self._function_rows(db),
+                        prompt_rows=self._prompt_rows(db),
+                        before_state=before_state,
+                        loader_bytes=loader_bytes,
+                    )
 
     def test_prompt_drift_blocks_function_and_prompt_updates_in_one_transaction(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -536,9 +685,11 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
         self.assertIn("resolved.parent != root", remote_source)
         self.assertIn("shutil.rmtree(resolved)", remote_source)
         self.assertIn("_restore_after_failure", remote_source)
+        self.assertIn("_replace_loader", remote_source)
         self.assertIn("_raise_release_signal", remote_source)
         self.assertIn("elif not _container_running()", remote_source)
         self.assertIn('"BEGIN IMMEDIATE"', remote_source)
+        self.assertIn("LOADER_PATH,", driver_source)
         self.assertIn('"StrictHostKeyChecking=yes"', driver_source)
         self.assertNotIn('"StrictHostKeyChecking=no"', driver_source)
 
