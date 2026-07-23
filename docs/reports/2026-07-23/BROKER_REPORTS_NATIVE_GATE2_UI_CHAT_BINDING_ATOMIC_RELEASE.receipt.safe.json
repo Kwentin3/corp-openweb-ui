@@ -1,0 +1,67 @@
+{
+  "schema_version": "broker_reports_native_gate2_ui_chat_binding_atomic_release_receipt_v1",
+  "date": "2026-07-23",
+  "status": "passed",
+  "source_revision": "37c21d11e574bebe6fc564ba7ad77bb6f68b789b",
+  "release_id": "broker-reports-37c21d11e574",
+  "manifest_sha256": "12968e2a613cd5b6583613b33976c6b7da0fd56f3cd11e193f793eeb66636f4e",
+  "rollback_identity_sha256": "ea7c8e880cc9df4e0b235cbd3084d148d26d714be5c00600cdd34b4915a2d8a4",
+  "applied": true,
+  "changed_runtime_objects": 1,
+  "loader": {
+    "before_sha256": "5d9d7acef0c7206bc2e5f65624a14b794437d40d1e2a2ff81286cba800223d7f",
+    "released_git_blob_sha256": "acfa00e051d9781552489df323a1d9520aa88bec248d8f7d89e447eba798e47a",
+    "live_sha256": "acfa00e051d9781552489df323a1d9520aa88bec248d8f7d89e447eba798e47a",
+    "windows_worktree_sha256_non_authoritative": "399b20cd3a81ca365bca5a487b76f55d7bad6fc4421d44b6f0a87e385c0818d8",
+    "live_matches_git_blob": true
+  },
+  "functions": {
+    "broker_reports_gate1_pipe": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "broker_reports_gate2_source_fact_pipe": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+    "broker_reports_gate2_domain_source_fact_pipe": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+    "changed": false
+  },
+  "private_intake_action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+  "managed_prompts_exact": 12,
+  "rollback_artifact_created": true,
+  "rollback_proof": {
+    "previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_previous_state_restored": true,
+    "loader_candidate_state_restored": true
+  },
+  "health_checks_passed": 3,
+  "counters_before": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "counters_after": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "post_release_no_pdf_browser_control": {
+    "local_loader_injection": false,
+    "gate2_model_selected": true,
+    "top_level_chat_id_present": true,
+    "metadata_chat_id_present": true,
+    "response_same_chat": true,
+    "route_same_chat": true,
+    "browser_page_errors": 0,
+    "pdf_processed": false,
+    "vlm_invoked": false
+  },
+  "knowledge_rag_vector_delta_zero": true,
+  "release_staging_entries": 0,
+  "nonterminal_jobs": 0,
+  "owned_temp_entries": 0,
+  "independent_verifier_immediate": "passed",
+  "independent_verifier_post_control": "passed",
+  "goal2_browser_acceptance": "not_closed_pending_fresh_full_pdf_clickthrough",
+  "private_values_in_receipt": false
+}
