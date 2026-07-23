@@ -1,0 +1,66 @@
+{
+  "schema_version": "broker_reports_native_browser_preflight_v4_receipt_v1",
+  "date": "2026-07-23",
+  "status": "not_closed",
+  "branch": "codex/broker-reports-native-browser-preflight-v4-not-closed",
+  "repository_revision": "2a468000b7f13307e7bfe3d8dd024e47ddc74f5a",
+  "live_release_source_revision": "4f80f91c0427740f91acd3134c70d9271aab24bb",
+  "live_loader_sha256": "51e836b02e2c71aa61e2ff4faff0e43f762b70d3ecf41fdbbffb73bf5d3891f7",
+  "browser_preflight": {
+    "system_chrome": true,
+    "local_loader_injection": false,
+    "native_completion_route": true,
+    "domain_model_selected": true,
+    "top_level_chat_id_present": true,
+    "metadata_chat_id_present": true,
+    "response_same_chat": true,
+    "route_same_chat": true,
+    "browser_page_errors": 0,
+    "pdf_processed": false,
+    "vlm_invoked": false,
+    "unnecessary_reprocessing": 0
+  },
+  "blockers": [
+    {
+      "failed_invariant": "ANSWER_CONTEXT_REPORT_SCOPE_COMPLETE",
+      "primary_evidence": "native_request_has_no_domain_config_and_live_defaults_select_one_document_one_unit_one_segment",
+      "known_authorized_report_source_units": 10,
+      "owning_component": "gate2_domain_function_and_runtime_completeness_policy",
+      "blocker_type": "product_runtime_completeness",
+      "narrowest_corrective_slice": "full_authorized_customer_scope_or_fail_closed_before_answer_context_publication"
+    },
+    {
+      "failed_invariant": "ANSWER_CONTEXT_ONLY_NATIVE_BROWSER_HANDOFF",
+      "primary_evidence": "protected_resolver_has_zero_production_call_sites_and_domain_function_returns_compact_summary_only",
+      "owning_component": "maintained_gate2_domain_function_native_answer_boundary",
+      "blocker_type": "missing_product_integration",
+      "narrowest_corrective_slice": "authenticated_chat_scoped_answer_context_only_mode_under_existing_provider_and_workload_boundaries"
+    }
+  ],
+  "out_of_scope_changes_required": {
+    "semantic_json_contract": false,
+    "crop_extraction": false,
+    "gemini_master_policy": false,
+    "knowledge_rag_vector": false,
+    "ocr": false,
+    "markdown_runtime": false
+  },
+  "runtime_state": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908,
+    "release_staging_entries": 0,
+    "nonterminal_workload_jobs": 0,
+    "owned_temp_entries": 0
+  },
+  "goal_status": {
+    "goal0_final_integrated_regression": "completed",
+    "goal1_primary_evidence_archive": "completed_with_explicit_gaps",
+    "goal2_native_browser_clickthrough": "not_closed",
+    "goal3_conditional_corrections": "not_closed",
+    "goal4_final_evidence_closure": "not_closed"
+  },
+  "private_values_in_receipt": false
+}
