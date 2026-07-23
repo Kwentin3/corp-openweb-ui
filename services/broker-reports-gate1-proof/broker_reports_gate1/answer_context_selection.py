@@ -13,9 +13,8 @@ from .artifact_models import (
     ArtifactStorePort,
 )
 from .artifact_resolver import ArtifactResolver
-from .contracts import stable_digest
+from .contracts import SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION, stable_digest
 from .gate2_domain_contracts import DOMAIN_RUN_SCHEMA_VERSION
-from .gate2_source_fact_stitching import STITCH_RESULT_SCHEMA_VERSION
 from .semantic_visual_table_contracts import SEMANTIC_VISUAL_TABLE_ORIGIN
 from .table_projection import TableProjectionValidator
 
@@ -531,7 +530,10 @@ class AnswerContextSelectionService:
         owner_fact_ids: set[str] = set()
         for stitch_ref in stitch_refs:
             stitch = self._resolve_payload(stitch_ref, context)
-            if stitch.get("schema_version") != STITCH_RESULT_SCHEMA_VERSION:
+            if (
+                stitch.get("schema_version")
+                != SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION
+            ):
                 raise AnswerContextSelectionError(
                     "answer_context_stitch_result_type_mismatch"
                 )

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import copy
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import stable_digest
+from .contracts import SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION, stable_digest
 from .gate2_domain_contracts import DOMAIN_SOURCE_FACTS_SCHEMA_VERSION
 from .gate2_domain_routing import FALLBACK_DOMAIN, ROUTE_SCHEMA_VERSION
 
 
-STITCH_RESULT_SCHEMA_VERSION = "broker_reports_source_fact_stitch_result_v0"
+STITCH_RESULT_SCHEMA_VERSION = SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION
 STITCH_POLICY_VERSION = "gate2_source_fact_stitching_v0"
 
 FACTORY_REQUIRED = (
