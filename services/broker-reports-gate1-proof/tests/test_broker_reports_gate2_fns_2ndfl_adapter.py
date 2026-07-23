@@ -282,8 +282,10 @@ class BrokerReportsGate2Fns2NdflAdapterTest(unittest.TestCase):
     def test_factory_route_import_isolation_and_integrity_tamper(self):
         self.assertIn("Gate2Fns2NdflAdapterFactory.create", ADAPTER_FACTORY_REQUIRED)
         self.assertIn("must not import an XML parser", ADAPTER_FORBIDDEN)
-        adapter_source = Path(
-            "broker_reports_gate1/gate2_fns_2ndfl_adapter.py"
+        adapter_source = (
+            Path(__file__).resolve().parents[1]
+            / "broker_reports_gate1"
+            / "gate2_fns_2ndfl_adapter.py"
         ).read_text(encoding="utf-8")
         self.assertNotIn("xml.parsers", adapter_source)
         self.assertNotIn("ElementTree", adapter_source)
