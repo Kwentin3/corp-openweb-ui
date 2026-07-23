@@ -289,8 +289,11 @@ def build_manifest(
     source_revision: str,
     prompt_contracts: Mapping[str, Mapping[str, Any]],
     provider_policy: Mapping[str, Any],
+    loader_bytes: bytes,
 ) -> dict[str, Any]:
     assert_revision(source_revision)
+    if not isinstance(loader_bytes, bytes) or not loader_bytes:
+        raise ValueError("stage_release_loader_bytes_invalid")
     functions = []
     for contract in FUNCTION_CONTRACTS:
         content = normalized_text(contract.bundle_path)
@@ -342,7 +345,7 @@ def build_manifest(
         },
         "loader": {
             "file_name": LOADER_PATH.name,
-            "content_sha256": sha256_bytes(LOADER_PATH.read_bytes()),
+            "content_sha256": sha256_bytes(loader_bytes),
         },
         "functions": functions,
         "managed_prompts": prompts,
@@ -399,10 +402,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         "private_intake_contract": PRIVATE_INTAKE_CONTRACT,
     }:
         raise ValueError("stage_release_manifest_image_invalid")
-    if manifest.get("loader") != {
-        "file_name": LOADER_PATH.name,
-        "content_sha256": sha256_bytes(LOADER_PATH.read_bytes()),
-    }:
+    loader = manifest.get("loader") or {}
+    if (
+        loader.get("file_name") != LOADER_PATH.name
+        or not SHA256_RE.fullmatch(str(loader.get("content_sha256") or ""))
+    ):
         raise ValueError("stage_release_manifest_loader_invalid")
     runtime = manifest.get("runtime") or {}
     if (

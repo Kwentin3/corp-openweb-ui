@@ -29,6 +29,10 @@ from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     release_id,
     validate_manifest,
 )
+from broker_reports_release_source import (  # noqa: E402
+    LOADER_REPOSITORY_PATH,
+    git_blob_bytes,
+)
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _default_ssh_target,
@@ -163,11 +167,12 @@ def _copy_payload(
     ssh_target: str,
     remote_dir: str,
     manifest_path: Path,
+    loader_payload_path: Path,
 ) -> None:
     paths = [
         manifest_path,
         REMOTE_SCRIPT,
-        LOADER_PATH,
+        loader_payload_path,
         *(contract.bundle_path for contract in FUNCTION_CONTRACTS),
     ]
     for path in paths:
@@ -234,16 +239,24 @@ def execute(
     if prove_rollback and not apply:
         raise StageReleaseDriverError("stage_release_rollback_proof_requires_apply")
     local_checks = _assert_release_tree(source_revision)
+    loader_bytes = git_blob_bytes(
+        root=ROOT,
+        source_revision=source_revision,
+        repository_path=LOADER_REPOSITORY_PATH,
+    )
     manifest = build_manifest(
         source_revision=source_revision,
         prompt_contracts=expected_prompt_contracts(),
         provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+        loader_bytes=loader_bytes,
     )
     validate_manifest(manifest)
     release_name = release_id(source_revision)
     remote_dir: str | None = None
     with tempfile.TemporaryDirectory(prefix="broker-reports-stage-release-") as temp:
         manifest_path = Path(temp) / "manifest.json"
+        loader_payload_path = Path(temp) / LOADER_PATH.name
+        loader_payload_path.write_bytes(loader_bytes)
         manifest_path.write_text(
             json.dumps(
                 manifest,
@@ -260,6 +273,7 @@ def execute(
                 ssh_target=ssh_target,
                 remote_dir=remote_dir,
                 manifest_path=manifest_path,
+                loader_payload_path=loader_payload_path,
             )
             receipt = _run_remote_release(
                 ssh_target=ssh_target,
