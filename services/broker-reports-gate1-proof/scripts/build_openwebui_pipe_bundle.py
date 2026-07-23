@@ -161,9 +161,10 @@ GATE1_MODULE_ORDER = [
     *GATE1_HYBRID_MODULES,
     *MODULE_ORDER[_GATE1_HYBRID_INSERT_AT:],
 ]
+GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
     name for name in MODULE_ORDER if name != "gate2_handoff"
-]
+] + GATE2_ONLY_MODULES
 
 
 def main() -> None:
@@ -176,7 +177,11 @@ def main() -> None:
     target = parser.parse_args().target
     modules = {
         name: (PACKAGE_ROOT / f"{name}.py").read_text(encoding="utf-8")
-        for name in sorted(set(MODULE_ORDER) | set(GATE1_HYBRID_MODULES))
+        for name in sorted(
+            set(MODULE_ORDER)
+            | set(GATE1_HYBRID_MODULES)
+            | set(GATE2_ONLY_MODULES)
+        )
     }
     if target in {"all", "gate1"}:
         pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
