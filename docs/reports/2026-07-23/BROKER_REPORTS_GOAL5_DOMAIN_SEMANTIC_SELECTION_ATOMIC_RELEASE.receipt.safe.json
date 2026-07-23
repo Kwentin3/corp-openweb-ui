@@ -1,0 +1,64 @@
+{
+  "schema_version": "broker_reports.goal5_domain_semantic_selection_atomic_release.safe_receipt.v1",
+  "status": "passed",
+  "date": "2026-07-23",
+  "source_revision": "97c70340501725fc7dd2d0e4f5bc0dc977946989",
+  "release_id": "broker-reports-97c703405017",
+  "manifest_sha256": "72ffeb5c3818b3da9ae106c7251a1c93e2d44652b2f289c93bfd600f66f52e9d",
+  "rollback_identity_sha256": "a31fa3da4b6ba946d52f951aac438610b90cd7a167d069b8cdd23dcd9ff8b485",
+  "applied": true,
+  "rollback_artifact_created": true,
+  "rollback_proof": {
+    "previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_previous_state_restored": true,
+    "loader_candidate_state_restored": true
+  },
+  "functions": {
+    "broker_reports_gate1_pipe": {
+      "before_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "released_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "changed": false
+    },
+    "broker_reports_gate2_source_fact_pipe": {
+      "before_sha256": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+      "released_sha256": "69bef1b4c53d17cc094ab3f19d307c781b3aeb427959463bbac05acfde5a5d9e",
+      "changed": true
+    },
+    "broker_reports_gate2_domain_source_fact_pipe": {
+      "before_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+      "released_sha256": "3f04ae75852e1e676091e01a92fec15a8795e7c97d282b76a5976443b5e42fe3",
+      "changed": true
+    }
+  },
+  "private_intake_action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+  "loader_sha256": "51e836b02e2c71aa61e2ff4faff0e43f762b70d3ecf41fdbbffb73bf5d3891f7",
+  "managed_prompts_exact": 12,
+  "full_suite": {
+    "passed": 1149,
+    "skipped": 20,
+    "failed": 0
+  },
+  "repository_privacy_guard_passed": 3,
+  "counters_before": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 273,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "counters_after": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 273,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "knowledge_rag_vector_delta_zero": true,
+  "nonterminal_jobs": 0,
+  "owned_temp_entries": 0,
+  "release_staging_entries": 0,
+  "independent_verifier": "passed",
+  "full_gate2_reproof_required": true,
+  "private_values_in_receipt": false
+}
