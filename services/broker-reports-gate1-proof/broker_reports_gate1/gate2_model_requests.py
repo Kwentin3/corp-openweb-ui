@@ -111,6 +111,7 @@ class Gate2OpenWebUIRequestBuilder:
                 "Managed domain Prompt input marker is missing",
             )
         domain = str(package.get("extractor_domain") or "")
+        semantic_selection = package.get("semantic_selection_enabled") is True
         candidate_binding = bool(package.get("candidate_binding_mode"))
         model_package = package.get("llm_context_package") or package
         system_content = prompt.content.replace(
@@ -119,19 +120,28 @@ class Gate2OpenWebUIRequestBuilder:
         user_content = json.dumps(
             {
                 "task": (
-                    "select_broker_reports_candidate_bindings_v0"
-                    if candidate_binding
-                    else "extract_broker_reports_domain_source_facts_v0"
+                    "select_broker_reports_source_facts_v3"
+                    if semantic_selection
+                    else (
+                        "select_broker_reports_candidate_bindings_v0"
+                        if candidate_binding
+                        else "extract_broker_reports_domain_source_facts_v0"
+                    )
                 ),
                 "extractor_domain": domain,
                 "package_ref": package.get("package_artifact_ref"),
                 "allowed_fact_types": package.get("allowed_fact_types"),
                 "instruction": (
-                    "Return exactly one broker_reports_candidate_binding_output_v0 object. "
-                    "Select only package candidate ids, relation ids and allowed semantic roles."
-                    if candidate_binding
-                    else "Return exactly one broker_reports_source_facts_v0 JSON object "
-                    "for this domain package. Use only allowed refs and values."
+                    "Return exactly one broker_reports_source_fact_selection_v3 object. "
+                    "Return only ordered decisions and allowed value bindings."
+                    if semantic_selection
+                    else (
+                        "Return exactly one broker_reports_candidate_binding_output_v0 object. "
+                        "Select only package candidate ids, relation ids and allowed semantic roles."
+                        if candidate_binding
+                        else "Return exactly one broker_reports_source_facts_v0 JSON object "
+                        "for this domain package. Use only allowed refs and values."
+                    )
                 ),
             },
             ensure_ascii=False,
@@ -148,6 +158,7 @@ class Gate2OpenWebUIRequestBuilder:
             "metadata": {
                 "broker_reports_gate2": {
                     "domain_source_fact_extraction": True,
+                    "semantic_selection_enabled": semantic_selection,
                     "candidate_binding_enabled": candidate_binding,
                     "extractor_domain": domain,
                     "structured_output_mode": "openwebui_response_format_json_schema",

@@ -1,0 +1,43 @@
+{
+  "schema_version": "broker_reports.goal5_domain_semantic_selection_correction.safe_receipt.v1",
+  "status": "implemented_awaiting_release_reproof",
+  "date": "2026-07-23",
+  "openai_quota_blocker_status": "resolved",
+  "post_funding_provider_calls_total": 41,
+  "post_funding_provider_calls_passed_total": 41,
+  "post_funding_strict_json_outputs_total": 41,
+  "post_funding_fallback_outputs_total": 0,
+  "post_funding_repair_attempts_total": 0,
+  "pre_correction_domain_packages_total": 41,
+  "pre_correction_accepted_packages_total": 35,
+  "pre_correction_rejected_packages_total": 6,
+  "pre_correction_uncovered_source_refs_total": 7,
+  "pre_correction_missing_field_findings_total": 7,
+  "pre_correction_missing_provenance_findings_total": 7,
+  "provider_output_schema_version": "broker_reports_source_fact_selection_v3",
+  "model_facing_root_fields": [
+    "decisions"
+  ],
+  "model_facing_decision_fields": [
+    "decision_type",
+    "value_bindings"
+  ],
+  "canonical_output_schema_version": "broker_reports_source_facts_v0",
+  "canonical_validator_changed": false,
+  "gate1_visual_table_contract_changed": false,
+  "domain_pipe_semantic_selection_default": true,
+  "candidate_binding_default": false,
+  "conflicting_model_contract_modes_rejected": true,
+  "selection_validation_artifact_persisted": true,
+  "gate3_manifest_graph_extended": true,
+  "focused_tests_passed_total": 138,
+  "focused_tests_failed_total": 0,
+  "python_compile_status": "passed",
+  "git_diff_check_status": "passed",
+  "gate2_bundle_rebuild_deterministic": true,
+  "knowledge_rag_used": false,
+  "vectorization_performed": false,
+  "full_gate2_reproof_required": true,
+  "private_full_scope_preflight_sha256": "a4bb33dc5bae04da5965c5d39aa50af8d5bdf7d7ddb08cfe74d00e30c333c368",
+  "private_post_funding_terminal_recovery_sha256": "85decec1f7171a495ea29b11e11325c7524f90105fc5a8c91454a6fb1636db01"
+}
