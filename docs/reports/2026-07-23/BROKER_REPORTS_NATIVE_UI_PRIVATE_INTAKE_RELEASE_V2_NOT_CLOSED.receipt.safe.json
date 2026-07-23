@@ -1,0 +1,26 @@
+{
+  "schema_version": "broker_reports_native_ui_private_intake_release_v2_not_closed_safe_v1",
+  "date": "2026-07-23",
+  "branch": "codex/broker-reports-native-ui-private-intake-release-v2",
+  "approved_main_revision": "a839fb7f6d03b2520b4be8741fa8575202424747",
+  "status": "not_closed",
+  "stage_mutation": false,
+  "dry_validation": {
+    "status": "validated",
+    "applied": false,
+    "staging_removed": true,
+    "function_changes_required": 0,
+    "prompt_changes_required": 0,
+    "loader_change_required": true,
+    "workload_nonterminal_jobs": 0,
+    "owned_temporary_entries": 0
+  },
+  "accepted_loader_git_blob_sha256": "5d9d7acef0c7206bc2e5f65624a14b794437d40d1e2a2ff81286cba800223d7f",
+  "working_tree_candidate_sha256": "9c03605c361e119be01eb89f9f31bfbd7bc47c071adbb47139023a9c9fbc1614",
+  "violated_invariant": "release_payload_must_derive_from_exact_approved_git_blob",
+  "owning_component": "broker_reports_atomic_stage_release_tooling",
+  "blocker_type": "cross_platform_source_identity_defect",
+  "hidden_correction": false,
+  "next_slice": "git_blob_derived_loader_manifest_payload_and_verifier",
+  "private_values_in_git": 0
+}
