@@ -1,0 +1,85 @@
+{
+  "schema_version": "broker_reports_native_browser_clickthrough_v3_not_closed_receipt_v1",
+  "date": "2026-07-23",
+  "goal": "GOAL_2_NATIVE_BROWSER_CLICKTHROUGH",
+  "status": "not_closed",
+  "audit_base_revision": "f2dcd0814df4b89970d6a03cb44e066b2a963328",
+  "stage_source_revision": "f442a139a784f6918464bb15f709b684f4a6a8db",
+  "browser": {
+    "harness": "local_playwright_system_chrome",
+    "system_chrome": true,
+    "login": "passed",
+    "fresh_chat": true,
+    "fresh_pdf_attempts": 1,
+    "ui_file_input_used": true,
+    "private_intake_route": "/api/v1/broker-reports/intake",
+    "protected_action_route": "/api/chat/actions/broker_reports_private_intake_action",
+    "visible_action_states": [
+      "ready",
+      "broker_gate1_running",
+      "broker_gate1_completed"
+    ],
+    "gate1_model": "broker_reports_gate1_pipe",
+    "gate1_chat_id": "46ccc8a0-f82e-4320-8f0b-adaca60f6504",
+    "gate1_workload_id": "brjob_d40168c03a48e5b725535ed84a1f35f7",
+    "gate1_terminal": "completed",
+    "gate1_workload_total": 1,
+    "gate1_dcp_total": 1,
+    "gate1_artifact_records_total": 64,
+    "gate2_model": "broker_reports_gate2_source_fact_pipe",
+    "gate2_ui_model_selected": true,
+    "gate2_send_clicked": true,
+    "gate2_completion_request_observed": false,
+    "gate2_completion_wait_seconds": 30,
+    "gate2_source_workload_total": 0
+  },
+  "released_server_correction": {
+    "release_id": "broker-reports-f442a139a784",
+    "manifest_sha256": "3236e836c5d62fe4c0670dabb6c8b336d3ce6dc780c4e6c1a1cd4074ee2531b7",
+    "gate2_source_function_sha256": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+    "gate2_domain_function_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+    "reached_by_browser_run": false
+  },
+  "control_vector": {
+    "metric_count": 3,
+    "sealed_before_run": true,
+    "reference_sha256": "2cdd51bb4235dadb10634c9853b56c95815bf06b6612676e362606d85a503aab",
+    "reference_seal_sha256": "607000fb3a42ba1cacfd081af29c2b6dbe79ad9d181bfa0a8b4de82a11d6431d",
+    "reference_mutated": false
+  },
+  "answer": {
+    "answer_run_started": false,
+    "answer_repair_performed": false,
+    "semantic_table_followup": "not_run_fail_closed"
+  },
+  "post_cleanup": {
+    "file_rows": 272,
+    "document_rows": 0,
+    "knowledge_rows": 0,
+    "vector_collections": 146,
+    "vector_directories": 146,
+    "vector_files": 595,
+    "vector_bytes": 309808908,
+    "artifactstore_records": 16992,
+    "completed_workload_jobs": 44,
+    "nonterminal_workload_jobs": 0,
+    "owned_temp_entries": 0,
+    "file_document_knowledge_vector_baseline_exact": true,
+    "test_chat_file_cleanup": "passed",
+    "immutable_artifactstore_evidence_retained": true
+  },
+  "attempt_accounting": {
+    "fresh_pdf_gate1_runs_total": 1,
+    "accepted_end_to_end_runs_total": 0,
+    "unnecessary_reprocessing_total": 0
+  },
+  "failed_invariant": "native_browser_gate2_model_selection_and_composer_send_must_emit_one_native_completion_in_the_gate1_chat",
+  "owning_component": "openwebui_gate2_model_selection_and_composer_submission_boundary",
+  "blocker_type": "native_ui_gate2_composer_submission_defect",
+  "narrowest_corrective_slice": "preserve_the_active_gate1_chat_and_emit_exactly_one_native_gate2_completion_when_the_selected_gate2_model_is_sent",
+  "semantic_json_changed": false,
+  "vlm_prompt_changed": false,
+  "provider_changed": false,
+  "knowledge_rag_used": false,
+  "private_values_in_receipt": false
+}
