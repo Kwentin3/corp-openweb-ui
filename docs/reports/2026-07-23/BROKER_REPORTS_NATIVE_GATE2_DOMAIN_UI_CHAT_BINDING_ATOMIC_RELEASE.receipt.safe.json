@@ -1,0 +1,68 @@
+{
+  "schema_version": "broker_reports_native_gate2_domain_ui_chat_binding_atomic_release_receipt_v1",
+  "date": "2026-07-23",
+  "status": "passed",
+  "branch": "codex/broker-reports-native-gate2-domain-ui-chat-binding-release-v1",
+  "source_revision": "4f80f91c0427740f91acd3134c70d9271aab24bb",
+  "release_id": "broker-reports-4f80f91c0427",
+  "manifest_sha256": "5f94335b9c61954df97b41d28b8f766a5eb4776c333d3d170f5910c778303615",
+  "rollback_identity_sha256": "e2e6e5a5de12f3955b8bc8f54bfd9897392cd6fb81b7f93d3cd1633865b880c9",
+  "loader": {
+    "before_sha256": "acfa00e051d9781552489df323a1d9520aa88bec248d8f7d89e447eba798e47a",
+    "released_sha256": "51e836b02e2c71aa61e2ff4faff0e43f762b70d3ecf41fdbbffb73bf5d3891f7",
+    "change_required": true,
+    "live_exact": true
+  },
+  "unchanged_runtime_objects": {
+    "gate1_function_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "gate2_source_function_sha256": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+    "gate2_domain_function_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+    "action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+    "managed_prompts_total": 12,
+    "image_identity_exact": true
+  },
+  "atomic_proof": {
+    "dry_run_passed": true,
+    "apply_passed": true,
+    "health_checks_passed": 3,
+    "rollback_artifact_created": true,
+    "previous_state_restored": true,
+    "loader_previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_candidate_state_restored": true,
+    "staging_removed": true
+  },
+  "post_release_native_no_pdf_control": {
+    "local_loader_injection": false,
+    "domain_model_selected": true,
+    "top_level_chat_id_present": true,
+    "metadata_chat_id_present": true,
+    "response_same_chat": true,
+    "route_same_chat": true,
+    "browser_page_errors": 0,
+    "pdf_processed": false,
+    "vlm_invoked": false
+  },
+  "counters_before": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "counters_after": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "final_verifier": {
+    "status": "passed",
+    "release_staging_entries": 0,
+    "nonterminal_workload_jobs": 0,
+    "owned_temp_entries": 0
+  },
+  "goal2_browser_acceptance": "not_closed_pending_domain_scope_resolution_and_fresh_pdf_clickthrough",
+  "private_values_in_receipt": false
+}
