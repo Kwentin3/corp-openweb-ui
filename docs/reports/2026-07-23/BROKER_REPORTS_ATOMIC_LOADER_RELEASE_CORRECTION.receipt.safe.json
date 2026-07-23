@@ -1,0 +1,50 @@
+{
+  "schema_version": "broker_reports_atomic_loader_release_correction_safe_v1",
+  "date": "2026-07-23",
+  "branch": "codex/broker-reports-atomic-loader-release-correction-v1",
+  "implementation_commit": "7b835135c15bd89ec927ba34b425c971d817ffa5",
+  "status": "passed",
+  "live_release_status": "pending_after_merge",
+  "stage_mutation": false,
+  "release_contract": {
+    "schema_version": "broker_reports_atomic_stage_release_v3",
+    "loader_in_payload": true,
+    "loader_digest_validated": true,
+    "loader_hash_precondition": true,
+    "loader_atomic_replace": true,
+    "loader_rollback_bytes_retained": true,
+    "failure_restore_includes_loader": true,
+    "rollback_rehearsal_includes_loader": true,
+    "live_verifier_checks_rollback_loader": true
+  },
+  "focused_tests": {
+    "passed": 15,
+    "failed": 0
+  },
+  "full_suite": {
+    "collected": 1157,
+    "passed": 1137,
+    "failed": 0,
+    "skipped": 20,
+    "xfailed": 0,
+    "xpassed": 0,
+    "warnings": 5,
+    "pytest_duration_seconds": 98.0,
+    "process_wall_seconds": 99.33
+  },
+  "checks": {
+    "ruff": "passed",
+    "compile": "passed",
+    "privacy_guard_passed": 3,
+    "git_diff_check": "passed"
+  },
+  "deterministic_bundles": {
+    "generations": 2,
+    "byte_identical": true,
+    "gate1_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "gate2_source_sha256": "a6df7853e7cf40676fd4483feeac0d8d136b2121967e6f0df39f8d85324df32a",
+    "gate2_domain_sha256": "1bb11d428cb9082edec388109839e7f2f3117447daefe9470129bc2413ed1499"
+  },
+  "loader_sha256": "5d9d7acef0c7206bc2e5f65624a14b794437d40d1e2a2ff81286cba800223d7f",
+  "private_values_in_git": 0
+}
