@@ -1,0 +1,20 @@
+{
+  "schema_version": "broker_reports_native_ui_private_intake_release_not_closed_safe_v1",
+  "date": "2026-07-23",
+  "branch": "codex/broker-reports-native-ui-private-intake-release-v1",
+  "approved_main_revision": "dad87fec9a877f7eaefd422221daab981a74e507",
+  "origin_main_revision": "dad87fec9a877f7eaefd422221daab981a74e507",
+  "status": "not_closed",
+  "stage_mutation": false,
+  "dry_validation": {
+    "completed": false,
+    "safe_error_code": "stage_release_remote_failed:stage_release_loader_contract_mismatch",
+    "stopped_before_mutation": true
+  },
+  "violated_invariant": "approved_loader_change_not_releasable_through_maintained_atomic_boundary",
+  "owning_component": "broker_reports_atomic_stage_release_tooling",
+  "blocker_type": "release_tooling_product_defect",
+  "hidden_correction": false,
+  "next_slice": "atomic_loader_payload_apply_restore_and_rollback_proof",
+  "private_values_in_git": 0
+}
