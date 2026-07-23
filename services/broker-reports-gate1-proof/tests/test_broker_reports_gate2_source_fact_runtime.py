@@ -36,6 +36,7 @@ from broker_reports_gate1 import (
     Gate2PromptError,
     Gate2PromptUserContext,
     Gate2ProviderExecutionMetadata,
+    Gate2SourceFactRuntimeError,
     Gate2SourceFactRuntimeConfig,
     Gate2SourceFactRuntimeFactory,
     Gate2StructuredModelResult,
@@ -359,6 +360,104 @@ class NarrowDomainBoundaryModel(RuntimeBoundaryModel):
             len(item["linked_issue_refs"]) for item in candidate["facts"]
         )
         return Gate2StructuredModelResult(content=candidate)
+
+
+class DomainSemanticSelectionBoundaryModel(RuntimeBoundaryModel):
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    @staticmethod
+    def execution_contract(model_id: str) -> Gate2ProviderExecutionMetadata:
+        return DomainSemanticSelectionBoundaryModel._metadata(model_id)
+
+    async def extract(self, *, prompt, package, model_id, response_format):
+        schema = response_format["json_schema"]["schema"]
+        decision_schema = schema["properties"]["decisions"]["items"]
+        allowed_decisions = set(
+            decision_schema["properties"]["decision_type"]["enum"]
+        )
+        binding_variants = decision_schema["properties"]["value_bindings"][
+            "items"
+        ].get("anyOf", [])
+        amount_refs = {
+            source_value_ref
+            for item in binding_variants
+            if item["properties"]["field"].get("const") == "amount"
+            for source_value_ref in item["properties"]["source_value_ref"]["enum"]
+        }
+        rows = {
+            row["row_ref"]: row
+            for row in package["source_unit"]["model_source_projection"]["rows"]
+        }
+        decisions = []
+        selected_amount_refs = []
+        for source_ref in package["coverage_expectation"]["selected_source_refs"]:
+            row_refs = {
+                str(value_ref)
+                for cell in rows[source_ref]["cells"]
+                for value_ref in [
+                    *(cell.get("source_value_refs") or []),
+                    *(
+                        [cell.get("source_value_ref")]
+                        if cell.get("source_value_ref")
+                        else []
+                    ),
+                ]
+            }
+            amount_ref = next(iter(sorted(amount_refs & row_refs)), None)
+            if package["extractor_domain"] in allowed_decisions and amount_ref:
+                decisions.append(
+                    {
+                        "decision_type": package["extractor_domain"],
+                        "value_bindings": [
+                            {
+                                "field": "amount",
+                                "source_value_ref": amount_ref,
+                            }
+                        ],
+                    }
+                )
+                selected_amount_refs.append(amount_ref)
+            else:
+                decisions.append(
+                    {
+                        "decision_type": "unknown_source_row",
+                        "value_bindings": [],
+                    }
+                )
+        selection = {"decisions": decisions}
+        self.calls.append(
+            {
+                "selection": copy.deepcopy(selection),
+                "schema": copy.deepcopy(schema),
+                "selected_amount_refs": selected_amount_refs,
+                "provider_schema_hash": package["output_schema"][
+                    "provider_response_schema_hash"
+                ],
+            }
+        )
+        return Gate2StructuredModelResult(
+            content=selection,
+            execution_metadata=self._metadata(model_id),
+        )
+
+    @staticmethod
+    def _metadata(model_id: str) -> Gate2ProviderExecutionMetadata:
+        return Gate2ProviderExecutionMetadata(
+            provider_id="openai",
+            provider_profile_id="openai_gpt",
+            provider_profile_revision="test-domain-semantic-selection-revision",
+            adapter_id="openai_response_format",
+            adapter_version="1.0.0",
+            requested_model_id=model_id,
+            resolved_model_id=model_id,
+            structured_output_mode="openwebui_response_format_json_schema",
+            response_format_type="json_schema",
+            response_format_schema_mode="strict_json_schema",
+            canonical_request_schema_hash="test-canonical-request-schema-hash",
+            adapted_request_schema_hash="test-adapted-request-schema-hash",
+            finish_reason="stop",
+        )
 
 
 class ResolvedNarrowDomainBoundaryModel(NarrowDomainBoundaryModel):
@@ -1243,6 +1342,153 @@ class BrokerReportsGate2SourceFactRuntimeTest(unittest.TestCase):
         self.assertIn(unit["table_projection_id"], package["allowed_evidence_refs"])
         self.assertEqual(result.safe_summary["coverage"]["uncovered_total"], 0)
         self.assertEqual(result.safe_summary["coverage"]["conflict_total"], 0)
+
+    def test_domain_runtime_semantic_selection_materializes_neutral_table_values(
+        self,
+    ):
+        model = DomainSemanticSelectionBoundaryModel()
+        runtime = Gate2DomainSourceFactRuntimeFactory(
+            store=self.store,
+            prompt_resolver=StaticGate2DomainPromptResolver(
+                {"income": self._domain_prompt("income")}
+            ),
+            model_client=model,
+            config=Gate2DomainSourceFactRuntimeConfig(
+                model_id="synthetic-domain-semantic-selection-model",
+                wave="primary",
+                run_mode="synthetic",
+                document_batch_limit=1,
+                source_unit_limit=1,
+                segmentation_enabled=True,
+                source_segment_start=4,
+                source_segment_limit=1,
+                table_segment_max_refs=1,
+                domain_allowlist=("income",),
+                max_repair_attempts=0,
+                prefer_table_projections=True,
+                semantic_selection_enabled=True,
+                gate3_context_manifest_enabled=True,
+            ),
+        ).create()
+        result = asyncio.run(
+            runtime.run(
+                domain_context_packet_ref=self.dcp_ref,
+                context=self.context,
+                prompt_user_context=Gate2PromptUserContext(
+                    user_id=self.context.user_id,
+                    user_role="admin",
+                ),
+            )
+        )
+
+        resolver = ArtifactResolver(self.store)
+        validations = [
+            resolver.resolve(ref, self.context)["payload"]
+            for ref in result.validation_refs
+        ]
+        self.assertEqual(result.terminal_status, "completed", validations)
+        self.assertEqual(len(model.calls), 1)
+        self.assertEqual(len(result.source_fact_selection_validation_refs), 1)
+        self.assertFalse(result.source_value_candidate_set_refs)
+        self.assertFalse(result.candidate_binding_validation_refs)
+        call = model.calls[0]
+        self.assertTrue(call["selected_amount_refs"])
+        self.assertEqual(set(call["selection"]), {"decisions"})
+        self.assertEqual(
+            set(call["selection"]["decisions"][0]),
+            {"decision_type", "value_bindings"},
+        )
+        self.assertEqual(
+            set(call["schema"]["properties"]),
+            {"decisions"},
+        )
+        self.assertNotIn(
+            "schema_version",
+            call["schema"]["properties"],
+        )
+
+        package = resolver.resolve(
+            result.domain_package_refs[0], self.context
+        )
+        raw = resolver.resolve(result.raw_output_refs[0], self.context)["payload"]
+        selection_validation = resolver.resolve(
+            result.source_fact_selection_validation_refs[0],
+            self.context,
+        )
+        facts = resolver.resolve(
+            result.source_facts_refs[0], self.context
+        )["payload"]
+        fact = facts["facts"][0]
+        self.assertTrue(package["payload"]["semantic_selection_enabled"])
+        self.assertTrue(
+            package["record"].safe_metadata["semantic_selection_enabled"]
+        )
+        self.assertEqual(
+            raw["provider_response_schema_hash"],
+            call["provider_schema_hash"],
+        )
+        self.assertEqual(
+            selection_validation["record"].artifact_type,
+            "broker_reports_source_fact_selection_validation_v3",
+        )
+        self.assertEqual(
+            selection_validation["payload"]["validator_status"],
+            "passed",
+        )
+        self.assertEqual(
+            selection_validation["payload"][
+                "model_system_metadata_fields_total"
+            ],
+            0,
+        )
+        self.assertEqual(fact["fact_type"], "income")
+        self.assertIsNotNone(fact["normalized_values"]["amount"])
+        self.assertEqual(
+            fact["original_value_refs"]["amount"],
+            call["selected_amount_refs"],
+        )
+        run_payload = resolver.resolve(
+            result.extraction_run_ref, self.context
+        )["payload"]
+        self.assertTrue(run_payload["semantic_selection_enabled"])
+        self.assertEqual(
+            run_payload["source_fact_selection_validation_refs"],
+            result.source_fact_selection_validation_refs,
+        )
+        self.assertEqual(
+            result.gate3_context_manifest_summary["gate3_input_status"],
+            "ready",
+        )
+        manifest = resolver.resolve(
+            result.gate3_context_manifest_ref,
+            self.context,
+        )["payload"]
+        self.assertEqual(
+            manifest["artifact_roots"][
+                "source_fact_selection_validation_refs"
+            ],
+            result.source_fact_selection_validation_refs,
+        )
+
+    def test_domain_runtime_rejects_conflicting_model_contract_modes(self):
+        with self.assertRaises(Gate2SourceFactRuntimeError) as conflict:
+            Gate2DomainSourceFactRuntimeFactory(
+                store=self.store,
+                prompt_resolver=StaticGate2DomainPromptResolver(
+                    {"income": self._domain_prompt("income")}
+                ),
+                model_client=DomainSemanticSelectionBoundaryModel(),
+                config=Gate2DomainSourceFactRuntimeConfig(
+                    model_id="synthetic-conflicting-model",
+                    semantic_selection_enabled=True,
+                    candidate_binding_enabled=True,
+                ),
+            ).create()
+
+        self.assertEqual(
+            conflict.exception.code,
+            "gate2_model_contract_mode_conflict",
+        )
 
     def test_domain_runtime_candidate_binding_opt_in_reaches_strict_validation_and_stitch(
         self,

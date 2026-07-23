@@ -543,15 +543,20 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             },
         )
 
-    def test_domain_v0_preserves_legacy_and_candidate_binding_semantics(self):
-        for candidate_binding, expected_task in (
-            (False, "extract_broker_reports_domain_source_facts_v0"),
-            (True, "select_broker_reports_candidate_bindings_v0"),
+    def test_domain_v0_routes_each_explicit_model_facing_contract(self):
+        for semantic_selection, candidate_binding, expected_task in (
+            (False, False, "extract_broker_reports_domain_source_facts_v0"),
+            (False, True, "select_broker_reports_candidate_bindings_v0"),
+            (True, False, "select_broker_reports_source_facts_v3"),
         ):
-            with self.subTest(candidate_binding=candidate_binding):
+            with self.subTest(
+                semantic_selection=semantic_selection,
+                candidate_binding=candidate_binding,
+            ):
                 package = self._package(
                     DOMAIN_REQUEST_PROFILE,
                     candidate_binding=candidate_binding,
+                    semantic_selection=semantic_selection,
                 )
                 prompt = self._prompt(DOMAIN_REQUEST_PROFILE)
                 boundary = CompletionBoundary({"response": {"accepted": True}})
@@ -570,7 +575,16 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                 self.assertEqual(user_request["extractor_domain"], "income")
                 self.assertEqual(user_request["package_ref"], "pkg_domain")
                 self.assertEqual(user_request["allowed_fact_types"], ["income"])
-                if candidate_binding:
+                if semantic_selection:
+                    self.assertIn(
+                        "source_fact_selection_v3",
+                        user_request["instruction"],
+                    )
+                    self.assertIn(
+                        "ordered decisions",
+                        user_request["instruction"],
+                    )
+                elif candidate_binding:
                     self.assertIn("candidate ids", user_request["instruction"])
                     self.assertIn("relation ids", user_request["instruction"])
                 else:
@@ -579,6 +593,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                     form_data["metadata"]["broker_reports_gate2"],
                     {
                         "domain_source_fact_extraction": True,
+                        "semantic_selection_enabled": semantic_selection,
                         "candidate_binding_enabled": candidate_binding,
                         "extractor_domain": "income",
                         "structured_output_mode": "openwebui_response_format_json_schema",
@@ -1569,6 +1584,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         request_profile: str,
         *,
         candidate_binding: bool = False,
+        semantic_selection: bool = False,
     ) -> dict[str, Any]:
         if request_profile == SOURCE_REQUEST_PROFILE:
             return {
@@ -1584,6 +1600,8 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         }
         if candidate_binding:
             package["candidate_binding_mode"] = "candidate_ids_and_semantic_roles_v0"
+        if semantic_selection:
+            package["semantic_selection_enabled"] = True
         return package
 
     @staticmethod

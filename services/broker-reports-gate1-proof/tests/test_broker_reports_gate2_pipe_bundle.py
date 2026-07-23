@@ -176,6 +176,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_domain_packages",
             "gate2_source_unit_segmentation",
             "gate2_domain_contracts",
+            "gate2_source_fact_selection",
             "gate2_source_fact_stitching",
             "gate2_domain_runtime",
         ):
@@ -201,6 +202,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertFalse(
             pipe.valves.allow_standalone_semantic_visual_projections
         )
+        self.assertTrue(pipe.valves.semantic_selection_enabled)
         self.assertFalse(pipe.valves.candidate_binding_enabled)
         self.assertTrue(pipe.valves.answer_context_selection_enabled)
         self.assertTrue(

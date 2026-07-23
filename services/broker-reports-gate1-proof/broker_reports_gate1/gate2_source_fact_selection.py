@@ -499,9 +499,25 @@ def _reproducible_value_refs_by_field(
     for row in _dict_list(projection.get("rows")):
         for cell in _dict_list(row.get("cells")):
             field = _FIELD_BY_HEADER_LABEL.get(str(cell.get("header_label") or ""))
-            source_value_ref = str(cell.get("source_value_ref") or "")
-            if field and source_value_ref in allowed_refs:
-                candidates[field].add(source_value_ref)
+            cell_value_refs = {
+                *_strings(cell.get("source_value_refs")),
+                *(
+                    {str(cell["source_value_ref"])}
+                    if cell.get("source_value_ref")
+                    else set()
+                ),
+            }
+            admissible_refs = cell_value_refs & allowed_refs
+            if field:
+                candidates[field].update(admissible_refs)
+            elif unit.get("source_input_mode") == "normalized_table_projection":
+                # Neutral visual-table projections deliberately do not guess
+                # financial meaning from layout-only headers.  Expose each
+                # cell ref under every mechanically reproducible field and let
+                # the model choose the semantic role; the reproduction pass
+                # below removes all impossible field/ref combinations.
+                for candidate_field in candidates:
+                    candidates[candidate_field].update(admissible_refs)
 
     for segment in _dict_list(projection.get("segments")):
         source_value_ref = str(segment.get("source_value_ref") or "")
@@ -546,11 +562,18 @@ def _source_value_ref_matches_source(
     unit = _object(package.get("source_unit"))
     projection = _object(unit.get("model_source_projection"))
     row_value_refs = {
-        str(cell.get("source_value_ref"))
+        str(value_ref)
         for row in _dict_list(projection.get("rows"))
         if str(row.get("row_ref") or "") == source_ref
         for cell in _dict_list(row.get("cells"))
-        if cell.get("source_value_ref")
+        for value_ref in [
+            *_strings(cell.get("source_value_refs")),
+            *(
+                [cell.get("source_value_ref")]
+                if cell.get("source_value_ref")
+                else []
+            ),
+        ]
     }
     segment_value_refs = {
         str(segment.get("source_value_ref"))
