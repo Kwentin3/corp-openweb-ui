@@ -26,6 +26,10 @@ from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     build_manifest,
     provider_policy_manifest,
 )
+from broker_reports_release_source import (  # noqa: E402
+    LOADER_REPOSITORY_PATH,
+    git_blob_bytes,
+)
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
@@ -341,6 +345,11 @@ def main() -> int:
         source_revision=args.source_revision,
         prompt_contracts=expected_prompt_contracts(),
         provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+        loader_bytes=git_blob_bytes(
+            root=ROOT,
+            source_revision=args.source_revision,
+            repository_path=LOADER_REPOSITORY_PATH,
+        ),
     )
     session = requests.Session()
     session.headers.update({"Accept": "application/json"})

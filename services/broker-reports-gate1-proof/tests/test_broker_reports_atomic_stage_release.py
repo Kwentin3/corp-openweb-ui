@@ -27,6 +27,10 @@ from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     validate_manifest,
     valves_match,
 )
+from broker_reports_release_source import (  # noqa: E402
+    LOADER_REPOSITORY_PATH,
+    git_blob_bytes,
+)
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
 from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
     evaluate_action_release,
@@ -46,10 +50,118 @@ def _manifest():
         source_revision=REVISION,
         prompt_contracts=expected_prompt_contracts(),
         provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+        loader_bytes=(
+            ROOT / "deploy" / "openwebui-static" / "loader.js"
+        ).read_bytes(),
     )
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_driver_materializes_loader_from_exact_approved_git_blob(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        expected = git_blob_bytes(
+            root=ROOT,
+            source_revision=revision,
+            repository_path=LOADER_REPOSITORY_PATH,
+        )
+        captured = {}
+
+        def capture_payload(**kwargs):
+            captured["loader"] = kwargs["loader_payload_path"].read_bytes()
+            captured["manifest"] = json.loads(
+                kwargs["manifest_path"].read_text(encoding="utf-8")
+            )
+
+        with (
+            mock.patch.object(
+                driver,
+                "_assert_release_tree",
+                return_value={"worktree_clean": True},
+            ),
+            mock.patch.object(
+                driver,
+                "_prepare_remote_staging",
+                return_value="/validated/staging",
+            ),
+            mock.patch.object(driver, "_copy_payload", side_effect=capture_payload),
+            mock.patch.object(
+                driver,
+                "_run_remote_release",
+                return_value={"status": "validated"},
+            ),
+        ):
+            receipt = driver.execute(
+                source_revision=revision,
+                ssh_target="validated-target",
+                apply=False,
+                prove_rollback=False,
+            )
+
+        self.assertEqual(expected, captured["loader"])
+        self.assertEqual(
+            remote._sha256_bytes(expected),
+            captured["manifest"]["loader"]["content_sha256"],
+        )
+        self.assertEqual(
+            remote._sha256_bytes(expected),
+            receipt["manifest"]["loader_sha256"],
+        )
+
+    def test_git_blob_loader_identity_ignores_checkout_line_endings(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        git_bytes = git_blob_bytes(
+            root=ROOT,
+            source_revision=revision,
+            repository_path=LOADER_REPOSITORY_PATH,
+        )
+        converted = (
+            git_bytes.replace(b"\r\n", b"\n")
+            if b"\r\n" in git_bytes
+            else git_bytes.replace(b"\n", b"\r\n")
+        )
+        self.assertNotEqual(git_bytes, converted)
+
+        manifest = build_manifest(
+            source_revision=revision,
+            prompt_contracts=expected_prompt_contracts(),
+            provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+            loader_bytes=git_bytes,
+        )
+
+        self.assertEqual(
+            remote._sha256_bytes(git_bytes),
+            manifest["loader"]["content_sha256"],
+        )
+        self.assertNotEqual(
+            remote._sha256_bytes(converted),
+            manifest["loader"]["content_sha256"],
+        )
+
+    def test_git_blob_loader_source_fails_closed_for_invalid_revision(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "source_revision_invalid",
+        ):
+            git_blob_bytes(
+                root=ROOT,
+                source_revision="HEAD",
+                repository_path=LOADER_REPOSITORY_PATH,
+            )
+
     def test_manifest_covers_exact_release_object_contract(self):
         manifest = _manifest()
 
