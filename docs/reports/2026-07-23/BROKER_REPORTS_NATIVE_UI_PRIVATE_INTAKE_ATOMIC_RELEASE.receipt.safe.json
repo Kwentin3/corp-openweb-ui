@@ -1,0 +1,69 @@
+{
+  "schema_version": "broker_reports_native_ui_private_intake_atomic_release_safe_v1",
+  "date": "2026-07-23",
+  "branch": "codex/broker-reports-native-ui-private-intake-release-v3",
+  "status": "passed",
+  "source_revision": "7176aaf0b3c22f96b9331a73d2b6a87ed2793b08",
+  "release_id": "broker-reports-7176aaf0b3c2",
+  "manifest_sha256": "9927b131499694018c30929e93da02cfec0c55c459bbfe53545ce63d3fa4b701",
+  "rollback_identity_sha256": "2b09fccd771dacd9e01fc090ea6e63fc456ffbb3828c6edb993c9e5aa8f43e36",
+  "dry_validation": {
+    "status": "validated",
+    "function_changes_required": 0,
+    "prompt_changes_required": 0,
+    "loader_changes_required": 1,
+    "workload_nonterminal_jobs": 0,
+    "owned_temporary_entries": 0,
+    "staging_removed": true
+  },
+  "apply": {
+    "status": "passed",
+    "health_checks_passed": 3,
+    "rollback_artifact_created": true,
+    "previous_state_restored": true,
+    "loader_previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_candidate_state_restored": true,
+    "staging_removed": true
+  },
+  "independent_readback": {
+    "status": "passed",
+    "all_function_bundles_exact": true,
+    "private_intake_action_exact": true,
+    "all_managed_prompts_exact": true,
+    "all_runtime_identities_exact": true,
+    "loader_hash_exact": true,
+    "rollback_identity_exact": true,
+    "rollback_loader_hash_exact": true,
+    "release_staging_clean": true,
+    "workload_quiescent": true,
+    "workload_temp_clean": true,
+    "repository_factory_boundary_passed": true,
+    "knowledge_rag_vectorization_forbidden": true
+  },
+  "identities": {
+    "gate1_function_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "gate2_source_function_sha256": "a6df7853e7cf40676fd4483feeac0d8d136b2121967e6f0df39f8d85324df32a",
+    "gate2_domain_function_sha256": "1bb11d428cb9082edec388109839e7f2f3117447daefe9470129bc2413ed1499",
+    "private_intake_action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+    "loader_sha256": "5d9d7acef0c7206bc2e5f65624a14b794437d40d1e2a2ff81286cba800223d7f",
+    "image_id": "sha256:c862956b5a88f490de3a13829cb4176ce9a2e3fb3621ebf0198b059be65f8e83",
+    "image_source_revision": "8e6a71f13cf4f9cec0e5be191fac924548050e48"
+  },
+  "counters_before": {
+    "document_rows": 0,
+    "file_rows": 272,
+    "knowledge_rows": 0,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "counters_after": {
+    "document_rows": 0,
+    "file_rows": 272,
+    "knowledge_rows": 0,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "knowledge_rag_vector_delta": 0,
+  "private_values_in_git": 0
+}
