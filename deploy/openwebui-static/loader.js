@@ -5,7 +5,10 @@
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
 	const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';
 	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
-	const BROKER_GATE2_SOURCE_MODEL_ID = 'broker_reports_gate2_source_fact_pipe';
+	const BROKER_GATE2_MODEL_IDS = new Set([
+		'broker_reports_gate2_source_fact_pipe',
+		'broker_reports_gate2_domain_source_fact_pipe'
+	]);
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
 	const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';
 	const CHAT_COMPLETION_PATH = '/api/chat/completions';
@@ -340,7 +343,7 @@
 		} catch (_) {
 			return { input, init };
 		}
-		if (!payload || payload.model !== BROKER_GATE2_SOURCE_MODEL_ID) {
+		if (!payload || !BROKER_GATE2_MODEL_IDS.has(payload.model)) {
 			return { input, init };
 		}
 		const chatId = persistentChatIdFromLocation();

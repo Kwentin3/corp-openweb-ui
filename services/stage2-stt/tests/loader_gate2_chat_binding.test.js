@@ -108,6 +108,27 @@ test('Gate 2 completion is bound to the active persistent chat', async () => {
   assert.equal(body.model, 'broker_reports_gate2_source_fact_pipe');
 });
 
+test('Gate 2 domain completion is bound to the active persistent chat', async () => {
+  const activeChatId = '11111111-2222-4333-8444-555555555555';
+  const { calls, window } = loaderRuntime(`/c/${activeChatId}`);
+
+  await window.fetch('/api/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'broker_reports_gate2_domain_source_fact_pipe',
+      user_message: { content: 'safe test prompt' },
+    }),
+  });
+
+  const call = completionCall(calls);
+  assert.ok(call);
+  const body = JSON.parse(call.init.body);
+  assert.equal(body.chat_id, activeChatId);
+  assert.equal(body.metadata.chat_id, activeChatId);
+  assert.equal(body.model, 'broker_reports_gate2_domain_source_fact_pipe');
+});
+
 test('non-Gate 2 completion remains unchanged', async () => {
   const { calls, window } = loaderRuntime(
     '/c/11111111-2222-4333-8444-555555555555'
