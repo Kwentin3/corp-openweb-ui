@@ -5,8 +5,10 @@
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
 	const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';
 	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
+	const BROKER_GATE2_SOURCE_MODEL_ID = 'broker_reports_gate2_source_fact_pipe';
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
 	const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';
+	const CHAT_COMPLETION_PATH = '/api/chat/completions';
 	const CONFIG_URL = '/static/stage2-stt-normalization.json';
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
 	const RUNNING_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435...';
@@ -305,6 +307,74 @@
 		return requestMethod(input, init) === 'POST' && url.includes(FILE_UPLOAD_PATH);
 	}
 
+	function isChatCompletion(input, init) {
+		const rawUrl = requestUrl(input);
+		if (!rawUrl || requestMethod(input, init) !== 'POST') {
+			return false;
+		}
+		return new URL(rawUrl, window.location.origin).pathname === CHAT_COMPLETION_PATH;
+	}
+
+	function persistentChatIdFromLocation() {
+		const match = (window.location.pathname || '').match(/\/(?:c|chat)\/([^/?#]+)/);
+		if (!match) {
+			return null;
+		}
+		const chatId = decodeURIComponent(match[1]);
+		return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId)
+			? chatId
+			: null;
+	}
+
+	async function bindBrokerGate2RequestToActiveChat(input, init) {
+		if (!isChatCompletion(input, init)) {
+			return { input, init };
+		}
+		let payload;
+		try {
+			if (init && typeof init.body === 'string') {
+				payload = JSON.parse(init.body);
+			} else if (input instanceof Request) {
+				payload = await input.clone().json();
+			}
+		} catch (_) {
+			return { input, init };
+		}
+		if (!payload || payload.model !== BROKER_GATE2_SOURCE_MODEL_ID) {
+			return { input, init };
+		}
+		const chatId = persistentChatIdFromLocation();
+		if (!chatId) {
+			return { input, init };
+		}
+		const metadata =
+			payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
+				? payload.metadata
+				: {};
+		const boundPayload = {
+			...payload,
+			chat_id: chatId,
+			metadata: {
+				...metadata,
+				chat_id: chatId
+			}
+		};
+		const body = JSON.stringify(boundPayload);
+		if (input instanceof Request && !(init && typeof init.body === 'string')) {
+			return {
+				input: new Request(input, { body }),
+				init
+			};
+		}
+		return {
+			input,
+			init: {
+				...(init || {}),
+				body
+			}
+		};
+	}
+
 	function withProcessFalse(input) {
 		const rawUrl = requestUrl(input);
 		if (!rawUrl) {
@@ -487,8 +557,9 @@
 			let uploadFile = null;
 			let sttUploadFile = null;
 			let brokerGate1UploadFile = null;
-			let nextInput = input;
-			let nextInit = init;
+			const gate2Route = await bindBrokerGate2RequestToActiveChat(input, init);
+			let nextInput = gate2Route.input;
+			let nextInit = gate2Route.init;
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
 				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
@@ -1503,8 +1574,7 @@
 	}
 
 	function currentChatId() {
-		const match = (window.location.pathname || '').match(/\/(?:c|chat)\/([^/?#]+)/);
-		return match ? decodeURIComponent(match[1]) : `local:stage2-stt-${Date.now()}`;
+		return persistentChatIdFromLocation() || `local:stage2-stt-${Date.now()}`;
 	}
 
 	function currentSessionId() {

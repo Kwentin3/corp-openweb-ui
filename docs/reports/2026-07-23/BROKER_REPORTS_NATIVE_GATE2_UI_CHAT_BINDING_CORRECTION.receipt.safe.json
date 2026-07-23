@@ -1,0 +1,62 @@
+{
+  "schema_version": "broker_reports_native_gate2_ui_chat_binding_correction_receipt_v1",
+  "date": "2026-07-23",
+  "status": "passed_implementation",
+  "branch": "codex/broker-reports-native-gate2-ui-submit-correction-v1",
+  "owning_component": "openwebui_static_loader_native_gate2_chat_binding",
+  "loader_sha256": "399b20cd3a81ca365bca5a487b76f55d7bad6fc4421d44b6f0a87e385c0818d8",
+  "request_boundary": {
+    "method": "POST",
+    "path": "/api/chat/completions",
+    "model": "broker_reports_gate2_source_fact_pipe",
+    "persistent_chat_uuid_required": true,
+    "top_level_chat_id_bound": true,
+    "metadata_chat_id_bound": true,
+    "native_transport_preserved": true,
+    "parallel_gate2_client_created": false
+  },
+  "non_target_behavior": {
+    "gate1_changed": false,
+    "gate2_functions_changed": false,
+    "action_changed": false,
+    "prompts_changed": false,
+    "provider_changed": false,
+    "semantic_json_changed": false,
+    "new_chat_request_rewritten": false,
+    "other_model_request_rewritten": false
+  },
+  "live_no_pdf_control": {
+    "before_candidate": {
+      "gate2_model_selected": true,
+      "top_level_chat_id_present": false,
+      "metadata_chat_id_present": false,
+      "response_same_chat": false,
+      "route_same_chat": false
+    },
+    "candidate": {
+      "gate2_model_selected": true,
+      "top_level_chat_id_present": true,
+      "metadata_chat_id_present": true,
+      "response_same_chat": true,
+      "route_same_chat": true,
+      "browser_page_errors": 0
+    },
+    "pdf_processed": false,
+    "vlm_invoked": false,
+    "unnecessary_reprocessing": 0
+  },
+  "tests": {
+    "node_behavioral_passed": 4,
+    "stage2_passed": 109,
+    "atomic_privacy_focus_passed": 21,
+    "broker_reports_passed": 1147,
+    "broker_reports_skipped": 20,
+    "broker_reports_failed": 0,
+    "ruff_changed_contour": "passed",
+    "javascript_syntax": "passed",
+    "diff_check": "passed"
+  },
+  "production_release": "pending_separate_atomic_release",
+  "goal2_browser_acceptance": "not_closed_pending_release_and_fresh_clickthrough",
+  "private_values_in_receipt": false
+}
