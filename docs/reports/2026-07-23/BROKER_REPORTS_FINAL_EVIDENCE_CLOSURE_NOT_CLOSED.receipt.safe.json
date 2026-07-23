@@ -1,0 +1,91 @@
+{
+  "schema_version": "broker_reports_final_evidence_closure_receipt_v1",
+  "date": "2026-07-23",
+  "program_status": "not_closed",
+  "branch": "codex/broker-reports-final-evidence-closure-not-closed-v1",
+  "repository_closure_base": "7f489d9c3282817609d176b44d288d1040964208",
+  "main_origin_equal_at_closure_base": true,
+  "clean_worktree_at_closure_base": true,
+  "live_source_revision": "4f80f91c0427740f91acd3134c70d9271aab24bb",
+  "live_source_reachable_from_main": true,
+  "release": {
+    "release_id": "broker-reports-4f80f91c0427",
+    "manifest_sha256": "5f94335b9c61954df97b41d28b8f766a5eb4776c333d3d170f5910c778303615",
+    "rollback_identity_sha256": "e2e6e5a5de12f3955b8bc8f54bfd9897392cd6fb81b7f93d3cd1633865b880c9",
+    "independent_verifier": "passed",
+    "release_staging_entries": 0
+  },
+  "runtime_identities": {
+    "gate1_function_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "gate2_source_function_sha256": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+    "gate2_domain_function_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+    "action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+    "loader_sha256": "51e836b02e2c71aa61e2ff4faff0e43f762b70d3ecf41fdbbffb73bf5d3891f7",
+    "managed_prompts_total": 12,
+    "image_identity_exact": true,
+    "image_running": true,
+    "image_restart_count": 0
+  },
+  "verification": {
+    "final_full_suite_receipt_present": true,
+    "latest_runtime_correction_broker_reports_passed": 1147,
+    "latest_runtime_correction_broker_reports_skipped": 20,
+    "latest_runtime_correction_broker_reports_failed": 0,
+    "stage2_passed": 109,
+    "loader_behavioral_passed": 5,
+    "repository_privacy_guard_passed": 3
+  },
+  "evidence_archive": {
+    "status": "completed_with_explicit_gaps",
+    "late_summary_presented_as_primary": 0,
+    "private_values_in_git": false
+  },
+  "browser_transport": {
+    "source_gate2_same_chat_released": true,
+    "domain_gate2_same_chat_released": true,
+    "post_release_native_chrome_passed": true,
+    "local_loader_injection": false,
+    "browser_page_errors": 0
+  },
+  "blockers": [
+    {
+      "failed_invariant": "ANSWER_CONTEXT_REPORT_SCOPE_COMPLETE",
+      "primary_evidence": "native_domain_config_absent_and_live_defaults_select_one_document_one_unit_one_segment",
+      "owning_component": "gate2_domain_function_runtime_completeness_policy",
+      "blocker_type": "product_runtime_completeness",
+      "narrowest_corrective_slice": "complete_authorized_customer_scope_or_fail_closed_before_answer_context_publication"
+    },
+    {
+      "failed_invariant": "ANSWER_CONTEXT_ONLY_NATIVE_BROWSER_HANDOFF",
+      "primary_evidence": "protected_answer_context_resolver_has_zero_maintained_production_call_sites",
+      "owning_component": "maintained_gate2_domain_function_native_answer_boundary",
+      "blocker_type": "missing_product_integration",
+      "narrowest_corrective_slice": "authenticated_chat_scoped_answer_context_only_mode_under_existing_provider_and_workload_boundaries"
+    }
+  ],
+  "runtime_counters": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908,
+    "nonterminal_workload_jobs": 0,
+    "owned_temp_entries": 0
+  },
+  "goal_status": {
+    "goal0_final_integrated_regression": "completed",
+    "goal1_primary_evidence_archive": "completed_with_explicit_gaps",
+    "goal2_native_browser_clickthrough": "not_closed",
+    "goal3_conditional_corrections": "not_closed",
+    "goal4_final_evidence_closure": "not_closed"
+  },
+  "final_acceptance": {
+    "native_browser_clickthrough": "not_closed",
+    "fresh_semantic_checksum": "not_run",
+    "knowledge_rag_vector_delta": "zero",
+    "repository_live_parity": "exact",
+    "private_evidence_in_git": "zero",
+    "program_status": "not_closed"
+  },
+  "private_values_in_receipt": false
+}
