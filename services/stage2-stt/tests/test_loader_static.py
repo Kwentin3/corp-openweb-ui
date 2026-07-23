@@ -61,7 +61,7 @@ def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
     assert "scanMessageDocxButtons();" in queue_scan
 
 
-def test_loader_tracks_broker_gate1_documents_without_disabling_native_processing():
+def test_loader_routes_broker_documents_to_server_authoritative_private_intake():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function patchFetch")
     end = source.index("function queueScan", start)
@@ -70,7 +70,43 @@ def test_loader_tracks_broker_gate1_documents_without_disabling_native_processin
     assert "brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;" in patch_block
     assert "if (sttUploadFile) {" in patch_block
     assert "nextInput = withProcessFalse(input);" in patch_block
-    assert "rememberFile(normalizeBrokerGate1UploadedFile(uploaded, brokerGate1UploadFile));" in patch_block
+    assert "brokerPrivateIntakeRequest(input, init, brokerGate1UploadFile)" in patch_block
+    assert "nextInit = routed.init;" in patch_block
+    assert "state.originalFetch(nextInput, nextInit)" in patch_block
+    assert "normalizeBrokerPrivateIntakeResponse" in patch_block
+    assert "normalizeBrokerGate1UploadedFile(" in patch_block
+
+
+def test_loader_private_intake_request_has_server_route_and_idempotency():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function brokerIntakeIdempotencyKey")
+    end = source.index("function normalizeUploadedFile", start)
+    intake_block = source[start:end]
+
+    assert "const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';" in source
+    assert "state.brokerIntakeIdempotencyKeys.get(file)" in intake_block
+    assert "state.brokerIntakeIdempotencyKeys.set(file, key)" in intake_block
+    assert "headers.set('Idempotency-Key', brokerIntakeIdempotencyKey(file));" in intake_block
+    assert "input: BROKER_PRIVATE_INTAKE_PATH" in intake_block
+    assert "id: String(sourceId)" in intake_block
+    assert "source_id: String(sourceId)" in intake_block
+    assert "broker_reports_private_intake: true" in intake_block
+
+
+def test_loader_broker_action_uses_only_protected_private_intake_action():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+
+    assert (
+        "const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';"
+        in source
+    )
+    assert "broker_reports_gate1_normalizer_action" not in source
+    assert "Broker Reports private intake accepted. Ready to verify." in source
+    assert "Verifying Broker Reports private intake..." in source
+    assert (
+        "Broker Reports source verified. Send the message to start processing."
+        in source
+    )
 
 
 def test_loader_installs_broker_gate1_action_on_document_cards():
