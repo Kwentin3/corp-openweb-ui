@@ -3,15 +3,16 @@
 
 	const ACTION_ID = 'stage2_media_transcription_action';
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
-	const BROKER_GATE1_ACTION_ID = 'broker_reports_gate1_normalizer_action';
+	const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';
 	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
+	const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';
 	const CONFIG_URL = '/static/stage2-stt-normalization.json';
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
 	const RUNNING_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435...';
 	const DONE_LABEL = '\u0413\u043e\u0442\u043e\u0432\u043e';
-	const BROKER_GATE1_LABEL = 'Gate 1';
-	const BROKER_GATE1_RUNNING_LABEL = 'Gate 1...';
+	const BROKER_GATE1_LABEL = 'Broker Reports';
+	const BROKER_GATE1_RUNNING_LABEL = 'Broker Reports...';
 	const DOCX_LABEL = '\u0421\u043a\u0430\u0447\u0430\u0442\u044c DOCX';
 	const DOCX_RUNNING_LABEL = '...';
 	const DOCX_DONE_LABEL = '\u2713';
@@ -83,7 +84,7 @@
 		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.',
 		postprocessing_prompt_blocked: '\u0412 \u043f\u043e\u043b\u0435 \u0443\u0436\u0435 \u0435\u0441\u0442\u044c \u0434\u0440\u0443\u0433\u043e\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0438\u043b\u0438 \u043e\u0447\u0438\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043e \u043f\u0435\u0440\u0435\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043c.',
 		postprocessing_submit_unavailable: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0433\u043e\u0442\u043e\u0432, \u043d\u043e \u043a\u043d\u043e\u043f\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438 OpenWebUI \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430.',
-		broker_gate1_action_failed: 'Gate 1 normalization was not completed.',
+		broker_gate1_action_failed: 'Broker Reports private intake was not verified.',
 		message_docx_unsupported_role: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u043e\u0432 \u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442\u0430.',
 		message_docx_empty_message: '\u0412 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438 \u043d\u0435\u0442 \u0442\u0435\u043a\u0441\u0442\u0430 \u0434\u043b\u044f DOCX.',
 		message_docx_streaming_message: '\u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430.',
@@ -107,9 +108,9 @@
 		action_running: '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0440\u043e\u0441\u0430...',
 		action_completed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d \u0432 LLM.',
 		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.',
-		broker_gate1_ready: 'Gate 1 ready for attached documents.',
-		broker_gate1_running: 'Building Gate 1 report...',
-		broker_gate1_completed: 'Gate 1 report added to the message.'
+		broker_gate1_ready: 'Broker Reports private intake accepted. Ready to verify.',
+		broker_gate1_running: 'Verifying Broker Reports private intake...',
+		broker_gate1_completed: 'Broker Reports source verified. Send the message to start processing.'
 	});
 	const state = {
 		filesById: new Map(),
@@ -125,7 +126,8 @@
 		ffmpegLogBuffer: [],
 		progressStatus: null,
 		originalFetch: null,
-		scriptPromises: new Map()
+		scriptPromises: new Map(),
+		brokerIntakeIdempotencyKeys: new WeakMap()
 	};
 
 	function extensionOf(filename) {
@@ -320,6 +322,75 @@
 		return nextUrl;
 	}
 
+	function brokerIntakeIdempotencyKey(file) {
+		const existing = state.brokerIntakeIdempotencyKeys.get(file);
+		if (existing) {
+			return existing;
+		}
+		const suffix = window.crypto && typeof window.crypto.randomUUID === 'function'
+			? window.crypto.randomUUID()
+			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+		const key = `broker-ui-${suffix}`;
+		state.brokerIntakeIdempotencyKeys.set(file, key);
+		return key;
+	}
+
+	function brokerPrivateIntakeRequest(input, init, file) {
+		const body = requestBody(input, init);
+		if (!(body instanceof FormData) || !file) {
+			throw stageError(
+				'broker_gate1_action_failed',
+				'Broker Reports private intake requires the native attachment form.'
+			);
+		}
+		const headers = new Headers(
+			(init && init.headers) || (input instanceof Request ? input.headers : undefined)
+		);
+		headers.set('Idempotency-Key', brokerIntakeIdempotencyKey(file));
+		return {
+			input: BROKER_PRIVATE_INTAKE_PATH,
+			init: {
+				...(init || {}),
+				method: 'POST',
+				headers,
+				body
+			}
+		};
+	}
+
+	function normalizeBrokerPrivateIntakeResponse(uploaded, fallbackFile) {
+		const sourceId = uploaded && (uploaded.source_id || uploaded.id);
+		if (!sourceId || !fallbackFile) {
+			throw stageError(
+				'broker_gate1_action_failed',
+				'Broker Reports private intake response is invalid.'
+			);
+		}
+		return {
+			...uploaded,
+			id: String(sourceId),
+			source_id: String(sourceId),
+			filename: String(fallbackFile.name),
+			meta: {
+				content_type: String(fallbackFile.type || 'application/octet-stream'),
+				size: Number(uploaded.size_bytes || fallbackFile.size || 0),
+				broker_reports_private_intake: true
+			},
+			data: {}
+		};
+	}
+
+	function jsonResponseLike(response, payload) {
+		const headers = new Headers(response.headers);
+		headers.set('Content-Type', 'application/json');
+		headers.delete('Content-Length');
+		return new Response(JSON.stringify(payload), {
+			status: response.status,
+			statusText: response.statusText,
+			headers
+		});
+	}
+
 	function normalizeUploadedFile(uploaded, fallbackFile, options) {
 		if (!uploaded || !uploaded.id) {
 			return null;
@@ -344,7 +415,8 @@
 	}
 
 	function normalizeBrokerGate1UploadedFile(uploaded, fallbackFile) {
-		if (!uploaded || !uploaded.id) {
+		const sourceId = uploaded && (uploaded.source_id || uploaded.id);
+		if (!uploaded || !sourceId) {
 			return null;
 		}
 		const meta = uploaded.meta || {};
@@ -354,7 +426,7 @@
 			return null;
 		}
 		return {
-			id: String(uploaded.id),
+			id: String(sourceId),
 			filename: String(filename),
 			name: String(filename),
 			mime_type: String(mimeType || 'application/octet-stream'),
@@ -416,29 +488,39 @@
 			let sttUploadFile = null;
 			let brokerGate1UploadFile = null;
 			let nextInput = input;
+			let nextInit = init;
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
 				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
 				brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;
 				if (sttUploadFile) {
 					nextInput = withProcessFalse(input);
+				} else if (brokerGate1UploadFile) {
+					const routed = brokerPrivateIntakeRequest(input, init, brokerGate1UploadFile);
+					nextInput = routed.input;
+					nextInit = routed.init;
 				}
 			}
 
-			const response = await state.originalFetch(nextInput, init);
+			const response = await state.originalFetch(nextInput, nextInit);
 			if ((sttUploadFile || brokerGate1UploadFile) && response.ok) {
-				response
-					.clone()
-					.json()
-					.then((uploaded) => {
-						if (sttUploadFile) {
-							rememberFile(normalizeUploadedFile(uploaded, sttUploadFile));
-						}
-						if (brokerGate1UploadFile) {
-							rememberFile(normalizeBrokerGate1UploadedFile(uploaded, brokerGate1UploadFile));
-						}
-					})
-					.catch(() => {});
+				if (brokerGate1UploadFile) {
+					const uploaded = await response.clone().json();
+					const normalizedResponse = normalizeBrokerPrivateIntakeResponse(
+						uploaded,
+						brokerGate1UploadFile
+					);
+					rememberFile(
+						normalizeBrokerGate1UploadedFile(
+							normalizedResponse,
+							brokerGate1UploadFile
+						)
+					);
+					return jsonResponseLike(response, normalizedResponse);
+				}
+				response.clone().json().then((uploaded) => {
+					rememberFile(normalizeUploadedFile(uploaded, sttUploadFile));
+				}).catch(() => {});
 			}
 			return response;
 		};
@@ -628,7 +710,7 @@
 			const button = document.createElement('button');
 			button.type = 'button';
 			button.dataset.brokerGate1Action = '1';
-			button.title = 'Broker Reports Gate 1';
+			button.title = 'Broker Reports private intake';
 			button.textContent = BROKER_GATE1_LABEL;
 			button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
 			button.style.borderRadius = '0.5rem';
@@ -710,7 +792,7 @@
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.dataset.brokerGate1Action = '1';
-		button.title = 'Broker Reports Gate 1';
+		button.title = 'Broker Reports private intake';
 		button.textContent = BROKER_GATE1_LABEL;
 		button.style.alignSelf = 'flex-start';
 		button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
