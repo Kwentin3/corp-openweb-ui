@@ -42,6 +42,11 @@ from broker_reports_gate1 import (
     provider_budgets_from_json,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
+from broker_reports_gate1.gate2_chat_dcp_resolution import (
+    Gate2ChatDcpResolutionError,
+    Gate2ChatDcpResolverConfig,
+    Gate2ChatDcpResolverFactory,
+)
 
 
 _GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
@@ -108,8 +113,21 @@ class Pipe:
     ) -> str:
         metadata = __metadata__ if isinstance(__metadata__, dict) else {}
         config = self._runtime_config(body, metadata)
-        dcp_ref = str(config.get("domain_context_packet_ref") or "").strip()
         user_id = self._user_id(__user__)
+        artifact_store_path = Path(
+            str(config.get("artifact_store_path") or self.valves.artifact_store_path)
+        )
+        dcp_ref = self._resolve_dcp_ref(
+            resolver=Gate2ChatDcpResolverFactory(
+                Gate2ChatDcpResolverConfig(
+                    artifact_store_path=artifact_store_path
+                )
+            ).create(),
+            body=body,
+            metadata=metadata,
+            config=config,
+            user_id=user_id,
+        )
         if not dcp_ref or not user_id:
             await self._emit(
                 __event_emitter__,
@@ -121,9 +139,7 @@ class Pipe:
         store = ArtifactStoreFactory(
             ArtifactStoreConfig(
                 mode="sqlite",
-                sqlite_path=Path(
-                    str(config.get("artifact_store_path") or self.valves.artifact_store_path)
-                ),
+                sqlite_path=artifact_store_path,
                 payload_root=Path(
                     str(config.get("artifact_payload_root") or self.valves.artifact_payload_root)
                 ),
@@ -468,6 +484,37 @@ class Pipe:
             if isinstance(source, dict):
                 result.update(source)
         return result
+
+    @staticmethod
+    def _resolve_dcp_ref(
+        *,
+        resolver,
+        body: dict[str, Any],
+        metadata: dict[str, Any],
+        config: dict[str, Any],
+        user_id: str,
+    ) -> str:
+        explicit = str(config.get("domain_context_packet_ref") or "").strip()
+        if explicit:
+            return explicit
+        body_metadata = (
+            body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+        )
+        chat_id = str(
+            metadata.get("chat_id")
+            or body.get("chat_id")
+            or body_metadata.get("chat_id")
+            or ""
+        ).strip()
+        if not user_id or not chat_id:
+            return ""
+        try:
+            return resolver.resolve(
+                user_id=user_id,
+                chat_id=chat_id,
+            )
+        except Gate2ChatDcpResolutionError:
+            return ""
 
     def _user_id(self, user: Any) -> str:
         if isinstance(user, dict):
