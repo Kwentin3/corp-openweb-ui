@@ -23,6 +23,7 @@ sys.path.insert(0, str(SERVICE_ROOT))
 
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
+    LOADER_PATH,
     build_manifest,
     provider_policy_manifest,
     release_id,
@@ -166,6 +167,7 @@ def _copy_payload(
     paths = [
         manifest_path,
         REMOTE_SCRIPT,
+        LOADER_PATH,
         *(contract.bundle_path for contract in FUNCTION_CONTRACTS),
     ]
     for path in paths:

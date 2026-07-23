@@ -4,8 +4,9 @@
 The local release driver copies this file and a validated release payload to a
 restricted stage directory.  This program must run on the stage host as root.
 It updates all maintained Function and managed Prompt rows in one SQLite
-transaction while the OpenWebUI container is stopped. Any failure restores the
-exact previous rows.
+transaction while the OpenWebUI container is stopped. The static loader is
+replaced in the same stopped-runtime boundary. Any failure restores the exact
+previous rows and loader bytes.
 """
 
 from __future__ import annotations
@@ -113,7 +114,7 @@ def _validated_staging_dir(value: str) -> Path:
 
 
 def _validate_manifest(manifest: Mapping[str, Any]) -> None:
-    if manifest.get("schema_version") != "broker_reports_atomic_stage_release_v2":
+    if manifest.get("schema_version") != "broker_reports_atomic_stage_release_v3":
         raise StageReleaseError("stage_release_manifest_schema_invalid")
     release_id = str(manifest.get("release_id") or "")
     if not STAGING_NAME_RE.fullmatch(release_id):
@@ -143,6 +144,18 @@ def _validate_payload(staging_dir: Path, manifest: Mapping[str, Any]) -> None:
         markers = item.get("required_markers") or []
         if not all(str(marker) in content for marker in markers):
             raise StageReleaseError("stage_release_bundle_markers_missing")
+    loader = manifest.get("loader")
+    if not isinstance(loader, dict):
+        raise StageReleaseError("stage_release_loader_contract_invalid")
+    loader_name = str(loader.get("file_name") or "")
+    loader_sha256 = str(loader.get("content_sha256") or "")
+    if loader_name != "loader.js" or not SHA256_RE.fullmatch(loader_sha256):
+        raise StageReleaseError("stage_release_loader_contract_invalid")
+    loader_payload = staging_dir / loader_name
+    if not loader_payload.is_file():
+        raise StageReleaseError("stage_release_loader_payload_missing")
+    if _sha256_bytes(loader_payload.read_bytes()) != loader_sha256:
+        raise StageReleaseError("stage_release_loader_payload_digest_mismatch")
     prompts = manifest.get("managed_prompts") or []
     if not prompts or any(not isinstance(item, dict) for item in prompts):
         raise StageReleaseError("stage_release_prompt_contract_invalid")
@@ -429,7 +442,12 @@ def _live_state(
     }
 
 
-def _assert_static_contracts(state: Mapping[str, Any], manifest: Mapping[str, Any]) -> None:
+def _assert_static_contracts(
+    state: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    *,
+    require_candidate_loader: bool,
+) -> None:
     expected_image = manifest["image"]
     image = state["image"]
     for key in (
@@ -452,7 +470,15 @@ def _assert_static_contracts(state: Mapping[str, Any], manifest: Mapping[str, An
         or action.get("global") is not False
     ):
         raise StageReleaseError("stage_release_action_contract_mismatch")
-    if state.get("loader") != manifest.get("loader"):
+    loader = state.get("loader")
+    if (
+        not isinstance(loader, dict)
+        or not SHA256_RE.fullmatch(str(loader.get("content_sha256") or ""))
+    ):
+        raise StageReleaseError("stage_release_loader_state_invalid")
+    if require_candidate_loader and loader.get("content_sha256") != (
+        manifest.get("loader") or {}
+    ).get("content_sha256"):
         raise StageReleaseError("stage_release_loader_contract_mismatch")
     if state.get("fitz_version") != manifest["runtime"]["fitz_version"]:
         raise StageReleaseError("stage_release_runtime_dependency_mismatch")
@@ -562,23 +588,70 @@ def _snapshot_prompt_rows(
     }
 
 
+def _write_bytes_atomically(*, path: Path, content: bytes, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temp_name, mode)
+        os.replace(temp_name, path)
+        try:
+            directory_fd = os.open(path.parent, os.O_RDONLY)
+        except OSError:
+            directory_fd = None
+        if directory_fd is not None:
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+
+
+def _replace_loader(*, content: bytes, expected_sha256: str) -> None:
+    if not LOADER_PATH.is_file() or LOADER_PATH.is_symlink():
+        raise StageReleaseError("stage_release_loader_target_invalid")
+    current = LOADER_PATH.read_bytes()
+    if _sha256_bytes(current) != expected_sha256:
+        raise StageReleaseError("stage_release_loader_changed_during_release")
+    if current == content:
+        return
+    mode = LOADER_PATH.stat().st_mode & 0o777
+    _write_bytes_atomically(path=LOADER_PATH, content=content, mode=mode)
+    if _sha256_bytes(LOADER_PATH.read_bytes()) != _sha256_bytes(content):
+        raise StageReleaseError("stage_release_loader_replace_mismatch")
+
+
 def _rollback_artifact(
     *,
     manifest: Mapping[str, Any],
     function_rows: Mapping[str, Mapping[str, Any]],
     prompt_rows: Mapping[str, Mapping[str, Any]],
     before_state: Mapping[str, Any],
-) -> tuple[dict[str, Any], str, bool]:
+    loader_bytes: bytes,
+) -> tuple[dict[str, Any], str, bool, bytes]:
     release_id = str(manifest["release_id"])
     rollback_dir = ROLLBACK_ROOT / release_id
     rollback_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(rollback_dir, 0o700)
     path = rollback_dir / "function_rows.rollback.json"
+    loader_path = rollback_dir / "loader.rollback.js"
+    loader_sha256 = _sha256_bytes(loader_bytes)
+    if loader_sha256 != before_state["loader"]["content_sha256"]:
+        raise StageReleaseError("stage_release_loader_changed_before_snapshot")
     value = {
-        "schema_version": "broker_reports_atomic_stage_rollback_v2",
+        "schema_version": "broker_reports_atomic_stage_rollback_v3",
         "release_id": release_id,
         "source_revision": manifest["source_revision"],
         "manifest_sha256": manifest["manifest_sha256"],
+        "previous_loader": {
+            "file_name": loader_path.name,
+            "content_sha256": loader_sha256,
+        },
         "previous_function_rows": _snapshot_function_rows(function_rows),
         "previous_prompt_rows": _snapshot_prompt_rows(prompt_rows),
         "previous_object_identities": {
@@ -598,11 +671,26 @@ def _rollback_artifact(
             existing_value.get("release_id") != release_id
             or existing_value.get("source_revision") != manifest["source_revision"]
             or existing_value.get("manifest_sha256") != manifest["manifest_sha256"]
+            or existing_value.get("schema_version")
+            != "broker_reports_atomic_stage_rollback_v3"
         ):
             raise StageReleaseError("stage_release_rollback_identity_conflict")
         value = existing_value
         encoded = existing
     else:
+        if loader_path.exists():
+            if (
+                not loader_path.is_file()
+                or loader_path.is_symlink()
+                or _sha256_bytes(loader_path.read_bytes()) != loader_sha256
+            ):
+                raise StageReleaseError("stage_release_rollback_loader_conflict")
+        else:
+            _write_bytes_atomically(
+                path=loader_path,
+                content=loader_bytes,
+                mode=0o600,
+            )
         fd, temp_name = tempfile.mkstemp(
             prefix=".function_rows.", suffix=".tmp", dir=rollback_dir
         )
@@ -617,8 +705,18 @@ def _rollback_artifact(
         finally:
             if os.path.exists(temp_name):
                 os.unlink(temp_name)
+    previous_loader = value.get("previous_loader") or {}
+    if (
+        previous_loader.get("file_name") != loader_path.name
+        or not loader_path.is_file()
+        or loader_path.is_symlink()
+        or _sha256_bytes(loader_path.read_bytes())
+        != previous_loader.get("content_sha256")
+    ):
+        raise StageReleaseError("stage_release_rollback_loader_invalid")
     os.chmod(path, 0o600)
-    return value, _sha256_bytes(encoded), created
+    os.chmod(loader_path, 0o600)
+    return value, _sha256_bytes(encoded), created, loader_path.read_bytes()
 
 
 def _desired_rows(
@@ -921,8 +1019,17 @@ def _restore_after_failure(
     db_path: Path,
     rollback_function_rows: Mapping[str, Mapping[str, Any]],
     rollback_prompt_rows: Mapping[str, Mapping[str, Any]],
+    rollback_loader_bytes: bytes,
+    previous_loader_sha256: str,
+    candidate_loader_sha256: str,
 ) -> None:
     _stop_container()
+    current_loader_sha256 = _loader_state()["content_sha256"]
+    if current_loader_sha256 not in {
+        previous_loader_sha256,
+        candidate_loader_sha256,
+    }:
+        raise StageReleaseError("stage_release_loader_changed_during_failure_restore")
     _replace_release_rows(
         db_path=db_path,
         replacement_function_rows=rollback_function_rows,
@@ -930,6 +1037,11 @@ def _restore_after_failure(
         expected_function_hashes=None,
         expected_prompt_hashes=None,
     )
+    if current_loader_sha256 != previous_loader_sha256:
+        _replace_loader(
+            content=rollback_loader_bytes,
+            expected_sha256=candidate_loader_sha256,
+        )
     _start_container()
     _wait_healthy()
 
@@ -944,8 +1056,15 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     prompt_ids = [str(item["prompt_id"]) for item in manifest["managed_prompts"]]
     current_function_rows = _function_rows(db_path, function_ids)
     current_prompt_rows = _prompt_rows(db_path, prompt_ids)
+    candidate_loader_path = staging_dir / str(manifest["loader"]["file_name"])
+    candidate_loader_bytes = candidate_loader_path.read_bytes()
+    candidate_loader_sha256 = str(manifest["loader"]["content_sha256"])
     before = _live_state(db_path=db_path, data_root=data_root, manifest=manifest)
-    _assert_static_contracts(before, manifest)
+    _assert_static_contracts(
+        before,
+        manifest,
+        require_candidate_loader=False,
+    )
     _assert_prompt_set_present(before, manifest)
     _assert_quiescent(before)
     if not all(
@@ -987,6 +1106,12 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         }
         for prompt_id in prompt_ids
     }
+    previous_loader_sha256 = str(before["loader"]["content_sha256"])
+    loader_plan = {
+        "before_sha256": previous_loader_sha256,
+        "candidate_sha256": candidate_loader_sha256,
+        "change_required": previous_loader_sha256 != candidate_loader_sha256,
+    }
     if not apply:
         return {
             "status": "validated",
@@ -997,6 +1122,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "manifest_sha256": manifest["manifest_sha256"],
             "plan": plan,
             "managed_prompt_plan": prompt_plan,
+            "loader_plan": loader_plan,
             "static_contracts": {
                 "image": before["image"],
                 "action": before["action"],
@@ -1009,25 +1135,41 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "staging_removed": True,
         }
 
-    rollback, rollback_identity, rollback_created = _rollback_artifact(
+    (
+        rollback,
+        rollback_identity,
+        rollback_created,
+        rollback_loader_bytes,
+    ) = _rollback_artifact(
         manifest=manifest,
         function_rows=current_function_rows,
         prompt_rows=current_prompt_rows,
         before_state=before,
+        loader_bytes=LOADER_PATH.read_bytes(),
     )
     rollback_rows = _json_object(rollback.get("previous_function_rows"))
     rollback_prompt_rows = _json_object(rollback.get("previous_prompt_rows"))
     if not rollback_prompt_rows:
         raise StageReleaseError("stage_release_prompt_rollback_missing")
+    rollback_loader_contract = _json_object(rollback.get("previous_loader"))
+    if rollback_loader_contract.get("content_sha256") != previous_loader_sha256:
+        raise StageReleaseError("stage_release_loader_rollback_mismatch")
     modified = False
     health_checks = 0
     rollback_proof = {
         "requested": bool(prove_rollback),
         "previous_state_restored": False,
         "candidate_state_restored": False,
+        "loader_previous_state_restored": False,
+        "loader_candidate_state_restored": False,
     }
     try:
         _stop_container()
+        _replace_loader(
+            content=candidate_loader_bytes,
+            expected_sha256=previous_loader_sha256,
+        )
+        modified = True
         _replace_release_rows(
             db_path=db_path,
             replacement_function_rows=desired_rows,
@@ -1035,16 +1177,23 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             expected_function_hashes=before_hashes,
             expected_prompt_hashes=before_prompt_hashes,
         )
-        modified = True
         _start_container()
         _wait_healthy()
         health_checks += 1
         candidate = _live_state(db_path=db_path, data_root=data_root, manifest=manifest)
-        _assert_static_contracts(candidate, manifest)
+        _assert_static_contracts(
+            candidate,
+            manifest,
+            require_candidate_loader=True,
+        )
         _assert_candidate(candidate, manifest)
         _assert_quiescent(candidate)
         if prove_rollback:
             _stop_container()
+            _replace_loader(
+                content=rollback_loader_bytes,
+                expected_sha256=candidate_loader_sha256,
+            )
             _replace_release_rows(
                 db_path=db_path,
                 replacement_function_rows=rollback_rows,
@@ -1066,12 +1215,25 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             restored = _live_state(
                 db_path=db_path, data_root=data_root, manifest=manifest
             )
-            _assert_static_contracts(restored, manifest)
+            _assert_static_contracts(
+                restored,
+                manifest,
+                require_candidate_loader=False,
+            )
+            if restored["loader"] != rollback["previous_object_identities"]["loader"]:
+                raise StageReleaseError(
+                    "stage_release_loader_rollback_rehearsal_mismatch"
+                )
             _assert_prompt_set_present(restored, manifest)
             _assert_quiescent(restored)
             rollback_proof["previous_state_restored"] = True
+            rollback_proof["loader_previous_state_restored"] = True
 
             _stop_container()
+            _replace_loader(
+                content=candidate_loader_bytes,
+                expected_sha256=previous_loader_sha256,
+            )
             _replace_release_rows(
                 db_path=db_path,
                 replacement_function_rows=desired_rows,
@@ -1085,10 +1247,15 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             candidate = _live_state(
                 db_path=db_path, data_root=data_root, manifest=manifest
             )
-            _assert_static_contracts(candidate, manifest)
+            _assert_static_contracts(
+                candidate,
+                manifest,
+                require_candidate_loader=True,
+            )
             _assert_candidate(candidate, manifest)
             _assert_quiescent(candidate)
             rollback_proof["candidate_state_restored"] = True
+            rollback_proof["loader_candidate_state_restored"] = True
         if candidate["counters"] != before["counters"]:
             raise StageReleaseError("stage_release_repository_sink_delta_detected")
     except BaseException:
@@ -1097,6 +1264,9 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 db_path=db_path,
                 rollback_function_rows=rollback_rows,
                 rollback_prompt_rows=rollback_prompt_rows,
+                rollback_loader_bytes=rollback_loader_bytes,
+                previous_loader_sha256=previous_loader_sha256,
+                candidate_loader_sha256=candidate_loader_sha256,
             )
         elif not _container_running():
             _start_container()
@@ -1116,6 +1286,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         "health_checks_passed": health_checks,
         "plan": plan,
         "managed_prompt_plan": prompt_plan,
+        "loader_plan": loader_plan,
         "functions": candidate["functions"],
         "action": candidate["action"],
         "image": candidate["image"],

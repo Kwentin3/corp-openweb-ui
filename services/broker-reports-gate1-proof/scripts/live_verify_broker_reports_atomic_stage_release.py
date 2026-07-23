@@ -163,6 +163,10 @@ def evaluate_remote_runtime(
             or runtime.get("rollback_identity_sha256")
             == rollback_identity_sha256
         ),
+        "rollback_loader_hash_exact": (
+            rollback_identity_sha256 is None
+            or runtime.get("rollback_loader_hash_exact") is True
+        ),
     }
     return checks
 
@@ -239,9 +243,22 @@ rollback = (
     ROOT / ".broker-reports-rollbacks" / RELEASE_ID
     / "function_rows.rollback.json"
 )
+rollback_loader = (
+    ROOT / ".broker-reports-rollbacks" / RELEASE_ID
+    / "loader.rollback.js"
+)
+rollback_value = (
+    json.loads(rollback.read_text(encoding="utf-8"))
+    if rollback.is_file() else {}
+)
 rollback_hash = (
     hashlib.sha256(rollback.read_bytes()).hexdigest()
     if rollback.is_file() else None
+)
+rollback_loader_hash_exact = bool(
+    rollback_loader.is_file()
+    and hashlib.sha256(rollback_loader.read_bytes()).hexdigest()
+    == (rollback_value.get("previous_loader") or {}).get("content_sha256")
 )
 staging = ROOT / ".broker-reports-release-staging"
 staging_entries = (
@@ -270,6 +287,7 @@ print(json.dumps({
     },
     "counters": counters,
     "rollback_identity_sha256": rollback_hash,
+    "rollback_loader_hash_exact": rollback_loader_hash_exact,
     "release_staging_entries": staging_entries,
 }, ensure_ascii=False, sort_keys=True))
 '''
