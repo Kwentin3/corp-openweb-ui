@@ -77,6 +77,29 @@ def test_loader_routes_broker_documents_to_server_authoritative_private_intake()
     assert "normalizeBrokerGate1UploadedFile(" in patch_block
 
 
+def test_loader_binds_only_gate2_completion_to_active_persistent_chat():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function bindBrokerGate2RequestToActiveChat")
+    end = source.index("function withProcessFalse", start)
+    binding_block = source[start:end]
+    patch_start = source.index("function patchFetch")
+    patch_end = source.index("function queueScan", patch_start)
+    patch_block = source[patch_start:patch_end]
+
+    assert (
+        "const BROKER_GATE2_SOURCE_MODEL_ID = "
+        "'broker_reports_gate2_source_fact_pipe';"
+    ) in source
+    assert "payload.model !== BROKER_GATE2_SOURCE_MODEL_ID" in binding_block
+    assert "const chatId = persistentChatIdFromLocation();" in binding_block
+    assert "chat_id: chatId" in binding_block
+    assert "metadata:" in binding_block
+    assert (
+        "await bindBrokerGate2RequestToActiveChat(input, init)" in patch_block
+    )
+    assert "state.originalFetch(nextInput, nextInit)" in patch_block
+
+
 def test_loader_private_intake_request_has_server_route_and_idempotency():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function brokerIntakeIdempotencyKey")
