@@ -1,0 +1,59 @@
+{
+  "schema_version": "broker_reports_gate2_chat_dcp_atomic_release_receipt_v1",
+  "status": "passed",
+  "source_revision": "f442a139a784f6918464bb15f709b684f4a6a8db",
+  "release_id": "broker-reports-f442a139a784",
+  "manifest_sha256": "3236e836c5d62fe4c0670dabb6c8b336d3ce6dc780c4e6c1a1cd4074ee2531b7",
+  "rollback_identity_sha256": "289cec9c627a64b6993aed280f7ef1acb9089f3b530b98ee815c322c502f2444",
+  "applied": true,
+  "rollback_artifact_created": true,
+  "rollback_proof": {
+    "previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_previous_state_restored": true,
+    "loader_candidate_state_restored": true
+  },
+  "changed_runtime_objects": 2,
+  "functions": {
+    "broker_reports_gate1_pipe": {
+      "before_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "released_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "changed": false
+    },
+    "broker_reports_gate2_source_fact_pipe": {
+      "before_sha256": "a6df7853e7cf40676fd4483feeac0d8d136b2121967e6f0df39f8d85324df32a",
+      "released_sha256": "45de78ac87f44a7f30d8dacc4d3d1bd3edbbafbc5002708776726d51edf2ce3e",
+      "changed": true
+    },
+    "broker_reports_gate2_domain_source_fact_pipe": {
+      "before_sha256": "1bb11d428cb9082edec388109839e7f2f3117447daefe9470129bc2413ed1499",
+      "released_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+      "changed": true
+    }
+  },
+  "private_intake_action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+  "loader_sha256": "5d9d7acef0c7206bc2e5f65624a14b794437d40d1e2a2ff81286cba800223d7f",
+  "managed_prompts_exact": 12,
+  "health_checks_passed": 3,
+  "counters_before": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "counters_after": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 272,
+    "vector_files": 595,
+    "vector_bytes": 309808908
+  },
+  "knowledge_rag_vector_delta_zero": true,
+  "nonterminal_jobs": 0,
+  "owned_temp_entries": 0,
+  "release_staging_entries": 0,
+  "independent_verifier": "passed",
+  "browser_acceptance": "not_closed_pending_fresh_native_clickthrough",
+  "private_values_in_receipt": false
+}
