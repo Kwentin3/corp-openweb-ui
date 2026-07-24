@@ -361,6 +361,17 @@ from .gate2_economy_model_policy import (
     Gate2EconomyModelPolicySnapshot,
     validate_economy_model_policy_inputs,
 )
+from .gate2_economy_budget import (
+    BUDGET_SCHEMA_VERSION as GATE2_ECONOMY_BUDGET_SCHEMA_VERSION,
+    FACTORY_REQUIRED as GATE2_ECONOMY_BUDGET_FACTORY_REQUIRED,
+    FORBIDDEN as GATE2_ECONOMY_BUDGET_FORBIDDEN,
+    TOKEN_ESTIMATOR_ID as GATE2_ECONOMY_TOKEN_ESTIMATOR_ID,
+    Gate2EconomyBudgetSession,
+    Gate2EconomyBudgetSessionFactory,
+    Gate2EconomyCallAuthorization,
+    estimate_gate2_request_input_tokens,
+    estimate_model_cost_usd,
+)
 from .gate2_provider_adapters import (
     Gate2AnthropicNativeMessagesAdapter,
     Gate2NativeProviderTransportConfig,
@@ -1013,6 +1024,15 @@ __all__ = [
     "Gate2EconomyModelPolicyFactory",
     "Gate2EconomyModelPolicySnapshot",
     "validate_economy_model_policy_inputs",
+    "GATE2_ECONOMY_BUDGET_SCHEMA_VERSION",
+    "GATE2_ECONOMY_BUDGET_FACTORY_REQUIRED",
+    "GATE2_ECONOMY_BUDGET_FORBIDDEN",
+    "GATE2_ECONOMY_TOKEN_ESTIMATOR_ID",
+    "Gate2EconomyBudgetSession",
+    "Gate2EconomyBudgetSessionFactory",
+    "Gate2EconomyCallAuthorization",
+    "estimate_gate2_request_input_tokens",
+    "estimate_model_cost_usd",
     "SOURCE_REQUEST_PROFILE",
     "DOMAIN_REQUEST_PROFILE",
     "GATE2_REQUEST_PROFILES",

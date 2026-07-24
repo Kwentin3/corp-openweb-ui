@@ -17,7 +17,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.0.0"
+POLICY_VERSION = "1.1.0"
 POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v1"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"
@@ -134,6 +134,9 @@ class EconomyWorkloadPolicy:
     maximum_provider_calls_per_operation: int
     maximum_fallback_calls_per_operation: int
     maximum_provider_calls_per_full_scope_run: int
+    maximum_estimated_cost_usd_per_operation: str
+    maximum_estimated_cost_usd_per_full_scope_run: str
+    budget_measurement_basis: str
     reasoning_policy: str
     paid_tools_allowed: bool
     response_body_policy: str
@@ -154,6 +157,13 @@ class EconomyWorkloadPolicy:
             "maximum_provider_calls_per_full_scope_run": (
                 self.maximum_provider_calls_per_full_scope_run
             ),
+            "maximum_estimated_cost_usd_per_operation": (
+                self.maximum_estimated_cost_usd_per_operation
+            ),
+            "maximum_estimated_cost_usd_per_full_scope_run": (
+                self.maximum_estimated_cost_usd_per_full_scope_run
+            ),
+            "budget_measurement_basis": self.budget_measurement_basis,
             "reasoning_policy": self.reasoning_policy,
             "paid_tools_allowed": self.paid_tools_allowed,
             "response_body_policy": self.response_body_policy,
@@ -320,7 +330,7 @@ ECONOMY_MODEL_DECLARATIONS = (
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
         preference_order=0,
-        reasoning_policy=REASONING_DISABLED,
+        reasoning_policy=REASONING_MINIMAL,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
@@ -340,7 +350,7 @@ ECONOMY_MODEL_DECLARATIONS = (
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
         preference_order=1,
-        reasoning_policy=REASONING_DISABLED,
+        reasoning_policy=REASONING_MINIMAL,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
@@ -421,6 +431,13 @@ ECONOMY_WORKLOAD_POLICIES = (
         maximum_provider_calls_per_operation=1,
         maximum_fallback_calls_per_operation=1,
         maximum_provider_calls_per_full_scope_run=64,
+        maximum_estimated_cost_usd_per_operation="0.064960",
+        maximum_estimated_cost_usd_per_full_scope_run="2.078720",
+        budget_measurement_basis=(
+            "existing_actual_corpus_gate2_12000_input_bound;"
+            "4096_bounded_schema_output;64_call_run;"
+            "worst_allowed_haiku_price"
+        ),
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         response_body_policy="strict_contract_json_only",
@@ -432,6 +449,13 @@ ECONOMY_WORKLOAD_POLICIES = (
         maximum_provider_calls_per_operation=1,
         maximum_fallback_calls_per_operation=1,
         maximum_provider_calls_per_full_scope_run=64,
+        maximum_estimated_cost_usd_per_operation="0.064960",
+        maximum_estimated_cost_usd_per_full_scope_run="2.078720",
+        budget_measurement_basis=(
+            "existing_actual_corpus_gate2_12000_input_bound;"
+            "4096_bounded_schema_output;64_call_run;"
+            "worst_allowed_haiku_price"
+        ),
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         response_body_policy="strict_contract_json_only",
@@ -443,6 +467,13 @@ ECONOMY_WORKLOAD_POLICIES = (
         maximum_provider_calls_per_operation=1,
         maximum_fallback_calls_per_operation=1,
         maximum_provider_calls_per_full_scope_run=64,
+        maximum_estimated_cost_usd_per_operation="0.012544",
+        maximum_estimated_cost_usd_per_full_scope_run="0.401408",
+        budget_measurement_basis=(
+            "actual_corpus_max_input_2666_output_506;"
+            "caps_3072_input_640_output;64_total_calls;"
+            "worst_allowed_haiku_price"
+        ),
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         response_body_policy="strict_contract_json_only",
@@ -452,8 +483,15 @@ ECONOMY_WORKLOAD_POLICIES = (
         maximum_estimated_input_tokens=130_000,
         maximum_output_tokens=1_024,
         maximum_provider_calls_per_operation=1,
-        maximum_fallback_calls_per_operation=1,
+        maximum_fallback_calls_per_operation=0,
         maximum_provider_calls_per_full_scope_run=1,
+        maximum_estimated_cost_usd_per_operation="0.135120",
+        maximum_estimated_cost_usd_per_full_scope_run="0.135120",
+        budget_measurement_basis=(
+            "actual_corpus_input_117555_output_783;"
+            "caps_130000_input_1024_output;one_total_call;"
+            "worst_allowed_haiku_price"
+        ),
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         response_body_policy="strict_contract_json_only",
@@ -653,6 +691,23 @@ def _validate_workload_policy(item: EconomyWorkloadPolicy) -> None:
         raise Gate2EconomyModelPolicyError(
             "economy_policy_fallback_calls_invalid",
             "Economy fallback calls must be zero or one",
+        )
+    for value in (
+        item.maximum_estimated_cost_usd_per_operation,
+        item.maximum_estimated_cost_usd_per_full_scope_run,
+    ):
+        try:
+            if Decimal(value) <= 0:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            raise Gate2EconomyModelPolicyError(
+                "economy_policy_workload_cost_budget_invalid",
+                "Economy workload cost budgets must be positive decimal text",
+            ) from None
+    if not item.budget_measurement_basis.strip():
+        raise Gate2EconomyModelPolicyError(
+            "economy_policy_workload_measurement_basis_missing",
+            "Economy workload budgets require a measured basis",
         )
     if item.reasoning_policy not in REASONING_POLICIES:
         raise Gate2EconomyModelPolicyError(

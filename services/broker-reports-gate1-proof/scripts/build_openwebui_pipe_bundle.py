@@ -88,6 +88,8 @@ MODULE_ORDER = [
     "gate2_input_readiness",
     "gate2_model_contracts",
     "gate2_model_requests",
+    "gate2_economy_model_policy",
+    "gate2_economy_budget",
     "gate2_provider_adapters",
     "gate2_model_clients",
     "gate2_domain_routing",

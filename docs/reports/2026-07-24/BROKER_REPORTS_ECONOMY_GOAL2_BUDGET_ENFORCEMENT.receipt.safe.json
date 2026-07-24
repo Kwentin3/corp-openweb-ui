@@ -1,0 +1,113 @@
+{
+  "schema_version": "broker_reports_economy_goal2_budget_enforcement_safe_receipt_v1",
+  "terminal_status": "COMPLETED",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.1.0",
+    "policy_hash": "0d3e47771fae00178b2fd218319c1c2755bf434a83b6f678cc996cd342ebffd5",
+    "budget_schema_version": "broker_reports_gate2_economy_budget_v1",
+    "token_estimator_id": "compact_request_utf8_bytes_div_4_plus_64_v1"
+  },
+  "workload_budgets": {
+    "gate2_source": {
+      "maximum_estimated_input_tokens": 12000,
+      "maximum_output_tokens": 4096,
+      "maximum_default_calls_per_operation": 1,
+      "maximum_fallback_calls_per_operation": 1,
+      "maximum_provider_calls_per_full_scope_run": 64,
+      "maximum_estimated_cost_usd_per_operation": "0.064960",
+      "maximum_estimated_cost_usd_per_full_scope_run": "2.078720"
+    },
+    "gate2_domain": {
+      "maximum_estimated_input_tokens": 12000,
+      "maximum_output_tokens": 4096,
+      "maximum_default_calls_per_operation": 1,
+      "maximum_fallback_calls_per_operation": 1,
+      "maximum_provider_calls_per_full_scope_run": 64,
+      "maximum_estimated_cost_usd_per_operation": "0.064960",
+      "maximum_estimated_cost_usd_per_full_scope_run": "2.078720"
+    },
+    "gate2_financial_evidence": {
+      "maximum_estimated_input_tokens": 3072,
+      "maximum_output_tokens": 640,
+      "maximum_default_calls_per_operation": 1,
+      "maximum_fallback_calls_per_operation": 1,
+      "maximum_provider_calls_per_full_scope_run": 64,
+      "maximum_estimated_cost_usd_per_operation": "0.012544",
+      "maximum_estimated_cost_usd_per_full_scope_run": "0.401408"
+    },
+    "gate2_financial_checksum": {
+      "maximum_estimated_input_tokens": 130000,
+      "maximum_output_tokens": 1024,
+      "maximum_default_calls_per_operation": 1,
+      "maximum_fallback_calls_per_operation": 0,
+      "maximum_provider_calls_per_full_scope_run": 1,
+      "maximum_estimated_cost_usd_per_operation": "0.135120",
+      "maximum_estimated_cost_usd_per_full_scope_run": "0.135120"
+    }
+  },
+  "measured_preflight_proofs": {
+    "financial_evidence_full_scope": {
+      "model_id": "models/gemini-3.1-flash-lite",
+      "planned_operations_total": 39,
+      "planned_provider_calls_total": 39,
+      "planned_fallback_calls_total": 0,
+      "estimated_input_tokens_total": 47533,
+      "maximum_output_tokens_per_call": 640,
+      "estimated_cost_usd": "0.049323250",
+      "budget_status": "within_budget"
+    },
+    "financial_checksum": {
+      "model_id": "claude-haiku-4-5-20251001",
+      "planned_operations_total": 1,
+      "planned_provider_calls_total": 1,
+      "planned_fallback_calls_total": 0,
+      "estimated_input_tokens_total": 117555,
+      "maximum_output_tokens_per_call": 1024,
+      "estimated_cost_usd": "0.122675000",
+      "budget_status": "within_budget"
+    }
+  },
+  "checks": {
+    "input_preflight_blocks_before_call": true,
+    "output_cap_projected_to_provider": true,
+    "anthropic_32768_output_default_removed_when_enforced": true,
+    "default_call_budget_enforced": true,
+    "fallback_call_budget_enforced": true,
+    "full_scope_call_budget_enforced": true,
+    "operation_cost_budget_enforced": true,
+    "full_scope_cost_budget_enforced": true,
+    "reasoning_minimal_or_disabled": true,
+    "paid_tools_zero": true,
+    "exact_resolved_model_required": true,
+    "usage_required_after_success": true,
+    "cached_and_reasoning_tokens_accounted_when_available": true,
+    "customer_content_in_safe_receipt_zero": true,
+    "future_bundle_dependency_closure": true
+  },
+  "verification": {
+    "full_suite_passed": 1316,
+    "full_suite_skipped": 20,
+    "focused_suite_passed": 82,
+    "architecture_privacy_suite_passed": 23,
+    "ruff": "passed",
+    "compile_check": "passed",
+    "isolated_next_domain_bundle_build_import": "passed",
+    "provider_calls": 0
+  },
+  "unchanged_boundaries": {
+    "live_bundle_regenerated": false,
+    "stage_changed": false,
+    "gate1_runtime_change": 0,
+    "financial_evidence_registry_change": 0,
+    "decision_contract_change": 0,
+    "materialization_change": 0,
+    "context_projection_change": 0,
+    "knowledge_rag_vector_delta": 0
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "private_refs_in_git": 0,
+    "provider_raw_output_in_git": 0
+  }
+}

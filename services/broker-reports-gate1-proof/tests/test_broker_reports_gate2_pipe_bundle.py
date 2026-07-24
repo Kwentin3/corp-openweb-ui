@@ -16,7 +16,7 @@ DOMAIN_BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source
 SOURCE_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
 DOMAIN_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe.py"
 
-from build_openwebui_pipe_bundle import assert_gate2_bundle_contract
+from build_openwebui_pipe_bundle import MODULE_ORDER, assert_gate2_bundle_contract
 from live_case_group_gate2_table_typed_vertical_proof import (
     FUNCTION_ID as TABLE_PROOF_FUNCTION_ID,
     TABLE_SOURCE_INPUT_MODES,
@@ -317,6 +317,20 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             adapters_module.FACTORY_REQUIRED,
         )
         self.assertIn("business runtimes must not build vendor payloads", adapters_module.FORBIDDEN)
+
+    def test_next_bundle_build_is_closed_over_economy_budget_dependencies(self):
+        self.assertLess(
+            MODULE_ORDER.index("gate2_model_requests"),
+            MODULE_ORDER.index("gate2_economy_model_policy"),
+        )
+        self.assertLess(
+            MODULE_ORDER.index("gate2_economy_model_policy"),
+            MODULE_ORDER.index("gate2_economy_budget"),
+        )
+        self.assertLess(
+            MODULE_ORDER.index("gate2_economy_budget"),
+            MODULE_ORDER.index("gate2_model_clients"),
+        )
 
     def test_update_acceptance_fails_closed_on_bundle_or_prompt_readback_drift(self):
         self.assertEqual(SOURCE_PROMPT_VERSION, "2026-07-22-positional-coverage-v1")
