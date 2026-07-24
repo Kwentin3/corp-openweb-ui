@@ -89,6 +89,7 @@ MODULE_ORDER = [
     "gate2_model_contracts",
     "gate2_model_requests",
     "gate2_economy_model_policy",
+    "gate2_economy_provider_selection",
     "gate2_economy_budget",
     "gate2_provider_adapters",
     "gate2_model_clients",
@@ -363,6 +364,9 @@ def assert_gate2_bundle_contract(
         "bundled_modules": "_BUNDLED_MODULES",
         "model_contracts_module": '"gate2_model_contracts"',
         "model_requests_module": '"gate2_model_requests"',
+        "economy_provider_selection_module": (
+            '"gate2_economy_provider_selection"'
+        ),
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
         "csv_profile_module": '"csv_profile"',
@@ -396,6 +400,13 @@ def assert_gate2_bundle_contract(
             "Gate2StructuredModelClientFactory.create is the only production "
             "Gate 2 model client entrypoint"
         ),
+        "economy_provider_selection_factory": (
+            "Gate2EconomyProviderSelectionFactory("
+        ),
+        "economy_provider_selection_factory_anchor": (
+            "Gate2EconomyProviderSelectionFactory.create is the only production"
+        ),
+        "economy_budget_enforcement": "economy_budget_enforcement=True",
         "runtime_factory": runtime_factory,
         "source_adapter": BUNDLE_ADAPTER_MARKER,
     }

@@ -21,6 +21,8 @@ from broker_reports_gate1 import (
     ArtifactStoreConfig,
     ArtifactStoreError,
     ArtifactStoreFactory,
+    Gate2EconomyProviderSelectionError,
+    Gate2EconomyProviderSelectionFactory,
     Gate2ManagedPromptResolverFactory,
     Gate2NativeProviderTransportConfig,
     Gate2PromptConfig,
@@ -38,7 +40,7 @@ from broker_reports_gate1 import (
     WorkloadCancelledError,
     WorkloadKind,
     WorkloadState,
-    gate2_resolve_extraction_model_id,
+    WORKLOAD_GATE2_SOURCE,
     provider_budgets_from_json,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
@@ -87,7 +89,7 @@ class Pipe:
         prompt_id: str = Field(default="broker_reports_gate2_source_fact_prompt_v0")
         prompt_command: str = Field(default="broker_gate2_source_facts_v0")
         model_id: str = Field(default="")
-        provider_profile_id: str = Field(default="openai_gpt")
+        provider_profile_id: str = Field(default="")
         anthropic_api_version: str = Field(default="2023-06-01")
         native_provider_timeout_seconds: int = Field(default=180)
         default_wave: str = Field(default="primary")
@@ -165,17 +167,41 @@ class Pipe:
                 context=context,
                 dcp_record=dcp_record,
             )
-            provider_profile_id = str(
-                config.get("provider_profile_id") or self.valves.provider_profile_id
+            requested_provider_profile_id = str(
+                config.get("provider_profile_id")
+                or self.valves.provider_profile_id
+                or ""
+            ).strip()
+            requested_model_id = str(
+                config.get("model_id") or self.valves.model_id or ""
+            ).strip()
+            economy_selection = (
+                Gate2EconomyProviderSelectionFactory()
+                .create()
+                .select_runtime(
+                    workload_class=WORKLOAD_GATE2_SOURCE,
+                    requested_model_ids=(
+                        (requested_model_id,) if requested_model_id else None
+                    ),
+                    requested_provider_profile_ids=(
+                        (requested_provider_profile_id,)
+                        if requested_provider_profile_id
+                        else None
+                    ),
+                )
             )
-            model_id = gate2_resolve_extraction_model_id(
-                provider_profile_id,
-                str(config.get("model_id") or self.valves.model_id or ""),
-            )
+            provider_profile_id = economy_selection.primary.provider_profile_id
+            model_id = economy_selection.primary.exact_model_id
             ticket = authority.submit(
                 job_kind=WorkloadKind.GATE2_SOURCE,
                 access=workload_access,
-                safe_metadata={"provider_profile_id": provider_profile_id},
+                safe_metadata={
+                    "provider_profile_id": provider_profile_id,
+                    "model_id": model_id,
+                    "economy_policy_id": economy_selection.policy_id,
+                    "economy_policy_version": economy_selection.policy_version,
+                    "economy_policy_hash": economy_selection.policy_hash,
+                },
             )
             self.last_workload_job_id = ticket.job_id
             self.last_workload_snapshot = authority.snapshot(
@@ -211,6 +237,7 @@ class Pipe:
                     config=Gate2StructuredModelClientConfig(
                         request_profile=SOURCE_REQUEST_PROFILE,
                         provider_profile_id=provider_profile_id,
+                        economy_budget_enforcement=True,
                     ),
                     user=__user__,
                     request=__request__,
@@ -263,7 +290,12 @@ class Pipe:
                         safe_detail={"partial_success_published": False}
                     )
             self.last_runtime_result = result
-            self.last_safe_summary = result.safe_summary
+            self.last_safe_summary = {
+                **result.safe_summary,
+                "economy_provider_selection": (
+                    economy_selection.safe_receipt()
+                ),
+            }
             await self._emit(
                 __event_emitter__,
                 "Gate 2 structured extraction reached a terminal state.",
@@ -288,6 +320,7 @@ class Pipe:
             raise
         except (
             Gate2SourceFactRuntimeError,
+            Gate2EconomyProviderSelectionError,
             Gate2PromptError,
             ArtifactStoreError,
             WorkloadAuthorityError,
@@ -295,6 +328,14 @@ class Pipe:
             if workload_session is not None and not workload_session.terminal:
                 workload_session.fail(self._workload_failure_code(exc))
                 self.last_workload_snapshot = workload_session.snapshot()
+            if isinstance(exc, Gate2EconomyProviderSelectionError):
+                self.last_safe_summary = {
+                    "status": "blocked",
+                    "error_code": exc.code,
+                    "provider_calls_total": 0,
+                    "fallback_calls_total": 0,
+                    "expensive_tier_calls_total": 0,
+                }
             await self._emit(
                 __event_emitter__,
                 f"Gate 2 blocked: {getattr(exc, 'code', 'gate2_failed_safe')}",

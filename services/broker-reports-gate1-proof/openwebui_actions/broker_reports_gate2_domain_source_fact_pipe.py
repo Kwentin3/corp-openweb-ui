@@ -25,6 +25,8 @@ from broker_reports_gate1 import (
     Gate2DomainPromptResolverFactory,
     Gate2DomainSourceFactRuntimeConfig,
     Gate2DomainSourceFactRuntimeFactory,
+    Gate2EconomyProviderSelectionError,
+    Gate2EconomyProviderSelectionFactory,
     Gate2NativeProviderTransportConfig,
     Gate2PromptUserContext,
     Gate2SourceFactRuntimeError,
@@ -38,7 +40,8 @@ from broker_reports_gate1 import (
     WorkloadCancelledError,
     WorkloadKind,
     WorkloadState,
-    gate2_resolve_extraction_model_id,
+    WORKLOAD_GATE2_DOMAIN,
+    WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
     provider_budgets_from_json,
 )
 from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
@@ -87,7 +90,7 @@ class Pipe:
         )
         prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         model_id: str = Field(default="")
-        provider_profile_id: str = Field(default="openai_gpt")
+        provider_profile_id: str = Field(default="")
         anthropic_api_version: str = Field(default="2023-06-01")
         native_provider_timeout_seconds: int = Field(default=180)
         default_wave: str = Field(default="primary")
@@ -196,17 +199,80 @@ class Pipe:
             )
             if provider_capability_probe and run_mode != "provider_qualification":
                 raise ValueError("gate2_provider_capability_probe_mode_invalid")
-            provider_profile_id = str(
-                config.get("provider_profile_id") or self.valves.provider_profile_id
+            requested_provider_profile_id = str(
+                config.get("provider_profile_id")
+                or self.valves.provider_profile_id
+                or ""
+            ).strip()
+            requested_model_id = str(
+                config.get("model_id") or self.valves.model_id or ""
+            ).strip()
+            economy_selector = (
+                Gate2EconomyProviderSelectionFactory().create()
             )
-            model_id = gate2_resolve_extraction_model_id(
-                provider_profile_id,
-                str(config.get("model_id") or self.valves.model_id or ""),
-            )
+            if run_mode == "provider_qualification":
+                if (
+                    not requested_provider_profile_id
+                    or not requested_model_id
+                ):
+                    raise Gate2EconomyProviderSelectionError(
+                        "economy_qualification_candidate_required",
+                        "Qualification requires an exact economy model and "
+                        "provider profile",
+                    )
+                economy_selection = (
+                    economy_selector.select_qualification_candidate(
+                        workload_class=WORKLOAD_GATE2_DOMAIN,
+                        model_id=requested_model_id,
+                        provider_profile_id=requested_provider_profile_id,
+                    )
+                )
+            else:
+                economy_selection = economy_selector.select_runtime(
+                    workload_class=WORKLOAD_GATE2_DOMAIN,
+                    requested_model_ids=(
+                        (requested_model_id,) if requested_model_id else None
+                    ),
+                    requested_provider_profile_ids=(
+                        (requested_provider_profile_id,)
+                        if requested_provider_profile_id
+                        else None
+                    ),
+                )
+            provider_profile_id = economy_selection.primary.provider_profile_id
+            model_id = economy_selection.primary.exact_model_id
+            financial_economy_selection = None
+            if (
+                self.valves.financial_evidence_enabled
+                and run_mode != "provider_qualification"
+            ):
+                financial_economy_selection = (
+                    economy_selector.select_runtime(
+                        workload_class=(
+                            WORKLOAD_GATE2_FINANCIAL_EVIDENCE
+                        ),
+                        requested_model_ids=(
+                            (requested_model_id,)
+                            if requested_model_id
+                            else None
+                        ),
+                        requested_provider_profile_ids=(
+                            (requested_provider_profile_id,)
+                            if requested_provider_profile_id
+                            else None
+                        ),
+                    )
+                )
             ticket = authority.submit(
                 job_kind=WorkloadKind.GATE2_DOMAIN,
                 access=workload_access,
-                safe_metadata={"provider_profile_id": provider_profile_id},
+                safe_metadata={
+                    "provider_profile_id": provider_profile_id,
+                    "model_id": model_id,
+                    "economy_policy_id": economy_selection.policy_id,
+                    "economy_policy_version": economy_selection.policy_version,
+                    "economy_policy_hash": economy_selection.policy_hash,
+                },
             )
             self.last_workload_job_id = ticket.job_id
             self.last_workload_snapshot = authority.snapshot(
@@ -250,6 +316,7 @@ class Pipe:
                         request_profile=DOMAIN_REQUEST_PROFILE,
                         provider_profile_id=provider_profile_id,
                         capability_probe=provider_capability_probe,
+                        economy_budget_enforcement=True,
                     ),
                     user=__user__,
                     request=__request__,
@@ -348,6 +415,7 @@ class Pipe:
             )
             with workload_session.keepalive():
                 async with workload_session.cancellation_scope():
+                    financial_result = None
                     async with workload_session.provider_slot_async(
                         provider_profile_id,
                         resume_state=WorkloadState.VALIDATING,
@@ -361,24 +429,32 @@ class Pipe:
                                 user_groups=tuple(self._user_groups(__user__)),
                             ),
                         )
-                        financial_result = None
-                        if (
-                            self.valves.financial_evidence_enabled
-                            and run_mode
-                            not in {"provider_qualification"}
-                            and result.terminal_status == "completed"
-                            and result.domain_package_refs
-                        ):
-                            financial_registry = (
-                                Gate2FinancialEvidenceRegistryFactory().create()
+                    if (
+                        self.valves.financial_evidence_enabled
+                        and run_mode not in {"provider_qualification"}
+                        and result.terminal_status == "completed"
+                        and result.domain_package_refs
+                    ):
+                        if financial_economy_selection is None:
+                            raise Gate2EconomyProviderSelectionError(
+                                "gate2_economy_financial_selection_missing",
+                                "Financial economy provider selection is "
+                                "required before execution",
                             )
-                            if (
-                                self.valves.financial_evidence_registry_version
-                                != financial_registry.registry_version
-                            ):
-                                raise ValueError(
-                                    "gate2_financial_registry_version_mismatch"
-                                )
+                        financial_registry = (
+                            Gate2FinancialEvidenceRegistryFactory().create()
+                        )
+                        if (
+                            self.valves.financial_evidence_registry_version
+                            != financial_registry.registry_version
+                        ):
+                            raise ValueError(
+                                "gate2_financial_registry_version_mismatch"
+                            )
+                        async with workload_session.provider_slot_async(
+                            financial_economy_selection.primary.provider_profile_id,
+                            resume_state=WorkloadState.VALIDATING,
+                        ):
                             financial_result = await (
                                 Gate2FinancialEvidenceProductionRuntimeFactory(
                                     store=store,
@@ -391,7 +467,10 @@ class Pipe:
                                                         FINANCIAL_EVIDENCE_REQUEST_PROFILE
                                                     ),
                                                     provider_profile_id=(
-                                                        provider_profile_id
+                                                        financial_economy_selection.primary.provider_profile_id
+                                                    ),
+                                                    economy_budget_enforcement=(
+                                                        True
                                                     ),
                                                 )
                                             ),
@@ -411,9 +490,11 @@ class Pipe:
                                     ),
                                     config=(
                                         Gate2FinancialEvidenceProductionConfig(
-                                            model_id=model_id,
+                                            model_id=(
+                                                financial_economy_selection.primary.exact_model_id
+                                            ),
                                             provider_profile_id=(
-                                                provider_profile_id
+                                                financial_economy_selection.primary.provider_profile_id
                                             ),
                                             maximum_scopes=(
                                                 self.valves.financial_evidence_maximum_scopes
@@ -440,6 +521,14 @@ class Pipe:
             self.last_financial_evidence_result = financial_result
             self.last_safe_summary = {
                 **result.safe_summary,
+                "economy_provider_selection": (
+                    economy_selection.safe_receipt()
+                ),
+                "financial_economy_provider_selection": (
+                    None
+                    if financial_economy_selection is None
+                    else financial_economy_selection.safe_receipt()
+                ),
                 "financial_evidence": (
                     None
                     if financial_result is None
@@ -477,6 +566,7 @@ class Pipe:
             raise
         except (
             Gate2SourceFactRuntimeError,
+            Gate2EconomyProviderSelectionError,
             Gate2PromptError,
             ArtifactStoreError,
             WorkloadAuthorityError,
@@ -485,6 +575,14 @@ class Pipe:
             if workload_session is not None and not workload_session.terminal:
                 workload_session.fail(self._workload_failure_code(exc))
                 self.last_workload_snapshot = workload_session.snapshot()
+            if isinstance(exc, Gate2EconomyProviderSelectionError):
+                self.last_safe_summary = {
+                    "status": "blocked",
+                    "error_code": exc.code,
+                    "provider_calls_total": 0,
+                    "fallback_calls_total": 0,
+                    "expensive_tier_calls_total": 0,
+                }
             error_code = str(
                 getattr(exc, "code", None) or str(exc) or "gate2_domain_failed_safe"
             )
