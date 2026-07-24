@@ -1,0 +1,79 @@
+{
+  "schema_version": "broker_reports_economy_goal7_production_migration_safe_receipt_v1",
+  "terminal_status": "NOT_CLOSED",
+  "release_preconditions": {
+    "qualified_economy_models_total": 0,
+    "goal_3_status": "COMPLETED_WITH_PROVIDER_GAPS",
+    "goal_5_status": "NOT_CLOSED",
+    "goal_6_status": "NOT_CLOSED",
+    "release_authorized": false,
+    "terminal_code": "gate2_economy_no_qualified_model"
+  },
+  "release": {
+    "candidate_manifest_created": false,
+    "functions_changed": 0,
+    "prompts_changed": 0,
+    "valves_changed": 0,
+    "stage_mutations_total": 0,
+    "rollback_executed": false,
+    "rollback_status": "NOT_RUN_NO_RELEASE"
+  },
+  "live_identity": {
+    "repository_live_parity": "not_exact",
+    "broker_reports_gate1_pipe": {
+      "live_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "repository_candidate_sha256": "0b57d294e135bdbdfd0e8fa374218ef12a08dc3f415a50482b2b7aee2681738d"
+    },
+    "broker_reports_gate2_source_fact_pipe": {
+      "live_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+      "repository_candidate_sha256": "d1c329fade86d9cf8cc6f26977e0bc017ccef743f082e6d506ac52ed66f8e5c9"
+    },
+    "broker_reports_gate2_domain_source_fact_pipe": {
+      "live_sha256": "4f5424f269e88f6e18064565afa70e11e7380033a1b6c9affc349f760a3bb0d5",
+      "repository_candidate_sha256": "947cd4217d13b75fe1af35cfbf349db8cb52c5a2491e39792340ff660c3895fb"
+    },
+    "economy_selection_factory_live": false,
+    "economy_budget_enforcement_live": false,
+    "legacy_expensive_resolver_marker_live": true
+  },
+  "safe_domain_valves": {
+    "financial_evidence_enabled": true,
+    "financial_evidence_registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+    "model_id": null,
+    "provider_profile_id": null,
+    "max_repair_attempts": 1
+  },
+  "bounded_persistence": {
+    "status": "NOT_RUN",
+    "new_financial_run_total": 0,
+    "new_receipt_total": 0,
+    "new_context_total": 0,
+    "new_input_artifacts_total": 0,
+    "exact_economy_model_persisted": false,
+    "cost_evidence_persisted": false
+  },
+  "calls": {
+    "chat_completion_calls_total": 0,
+    "provider_calls_total": 0,
+    "fallback_calls_total": 0,
+    "expensive_model_calls_total": 0
+  },
+  "migration_verifier": {
+    "expensive_default_removed": true,
+    "economy_preflight_required": true,
+    "runtime_config_can_only_narrow": true,
+    "maximum_repair_attempts": 0,
+    "focused_tests_passed": 22,
+    "full_tests_passed": 1332,
+    "full_tests_skipped": 20
+  },
+  "knowledge_rag_vector": {
+    "write_operation_performed": false,
+    "delta": 0
+  },
+  "privacy": {
+    "customer_content_present": false,
+    "provider_raw_output_present": false,
+    "private_artifact_refs_present": false
+  }
+}
