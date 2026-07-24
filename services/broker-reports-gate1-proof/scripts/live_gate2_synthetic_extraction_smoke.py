@@ -237,6 +237,7 @@ def _seed_synthetic_gate1(
     bundle_source = GATE1_SEED_BUNDLE.read_text(encoding="utf-8")
     selected_documents = _synthetic_documents(domain)
     code = f'''
+import asyncio
 import json
 from pathlib import Path
 
@@ -250,23 +251,59 @@ from broker_reports_gate1 import (
     ArtifactStoreFactory,
     FileInput,
     Gate1Normalizer,
+    WorkloadAccessContext,
+    WorkloadAuthorityConfig,
+    WorkloadAuthorityFactory,
+    WorkloadKind,
+    WorkloadState,
     build_retention_policy,
     persist_gate1_result,
 )
 
 documents = {selected_documents!r}
-result = Gate1Normalizer().normalize(
-    [
-        FileInput.from_bytes(
-            private_ref=f"synthetic-gate2-{{index}}",
-            filename=name,
-            content=content,
-            mime_type="text/csv",
-        )
-        for index, (name, content) in enumerate(documents, start=1)
-    ],
-    input_context={{"clarification_criticality_refinement_enabled": True}},
+chat_id = f"chat_{{{case_id!r}}}"
+workload_access = WorkloadAccessContext(
+    user_id={user_id!r},
+    case_id={case_id!r},
+    chat_id=chat_id,
+    workspace_model_id="broker_reports_gate1_pipe",
 )
+workload_authority = WorkloadAuthorityFactory(WorkloadAuthorityConfig(
+    sqlite_path=Path("/app/backend/data/broker_reports_gate1/workloads.sqlite3"),
+    temp_root=Path("/app/backend/data/broker_reports_gate1/workload-temp"),
+)).create()
+workload_ticket = workload_authority.submit(
+    job_kind=WorkloadKind.GATE1,
+    access=workload_access,
+    safe_metadata={{"synthetic_fixture": True}},
+)
+workload_session = asyncio.run(workload_authority.wait_for_admission(
+    job_id=workload_ticket.job_id,
+    access=workload_access,
+))
+try:
+    workload_session.transition(WorkloadState.NORMALIZING)
+    result = Gate1Normalizer().normalize(
+        [
+            FileInput.from_bytes(
+                private_ref=f"synthetic-gate2-{{index}}",
+                filename=name,
+                content=content,
+                mime_type="text/csv",
+            )
+            for index, (name, content) in enumerate(documents, start=1)
+        ],
+        input_context={{
+            "clarification_criticality_refinement_enabled": True,
+            "workload_job_id": workload_ticket.job_id,
+        }},
+    )
+    workload_session.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
+    workload_session.transition(WorkloadState.VALIDATING)
+except BaseException:
+    if not workload_session.terminal:
+        workload_session.fail("synthetic_gate1_seed_failed")
+    raise
 package = result.package
 source_ready = package["domain_context_packet"]["next_stage_refs"]["source_fact_ready_refs"]
 if len(source_ready) != len(documents):
@@ -319,7 +356,7 @@ context = ArtifactAccessContext(
     user_id={user_id!r},
     normalization_run_id=package["normalization_run"]["run_id"],
     case_id={case_id!r},
-    chat_id=f"chat_{{{case_id!r}}}",
+    chat_id=chat_id,
     workspace_model_id="broker_reports_gate2_source_fact_pipe",
     allow_private=True,
     require_source_available=True,
@@ -339,10 +376,15 @@ manifest = persist_gate1_result(
         for _ in documents
     ],
 )
+workload_session.complete(safe_detail={{
+    "synthetic_fixture": True,
+    "partial_success_published": False,
+}})
 print(json.dumps({{
     "case_id": {case_id!r},
     "normalization_run_id": context.normalization_run_id,
     "domain_context_packet_ref": manifest.artifact_refs_by_type["domain_context_packet_v0"][0],
+    "workload_job_id": workload_ticket.job_id,
     "source_ready_total": len(source_ready),
     "private_slices_total": len(manifest.private_slice_refs),
 }}, ensure_ascii=False, sort_keys=True))
