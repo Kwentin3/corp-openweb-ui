@@ -164,6 +164,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_source_fact_contracts", source)
         self.assertIn("gate2_model_contracts", source)
         self.assertIn("gate2_model_requests", source)
+        self.assertIn("gate2_economy_provider_selection", source)
         self.assertIn("gate2_provider_adapters", source)
         self.assertIn("gate2_model_clients", source)
         self.assertIn("workload_authority", source)
@@ -194,7 +195,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertEqual(len(bundled_package.GATE2_PROVIDER_PROFILES), 6)
         pipe = module.Pipe()
-        self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
+        self.assertEqual(pipe.valves.provider_profile_id, "")
         self.assertFalse(pipe.valves.semantic_selection_enabled)
         pipe.valves.semantic_selection_enabled = True
         self.assertFalse(module._semantic_selection_containment_guard())
@@ -233,6 +234,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "workload_authority",
             "gate2_model_contracts",
             "gate2_model_requests",
+            "gate2_economy_provider_selection",
             "gate2_provider_adapters",
             "gate2_model_clients",
             "gate2_candidate_binding",
@@ -298,7 +300,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(
             hasattr(bundled_package, "Gate2ProviderAdapterFactory")
         )
-        self.assertEqual(pipe.valves.provider_profile_id, "openai_gpt")
+        self.assertEqual(pipe.valves.provider_profile_id, "")
         self.assertEqual(pipe.valves.default_source_segment_limit, 1)
         content = asyncio.run(
             pipe.pipe(
@@ -316,7 +318,12 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         for pipe_path in (SOURCE_PIPE, DOMAIN_PIPE):
             source = pipe_path.read_text(encoding="utf-8")
             self.assertIn("Gate2StructuredModelClientFactory(", source)
+            self.assertIn(
+                "Gate2EconomyProviderSelectionFactory", source
+            )
+            self.assertIn("economy_budget_enforcement=True", source)
             self.assertIn(".create()", source)
+            self.assertNotIn("gate2_resolve_extraction_model_id", source)
             self.assertNotIn("anthropic_api_key", source)
             self.assertNotIn("generate_chat_completion", source)
             self.assertNotIn("_completion_dict_content", source)
@@ -375,6 +382,10 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertLess(
             MODULE_ORDER.index("gate2_economy_model_policy"),
+            MODULE_ORDER.index("gate2_economy_provider_selection"),
+        )
+        self.assertLess(
+            MODULE_ORDER.index("gate2_economy_provider_selection"),
             MODULE_ORDER.index("gate2_economy_budget"),
         )
         self.assertLess(

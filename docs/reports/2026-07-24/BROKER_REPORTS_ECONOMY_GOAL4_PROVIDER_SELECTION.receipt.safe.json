@@ -1,0 +1,54 @@
+{
+  "schema_version": "broker_reports_economy_goal4_provider_selection_safe_receipt_v1",
+  "terminal_status": "COMPLETED",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.2.0",
+    "policy_hash": "e6a297c359ff55fe48b22cf568261ae3bc0e329378f648b6438227e9a93ef35c",
+    "qualified_models_total": 0
+  },
+  "selection": {
+    "schema_version": "broker_reports_gate2_economy_provider_selection_v1",
+    "rule": "cheapest_qualified_first_then_preference_order_then_exact_id",
+    "cost_basis": "workload_maximum_input_and_output_token_caps",
+    "default_provider_calls": 1,
+    "maximum_fallback_calls": 1,
+    "multi_provider_consensus_calls": 0,
+    "hidden_retry_calls": 0,
+    "hidden_repair_calls": 0
+  },
+  "current_runtime_terminal": {
+    "status": "blocked",
+    "error_code": "gate2_economy_no_qualified_model",
+    "provider_calls": 0,
+    "fallback_calls": 0,
+    "expensive_tier_calls": 0,
+    "partial_success_artifacts": 0
+  },
+  "runtime_enforcement": {
+    "source_pipe_policy_bound": true,
+    "domain_pipe_policy_bound": true,
+    "financial_runtime_policy_bound": true,
+    "economy_budget_enforcement_enabled": true,
+    "model_runtime_override_can_only_narrow": true,
+    "provider_runtime_override_can_only_narrow": true,
+    "qualification_candidate_must_be_policy_registered": true,
+    "domain_and_financial_provider_slots_separate": true,
+    "exact_model_and_provider_in_safe_receipt": true
+  },
+  "checks": {
+    "focused_tests_passed": 70,
+    "full_tests_passed": 1328,
+    "full_tests_skipped": 20,
+    "cheapest_qualified_first": "PASSED",
+    "default_provider_calls": "ONE",
+    "multi_provider_consensus": "ZERO",
+    "fallback_calls_maximum": "ONE",
+    "expensive_tier_escalation": "ZERO"
+  },
+  "privacy": {
+    "customer_content_present": false,
+    "provider_raw_output_present": false,
+    "private_artifact_refs_present": false
+  }
+}
