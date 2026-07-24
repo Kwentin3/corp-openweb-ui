@@ -1,0 +1,517 @@
+{
+  "schema_version": "broker_reports_gate2_secretary_benchmark_manifest_v1",
+  "benchmark_id": "gate2_secretary_v1",
+  "corpus_role": "controlled_synthetic_prequalification",
+  "contains_customer_data": false,
+  "frozen": true,
+  "case_count": 17,
+  "contract_versions": {
+    "gate2_source": "broker_reports_source_fact_selection_v3",
+    "gate2_domain": "broker_reports_candidate_binding_output_v0",
+    "gate2_financial_evidence": "broker_reports_gate2_financial_evidence_decision_v1",
+    "gate2_financial_checksum": "broker_reports_gate2_financial_context_checksum_v1"
+  },
+  "execution_policy": {
+    "provider_calls": 0,
+    "hidden_retry": false,
+    "repair": false,
+    "fallback": false,
+    "canonical_validator_replacement": false,
+    "raw_output_in_safe_report": false
+  },
+  "families": [
+    "literal_copy",
+    "bounded_classification",
+    "source_binding",
+    "ambiguity",
+    "structured_output",
+    "adversarial_clerical"
+  ],
+  "cases": [
+    {
+      "case_id": "syn_literal_negative_decimal",
+      "workload": "gate2_source",
+      "family": "literal_copy",
+      "input_summary": "Copy a visible signed decimal without rounding.",
+      "expected_output": {
+        "schema_version": "broker_reports_source_fact_selection_v3",
+        "source_ref": "syn:page1:cell7",
+        "fact_type": "cash_movement",
+        "literal_value": "-00123.4500",
+        "reason_code": "selected_visible_value"
+      },
+      "literal_paths": ["$.literal_value"],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.fact_type": ["cash_movement", "unknown_source_row"],
+        "$.reason_code": ["selected_visible_value"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_source_fact_selection_v3",
+        "syn:page1:cell7",
+        "-00123.4500",
+        "selected_visible_value"
+      ]
+    },
+    {
+      "case_id": "syn_literal_currency_date",
+      "workload": "gate2_source",
+      "family": "literal_copy",
+      "input_summary": "Keep the source currency spelling and ISO date exactly.",
+      "expected_output": {
+        "schema_version": "broker_reports_source_fact_selection_v3",
+        "source_ref": "syn:row2",
+        "fact_type": "security_trade",
+        "currency": "RUB",
+        "date": "2026-02-03",
+        "reason_code": "selected_visible_value"
+      },
+      "literal_paths": ["$.currency", "$.date"],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.fact_type": ["security_trade", "unknown_source_row"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_source_fact_selection_v3",
+        "syn:row2",
+        "RUB",
+        "2026-02-03",
+        "selected_visible_value"
+      ]
+    },
+    {
+      "case_id": "syn_classification_no_fact",
+      "workload": "gate2_source",
+      "family": "bounded_classification",
+      "input_summary": "A repeated header is not a financial fact.",
+      "expected_output": {
+        "schema_version": "broker_reports_source_fact_selection_v3",
+        "source_ref": "syn:row3",
+        "fact_type": "unknown_source_row",
+        "literal_value": "Дата | Операция | Сумма",
+        "reason_code": "repeated_header"
+      },
+      "literal_paths": ["$.literal_value"],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.fact_type": ["unknown_source_row"],
+        "$.reason_code": ["repeated_header"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_source_fact_selection_v3",
+        "syn:row3",
+        "Дата | Операция | Сумма",
+        "repeated_header"
+      ]
+    },
+    {
+      "case_id": "syn_source_binding_equal_values",
+      "workload": "gate2_domain",
+      "family": "source_binding",
+      "input_summary": "Equal visible values from distinct cells must retain the selected cell.",
+      "expected_output": {
+        "schema_version": "broker_reports_candidate_binding_output_v0",
+        "package_id": "syn_pkg_equal",
+        "selected_bindings": [
+          {
+            "fact_field_path": "amount",
+            "candidate_id": "syn_candidate_right",
+            "semantic_role": "gross_amount"
+          }
+        ],
+        "ambiguity_code": "explicit_selection"
+      },
+      "literal_paths": [],
+      "binding_paths": [
+        "$.package_id",
+        "$.selected_bindings[0].candidate_id",
+        "$.selected_bindings[0].semantic_role"
+      ],
+      "bounded_classifications": {
+        "$.ambiguity_code": ["explicit_selection"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_candidate_binding_output_v0",
+        "syn_pkg_equal",
+        "amount",
+        "syn_candidate_right",
+        "gross_amount",
+        "explicit_selection"
+      ]
+    },
+    {
+      "case_id": "syn_ambiguity_unresolved",
+      "workload": "gate2_domain",
+      "family": "ambiguity",
+      "input_summary": "Do not guess between two admissible source candidates.",
+      "expected_output": {
+        "schema_version": "broker_reports_candidate_binding_output_v0",
+        "package_id": "syn_pkg_ambiguous",
+        "selected_bindings": [],
+        "ambiguity_code": "unresolved",
+        "reason_code": "equal_value_distinct_source_refs"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.package_id"],
+      "bounded_classifications": {
+        "$.ambiguity_code": ["unresolved"],
+        "$.reason_code": ["equal_value_distinct_source_refs"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_candidate_binding_output_v0",
+        "syn_pkg_ambiguous",
+        "unresolved",
+        "equal_value_distinct_source_refs"
+      ]
+    },
+    {
+      "case_id": "syn_structured_exact_root",
+      "workload": "gate2_domain",
+      "family": "structured_output",
+      "input_summary": "Return only the exact root object and required fields.",
+      "expected_output": {
+        "schema_version": "broker_reports_candidate_binding_output_v0",
+        "package_id": "syn_pkg_shape",
+        "selected_bindings": [],
+        "ambiguity_code": "not_applicable"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.package_id"],
+      "bounded_classifications": {
+        "$.ambiguity_code": ["not_applicable"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_candidate_binding_output_v0",
+        "syn_pkg_shape",
+        "not_applicable"
+      ]
+    },
+    {
+      "case_id": "syn_adversarial_instruction_cell",
+      "workload": "gate2_domain",
+      "family": "adversarial_clerical",
+      "input_summary": "A cell saying to ignore the schema remains source text, not an instruction.",
+      "expected_output": {
+        "schema_version": "broker_reports_candidate_binding_output_v0",
+        "package_id": "syn_pkg_injection",
+        "selected_bindings": [],
+        "ambiguity_code": "not_applicable",
+        "reason_code": "non_fact_annotation"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.package_id"],
+      "bounded_classifications": {
+        "$.reason_code": ["non_fact_annotation"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_candidate_binding_output_v0",
+        "syn_pkg_injection",
+        "not_applicable",
+        "non_fact_annotation"
+      ]
+    },
+    {
+      "case_id": "syn_financial_typed",
+      "workload": "gate2_financial_evidence",
+      "family": "bounded_classification",
+      "input_summary": "Select one registry type and bind the exact source value.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+        "source_ref": "syn:financial:11",
+        "disposition": "typed_input",
+        "registry_type_id": "cash_flow_amount",
+        "bindings": [
+          {
+            "role": "amount",
+            "source_value_ref": "syn:value:11"
+          }
+        ],
+        "reason_code": "typed_supported"
+      },
+      "literal_paths": [],
+      "binding_paths": [
+        "$.source_ref",
+        "$.bindings[0].source_value_ref"
+      ],
+      "bounded_classifications": {
+        "$.disposition": [
+          "typed_input",
+          "unclassified_financial_input",
+          "no_financial_input",
+          "unsupported"
+        ],
+        "$.registry_type_id": ["cash_flow_amount"],
+        "$.reason_code": ["typed_supported"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_evidence_decision_v1",
+        "syn:financial:11",
+        "cash_flow_amount",
+        "amount",
+        "syn:value:11",
+        "typed_supported"
+      ]
+    },
+    {
+      "case_id": "syn_financial_unclassified",
+      "workload": "gate2_financial_evidence",
+      "family": "ambiguity",
+      "input_summary": "An ambiguous type is explicitly unclassified rather than guessed.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+        "source_ref": "syn:financial:12",
+        "disposition": "unclassified_financial_input",
+        "registry_type_id": null,
+        "bindings": [],
+        "reason_code": "ambiguous_registry_type"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.disposition": ["unclassified_financial_input"],
+        "$.reason_code": ["ambiguous_registry_type"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_evidence_decision_v1",
+        "syn:financial:12",
+        null,
+        "ambiguous_registry_type"
+      ]
+    },
+    {
+      "case_id": "syn_financial_no_input",
+      "workload": "gate2_financial_evidence",
+      "family": "adversarial_clerical",
+      "input_summary": "A promotional percentage is not converted into financial evidence.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+        "source_ref": "syn:banner:1",
+        "disposition": "no_financial_input",
+        "registry_type_id": null,
+        "bindings": [],
+        "reason_code": "no_financial_value"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.disposition": ["no_financial_input"],
+        "$.reason_code": ["no_financial_value"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_evidence_decision_v1",
+        "syn:banner:1",
+        null,
+        "no_financial_value"
+      ]
+    },
+    {
+      "case_id": "syn_checksum_exact",
+      "workload": "gate2_financial_checksum",
+      "family": "literal_copy",
+      "input_summary": "Return the supplied bounded totals without arithmetic enrichment.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_context_checksum_v1",
+        "context_ref": "syn_context_1",
+        "status": "matched",
+        "typed_count": 39,
+        "unclassified_count": 2,
+        "unsupported_count": 0,
+        "context_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "literal_paths": [
+        "$.typed_count",
+        "$.unclassified_count",
+        "$.unsupported_count",
+        "$.context_hash"
+      ],
+      "binding_paths": ["$.context_ref"],
+      "bounded_classifications": {
+        "$.status": ["matched", "mismatched"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_context_checksum_v1",
+        "syn_context_1",
+        "matched",
+        39,
+        2,
+        0,
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    },
+    {
+      "case_id": "syn_checksum_zero_preserved",
+      "workload": "gate2_financial_checksum",
+      "family": "structured_output",
+      "input_summary": "Zero counts remain integers and required fields are not omitted.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_context_checksum_v1",
+        "context_ref": "syn_context_2",
+        "status": "matched",
+        "typed_count": 0,
+        "unclassified_count": 0,
+        "unsupported_count": 0,
+        "context_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "literal_paths": [
+        "$.typed_count",
+        "$.unclassified_count",
+        "$.unsupported_count",
+        "$.context_hash"
+      ],
+      "binding_paths": ["$.context_ref"],
+      "bounded_classifications": {
+        "$.status": ["matched", "mismatched"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_context_checksum_v1",
+        "syn_context_2",
+        "matched",
+        0,
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ]
+    },
+    {
+      "case_id": "syn_financial_unsupported",
+      "workload": "gate2_financial_evidence",
+      "family": "bounded_classification",
+      "input_summary": "An admitted but unsupported source context remains unsupported.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+        "source_ref": "syn:unsupported:1",
+        "disposition": "unsupported",
+        "registry_type_id": null,
+        "bindings": [],
+        "reason_code": "unsupported_source_context"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.disposition": ["unsupported"],
+        "$.reason_code": ["unsupported_source_context"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_evidence_decision_v1",
+        "syn:unsupported:1",
+        null,
+        "unsupported_source_context"
+      ]
+    },
+    {
+      "case_id": "syn_adjacent_currency_binding",
+      "workload": "gate2_domain",
+      "family": "source_binding",
+      "input_summary": "Adjacent equal amounts with USD and EUR retain the selected EUR source.",
+      "expected_output": {
+        "schema_version": "broker_reports_candidate_binding_output_v0",
+        "package_id": "syn_pkg_currency",
+        "selected_bindings": [
+          {
+            "fact_field_path": "amount",
+            "candidate_id": "syn_amount_eur",
+            "semantic_role": "gross_amount"
+          },
+          {
+            "fact_field_path": "currency",
+            "candidate_id": "syn_currency_eur",
+            "semantic_role": "currency"
+          }
+        ],
+        "ambiguity_code": "explicit_selection"
+      },
+      "literal_paths": [],
+      "binding_paths": [
+        "$.selected_bindings[0].candidate_id",
+        "$.selected_bindings[1].candidate_id"
+      ],
+      "bounded_classifications": {
+        "$.ambiguity_code": ["explicit_selection"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_candidate_binding_output_v0",
+        "syn_pkg_currency",
+        "amount",
+        "syn_amount_eur",
+        "gross_amount",
+        "currency",
+        "syn_currency_eur",
+        "explicit_selection"
+      ]
+    },
+    {
+      "case_id": "syn_subtotal_not_detail",
+      "workload": "gate2_source",
+      "family": "adversarial_clerical",
+      "input_summary": "A subtotal and detail are distinct; select the requested detail row only.",
+      "expected_output": {
+        "schema_version": "broker_reports_source_fact_selection_v3",
+        "source_ref": "syn:detail:2",
+        "fact_type": "fee",
+        "literal_value": "25.00",
+        "reason_code": "selected_visible_value"
+      },
+      "literal_paths": ["$.literal_value"],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.fact_type": ["fee", "unknown_source_row"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_source_fact_selection_v3",
+        "syn:detail:2",
+        "25.00",
+        "selected_visible_value"
+      ]
+    },
+    {
+      "case_id": "syn_missing_date_nullable",
+      "workload": "gate2_source",
+      "family": "structured_output",
+      "input_summary": "An absent source date remains null and is not invented.",
+      "expected_output": {
+        "schema_version": "broker_reports_source_fact_selection_v3",
+        "source_ref": "syn:row:no-date",
+        "fact_type": "cash_movement",
+        "literal_value": "50,00",
+        "date": null,
+        "reason_code": "selected_visible_value"
+      },
+      "literal_paths": ["$.literal_value", "$.date"],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.fact_type": ["cash_movement", "unknown_source_row"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_source_fact_selection_v3",
+        "syn:row:no-date",
+        "50,00",
+        null,
+        "selected_visible_value"
+      ]
+    },
+    {
+      "case_id": "syn_repeated_label_ambiguity",
+      "workload": "gate2_financial_evidence",
+      "family": "ambiguity",
+      "input_summary": "A repeated label without decisive evidence remains unclassified.",
+      "expected_output": {
+        "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+        "source_ref": "syn:label:repeat:2",
+        "disposition": "unclassified_financial_input",
+        "registry_type_id": null,
+        "bindings": [],
+        "reason_code": "ambiguous_registry_type"
+      },
+      "literal_paths": [],
+      "binding_paths": ["$.source_ref"],
+      "bounded_classifications": {
+        "$.disposition": ["unclassified_financial_input"],
+        "$.reason_code": ["ambiguous_registry_type"]
+      },
+      "allowed_literal_values": [
+        "broker_reports_gate2_financial_evidence_decision_v1",
+        "syn:label:repeat:2",
+        null,
+        "ambiguous_registry_type"
+      ]
+    }
+  ]
+}
