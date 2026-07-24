@@ -84,6 +84,15 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             "gate1_semantic_visual_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
+        self.assertIn(
+            "gate2_economy_model_policy",
+            module._BUNDLED_MODULES,
+        )
+        self.assertIn("gate2_economy_budget", module._BUNDLED_MODULES)
+        self.assertNotIn(
+            "gate2_financial_evidence_registry",
+            module._BUNDLED_MODULES,
+        )
         self.assertIn("pdf_layout", module._BUNDLED_MODULES)
         self.assertIn("pdf_layout_units", module._BUNDLED_MODULES)
         self.assertIn("pdf_text_layer", module._BUNDLED_MODULES)
