@@ -9,12 +9,17 @@ from .gate2_source_fact_contracts import Gate2PromptError
 
 SOURCE_REQUEST_PROFILE = "source_v0"
 DOMAIN_REQUEST_PROFILE = "domain_v0"
+FINANCIAL_EVIDENCE_REQUEST_PROFILE = "financial_evidence_decision_v1"
 GATE2_REQUEST_PROFILES = (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE)
+_SUPPORTED_REQUEST_PROFILES = (
+    *GATE2_REQUEST_PROFILES,
+    FINANCIAL_EVIDENCE_REQUEST_PROFILE,
+)
 
 
 class Gate2OpenWebUIRequestBuilder:
     def __init__(self, *, request_profile: str) -> None:
-        if request_profile not in GATE2_REQUEST_PROFILES:
+        if request_profile not in _SUPPORTED_REQUEST_PROFILES:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_unknown",
                 "Unknown Gate 2 model request profile",
@@ -31,6 +36,13 @@ class Gate2OpenWebUIRequestBuilder:
     ) -> dict[str, Any]:
         if self.request_profile == SOURCE_REQUEST_PROFILE:
             return self._build_source(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if self.request_profile == FINANCIAL_EVIDENCE_REQUEST_PROFILE:
+            return self._build_financial_evidence(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -92,6 +104,75 @@ class Gate2OpenWebUIRequestBuilder:
                         "output_schema_hash"
                     ),
                     "package_ref": package.get("package_artifact_ref"),
+                }
+            },
+        }
+
+    def _build_financial_evidence(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{financial_evidence_package_json}}"
+        if marker not in prompt.content:
+            raise Gate2PromptError(
+                "gate2_financial_evidence_prompt_contract_mismatch",
+                "Managed financial evidence Prompt input marker is missing",
+            )
+        model_package = package.get("llm_context_package")
+        if not isinstance(model_package, dict):
+            raise Gate2PromptError(
+                "gate2_financial_evidence_package_missing",
+                "Financial evidence model package is missing",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                model_package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": (
+                                "decide_broker_reports_financial_evidence_v1"
+                            ),
+                            "source_scope_ref": package.get(
+                                "source_scope_ref"
+                            ),
+                            "instruction": (
+                                "Return exactly one decision object allowed "
+                                "by the supplied strict JSON Schema."
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_evidence_shadow": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "source_scope_ref": package.get("source_scope_ref"),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
                 }
             },
         }
