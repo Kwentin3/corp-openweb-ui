@@ -1,0 +1,69 @@
+{
+  "schema_version": "broker_reports_economy_goal1_policy_authority_safe_receipt_v1",
+  "terminal_status": "COMPLETED",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.0.0",
+    "policy_hash": "d9207ca5e2e2e4b78f62d3c834f663cd945c4925cf4b16312d2292fc27c8006f",
+    "factory": "Gate2EconomyModelPolicyFactory",
+    "model_declarations_total": 5,
+    "workload_classes_total": 4,
+    "qualified_models_total": 0,
+    "runtime_allowlist_empty_before_qualification": true
+  },
+  "candidate_exact_model_ids": [
+    "gpt-5-nano-2025-08-07",
+    "gpt-5.4-nano-2026-03-17",
+    "models/gemini-3.1-flash-lite",
+    "models/gemini-3.5-flash-lite",
+    "claude-haiku-4-5-20251001"
+  ],
+  "allowed_model_families": [
+    "nano",
+    "flash_lite",
+    "haiku"
+  ],
+  "checks": {
+    "versioned_and_code_owned": true,
+    "pure_and_deterministic": true,
+    "exact_ids_only": true,
+    "alias_resolves_to_exact_id": true,
+    "unknown_model_rejected": true,
+    "expensive_model_policy_selection_impossible": true,
+    "unqualified_model_runtime_selection_impossible": true,
+    "runtime_override_escalation_impossible": true,
+    "paid_tools_forbidden": true,
+    "reasoning_disabled_or_minimal": true,
+    "default_provider_calls_one": true,
+    "fallback_calls_maximum_one": true,
+    "qualification_receipt_required_for_active_model": true,
+    "factory_antidrift_anchors_tested": true
+  },
+  "verification": {
+    "focused_tests_passed": 50,
+    "focused_tests_failed": 0,
+    "ruff_new_files": "passed",
+    "compile_check": "passed",
+    "test_shell": "Windows PowerShell; python -m pytest from service root",
+    "test_isolation": "immutable policy factory inputs; no network or runtime state",
+    "provider_calls": 0
+  },
+  "deferred": {
+    "runtime_integration_goal": 4,
+    "provider_qualification_goal": 3,
+    "live_release_goal": 7
+  },
+  "unchanged_boundaries": {
+    "gate1_runtime_change": 0,
+    "financial_evidence_registry_change": 0,
+    "decision_contract_change": 0,
+    "materialization_change": 0,
+    "context_projection_change": 0,
+    "knowledge_rag_vector_delta": 0
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "private_refs_in_git": 0,
+    "provider_raw_output_in_git": 0
+  }
+}
