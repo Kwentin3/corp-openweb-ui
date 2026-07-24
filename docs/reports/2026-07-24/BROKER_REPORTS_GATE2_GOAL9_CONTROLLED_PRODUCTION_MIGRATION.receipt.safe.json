@@ -1,0 +1,72 @@
+{
+  "schema_version": "broker_reports_gate2_goal9_production_migration_safe_receipt_v1",
+  "terminal_status": "NOT_CLOSED",
+  "release": {
+    "status": "passed",
+    "release_id": "broker-reports-efee1fede8d4",
+    "source_revision": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0",
+    "manifest_sha256": "09734d10f47760bf9f6519edbaaedc20e3ef0d29763dda71bfa6efade761d006",
+    "rollback_artifact_created": true,
+    "rollback_identity_sha256": "8ded28842a53e57c5ee15f1737e63c761ad56262a29357eddd9edac1f52c3c67",
+    "rollback_previous_state_restored": true,
+    "rollback_candidate_state_restored": true,
+    "health_checks_passed": 3,
+    "staging_removed": true
+  },
+  "live_identity": {
+    "repository_live_parity": "exact",
+    "broker_reports_gate1_pipe_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "broker_reports_gate2_source_fact_pipe_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+    "broker_reports_gate2_domain_source_fact_pipe_sha256": "ea5d00a513542d82689c1434396e82ce4c21222fefd217292061fa78f46505e0",
+    "semantic_selection_enabled": false,
+    "financial_evidence_enabled": true,
+    "financial_evidence_registry_version": "broker_reports_gate2_financial_evidence_registry_v1"
+  },
+  "registry_policy": {
+    "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "runtime_schema_version": "broker_reports_gate2_financial_evidence_production_run_v1",
+    "context_schema_version": "broker_reports_gate2_financial_context_v1",
+    "legacy_read_policy": "dual_read",
+    "write_policy": "new_schema_only"
+  },
+  "unchanged_surfaces": {
+    "gate1_runtime_change": 0,
+    "gate2_source_function_change": 0,
+    "action_change": 0,
+    "loader_change": 0,
+    "managed_prompt_change": 0,
+    "image_change": 0
+  },
+  "knowledge_rag_vector": {
+    "knowledge_rows_before": 0,
+    "knowledge_rows_after": 0,
+    "vector_files_before": 599,
+    "vector_files_after": 599,
+    "vector_bytes_before": 309977008,
+    "vector_bytes_after": 309977008,
+    "delta": 0
+  },
+  "production_scope_proof": {
+    "status": "failed_before_financial_runtime",
+    "new_financial_inputs_total": 0,
+    "new_financial_context_total": 0,
+    "new_financial_receipt_total": 0,
+    "new_financial_run_total": 0,
+    "preexisting_artifacts_unchanged": true,
+    "gate1_source_function_identity_unchanged": true,
+    "approved_provider_failures": {
+      "openai_gpt": "gate2_model_provider_quota_exceeded",
+      "google_gemini": "gate2_model_provider_error",
+      "anthropic_claude": "gate2_model_schema_response_format_rejected"
+    }
+  },
+  "failed_invariant": "A bounded live scope did not persist the new financial run, receipt, context and input artifacts.",
+  "owning_component": "stage provider availability and strict response-format capability before Gate2FinancialEvidenceProductionRuntime",
+  "blocker_type": "external_provider_state",
+  "narrowest_corrective_slice": "Restore funded OpenAI Gate 2 capacity, then rerun the same bounded migration verifier without changing runtime contracts.",
+  "privacy": {
+    "customer_values_in_git": 0,
+    "provider_raw_output_in_git": 0,
+    "private_refs_in_git": 0
+  }
+}
