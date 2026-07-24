@@ -449,7 +449,13 @@ def test_openai_and_gemini_are_projections_of_one_canonical_contract():
 
     assert openai["type"] == "json_schema"
     assert openai["json_schema"]["strict"] is True
-    assert openai["json_schema"]["schema"] == canonical
+    assert openai["json_schema"]["schema"] != canonical
+    assert "uniqueItems" in json.dumps(canonical)
+    assert "uniqueItems" not in json.dumps(
+        openai["json_schema"]["schema"]
+    )
+    assert "minItems" in json.dumps(openai["json_schema"]["schema"])
+    assert "maxItems" in json.dumps(openai["json_schema"]["schema"])
     assert gemini["type"] == "json_schema"
     assert gemini["json_schema"]["strict"] is True
     assert "$schema" not in gemini_schema

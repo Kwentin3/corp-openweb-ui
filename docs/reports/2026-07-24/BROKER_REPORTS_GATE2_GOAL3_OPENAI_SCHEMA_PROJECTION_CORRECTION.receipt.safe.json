@@ -1,0 +1,37 @@
+{
+  "schema_version": "broker_reports_gate2_goal3_openai_schema_projection_correction_receipt_v1",
+  "status": "completed",
+  "base_revision": "4a0fb32186b14a4a523c7e2241a87e4fb042a285",
+  "failed_shadow_attempt": {
+    "provider_http_status": 400,
+    "error_code": "gate2_model_schema_response_format_rejected",
+    "fallback_total": 0,
+    "repair_total": 0,
+    "private_artifact_sha256": "0775b990a15ffef8fc243c7d847797e7eed12c9a748743323b10a7e8a5ff2acb"
+  },
+  "correction": {
+    "canonical_unique_items_preserved": true,
+    "openai_projection_unique_items_removed": true,
+    "openai_projection_min_items_preserved": true,
+    "openai_projection_max_items_preserved": true,
+    "parser_duplicate_binding_check_preserved": true
+  },
+  "live_synthetic_probe": {
+    "status": "passed",
+    "provider_http_status": 200,
+    "terminal_disposition": "unclassified_financial_input",
+    "fallback_total": 0,
+    "repair_total": 0,
+    "private_artifact_sha256": "d66fbcdce09652170cd1ecad3329d49a2e245b99a81880dce7c4ef817c03fc9b"
+  },
+  "validation": {
+    "targeted_tests_passed": 63,
+    "full_broker_reports_suite_passed": 1248,
+    "full_broker_reports_suite_skipped": 20,
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "customer_values_in_receipt": false
+}
