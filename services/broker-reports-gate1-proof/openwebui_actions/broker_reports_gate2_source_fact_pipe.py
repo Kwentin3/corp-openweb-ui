@@ -50,6 +50,15 @@ from broker_reports_gate1.gate2_chat_dcp_resolution import (
 
 
 _GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
+SEMANTIC_SELECTION_CONTAINMENT_POLICY_VERSION = (
+    "broker_reports_semantic_selection_containment_v1"
+)
+
+
+def _semantic_selection_containment_guard() -> bool:
+    """Keep the regressive semantic-selection route unreachable in production."""
+
+    return False
 
 
 class Pipe:
@@ -85,7 +94,7 @@ class Pipe:
         table_max_rows: int = Field(default=40)
         text_max_chars: int = Field(default=6000)
         max_estimated_input_tokens: int = Field(default=12000)
-        semantic_selection_enabled: bool = Field(default=True)
+        semantic_selection_enabled: bool = Field(default=False)
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -221,11 +230,8 @@ class Pipe:
                         config.get("max_estimated_input_tokens")
                         or self.valves.max_estimated_input_tokens
                     ),
-                    semantic_selection_enabled=bool(
-                        config.get(
-                            "semantic_selection_enabled",
-                            self.valves.semantic_selection_enabled,
-                        )
+                    semantic_selection_enabled=(
+                        _semantic_selection_containment_guard()
                     ),
                     document_batch_start=int(
                         config.get("document_batch_start") or 0
