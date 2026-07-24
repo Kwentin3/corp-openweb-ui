@@ -165,6 +165,29 @@ GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
     name for name in MODULE_ORDER if name != "gate2_handoff"
 ] + GATE2_ONLY_MODULES
+GATE2_FINANCIAL_MODULES = [
+    "gate2_financial_evidence_registry",
+    "gate2_financial_evidence_catalog",
+    "gate2_financial_evidence_decision",
+    "gate2_financial_evidence_materialization_contracts",
+    "gate2_financial_evidence_materialization_validation",
+    "gate2_financial_evidence_source_package",
+    "gate2_financial_evidence_materialization",
+    "gate2_financial_context_contracts",
+    "gate2_financial_context_validation",
+    "gate2_financial_context",
+    "gate2_financial_evidence_legacy_validation",
+    "gate2_financial_evidence_compatibility",
+    "gate2_financial_evidence_production_runtime",
+]
+_GATE2_FINANCIAL_INSERT_AT = GATE2_MODULE_ORDER.index(
+    "gate2_model_clients"
+) + 1
+GATE2_DOMAIN_MODULE_ORDER = [
+    *GATE2_MODULE_ORDER[:_GATE2_FINANCIAL_INSERT_AT],
+    *GATE2_FINANCIAL_MODULES,
+    *GATE2_MODULE_ORDER[_GATE2_FINANCIAL_INSERT_AT:],
+]
 
 
 def main() -> None:
@@ -181,6 +204,7 @@ def main() -> None:
             set(MODULE_ORDER)
             | set(GATE1_HYBRID_MODULES)
             | set(GATE2_ONLY_MODULES)
+            | set(GATE2_FINANCIAL_MODULES)
         )
     }
     if target in {"all", "gate1"}:
@@ -220,7 +244,7 @@ def main() -> None:
             GATE2_DOMAIN_PIPE_SOURCE.read_text(encoding="utf-8")
         )
         gate2_domain_modules = {
-            name: modules[name] for name in GATE2_MODULE_ORDER
+            name: modules[name] for name in GATE2_DOMAIN_MODULE_ORDER
         }
         gate2_domain_modules["__init__"] = _project_package_init(
             gate2_domain_modules["__init__"],
