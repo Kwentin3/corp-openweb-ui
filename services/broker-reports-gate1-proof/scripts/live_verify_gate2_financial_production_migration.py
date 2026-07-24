@@ -19,6 +19,13 @@ sys.path.insert(0, str(SERVICE_ROOT))
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
+from broker_reports_gate1.gate2_economy_model_policy import (  # noqa: E402
+    WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
+)
+from broker_reports_gate1.gate2_economy_provider_selection import (  # noqa: E402
+    Gate2EconomyProviderSelectionError,
+    Gate2EconomyProviderSelectionFactory,
+)
 from live_broker_reports_private_intake_smoke import (  # noqa: E402
     _authenticated_session,
 )
@@ -57,11 +64,34 @@ def main() -> int:
     parser.add_argument("--dcp-ref", required=True)
     parser.add_argument("--source-unit-start", required=True, type=int)
     parser.add_argument("--source-segment-start", required=True, type=int)
-    parser.add_argument("--model-id", default="gpt-5.6-sol")
-    parser.add_argument("--provider-profile-id", default="openai_gpt")
+    parser.add_argument("--model-id", default="")
+    parser.add_argument("--provider-profile-id", default="")
     parser.add_argument("--timeout", type=int, default=900)
     args = parser.parse_args()
 
+    try:
+        economy_selection = _economy_migration_selection(
+            model_id=args.model_id,
+            provider_profile_id=args.provider_profile_id,
+        )
+    except Gate2EconomyProviderSelectionError as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": (
+                        "broker_reports_economy_migration_preflight_v1"
+                    ),
+                    "status": "blocked",
+                    "error_code": exc.code,
+                    "provider_calls_total": 0,
+                    "fallback_calls_total": 0,
+                    "expensive_model_calls_total": 0,
+                    "stage_mutations_total": 0,
+                },
+                sort_keys=True,
+            )
+        )
+        return 2
     env = _read_env(Path(args.env_file))
     base_url = (
         args.base_url.rstrip("/")
@@ -88,8 +118,10 @@ def main() -> int:
         _url(base_url, "/api/chat/completions"),
         json=_migration_chat_body(
             dcp_ref=args.dcp_ref,
-            model_id=args.model_id,
-            provider_profile_id=args.provider_profile_id,
+            model_id=economy_selection.primary.exact_model_id,
+            provider_profile_id=(
+                economy_selection.primary.provider_profile_id
+            ),
             source_unit_start=args.source_unit_start,
             source_segment_start=args.source_segment_start,
         ),
@@ -115,6 +147,9 @@ def main() -> int:
         after_functions=after_functions,
         domain_valves=domain_valves,
         chat_content=chat_content,
+    )
+    evaluation["economy_provider_selection"] = (
+        economy_selection.safe_receipt()
     )
     print(
         json.dumps(
@@ -164,9 +199,27 @@ def _migration_chat_body(
             "candidate_binding_enabled": False,
             "gate3_context_manifest_enabled": False,
             "answer_context_selection_enabled": False,
-            "max_repair_attempts": 1,
+            "max_repair_attempts": 0,
         },
     }
+
+
+def _economy_migration_selection(
+    *,
+    model_id: str,
+    provider_profile_id: str,
+):
+    return (
+        Gate2EconomyProviderSelectionFactory()
+        .create()
+        .select_runtime(
+            workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
+            requested_model_ids=((model_id,) if model_id else None),
+            requested_provider_profile_ids=(
+                (provider_profile_id,) if provider_profile_id else None
+            ),
+        )
+    )
 
 
 def evaluate(

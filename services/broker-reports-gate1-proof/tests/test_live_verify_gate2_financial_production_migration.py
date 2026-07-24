@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
@@ -12,8 +14,12 @@ from live_verify_gate2_financial_production_migration import (  # noqa: E402
     FUNCTION_ID,
     GATE1_FUNCTION_ID,
     SOURCE_FUNCTION_ID,
+    _economy_migration_selection,
     _migration_chat_body,
     evaluate,
+)
+from broker_reports_gate1.gate2_economy_provider_selection import (  # noqa: E402
+    Gate2EconomyProviderSelectionError,
 )
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
@@ -108,6 +114,27 @@ def test_migration_route_excludes_unrelated_answer_context_and_gate3():
     assert config["source_unit_limit"] == 1
     assert config["source_unit_start"] == 2
     assert config["source_segment_start"] == 4
+    assert config["max_repair_attempts"] == 0
+
+
+def test_migration_preflight_blocks_when_no_economy_model_is_qualified():
+    with pytest.raises(Gate2EconomyProviderSelectionError) as exc_info:
+        _economy_migration_selection(
+            model_id="",
+            provider_profile_id="",
+        )
+
+    assert exc_info.value.code == "gate2_economy_no_qualified_model"
+
+
+def test_migration_preflight_rejects_expensive_model():
+    with pytest.raises(Gate2EconomyProviderSelectionError) as exc_info:
+        _economy_migration_selection(
+            model_id="gpt-5.6-sol",
+            provider_profile_id="openai_gpt",
+        )
+
+    assert exc_info.value.code == "economy_model_not_registered"
 
 
 def test_evaluate_passes_atomic_new_schema_migration():
