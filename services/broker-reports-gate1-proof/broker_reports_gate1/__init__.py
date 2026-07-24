@@ -374,6 +374,17 @@ from .gate2_economy_provider_selection import (
     Gate2EconomyProviderSelectionFactory,
     Gate2EconomyProviderSelector,
 )
+from .gate2_economy_workload_qualification import (
+    QUALIFICATION_REGISTRY_SCHEMA_VERSION as GATE2_ECONOMY_QUALIFICATION_REGISTRY_SCHEMA_VERSION,
+    STATUS_NOT_QUALIFIED as ECONOMY_WORKLOAD_STATUS_NOT_QUALIFIED,
+    STATUS_PENDING_STAGE_DELIVERY as ECONOMY_WORKLOAD_STATUS_PENDING_STAGE_DELIVERY,
+    STATUS_PROVIDER_ROUTE_UNAVAILABLE as ECONOMY_WORKLOAD_STATUS_PROVIDER_ROUTE_UNAVAILABLE,
+    STATUS_SYNTHETIC_QUALIFIED as ECONOMY_WORKLOAD_STATUS_SYNTHETIC_QUALIFIED,
+    EconomyWorkloadQualificationEvidence,
+    Gate2EconomyWorkloadQualificationError,
+    Gate2EconomyWorkloadQualificationFactory,
+    Gate2EconomyWorkloadQualificationSnapshot,
+)
 from .gate2_economy_budget import (
     BUDGET_SCHEMA_VERSION as GATE2_ECONOMY_BUDGET_SCHEMA_VERSION,
     FACTORY_REQUIRED as GATE2_ECONOMY_BUDGET_FACTORY_REQUIRED,
@@ -1048,6 +1059,15 @@ __all__ = [
     "Gate2EconomyProviderSelectionError",
     "Gate2EconomyProviderSelectionFactory",
     "Gate2EconomyProviderSelector",
+    "GATE2_ECONOMY_QUALIFICATION_REGISTRY_SCHEMA_VERSION",
+    "ECONOMY_WORKLOAD_STATUS_NOT_QUALIFIED",
+    "ECONOMY_WORKLOAD_STATUS_PENDING_STAGE_DELIVERY",
+    "ECONOMY_WORKLOAD_STATUS_PROVIDER_ROUTE_UNAVAILABLE",
+    "ECONOMY_WORKLOAD_STATUS_SYNTHETIC_QUALIFIED",
+    "EconomyWorkloadQualificationEvidence",
+    "Gate2EconomyWorkloadQualificationError",
+    "Gate2EconomyWorkloadQualificationFactory",
+    "Gate2EconomyWorkloadQualificationSnapshot",
     "GATE2_ECONOMY_BUDGET_SCHEMA_VERSION",
     "GATE2_ECONOMY_BUDGET_FACTORY_REQUIRED",
     "GATE2_ECONOMY_BUDGET_FORBIDDEN",

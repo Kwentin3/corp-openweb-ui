@@ -1,0 +1,84 @@
+{
+  "schema_version": "broker_reports_economy_requalification_v2_safe_receipt_v1",
+  "date": "2026-07-24",
+  "status": "COMPLETED_WITH_EXPLICIT_GAPS",
+  "stage": {
+    "openwebui_version": "0.9.6",
+    "aggregate_models_total": 41,
+    "requested_exact_models_published": 3,
+    "stage_mutations_total": 0
+  },
+  "policy": {
+    "version": "1.3.0",
+    "hash": "ce1a2842fe61e325fefdc0adb5a6a78729b8e7cab24988e4059636b3f215ffc3",
+    "production_qualified_models_total": 0,
+    "production_allowlists_empty": true
+  },
+  "workload_registry": {
+    "schema_version": "broker_reports_gate2_economy_workload_qualification_v1",
+    "hash": "72392d9d707c7d21e2975f60fb033e1aebecdb6a29e109e227a1d48ccfde55d7",
+    "entries_total": 12
+  },
+  "results": [
+    {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "provider_profile_id": "openai_gpt",
+      "source": "pending_stage_delivery",
+      "domain": "pending_stage_delivery",
+      "financial_evidence": "synthetic_qualified",
+      "financial_evidence_passed": 4,
+      "financial_evidence_total": 4,
+      "financial_checksum": "not_qualified",
+      "financial_checksum_passed": 0,
+      "financial_checksum_total": 3,
+      "successful_cost_usd": "0.002279900"
+    },
+    {
+      "exact_model_id": "models/gemini-2.5-flash-lite",
+      "provider_profile_id": "google_gemini",
+      "source": "pending_stage_delivery",
+      "domain": "pending_stage_delivery",
+      "financial_evidence": "provider_route_unavailable",
+      "financial_checksum": "provider_route_unavailable",
+      "terminal_code": "gate2_model_unavailable_http_404",
+      "usage_tokens_total": 0,
+      "successful_cost_usd": "0"
+    },
+    {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "provider_profile_id": "anthropic_claude",
+      "source": "synthetic_qualified",
+      "domain": "synthetic_qualified",
+      "financial_evidence": "not_qualified",
+      "financial_evidence_passed": 2,
+      "financial_evidence_total": 4,
+      "financial_checksum": "synthetic_qualified",
+      "financial_checksum_passed": 3,
+      "financial_checksum_total": 3,
+      "successful_actual_and_estimated_cost_usd": "0.021194"
+    }
+  ],
+  "attempt_accounting": {
+    "provider_attempts_total": 28,
+    "successful_billable_calls_total": 10,
+    "failed_or_pre_generation_attempts_total": 18,
+    "fallback_calls_total": 0,
+    "repair_attempts_total": 0,
+    "customer_calls_total": 0,
+    "actual_and_estimated_cost_usd": "0.023473900"
+  },
+  "verification": {
+    "focused_tests_passed": 89,
+    "full_tests_passed": 1352,
+    "full_tests_skipped": 20,
+    "ruff_passed": true,
+    "diff_check_passed": true,
+    "safe_receipt_scan_passed": true
+  },
+  "release_boundary": {
+    "synthetic_only": true,
+    "actual_corpus_calls_total": 0,
+    "full_scope_calls_total": 0,
+    "production_release_performed": false
+  }
+}

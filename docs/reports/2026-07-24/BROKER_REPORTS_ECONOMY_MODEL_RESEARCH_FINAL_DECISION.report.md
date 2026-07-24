@@ -7,6 +7,22 @@
 Этот статус не закрывает economy migration. Production-ready models:
 `ZERO`.
 
+## Requalification v2
+
+Publication blockers для Gemini 2.5 Flash-Lite, GPT-5.4 Nano и Haiku 4.5
+сняты. Повторный synthetic live прогон дал:
+
+- source/domain: Haiku 4.5 passed;
+- financial evidence: GPT-5.4 Nano passed `4/4`;
+- checksum: Haiku 4.5 passed `3/3`;
+- Gemini 2.5 Flash-Lite: aggregate published, maintained upstream route
+  unavailable с `404`;
+- production allowlist: пуст.
+
+Исходный research вывод о workload-specific выборе подтверждён, но
+production migration всё ещё не закрыта. Authoritative evidence:
+`BROKER_REPORTS_ECONOMY_REQUALIFICATION_V2.report.md`.
+
 ## Решение
 
 Рекомендуемая target architecture выбирает не одну модель на pipeline, а:
@@ -141,13 +157,14 @@ OpenAI Nano, Gemini 2.5 FL и GPT-4.1 Nano требуют maintained publication
 
 ## Unresolved gaps
 
-- no exact Nano publication/live call;
-- no Gemini 2.5/GPT-4.1 Nano live call;
+- GPT-5 Nano и GPT-4.1 Nano по-прежнему не опубликованы;
+- Gemini 2.5 published, но maintained provider route возвращает `404`;
+- GPT-5.4 Nano source/domain ждут доставки policy v1.3 в stage;
 - no measured domain token profile;
 - no Gemini 3.5 financial route execution;
-- no native-vs-projection Haiku schema isolation;
-- no successful economy financial full scope;
-- no economy checksum;
+- Haiku financial typed schema rejection и unsupported disposition mismatch;
+- GPT-5.4 Nano checksum dimension mismatch;
+- no successful economy financial actual-corpus/full scope;
 - no actual-corpus shadow;
 - no production migration.
 
@@ -160,7 +177,7 @@ multi-provider consensus and customer full-scope calls не использова
 
 ## Final boundary
 
-Research is sufficient to start a narrow implementation/qualification
-program. It is not sufficient to release an economy model. Следующий
-terminal gate — публикация exact candidates и выполнение ordered
-workload-specific qualification plan.
+Research и synthetic replay достаточны для узкого provider-route исправления
+и stage-delivery policy v1.3. Этого недостаточно для release economy model.
+Следующий terminal gate — восстановить Gemini 2.5 upstream route, доставить
+policy и повторить недостающие exact workload contracts.

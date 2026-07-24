@@ -7,6 +7,22 @@
 Shortlist — очередь qualification, не production allowlist. Ни одна новая
 модель не объявлена qualified по интернет-документации.
 
+## Requalification v2 — authoritative update
+
+Три exact-кандидата опубликованы и получили synthetic replay. Предыдущая
+очередь ниже сохраняет исходную research rationale, но текущий фактический
+выбор определяется workload evidence:
+
+| Workload | Cheapest synthetic-proven model | Другие результаты |
+| --- | --- | --- |
+| `gate2_source` | `claude-haiku-4-5-20251001` | GPT/Gemini ждут доставки policy v1.3 в stage |
+| `gate2_domain` | `claude-haiku-4-5-20251001` | GPT/Gemini ждут доставки policy v1.3 в stage |
+| `gate2_financial_evidence` | `gpt-5.4-nano-2026-03-17` | Haiku `2/4`; Gemini route unavailable |
+| `gate2_financial_checksum` | `claude-haiku-4-5-20251001` | GPT `0/3`; Gemini route unavailable |
+
+Это synthetic evidence, а не production allowlist. Полный receipt:
+`BROKER_REPORTS_ECONOMY_REQUALIFICATION_V2.report.md`.
+
 ## Рекомендуемая очередь
 
 | Workload | Primary candidate | Secondary | Optional fallback |
@@ -151,3 +167,8 @@ Cheapest plausible full set is GPT-5 Nano for all four workloads, but it is
 selection. If GPT-5 Nano fails one workload, choose the cheapest model
 qualified for that exact workload; не повышать весь pipeline на общий
 frontier fallback.
+
+После live replay гипотеза о единой модели не подтверждена. Текущий
+synthetic-proven набор гетерогенен: GPT-5.4 Nano для financial evidence и
+Haiku 4.5 для source/domain/checksum. Из-за цены Haiku и отсутствия
+actual-corpus evidence этот набор не готов к production.

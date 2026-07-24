@@ -46,7 +46,6 @@ from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
     Gate2GeminiResponseFormatAdapter,
     Gate2AnthropicNativeMessagesAdapter,
     Gate2NativeProviderTransportConfig,
-    Gate2OpenWebUIProviderConnection,
     Gate2OpenWebUIProviderConnectionResolver,
     Gate2OpenAIResponseFormatAdapter,
 )
@@ -1192,6 +1191,10 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
 
     def test_provider_error_taxonomy_is_typed_private_and_never_retried(self):
         common_cases = (
+            (
+                "reasoning_effort minimal rejected",
+                "gate2_model_reasoning_control_rejected",
+            ),
             ("oneOf is unsupported", "gate2_model_schema_oneof_unsupported"),
             ("response_format json_schema rejected", "gate2_model_schema_response_format_rejected"),
             ("too many tokens", "gate2_model_context_budget_exceeded"),
@@ -1201,6 +1204,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             ),
             ("rate limit exceeded", "gate2_model_provider_rate_limited"),
             ("model not found", "gate2_model_unavailable"),
+            ("404 model unavailable", "gate2_model_unavailable"),
             ("authentication api key failed", "gate2_model_provider_auth_failed"),
             (
                 "provider service temporarily unavailable",

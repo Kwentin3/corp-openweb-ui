@@ -6,16 +6,17 @@
 
 ## Результат
 
-Read-only запрос к stage OpenWebUI `0.9.6` вернул `37` опубликованных
-записей. Все записи классифицированы. Maintained connections уже существуют
+Повторный read-only запрос к stage OpenWebUI `0.9.6` вернул `41` опубликованную
+запись. Все записи классифицированы. Maintained connections уже существуют
 для OpenAI, Anthropic, DeepSeek и Google Gemini; новый provider stack для
 shortlist не требуется.
 
-Только две опубликованные exact-модели одновременно относятся к
-целевому Flash-Lite классу:
+После снятия publication blockers в aggregate inventory присутствуют три
+запрошенных exact-кандидата:
 
-- `models/gemini-3.1-flash-lite`;
-- `models/gemini-3.5-flash-lite`.
+- `models/gemini-2.5-flash-lite`;
+- `gpt-5.4-nano-2026-03-17`;
+- `claude-haiku-4-5-20251001`.
 
 Опубликованы и другие недорогие модели, но у них есть отдельные blockers:
 `deepseek-v4-pro` не даёт strict schema conformance, Gemma 4 доступна через
@@ -28,10 +29,10 @@ Flash-Lite. `gpt-5.4-mini-2026-03-17` дешевле frontier, но не про�
 
 | `urlIdx` | Provider route | Endpoint class | Published models | Direct connection inventory |
 | ---: | --- | --- | ---: | ---: |
-| `0` | OpenAI | first-party OpenAI-compatible | 6 | 109 |
-| `1` | Anthropic | maintained external bearer, native adapter для Gate 2 | 2 | 9 |
+| `0` | OpenAI | first-party OpenAI-compatible | 7 | 109 |
+| `1` | Anthropic | maintained external bearer, native adapter для Gate 2 | 4 | 9 |
 | `2` | DeepSeek | OpenAI-compatible | 1 | 2 |
-| `3` | Google Gemini | Gemini OpenAI-compatible endpoint | 23 | 57 |
+| `3` | Google Gemini | Gemini OpenAI-compatible endpoint | 24 | 57 |
 | n/a | OpenWebUI local | Pipe, Workspace Model, Arena | 5 | n/a |
 
 Connection inventory шире опубликованного `/api/models`. Поэтому
@@ -49,9 +50,12 @@ chat. Media generators, realtime, deep-research и Arena не являются
 | `broker_reports_gate1_pipe` | НДФЛ. Брокерские отчёты / Gate 1 | local Pipe | virtual | Pipe | active | Gate 1, вне scope |
 | `broker_reports_gate2_domain_source_fact_pipe` | Broker Reports Gate 2 Domain Source Facts | local Pipe | virtual | Pipe | active | route, не provider model |
 | `broker_reports_gate2_source_fact_pipe` | Broker Reports Gate 2 Source Facts | local Pipe | virtual | Pipe | active | route, не provider model |
+| `claude-haiku-4-5-20251001` | Claude Haiku 4.5 | Anthropic `1` | dated snapshot | да | stable economy | published; qualification replayed |
+| `claude-opus-5` | Claude Opus 5 | Anthropic `1` | named model | да | expensive frontier | prohibited; no calls |
 | `claude-sonnet-4-6` | Claude Sonnet 4.6 | Anthropic `1` | direct exact/alias family | да | expensive stable | rejected by cost |
 | `claude-sonnet-5` | Claude Sonnet 5 | Anthropic `1` | direct exact/alias family | да | frontier stable | rejected by cost |
 | `deepseek-v4-pro` | deepseek-v4-pro | DeepSeek `2` | direct exact | да | cheap stable | research-only: no strict schema |
+| `gpt-5.4-nano-2026-03-17` | same | OpenAI `0` | dated snapshot | да | stable economy | published; qualification replayed |
 | `gpt-5.4-mini-2026-03-17` | same | OpenAI `0` | dated snapshot | да | mid-cost stable | rejected target budget |
 | `gpt-5.6-luna` | same | OpenAI `0` | named model | да | cost-sensitive, not Nano | rejected target budget |
 | `gpt-5.6-sol` | same | OpenAI `0` | named model | да | frontier | prohibited |
@@ -64,6 +68,7 @@ chat. Media generators, realtime, deep-research и Arena не являются
 | `models/deep-research-preview-04-2026` | Deep Research Preview | Google `3` | preview | specialized | preview | rejected |
 | `models/deep-research-pro-preview-12-2025` | Deep Research Pro Preview | Google `3` | preview | specialized | preview | rejected |
 | `models/gemini-2.5-flash` | Gemini 2.5 Flash | Google `3` | stable exact family | да | stable Flash | secondary only, not Lite price |
+| `models/gemini-2.5-flash-lite` | Gemini 2.5 Flash-Lite | Google `3` | stable exact family | да | stable economy | published; provider route returns upstream 404 |
 | `models/gemini-3.1-flash-lite` | Gemini 3.1 Flash Lite | Google `3` | stable exact family | да | stable economy | shortlist |
 | `models/gemini-3.5-flash` | Gemini 3.5 Flash | Google `3` | stable exact family | да | stable Flash | rejected target budget |
 | `models/gemini-3.5-flash-lite` | Gemini 3.5 Flash Lite | Google `3` | stable exact family | да | stable economy | shortlist |
@@ -91,13 +96,13 @@ chat. Media generators, realtime, deep-research и Arena не являются
 | Exact candidate | Modalities | Context / max output | Structured / tools | Reasoning | Standard USD/MTok input/output | Lifecycle |
 | --- | --- | --- | --- | --- | ---: | --- |
 | `gpt-5-nano-2025-08-07` | text+image in, text out | 400k / 128k | strict Structured Outputs; functions | configurable | `0.05 / 0.40` | stable snapshot, unpublished |
-| `gpt-5.4-nano-2026-03-17` | text+image in, text out | 400k / 128k | strict Structured Outputs; functions | none..xhigh | `0.20 / 1.25` | stable snapshot, unpublished |
+| `gpt-5.4-nano-2026-03-17` | text+image in, text out | 400k / 128k | strict Structured Outputs; functions | none..xhigh | `0.20 / 1.25` | stable snapshot, published |
 | `gpt-4.1-nano-2025-04-14` | text+image in, text out | 1,047,576 / 32,768 | strict Structured Outputs; functions | non-reasoning | `0.10 / 0.40` | stable snapshot, unpublished |
 | `gpt-4o-mini-2024-07-18` | text+image in, text out | 128k / 16,384 | strict Structured Outputs; functions | non-reasoning | `0.15 / 0.60` | stable snapshot, unpublished |
-| `models/gemini-2.5-flash-lite` | text/image/video/audio/PDF in | ~1M / 65,536 | structured output; functions | controllable | `0.10 / 0.40` | stable, unpublished |
+| `models/gemini-2.5-flash-lite` | text/image/video/audio/PDF in | ~1M / 65,536 | structured output; functions | controllable | `0.10 / 0.40` | stable, published; maintained route unavailable |
 | `models/gemini-3.1-flash-lite` | text/image/video/audio/PDF in | 1,048,576 / 65,536 | structured output; functions | thinking control | `0.25 / 1.50` | stable, published |
 | `models/gemini-3.5-flash-lite` | text/image/video/audio/PDF in | 1,048,576 / 65,536 | structured output; functions | thinking control | `0.30 / 2.50` | stable GA, published |
-| `claude-haiku-4-5-20251001` | text+image in, text out | 200k / 64k | native strict output/tools | controllable | `1.00 / 5.00` | stable dated, unpublished |
+| `claude-haiku-4-5-20251001` | text+image in, text out | 200k / 64k | native strict output/tools | controllable | `1.00 / 5.00` | stable dated, published |
 | `deepseek-v4-flash` | text in/out | 1M / 384k | JSON mode, tools; no schema guarantee | thinking/non-thinking | `0.14 miss / 0.28` | stable, unpublished |
 | `deepseek-v4-pro` | text in/out | 1M / 384k | JSON mode, tools; no schema guarantee | thinking/non-thinking | `0.435 miss / 0.87` | stable, published |
 
@@ -116,14 +121,11 @@ economy Gate 2 model.
 
 ## Cheap exact IDs в существующих connections, но не в `/api/models`
 
-Приоритет публикации:
+После повторной инвентаризации всё ещё не опубликованы:
 
 1. `gpt-5-nano-2025-08-07`;
-2. `models/gemini-2.5-flash-lite`;
-3. `gpt-4.1-nano-2025-04-14`;
-4. `gpt-5.4-nano-2026-03-17`;
-5. `gpt-4o-mini-2024-07-18`;
-6. `claude-haiku-4-5-20251001`.
+2. `gpt-4.1-nano-2025-04-14`;
+3. `gpt-4o-mini-2024-07-18`.
 
 `deepseek-v4-flash` уже присутствует в connection inventory, но публиковать
 его для qualification следует только как `research-only`: текущий contract
@@ -146,6 +148,8 @@ connection inventory было бы stale metadata, а не доступност�
 ## Acceptance
 
 - `OPENWEBUI_MODELS`: `FULLY_INVENTORIED`;
+- `OPENWEBUI_MODELS_TOTAL`: `41`;
+- requested exact candidates published: `3/3`;
 - `EXACT_PROVIDER_IDENTITIES`: `RESOLVED_WHERE_POSSIBLE`;
 - `ALIASES`: `CLASSIFIED`;
 - `HIDDEN_EXPENSIVE_TARGETS`: `IDENTIFIED`;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from collections import Counter
@@ -11,9 +12,11 @@ from .gate2_financial_context import (
 )
 from .gate2_financial_evidence_decision import (
     Gate2FinancialEvidenceDecisionContract,
+    Gate2FinancialEvidenceDecisionError,
 )
 from .gate2_financial_evidence_materialization import (
     FinancialEvidenceExecutionMetadata,
+    Gate2FinancialEvidenceMaterializationError,
     Gate2FinancialEvidenceMaterializerFactory,
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
@@ -48,9 +51,21 @@ FORBIDDEN = (
 
 
 class Gate2FinancialEvidenceShadowQualificationError(ValueError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        provider_execution: dict[str, Any] | None = None,
+        economy_budget_receipt: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.provider_execution = copy.deepcopy(
+            provider_execution or {}
+        )
+        self.economy_budget_receipt = copy.deepcopy(
+            economy_budget_receipt
+        )
 
 
 @dataclass(frozen=True)
@@ -67,6 +82,7 @@ class FinancialEvidenceShadowDecisionResult:
     provider_execution: dict[str, Any]
     fallback_used: bool
     repair_attempt_count: int
+    economy_budget_receipt: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -191,7 +207,7 @@ class Gate2FinancialEvidenceShadowDecisionRunner:
             _fail("financial_evidence_shadow_authority_mismatch")
         result = await self.model_client.extract(
             prompt=self.prompt,
-            package=self._model_package(contract, source_package),
+            package=self.model_package(contract, source_package),
             model_id=self.model_id,
             response_format=contract.openai_response_format(),
         )
@@ -199,17 +215,6 @@ class Gate2FinancialEvidenceShadowDecisionRunner:
             _fail("financial_evidence_shadow_fallback_forbidden")
         if result.repair_attempt_count:
             _fail("financial_evidence_shadow_repair_forbidden")
-        validated = Gate2FinancialEvidenceValidatedDecisionFactory(
-            contract=contract
-        ).create(result.content)
-        artifact = Gate2FinancialEvidenceMaterializerFactory(
-            registry=self.registry,
-            source_package=source_package,
-            execution_metadata=FinancialEvidenceExecutionMetadata(
-                execution_ref=execution_ref,
-                decision_validation_ref=decision_validation_ref,
-            ),
-        ).create().materialize(validated_decision=validated)
         metadata = (
             {}
             if result.execution_metadata is None
@@ -217,15 +222,41 @@ class Gate2FinancialEvidenceShadowDecisionRunner:
                 result.execution_metadata
             )
         )
+        try:
+            validated = Gate2FinancialEvidenceValidatedDecisionFactory(
+                contract=contract
+            ).create(result.content)
+            artifact = Gate2FinancialEvidenceMaterializerFactory(
+                registry=self.registry,
+                source_package=source_package,
+                execution_metadata=FinancialEvidenceExecutionMetadata(
+                    execution_ref=execution_ref,
+                    decision_validation_ref=decision_validation_ref,
+                ),
+            ).create().materialize(validated_decision=validated)
+        except (
+            Gate2FinancialEvidenceDecisionError,
+            Gate2FinancialEvidenceMaterializationError,
+        ) as exc:
+            raise Gate2FinancialEvidenceShadowQualificationError(
+                exc.code,
+                provider_execution=metadata,
+                economy_budget_receipt=result.economy_budget_receipt,
+            ) from exc
         return FinancialEvidenceShadowDecisionResult(
             artifact=artifact,
             source_package=source_package,
             provider_execution=metadata,
             fallback_used=False,
             repair_attempt_count=0,
+            economy_budget_receipt=(
+                None
+                if result.economy_budget_receipt is None
+                else copy.deepcopy(result.economy_budget_receipt)
+            ),
         )
 
-    def _model_package(
+    def model_package(
         self,
         contract: Gate2FinancialEvidenceDecisionContract,
         source_package: Gate2FinancialEvidenceSourcePackage,
@@ -275,6 +306,13 @@ class Gate2FinancialEvidenceShadowDecisionRunner:
                 ],
             },
         }
+
+    def _model_package(
+        self,
+        contract: Gate2FinancialEvidenceDecisionContract,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+    ) -> dict[str, Any]:
+        return self.model_package(contract, source_package)
 
 
 class Gate2FinancialEvidenceShadowQualificationFactory:

@@ -33,19 +33,22 @@ EXPECTED_DOMAINS = {
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from broker_reports_gate1 import PROVIDER_STATUS_APPROVED, gate2_provider_profile
+from broker_reports_gate1 import (  # noqa: E402
+    PROVIDER_STATUS_APPROVED,
+    gate2_provider_profile,
+)
 
-from live_case_group_process_false_gate1_run import (
+from live_case_group_process_false_gate1_run import (  # noqa: E402
     _counter_delta,
     _vector_delta_zero,
 )
-from live_gate2_synthetic_extraction_smoke import (
+from live_gate2_synthetic_extraction_smoke import (  # noqa: E402
     _current_user,
     _purge_case,
     _select_gate2_smoke_model,
     _seed_synthetic_gate1,
 )
-from live_no_rag_source_intake_smoke import (
+from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _default_ssh_target,
     _extract_content,
@@ -68,6 +71,12 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--candidate-binding", action="store_true")
     parser.add_argument("--capability-probe", action="store_true")
+    parser.add_argument(
+        "--max-repair-attempts",
+        type=int,
+        choices=(0, 1),
+        default=0,
+    )
     parser.add_argument("--retain", action="store_true")
     parser.add_argument("--audit-case", default=None)
     parser.add_argument("--cleanup-case", default=None)
@@ -137,6 +146,7 @@ def main() -> int:
             provider_capability_probe=args.capability_probe,
             provider_profile_id=args.provider_profile_id,
             domain=args.domain,
+            max_repair_attempts=args.max_repair_attempts,
             timeout=args.timeout,
         )
         after = _runtime_snapshot(ssh_target)
@@ -278,6 +288,7 @@ def main() -> int:
         "candidate_binding_enabled": args.candidate_binding,
         "provider_capability_probe": args.capability_probe,
         "provider_profile_id": args.provider_profile_id,
+        "max_repair_attempts": args.max_repair_attempts,
         "requested_domain": args.domain,
         "checks": checks,
         "summary": summary,
@@ -301,6 +312,7 @@ def _run_domain_chat(
     provider_capability_probe,
     provider_profile_id,
     domain,
+    max_repair_attempts=0,
     timeout,
 ) -> str:
     response = session.post(
@@ -330,7 +342,7 @@ def _run_domain_chat(
                 "provider_profile_id": provider_profile_id,
                 "provider_capability_probe": provider_capability_probe,
                 "domain_allowlist": [domain] if domain else [],
-                "max_repair_attempts": 1,
+                "max_repair_attempts": max_repair_attempts,
             },
         },
         timeout=timeout,

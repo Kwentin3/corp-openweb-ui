@@ -4,6 +4,24 @@
 
 Статус плана: `COMPLETED`.
 
+## Requalification v2 execution
+
+Batch B частично выполнен после пользовательской публикации Gemini 2.5
+Flash-Lite, GPT-5.4 Nano и Haiku 4.5. Schema-only dry build прошёл для всех
+трёх. Synthetic terminal evidence:
+
+| Subject | State |
+| --- | --- |
+| GPT-5.4 Nano × financial evidence v1 | `QUALIFIED_FOR_EXACT_WORKLOAD` на synthetic `4/4` |
+| GPT-5.4 Nano × checksum v1 | `NOT_QUALIFIED_MODEL_QUALITY`, dimension mismatch |
+| Gemini 2.5 × financial/checksum | `PROVIDER_ROUTE_UNAVAILABLE`, upstream `404` |
+| Haiku 4.5 × source/domain | `QUALIFIED_FOR_EXACT_WORKLOAD` на bounded income fixture |
+| Haiku 4.5 × financial evidence v1 | `NOT_QUALIFIED_PROVIDER_SCHEMA_OR_MODEL_SEMANTICS` |
+| Haiku 4.5 × checksum v1 | `QUALIFIED_FOR_EXACT_WORKLOAD` на synthetic `3/3` |
+
+Состояние в этом разделе означает только synthetic qualification. Gate 6
+actual-corpus shadow, Gate 7 full-scope и production release не запускались.
+
 ## Qualification identity
 
 Единица статуса:

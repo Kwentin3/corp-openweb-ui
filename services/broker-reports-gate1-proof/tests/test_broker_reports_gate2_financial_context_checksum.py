@@ -391,6 +391,7 @@ def test_comparator_passes_identity_dimensions_binding_and_reconciliation():
     assert all(receipt["checks"].values())
     assert "private_metric_results" not in safe
     assert safe["status"] == "passed"
+    assert safe["metric_check_failure_counts"] == {}
 
 
 def test_comparator_detects_duplicate_invented_and_wrong_binding():
@@ -411,6 +412,11 @@ def test_comparator_detects_duplicate_invented_and_wrong_binding():
     assert receipt["checks"]["source_binding_3_of_3"] is False
     assert receipt["checks"]["duplicate_rows_zero"] is False
     assert receipt["checks"]["invented_metrics_zero"] is False
+    safe = safe_checksum_receipt(receipt)
+    assert safe["metric_check_failure_counts"][
+        "source_binding_match"
+    ] >= 1
+    assert safe["metric_check_failure_counts"]["exactly_one_row"] == 1
 
 
 def test_checksum_module_has_no_direct_provider_or_gate1_import_bypass():

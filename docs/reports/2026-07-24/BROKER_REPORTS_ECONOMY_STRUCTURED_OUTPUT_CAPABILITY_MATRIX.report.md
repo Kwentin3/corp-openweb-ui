@@ -4,6 +4,18 @@
 
 Статус: `COMPLETED_WITH_EXPLICIT_GAPS`.
 
+## Requalification v2 live delta
+
+| Exact model × route | Source | Domain | Financial evidence | Checksum |
+| --- | --- | --- | --- | --- |
+| `gpt-5.4-nano-2026-03-17` × OpenAI | pending stage policy delivery | pending stage policy delivery | passed `4/4` | canonical comparator `0/3` |
+| `models/gemini-2.5-flash-lite` × Gemini | pending stage policy delivery | pending stage policy delivery | upstream `404`, no generation | upstream `404`, no generation |
+| `claude-haiku-4-5-20251001` × Anthropic native | passed bounded income | passed bounded income | `2/4`; one schema reject, one semantic mismatch | passed `3/3` |
+
+Эта таблица заменяет прежние `0 calls` для трёх exact-кандидатов. Полные
+safe aggregates находятся в
+`BROKER_REPORTS_ECONOMY_REQUALIFICATION_V2.report.md`.
+
 ## Главное
 
 “Structured output supported” недостаточно. Qualification subject должен
@@ -176,6 +188,11 @@ Source-only success сохраняется как workload-specific evidence, н
 ## Terminal assessment
 
 - OpenAI strict API fit: `DOCUMENTED_NOT_LIVE_QUALIFIED`;
+- GPT-5.4 Nano financial evidence: `SYNTHETIC_QUALIFIED`;
+- GPT-5.4 Nano checksum: `NOT_QUALIFIED_DIMENSION_MISMATCH`;
+- Gemini 2.5 maintained route: `PROVIDER_ROUTE_UNAVAILABLE_HTTP_404`;
+- Haiku source/domain/checksum: `SYNTHETIC_QUALIFIED`;
+- Haiku financial: `NOT_QUALIFIED`;
 - Gemini 3.1 source: `ROUTE_PROVEN`;
 - Gemini 3.1 financial: `CANONICAL_REJECT_UNCLASSIFIED_CAUSE`;
 - Gemini 3.5 financial: `HARNESS_ROUTE_MISSING`;

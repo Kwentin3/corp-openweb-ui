@@ -31,7 +31,7 @@ def test_current_policy_fails_closed_before_provider_selection() -> None:
 
 def test_runtime_selects_cheapest_qualified_then_one_fixed_fallback() -> None:
     selector = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0, 1, 2)
+        policy=_policy_with_qualified_models(0, 1, 3)
     ).create()
 
     selection = selector.select_runtime(
@@ -52,7 +52,7 @@ def test_runtime_selects_cheapest_qualified_then_one_fixed_fallback() -> None:
 
 def test_runtime_model_and_provider_inputs_can_only_narrow_allowlist() -> None:
     selector = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0, 2)
+        policy=_policy_with_qualified_models(0, 3)
     ).create()
 
     selection = selector.select_runtime(

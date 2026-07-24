@@ -84,9 +84,21 @@ _ANSWER_FIELDS = frozenset(
 
 
 class Gate2FinancialContextChecksumError(ValueError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        provider_execution: dict[str, Any] | None = None,
+        economy_budget_receipt: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.provider_execution = copy.deepcopy(
+            provider_execution or {}
+        )
+        self.economy_budget_receipt = copy.deepcopy(
+            economy_budget_receipt
+        )
 
 
 @dataclass(frozen=True)
@@ -286,11 +298,13 @@ class Gate2FinancialContextChecksumRunnerFactory:
         model_id: str = "",
         provider_profile_id: str = "",
         economy_provider_selector: Gate2EconomyProviderSelector | None = None,
+        qualification_candidate: bool = False,
     ) -> None:
         self.model_client = model_client
         self.model_id = model_id
         self.provider_profile_id = provider_profile_id
         self.economy_provider_selector = economy_provider_selector
+        self.qualification_candidate = qualification_candidate
 
     def create(self) -> "Gate2FinancialContextChecksumRunner":
         selector = (
@@ -298,17 +312,28 @@ class Gate2FinancialContextChecksumRunnerFactory:
             or Gate2EconomyProviderSelectionFactory().create()
         )
         try:
-            selection = selector.select_runtime(
-                workload_class=WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
-                requested_model_ids=(
-                    (self.model_id,) if self.model_id else None
-                ),
-                requested_provider_profile_ids=(
-                    (self.provider_profile_id,)
-                    if self.provider_profile_id
-                    else None
-                ),
-            )
+            if self.qualification_candidate:
+                if not self.model_id or not self.provider_profile_id:
+                    _fail(
+                        "economy_qualification_candidate_required"
+                    )
+                selection = selector.select_qualification_candidate(
+                    workload_class=WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+                    model_id=self.model_id,
+                    provider_profile_id=self.provider_profile_id,
+                )
+            else:
+                selection = selector.select_runtime(
+                    workload_class=WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+                    requested_model_ids=(
+                        (self.model_id,) if self.model_id else None
+                    ),
+                    requested_provider_profile_ids=(
+                        (self.provider_profile_id,)
+                        if self.provider_profile_id
+                        else None
+                    ),
+                )
         except Gate2EconomyProviderSelectionError as exc:
             _fail(exc.code)
         return Gate2FinancialContextChecksumRunner(
@@ -351,18 +376,31 @@ class Gate2FinancialContextChecksumRunner:
             _fail("financial_context_checksum_fallback_forbidden")
         if result.repair_attempt_count:
             _fail("financial_context_checksum_repair_forbidden")
-        rows = contract.parse_model_output(result.content)
+        provider_execution = (
+            {}
+            if result.execution_metadata is None
+            else gate2_provider_execution_safe_metadata(
+                result.execution_metadata
+            )
+        )
+        try:
+            rows = contract.parse_model_output(result.content)
+        except Gate2FinancialContextChecksumError as exc:
+            raise Gate2FinancialContextChecksumError(
+                exc.code,
+                provider_execution=provider_execution,
+                economy_budget_receipt=result.economy_budget_receipt,
+            ) from exc
         return {
             "rows": rows,
-            "provider_execution": (
-                {}
-                if result.execution_metadata is None
-                else gate2_provider_execution_safe_metadata(
-                    result.execution_metadata
-                )
-            ),
+            "provider_execution": provider_execution,
             "fallback_used": False,
             "repair_attempt_count": 0,
+            "economy_budget_receipt": (
+                None
+                if result.economy_budget_receipt is None
+                else copy.deepcopy(result.economy_budget_receipt)
+            ),
             "economy_provider_selection": copy.deepcopy(
                 self.economy_provider_selection
             ),
@@ -537,11 +575,32 @@ class Gate2FinancialContextChecksumComparatorFactory:
 
 
 def safe_checksum_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
+    private_results = receipt.get("private_metric_results")
+    failure_counts: dict[str, int] = {}
+    if isinstance(private_results, list):
+        for result in private_results:
+            if not isinstance(result, dict):
+                continue
+            for key in (
+                "exactly_one_row",
+                "metric_identity_match",
+                "amount_match",
+                "currency_match",
+                "unit_match",
+                "sign_match",
+                "period_match",
+                "source_binding_match",
+            ):
+                if result.get(key) is False:
+                    failure_counts[key] = failure_counts.get(key, 0) + 1
     safe = {
         key: copy.deepcopy(value)
         for key, value in receipt.items()
         if key not in {"private_metric_results", "integrity_hash"}
     }
+    safe["metric_check_failure_counts"] = dict(
+        sorted(failure_counts.items())
+    )
     safe["private_evidence_hash"] = receipt["integrity_hash"]
     safe["integrity_hash"] = sha256_json(safe)
     return safe
