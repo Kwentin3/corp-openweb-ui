@@ -11,7 +11,10 @@ from broker_reports_gate1.gate2_economy_model_policy import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     MODEL_LIFECYCLE_ACTIVE,
+    MODEL_STATUS_NOT_QUALIFIED,
     MODEL_STATUS_QUALIFIED,
+    MODEL_STATUS_UNAVAILABLE,
+    MODEL_STATUS_UNSUPPORTED_CONTRACT,
     POLICY_ID,
     EconomyModelDeclaration,
     Gate2EconomyModelPolicyError,
@@ -34,6 +37,26 @@ def test_factory_is_pure_deterministic_and_has_no_qualified_models_before_receip
     for workload_class in ECONOMY_WORKLOAD_CLASSES:
         assert first.qualified_allowlist(workload_class) == ()
         assert first.provider_allowlist(workload_class) == {}
+
+
+def test_live_qualification_statuses_are_explicit_and_fail_closed() -> None:
+    policy = Gate2EconomyModelPolicyFactory().create()
+
+    assert policy.model(
+        "gpt-5-nano-2025-08-07"
+    ).qualification_status == MODEL_STATUS_UNAVAILABLE
+    assert policy.model(
+        "gpt-5.4-nano-2026-03-17"
+    ).qualification_status == MODEL_STATUS_UNAVAILABLE
+    assert policy.model(
+        "models/gemini-3.1-flash-lite"
+    ).qualification_status == MODEL_STATUS_NOT_QUALIFIED
+    assert policy.model(
+        "models/gemini-3.5-flash-lite"
+    ).qualification_status == MODEL_STATUS_UNSUPPORTED_CONTRACT
+    assert policy.model(
+        "claude-haiku-4-5-20251001"
+    ).qualification_status == MODEL_STATUS_UNSUPPORTED_CONTRACT
 
 
 @pytest.mark.parametrize(

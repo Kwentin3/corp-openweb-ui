@@ -39,7 +39,7 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 def test_policy_cost_budgets_have_measured_basis_and_are_versioned() -> None:
     policy = Gate2EconomyModelPolicyFactory().create()
 
-    assert policy.policy_version == "1.1.0"
+    assert policy.policy_version == "1.2.0"
     assert len(policy.policy_hash) == 64
     for workload in policy.workloads:
         assert workload.maximum_estimated_cost_usd_per_operation

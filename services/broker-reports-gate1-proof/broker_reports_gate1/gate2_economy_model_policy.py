@@ -17,7 +17,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.1.0"
+POLICY_VERSION = "1.2.0"
 POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v1"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"
@@ -374,9 +374,13 @@ ECONOMY_MODEL_DECLARATIONS = (
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
+        qualification_status=MODEL_STATUS_NOT_QUALIFIED,
         qualification_receipt_identity=None,
-        availability_evidence="stage_models_endpoint_available_2026-07-24",
+        availability_evidence=(
+            "stage_financial_contract_failed_"
+            "financial_evidence_decision_unclassified_shape_invalid_"
+            "2026-07-24"
+        ),
         cost=EconomyModelCost("0.25", "0.025", "1.50"),
     ),
     EconomyModelDeclaration(
@@ -394,9 +398,12 @@ ECONOMY_MODEL_DECLARATIONS = (
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
+        qualification_status=MODEL_STATUS_UNSUPPORTED_CONTRACT,
         qualification_receipt_identity=None,
-        availability_evidence="stage_models_endpoint_available_2026-07-24",
+        availability_evidence=(
+            "stage_source_contract_passed_but_financial_qualification_"
+            "route_unavailable_2026-07-24"
+        ),
         cost=EconomyModelCost("0.30", "0.03", "2.50"),
     ),
     EconomyModelDeclaration(
@@ -416,9 +423,12 @@ ECONOMY_MODEL_DECLARATIONS = (
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
+        qualification_status=MODEL_STATUS_UNSUPPORTED_CONTRACT,
         qualification_receipt_identity=None,
-        availability_evidence="maintained_connection_enabled_2026-07-24",
+        availability_evidence=(
+            "stage_financial_contract_rejected_"
+            "gate2_model_schema_response_format_rejected_2026-07-24"
+        ),
         cost=EconomyModelCost("1.00", "0.10", "5.00"),
     ),
 )
