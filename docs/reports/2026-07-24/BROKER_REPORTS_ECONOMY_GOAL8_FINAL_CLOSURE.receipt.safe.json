@@ -1,0 +1,147 @@
+{
+  "schema_version": "broker_reports_economy_goal8_final_closure_safe_receipt_v1",
+  "program_status": "NOT_CLOSED",
+  "goal_statuses": {
+    "goal_0_model_cost_audit": "COMPLETED",
+    "goal_1_economy_policy": "COMPLETED",
+    "goal_2_budget_enforcement": "COMPLETED",
+    "goal_3_cheap_model_qualification": "COMPLETED_WITH_PROVIDER_GAPS",
+    "goal_4_provider_selection": "COMPLETED",
+    "goal_5_full_scope_economy_reproof": "NOT_CLOSED",
+    "goal_6_economy_checksum": "NOT_CLOSED",
+    "goal_7_production_migration": "NOT_CLOSED",
+    "goal_8_final_closure": "NOT_CLOSED"
+  },
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.2.0",
+    "policy_hash": "e6a297c359ff55fe48b22cf568261ae3bc0e329378f648b6438227e9a93ef35c",
+    "allowed_model_classes": [
+      "flash_lite",
+      "nano",
+      "haiku"
+    ],
+    "qualified_models_total": 0
+  },
+  "models": [
+    {
+      "provider_profile_id": "openai_gpt",
+      "exact_model_id": "gpt-5-nano-2025-08-07",
+      "status": "UNAVAILABLE",
+      "failed_capability": "maintained_openwebui_model_availability",
+      "terminal_code": "stage_models_endpoint_model_absent",
+      "forbidden_fallback": "mini_sol_full_gpt_pro_o_series",
+      "next_step": "add_exact_nano_id_and_repeat_strict_financial_qualification"
+    },
+    {
+      "provider_profile_id": "openai_gpt",
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "status": "UNAVAILABLE",
+      "failed_capability": "maintained_openwebui_model_availability",
+      "terminal_code": "stage_models_endpoint_model_absent",
+      "forbidden_fallback": "mini_sol_full_gpt_pro_o_series",
+      "next_step": "add_exact_nano_id_and_repeat_strict_financial_qualification"
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "status": "NOT_QUALIFIED",
+      "failed_capability": "canonical_financial_contract_acceptance",
+      "terminal_code": "financial_evidence_decision_unclassified_shape_invalid",
+      "forbidden_fallback": "gemini_flash_gemini_pro",
+      "next_step": "produce_canonical_valid_conditional_disposition_without_repair"
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "status": "UNSUPPORTED_CONTRACT",
+      "failed_capability": "financial_qualification_route",
+      "terminal_code": "financial_qualification_not_exposed_by_capability_probe_route",
+      "forbidden_fallback": "gemini_flash_gemini_pro",
+      "next_step": "expose_bounded_financial_probe"
+    },
+    {
+      "provider_profile_id": "anthropic_claude",
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "status": "UNSUPPORTED_CONTRACT",
+      "failed_capability": "provider_schema_acceptance",
+      "terminal_code": "gate2_model_schema_response_format_rejected",
+      "forbidden_fallback": "claude_sonnet_claude_opus",
+      "next_step": "confirm_strict_financial_schema_support"
+    }
+  ],
+  "program_calls": {
+    "economy_provider_attempts_total": 5,
+    "source_calls_total": 3,
+    "financial_attempts_total": 2,
+    "fallback_calls_total": 0,
+    "hidden_repair_calls_total": 0,
+    "expensive_model_calls_total": 0,
+    "openai_nano_calls_total": 0
+  },
+  "reported_usage": {
+    "source_input_tokens_total": 16518,
+    "source_output_tokens_total": 1851,
+    "provider_reported_total_tokens_sum": 11510,
+    "calls_with_provider_total_tokens": 2,
+    "source_only_estimated_cost_usd": "0.0142665",
+    "qualification_total_cost_status": "NOT_FULLY_MEASURED"
+  },
+  "cost_comparison": {
+    "successful_economy_bounded_run_cost_usd": null,
+    "successful_economy_full_scope_run_cost_usd": null,
+    "previous_expensive_full_scope_model": "gpt-5.6-sol",
+    "previous_expensive_full_scope_calls": 39,
+    "previous_expensive_full_scope_input_tokens": 47533,
+    "previous_expensive_full_scope_output_tokens": 7102,
+    "previous_expensive_full_scope_total_tokens": 54635,
+    "previous_expensive_full_scope_estimated_cost_usd": "0.450725",
+    "hypothetical_same_token_economy_cost_range_usd": [
+      "0.005217",
+      "0.083043"
+    ],
+    "achieved_saving_usd": null,
+    "achieved_saving_percent": null,
+    "reason": "no_successful_economy_full_scope_run"
+  },
+  "guards": {
+    "cheapest_qualified_first": true,
+    "default_provider_calls": 1,
+    "maximum_fallback_calls": 1,
+    "checksum_maximum_fallback_calls": 0,
+    "multi_provider_consensus_calls": 0,
+    "paid_tools_calls": 0,
+    "runtime_override_can_only_narrow": true,
+    "checksum_runner_policy_bound": true,
+    "migration_verifier_policy_bound": true,
+    "explicit_expensive_entrypoint_rejections_total": 2
+  },
+  "live": {
+    "economy_policy_released": false,
+    "repository_live_function_parity": "not_exact",
+    "economy_selection_factory_live": false,
+    "economy_budget_enforcement_live": false,
+    "bounded_persistence_status": "NOT_RUN",
+    "stage_mutations_total": 0,
+    "expensive_model_calls_total": 0
+  },
+  "acceptance": {
+    "allowed_model_classes": "FLASH_LITE_NANO_HAIKU_ONLY",
+    "expensive_model_calls": "ZERO",
+    "full_scope": "NOT_PASSED",
+    "checksum": "NOT_RUN",
+    "cost_guards": "ENFORCED_IN_REPOSITORY_NOT_RELEASED",
+    "program_status": "NOT_CLOSED"
+  },
+  "validation": {
+    "final_focused_tests_passed": 61,
+    "last_full_tests_passed": 1332,
+    "last_full_tests_skipped": 20
+  },
+  "privacy": {
+    "customer_content_present": false,
+    "provider_raw_output_present": false,
+    "private_artifact_refs_present": false,
+    "knowledge_rag_vector_writes": 0
+  }
+}
