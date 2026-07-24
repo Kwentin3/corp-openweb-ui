@@ -274,6 +274,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         )
         self.assertTrue(domain_valves["answer_context_selection_enabled"])
 
+        source_valves = merged_valves(
+            FUNCTION_CONTRACTS[1].function_id,
+            {"semantic_selection_enabled": True},
+        )
+        self.assertFalse(source_valves["semantic_selection_enabled"])
+        self.assertTrue(
+            valves_match(FUNCTION_CONTRACTS[1].function_id, source_valves)
+        )
+
     def test_quiescence_counts_every_nonterminal_state(self):
         self.assertEqual(
             4,

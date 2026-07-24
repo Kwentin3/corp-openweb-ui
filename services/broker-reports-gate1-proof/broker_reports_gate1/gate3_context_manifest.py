@@ -32,9 +32,6 @@ from .gate2_source_fact_contracts import (
     SOURCE_FACTS_SCHEMA_VERSION,
     VALIDATION_SCHEMA_VERSION,
 )
-from .gate2_source_fact_selection import (
-    SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION,
-)
 from .gate2_source_fact_stitching import (
     STITCH_RESULT_SCHEMA_VERSION,
     validate_source_fact_stitch_result,
@@ -305,9 +302,6 @@ class Gate3ContextManifestService:
         candidate_binding_validation_refs = _strings(
             run.get("candidate_binding_validation_refs")
         )
-        source_fact_selection_validation_refs = _strings(
-            run.get("source_fact_selection_validation_refs")
-        )
         raw_output_refs = _strings(run.get("raw_output_refs"))
         validation_refs = _strings(run.get("validation_refs"))
         source_facts_refs = _strings(run.get("source_facts_refs"))
@@ -338,10 +332,6 @@ class Gate3ContextManifestService:
         binding_validations = [
             resolve(ref, BINDING_VALIDATION_SCHEMA_VERSION)
             for ref in candidate_binding_validation_refs
-        ]
-        selection_validations = [
-            resolve(ref, SOURCE_FACT_SELECTION_VALIDATION_SCHEMA_VERSION)
-            for ref in source_fact_selection_validation_refs
         ]
         raws = [resolve(ref, RAW_OUTPUT_SCHEMA_VERSION) for ref in raw_output_refs]
         validations = [
@@ -393,23 +383,6 @@ class Gate3ContextManifestService:
             )
         ):
             errors.append("gate3_context_candidate_binding_artifact_unexpected")
-        semantic_selection_enabled = (
-            run.get("semantic_selection_enabled") is True
-        )
-        if semantic_selection_enabled:
-            if len(selection_validations) != len(packages):
-                errors.append("gate3_context_semantic_selection_graph_incomplete")
-            if any(
-                item.get("validator_status") != "passed"
-                or int(item.get("errors_count") or 0) != 0
-                or int(item.get("repair_attempt_count") or 0) != 0
-                or int(item.get("model_system_metadata_fields_total") or 0)
-                != 0
-                for item in selection_validations
-            ):
-                errors.append("gate3_context_semantic_selection_validation_failed")
-        elif source_fact_selection_validation_refs:
-            errors.append("gate3_context_semantic_selection_artifact_unexpected")
         for plan in plans:
             try:
                 validate_source_unit_segmentation(plan, None)
@@ -708,7 +681,6 @@ class Gate3ContextManifestService:
                 *source_value_candidate_set_refs,
                 *candidate_relation_set_refs,
                 *candidate_binding_validation_refs,
-                *source_fact_selection_validation_refs,
                 *raw_output_refs,
                 *validation_refs,
                 *source_facts_refs,
@@ -842,9 +814,6 @@ class Gate3ContextManifestService:
                 "source_value_candidate_set_refs": source_value_candidate_set_refs,
                 "candidate_relation_set_refs": candidate_relation_set_refs,
                 "candidate_binding_validation_refs": candidate_binding_validation_refs,
-                "source_fact_selection_validation_refs": (
-                    source_fact_selection_validation_refs
-                ),
                 "raw_output_refs": raw_output_refs,
                 "validation_refs": validation_refs,
                 "validated_source_fact_refs": source_facts_refs,
@@ -864,9 +833,6 @@ class Gate3ContextManifestService:
                 "source_value_candidate_sets_total": len(candidate_sets),
                 "candidate_relation_sets_total": len(relation_sets),
                 "candidate_binding_validations_total": len(binding_validations),
-                "source_fact_selection_validations_total": len(
-                    selection_validations
-                ),
                 "facts_total": len(fact_types),
                 "typed_facts_total": typed_facts_total,
                 "fact_types": sorted(set(fact_types)),

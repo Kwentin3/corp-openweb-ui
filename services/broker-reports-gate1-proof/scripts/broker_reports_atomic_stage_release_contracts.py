@@ -126,7 +126,7 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
 SOURCE_RELEASE_VALVES: dict[str, Any] = {
     **COMMON_WORKLOAD_VALVES,
     "default_wave": "primary",
-    "semantic_selection_enabled": True,
+    "semantic_selection_enabled": False,
     "table_max_rows": 40,
     "text_max_chars": 6000,
     "max_estimated_input_tokens": 12000,

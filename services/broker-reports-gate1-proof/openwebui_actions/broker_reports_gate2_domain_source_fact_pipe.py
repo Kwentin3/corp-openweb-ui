@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.15.0-domain-semantic-selection-v1
+version: 0.14.0-gate1-workload-scope-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -85,7 +85,6 @@ class Pipe:
         segmentation_enabled: bool = Field(default=True)
         prefer_table_projections: bool = Field(default=False)
         allow_standalone_semantic_visual_projections: bool = Field(default=False)
-        semantic_selection_enabled: bool = Field(default=True)
         candidate_binding_enabled: bool = Field(default=False)
         gate3_context_manifest_enabled: bool = Field(default=False)
         answer_context_selection_enabled: bool = Field(default=True)
@@ -224,19 +223,6 @@ class Pipe:
                 )
             ).create()
             domain_allowlist = config.get("domain_allowlist")
-            candidate_binding_enabled = self._config_bool(
-                config.get("candidate_binding_enabled"),
-                default=self.valves.candidate_binding_enabled,
-            )
-            semantic_selection_enabled = self._config_bool(
-                config.get("semantic_selection_enabled"),
-                default=(
-                    False
-                    if candidate_binding_enabled
-                    and config.get("semantic_selection_enabled") is None
-                    else self.valves.semantic_selection_enabled
-                ),
-            )
             runtime = Gate2DomainSourceFactRuntimeFactory(
                 store=store,
                 prompt_resolver=prompt_resolver,
@@ -288,8 +274,10 @@ class Pipe:
                             self.valves.allow_standalone_semantic_visual_projections
                         ),
                     ),
-                    semantic_selection_enabled=semantic_selection_enabled,
-                    candidate_binding_enabled=candidate_binding_enabled,
+                    candidate_binding_enabled=self._config_bool(
+                        config.get("candidate_binding_enabled"),
+                        default=self.valves.candidate_binding_enabled,
+                    ),
                     gate3_context_manifest_enabled=self._config_bool(
                         config.get("gate3_context_manifest_enabled"),
                         default=self.valves.gate3_context_manifest_enabled,
