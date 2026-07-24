@@ -1,0 +1,69 @@
+{
+  "schema_version": "broker_reports_gate2_goal0_operational_containment_receipt_v1",
+  "status": "passed",
+  "source_revision": "530dd29b820aa9e82e1199796fab46c7d04e691c",
+  "release_id": "broker-reports-530dd29b820a",
+  "manifest_sha256": "a32769d18aaf1f60e5638ac4741d4c59bffb4aa5a8dde4ab74613085b14fc982",
+  "rollback_identity_sha256": "8e36a1c5d5c1fa4b8f28d6722da2489dd3eb468bd61c755832af62f304e724c2",
+  "live_identity_read_only_verified": true,
+  "previous_release": {
+    "release_id": "broker-reports-97c703405017",
+    "source_revision": "97c70340501725fc7dd2d0e4f5bc0dc977946989",
+    "rollback_identity_sha256": "a31fa3da4b6ba946d52f951aac438610b90cd7a167d069b8cdd23dcd9ff8b485"
+  },
+  "functions": {
+    "broker_reports_gate1_pipe": {
+      "before_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "after_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "changed": false
+    },
+    "broker_reports_gate2_source_fact_pipe": {
+      "before_sha256": "69bef1b4c53d17cc094ab3f19d307c781b3aeb427959463bbac05acfde5a5d9e",
+      "after_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+      "changed": true,
+      "semantic_selection_enabled": false
+    },
+    "broker_reports_gate2_domain_source_fact_pipe": {
+      "before_sha256": "3f04ae75852e1e676091e01a92fec15a8795e7c97d282b76a5976443b5e42fe3",
+      "after_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+      "baseline_sha256": "c26ae568bcaa8987abb581528abe20299ff50d3b853d402d31253211349be6dd",
+      "changed": true
+    }
+  },
+  "unchanged_runtime_objects": {
+    "action_sha256": "874a07129aa626e61807095b19e531972395934ce1a9aad72d378a3104530ae4",
+    "loader_sha256": "51e836b02e2c71aa61e2ff4faff0e43f762b70d3ecf41fdbbffb73bf5d3891f7",
+    "managed_prompts_total": 12,
+    "image_id": "sha256:c862956b5a88f490de3a13829cb4176ce9a2e3fb3621ebf0198b059be65f8e83"
+  },
+  "rollback_proof": {
+    "requested": true,
+    "previous_state_restored": true,
+    "loader_previous_state_restored": true,
+    "candidate_state_restored": true,
+    "loader_candidate_state_restored": true
+  },
+  "counter_delta": {
+    "knowledge_rows": 0,
+    "document_rows": 0,
+    "file_rows": 0,
+    "vector_files": 0,
+    "vector_bytes": 0
+  },
+  "workload": {
+    "nonterminal_jobs": 0,
+    "owned_temp_entries": 0,
+    "release_staging_entries": 0
+  },
+  "verification": {
+    "atomic_apply": "passed",
+    "independent_read_only_verifier": "passed",
+    "repository_live_parity": "exact",
+    "full_broker_reports_suite": {
+      "passed": 1147,
+      "skipped": 20
+    },
+    "repository_privacy_guard": "passed"
+  },
+  "private_values_in_receipt": false
+}
