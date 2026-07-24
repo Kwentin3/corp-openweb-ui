@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_economy_goal3_provider_qualification_safe_receipt_v1",
+  "terminal_status": "COMPLETED_WITH_PROVIDER_GAPS",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.2.0",
+    "policy_hash": "e6a297c359ff55fe48b22cf568261ae3bc0e329378f648b6438227e9a93ef35c",
+    "qualified_models_total": 0
+  },
+  "fixture": {
+    "kind": "synthetic_non_customer_csv",
+    "domain": "income",
+    "candidate_binding": true,
+    "customer_content_used": false
+  },
+  "provider_statuses": {
+    "openai_nano": "UNAVAILABLE",
+    "gemini_flash_lite": "NOT_QUALIFIED",
+    "anthropic_haiku": "UNSUPPORTED_CONTRACT"
+  },
+  "candidates": [
+    {
+      "provider_profile_id": "openai_gpt",
+      "exact_model_id": "gpt-5-nano-2025-08-07",
+      "status": "UNAVAILABLE",
+      "failed_capability": "maintained_openwebui_model_availability",
+      "provider_terminal_code": "stage_models_endpoint_model_absent",
+      "provider_calls": 0,
+      "fallback_calls": 0,
+      "forbidden_expensive_fallback": "mini_sol_full_gpt_o_series"
+    },
+    {
+      "provider_profile_id": "openai_gpt",
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "status": "UNAVAILABLE",
+      "failed_capability": "maintained_openwebui_model_availability",
+      "provider_terminal_code": "stage_models_endpoint_model_absent",
+      "provider_calls": 0,
+      "fallback_calls": 0,
+      "forbidden_expensive_fallback": "mini_sol_full_gpt_o_series"
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "status": "NOT_QUALIFIED",
+      "source_contract_status": "passed",
+      "financial_contract_status": "canonical_rejected",
+      "provider_terminal_code": "financial_evidence_decision_unclassified_shape_invalid",
+      "source_calls": 1,
+      "financial_calls": 1,
+      "fallback_calls": 0,
+      "repair_attempts": 0,
+      "source_input_tokens": 5058,
+      "source_output_tokens": 700,
+      "source_total_tokens": 5758,
+      "forbidden_expensive_fallback": "gemini_flash_gemini_pro"
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "status": "UNSUPPORTED_CONTRACT",
+      "source_contract_status": "passed",
+      "financial_contract_status": "qualification_route_unavailable",
+      "provider_terminal_code": "financial_qualification_not_exposed_by_capability_probe_route",
+      "source_calls": 1,
+      "financial_calls": 0,
+      "fallback_calls": 0,
+      "repair_attempts": 0,
+      "source_input_tokens": 5065,
+      "source_output_tokens": 687,
+      "source_total_tokens": 5752,
+      "forbidden_expensive_fallback": "gemini_flash_gemini_pro"
+    },
+    {
+      "provider_profile_id": "anthropic_claude",
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "status": "UNSUPPORTED_CONTRACT",
+      "source_contract_status": "passed",
+      "financial_contract_status": "provider_schema_rejected",
+      "provider_terminal_code": "gate2_model_schema_response_format_rejected",
+      "source_calls": 1,
+      "financial_attempts": 1,
+      "fallback_calls": 0,
+      "repair_attempts": 0,
+      "source_input_tokens": 6395,
+      "source_output_tokens": 464,
+      "source_total_tokens": null,
+      "forbidden_expensive_fallback": "claude_sonnet_claude_opus"
+    }
+  ],
+  "contract_evidence": {
+    "maintained_connections_only": true,
+    "exact_resolved_model_recorded": true,
+    "provider_schema_projection_exercised": true,
+    "four_disposition_schema_unchanged": true,
+    "registry_bound_type_ids_unchanged": true,
+    "source_ref_enums_unchanged": true,
+    "canonical_validator_is_final_authority": true,
+    "deterministic_materializer_unchanged": true,
+    "malformed_state_rejection_present": true,
+    "hidden_repair_calls": 0,
+    "expensive_fallback_calls": 0
+  },
+  "stage_safety": {
+    "synthetic_artifacts_retained": 0,
+    "customer_values_in_git": 0,
+    "provider_raw_output_in_git": 0,
+    "knowledge_rag_vector_delta": 0
+  }
+}
