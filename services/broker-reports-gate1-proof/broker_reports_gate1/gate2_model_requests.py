@@ -10,10 +10,14 @@ from .gate2_source_fact_contracts import Gate2PromptError
 SOURCE_REQUEST_PROFILE = "source_v0"
 DOMAIN_REQUEST_PROFILE = "domain_v0"
 FINANCIAL_EVIDENCE_REQUEST_PROFILE = "financial_evidence_decision_v1"
+FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
+    "financial_context_checksum_v1"
+)
 GATE2_REQUEST_PROFILES = (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE)
 _SUPPORTED_REQUEST_PROFILES = (
     *GATE2_REQUEST_PROFILES,
     FINANCIAL_EVIDENCE_REQUEST_PROFILE,
+    FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
 
@@ -43,6 +47,16 @@ class Gate2OpenWebUIRequestBuilder:
             )
         if self.request_profile == FINANCIAL_EVIDENCE_REQUEST_PROFILE:
             return self._build_financial_evidence(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if (
+            self.request_profile
+            == FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE
+        ):
+            return self._build_financial_context_checksum(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -235,6 +249,75 @@ class Gate2OpenWebUIRequestBuilder:
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "package_ref": package.get("package_artifact_ref"),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_context_checksum(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{financial_context_checksum_package_json}}"
+        if marker not in prompt.content:
+            raise Gate2PromptError(
+                "gate2_financial_context_checksum_prompt_contract_mismatch",
+                "Managed financial context checksum marker is missing",
+            )
+        model_package = package.get("llm_context_package")
+        if not isinstance(model_package, dict):
+            raise Gate2PromptError(
+                "gate2_financial_context_checksum_package_missing",
+                "Financial context checksum model package is missing",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                model_package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": (
+                                "reconstruct_broker_reports_financial_"
+                                "context_checksum_v1"
+                            ),
+                            "instruction": (
+                                "Return exactly three requested printed "
+                                "metrics under the supplied strict schema."
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_context_checksum": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "financial_context_integrity_hash": package.get(
+                        "financial_context_integrity_hash"
+                    ),
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                 }
