@@ -1,0 +1,39 @@
+{
+  "schema_version": "broker_reports_gate2_goal1_financial_evidence_registry_receipt_v1",
+  "status": "passed",
+  "registry_id": "broker_reports_gate2_financial_evidence_registry",
+  "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+  "empty_authority_snapshot_sha256": "7da34f4887c8e3b4f90b917a32b35d544c6924daaf1ebc690f6d1661a354971f",
+  "declarations_total": 0,
+  "aliases_total": 0,
+  "active_types_total": 0,
+  "experimental_types_total": 0,
+  "factory_properties": {
+    "pure": true,
+    "deterministic": true,
+    "immutable_snapshot": true,
+    "provider_independent": true,
+    "artifact_store_independent": true,
+    "customer_data_independent": true
+  },
+  "fail_closed_checks": {
+    "duplicate_type_ids": true,
+    "conflicting_roles": true,
+    "missing_role_specs": true,
+    "alias_cycles": true,
+    "unknown_alias_targets": true,
+    "silent_semantic_id_changes": true,
+    "active_type_without_evidence_or_tests": true,
+    "unknown_compatibility_targets": true,
+    "unversioned_legacy_mappings": true
+  },
+  "validation": {
+    "registry_tests_passed": 13,
+    "full_broker_reports_suite_passed": 1160,
+    "full_broker_reports_suite_skipped": 20,
+    "new_file_ruff": "passed",
+    "closed_world_import_check": "passed",
+    "repository_privacy_guard": "passed"
+  },
+  "customer_values_in_receipt": false
+}
