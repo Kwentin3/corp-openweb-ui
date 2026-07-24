@@ -1,0 +1,108 @@
+{
+  "schema_version": "broker_reports_economy_goal0_model_cost_audit_safe_receipt_v1",
+  "terminal_status": "COMPLETED",
+  "source_revision": "ed1f1993c87de1bf0eacd6a919a5d832fc982262",
+  "acceptance": {
+    "model_call_sites": "FULLY_INVENTORIED",
+    "expensive_defaults": "IDENTIFIED",
+    "hidden_tier_escalation": "IDENTIFIED",
+    "cost_per_full_scope_run": "ESTIMATED"
+  },
+  "inventory": {
+    "gate1_visual_surfaces": 4,
+    "gate2_runtime_surfaces": 3,
+    "qualification_and_live_proof_surfaces": 5,
+    "configuration_and_test_surfaces": 4,
+    "managed_connections_enabled": [
+      "openai_gpt",
+      "anthropic_claude",
+      "google_gemini"
+    ],
+    "aggregate_openwebui_models_total": 37
+  },
+  "measured_full_scope_baseline": {
+    "provider_profile_id": "openai_gpt",
+    "requested_model_id": "gpt-5.6-sol",
+    "resolved_model_id": "gpt-5.6-sol",
+    "canonical_decision_scopes_total": 39,
+    "provider_calls_total": 39,
+    "input_tokens_total": 47533,
+    "output_tokens_total": 7102,
+    "total_tokens_total": 54635,
+    "fallback_total": 0,
+    "estimated_cost_usd": 0.450725
+  },
+  "economy_candidates": [
+    {
+      "provider_profile_id": "openai_gpt",
+      "model_id": "gpt-5-nano",
+      "family": "nano",
+      "stage_models_endpoint_status": "unavailable",
+      "estimated_same_token_cost_usd": 0.005217,
+      "estimated_saving_percent": 98.84
+    },
+    {
+      "provider_profile_id": "openai_gpt",
+      "model_id": "gpt-5.4-nano",
+      "family": "nano",
+      "stage_models_endpoint_status": "unavailable",
+      "estimated_same_token_cost_usd": 0.018384,
+      "estimated_saving_percent": 95.92
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "model_id": "models/gemini-3.1-flash-lite",
+      "family": "flash_lite",
+      "stage_models_endpoint_status": "available",
+      "estimated_same_token_cost_usd": 0.022536,
+      "estimated_saving_percent": 95.0
+    },
+    {
+      "provider_profile_id": "google_gemini",
+      "model_id": "models/gemini-3.5-flash-lite",
+      "family": "flash_lite",
+      "stage_models_endpoint_status": "available",
+      "estimated_same_token_cost_usd": 0.032015,
+      "estimated_saving_percent": 92.9
+    },
+    {
+      "provider_profile_id": "anthropic_claude",
+      "model_id": "claude-haiku-4-5-20251001",
+      "family": "haiku",
+      "stage_models_endpoint_status": "not_advertised",
+      "estimated_same_token_cost_usd": 0.083043,
+      "estimated_saving_percent": 81.58
+    }
+  ],
+  "expensive_selection_findings": {
+    "runtime_default": "gpt-5.6-luna",
+    "migration_verifier_default": "gpt-5.6-sol",
+    "approved_expensive_ids": [
+      "gpt-5.6-luna",
+      "gpt-5.6-sol",
+      "models/gemini-3.5-flash"
+    ],
+    "recommended_expensive_fallback_ids": [
+      "gpt-5.6-sol",
+      "models/gemini-3.1-pro-preview",
+      "claude-sonnet-5"
+    ],
+    "domain_repair_attempts_configured": 1,
+    "openai_gemini_explicit_output_cap_present": false,
+    "explicit_reasoning_policy_present": false,
+    "pre_run_cost_estimate_present": false
+  },
+  "unchanged_boundaries": {
+    "gate1_runtime_change": 0,
+    "financial_evidence_registry_change": 0,
+    "decision_contract_change": 0,
+    "materialization_change": 0,
+    "context_projection_change": 0,
+    "knowledge_rag_vector_delta": 0
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "private_refs_in_git": 0,
+    "provider_raw_output_in_git": 0
+  }
+}
