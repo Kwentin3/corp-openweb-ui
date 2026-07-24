@@ -137,8 +137,14 @@ def _assert_code(
 
 
 def test_empty_registry_snapshot_is_pure_deterministic_and_immutable():
-    first = Gate2FinancialEvidenceRegistryFactory().create()
-    second = Gate2FinancialEvidenceRegistryFactory().create()
+    first = Gate2FinancialEvidenceRegistryFactory(
+        declarations=(),
+        semantic_identity_pins=(),
+    ).create()
+    second = Gate2FinancialEvidenceRegistryFactory(
+        declarations=(),
+        semantic_identity_pins=(),
+    ).create()
 
     assert first == second
     assert first.registry_id == REGISTRY_ID
@@ -395,6 +401,7 @@ def test_registry_module_is_closed_world_and_has_no_runtime_dependencies():
         "json",
         "re",
         "typing",
+        "gate2_financial_evidence_catalog",
     }
     for forbidden in (
         "ArtifactStore",

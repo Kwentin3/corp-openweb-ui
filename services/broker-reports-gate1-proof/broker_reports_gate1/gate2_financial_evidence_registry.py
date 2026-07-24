@@ -226,14 +226,28 @@ class Gate2FinancialEvidenceRegistryFactory:
         registry_version: str = REGISTRY_VERSION_V1,
         declarations: Iterable[
             FinancialEvidenceInputTypeDeclaration
-        ] = (),
+        ]
+        | None = None,
         aliases: Iterable[FinancialEvidenceTypeAlias] = (),
-        semantic_identity_pins: Iterable[tuple[str, str]] = (),
+        semantic_identity_pins: Iterable[tuple[str, str]] | None = None,
     ) -> None:
+        if declarations is None:
+            from .gate2_financial_evidence_catalog import (
+                INITIAL_FINANCIAL_EVIDENCE_DECLARATIONS,
+                INITIAL_SEMANTIC_IDENTITY_PINS,
+            )
+
+            declarations = INITIAL_FINANCIAL_EVIDENCE_DECLARATIONS
+            if semantic_identity_pins is None:
+                semantic_identity_pins = INITIAL_SEMANTIC_IDENTITY_PINS
         self.registry_version = registry_version
         self.declarations = tuple(declarations)
         self.aliases = tuple(aliases)
-        self.semantic_identity_pins = tuple(semantic_identity_pins)
+        self.semantic_identity_pins = tuple(
+            semantic_identity_pins
+            if semantic_identity_pins is not None
+            else ()
+        )
 
     def create(self) -> Gate2FinancialEvidenceRegistrySnapshot:
         declarations = tuple(
