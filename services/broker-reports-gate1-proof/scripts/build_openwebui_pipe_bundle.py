@@ -211,8 +211,15 @@ def main() -> None:
     }
     if target in {"all", "gate1"}:
         pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
+        gate1_modules = {
+            name: modules[name] for name in GATE1_MODULE_ORDER
+        }
+        gate1_modules["__init__"] = _project_package_init(
+            gate1_modules["__init__"],
+            included_modules=set(gate1_modules),
+        )
         bundle = _render_bundle(
-            modules={name: modules[name] for name in GATE1_MODULE_ORDER},
+            modules=gate1_modules,
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
             version="0.22.0-semantic-visual-v1-bundled",
