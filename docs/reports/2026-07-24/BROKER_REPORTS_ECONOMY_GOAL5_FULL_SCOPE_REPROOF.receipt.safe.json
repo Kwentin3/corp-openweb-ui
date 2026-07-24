@@ -1,0 +1,75 @@
+{
+  "schema_version": "broker_reports_economy_goal5_full_scope_reproof_safe_receipt_v1",
+  "terminal_status": "NOT_CLOSED",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.2.0",
+    "policy_hash": "e6a297c359ff55fe48b22cf568261ae3bc0e329378f648b6438227e9a93ef35c",
+    "qualified_models_total": 0
+  },
+  "authorized_scope_identity": {
+    "safe_receipt_sha256": "9b2990f59972caa1f3dde920d180ab17d38f4d6b65ba22a797e3beff20dd5288",
+    "source_ready_documents_total": 1,
+    "parent_units_total": 12,
+    "derived_segments_total": 210,
+    "domain_packages_total": 41,
+    "canonical_decision_scopes_total": 39,
+    "authorized_source_refs_total": 455,
+    "scope_loaded_for_economy_run": false
+  },
+  "preflight": {
+    "workload_class": "gate2_financial_evidence",
+    "status": "blocked",
+    "error_code": "gate2_economy_no_qualified_model",
+    "blocked_before_private_scope_load": true,
+    "blocked_before_provider_call": true
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "input_tokens_total": 0,
+    "output_tokens_total": 0,
+    "total_tokens_total": 0,
+    "fallback_total": 0,
+    "hidden_repair_total": 0,
+    "expensive_model_calls_total": 0,
+    "blocked_preflight_cost_usd": "0",
+    "successful_economy_run_cost_usd": null
+  },
+  "quality": {
+    "full_scope_coverage": "NOT_PASSED_NO_QUALIFIED_MODEL",
+    "uncovered_source_refs_total": null,
+    "unexplained_rejected_scopes_total": null,
+    "contradictory_decisions_total": null,
+    "ownership_conflicts_total": null,
+    "duplicate_interpretations_total": null,
+    "unclassified_value_retention_percent": null
+  },
+  "comparison_baseline": {
+    "exact_model_id": "gpt-5.6-sol",
+    "provider_calls_total": 39,
+    "input_tokens_total": 47533,
+    "output_tokens_total": 7102,
+    "total_tokens_total": 54635,
+    "estimated_cost_usd": "0.450725",
+    "achieved_saving_usd": null,
+    "achieved_saving_percent": null,
+    "reason": "no_successful_economy_run"
+  },
+  "provider_statuses": {
+    "openai_nano": "UNAVAILABLE",
+    "gemini_flash_lite": "NOT_QUALIFIED",
+    "anthropic_haiku": "UNSUPPORTED_CONTRACT"
+  },
+  "checks": {
+    "focused_tests_passed": 31,
+    "contract_weakened": false,
+    "registry_changed": false,
+    "materializer_changed": false,
+    "expensive_fallback_used": false
+  },
+  "privacy": {
+    "customer_content_present": false,
+    "provider_raw_output_present": false,
+    "private_artifact_refs_present": false
+  }
+}
