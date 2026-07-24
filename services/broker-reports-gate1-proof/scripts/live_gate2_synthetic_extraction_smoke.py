@@ -17,7 +17,12 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
-BUNDLE = (
+GATE1_SEED_BUNDLE = (
+    SERVICE_ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate1_pipe_bundled.py"
+)
+GATE2_BUNDLE = (
     SERVICE_ROOT
     / "openwebui_actions"
     / "broker_reports_gate2_source_fact_pipe_bundled.py"
@@ -229,7 +234,7 @@ def _seed_synthetic_gate1(
     user_id: str,
     domain: str | None = None,
 ) -> dict[str, Any]:
-    bundle_source = BUNDLE.read_text(encoding="utf-8")
+    bundle_source = GATE1_SEED_BUNDLE.read_text(encoding="utf-8")
     selected_documents = _synthetic_documents(domain)
     code = f'''
 import json
@@ -549,7 +554,7 @@ print(json.dumps({"case_ids": [row[0] for row in rows]}))
 
 
 def _purge_case(*, ssh_target: str, case_id: str) -> dict[str, Any]:
-    bundle_source = BUNDLE.read_text(encoding="utf-8")
+    bundle_source = GATE2_BUNDLE.read_text(encoding="utf-8")
     code = f'''
 import json
 from pathlib import Path
