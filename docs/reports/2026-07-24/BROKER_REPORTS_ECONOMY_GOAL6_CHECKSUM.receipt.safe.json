@@ -1,0 +1,65 @@
+{
+  "schema_version": "broker_reports_economy_goal6_checksum_safe_receipt_v1",
+  "terminal_status": "NOT_CLOSED",
+  "policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.2.0",
+    "policy_hash": "e6a297c359ff55fe48b22cf568261ae3bc0e329378f648b6438227e9a93ef35c",
+    "workload_class": "gate2_financial_checksum",
+    "qualified_models_total": 0,
+    "maximum_fallback_calls": 0
+  },
+  "preflight": {
+    "status": "blocked",
+    "error_code": "gate2_economy_no_qualified_model",
+    "blocked_before_context_model_package": true,
+    "blocked_before_provider_call": true,
+    "explicit_expensive_model_rejection_code": "economy_model_not_registered"
+  },
+  "execution": {
+    "answering_model_id": null,
+    "provider_profile_id": null,
+    "provider_calls_total": 0,
+    "input_tokens_total": 0,
+    "output_tokens_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "expensive_answer_model_calls_total": 0
+  },
+  "control": {
+    "prior_safe_receipt_sha256": "dc43b0b0129c40d9fa40e37169df35bb7455622e0465b4864e31506e70e7cb82",
+    "model_context_source": "broker_reports_gate2_financial_context_v1",
+    "metrics_total": 3,
+    "metrics_passed_total": null,
+    "source_bindings_passed_total": null,
+    "arithmetic_reconciliation_passed_total": null,
+    "control_vector_status": "NOT_RUN"
+  },
+  "isolation": {
+    "pdf_in_model_context": false,
+    "gate1_in_model_context": false,
+    "sealed_expected_values_in_model_context": false,
+    "gate3_methodology_in_model_context": false,
+    "expensive_answering_model_used": false
+  },
+  "provider_statuses": {
+    "openai_nano": "UNAVAILABLE",
+    "gemini_flash_lite": "NOT_QUALIFIED",
+    "anthropic_haiku": "UNSUPPORTED_CONTRACT"
+  },
+  "checks": {
+    "focused_tests_passed": 34,
+    "full_tests_passed": 1330,
+    "full_tests_skipped": 20,
+    "runner_factory_policy_bound": true,
+    "no_qualified_model_calls_zero": true,
+    "explicit_expensive_model_calls_zero": true,
+    "checksum_contract_changed": false,
+    "comparator_changed": false
+  },
+  "privacy": {
+    "customer_content_present": false,
+    "provider_raw_output_present": false,
+    "private_artifact_refs_present": false
+  }
+}
