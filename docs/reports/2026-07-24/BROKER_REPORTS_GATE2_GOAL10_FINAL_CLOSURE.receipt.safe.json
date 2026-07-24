@@ -1,0 +1,81 @@
+{
+  "schema_version": "broker_reports_gate2_goal10_final_closure_safe_receipt_v1",
+  "terminal_status": "NOT_CLOSED",
+  "goal_statuses": {
+    "goal_0_operational_containment": "COMPLETED",
+    "goal_1_registry_authority": "COMPLETED",
+    "goal_2_initial_catalog": "COMPLETED_WITH_GAPS",
+    "goal_3_decision_contract": "COMPLETED",
+    "goal_4_materialization": "COMPLETED",
+    "goal_5_context_projection": "COMPLETED",
+    "goal_6_legacy_compatibility": "COMPLETED",
+    "goal_7_shadow_qualification": "COMPLETED",
+    "goal_8_gate2_checksum": "COMPLETED",
+    "goal_9_production_migration": "NOT_CLOSED",
+    "goal_10_final_closure": "NOT_CLOSED"
+  },
+  "acceptance": {
+    "gate1_status": "UNCHANGED_AND_NEUTRAL",
+    "gate2_status": "NOT_CLOSED",
+    "gate3_status": "OUT_OF_SCOPE",
+    "user_browser_workflow": "OUT_OF_SCOPE",
+    "financial_evidence_registry": "AUTHORITATIVE",
+    "full_scope_coverage": "PASSED_IN_SHADOW",
+    "silent_value_loss": "ZERO_IN_QUALIFIED_SCOPE",
+    "control_vector": "THREE_OF_THREE",
+    "double_counting": 0,
+    "knowledge_rag_vector_delta": 0,
+    "repository_live_parity": "EXACT"
+  },
+  "verification": {
+    "full_suite_passed": 1277,
+    "full_suite_skipped": 20,
+    "affected_bundle_deterministic": true,
+    "affected_bundle_git_blob": "58ee2b0a545bcc179e1d2280aca5714d1e586e2f",
+    "independent_stage_delivery_verifier": "passed",
+    "function_bundles_exact": 3,
+    "managed_prompts_exact": 12,
+    "repository_factory_boundary": "passed",
+    "stage_revision": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0",
+    "stage_revision_reachable": true
+  },
+  "live_identity": {
+    "broker_reports_gate1_pipe_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+    "broker_reports_gate2_source_fact_pipe_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+    "broker_reports_gate2_domain_source_fact_pipe_sha256": "ea5d00a513542d82689c1434396e82ce4c21222fefd217292061fa78f46505e0"
+  },
+  "production_scope_proof": {
+    "status": "failed_before_financial_runtime",
+    "new_financial_inputs_total": 0,
+    "new_financial_context_total": 0,
+    "new_financial_receipt_total": 0,
+    "new_financial_run_total": 0,
+    "preexisting_artifacts_unchanged": true,
+    "approved_provider_failures": {
+      "openai_gpt": "gate2_model_provider_quota_exceeded",
+      "google_gemini": "gate2_model_provider_error",
+      "anthropic_claude": "gate2_model_schema_response_format_rejected"
+    }
+  },
+  "failed_invariant": "A bounded live scope did not persist the new financial run, receipt, context and input artifacts.",
+  "primary_evidence": "Approved provider terminal codes and zero new-schema artifact counts.",
+  "owning_component": "stage provider availability and strict response-format capability before Gate2FinancialEvidenceProductionRuntime",
+  "blocker_type": "external_provider_state",
+  "narrowest_corrective_slice": "Restore funded OpenAI Gate 2 capacity, then rerun the same bounded migration verifier without changing runtime contracts.",
+  "limitations": {
+    "unclassified_data": "Ambiguous or unsupported source-local financial content.",
+    "preserved_values": "Literal source labels, bound source values, source refs, ownership, restrictions and integrity identity.",
+    "gate3_use": "Usable only with explicit uncertainty; production completeness is not established.",
+    "forbidden_claims": [
+      "Unclassified values are canonical typed inputs.",
+      "Tax qualification or declaration mapping is complete.",
+      "Gate 2 production closure is complete."
+    ]
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "provider_raw_output_in_git": 0,
+    "private_refs_in_git": 0
+  },
+  "final_allowed_product_claim": "NOT_ALLOWED_UNTIL_LIVE_PERSISTENCE_INVARIANT_PASSES"
+}
