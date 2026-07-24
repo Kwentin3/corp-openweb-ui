@@ -6,6 +6,10 @@ import json
 import time
 from typing import Any, Callable
 
+from .gate2_economy_budget import (
+    Gate2EconomyBudgetSession,
+    Gate2EconomyBudgetSessionFactory,
+)
 from .gate2_model_contracts import (
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
@@ -97,6 +101,13 @@ class Gate2StructuredModelClientFactory:
                 or Gate2OpenWebUIProviderConnectionResolver(self.request).resolve
             ),
         ).create()
+        budget_session = (
+            Gate2EconomyBudgetSessionFactory().create(
+                request_profile=self.config.request_profile,
+            )
+            if self.config.economy_budget_enforcement
+            else None
+        )
         return Gate2OpenWebUIStructuredModelClient(
             request_profile=self.config.request_profile,
             provider_profile=provider_profile,
@@ -105,6 +116,7 @@ class Gate2StructuredModelClientFactory:
             user=self.user,
             request=self.request,
             completion_resolver=self.completion_resolver,
+            budget_session=budget_session,
         )
 
 
@@ -119,6 +131,7 @@ class Gate2OpenWebUIStructuredModelClient:
         user: Any,
         request: Any,
         completion_resolver: CompletionResolver | None,
+        budget_session: Gate2EconomyBudgetSession | None = None,
     ) -> None:
         self.request_profile = request_profile
         self.provider_profile = provider_profile
@@ -129,20 +142,40 @@ class Gate2OpenWebUIStructuredModelClient:
         self.completion_resolver = (
             completion_resolver or self._resolve_openwebui_completion_dependencies
         )
+        self.budget_session = budget_session
+        self._budget_operation_ordinal = 0
 
     def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
         return self.provider_adapter.execution_contract(model_id)
 
     async def extract(self, *, prompt, package, model_id, response_format):
         user_id = self._validate_request_context()
-        execution_contract = self.execution_contract(model_id)
-        self.provider_adapter.validate_model(model_id)
         form_data = self.request_builder.build(
             prompt=prompt,
             package=package,
             model_id=model_id,
             response_format=response_format,
         )
+        budget_authorization = None
+        if self.budget_session is not None:
+            self._budget_operation_ordinal += 1
+            budget_authorization = self.budget_session.prepare_call(
+                form_data=form_data,
+                model_id=model_id,
+                provider_profile_id=self.provider_profile.profile_id,
+                operation_identity=(
+                    f"gate2-economy-operation-"
+                    f"{self._budget_operation_ordinal}"
+                ),
+            )
+            form_data = budget_authorization.prepared_form_data
+        effective_model_id = (
+            budget_authorization.exact_model_id
+            if budget_authorization is not None
+            else model_id
+        )
+        execution_contract = self.execution_contract(effective_model_id)
+        self.provider_adapter.validate_model(effective_model_id)
         prepared_request = self.provider_adapter.prepare_form_data(
             form_data=form_data,
             response_format=response_format,
@@ -181,7 +214,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 self._validate_model_content_budget(response_payload)
             execution_metadata = self.provider_adapter.execution_metadata(
                 payload=response_payload,
-                requested_model_id=model_id,
+                requested_model_id=effective_model_id,
                 duration_ms=duration_ms,
                 prepared_request=prepared_request,
             )
@@ -197,6 +230,15 @@ class Gate2OpenWebUIStructuredModelClient:
                     execution_metadata=execution_metadata,
                     failure_class="provider_error_response",
                 )
+            economy_budget_receipt = (
+                self.budget_session.finalize_call(
+                    authorization=budget_authorization,
+                    execution_metadata=execution_metadata,
+                )
+                if self.budget_session is not None
+                and budget_authorization is not None
+                else None
+            )
             content = self.provider_adapter.extract_content(response_payload)
             self._validate_model_content_budget(content)
         except Gate2SourceFactRuntimeError as exc:
@@ -208,7 +250,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 )
                 exc.execution_metadata = self.provider_adapter.execution_metadata(
                     payload=metadata_payload,
-                    requested_model_id=model_id,
+                    requested_model_id=effective_model_id,
                     duration_ms=self._duration_ms(started),
                     prepared_request=prepared_request,
                 )
@@ -230,7 +272,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 raw_output=diagnostic,
                 execution_metadata=self.provider_adapter.execution_metadata(
                     payload=response_payload,
-                    requested_model_id=model_id,
+                    requested_model_id=effective_model_id,
                     duration_ms=self._duration_ms(started),
                     prepared_request=prepared_request,
                 ),
@@ -244,6 +286,27 @@ class Gate2OpenWebUIStructuredModelClient:
                 execution_contract.response_format_schema_mode
             ),
             execution_metadata=execution_metadata,
+            economy_budget_receipt=economy_budget_receipt,
+        )
+
+    def preflight_full_scope(
+        self,
+        *,
+        model_id: str,
+        default_call_input_tokens,
+        fallback_call_input_tokens=(),
+    ) -> dict[str, Any]:
+        if self.budget_session is None:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_economy_budget_not_enabled",
+                "Economy budget enforcement is not enabled",
+                failure_class="economy_budget",
+            )
+        return self.budget_session.preflight_full_scope(
+            model_id=model_id,
+            provider_profile_id=self.provider_profile.profile_id,
+            default_call_input_tokens=default_call_input_tokens,
+            fallback_call_input_tokens=fallback_call_input_tokens,
         )
 
     def _validate_request_context(self) -> str:

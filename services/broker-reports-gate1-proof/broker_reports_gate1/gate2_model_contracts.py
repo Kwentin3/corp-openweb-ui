@@ -47,6 +47,8 @@ class Gate2ProviderExecutionMetadata:
     input_tokens: int | None = None
     output_tokens: int | None = None
     total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    reasoning_tokens: int | None = None
     finish_reason: str | None = None
 
     def snapshot(self) -> dict[str, Any]:
@@ -71,6 +73,8 @@ class Gate2ProviderExecutionMetadata:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
+            "cached_input_tokens": self.cached_input_tokens,
+            "reasoning_tokens": self.reasoning_tokens,
             "finish_reason": self.finish_reason,
         }
 
@@ -102,6 +106,7 @@ class Gate2StructuredModelResult:
     fallback_used: bool = False
     repair_attempt_count: int = 0
     execution_metadata: Gate2ProviderExecutionMetadata | None = None
+    economy_budget_receipt: dict[str, Any] | None = None
 
 
 class Gate2StructuredModelClient(Protocol):
@@ -480,6 +485,8 @@ def gate2_provider_execution_safe_metadata(
         "input_tokens",
         "output_tokens",
         "total_tokens",
+        "cached_input_tokens",
+        "reasoning_tokens",
     ):
         value = snapshot.get(field)
         snapshot[field] = (
@@ -514,6 +521,8 @@ def gate2_provider_execution_summary(
     input_tokens_total = 0
     output_tokens_total = 0
     total_tokens_total = 0
+    cached_input_tokens_total = 0
+    reasoning_tokens_total = 0
     usage_reported_attempts = 0
     latency_values: list[int] = []
     schema_transform_total = 0
@@ -541,6 +550,8 @@ def gate2_provider_execution_summary(
             execution.get("input_tokens"),
             execution.get("output_tokens"),
             execution.get("total_tokens"),
+            execution.get("cached_input_tokens"),
+            execution.get("reasoning_tokens"),
         ]
         if any(isinstance(value, int) for value in token_values):
             usage_reported_attempts += 1
@@ -550,6 +561,10 @@ def gate2_provider_execution_summary(
             output_tokens_total += token_values[1]
         if isinstance(token_values[2], int):
             total_tokens_total += token_values[2]
+        if isinstance(token_values[3], int):
+            cached_input_tokens_total += token_values[3]
+        if isinstance(token_values[4], int):
+            reasoning_tokens_total += token_values[4]
         if isinstance(execution.get("duration_ms"), int):
             latency_values.append(int(execution["duration_ms"]))
         if isinstance(execution.get("schema_transform_count"), int):
@@ -574,6 +589,8 @@ def gate2_provider_execution_summary(
         "input_tokens_total": input_tokens_total,
         "output_tokens_total": output_tokens_total,
         "total_tokens_total": total_tokens_total,
+        "cached_input_tokens_total": cached_input_tokens_total,
+        "reasoning_tokens_total": reasoning_tokens_total,
         "latency_observed_attempts": len(latency_values),
         "latency_total_ms": sum(latency_values),
         "latency_max_ms": max(latency_values) if latency_values else None,
@@ -609,3 +626,4 @@ class Gate2StructuredModelClientConfig:
     provider_profile_id: str = "openai_gpt"
     transport: str = "openwebui"
     capability_probe: bool = False
+    economy_budget_enforcement: bool = False

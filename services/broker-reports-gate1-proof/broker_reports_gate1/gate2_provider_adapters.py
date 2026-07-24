@@ -317,6 +317,16 @@ class _Gate2OpenWebUIProviderAdapter:
     ) -> Gate2ProviderExecutionMetadata:
         value = payload if isinstance(payload, dict) else {}
         usage = value.get("usage") if isinstance(value.get("usage"), dict) else {}
+        input_details = _usage_details(
+            usage,
+            "prompt_tokens_details",
+            "input_tokens_details",
+        )
+        output_details = _usage_details(
+            usage,
+            "completion_tokens_details",
+            "output_tokens_details",
+        )
         choices = value.get("choices") if isinstance(value.get("choices"), list) else []
         first = choices[0] if choices and isinstance(choices[0], dict) else {}
         return Gate2ProviderExecutionMetadata(
@@ -345,6 +355,17 @@ class _Gate2OpenWebUIProviderAdapter:
                 usage.get("completion_tokens", usage.get("output_tokens"))
             ),
             total_tokens=_optional_int(usage.get("total_tokens")),
+            cached_input_tokens=_first_optional_int(
+                input_details.get("cached_tokens"),
+                usage.get("cached_input_tokens"),
+                usage.get("cache_read_input_tokens"),
+            ),
+            reasoning_tokens=_first_optional_int(
+                output_details.get("reasoning_tokens"),
+                output_details.get("thinking_tokens"),
+                usage.get("reasoning_tokens"),
+                usage.get("thoughts_token_count"),
+            ),
             finish_reason=_optional_string(first.get("finish_reason")),
         )
 
@@ -445,9 +466,19 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
                 "gate2_model_request_invalid",
                 "Anthropic native transport requires a user message",
             )
+        maximum_output_tokens = form_data.get("max_tokens", 32768)
+        if (
+            isinstance(maximum_output_tokens, bool)
+            or not isinstance(maximum_output_tokens, int)
+            or maximum_output_tokens <= 0
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Anthropic output-token budget is invalid",
+            )
         prepared = {
             "model": form_data.get("model"),
-            "max_tokens": 32768,
+            "max_tokens": maximum_output_tokens,
             "messages": native_messages,
             "output_config": {
                 "format": {
@@ -492,6 +523,11 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
     ) -> Gate2ProviderExecutionMetadata:
         value = payload if isinstance(payload, dict) else {}
         usage = value.get("usage") if isinstance(value.get("usage"), dict) else {}
+        output_details = _usage_details(
+            usage,
+            "output_tokens_details",
+            "completion_tokens_details",
+        )
         return Gate2ProviderExecutionMetadata(
             provider_id=self.profile.provider_id,
             provider_profile_id=self.profile.profile_id,
@@ -512,6 +548,15 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
             input_tokens=_optional_int(usage.get("input_tokens")),
             output_tokens=_optional_int(usage.get("output_tokens")),
             total_tokens=_optional_int(usage.get("total_tokens")),
+            cached_input_tokens=_first_optional_int(
+                usage.get("cache_read_input_tokens"),
+                usage.get("cached_input_tokens"),
+            ),
+            reasoning_tokens=_first_optional_int(
+                output_details.get("thinking_tokens"),
+                output_details.get("reasoning_tokens"),
+                usage.get("reasoning_tokens"),
+            ),
             finish_reason=_optional_string(value.get("stop_reason")),
         )
 
@@ -1005,3 +1050,22 @@ def _optional_int(value: Any) -> int | None:
     if isinstance(value, str) and value.strip().isdigit():
         return int(value.strip())
     return None
+
+
+def _first_optional_int(*values: Any) -> int | None:
+    for value in values:
+        parsed = _optional_int(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _usage_details(
+    usage: dict[str, Any],
+    *field_names: str,
+) -> dict[str, Any]:
+    for field_name in field_names:
+        value = usage.get(field_name)
+        if isinstance(value, dict):
+            return value
+    return {}
