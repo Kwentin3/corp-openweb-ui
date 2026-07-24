@@ -38,6 +38,7 @@ from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
     evaluate_remote_runtime,
 )
 from live_verify_broker_reports_stage2_delivery import (  # noqa: E402
+    FUNCTION_CONTRACTS as DELIVERY_FUNCTION_CONTRACTS,
     expected_prompt_contracts,
 )
 
@@ -57,6 +58,23 @@ def _manifest():
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_delivery_verifier_scopes_financial_markers_to_domain_function(self):
+        source_contract = DELIVERY_FUNCTION_CONTRACTS[1]
+        domain_contract = DELIVERY_FUNCTION_CONTRACTS[2]
+
+        self.assertNotIn(
+            "Gate2FinancialEvidenceProductionRuntimeFactory",
+            source_contract.required_markers,
+        )
+        self.assertIn(
+            "Gate2FinancialEvidenceProductionRuntimeFactory",
+            domain_contract.required_markers,
+        )
+        self.assertIn(
+            "financial_evidence_enabled",
+            domain_contract.required_markers,
+        )
+
     def test_driver_materializes_loader_from_exact_approved_git_blob(self):
         revision = subprocess.run(
             ["git", "rev-parse", "HEAD"],

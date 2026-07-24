@@ -84,10 +84,6 @@ FUNCTION_CONTRACTS = (
             "allow_standalone_semantic_visual_projections",
             "AnswerContextSelectionFactory",
             "broker_reports_answer_context_selection_receipt_v1",
-            "Gate2FinancialEvidenceProductionRuntimeFactory",
-            "broker_reports_gate2_financial_evidence_registry_v1",
-            "broker_reports_gate2_financial_context_v1",
-            "financial_evidence_enabled",
         ),
     ),
     FunctionContract(
@@ -101,6 +97,10 @@ FUNCTION_CONTRACTS = (
             "gate2_provider_execution_metadata_v1",
             "AnswerContextSelectionFactory",
             "broker_reports_answer_context_selection_receipt_v1",
+            "Gate2FinancialEvidenceProductionRuntimeFactory",
+            "broker_reports_gate2_financial_evidence_registry_v1",
+            "broker_reports_gate2_financial_context_v1",
+            "financial_evidence_enabled",
         ),
     ),
 )
