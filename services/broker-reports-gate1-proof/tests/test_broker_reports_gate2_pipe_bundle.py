@@ -88,6 +88,41 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             synthetic_smoke.GATE2_BUNDLE.name,
         )
 
+    def test_synthetic_seed_persists_completed_gate1_workload_receipt(self):
+        captured = {}
+
+        def capture_remote(_ssh_target, code, *, timeout):
+            captured["code"] = code
+            captured["timeout"] = timeout
+            return {"status": "captured"}
+
+        with mock.patch.object(
+            synthetic_smoke,
+            "_remote_json",
+            side_effect=capture_remote,
+        ):
+            result = synthetic_smoke._seed_synthetic_gate1(
+                ssh_target="synthetic-host",
+                case_id="synthetic-case",
+                user_id="synthetic-user",
+                domain="document_summary_evidence",
+            )
+
+        self.assertEqual({"status": "captured"}, result)
+        self.assertEqual(90, captured["timeout"])
+        self.assertIn(
+            "job_kind=WorkloadKind.GATE1",
+            captured["code"],
+        )
+        self.assertIn(
+            '"workload_job_id": workload_ticket.job_id',
+            captured["code"],
+        )
+        self.assertIn(
+            "workload_session.complete(",
+            captured["code"],
+        )
+
     def test_live_smoke_model_selection_uses_gate2_provider_registry(self):
         self.assertEqual(
             "gpt-5.6-luna",
