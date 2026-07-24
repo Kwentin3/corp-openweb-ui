@@ -815,6 +815,28 @@ def _package_values(
     }
     literal_by_ref = {}
     segment_by_ref = {}
+
+    def bind_literal(ref: str, value: str) -> None:
+        existing = literal_by_ref.get(ref)
+        if existing is not None and existing != value:
+            _fail("financial_evidence_production_authoritative_value_conflict")
+        literal_by_ref[ref] = value
+
+    for row in (
+        (unit.get("model_source_projection") or {}).get("rows")
+        or []
+    ):
+        for cell in row.get("cells") or []:
+            value = cell.get("value")
+            if not isinstance(value, str) or not value:
+                continue
+            refs = cell.get("source_value_refs") or [
+                cell.get("source_value_ref")
+            ]
+            for ref in refs:
+                normalized_ref = str(ref or "")
+                if normalized_ref in allowed:
+                    bind_literal(normalized_ref, value)
     for segment in (
         (unit.get("model_source_projection") or {}).get("segments")
         or []
@@ -822,7 +844,7 @@ def _package_values(
         ref = str(segment.get("source_value_ref") or "")
         value = segment.get("value")
         if ref in allowed and isinstance(value, str) and value:
-            literal_by_ref[ref] = value
+            bind_literal(ref, value)
             segment_by_ref[ref] = segment
     for private_value in unit.get("private_values") or []:
         value = private_value.get("normalized_value")
@@ -830,7 +852,7 @@ def _package_values(
             continue
         for ref in private_value.get("source_value_refs") or []:
             if ref in allowed:
-                literal_by_ref[str(ref)] = value
+                bind_literal(str(ref), value)
     if set(literal_by_ref) != allowed:
         _fail("financial_evidence_production_authoritative_value_missing")
     result = []

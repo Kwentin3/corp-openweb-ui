@@ -179,7 +179,36 @@ def _domain_package():
     }
 
 
-def _source_record(context, *, storage_backend="memory"):
+def _table_domain_package():
+    package = _domain_package()
+    package["source_unit"]["model_source_projection"] = {
+        "rows": [
+            {
+                "row_ref": "row:synthetic",
+                "cells": [
+                    {
+                        "cell_ref": "cell:label",
+                        "source_value_ref": "value:label",
+                        "value": "Synthetic total",
+                    },
+                    {
+                        "cell_ref": "cell:amount",
+                        "source_value_ref": "value:amount",
+                        "value": "120.50",
+                    },
+                ],
+            }
+        ]
+    }
+    return package
+
+
+def _source_record(
+    context,
+    *,
+    storage_backend="memory",
+    payload=None,
+):
     return ArtifactRecord(
         artifact_id="artifact:domain-package",
         artifact_type=DOMAIN_PACKAGE_TYPE,
@@ -202,7 +231,7 @@ def _source_record(context, *, storage_backend="memory"):
             visibility="private_case",
             validation_status="validated",
         ),
-        payload=_domain_package(),
+        payload=payload or _domain_package(),
     )
 
 
@@ -217,6 +246,69 @@ def _runtime(store, client):
             maximum_scopes=4,
         ),
     ).create()
+
+
+def test_production_runtime_materializes_authoritative_table_row_values():
+    context = _context()
+    store = _MemoryStore()
+    store.put_record(
+        _source_record(context, payload=_table_domain_package())
+    )
+    client = _DecisionClient()
+
+    result = asyncio.run(
+        _runtime(store, client).run(
+            domain_package_refs=("artifact:domain-package",),
+            source_extraction_run_ref="artifact:domain-run",
+            context=context,
+            retention_policy=_retention(),
+        )
+    )
+
+    assert result.status == "completed"
+    assert len(client.calls) == 1
+    source_values = {
+        item["source_value_ref"]: item["literal_value"]
+        for item in client.calls[0]["package"]["llm_context_package"][
+            "source_values"
+        ]
+    }
+    assert {
+        key: source_values[key]
+        for key in ("value:amount", "value:label")
+    } == {
+        "value:amount": "120.50",
+        "value:label": "Synthetic total",
+    }
+
+
+def test_production_runtime_rejects_conflicting_table_row_literals():
+    context = _context()
+    store = _MemoryStore()
+    package = _table_domain_package()
+    package["source_unit"]["model_source_projection"]["rows"][0][
+        "cells"
+    ].append(
+        {
+            "cell_ref": "cell:amount:conflict",
+            "source_value_ref": "value:amount",
+            "value": "999.99",
+        }
+    )
+    store.put_record(_source_record(context, payload=package))
+
+    with pytest.raises(
+        Gate2FinancialEvidenceProductionRuntimeError,
+        match="financial_evidence_production_authoritative_value_conflict",
+    ):
+        asyncio.run(
+            _runtime(store, _DecisionClient()).run(
+                domain_package_refs=("artifact:domain-package",),
+                source_extraction_run_ref="artifact:domain-run",
+                context=context,
+                retention_policy=_retention(),
+            )
+        )
 
 
 def test_production_runtime_single_writes_new_private_schema_and_context():
