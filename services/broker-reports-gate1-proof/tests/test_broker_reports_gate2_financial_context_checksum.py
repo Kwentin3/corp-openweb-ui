@@ -4,6 +4,7 @@ import ast
 import asyncio
 import copy
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,14 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (  # n
 )
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
+)
+from broker_reports_gate1.gate2_economy_model_policy import (  # noqa: E402
+    MODEL_LIFECYCLE_ACTIVE,
+    MODEL_STATUS_QUALIFIED,
+    Gate2EconomyModelPolicyFactory,
+)
+from broker_reports_gate1.gate2_economy_provider_selection import (  # noqa: E402
+    Gate2EconomyProviderSelectionFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     Gate2StructuredModelResult,
@@ -322,8 +331,9 @@ def test_runner_uses_model_boundary_once_without_fallback_or_repair():
     client = _FakeModelClient({"metrics": _rows(contract)})
     runner = Gate2FinancialContextChecksumRunnerFactory(
         model_client=client,
-        model_id="gpt-test",
-        provider_profile_id="openai",
+        model_id="gpt-5-nano",
+        provider_profile_id="openai_gpt",
+        economy_provider_selector=_qualified_checksum_selector(),
     ).create()
 
     result = asyncio.run(runner.run(contract=contract))
@@ -332,6 +342,35 @@ def test_runner_uses_model_boundary_once_without_fallback_or_repair():
     assert result["fallback_used"] is False
     assert result["repair_attempt_count"] == 0
     assert len(result["rows"]) == 3
+    assert result["economy_provider_selection"]["primary"][
+        "exact_model_id"
+    ] == "gpt-5-nano-2025-08-07"
+
+
+def test_runner_factory_fails_before_call_without_qualified_economy_model():
+    client = _FakeModelClient({"metrics": []})
+
+    with pytest.raises(Gate2FinancialContextChecksumError) as exc_info:
+        Gate2FinancialContextChecksumRunnerFactory(
+            model_client=client,
+        ).create()
+
+    assert exc_info.value.code == "gate2_economy_no_qualified_model"
+    assert client.calls == []
+
+
+def test_runner_factory_rejects_expensive_answering_model_before_call():
+    client = _FakeModelClient({"metrics": []})
+
+    with pytest.raises(Gate2FinancialContextChecksumError) as exc_info:
+        Gate2FinancialContextChecksumRunnerFactory(
+            model_client=client,
+            model_id="gpt-5.6-sol",
+            provider_profile_id="openai_gpt",
+        ).create()
+
+    assert exc_info.value.code == "economy_model_not_registered"
+    assert client.calls == []
 
 
 def test_comparator_passes_identity_dimensions_binding_and_reconciliation():
@@ -392,3 +431,21 @@ def test_checksum_module_has_no_direct_provider_or_gate1_import_bypass():
     assert not any(name.startswith("requests") for name in imports)
     assert not any("gate1" in name for name in imports)
     assert "post" not in calls
+
+
+def _qualified_checksum_selector():
+    policy = Gate2EconomyModelPolicyFactory().create()
+    return Gate2EconomyProviderSelectionFactory(
+        policy=replace(
+            policy,
+            models=(
+                replace(
+                    policy.models[0],
+                    lifecycle=MODEL_LIFECYCLE_ACTIVE,
+                    qualification_status=MODEL_STATUS_QUALIFIED,
+                    qualification_receipt_identity="a" * 64,
+                ),
+                *policy.models[1:],
+            ),
+        )
+    ).create()

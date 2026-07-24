@@ -16,6 +16,14 @@ from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
 )
+from .gate2_economy_model_policy import (
+    WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+)
+from .gate2_economy_provider_selection import (
+    Gate2EconomyProviderSelectionError,
+    Gate2EconomyProviderSelectionFactory,
+    Gate2EconomyProviderSelector,
+)
 from .gate2_model_contracts import (
     Gate2StructuredModelClient,
     gate2_provider_execution_safe_metadata,
@@ -275,21 +283,40 @@ class Gate2FinancialContextChecksumRunnerFactory:
         self,
         *,
         model_client: Gate2StructuredModelClient,
-        model_id: str,
-        provider_profile_id: str,
+        model_id: str = "",
+        provider_profile_id: str = "",
+        economy_provider_selector: Gate2EconomyProviderSelector | None = None,
     ) -> None:
         self.model_client = model_client
         self.model_id = model_id
         self.provider_profile_id = provider_profile_id
+        self.economy_provider_selector = economy_provider_selector
 
     def create(self) -> "Gate2FinancialContextChecksumRunner":
-        if not self.model_id or not self.provider_profile_id:
-            _fail("financial_context_checksum_provider_config_invalid")
+        selector = (
+            self.economy_provider_selector
+            or Gate2EconomyProviderSelectionFactory().create()
+        )
+        try:
+            selection = selector.select_runtime(
+                workload_class=WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+                requested_model_ids=(
+                    (self.model_id,) if self.model_id else None
+                ),
+                requested_provider_profile_ids=(
+                    (self.provider_profile_id,)
+                    if self.provider_profile_id
+                    else None
+                ),
+            )
+        except Gate2EconomyProviderSelectionError as exc:
+            _fail(exc.code)
         return Gate2FinancialContextChecksumRunner(
             model_client=self.model_client,
-            model_id=self.model_id,
-            provider_profile_id=self.provider_profile_id,
+            model_id=selection.primary.exact_model_id,
+            provider_profile_id=selection.primary.provider_profile_id,
             prompt=Gate2FinancialContextChecksumPromptFactory().create(),
+            economy_provider_selection=selection.safe_receipt(),
         )
 
 
@@ -301,11 +328,13 @@ class Gate2FinancialContextChecksumRunner:
         model_id: str,
         provider_profile_id: str,
         prompt: Gate2FinancialContextChecksumPrompt,
+        economy_provider_selection: dict[str, object],
     ) -> None:
         self.model_client = model_client
         self.model_id = model_id
         self.provider_profile_id = provider_profile_id
         self.prompt = prompt
+        self.economy_provider_selection = economy_provider_selection
 
     async def run(
         self,
@@ -334,6 +363,9 @@ class Gate2FinancialContextChecksumRunner:
             ),
             "fallback_used": False,
             "repair_attempt_count": 0,
+            "economy_provider_selection": copy.deepcopy(
+                self.economy_provider_selection
+            ),
         }
 
 
