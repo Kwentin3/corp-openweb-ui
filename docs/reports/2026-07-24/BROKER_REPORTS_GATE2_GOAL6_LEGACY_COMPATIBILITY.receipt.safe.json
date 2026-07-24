@@ -1,0 +1,42 @@
+{
+  "schema_version": "broker_reports_gate2_goal6_legacy_compatibility_receipt_v1",
+  "status": "completed",
+  "base_revision": "fd67bc4917ae80e60be917598dd916cd10339b48",
+  "compatibility_policy_version": "broker_reports_financial_evidence_compatibility_v1",
+  "dual_read_schema_versions": [
+    "broker_reports_source_facts_v0",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_fns_2ndfl_source_facts_v1"
+  ],
+  "legacy_validator_id": "broker_reports_legacy_source_facts_validator_v1",
+  "legacy_validator_policy_version": "broker_reports_legacy_source_facts_replay_policy_v1",
+  "legacy_broad_ids_automatic_aliases_total": 0,
+  "document_summary_evidence_namespace": "evidence_kind",
+  "unknown_source_row_namespace": "legacy_technical_disposition",
+  "persisted_payload_rewrite_allowed": false,
+  "legacy_write_allowed": false,
+  "migration_write_contract": "single_write_successor_only",
+  "fns_mapping_status": "separate",
+  "synthetic_replay_fixture": {
+    "legacy_artifact_sha256": "bb7c5f892633be0ebe70f9e9d755ee4dba4bd41f99866a74ac582da61819bf04",
+    "legacy_records_total": 3,
+    "legacy_replay_status": "passed",
+    "successor_artifact_sha256": "85d14fe8401d91b232ea13989e475f66ca8c4d33fefe39faa32ebb8eecaf1e6c",
+    "explicit_mappings_sha256": "cda2787d730cb44d4a286868c5367e8c301e605587660a6b08cee21853bca398",
+    "migration_target_sha256": "85d14fe8401d91b232ea13989e475f66ca8c4d33fefe39faa32ebb8eecaf1e6c",
+    "fns_artifact_sha256": "f24f2584ef00282a9100bd1eb0408b651d4461a6e69a2e15e17129330ef2ef10",
+    "fns_records_total": 6,
+    "fns_records_mapping_status": "separate"
+  },
+  "validation": {
+    "compatibility_replay_tests_passed": 16,
+    "compatibility_fns_context_materialization_decision_registry_catalog_tests_passed": 104,
+    "full_broker_reports_suite_passed": 1243,
+    "full_broker_reports_suite_skipped": 20,
+    "compatibility_module_and_test_ruff": "passed",
+    "repository_privacy_guard_passed": 3
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "customer_values_in_receipt": false
+}
