@@ -140,7 +140,16 @@ def _case(suffix: str, disposition: str = "unclassified"):
         FinancialEvidenceShadowDecisionResult(
             artifact=artifact,
             source_package=source_package,
-            provider_execution={},
+            provider_execution={
+                "requested_model_id": "synthetic-model",
+                "provider_profile_id": "synthetic-provider",
+                "response_format_type": "json_schema",
+                "response_format_schema_mode": "strict_json_schema",
+                "structured_output_mode": (
+                    "openwebui_response_format_json_schema"
+                ),
+                "canonical_request_schema_hash": "a" * 64,
+            },
             fallback_used=False,
             repair_attempt_count=0,
         ),
@@ -208,9 +217,15 @@ def test_full_scope_qualification_passes_with_explicit_legacy_supersession():
     ] == 1
     assert receipt["quality"]["contradictory_decisions_total"] == 0
     assert receipt["quality"]["duplicate_interpretations_total"] == 0
+    assert receipt["quality"]["strict_schema_calls_total"] == 2
     assert receipt["quality"][
         "unclassified_scopes_fully_retained_total"
     ] == 1
+    assert receipt["quality"]["unclassified_candidate_values_total"] == 1
+    assert receipt["quality"]["unclassified_bound_values_total"] == 1
+    assert receipt["quality"][
+        "unclassified_value_retention_percent"
+    ] == 100
     assert receipt["customer_values_in_receipt"] is False
     assert all(receipt["checks"].values())
 
@@ -245,9 +260,13 @@ def test_duplicate_interpretation_owner_fails_closed():
 
 def test_unclassified_value_loss_and_provider_failure_are_visible():
     results, scopes = _passing_bundle()
-    failed_scope = replace(
-        scopes[0],
-        provider_status="failed",
+    failed_result = replace(
+        results[0][2],
+        provider_execution={},
+    )
+    failed_scope = shadow_scope_from_result(
+        result=failed_result,
+        selected_source_refs=("source:selected:a",),
     )
 
     receipt = Gate2FinancialEvidenceShadowQualificationFactory(
@@ -256,7 +275,7 @@ def test_unclassified_value_loss_and_provider_failure_are_visible():
         qualification_input=_qualification_input(
             (failed_scope, scopes[1])
         ),
-        decision_results=tuple(item[2] for item in results),
+        decision_results=(failed_result, results[1][2]),
     )
 
     assert receipt["status"] == "failed"

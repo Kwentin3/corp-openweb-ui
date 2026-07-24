@@ -330,6 +330,7 @@ class Gate2FinancialEvidenceShadowQualificationFactory:
         for scope in scopes:
             result = by_scope[scope.source_scope_ref]
             artifact = result.artifact
+            provider_status, schema_status = _execution_status(result)
             if (
                 scope.artifact_id != artifact["artifact_id"]
                 or scope.terminal_disposition
@@ -344,6 +345,8 @@ class Gate2FinancialEvidenceShadowQualificationFactory:
                 or scope.fallback_used != result.fallback_used
                 or scope.repair_attempt_count
                 != result.repair_attempt_count
+                or scope.provider_status != provider_status
+                or scope.schema_status != schema_status
             ):
                 _fail("financial_evidence_shadow_scope_evidence_mismatch")
 
@@ -398,6 +401,14 @@ class Gate2FinancialEvidenceShadowQualificationFactory:
         retained = sum(
             set(scope.bound_source_value_refs)
             == set(scope.candidate_source_value_refs)
+            for scope in unclassified
+        )
+        unclassified_candidate_values = sum(
+            len(scope.candidate_source_value_refs)
+            for scope in unclassified
+        )
+        unclassified_bound_values = sum(
+            len(scope.bound_source_value_refs)
             for scope in unclassified
         )
         status_counts = Counter(
@@ -503,6 +514,18 @@ class Gate2FinancialEvidenceShadowQualificationFactory:
             "quality": {
                 "unclassified_scopes_total": len(unclassified),
                 "unclassified_scopes_fully_retained_total": retained,
+                "unclassified_candidate_values_total": (
+                    unclassified_candidate_values
+                ),
+                "unclassified_bound_values_total": (
+                    unclassified_bound_values
+                ),
+                "unclassified_value_retention_percent": (
+                    100
+                    if unclassified_candidate_values
+                    == unclassified_bound_values
+                    else 0
+                ),
                 "contradictory_decisions_total": contradictions,
                 "ownership_conflicts_total": duplicate_interpretations,
                 "duplicate_interpretations_total": (
@@ -510,6 +533,11 @@ class Gate2FinancialEvidenceShadowQualificationFactory:
                 ),
                 "provider_failures_total": provider_failures,
                 "schema_failures_total": schema_failures,
+                "strict_schema_calls_total": sum(
+                    scope.provider_status == "passed"
+                    and scope.schema_status == "passed"
+                    for scope in scopes
+                ),
                 "fallback_total": fallback,
                 "hidden_repair_total": repairs,
             },
@@ -543,6 +571,7 @@ def shadow_scope_from_result(
     selected_source_refs: tuple[str, ...],
 ) -> FinancialEvidenceShadowScope:
     artifact = result.artifact
+    provider_status, schema_status = _execution_status(result)
     return FinancialEvidenceShadowScope(
         source_scope_ref=artifact["source_package"]["source_scope_ref"],
         selected_source_refs=tuple(sorted(set(selected_source_refs))),
@@ -557,9 +586,39 @@ def shadow_scope_from_result(
         ),
         terminal_disposition=artifact["terminal_disposition"],
         artifact_id=artifact["artifact_id"],
+        provider_status=provider_status,
+        schema_status=schema_status,
         fallback_used=result.fallback_used,
         repair_attempt_count=result.repair_attempt_count,
     )
+
+
+def _execution_status(
+    result: FinancialEvidenceShadowDecisionResult,
+) -> tuple[str, str]:
+    metadata = result.provider_execution
+    provider_status = (
+        "passed"
+        if isinstance(metadata, dict)
+        and metadata.get("requested_model_id")
+        and metadata.get("provider_profile_id")
+        else "failed"
+    )
+    schema_status = (
+        "passed"
+        if isinstance(metadata, dict)
+        and metadata.get("response_format_type") == "json_schema"
+        and metadata.get("response_format_schema_mode")
+        == "strict_json_schema"
+        and metadata.get("structured_output_mode")
+        in {
+            "openwebui_response_format_json_schema",
+            "openwebui_anthropic_output_config_json_schema",
+        }
+        and metadata.get("canonical_request_schema_hash")
+        else "failed"
+    )
+    return provider_status, schema_status
 
 
 def private_evidence_hash(value: Any) -> str:
