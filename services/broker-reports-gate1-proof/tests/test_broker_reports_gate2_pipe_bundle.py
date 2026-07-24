@@ -24,6 +24,7 @@ from live_case_group_gate2_table_typed_vertical_proof import (
     _safe_target,
 )
 import live_gate2_domain_synthetic_smoke as domain_smoke
+import live_gate2_synthetic_extraction_smoke as synthetic_smoke
 from live_gate2_domain_synthetic_smoke import (
     FUNCTION_ID as DOMAIN_SMOKE_FUNCTION_ID,
     _run_domain_chat as run_domain_smoke_chat,
@@ -73,6 +74,20 @@ def load_domain_bundle_module():
 
 
 class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
+    def test_synthetic_seed_and_purge_use_contract_owning_bundles(self):
+        self.assertEqual(
+            "broker_reports_gate1_pipe_bundled.py",
+            synthetic_smoke.GATE1_SEED_BUNDLE.name,
+        )
+        self.assertIn(
+            "gate2_handoff",
+            synthetic_smoke.GATE1_SEED_BUNDLE.read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            "broker_reports_gate2_source_fact_pipe_bundled.py",
+            synthetic_smoke.GATE2_BUNDLE.name,
+        )
+
     def test_live_smoke_model_selection_uses_gate2_provider_registry(self):
         self.assertEqual(
             "gpt-5.6-luna",
