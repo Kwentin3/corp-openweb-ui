@@ -1,0 +1,47 @@
+{
+  "schema_version": "broker_reports_gate2_goal3_four_disposition_decision_contract_receipt_v1",
+  "status": "completed",
+  "base_revision": "1530a270ce628caa59b4ca660382deb8fcafef23",
+  "decision_schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+  "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+  "registry_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+  "dispositions": [
+    "typed_input",
+    "unclassified_financial_input",
+    "no_financial_input",
+    "unsupported"
+  ],
+  "dispositions_total": 4,
+  "free_type_ids_allowed": false,
+  "free_json_fallback_allowed": false,
+  "system_owned_fields_allowed": false,
+  "no_financial_input_bindings_allowed": false,
+  "unclassified_canonical_type_allowed": false,
+  "typed_required_roles_enforced": true,
+  "bindings_package_bound": true,
+  "provider_projections": [
+    "openai_strict_json_schema",
+    "gemini_structural_json_schema"
+  ],
+  "synthetic_contract_fixture": {
+    "candidate_refs_total": 7,
+    "eligible_type_ids": [
+      "cash_balance_snapshot_v1",
+      "printed_financial_metric_v1"
+    ],
+    "canonical_schema_sha256": "ac4e501c8cf7133e5acadfda4024fea1d6b9b48b48eae5e00895dedb271a2ef0",
+    "openai_projection_sha256": "3e83d4d0120b9cd57372869373bfa29b4da5fc33b7d18cee645b2d799a865ad5",
+    "gemini_projection_sha256": "43108084c526fe5f1cb705f94673468d765cfadfa9a63cad4032ed8209437e50"
+  },
+  "validation": {
+    "decision_contract_tests_passed": 22,
+    "decision_registry_catalog_tests_passed": 44,
+    "full_broker_reports_suite_passed": 1191,
+    "full_broker_reports_suite_skipped": 20,
+    "new_file_ruff": "passed",
+    "repository_privacy_guard_passed": 3
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "customer_values_in_receipt": false
+}
