@@ -174,6 +174,43 @@ def role_projection(
     }
 
 
+def validate_dimension_requirements(
+    *,
+    date_period_requirement: str,
+    currency_unit_requirement: str,
+    bound_roles: set[str],
+) -> None:
+    temporal_roles = bound_roles & TEMPORAL_ROLES
+    has_period = "period" in bound_roles or {
+        "period_start",
+        "period_end",
+    } <= bound_roles
+    date_period_satisfied = {
+        "event_date_required": "event_date" in bound_roles,
+        "as_of_date_required": "as_of_date" in bound_roles,
+        "period_required": has_period,
+        "date_or_period_required": bool(
+            {"event_date", "as_of_date"} & bound_roles
+        )
+        or has_period,
+        "optional": True,
+        "forbidden": not temporal_roles,
+    }.get(date_period_requirement, False)
+    if not date_period_satisfied:
+        fail("financial_evidence_date_period_requirement_unsatisfied")
+
+    measurement_roles = bound_roles & MEASUREMENT_ROLES
+    currency_unit_satisfied = {
+        "currency_required": "currency" in bound_roles,
+        "unit_required": "unit" in bound_roles,
+        "currency_or_unit_required": bool(measurement_roles),
+        "optional": True,
+        "forbidden": not measurement_roles,
+    }.get(currency_unit_requirement, False)
+    if not currency_unit_satisfied:
+        fail("financial_evidence_currency_unit_requirement_unsatisfied")
+
+
 def evidence_refs(
     values: list[dict[str, Any]],
     package_refs: tuple[str, ...],

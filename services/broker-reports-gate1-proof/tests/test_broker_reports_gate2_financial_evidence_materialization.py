@@ -101,6 +101,13 @@ _VALUE_DEFINITIONS = (
         ("currency",),
     ),
     (
+        "value:unit:1",
+        "source:header:unit",
+        "source_unit",
+        "shares",
+        ("unit",),
+    ),
+    (
         "value:label:1",
         "source:cell:label",
         "source_text",
@@ -383,6 +390,96 @@ def test_literal_value_is_preserved_and_comparison_value_is_code_derived():
     assert values["value:currency:1"][
         "normalized_comparison_value"
     ] == "RUB"
+
+
+@pytest.mark.parametrize(
+    ("input_type_id", "bindings", "expected_code"),
+    (
+        (
+            "cash_balance_snapshot_v1",
+            {
+                **_cash_bindings(),
+                "currency": None,
+            },
+            "financial_evidence_currency_unit_requirement_unsatisfied",
+        ),
+        (
+            "printed_financial_metric_v1",
+            {
+                **_printed_bindings(),
+                "as_of_date": None,
+                "period": None,
+            },
+            "financial_evidence_date_period_requirement_unsatisfied",
+        ),
+        (
+            "printed_financial_metric_v1",
+            {
+                **_printed_bindings(),
+                "currency": None,
+                "unit": None,
+            },
+            "financial_evidence_currency_unit_requirement_unsatisfied",
+        ),
+    ),
+)
+def test_registry_dimension_requirements_fail_closed(
+    input_type_id: str,
+    bindings,
+    expected_code: str,
+):
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        _materialize(_typed_payload(input_type_id, bindings))
+
+    assert exc.value.code == expected_code
+
+
+def test_currency_or_unit_policy_accepts_bound_unit():
+    bindings = {
+        **_cash_bindings(),
+        "currency": None,
+        "unit": "value:unit:1",
+    }
+
+    result = _materialize(_typed_payload(bindings=bindings))
+
+    assert result["typed_inputs"][0]["currency_unit"] == {
+        "unit": "shares"
+    }
+
+
+def test_artifact_validator_independently_rejects_missing_dimension():
+    registry = Gate2FinancialEvidenceRegistryFactory().create()
+    tampered = copy.deepcopy(_materialize(_typed_payload()))
+    typed = tampered["typed_inputs"][0]
+    typed["source_values"] = [
+        value
+        for value in typed["source_values"]
+        if value["role_id"] != "currency"
+    ]
+    typed["normalized_comparison_values"].pop("value:currency:1")
+    typed["currency_unit"] = {}
+    typed["lineage"] = [
+        lineage
+        for lineage in typed["lineage"]
+        if lineage["cell_ref"] != "cell:6"
+    ]
+    terminal_unsigned = dict(typed)
+    terminal_unsigned.pop("integrity_hash")
+    typed["integrity_hash"] = _sha256_json(terminal_unsigned)
+    artifact_unsigned = dict(tampered)
+    artifact_unsigned.pop("integrity_hash")
+    tampered["integrity_hash"] = _sha256_json(artifact_unsigned)
+
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        validate_financial_evidence_inputs(
+            payload=tampered,
+            registry=registry,
+        )
+
+    assert exc.value.code == (
+        "financial_evidence_currency_unit_requirement_unsatisfied"
+    )
 
 
 def test_source_provenance_and_ownership_are_complete():

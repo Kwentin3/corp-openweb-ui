@@ -16,6 +16,7 @@ from .gate2_financial_evidence_materialization_contracts import (
     sha256_json,
     source_sign,
     unique_lineage,
+    validate_dimension_requirements,
 )
 from .gate2_financial_evidence_registry import (
     REGISTRY_ID,
@@ -275,6 +276,11 @@ def _validate_typed_input(
         <= set(declaration.required_roles + declaration.optional_roles)
     ):
         fail("financial_evidence_typed_input_roles_invalid")
+    validate_dimension_requirements(
+        date_period_requirement=declaration.date_period_requirement,
+        currency_unit_requirement=declaration.currency_unit_requirement,
+        bound_roles=bound_roles,
+    )
     identity_policy = item["identity_policy"]
     if identity_policy != {
         "identity_roles": list(

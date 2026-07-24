@@ -169,6 +169,12 @@ def _successor_artifact():
             "Synthetic statement",
             ("statement_scope",),
         ),
+        (
+            "currency",
+            "source_currency",
+            "RUB",
+            ("currency",),
+        ),
     )
     candidates = tuple(
         FinancialEvidenceValueCandidate(
@@ -221,7 +227,7 @@ def _successor_artifact():
                     "as_of_date": "value:date:migration",
                     "statement_scope": "value:scope:migration",
                     "balance_class": None,
-                    "currency": None,
+                    "currency": "value:currency:migration",
                     "source_label": None,
                     "unit": None,
                 },
