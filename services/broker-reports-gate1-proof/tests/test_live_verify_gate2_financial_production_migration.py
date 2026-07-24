@@ -12,6 +12,7 @@ from live_verify_gate2_financial_production_migration import (  # noqa: E402
     FUNCTION_ID,
     GATE1_FUNCTION_ID,
     SOURCE_FUNCTION_ID,
+    _migration_chat_body,
     evaluate,
 )
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
@@ -88,6 +89,21 @@ def _runtime():
         "document_rows": 1,
         "artifactstore_record_count": 10,
     }
+
+
+def test_migration_route_excludes_unrelated_answer_context_and_gate3():
+    body = _migration_chat_body(
+        dcp_ref="artifact:test",
+        model_id="gpt-test",
+        provider_profile_id="openai_gpt",
+    )
+    config = body["broker_reports_gate2_domain"]
+
+    assert config["answer_context_selection_enabled"] is False
+    assert config["gate3_context_manifest_enabled"] is False
+    assert config["candidate_binding_enabled"] is False
+    assert config["document_batch_limit"] == 1
+    assert config["source_unit_limit"] == 1
 
 
 def test_evaluate_passes_atomic_new_schema_migration():
