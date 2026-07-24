@@ -1,0 +1,48 @@
+{
+  "schema_version": "broker_reports_gate2_goal2_initial_financial_evidence_catalog_receipt_v1",
+  "status": "completed_with_gaps",
+  "catalog_version": "broker_reports_gate2_initial_financial_catalog_v1",
+  "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+  "registry_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+  "active_type_ids": [
+    "cash_balance_snapshot_v1",
+    "printed_financial_metric_v1"
+  ],
+  "active_types_total": 2,
+  "experimental_types_total": 0,
+  "deferred_candidates_total": 10,
+  "legacy_broad_ids_promoted_total": 0,
+  "automatic_aliases_total": 0,
+  "source_label_type_ids_total": 0,
+  "router_or_status_type_ids_total": 0,
+  "source_families": [
+    "broker_reports_normalized_table_projection_v0",
+    "semantic_visual_logical_table_v1"
+  ],
+  "safe_corpus_evidence": {
+    "documents_total": 6,
+    "bounded_table_crops_total": 9,
+    "cash_balance_evidence_units": 3,
+    "printed_metric_evidence_units": 3,
+    "research_receipt_sha256": "f8862b9a2104a8b4f08b24b6ebe06fc784ce78bb27524e2dd67e8cce92eff1f5"
+  },
+  "separate_namespaces": {
+    "evidence_kinds": [
+      "document_summary_evidence"
+    ],
+    "legacy_technical_dispositions": [
+      "unknown_source_row"
+    ],
+    "fns_schema_families": [
+      "broker_reports_fns_2ndfl_source_facts_v1"
+    ]
+  },
+  "validation": {
+    "catalog_registry_and_fns_tests_passed": 30,
+    "full_broker_reports_suite_passed": 1169,
+    "full_broker_reports_suite_skipped": 20,
+    "new_file_ruff": "passed",
+    "repository_privacy_guard": "passed"
+  },
+  "customer_values_in_receipt": false
+}
