@@ -84,34 +84,11 @@ def main() -> int:
 
     response = session.post(
         _url(base_url, "/api/chat/completions"),
-        json={
-            "model": FUNCTION_ID,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": (
-                        "Run the controlled Gate 2 financial evidence "
-                        "production migration verification."
-                    ),
-                }
-            ],
-            "stream": False,
-            "broker_reports_gate2_domain": {
-                "domain_context_packet_ref": args.dcp_ref,
-                "model_id": args.model_id,
-                "provider_profile_id": args.provider_profile_id,
-                "wave": "primary",
-                "run_mode": "customer",
-                "document_batch_limit": 1,
-                "source_unit_limit": 1,
-                "source_segment_limit": 1,
-                "segmentation_enabled": True,
-                "candidate_binding_enabled": False,
-                "gate3_context_manifest_enabled": False,
-                "answer_context_selection_enabled": True,
-                "max_repair_attempts": 1,
-            },
-        },
+        json=_migration_chat_body(
+            dcp_ref=args.dcp_ref,
+            model_id=args.model_id,
+            provider_profile_id=args.provider_profile_id,
+        ),
         timeout=args.timeout,
     )
     response.raise_for_status()
@@ -144,6 +121,42 @@ def main() -> int:
         )
     )
     return 0 if evaluation["status"] == "passed" else 2
+
+
+def _migration_chat_body(
+    *,
+    dcp_ref: str,
+    model_id: str,
+    provider_profile_id: str,
+) -> dict[str, Any]:
+    return {
+        "model": FUNCTION_ID,
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Run the controlled Gate 2 financial evidence "
+                    "production migration verification."
+                ),
+            }
+        ],
+        "stream": False,
+        "broker_reports_gate2_domain": {
+            "domain_context_packet_ref": dcp_ref,
+            "model_id": model_id,
+            "provider_profile_id": provider_profile_id,
+            "wave": "primary",
+            "run_mode": "customer",
+            "document_batch_limit": 1,
+            "source_unit_limit": 1,
+            "source_segment_limit": 1,
+            "segmentation_enabled": True,
+            "candidate_binding_enabled": False,
+            "gate3_context_manifest_enabled": False,
+            "answer_context_selection_enabled": False,
+            "max_repair_attempts": 1,
+        },
+    }
 
 
 def evaluate(
