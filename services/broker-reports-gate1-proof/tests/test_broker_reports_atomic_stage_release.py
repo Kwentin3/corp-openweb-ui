@@ -226,6 +226,33 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             },
             semantic["runtime_boundary"],
         )
+        financial = manifest["provider_policy"][
+            "financial_evidence_registry"
+        ]
+        self.assertEqual(
+            "broker_reports_gate2_financial_evidence_registry_v1",
+            financial["registry_version"],
+        )
+        self.assertEqual(64, len(financial["registry_hash"]))
+        self.assertEqual("dual_read", financial["legacy_read_policy"])
+        self.assertEqual(
+            "new_schema_only", financial["write_policy"]
+        )
+        domain_release = manifest["functions"][-1]
+        self.assertTrue(
+            domain_release["valves"]["financial_evidence_enabled"]
+        )
+        self.assertEqual(
+            financial["registry_version"],
+            domain_release["valves"][
+                "financial_evidence_registry_version"
+            ],
+        )
+        self.assertFalse(
+            manifest["functions"][1]["valves"][
+                "semantic_selection_enabled"
+            ]
+        )
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
         self.assertEqual(
