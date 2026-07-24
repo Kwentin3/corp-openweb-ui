@@ -96,6 +96,8 @@ def test_migration_route_excludes_unrelated_answer_context_and_gate3():
         dcp_ref="artifact:test",
         model_id="gpt-test",
         provider_profile_id="openai_gpt",
+        source_unit_start=2,
+        source_segment_start=4,
     )
     config = body["broker_reports_gate2_domain"]
 
@@ -104,6 +106,8 @@ def test_migration_route_excludes_unrelated_answer_context_and_gate3():
     assert config["candidate_binding_enabled"] is False
     assert config["document_batch_limit"] == 1
     assert config["source_unit_limit"] == 1
+    assert config["source_unit_start"] == 2
+    assert config["source_segment_start"] == 4
 
 
 def test_evaluate_passes_atomic_new_schema_migration():

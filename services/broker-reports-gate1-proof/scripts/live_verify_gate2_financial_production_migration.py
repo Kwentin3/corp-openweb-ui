@@ -55,6 +55,8 @@ def main() -> int:
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--ssh-target", default=None)
     parser.add_argument("--dcp-ref", required=True)
+    parser.add_argument("--source-unit-start", required=True, type=int)
+    parser.add_argument("--source-segment-start", required=True, type=int)
     parser.add_argument("--model-id", default="gpt-5.6-sol")
     parser.add_argument("--provider-profile-id", default="openai_gpt")
     parser.add_argument("--timeout", type=int, default=900)
@@ -88,6 +90,8 @@ def main() -> int:
             dcp_ref=args.dcp_ref,
             model_id=args.model_id,
             provider_profile_id=args.provider_profile_id,
+            source_unit_start=args.source_unit_start,
+            source_segment_start=args.source_segment_start,
         ),
         timeout=args.timeout,
     )
@@ -128,7 +132,11 @@ def _migration_chat_body(
     dcp_ref: str,
     model_id: str,
     provider_profile_id: str,
+    source_unit_start: int,
+    source_segment_start: int,
 ) -> dict[str, Any]:
+    if source_unit_start < 0 or source_segment_start < 0:
+        raise ValueError("financial_migration_target_invalid")
     return {
         "model": FUNCTION_ID,
         "messages": [
@@ -148,7 +156,9 @@ def _migration_chat_body(
             "wave": "primary",
             "run_mode": "customer",
             "document_batch_limit": 1,
+            "source_unit_start": source_unit_start,
             "source_unit_limit": 1,
+            "source_segment_start": source_segment_start,
             "source_segment_limit": 1,
             "segmentation_enabled": True,
             "candidate_binding_enabled": False,
