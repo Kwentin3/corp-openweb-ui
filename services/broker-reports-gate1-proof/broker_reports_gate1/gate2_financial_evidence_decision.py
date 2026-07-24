@@ -55,6 +55,7 @@ UNSUPPORTED_REASON_CODES = (
 
 _IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_:.\\/-]*$")
 _MAX_CANDIDATES = 64
+_OPENAI_REMOVED_KEYWORDS = frozenset({"uniqueItems"})
 _GEMINI_REMOVED_KEYWORDS = frozenset(
     {"$schema", "maxItems", "minItems", "uniqueItems"}
 )
@@ -171,12 +172,14 @@ class Gate2FinancialEvidenceDecisionContract:
         return _sha256_json(self.canonical_schema())
 
     def openai_response_format(self) -> dict[str, Any]:
+        schema = copy.deepcopy(self.canonical_schema())
+        _project_openai_schema(schema)
         return {
             "type": "json_schema",
             "json_schema": {
                 "name": OPENAI_SCHEMA_NAME,
                 "strict": True,
-                "schema": self.canonical_schema(),
+                "schema": schema,
             },
         }
 
@@ -615,6 +618,17 @@ def _project_gemini_schema(value: Any) -> None:
     elif isinstance(value, list):
         for child in value:
             _project_gemini_schema(child)
+
+
+def _project_openai_schema(value: Any) -> None:
+    if isinstance(value, dict):
+        for keyword in _OPENAI_REMOVED_KEYWORDS:
+            value.pop(keyword, None)
+        for child in value.values():
+            _project_openai_schema(child)
+    elif isinstance(value, list):
+        for child in value:
+            _project_openai_schema(child)
 
 
 def _bounded_identifier(value: Any, field: str) -> None:
