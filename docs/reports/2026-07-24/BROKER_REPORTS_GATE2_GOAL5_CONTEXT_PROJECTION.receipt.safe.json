@@ -1,0 +1,38 @@
+{
+  "schema_version": "broker_reports_gate2_goal5_context_projection_receipt_v1",
+  "status": "completed",
+  "base_revision": "fda957f5e94b2b150e0db3a905fda7788328e86c",
+  "financial_context_schema_version": "broker_reports_gate2_financial_context_v1",
+  "projection_policy_version": "broker_reports_gate2_financial_context_projection_v1",
+  "interpretation_representations_per_scope": 1,
+  "llm_deduplication_used": false,
+  "raw_gate1_representations_allowed": false,
+  "provider_raw_responses_allowed": false,
+  "tax_methodology_allowed": false,
+  "declaration_mapping_allowed": false,
+  "calculated_aggregates_created": false,
+  "synthetic_five_scope_fixture": {
+    "source_scopes_total": 5,
+    "interpretation_representations_total": 5,
+    "provenance_only_representations_total": 35,
+    "typed_inputs_total": 2,
+    "unclassified_financial_inputs_total": 1,
+    "no_financial_inputs_total": 1,
+    "unsupported_total": 1,
+    "duplicate_interpretation_representations_total": 0,
+    "calculated_aggregates_total": 0,
+    "registry_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "context_integrity_sha256": "bdd56d97c2af0c70c03f2d1f0d91c65b1c5aeccf7de4f655f0b596c59f35a557"
+  },
+  "validation": {
+    "context_projection_tests_passed": 16,
+    "context_materialization_decision_registry_catalog_tests_passed": 80,
+    "full_broker_reports_suite_passed": 1227,
+    "full_broker_reports_suite_skipped": 20,
+    "context_module_and_test_ruff": "passed",
+    "repository_privacy_guard_passed": 3
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "customer_values_in_receipt": false
+}
