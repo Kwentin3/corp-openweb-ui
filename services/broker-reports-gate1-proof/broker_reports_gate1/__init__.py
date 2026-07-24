@@ -425,6 +425,13 @@ from .gate2_financial_evidence_materialization import (
     Gate2FinancialEvidenceValidatedDecisionFactory,
     validate_financial_evidence_inputs,
 )
+from .gate2_financial_context import (
+    FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION,
+    FINANCIAL_CONTEXT_SCHEMA_VERSION,
+    Gate2FinancialContextProjectionError,
+    Gate2FinancialContextProjectionFactory,
+    validate_financial_context,
+)
 from .gate2_domain_routing import (
     DOMAIN_ALLOWED_FACT_TYPES,
     DOMAIN_EXTRACTOR_IDS,
@@ -904,6 +911,11 @@ __all__ = [
     "Gate2FinancialEvidenceSourcePackageFactory",
     "Gate2FinancialEvidenceValidatedDecisionFactory",
     "validate_financial_evidence_inputs",
+    "FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION",
+    "FINANCIAL_CONTEXT_SCHEMA_VERSION",
+    "Gate2FinancialContextProjectionError",
+    "Gate2FinancialContextProjectionFactory",
+    "validate_financial_context",
     "GATE2_PROVIDER_PROFILES",
     "GATE2_STRICT_STRUCTURED_OUTPUT_MODES",
     "PROVIDER_AVAILABILITY_AVAILABLE",
