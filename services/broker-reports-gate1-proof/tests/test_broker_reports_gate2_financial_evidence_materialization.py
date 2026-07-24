@@ -44,6 +44,18 @@ MODULE_PATH = (
     / "broker_reports_gate1"
     / "gate2_financial_evidence_materialization.py"
 )
+BOUNDARY_MODULE_PATHS = (
+    MODULE_PATH,
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_evidence_materialization_contracts.py",
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_evidence_source_package.py",
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_evidence_materialization_validation.py",
+)
 
 _VALUE_DEFINITIONS = (
     (
@@ -612,14 +624,20 @@ def test_output_has_no_gate3_or_model_owned_fields():
 
 
 def test_materialization_is_factory_managed_and_closed_world():
-    source = MODULE_PATH.read_text(encoding="utf-8")
-    tree = ast.parse(source)
+    sources = [
+        path.read_text(encoding="utf-8")
+        for path in BOUNDARY_MODULE_PATHS
+    ]
+    source = "\n".join(sources)
+    trees = [ast.parse(item) for item in sources]
     imported_modules = {
         node.module
+        for tree in trees
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom) and node.module
     } | {
         alias.name
+        for tree in trees
         for node in ast.walk(tree)
         if isinstance(node, ast.Import)
         for alias in node.names
@@ -633,7 +651,10 @@ def test_materialization_is_factory_managed_and_closed_world():
         "datetime",
         "decimal",
         "gate2_financial_evidence_decision",
+        "gate2_financial_evidence_materialization_contracts",
+        "gate2_financial_evidence_materialization_validation",
         "gate2_financial_evidence_registry",
+        "gate2_financial_evidence_source_package",
         "hashlib",
         "json",
         "re",
