@@ -1,0 +1,66 @@
+{
+  "schema_version": "broker_reports_gate2_financial_evidence_shadow_qualification_v1",
+  "status": "passed",
+  "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+  "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+  "scope": {
+    "source_ready_documents_total": 1,
+    "parent_units_total": 12,
+    "derived_segments_total": 210,
+    "domain_packages_total": 41,
+    "canonical_decision_scopes_total": 39,
+    "authorized_source_refs_total": 455
+  },
+  "terminal": {
+    "accounted_source_refs_total": 455,
+    "uncovered_source_refs_total": 0,
+    "excess_source_refs_total": 0,
+    "status_counts": {
+      "typed_input": 0,
+      "unclassified_financial_input": 32,
+      "no_financial_input": 7,
+      "unsupported": 0
+    },
+    "compatibility_no_financial_refs_total": 393,
+    "compatibility_refs_superseded_total": 17
+  },
+  "quality": {
+    "unclassified_scopes_total": 32,
+    "unclassified_scopes_fully_retained_total": 32,
+    "unclassified_candidate_values_total": 147,
+    "unclassified_bound_values_total": 147,
+    "unclassified_value_retention_percent": 100,
+    "contradictory_decisions_total": 0,
+    "ownership_conflicts_total": 0,
+    "duplicate_interpretations_total": 0,
+    "provider_failures_total": 0,
+    "schema_failures_total": 0,
+    "strict_schema_calls_total": 39,
+    "fallback_total": 0,
+    "hidden_repair_total": 0
+  },
+  "baseline": {
+    "selected_refs_total": 455,
+    "accounted_refs_total": 448,
+    "uncovered_refs_total": 7,
+    "rejected_packages_total": 6
+  },
+  "checks": {
+    "authorized_scope_complete": true,
+    "terminal_all_source_refs": true,
+    "unclassified_value_retention_100_percent": true,
+    "contradictory_decisions_zero": true,
+    "ownership_conflicts_zero": true,
+    "duplicate_interpretations_zero": true,
+    "unexplained_rejected_scopes_zero": true,
+    "fallback_zero": true,
+    "hidden_repair_zero": true,
+    "coverage_regression_zero": true,
+    "context_terminal_all_canonical_scopes": true,
+    "browser_limits_unused": true,
+    "shadow_only": true
+  },
+  "private_evidence_hash": "4b21e5edee276d336600632a31d48d833b9d152922c73047864e283b0bdf0836",
+  "qualification_hash": "e11f82e06d8380b24ac4f4fef3e656c3854a275a130bf4030b6bfeffdf473354",
+  "customer_values_in_receipt": false
+}
