@@ -1,0 +1,23 @@
+{
+  "schema_version": "broker_reports_gate2_goal4_dimension_policy_correction_receipt_v1",
+  "status": "completed",
+  "base_revision": "965f810a9a7a415586ee1ac9187dd5ca21ab01ee",
+  "date_period_policy_enforced_by_materializer": true,
+  "currency_unit_policy_enforced_by_materializer": true,
+  "date_period_policy_enforced_by_artifact_validator": true,
+  "currency_unit_policy_enforced_by_artifact_validator": true,
+  "period_pair_requires_start_and_end": true,
+  "hidden_defaulting_allowed": false,
+  "hidden_repair_allowed": false,
+  "validation": {
+    "targeted_tests_passed": 101,
+    "full_broker_reports_suite_passed": 1248,
+    "full_broker_reports_suite_skipped": 20,
+    "changed_python_files_ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "provider_calls_made": false,
+  "customer_values_in_receipt": false
+}

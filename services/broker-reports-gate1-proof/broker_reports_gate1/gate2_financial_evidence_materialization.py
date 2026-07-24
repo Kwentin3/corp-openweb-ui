@@ -33,6 +33,7 @@ from .gate2_financial_evidence_materialization_contracts import (
     sha256_json,
     source_sign,
     unique_lineage,
+    validate_dimension_requirements,
 )
 from .gate2_financial_evidence_materialization_validation import (
     validate_financial_evidence_inputs,
@@ -303,6 +304,13 @@ class Gate2FinancialEvidenceMaterializer:
             item["role_id"] for item in values
         }:
             fail("financial_evidence_required_role_missing")
+        validate_dimension_requirements(
+            date_period_requirement=declaration.date_period_requirement,
+            currency_unit_requirement=(
+                declaration.currency_unit_requirement
+            ),
+            bound_roles={item["role_id"] for item in values},
+        )
         identity_roles = tuple(declaration.identity_policy.identity_roles)
         evidence = evidence_refs(
             values,
