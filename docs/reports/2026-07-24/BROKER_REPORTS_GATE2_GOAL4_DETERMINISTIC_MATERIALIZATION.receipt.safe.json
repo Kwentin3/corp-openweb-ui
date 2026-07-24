@@ -1,0 +1,42 @@
+{
+  "schema_version": "broker_reports_gate2_goal4_deterministic_materialization_receipt_v1",
+  "status": "completed",
+  "base_revision": "c42fb40dfad82a0040573597eddcfd224cfacc25",
+  "financial_evidence_inputs_schema_version": "broker_reports_financial_evidence_inputs_v1",
+  "materialization_policy_version": "broker_reports_financial_evidence_materialization_v1",
+  "source_package_schema_version": "broker_reports_financial_evidence_source_package_v1",
+  "validated_decision_schema_version": "broker_reports_financial_evidence_validated_decision_v1",
+  "legacy_source_facts_schema_redefined": false,
+  "model_system_metadata_allowed": false,
+  "unclassified_requires_full_candidate_retention": true,
+  "gate3_fields_allowed": false,
+  "terminal_dispositions": [
+    "typed_input",
+    "unclassified_financial_input",
+    "no_financial_input",
+    "unsupported"
+  ],
+  "synthetic_fixture": {
+    "registry_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "source_package_sha256": "17ccc7187647d44730998319975d90d15d80606313503499fdc4c3ff6b6414ba",
+    "typed_input_id": "finin_706b576cdcae04542f72cfb64adc9214",
+    "typed_artifact_id": "finset_989fa14d437e9e1a43d85c5e1fa4aff0",
+    "typed_integrity_sha256": "9400c63f58cc4dd08838200417fb4f10d3a79a47276772d9408edbcbb5cef094",
+    "unclassified_input_id": "finun_ff0571b5c429bfcd713f052885992ea0",
+    "unclassified_artifact_id": "finset_d4c931ce149a9866401c10c7ecb98c7f",
+    "unclassified_integrity_sha256": "24817aa2db9ae4bca5b1c267e9396909979d084d2ad3db9e019e7b3fdf88a9e1",
+    "no_financial_coverage_id": "finclose_a533238197915908119c98074f9d8723",
+    "no_financial_integrity_sha256": "bec896a86bb544e801bd4f43bec857d50013125489c87beedef0be711d5282d9"
+  },
+  "validation": {
+    "materialization_tests_passed": 20,
+    "materialization_decision_registry_catalog_tests_passed": 64,
+    "full_broker_reports_suite_passed": 1211,
+    "full_broker_reports_suite_skipped": 20,
+    "new_and_refactored_file_ruff": "passed",
+    "repository_privacy_guard_passed": 3
+  },
+  "runtime_switched": false,
+  "stage_changed": false,
+  "customer_values_in_receipt": false
+}
