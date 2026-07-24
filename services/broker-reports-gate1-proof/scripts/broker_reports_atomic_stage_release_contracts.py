@@ -18,6 +18,9 @@ from broker_reports_gate1.architecture_policy import (
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
 from broker_reports_gate1.pdf_hybrid_provider import project_gemini_schema
+from broker_reports_gate1.gate2_financial_evidence_registry import (
+    Gate2FinancialEvidenceRegistryFactory,
+)
 from broker_reports_gate1.semantic_visual_table_contracts import (
     SEMANTIC_TABLE_TRANSCRIPTION_PROMPT,
     SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
@@ -149,6 +152,11 @@ DOMAIN_RELEASE_VALVES: dict[str, Any] = {
     "max_repair_attempts": 1,
     "table_max_rows": 40,
     "text_max_chars": 6000,
+    "financial_evidence_enabled": True,
+    "financial_evidence_registry_version": (
+        "broker_reports_gate2_financial_evidence_registry_v1"
+    ),
+    "financial_evidence_maximum_scopes": 64,
 }
 
 
@@ -208,6 +216,10 @@ FUNCTION_CONTRACTS = (
             "allow_standalone_semantic_visual_projections",
             "AnswerContextSelectionFactory",
             "broker_reports_answer_context_selection_receipt_v1",
+            "Gate2FinancialEvidenceProductionRuntimeFactory",
+            "broker_reports_gate2_financial_evidence_registry_v1",
+            "broker_reports_gate2_financial_context_v1",
+            "financial_evidence_enabled",
         ),
     ),
 )
@@ -420,6 +432,29 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     ) or {}
     if semantic != semantic_visual_table_contract_manifest():
         raise ValueError("stage_release_manifest_semantic_contract_invalid")
+    registry = Gate2FinancialEvidenceRegistryFactory().create()
+    financial_registry = (
+        (manifest.get("provider_policy") or {}).get(
+            "financial_evidence_registry"
+        )
+        or {}
+    )
+    if financial_registry != {
+        "registry_id": registry.registry_id,
+        "registry_version": registry.registry_version,
+        "registry_hash": registry.registry_hash,
+        "runtime_schema_version": (
+            "broker_reports_gate2_financial_evidence_production_run_v1"
+        ),
+        "context_schema_version": (
+            "broker_reports_gate2_financial_context_v1"
+        ),
+        "legacy_read_policy": "dual_read",
+        "write_policy": "new_schema_only",
+    }:
+        raise ValueError(
+            "stage_release_manifest_financial_registry_invalid"
+        )
 
 
 def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, Any]:
@@ -433,6 +468,7 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
                 "model_id_prefixes": list(profile.model_id_prefixes),
             }
         )
+    registry = Gate2FinancialEvidenceRegistryFactory().create()
     return {
         "gate2_profile_contract": "gate2_provider_profile_registry_v1",
         "gate1_visual_selection_policy": "pdf_semantic_vlm_provider_selection_v1",
@@ -441,6 +477,19 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
             "openai_gpt": "gpt-5.4-mini-2026-03-17",
         },
         "semantic_visual_table_contract": semantic_visual_table_contract_manifest(),
+        "financial_evidence_registry": {
+            "registry_id": registry.registry_id,
+            "registry_version": registry.registry_version,
+            "registry_hash": registry.registry_hash,
+            "runtime_schema_version": (
+                "broker_reports_gate2_financial_evidence_production_run_v1"
+            ),
+            "context_schema_version": (
+                "broker_reports_gate2_financial_context_v1"
+            ),
+            "legacy_read_policy": "dual_read",
+            "write_policy": "new_schema_only",
+        },
         "profiles": profiles,
     }
 

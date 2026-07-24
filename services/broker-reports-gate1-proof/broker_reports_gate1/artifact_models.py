@@ -168,6 +168,10 @@ ARTIFACT_TYPES = {
     "broker_reports_source_value_candidate_set_v0",
     "broker_reports_candidate_relation_set_v0",
     "broker_reports_candidate_binding_validation_v0",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_gate2_financial_context_v1",
+    "broker_reports_gate2_financial_evidence_production_receipt_v1",
+    "broker_reports_gate2_financial_evidence_production_run_v1",
     "debug_diagnostic_v0",
 }
 

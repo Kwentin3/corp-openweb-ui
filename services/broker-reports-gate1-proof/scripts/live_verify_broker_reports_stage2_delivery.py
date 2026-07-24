@@ -84,6 +84,10 @@ FUNCTION_CONTRACTS = (
             "allow_standalone_semantic_visual_projections",
             "AnswerContextSelectionFactory",
             "broker_reports_answer_context_selection_receipt_v1",
+            "Gate2FinancialEvidenceProductionRuntimeFactory",
+            "broker_reports_gate2_financial_evidence_registry_v1",
+            "broker_reports_gate2_financial_context_v1",
+            "financial_evidence_enabled",
         ),
     ),
     FunctionContract(
@@ -522,6 +526,11 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
     domain_runtime = (
         SERVICE_ROOT / "broker_reports_gate1/gate2_domain_runtime.py"
     ).read_text(encoding="utf-8")
+    financial_runtime = (
+        SERVICE_ROOT
+        / "broker_reports_gate1/"
+        "gate2_financial_evidence_production_runtime.py"
+    ).read_text(encoding="utf-8")
     smoke_paths = (
         SERVICE_ROOT / "scripts/live_gate2_domain_synthetic_smoke.py",
         SERVICE_ROOT / "scripts/live_case_group_gate2_table_typed_vertical_proof.py",
@@ -598,6 +607,21 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         ),
         "domain_runtime_persists_provider_execution": (
             "provider_execution_summary" in domain_runtime
+        ),
+        "financial_runtime_uses_factory": (
+            "Gate2FinancialEvidenceProductionRuntimeFactory.create"
+            in financial_runtime
+            and "Gate2FinancialEvidenceProductionRuntimeFactory("
+            in domain_pipe
+        ),
+        "financial_runtime_uses_authenticated_resolver": (
+            "ArtifactResolver(self.store)" in financial_runtime
+            and "resolver.resolve(ref, context)" in financial_runtime
+        ),
+        "financial_runtime_single_writes_new_schema": (
+            '"write_policy": "new_schema_only"' in financial_runtime
+            and "broker_reports_financial_evidence_inputs_v1"
+            in financial_runtime
         ),
         "model_client_has_no_json_object_downgrade": "json_object" not in model_clients,
         "candidate_binding_default_is_false": "candidate_binding_enabled: bool = Field(default=False)" in domain_pipe,

@@ -120,6 +120,11 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_source_fact_selection", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
+        self.assertNotIn(
+            "gate2_financial_evidence_production_runtime",
+            source,
+        )
+        self.assertNotIn("financial_evidence_enabled", source)
         self.assertNotIn("sys.path.insert", source)
         self.assertNotIn("services/broker-reports-gate1-proof/broker_reports_gate1", source)
 
@@ -188,10 +193,20 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_domain_contracts",
             "gate2_source_fact_stitching",
             "gate2_domain_runtime",
+            "gate2_financial_evidence_registry",
+            "gate2_financial_evidence_decision",
+            "gate2_financial_evidence_materialization",
+            "gate2_financial_context",
+            "gate2_financial_evidence_compatibility",
+            "gate2_financial_evidence_production_runtime",
         ):
             self.assertIn(module_name, source)
         self.assertIn("prefer_table_projections", source)
         self.assertIn("allow_standalone_semantic_visual_projections", source)
+        self.assertIn(
+            "Gate2FinancialEvidenceProductionRuntimeFactory", source
+        )
+        self.assertIn("financial_evidence_enabled", source)
         self.assertNotIn("sys.path.insert", source)
         module = load_domain_bundle_module()
         self.assertNotIn("gate2_handoff", module._BUNDLED_MODULES)
@@ -213,6 +228,14 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertFalse(pipe.valves.candidate_binding_enabled)
         self.assertTrue(pipe.valves.answer_context_selection_enabled)
+        self.assertFalse(pipe.valves.financial_evidence_enabled)
+        registry_module = sys.modules[
+            "broker_reports_gate1.gate2_financial_evidence_registry"
+        ]
+        self.assertEqual(
+            pipe.valves.financial_evidence_registry_version,
+            registry_module.REGISTRY_VERSION_V1,
+        )
         self.assertTrue(
             hasattr(bundled_package, "Gate2CandidateBindingKernelFactory")
         )

@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Domain Source Fact Extraction
 author: Alpha Soft
-version: 0.14.0-gate1-workload-scope-v1
+version: 0.15.0-financial-evidence-registry-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic
 """
@@ -46,6 +46,17 @@ from broker_reports_gate1.gate2_chat_dcp_resolution import (
     Gate2ChatDcpResolutionError,
     Gate2ChatDcpResolverConfig,
     Gate2ChatDcpResolverFactory,
+)
+from broker_reports_gate1.gate2_financial_evidence_production_runtime import (
+    Gate2FinancialEvidenceProductionConfig,
+    Gate2FinancialEvidenceProductionRuntimeFactory,
+)
+from broker_reports_gate1.gate2_financial_evidence_registry import (
+    REGISTRY_VERSION_V1,
+    Gate2FinancialEvidenceRegistryFactory,
+)
+from broker_reports_gate1.gate2_model_requests import (
+    FINANCIAL_EVIDENCE_REQUEST_PROFILE,
 )
 
 
@@ -94,6 +105,13 @@ class Pipe:
         max_repair_attempts: int = Field(default=1)
         table_max_rows: int = Field(default=40)
         text_max_chars: int = Field(default=6000)
+        financial_evidence_enabled: bool = Field(default=False)
+        financial_evidence_registry_version: str = Field(
+            default=REGISTRY_VERSION_V1
+        )
+        financial_evidence_maximum_scopes: int = Field(
+            default=64, ge=1, le=256
+        )
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -101,6 +119,7 @@ class Pipe:
         self.last_runtime_result = None
         self.last_workload_job_id: str | None = None
         self.last_workload_snapshot: dict[str, Any] | None = None
+        self.last_financial_evidence_result = None
 
     async def pipe(
         self,
@@ -342,11 +361,91 @@ class Pipe:
                                 user_groups=tuple(self._user_groups(__user__)),
                             ),
                         )
+                        financial_result = None
+                        if (
+                            self.valves.financial_evidence_enabled
+                            and run_mode
+                            not in {"provider_qualification"}
+                            and result.terminal_status == "completed"
+                            and result.domain_package_refs
+                        ):
+                            financial_registry = (
+                                Gate2FinancialEvidenceRegistryFactory().create()
+                            )
+                            if (
+                                self.valves.financial_evidence_registry_version
+                                != financial_registry.registry_version
+                            ):
+                                raise ValueError(
+                                    "gate2_financial_registry_version_mismatch"
+                                )
+                            financial_result = await (
+                                Gate2FinancialEvidenceProductionRuntimeFactory(
+                                    store=store,
+                                    registry=financial_registry,
+                                    model_client=(
+                                        Gate2StructuredModelClientFactory(
+                                            config=(
+                                                Gate2StructuredModelClientConfig(
+                                                    request_profile=(
+                                                        FINANCIAL_EVIDENCE_REQUEST_PROFILE
+                                                    ),
+                                                    provider_profile_id=(
+                                                        provider_profile_id
+                                                    ),
+                                                )
+                                            ),
+                                            user=__user__,
+                                            request=__request__,
+                                            native_transport_config=(
+                                                Gate2NativeProviderTransportConfig(
+                                                    anthropic_api_version=(
+                                                        self.valves.anthropic_api_version
+                                                    ),
+                                                    timeout_seconds=(
+                                                        self.valves.native_provider_timeout_seconds
+                                                    ),
+                                                )
+                                            ),
+                                        ).create()
+                                    ),
+                                    config=(
+                                        Gate2FinancialEvidenceProductionConfig(
+                                            model_id=model_id,
+                                            provider_profile_id=(
+                                                provider_profile_id
+                                            ),
+                                            maximum_scopes=(
+                                                self.valves.financial_evidence_maximum_scopes
+                                            ),
+                                        )
+                                    ),
+                                ).create().run(
+                                    domain_package_refs=(
+                                        result.domain_package_refs
+                                    ),
+                                    source_extraction_run_ref=(
+                                        result.extraction_run_ref
+                                    ),
+                                    context=context,
+                                    retention_policy=(
+                                        dcp_record.retention_policy
+                                    ),
+                                )
+                            )
                     self.last_workload_snapshot = workload_session.complete(
                         safe_detail={"partial_success_published": False}
                     )
             self.last_runtime_result = result
-            self.last_safe_summary = result.safe_summary
+            self.last_financial_evidence_result = financial_result
+            self.last_safe_summary = {
+                **result.safe_summary,
+                "financial_evidence": (
+                    None
+                    if financial_result is None
+                    else financial_result.safe_summary
+                ),
+            }
             await self._emit(
                 __event_emitter__,
                 "Gate 2 domain extraction reached a terminal state.",
@@ -355,7 +454,14 @@ class Pipe:
             await self._emit_workload_snapshot(
                 __event_emitter__, self.last_workload_snapshot, done=True
             )
-            return result.compact_russian_summary
+            if financial_result is None:
+                return result.compact_russian_summary
+            return (
+                result.compact_russian_summary
+                + "\nGate 2 structured financial evidence context: "
+                + financial_result.status
+                + "."
+            )
         except WorkloadCancelledError:
             if workload_session is not None:
                 self.last_workload_snapshot = workload_session.snapshot()
