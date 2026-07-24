@@ -778,6 +778,12 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             service_root / "scripts" / "build_openwebui_pipe_bundle.py"
         ).read_text(encoding="utf-8")
 
+        self.assertLess(
+            gate2_domain.index(
+                'run_mode = str(config.get("run_mode") or "customer")'
+            ),
+            gate2_domain.index("workload_session = None"),
+        )
         self.assertIn("provider_budget=self._dual_vlm_provider_budget", gate1_pipe)
         self.assertIn("provider_slot_async", gate2_source)
         self.assertIn("provider_slot_async", gate2_domain)

@@ -181,6 +181,7 @@ class Pipe:
             allow_private=True,
             require_source_available=True,
         )
+        run_mode = str(config.get("run_mode") or "customer")
         workload_session = None
         try:
             authority = self._workload_authority()
@@ -190,7 +191,6 @@ class Pipe:
                 context=context,
                 dcp_record=dcp_record,
             )
-            run_mode = str(config.get("run_mode") or "customer")
             provider_capability_probe = self._config_bool(
                 config.get("provider_capability_probe"), default=False
             )
