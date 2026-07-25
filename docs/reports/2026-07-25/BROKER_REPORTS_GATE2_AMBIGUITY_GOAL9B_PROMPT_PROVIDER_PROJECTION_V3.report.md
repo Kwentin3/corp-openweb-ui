@@ -117,7 +117,8 @@ The five full-suite warnings are unchanged SWIG deprecation warnings.
   `4796145c22ef8d9bacd49f1f3cccf16414e3ae95`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal9b-prompt-v3`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/136`;
 - production admission: false.
 
 ## Acceptance

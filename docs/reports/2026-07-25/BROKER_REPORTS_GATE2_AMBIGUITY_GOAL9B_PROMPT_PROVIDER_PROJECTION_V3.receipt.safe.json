@@ -6,7 +6,7 @@
   "repository": {
     "base_revision": "4796145c22ef8d9bacd49f1f3cccf16414e3ae95",
     "branch": "codex/broker-reports-gate2-ambiguity-goal9b-prompt-v3",
-    "pull_request": "pending_creation",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/136",
     "production_admission": false
   },
   "new_contracts": {
