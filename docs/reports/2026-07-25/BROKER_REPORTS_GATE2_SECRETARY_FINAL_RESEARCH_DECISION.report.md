@@ -140,6 +140,16 @@ Contract-only `DeterministicFinancialScopeFromGate1Factory`:
 - `GOAL_11_FINAL_DECISION: COMPLETED_WITH_EXPLICIT_GAPS`
 - `RESEARCH_PROGRAM: COMPLETED_WITH_EXPLICIT_GAPS`
 
+## Delivery verification
+
+- delivery PR: `https://github.com/Kwentin3/corp-openweb-ui/pull/125`
+- required deliverables: 11 reports + 2 safe JSON
+- focused tests: `145 passed in 20.20s`
+- full suite: `1400 passed, 20 skipped, 5 warnings in 94.31s`
+- report encoding: 11/11 UTF-8 BOM
+- safe JSON: 2/2 valid, 2/2 without BOM
+- logical research commits before delivery proof: 6
+
 ## Program boundary proof
 
 - production code changes: 0
