@@ -5,7 +5,7 @@
   "git": {
     "base_revision": "77be13815fcc0837541661a185d442c3733cc821",
     "branch": "codex/broker-reports-gate2-v4-goal7-bounded-corpus-stop",
-    "delivery_pr": "PENDING"
+    "delivery_pr": 124
   },
   "precondition": {
     "complete_workload_qualified_matrix": false,

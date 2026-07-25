@@ -20,7 +20,7 @@ Bounded actual-corpus shadow не запускался. На принятой re
   `77be13815fcc0837541661a185d442c3733cc821`;
 - branch:
   `codex/broker-reports-gate2-v4-goal7-bounded-corpus-stop`;
-- delivery PR: `PENDING`;
+- delivery PR: `#124`;
 - contracts changed: `0`;
 - runtime changed: `0`;
 - stage mutations: `0`.
@@ -117,4 +117,3 @@ Goal 7 не допускаются.
 
 Repository-safe receipt:
 [BROKER_REPORTS_GATE2_V4_GOAL7_BOUNDED_ACTUAL_CORPUS_STOP.receipt.safe.json](./BROKER_REPORTS_GATE2_V4_GOAL7_BOUNDED_ACTUAL_CORPUS_STOP.receipt.safe.json).
-
