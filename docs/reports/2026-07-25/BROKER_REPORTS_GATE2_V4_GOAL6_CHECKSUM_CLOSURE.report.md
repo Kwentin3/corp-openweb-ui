@@ -20,7 +20,7 @@ exact model отсутствует в live `/api/models`.
 - repository revision до Goal 6:
   `96177ca29f2ef0879bd5f04ad525d66fe7f35c2a`;
 - branch: `codex/broker-reports-gate2-v4-goal6-checksum-closure`;
-- delivery PR: `PENDING`;
+- delivery PR: `#123`;
 - synthetic non-customer fixture only;
 - customer calls: `0`;
 - provider calls: Haiku `1`, Nano `0`;
@@ -122,4 +122,3 @@ source/domain-модель другим, не прошедшим qualification r
 
 Repository-safe receipt:
 [BROKER_REPORTS_GATE2_V4_GOAL6_CHECKSUM_CLOSURE.receipt.safe.json](./BROKER_REPORTS_GATE2_V4_GOAL6_CHECKSUM_CLOSURE.receipt.safe.json).
-

@@ -4,7 +4,7 @@
   "date": "2026-07-25",
   "base_revision": "96177ca29f2ef0879bd5f04ad525d66fe7f35c2a",
   "branch": "codex/broker-reports-gate2-v4-goal6-checksum-closure",
-  "delivery_pr": "PENDING",
+  "delivery_pr": 123,
   "boundary": {
     "synthetic_non_customer_only": true,
     "customer_calls": 0,
