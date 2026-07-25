@@ -1,0 +1,82 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal3_receipt_v1",
+  "goal": "goal3_deterministic_eligibility_audit",
+  "status": "passed",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "root_cause": {
+    "decision_package_allowed_type_ids": null,
+    "eligibility_filter": [
+      "active_registry_type",
+      "broad_source_family_compatibility"
+    ],
+    "semantic_discriminator_checked": false,
+    "role_inference_uses_header_semantics": false,
+    "statement_scope_ref_synthesized_for_every_scope": true,
+    "printed_label_ref_synthesized_for_every_scope": true,
+    "unsafe_typed_branch_representable": true
+  },
+  "type_findings": [
+    {
+      "input_type_id": "cash_balance_snapshot_v1",
+      "source_family_compatible": true,
+      "structural_required_roles_satisfied": true,
+      "source_stated_cash_semantics_proven": false,
+      "safe_admission": false
+    },
+    {
+      "input_type_id": "printed_financial_metric_v1",
+      "source_family_compatible": true,
+      "structural_required_roles_satisfied": true,
+      "source_printed_metric_semantics_proven": false,
+      "safe_admission": false
+    }
+  ],
+  "options": {
+    "A_any_registry_compatible": "rejected_unsafe",
+    "B_single_broad_eligible_type": "safe_but_overly_conservative",
+    "C_deterministic_discriminator_evidence": "accepted_target",
+    "D_remove_typed_when_ambiguity_proven": "accepted_mandatory_guard"
+  },
+  "safe_typed_admission_rule": {
+    "policy_owner": "code",
+    "versioned": true,
+    "positive_evidence_required": true,
+    "unique_non_conflicting_association_required": true,
+    "multiple_admitted_types_result": "no_typed_branch",
+    "missing_discriminator_result": "no_typed_branch",
+    "integration_seam": "FinancialEvidenceDecisionPackage.allowed_type_ids",
+    "validator_rechecks_eligible_type_ids": true,
+    "post_response_conversion": false
+  },
+  "case_results": [
+    {
+      "case_id": "syn_successor_multiple_hypotheses",
+      "ambiguity_proven": true,
+      "admitted_type_ids": [],
+      "typed_branch_present": false
+    },
+    {
+      "case_id": "syn_successor_explicit_unclassified",
+      "positive_discriminator_present": false,
+      "admitted_type_ids": [],
+      "typed_branch_present": false
+    }
+  ],
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "acceptance": {
+    "eligibility_root_cause": "localized",
+    "safe_typed_admission_rule": "option_c_with_option_d_fail_closed",
+    "pre_model_structural_guard": "assessed_feasible",
+    "hidden_post_model_repair": "zero"
+  },
+  "next_permitted_goal": "goal4_registry_discriminability_audit"
+}
