@@ -833,7 +833,6 @@ def build_domain_qualification_fixture(
     path: Path = DEFAULT_MANIFEST_PATH,
 ) -> DomainQualificationFixture:
     manifest_bytes = path.read_bytes()
-    manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
     manifest = json.loads(manifest_bytes.decode("utf-8"))
     if (
         not isinstance(manifest, dict)
@@ -843,6 +842,7 @@ def build_domain_qualification_fixture(
         or manifest.get("frozen") is not True
     ):
         raise ValueError("domain_qualification_manifest_invalid")
+    manifest_hash = domain_qualification_manifest_hash(manifest)
     raw_cases = manifest.get("cases")
     if not isinstance(raw_cases, list) or len(raw_cases) != 5:
         raise ValueError("domain_qualification_case_count_invalid")
@@ -864,6 +864,16 @@ def build_domain_qualification_fixture(
         manifest_hash=manifest_hash,
         cases=cases,
     )
+
+
+def domain_qualification_manifest_hash(manifest: dict[str, Any]) -> str:
+    canonical = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _build_domain_case(raw_case: dict[str, Any]) -> DomainQualificationCase:
