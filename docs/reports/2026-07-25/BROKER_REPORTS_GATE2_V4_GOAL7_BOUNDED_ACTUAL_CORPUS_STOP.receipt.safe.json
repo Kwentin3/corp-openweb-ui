@@ -1,0 +1,102 @@
+{
+  "schema_version": "broker_reports_gate2_v4_goal7_bounded_actual_corpus_stop_receipt_v1",
+  "status": "NOT_CLOSED",
+  "date": "2026-07-25",
+  "git": {
+    "base_revision": "77be13815fcc0837541661a185d442c3733cc821",
+    "branch": "codex/broker-reports-gate2-v4-goal7-bounded-corpus-stop",
+    "delivery_pr": 124
+  },
+  "precondition": {
+    "complete_workload_qualified_matrix": false,
+    "failure_code": "qualified_source_and_domain_models_unavailable",
+    "global_stop_condition": "model_used_outside_its_workload_receipt",
+    "bounded_actual_corpus_started": false
+  },
+  "matrix": {
+    "source": {
+      "selected_model": null,
+      "status": "blocked",
+      "candidates": {
+        "models/gemini-3.1-flash-lite": "not_qualified_0_of_5",
+        "models/gemini-3.5-flash-lite": "not_qualified_0_of_5"
+      },
+      "accepted_receipt": false
+    },
+    "domain": {
+      "selected_model": null,
+      "status": "blocked",
+      "candidates": {
+        "models/gemini-3.1-flash-lite": "not_qualified_0_of_5",
+        "models/gemini-3.5-flash-lite": "not_qualified_0_of_5"
+      },
+      "accepted_receipt": false
+    },
+    "financial_evidence": {
+      "selected_model": "gpt-5.4-nano-2026-03-17",
+      "provider_profile_id": "openai_gpt",
+      "status": "qualified_4_of_4",
+      "authorization_identity_sha256": "efde8a286bc93d62b1983793d3c4d4bc5948c649b2390b3075dd3365bff3e012",
+      "accepted_receipt": true
+    },
+    "checksum": {
+      "selected_model": "claude-haiku-4-5-20251001",
+      "provider_profile_id": "anthropic_claude",
+      "status": "qualified_3_of_3",
+      "authorization_identity_sha256": "45d955c6ef0d4270cbb82b587bcadb6f7adf2faf55e1453fb5d25ccd507ce610",
+      "accepted_receipt": true
+    }
+  },
+  "execution": {
+    "authorized_customer_documents_opened": 0,
+    "source_packages_sent": 0,
+    "domain_packages_sent": 0,
+    "financial_scopes_sent": 0,
+    "checksum_calls": 0,
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "expensive_model_calls": 0,
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "production_writes": 0,
+    "stage_mutations": 0
+  },
+  "acceptance": {
+    "bounded_actual_corpus": "NOT_RUN_PRECONDITION_FAILED",
+    "silent_value_loss": "NOT_MEASURED",
+    "workload_model_receipts": "INCOMPLETE_SOURCE_AND_DOMAIN",
+    "comparator_weakening": 0
+  },
+  "contracts": {
+    "changed": false,
+    "explicitly_unchanged": [
+      "broker_reports_gate2_financial_evidence_registry_v1",
+      "broker_reports_financial_evidence_inputs_v1",
+      "broker_reports_gate2_financial_context_v1",
+      "canonical_validators",
+      "gate2_only_checksum_contract"
+    ]
+  },
+  "tests": {
+    "focused_passed": 67,
+    "focused_seconds": "1.50",
+    "full_passed": 1400,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "91.02",
+    "full_exit_code": 0
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "customer_values_in_receipt": false,
+    "raw_provider_output_in_git": false,
+    "secrets_in_receipt": false
+  },
+  "next_permitted_goal": "separate_narrow_source_domain_qualification",
+  "goal_8_permitted": false,
+  "gate2_program": "NOT_CLOSED"
+}
