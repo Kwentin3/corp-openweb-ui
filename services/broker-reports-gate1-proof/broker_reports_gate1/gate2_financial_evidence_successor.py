@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .gate2_deterministic_financial_scopes import (
+    DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2,
     Gate2DeterministicFinancialScope,
     validate_deterministic_financial_scope_any,
 )
@@ -20,6 +21,12 @@ from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
 )
+from .gate2_financial_evidence_source_context import (
+    SOURCE_CONTEXT_POLICY_VERSION,
+    SOURCE_CONTEXT_SCHEMA_VERSION,
+    Gate2FinancialEvidenceSourceContext,
+    validate_financial_evidence_source_context,
+)
 from .gate2_model_contracts import (
     GATE2_STRICT_STRUCTURED_OUTPUT_MODES,
     Gate2StructuredModelClient,
@@ -30,16 +37,25 @@ from .gate2_model_contracts import (
 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_evidence_successor_model_input_v1"
 )
+SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2 = (
+    "broker_reports_gate2_financial_evidence_successor_model_input_v2"
+)
+SUCCESSOR_RESULT_SCHEMA_VERSION_V2 = (
+    "broker_reports_gate2_financial_evidence_successor_result_v2"
+)
 SUCCESSOR_PROMPT_CONTRACT_ID = (
     "broker_reports_gate2_financial_evidence_successor_prompt_v2"
 )
 FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
     {
         "audit",
+        "association_group",
         "candidate_graph",
+        "cell_ref",
         "completeness",
         "confidence",
         "document_ref",
+        "expected_answer",
         "fact_paths",
         "integrity_hash",
         "issue_refs",
@@ -47,13 +63,18 @@ FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
         "normalization_run_ref",
         "ownership",
         "package_ref",
+        "page_ref",
+        "path",
         "provenance",
         "relation_graph",
         "restriction_codes",
+        "row_ref",
+        "segment_ref",
         "source_evidence_refs",
         "source_family_id",
         "source_ref",
         "source_scope_ref",
+        "table_ref",
         "uncertainty",
     }
 )
@@ -89,6 +110,9 @@ class Gate2FinancialEvidenceSuccessorError(ValueError):
 class Gate2FinancialEvidenceSuccessorConfig:
     model_id: str
     provider_profile_id: str
+    model_input_schema_version: str = (
+        SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION
+    )
 
 
 @dataclass(frozen=True)
@@ -162,7 +186,15 @@ class Gate2FinancialEvidenceSuccessorRunnerFactory:
         self.config = config
 
     def create(self) -> "Gate2FinancialEvidenceSuccessorRunner":
-        if not self.config.model_id or not self.config.provider_profile_id:
+        if (
+            not self.config.model_id
+            or not self.config.provider_profile_id
+            or self.config.model_input_schema_version
+            not in {
+                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION,
+                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2,
+            }
+        ):
             _fail("financial_evidence_successor_config_invalid")
         return Gate2FinancialEvidenceSuccessorRunner(
             registry=self.registry,
@@ -192,6 +224,9 @@ class Gate2FinancialEvidenceSuccessorRunner:
         scope: Gate2DeterministicFinancialScope,
         execution_ref: str,
         decision_validation_ref: str,
+        source_context: (
+            Gate2FinancialEvidenceSourceContext | None
+        ) = None,
     ) -> Gate2FinancialEvidenceSuccessorResult:
         validate_deterministic_financial_scope_any(scope)
         if (
@@ -201,7 +236,10 @@ class Gate2FinancialEvidenceSuccessorRunner:
             != self.registry.registry_hash
         ):
             _fail("financial_evidence_successor_registry_mismatch")
-        model_input = self.model_input(scope=scope)
+        model_input = self.model_input(
+            scope=scope,
+            source_context=source_context,
+        )
         result = await self.model_client.extract(
             prompt=self.prompt,
             package=model_input,
@@ -247,12 +285,18 @@ class Gate2FinancialEvidenceSuccessorRunner:
             ) from exc
         summary = {
             "schema_version": (
-                "broker_reports_gate2_financial_evidence_successor_result_v1"
+                SUCCESSOR_RESULT_SCHEMA_VERSION_V2
+                if self.config.model_input_schema_version
+                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2
+                else (
+                    "broker_reports_gate2_financial_evidence_"
+                    "successor_result_v1"
+                )
             ),
             "status": "passed",
             "decision_schema_version": DECISION_SCHEMA_VERSION,
             "model_input_schema_version": (
-                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION
+                self.config.model_input_schema_version
             ),
             "model_input_hash": sha256_json(model_input),
             "prompt_hash": self.prompt.hash,
@@ -290,6 +334,23 @@ class Gate2FinancialEvidenceSuccessorRunner:
             "repair_attempts_total": 0,
             "materializer": "Gate2FinancialEvidenceMaterializerFactory",
         }
+        if source_context is not None:
+            summary.update(
+                {
+                    "source_context_schema_version": (
+                        SOURCE_CONTEXT_SCHEMA_VERSION
+                    ),
+                    "source_context_policy_version": (
+                        SOURCE_CONTEXT_POLICY_VERSION
+                    ),
+                    "source_context_integrity_hash": (
+                        source_context.integrity_hash
+                    ),
+                    "source_context_groups_total": len(
+                        source_context.groups
+                    ),
+                }
+            )
         return Gate2FinancialEvidenceSuccessorResult(
             validated_decision=validated,
             materialized_artifact=artifact,
@@ -305,6 +366,9 @@ class Gate2FinancialEvidenceSuccessorRunner:
         self,
         *,
         scope: Gate2DeterministicFinancialScope,
+        source_context: (
+            Gate2FinancialEvidenceSourceContext | None
+        ) = None,
     ) -> dict[str, Any]:
         validate_deterministic_financial_scope_any(scope)
         candidates = {
@@ -317,55 +381,90 @@ class Gate2FinancialEvidenceSuccessorRunner:
             if declaration.input_type_id
             in scope.decision_contract.eligible_type_ids
         ]
-        model_input = {
-            "eligible_types": [
-                {
-                    "input_type_id": declaration.input_type_id,
-                    "definition": declaration.definition,
-                    "required_roles": list(
+        eligible_types = [
+            {
+                "input_type_id": declaration.input_type_id,
+                "definition": declaration.definition,
+                "required_roles": list(
+                    declaration.required_roles
+                ),
+                "optional_roles": list(
+                    declaration.optional_roles
+                ),
+                "role_specs": [
+                    {
+                        "role_id": role.role_id,
+                        "value_type": role.value_type,
+                        "cardinality": role.cardinality,
+                    }
+                    for role in declaration.role_specs
+                    if role.role_id
+                    in (
                         declaration.required_roles
-                    ),
-                    "optional_roles": list(
-                        declaration.optional_roles
-                    ),
-                    "role_specs": [
-                        {
-                            "role_id": role.role_id,
-                            "value_type": role.value_type,
-                            "cardinality": role.cardinality,
-                        }
-                        for role in declaration.role_specs
-                        if role.role_id
-                        in (
-                            declaration.required_roles
-                            + declaration.optional_roles
-                        )
-                    ],
-                    "date_period_requirement": (
-                        declaration.date_period_requirement
-                    ),
-                    "currency_unit_requirement": (
-                        declaration.currency_unit_requirement
-                    ),
-                }
-                for declaration in declarations
-            ],
-            "source_values": [
-                {
-                    "source_value_ref": value.source_value_ref,
-                    "value_type": value.value_type,
-                    "literal_value": value.literal_value,
-                    "allowed_roles": list(
-                        candidates[value.source_value_ref].allowed_roles
-                    ),
-                }
-                for value in scope.source_package.source_values
-            ],
+                        + declaration.optional_roles
+                    )
+                ],
+                "date_period_requirement": (
+                    declaration.date_period_requirement
+                ),
+                "currency_unit_requirement": (
+                    declaration.currency_unit_requirement
+                ),
+            }
+            for declaration in declarations
+        ]
+        if (
+            self.config.model_input_schema_version
+            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION
+        ):
+            if source_context is not None:
+                _fail(
+                    "financial_evidence_successor_v1_context_forbidden"
+                )
+            model_input = {
+                "eligible_types": eligible_types,
+                "source_values": [
+                    {
+                        "source_value_ref": value.source_value_ref,
+                        "value_type": value.value_type,
+                        "literal_value": value.literal_value,
+                        "allowed_roles": list(
+                            candidates[
+                                value.source_value_ref
+                            ].allowed_roles
+                        ),
+                    }
+                    for value in scope.source_package.source_values
+                ],
+            }
+            validate_financial_evidence_successor_model_input(
+                model_input=model_input,
+                scope=scope,
+                registry=self.registry,
+            )
+            return model_input
+        if source_context is None:
+            _fail("financial_evidence_successor_v2_context_required")
+        if (
+            scope.package.get("schema_version")
+            != DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
+        ):
+            _fail("financial_evidence_successor_v2_scope_required")
+        validate_financial_evidence_source_context(
+            context=source_context,
+            source_scope_ref=scope.source_package.source_scope_ref,
+            source_values=scope.source_package.source_values,
+            candidates=scope.decision_contract.package.candidates,
+        )
+        model_input = {
+            "eligible_types": eligible_types,
+            "source_groups": source_context.provider_groups(),
         }
-        validate_financial_evidence_successor_model_input(
+        validate_financial_evidence_successor_model_input_v2(
             model_input=model_input,
             scope=scope,
             registry=self.registry,
+            source_context=source_context,
         )
         return model_input
 
@@ -483,6 +582,69 @@ def validate_financial_evidence_successor_model_input(
             or item["allowed_roles"] != list(candidate.allowed_roles)
         ):
             _fail("financial_evidence_successor_source_value_projection_invalid")
+
+
+def validate_financial_evidence_successor_model_input_v2(
+    *,
+    model_input: dict[str, Any],
+    scope: Gate2DeterministicFinancialScope,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    source_context: Gate2FinancialEvidenceSourceContext,
+) -> None:
+    if set(model_input) != {"eligible_types", "source_groups"}:
+        _fail("financial_evidence_successor_model_input_v2_shape_invalid")
+    forbidden = {
+        key
+        for item in _walk_dicts(model_input)
+        for key in item
+        if key in FORBIDDEN_MODEL_INPUT_FIELDS
+    }
+    if forbidden:
+        _fail("financial_evidence_successor_model_system_field_forbidden")
+    eligible_types = model_input.get("eligible_types")
+    source_groups = model_input.get("source_groups")
+    if not isinstance(eligible_types, list) or not isinstance(
+        source_groups,
+        list,
+    ):
+        _fail("financial_evidence_successor_model_input_v2_type_invalid")
+    expected_type_ids = list(scope.decision_contract.eligible_type_ids)
+    if [
+        item.get("input_type_id")
+        for item in eligible_types
+        if isinstance(item, dict)
+    ] != expected_type_ids:
+        _fail("financial_evidence_successor_registry_projection_invalid")
+    for item in eligible_types:
+        if not isinstance(item, dict) or set(item) != {
+            "input_type_id",
+            "definition",
+            "required_roles",
+            "optional_roles",
+            "role_specs",
+            "date_period_requirement",
+            "currency_unit_requirement",
+        }:
+            _fail("financial_evidence_successor_registry_type_shape_invalid")
+        declaration = registry.get(str(item["input_type_id"]))
+        if (
+            item["definition"] != declaration.definition
+            or item["required_roles"]
+            != list(declaration.required_roles)
+            or item["optional_roles"]
+            != list(declaration.optional_roles)
+        ):
+            _fail(
+                "financial_evidence_successor_registry_type_projection_invalid"
+            )
+    validate_financial_evidence_source_context(
+        context=source_context,
+        source_scope_ref=scope.source_package.source_scope_ref,
+        source_values=scope.source_package.source_values,
+        candidates=scope.decision_contract.package.candidates,
+    )
+    if source_groups != source_context.provider_groups():
+        _fail("financial_evidence_successor_source_context_projection_invalid")
 
 
 def _walk_dicts(value: Any):
