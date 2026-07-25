@@ -29,6 +29,14 @@ from .gate2_successor_artifacts import (
     validate_successor_package_artifact,
     validate_successor_run_artifact,
 )
+from .gate2_successor_artifacts_v2 import (
+    SUCCESSOR_EXECUTION_RECEIPT_SCHEMA_VERSION_V2,
+    SUCCESSOR_PACKAGE_ARTIFACT_SCHEMA_VERSION_V2,
+    SUCCESSOR_RUN_ARTIFACT_SCHEMA_VERSION_V2,
+    validate_successor_execution_receipt_v2,
+    validate_successor_package_artifact_v2,
+    validate_successor_run_artifact_v2,
+)
 
 
 SUCCESSOR_COMPATIBILITY_READER_POLICY_VERSION = (
@@ -73,6 +81,18 @@ _SUCCESSOR_VALIDATORS: dict[
     SUCCESSOR_COMPATIBILITY_PROJECTION_SCHEMA_VERSION: (
         "successor_compatibility_projection",
         validate_successor_compatibility_projection,
+    ),
+    SUCCESSOR_PACKAGE_ARTIFACT_SCHEMA_VERSION_V2: (
+        "successor_package_artifact_v2",
+        validate_successor_package_artifact_v2,
+    ),
+    SUCCESSOR_RUN_ARTIFACT_SCHEMA_VERSION_V2: (
+        "successor_run_artifact_v2",
+        validate_successor_run_artifact_v2,
+    ),
+    SUCCESSOR_EXECUTION_RECEIPT_SCHEMA_VERSION_V2: (
+        "successor_execution_receipt_v2",
+        validate_successor_execution_receipt_v2,
     ),
 }
 
@@ -294,9 +314,15 @@ class Gate2SuccessorCompatibilityReader:
 
 def _records_total(payload: dict[str, Any]) -> int:
     schema_version = payload["schema_version"]
-    if schema_version == SUCCESSOR_RUN_ARTIFACT_SCHEMA_VERSION:
+    if schema_version in {
+        SUCCESSOR_RUN_ARTIFACT_SCHEMA_VERSION,
+        SUCCESSOR_RUN_ARTIFACT_SCHEMA_VERSION_V2,
+    }:
         return len(payload["package_artifacts"])
-    if schema_version == SUCCESSOR_EXECUTION_RECEIPT_SCHEMA_VERSION:
+    if schema_version in {
+        SUCCESSOR_EXECUTION_RECEIPT_SCHEMA_VERSION,
+        SUCCESSOR_EXECUTION_RECEIPT_SCHEMA_VERSION_V2,
+    }:
         return payload["packages_total"]
     return 1
 
