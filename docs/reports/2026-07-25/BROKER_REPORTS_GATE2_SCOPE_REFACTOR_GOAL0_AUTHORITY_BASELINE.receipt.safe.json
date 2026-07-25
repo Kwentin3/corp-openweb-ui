@@ -6,7 +6,7 @@
     "base_revision": "28f8d0106de99f54041df1ceab15516a80c4fd67",
     "origin_main_revision": "28f8d0106de99f54041df1ceab15516a80c4fd67",
     "branch": "codex/broker-reports-gate2-scope-refactor-goal0-baseline",
-    "delivery_pr": null,
+    "delivery_pr": 126,
     "worktrees_total": 1
   },
   "authorities": {

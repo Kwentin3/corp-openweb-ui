@@ -4,7 +4,7 @@
 Статус: `COMPLETED`  
 Accepted base revision: `28f8d0106de99f54041df1ceab15516a80c4fd67`  
 Branch: `codex/broker-reports-gate2-scope-refactor-goal0-baseline`  
-Delivery PR: `PENDING`
+Delivery PR: `#126`
 
 ## Итог
 
