@@ -1,0 +1,83 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal2_receipt_v1",
+  "goal": "goal2_model_input_sufficiency_audit",
+  "status": "gap_identified",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "current_input": {
+    "eligible_type_definitions": true,
+    "source_literal_values": true,
+    "value_types": true,
+    "allowed_roles": true,
+    "source_value_refs": true,
+    "row_value_associations": false,
+    "visible_column_labels": false,
+    "row_role": false,
+    "section_role": false,
+    "bounded_header_context": false,
+    "ambiguity_admission_state": false
+  },
+  "authoritative_context_inventory": {
+    "model_source_projection": "exists_in_gate1",
+    "normalized_header_descriptors": "exists_in_gate1",
+    "source_value_row_cell_index": "exists_in_gate1",
+    "row_kind_or_role": "exists_when_source_supports",
+    "section_context": "exists_when_source_supports",
+    "successor_projection": "drops_structural_associations"
+  },
+  "case_findings": [
+    {
+      "case_id": "syn_successor_multiple_hypotheses",
+      "missing_context_material_to_failure": true,
+      "missing_fields": [
+        "label_amount_association",
+        "source_group_composition",
+        "visible_column_meaning"
+      ],
+      "context_enrichment_alone_sufficient_for_safety": false,
+      "code_owned_ambiguity_guard_required": true
+    },
+    {
+      "case_id": "syn_successor_explicit_unclassified",
+      "disconfirming_label_already_present": true,
+      "missing_context_material_to_failure": false,
+      "context_enrichment_alone_sufficient_for_safety": false,
+      "typed_admission_did_not_require_semantic_evidence": true
+    }
+  ],
+  "target_context": {
+    "package_owned": true,
+    "bounded": true,
+    "grouped_values": true,
+    "visible_labels": true,
+    "authoritative_row_section_roles_only": true,
+    "neighbour_values_outside_scope": false,
+    "expected_answer_included": false,
+    "system_ids_included": false,
+    "provenance_graph_included": false,
+    "candidate_graph_included": false,
+    "audit_metadata_included": false
+  },
+  "ownership": {
+    "neutral_visible_structure": "gate1",
+    "bounded_grouping": "deterministic_scope_factory",
+    "typed_branch_availability": "typed_admission_policy",
+    "semantic_choice": "model_within_admitted_schema",
+    "admission_recheck": "canonical_validator"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "acceptance": {
+    "semantic_context_sufficiency": "gap_identified",
+    "missing_useful_context": "explicit",
+    "system_metadata_reintroduction": "zero"
+  },
+  "next_permitted_goal": "goal3_deterministic_eligibility_audit"
+}
