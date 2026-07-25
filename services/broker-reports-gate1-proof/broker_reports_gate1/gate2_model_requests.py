@@ -12,6 +12,9 @@ SOURCE_QUALIFICATION_REQUEST_PROFILE = "source_qualification_v1"
 DOMAIN_REQUEST_PROFILE = "domain_v0"
 DOMAIN_QUALIFICATION_REQUEST_PROFILE = "domain_qualification_v1"
 FINANCIAL_EVIDENCE_REQUEST_PROFILE = "financial_evidence_decision_v1"
+FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE = (
+    "financial_evidence_successor_qualification_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -21,6 +24,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     SOURCE_QUALIFICATION_REQUEST_PROFILE,
     DOMAIN_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_EVIDENCE_REQUEST_PROFILE,
+    FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -65,6 +69,16 @@ class Gate2OpenWebUIRequestBuilder:
             )
         if self.request_profile == FINANCIAL_EVIDENCE_REQUEST_PROFILE:
             return self._build_financial_evidence(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if (
+            self.request_profile
+            == FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE
+        ):
+            return self._build_financial_evidence_successor_qualification(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -279,6 +293,71 @@ class Gate2OpenWebUIRequestBuilder:
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "source_scope_ref": package.get("source_scope_ref"),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_evidence_successor_qualification(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{financial_evidence_successor_input_json}}"
+        if marker not in prompt.content:
+            raise Gate2PromptError(
+                "gate2_financial_evidence_successor_prompt_contract_mismatch",
+                "Managed successor Financial Evidence input marker is missing",
+            )
+        if set(package) != {"eligible_types", "source_values"}:
+            raise Gate2PromptError(
+                "gate2_financial_evidence_successor_package_invalid",
+                "Successor Financial Evidence package is not the bounded projection",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": (
+                                "qualify_broker_reports_financial_evidence_successor_v1"
+                            ),
+                            "instruction": (
+                                "Return exactly one decision object allowed "
+                                "by the supplied strict JSON Schema."
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_evidence_successor_qualification": True,
+                    "synthetic_non_customer": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                 }

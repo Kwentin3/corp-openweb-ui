@@ -31,7 +31,7 @@ SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_evidence_successor_model_input_v1"
 )
 SUCCESSOR_PROMPT_CONTRACT_ID = (
-    "broker_reports_gate2_financial_evidence_successor_prompt_v1"
+    "broker_reports_gate2_financial_evidence_successor_prompt_v2"
 )
 FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
     {
@@ -75,10 +75,14 @@ class Gate2FinancialEvidenceSuccessorError(ValueError):
         code: str,
         *,
         provider_execution: dict[str, Any] | None = None,
+        economy_budget_receipt: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(code)
         self.code = code
         self.provider_execution = copy.deepcopy(provider_execution or {})
+        self.economy_budget_receipt = copy.deepcopy(
+            economy_budget_receipt
+        )
 
 
 @dataclass(frozen=True)
@@ -99,6 +103,7 @@ class Gate2FinancialEvidenceSuccessorResult:
     validated_decision: FinancialEvidenceValidatedDecision
     materialized_artifact: dict[str, Any]
     provider_execution: dict[str, Any]
+    economy_budget_receipt: dict[str, Any] | None
     model_input_hash: str
     safe_summary: dict[str, Any]
 
@@ -106,16 +111,26 @@ class Gate2FinancialEvidenceSuccessorResult:
 class Gate2FinancialEvidenceSuccessorPromptFactory:
     def create(self) -> Gate2FinancialEvidenceSuccessorPrompt:
         content = (
-            "You are the bounded Gate 2 Financial Evidence decision step. "
-            "Use only the eligible Registry definitions and package source "
-            "values in the embedded input. Return exactly one of the four "
-            "strict decision dispositions. Select only an eligible Registry "
-            "input type and bind only listed source_value_ref values to their "
-            "allowed roles. Never invent or transform literal values. Use "
-            "unclassified_financial_input and preserve every package value "
-            "when safe typing is not possible. Do not return IDs, paths, "
-            "graphs, ownership, completeness, confidence, uncertainty, "
-            "provenance or audit metadata. Return only the strict schema "
+            "Make the bounded Gate 2 Financial Evidence decision. Use only "
+            "eligible Registry definitions and package values. Return one "
+            "strict disposition. Use unsupported only for "
+            "a declared unsupported source shape or profile the strict "
+            "contract cannot express. Use no_financial_input when there is no "
+            "source-stated financial value, including headers, repeated "
+            "headers and layout-only content. Use typed_input only when one "
+            "eligible definition and every required role are explicit. "
+            "cash_balance_snapshot_v1 requires an explicit source label that "
+            "identifies an ordinary cash balance. "
+            "printed_financial_metric_v1 requires an explicit source-printed "
+            "total or metric label. Role eligibility or a matching literal "
+            "alone is not semantic evidence. For equal literals, follow "
+            "explicit label, date, currency and scope associations; never use "
+            "an adjacent unrelated reference. Use "
+            "unclassified_financial_input only for actual financial values "
+            "that cannot be safely typed; bind every package value exactly "
+            "once. Bind only listed source_value_ref values to allowed roles. "
+            "Never invent, calculate or transform values. Return no system, "
+            "confidence, provenance or audit metadata; only the strict schema "
             "object.\n{{financial_evidence_successor_input_json}}"
         )
         digest = hashlib.sha256(
@@ -228,6 +243,7 @@ class Gate2FinancialEvidenceSuccessorRunner:
                     "financial_evidence_successor_validation_failed",
                 ),
                 provider_execution=provider_execution,
+                economy_budget_receipt=result.economy_budget_receipt,
             ) from exc
         summary = {
             "schema_version": (
@@ -278,6 +294,9 @@ class Gate2FinancialEvidenceSuccessorRunner:
             validated_decision=validated,
             materialized_artifact=artifact,
             provider_execution=provider_execution,
+            economy_budget_receipt=copy.deepcopy(
+                result.economy_budget_receipt
+            ),
             model_input_hash=summary["model_input_hash"],
             safe_summary=summary,
         )

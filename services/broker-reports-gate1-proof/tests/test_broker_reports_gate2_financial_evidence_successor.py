@@ -199,6 +199,7 @@ def test_successor_runs_one_existing_decision_and_existing_materializer():
     assert result.safe_summary["provider_calls_total"] == 1
     assert result.safe_summary["fallback_total"] == 0
     assert result.safe_summary["repair_attempts_total"] == 0
+    assert result.economy_budget_receipt is None
 
 
 def test_model_input_contains_only_registry_and_package_value_authority():
