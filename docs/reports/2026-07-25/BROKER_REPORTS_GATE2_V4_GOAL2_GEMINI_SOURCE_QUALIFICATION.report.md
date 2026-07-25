@@ -33,7 +33,7 @@ frozen canonical comparator отклонил все 5 source cases с terminal c
   `943a496dcc33937404ee2d066cd71cf9b1b541ba`;
 - branch:
   `codex/broker-reports-gate2-v4-goal2-gemini-source-qualification`;
-- PR: pending creation from this evidence branch.
+- PR: [#115](https://github.com/Kwentin3/corp-openweb-ui/pull/115).
 
 ## Qualification identity
 
@@ -258,7 +258,7 @@ Full service suite:
   `943a496dcc33937404ee2d066cd71cf9b1b541ba`;
 - branch:
   `codex/broker-reports-gate2-v4-goal2-gemini-source-qualification`;
-- PR: pending creation;
+- PR: `#115`;
 - contracts changed: `ZERO`;
 - contracts explicitly unchanged: listed above;
 - model IDs:
