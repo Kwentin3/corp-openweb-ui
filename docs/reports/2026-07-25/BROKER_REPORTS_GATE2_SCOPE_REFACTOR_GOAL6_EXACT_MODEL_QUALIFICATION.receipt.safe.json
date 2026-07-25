@@ -1,0 +1,197 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal6_receipt_v1",
+  "goal": "goal6_exact_model_successor_qualification",
+  "status": "not_qualified",
+  "terminal_classification": true,
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "20cf1b6af9d29a862d45e3dd8ec35c592c8c657c",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal6-exact-model-qualification",
+    "implementation_revisions": [
+      "dc1c915fcc2c4430ad235c54a2f1541105830f58",
+      "0ebc3e9631b04d2e7020a8aef82eec7ebe9ab3bc"
+    ],
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/132",
+    "bundle_rebuild_exact": true,
+    "bundle_sha256": {
+      "gate1": "1737afd026c51fa50c05bc2216509a15f19a6829faeed973463de9c6cb84d0d6",
+      "gate2_source": "499c631f877c56f5f41a37dcc9b663556870523208fb2cb47a5bae2e3720a766",
+      "gate2_domain": "ed493a04338795836a88c878acc8516bb150f63869465d6c25bdca5bea23326d"
+    }
+  },
+  "qualification_identity": {
+    "exact_model_id": "gpt-5.4-nano-2026-03-17",
+    "provider_profile_id": "openai_gpt",
+    "provider_route_revision": "4232f7b089fec08326548bf4c70bb33fef0ce603c23d78d6110a9c9a8aec5929",
+    "deterministic_scope_schema": "broker_reports_gate2_deterministic_financial_scope_package_v1",
+    "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+    "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "financial_decision_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+    "manifest_canonical_hash": "2ad54a8dae7e9e34a4d020310acffad5c76dc049855e5440ed557fb1efe4d687",
+    "manifest_file_sha256": "b607112e1a70f9877dbd935fdb6f6fe666b61be1ed5b290e896270bde1af886c",
+    "authorization_identity_sha256_v2": "8dd5285c21164886e2830483eb93427eb8ae9889c38de1a5494bdd53f6ca1ff3"
+  },
+  "preflight_v2": {
+    "status": "passed",
+    "provider_calls_total": 0,
+    "cases_total": 11,
+    "estimated_input_tokens_total": 29133,
+    "estimated_input_tokens_max": 3057,
+    "maximum_input_tokens": 3072,
+    "maximum_output_tokens_per_call": 640,
+    "estimated_maximum_cost_usd": "0.014626600",
+    "exact_model_published": true,
+    "qualification_action_active": true,
+    "qualification_action_scope": "qualification_only"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "failed",
+      "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v1",
+      "prompt_hash": "83f22755dd8380b4d91a5b143b1c991afdbed25afea959d9be3d882faee7f33b",
+      "cases_total": 11,
+      "cases_passed": 7,
+      "cases_failed": 4,
+      "canonical_validation_passed": true,
+      "four_dispositions_passed": false,
+      "terminal_disposition_counts": {
+        "typed_input": 6,
+        "unclassified_financial_input": 4,
+        "no_financial_input": 0,
+        "unsupported": 1
+      },
+      "provider_calls_total": 11,
+      "input_tokens": 22315,
+      "output_tokens": 1821,
+      "actual_cost_usd": "0.006739250",
+      "fallback_total": 0,
+      "repair_attempts_total": 0,
+      "expensive_model_calls_total": 0,
+      "raw_provider_output_included": false,
+      "private_checkpoint_sha256": "e2f68329f33e50acc3db8e149546041fcf47625074d1587f330932d685277a8f"
+    },
+    {
+      "attempt": 2,
+      "status": "failed",
+      "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v2",
+      "prompt_hash": "1362c50190bc7859d74b300e5e1fad037cf7ad4939f9946f3c43e4b88930e5fc",
+      "cases_total": 11,
+      "cases_passed": 9,
+      "cases_failed": 2,
+      "canonical_validation_passed": true,
+      "four_dispositions_passed": false,
+      "terminal_disposition_counts": {
+        "typed_input": 9,
+        "unclassified_financial_input": 0,
+        "no_financial_input": 1,
+        "unsupported": 1
+      },
+      "semantic_mismatches": [
+        {
+          "case_id": "syn_successor_multiple_hypotheses",
+          "expected_disposition": "unclassified_financial_input",
+          "observed_disposition": "typed_input"
+        },
+        {
+          "case_id": "syn_successor_explicit_unclassified",
+          "expected_disposition": "unclassified_financial_input",
+          "observed_disposition": "typed_input"
+        }
+      ],
+      "product_invariants": {
+        "literal_loss_total": 0,
+        "invented_values_total": 0,
+        "duplicate_bindings_total": 0,
+        "cross_scope_bindings_total": 0,
+        "terminal_ownership_gap_total": 0,
+        "affected_source_refs_total": 2,
+        "production_write_admitted": false
+      },
+      "provider_calls_total": 11,
+      "input_tokens": 23393,
+      "output_tokens": 1459,
+      "actual_cost_usd": "0.006502350",
+      "fallback_total": 0,
+      "repair_attempts_total": 0,
+      "expensive_model_calls_total": 0,
+      "raw_provider_output_included": false,
+      "private_checkpoint_sha256": "5332f99a2a3b10bc6d2594fc3aee0c93ce494ba4730eeeac6a9d58303d3b8271"
+    }
+  ],
+  "aggregate_execution": {
+    "financial_model_calls_total": 22,
+    "source_model_calls_total": 0,
+    "domain_model_calls_total": 0,
+    "expensive_model_calls_total": 0,
+    "input_tokens_total": 45708,
+    "output_tokens_total": 3280,
+    "actual_cost_usd": "0.013241600",
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "customer_calls_total": 0,
+    "production_route_activations_total": 0,
+    "stage_mutations_total": 0
+  },
+  "contracts": {
+    "changed": [
+      "financial_evidence_successor_qualification_request_profile_v1",
+      "exact_successor_qualification_identity_v1",
+      "financial_evidence_successor_prompt_v2"
+    ],
+    "explicitly_unchanged": [
+      "financial_evidence_registry_v1",
+      "financial_evidence_decision_v1",
+      "canonical_financial_decision_validator",
+      "deterministic_financial_materializer",
+      "successor_product_comparator_v1",
+      "legacy_immutable_artifact_policy",
+      "production_admission_false"
+    ]
+  },
+  "tests": {
+    "direct": {
+      "passed": 20,
+      "failed": 0,
+      "duration_seconds": 3.74
+    },
+    "focused": {
+      "passed": 75,
+      "failed": 0,
+      "duration_seconds": 7.32
+    },
+    "full": {
+      "passed": 1457,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 107.66
+    },
+    "ruff_changed_files": "passed",
+    "git_diff_check": "passed",
+    "bundle_rebuild_exact": true
+  },
+  "source_hashes": {
+    "successor_module_sha256": "91ed6c59cae1f75b426cfdcc6fb6d9a9b12a7d8d8a62c57ceb600e10ae5b8a3a",
+    "qualification_script_sha256": "4f11e24610377b3ab66c40d332914be40017caaeebbdb73f9966e7f1225f84ae",
+    "qualification_tests_sha256": "8bc0e21129ac3bb6c0e44cdf1b1feda89e3e506b2597bd596e0c55f4e34bd6b4"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_provider_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_refs_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "safe_receipt_value_free": true,
+    "private_atomic_checkpoints_in_git": false
+  },
+  "acceptance": {
+    "financial_model": "not_qualified_for_successor_workload",
+    "four_dispositions": "failed",
+    "canonical_validation": "passed",
+    "fallback": "zero",
+    "repair": "zero",
+    "expensive_model": "zero"
+  },
+  "next_permitted_goal": "none_downstream_goals_7_14_blocked_by_goal6"
+}
