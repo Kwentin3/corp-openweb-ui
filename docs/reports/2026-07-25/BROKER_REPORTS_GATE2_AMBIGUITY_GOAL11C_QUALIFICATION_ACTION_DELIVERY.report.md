@@ -81,7 +81,8 @@ Independent readback returned the same content/policy/source identities.
   `cb5817584ab1307fc30e8b8b4292301e62bb8289`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal11c-action-delivery`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/141`;
 - code changes: `0`;
 - production routing changes: `0`.
 
