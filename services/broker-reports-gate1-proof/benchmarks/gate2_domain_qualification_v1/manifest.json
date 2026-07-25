@@ -1,0 +1,417 @@
+{
+  "schema_version": "broker_reports_gate2_domain_qualification_manifest_v1",
+  "contains_customer_data": false,
+  "frozen": true,
+  "cases": [
+    {
+      "case_id": "syn_domain_equal_value_exact_owner",
+      "family": "neighbouring_equal_values",
+      "instruction": "Interpret the cash movement row. The requested movement amount is the second amount column, not the equal neighbouring first amount column. Preserve exact row and cell ownership.",
+      "target_domain": "cash_movement",
+      "domain_hypotheses": [
+        "cash_movement",
+        "position_snapshot"
+      ],
+      "selected_row_refs": [
+        "row_equal_owner"
+      ],
+      "forbidden_source_refs": [],
+      "rows": [
+        {
+          "row_ref": "row_equal_owner",
+          "row_role": "data_row",
+          "fact_type_hint": "cash_movement",
+          "cells": [
+            {
+              "label": "operation",
+              "value": "deposit",
+              "source_value_ref": "value_equal_operation"
+            },
+            {
+              "label": "opening_balance",
+              "value": "25.00",
+              "source_value_ref": "value_equal_opening"
+            },
+            {
+              "label": "amount",
+              "value": "25.00",
+              "source_value_ref": "value_equal_requested"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_equal_currency"
+            },
+            {
+              "label": "date",
+              "value": "2026-01-01",
+              "source_value_ref": "value_equal_date"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fact_type": "cash_movement",
+        "subtype_candidate": "deposit",
+        "confidence": "high",
+        "completeness": "complete",
+        "uncertainty_codes": [],
+        "bindings": [
+          {
+            "semantic_role": "movement_direction",
+            "candidate_kind": "categorical_direction",
+            "source_value_ref": "value_equal_operation"
+          },
+          {
+            "semantic_role": "movement_amount",
+            "candidate_kind": "decimal_amount",
+            "source_value_ref": "value_equal_requested"
+          },
+          {
+            "semantic_role": "movement_currency",
+            "candidate_kind": "currency_code",
+            "source_value_ref": "value_equal_currency"
+          },
+          {
+            "semantic_role": "movement_date",
+            "candidate_kind": "date",
+            "source_value_ref": "value_equal_date"
+          }
+        ],
+        "relation_kinds": []
+      }
+    },
+    {
+      "case_id": "syn_domain_adjacent_fx_exact_ownership",
+      "family": "adjacent_currency_ownership",
+      "instruction": "Interpret the explicit FX row. Keep the first amount with USD and the second equal amount with EUR, include the printed rate and date, and select the exact base-quote relation.",
+      "target_domain": "currency_fx",
+      "domain_hypotheses": [
+        "currency_fx",
+        "cash_movement"
+      ],
+      "selected_row_refs": [
+        "row_adjacent_fx"
+      ],
+      "forbidden_source_refs": [],
+      "rows": [
+        {
+          "row_ref": "row_adjacent_fx",
+          "row_role": "data_row",
+          "fact_type_hint": "currency_fx",
+          "cells": [
+            {
+              "label": "amount",
+              "value": "100.00",
+              "source_value_ref": "value_fx_base_amount"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_fx_base_currency"
+            },
+            {
+              "label": "amount",
+              "value": "100.00",
+              "source_value_ref": "value_fx_quote_amount"
+            },
+            {
+              "label": "currency",
+              "value": "EUR",
+              "source_value_ref": "value_fx_quote_currency"
+            },
+            {
+              "label": "rate",
+              "value": "1.00",
+              "source_value_ref": "value_fx_rate"
+            },
+            {
+              "label": "operation",
+              "value": "explicit_fx_rate",
+              "source_value_ref": "value_fx_operation"
+            },
+            {
+              "label": "date",
+              "value": "2026-01-06",
+              "source_value_ref": "value_fx_date"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fact_type": "currency_fx",
+        "subtype_candidate": "explicit_rate",
+        "confidence": "high",
+        "completeness": "complete",
+        "uncertainty_codes": [],
+        "bindings": [
+          {
+            "semantic_role": "base_amount",
+            "candidate_kind": "decimal_amount",
+            "source_value_ref": "value_fx_base_amount"
+          },
+          {
+            "semantic_role": "base_currency",
+            "candidate_kind": "currency_code",
+            "source_value_ref": "value_fx_base_currency"
+          },
+          {
+            "semantic_role": "quote_amount",
+            "candidate_kind": "decimal_amount",
+            "source_value_ref": "value_fx_quote_amount"
+          },
+          {
+            "semantic_role": "quote_currency",
+            "candidate_kind": "currency_code",
+            "source_value_ref": "value_fx_quote_currency"
+          },
+          {
+            "semantic_role": "explicit_rate",
+            "candidate_kind": "explicit_fx_rate",
+            "source_value_ref": "value_fx_rate"
+          },
+          {
+            "semantic_role": "rate_date",
+            "candidate_kind": "date",
+            "source_value_ref": "value_fx_date"
+          }
+        ],
+        "relation_kinds": [
+          "base_quote_amount_currency_group"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_domain_multiple_hypotheses",
+      "family": "multiple_domain_hypotheses",
+      "instruction": "The row has both fee-like and cash-like headers. For this exact fee package, bind only the broker fee evidence and do not reinterpret it as a cash movement.",
+      "target_domain": "fee_commission",
+      "domain_hypotheses": [
+        "fee_commission",
+        "cash_movement"
+      ],
+      "selected_row_refs": [
+        "row_multi_hypothesis"
+      ],
+      "forbidden_source_refs": [],
+      "rows": [
+        {
+          "row_ref": "row_multi_hypothesis",
+          "row_role": "data_row",
+          "fact_type_hint": null,
+          "cells": [
+            {
+              "label": "fee",
+              "value": "broker_commission",
+              "source_value_ref": "value_multi_fee_kind"
+            },
+            {
+              "label": "cash",
+              "value": "service",
+              "source_value_ref": "value_multi_cash_label"
+            },
+            {
+              "label": "amount",
+              "value": "5.00",
+              "source_value_ref": "value_multi_fee_amount"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_multi_fee_currency"
+            },
+            {
+              "label": "date",
+              "value": "2026-01-03",
+              "source_value_ref": "value_multi_fee_date"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fact_type": "fee_commission",
+        "subtype_candidate": "broker_commission",
+        "confidence": "high",
+        "completeness": "complete",
+        "uncertainty_codes": [],
+        "bindings": [
+          {
+            "semantic_role": "fee_subtype",
+            "candidate_kind": "categorical_direction",
+            "source_value_ref": "value_multi_fee_kind"
+          },
+          {
+            "semantic_role": "fee_amount",
+            "candidate_kind": "decimal_amount",
+            "source_value_ref": "value_multi_fee_amount"
+          },
+          {
+            "semantic_role": "fee_currency",
+            "candidate_kind": "currency_code",
+            "source_value_ref": "value_multi_fee_currency"
+          },
+          {
+            "semantic_role": "fee_date",
+            "candidate_kind": "date",
+            "source_value_ref": "value_multi_fee_date"
+          }
+        ],
+        "relation_kinds": []
+      }
+    },
+    {
+      "case_id": "syn_domain_forbidden_neighbour_ref",
+      "family": "allowed_forbidden_source_refs",
+      "instruction": "Interpret only the allowed dividend row. The neighbouring tax row is explicitly forbidden for this package and must not own or supply any selected binding.",
+      "target_domain": "income",
+      "domain_hypotheses": [
+        "income",
+        "withholding_tax"
+      ],
+      "selected_row_refs": [
+        "row_allowed_income"
+      ],
+      "forbidden_source_refs": [
+        "row_forbidden_tax",
+        "value_forbidden_tax_amount",
+        "value_forbidden_tax_currency"
+      ],
+      "rows": [
+        {
+          "row_ref": "row_allowed_income",
+          "row_role": "data_row",
+          "fact_type_hint": "income",
+          "cells": [
+            {
+              "label": "operation",
+              "value": "dividend",
+              "source_value_ref": "value_allowed_income_kind"
+            },
+            {
+              "label": "amount",
+              "value": "10.00",
+              "source_value_ref": "value_allowed_income_amount"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_allowed_income_currency"
+            },
+            {
+              "label": "date",
+              "value": "2026-01-02",
+              "source_value_ref": "value_allowed_income_date"
+            }
+          ]
+        },
+        {
+          "row_ref": "row_forbidden_tax",
+          "row_role": "data_row",
+          "fact_type_hint": "withholding_tax",
+          "cells": [
+            {
+              "label": "operation",
+              "value": "withholding_tax",
+              "source_value_ref": "value_forbidden_tax_kind"
+            },
+            {
+              "label": "amount",
+              "value": "10.00",
+              "source_value_ref": "value_forbidden_tax_amount"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_forbidden_tax_currency"
+            },
+            {
+              "label": "date",
+              "value": "2026-01-02",
+              "source_value_ref": "value_forbidden_tax_date"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fact_type": "income",
+        "subtype_candidate": "dividend",
+        "confidence": "high",
+        "completeness": "complete",
+        "uncertainty_codes": [],
+        "bindings": [
+          {
+            "semantic_role": "income_subtype",
+            "candidate_kind": "categorical_direction",
+            "source_value_ref": "value_allowed_income_kind"
+          },
+          {
+            "semantic_role": "income_amount",
+            "candidate_kind": "decimal_amount",
+            "source_value_ref": "value_allowed_income_amount"
+          },
+          {
+            "semantic_role": "income_currency",
+            "candidate_kind": "currency_code",
+            "source_value_ref": "value_allowed_income_currency"
+          },
+          {
+            "semantic_role": "income_date",
+            "candidate_kind": "date",
+            "source_value_ref": "value_allowed_income_date"
+          }
+        ],
+        "relation_kinds": []
+      }
+    },
+    {
+      "case_id": "syn_domain_explicit_unclassified",
+      "family": "explicit_unclassified",
+      "instruction": "The row has ambiguous labels and no safe domain ownership. Preserve it explicitly as unknown_source_row without semantic bindings or invented values.",
+      "target_domain": "unknown_source_row",
+      "domain_hypotheses": [
+        "income",
+        "fee_commission",
+        "unknown_source_row"
+      ],
+      "selected_row_refs": [
+        "row_explicit_unclassified"
+      ],
+      "forbidden_source_refs": [],
+      "rows": [
+        {
+          "row_ref": "row_explicit_unclassified",
+          "row_role": "data_row",
+          "fact_type_hint": "unknown_source_row",
+          "cells": [
+            {
+              "label": "label",
+              "value": "ambiguous",
+              "source_value_ref": "value_unclassified_label"
+            },
+            {
+              "label": "value",
+              "value": "7.00",
+              "source_value_ref": "value_unclassified_amount"
+            },
+            {
+              "label": "currency",
+              "value": "USD",
+              "source_value_ref": "value_unclassified_currency"
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "fact_type": "unknown_source_row",
+        "subtype_candidate": "unknown",
+        "confidence": "low",
+        "completeness": "uncertain",
+        "uncertainty_codes": [
+          "candidate_binding_no_safe_semantic_role"
+        ],
+        "bindings": [],
+        "relation_kinds": []
+      }
+    }
+  ]
+}
