@@ -1,0 +1,155 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal10_receipt_v1",
+  "goal": "goal10_successor_benchmark_v2",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "f7419e7353e28c030112b9a9d40f54bc7f73d04f",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal10-benchmark-v2",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/137",
+    "production_admission": false
+  },
+  "benchmark": {
+    "benchmark_id": "gate2_financial_successor_v2",
+    "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+    "manifest_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "frozen": true,
+    "contains_customer_data": false,
+    "cases_total": 12,
+    "required_families_total": 12,
+    "covered_families_total": 12
+  },
+  "exact_contracts": {
+    "scope_schema_version": "broker_reports_gate2_deterministic_financial_scope_package_v2",
+    "typed_admission_schema_version": "broker_reports_gate2_financial_typed_admission_v1",
+    "source_context_schema_version": "broker_reports_gate2_financial_evidence_source_context_v2",
+    "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v3",
+    "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v3",
+    "prompt_sha256": "30c823d2c509294d4634eac1a4084da9b95056b260bdd64e41d5a5598937d9ae",
+    "provider_projection_schema_version": "broker_reports_gate2_financial_evidence_provider_projection_v3",
+    "decision_schema_version": "broker_reports_gate2_financial_evidence_decision_v1"
+  },
+  "local_proof": {
+    "schema_version": "broker_reports_gate2_financial_successor_local_proof_receipt_v2",
+    "policy_version": "gate2_financial_successor_local_proof_v2",
+    "status": "passed",
+    "receipt_sha256": "ab1084d52a007d79c5c2f0dfa6731ccc4de95a583d16a62383eaf07662dc7dca",
+    "context_integrity_sha256": "bb0c2c4a71e88754361e5d446c1047a73fd11efce9480bf6a57f6554a2010e59",
+    "q0": "passed",
+    "q1": "passed"
+  },
+  "typed_admission": {
+    "typed_available_scopes_total": 4,
+    "typed_absent_scopes_total": 8,
+    "overtyping_negative_tests_total": 6,
+    "overtyping_negative_tests_passed": 6,
+    "unsafe_typed_branches_total": 0,
+    "post_response_conversion_total": 0
+  },
+  "terminal_disposition_counts": {
+    "typed_input": 4,
+    "unclassified_financial_input": 6,
+    "no_financial_input": 1,
+    "unsupported": 1
+  },
+  "product_invariants": {
+    "source_literals_total": 47,
+    "source_literals_preserved_total": 47,
+    "literal_loss_total": 0,
+    "invented_values_total": 0,
+    "duplicate_bindings_total": 0,
+    "cross_scope_bindings_total": 0,
+    "terminal_ownership_gap_total": 0,
+    "forbidden_neighbouring_refs_total": 4,
+    "forbidden_neighbouring_refs_admitted_total": 0,
+    "unaccounted_source_refs_total": 0
+  },
+  "artifact_family_v2": {
+    "package_schema_version": "broker_reports_gate2_successor_package_artifact_v2",
+    "run_schema_version": "broker_reports_gate2_successor_run_artifact_v2",
+    "receipt_schema_version": "broker_reports_gate2_successor_execution_receipt_v2",
+    "policy_version": "gate2_successor_artifact_family_v2",
+    "private_source_context_stored": false,
+    "legacy_payload_rewrite": false,
+    "silent_upcast": false,
+    "production_write_admitted": false
+  },
+  "qualification_harness_v2": {
+    "schema_version": "broker_reports_gate2_financial_successor_qualification_v2",
+    "policy_version": "gate2_financial_successor_exact_model_qualification_v2",
+    "request_profile": "financial_evidence_successor_qualification_v2",
+    "exact_model_id": "gpt-5.4-nano-2026-03-17",
+    "preflight_cases_total": 12,
+    "preflight_status": "passed",
+    "legacy_v1_modified": false,
+    "provider_calls_total": 0
+  },
+  "unchanged_contracts": [
+    "gate1_contracts",
+    "financial_evidence_registry_v1",
+    "financial_evidence_type_meanings",
+    "financial_evidence_decision_v1",
+    "four_dispositions",
+    "typed_admission_v1",
+    "deterministic_financial_scope_v2",
+    "financial_evidence_source_context_v2",
+    "successor_prompt_model_input_provider_projection_v3",
+    "canonical_validator",
+    "deterministic_materializer",
+    "financial_context_v1",
+    "legacy_artifact_v1_payloads",
+    "fns_specialized_path"
+  ],
+  "tests": {
+    "direct": {
+      "passed": 33,
+      "failed": 0,
+      "duration_seconds": 10.14
+    },
+    "focused": {
+      "passed": 112,
+      "failed": 0,
+      "warnings": 5,
+      "duration_seconds": 17.54
+    },
+    "full": {
+      "passed": 1520,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 114.41
+    },
+    "ruff": "passed",
+    "bundle_rebuild_deterministic": true
+  },
+  "bundle_sha256": {
+    "gate1": "73e10186bdb2f921cd9b4ae56ff405b0d6f251790255ede0e0802eb687f0b1f8",
+    "gate2_source": "fed33a2ddd8d1095630782e5deba4facc0b2f6bb9e49403621dd7ff22c0aa563",
+    "gate2_domain": "5e6c41a496b0c43570f7948a7f5a1a14ca8a64f867b5acb6037e4d319d399d09"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "tokens_total": 0,
+    "actual_cost_usd": "0",
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "persistence_writes_total": 0,
+    "stage_mutations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_in_safe_receipt": false,
+    "source_value_refs_in_safe_receipt": false,
+    "private_source_context_in_git": false,
+    "raw_provider_output_in_git": false,
+    "customer_data_in_git": false
+  },
+  "acceptance": {
+    "local_fixtures": "passed",
+    "overtyping_negative_tests": "passed",
+    "literal_loss": "zero",
+    "provider_calls": "zero"
+  },
+  "next_permitted_goal": "goal11_after_goal10_pr_merge"
+}

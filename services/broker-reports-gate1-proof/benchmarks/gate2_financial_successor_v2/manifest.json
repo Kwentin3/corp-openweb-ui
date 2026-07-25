@@ -1,0 +1,257 @@
+{
+  "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+  "benchmark_id": "gate2_financial_successor_v2",
+  "corpus_role": "frozen_synthetic_ambiguity_discipline_successor_proof",
+  "contains_customer_data": false,
+  "frozen": true,
+  "case_count": 12,
+  "execution_policy": {
+    "provider_calls": 0,
+    "hidden_retry": false,
+    "repair": false,
+    "fallback": false,
+    "canonical_validator_replacement": false,
+    "raw_output_in_safe_receipt": false
+  },
+  "required_features": [
+    "uniquely_typed",
+    "multiple_compatible_types",
+    "explicit_no_registry_type",
+    "missing_discriminating_evidence",
+    "sufficient_discriminating_evidence",
+    "repeated_header",
+    "detail_vs_subtotal",
+    "adjacent_equal_values",
+    "adjacent_fx_values",
+    "optional_missing_dimensions",
+    "forbidden_neighbouring_refs",
+    "unsupported_shape"
+  ],
+  "cases": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "features": ["uniquely_typed", "sufficient_discriminating_evidence"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Cash balance"},
+        {"key": "date", "header": "as_of_date", "literal": "2026-03-01"},
+        {"key": "amount", "header": "amount", "literal": "-120.5000"},
+        {"key": "currency", "header": "currency", "literal": "RUB"}
+      ],
+      "decision": {
+        "disposition": "typed_input",
+        "input_type_id": "cash_balance_snapshot_v1",
+        "reason_code": "typed_supported",
+        "bindings": {
+          "amount": "amount",
+          "as_of_date": "date",
+          "statement_scope": "@statement_scope",
+          "balance_class": null,
+          "currency": "currency",
+          "source_label": "label",
+          "unit": null
+        }
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "features": ["uniquely_typed", "sufficient_discriminating_evidence"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Printed total"},
+        {"key": "date", "header": "as_of_date", "literal": "2026-03-02"},
+        {"key": "amount", "header": "amount", "literal": "880.00"},
+        {"key": "currency", "header": "currency", "literal": "USD"}
+      ],
+      "decision": {
+        "disposition": "typed_input",
+        "input_type_id": "printed_financial_metric_v1",
+        "reason_code": "typed_supported",
+        "bindings": {
+          "amount": "amount",
+          "printed_label_evidence_ref": "@printed_label",
+          "statement_scope": "@statement_scope",
+          "as_of_date": "date",
+          "currency": "currency",
+          "period": null,
+          "source_label": "label",
+          "unit": null
+        }
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "features": ["multiple_compatible_types"],
+      "cells": [
+        {"key": "cash_label", "header": "description", "literal": "Possible cash"},
+        {"key": "total_label", "header": "description_2", "literal": "Possible total"},
+        {"key": "date", "header": "as_of_date", "literal": "2026-03-03"},
+        {"key": "amount_a", "header": "amount_a", "literal": "310.00"},
+        {"key": "amount_b", "header": "amount_b", "literal": "410.00"},
+        {"key": "currency", "header": "currency", "literal": "EUR"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "features": ["explicit_no_registry_type"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Broker fee detail"},
+        {"key": "date", "header": "date", "literal": "2026-03-04"},
+        {"key": "amount", "header": "amount", "literal": "42.25"},
+        {"key": "currency", "header": "currency", "literal": "CHF"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "features": ["missing_discriminating_evidence"],
+      "cells": [
+        {"key": "date", "header": "date", "literal": "2026-03-05"},
+        {"key": "amount", "header": "amount", "literal": "90.10"},
+        {"key": "currency", "header": "currency", "literal": "GBP"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_repeated_header",
+      "features": ["repeated_header"],
+      "cells": [
+        {
+          "key": "header_text",
+          "header": "header",
+          "literal": "Date | Operation | Amount | Currency"
+        }
+      ],
+      "decision": {
+        "disposition": "no_financial_input",
+        "reason_code": "header_or_layout"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "features": ["detail_vs_subtotal"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Fee detail and subtotal"},
+        {"key": "date", "header": "date", "literal": "2026-03-06"},
+        {"key": "detail_amount", "header": "detail_amount", "literal": "25.00"},
+        {"key": "subtotal_amount", "header": "subtotal_amount", "literal": "125.00"},
+        {"key": "currency", "header": "currency", "literal": "USD"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "features": ["adjacent_equal_values"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Cash balance candidates"},
+        {"key": "date", "header": "date", "literal": "2026-03-07"},
+        {"key": "amount_left", "header": "amount_left", "literal": "100.00"},
+        {"key": "amount_right", "header": "amount_right", "literal": "100.00"},
+        {"key": "currency", "header": "currency", "literal": "RUB"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "features": ["adjacent_fx_values"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Cash balance candidates"},
+        {"key": "date", "header": "date", "literal": "2026-03-08"},
+        {"key": "amount_usd", "header": "amount_usd", "literal": "200.00"},
+        {"key": "currency_usd", "header": "currency_usd", "literal": "USD"},
+        {"key": "amount_eur", "header": "amount_eur", "literal": "200.00"},
+        {"key": "currency_eur", "header": "currency_eur", "literal": "EUR"}
+      ],
+      "decision": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type",
+        "binding_mode": "all_candidates"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "features": ["optional_missing_dimensions"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Available cash"},
+        {"key": "date", "header": "as_of_date", "literal": "2026-03-09"},
+        {"key": "amount", "header": "amount", "literal": "71.00"},
+        {"key": "currency", "header": "currency", "literal": "CNY"}
+      ],
+      "decision": {
+        "disposition": "typed_input",
+        "input_type_id": "cash_balance_snapshot_v1",
+        "reason_code": "typed_supported",
+        "bindings": {
+          "amount": "amount",
+          "as_of_date": "date",
+          "statement_scope": "@statement_scope",
+          "balance_class": null,
+          "currency": "currency",
+          "source_label": "label",
+          "unit": null
+        }
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "features": ["forbidden_neighbouring_refs"],
+      "cells": [
+        {"key": "label", "header": "description", "literal": "Selected cash balance"},
+        {"key": "date", "header": "date", "literal": "2026-03-10"},
+        {"key": "amount", "header": "amount", "literal": "55.00"},
+        {"key": "currency", "header": "currency", "literal": "JPY"}
+      ],
+      "neighbour_cells": [
+        {"key": "forbidden_label", "header": "description", "literal": "Neighbour cash balance"},
+        {"key": "forbidden_date", "header": "date", "literal": "2026-03-11"},
+        {"key": "forbidden_amount", "header": "amount", "literal": "999.99"},
+        {"key": "forbidden_currency", "header": "currency", "literal": "KZT"}
+      ],
+      "decision": {
+        "disposition": "typed_input",
+        "input_type_id": "cash_balance_snapshot_v1",
+        "reason_code": "typed_supported",
+        "bindings": {
+          "amount": "amount",
+          "as_of_date": "date",
+          "statement_scope": "@statement_scope",
+          "balance_class": null,
+          "currency": "currency",
+          "source_label": "label",
+          "unit": null
+        }
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_unsupported_shape",
+      "features": ["unsupported_shape"],
+      "source_family_id": "broker_reports_unsupported_binary_projection_v1",
+      "cells": [
+        {"key": "opaque", "header": "opaque", "literal": "Opaque source shape"}
+      ],
+      "decision": {
+        "disposition": "unsupported",
+        "reason_code": "extractor_profile_unsupported"
+      }
+    }
+  ]
+}
