@@ -6,7 +6,7 @@
   "repository": {
     "base_revision": "f02c7c05757e603b20c9fbcaabdcd37e90d1cf86",
     "branch": "codex/broker-reports-gate2-ambiguity-goal11a-haiku-harness",
-    "pull_request": "pending_creation",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/139",
     "production_admission": false
   },
   "candidate_selection": {

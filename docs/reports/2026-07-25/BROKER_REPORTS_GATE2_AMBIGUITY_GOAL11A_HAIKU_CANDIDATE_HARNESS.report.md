@@ -98,7 +98,8 @@ The five warnings are unchanged SWIG deprecation warnings.
   `f02c7c05757e603b20c9fbcaabdcd37e90d1cf86`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal11a-haiku-harness`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/139`;
 - production admission: false.
 
 ## Acceptance
