@@ -1,0 +1,147 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal0_authority_baseline_v1",
+  "date": "2026-07-25",
+  "status": "completed",
+  "git": {
+    "base_revision": "28f8d0106de99f54041df1ceab15516a80c4fd67",
+    "origin_main_revision": "28f8d0106de99f54041df1ceab15516a80c4fd67",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal0-baseline",
+    "delivery_pr": 126,
+    "worktrees_total": 1
+  },
+  "authorities": {
+    "registry": {
+      "version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+      "declarations_total": 2
+    },
+    "decision_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+    "financial_context": "broker_reports_gate2_financial_context_v1",
+    "dispositions": [
+      "typed_input",
+      "unclassified_financial_input",
+      "no_financial_input",
+      "unsupported"
+    ],
+    "economy_model_policy": {
+      "version": "1.4.0",
+      "hash": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9"
+    },
+    "workload_policy": {
+      "version": "1.4.0",
+      "hash": "f1eb7daa08f10c125d21addb5ec03a5dfac42207cc39a4b3aa86224820fc3a7d"
+    },
+    "qualification_registry": {
+      "schema_version": "broker_reports_gate2_economy_workload_qualification_v2",
+      "hash": "9a5923d61bf8ca73db2ce6acc37e9c2ea85d2c197625f15469b6cac5dae54c23",
+      "entries_total": 16
+    }
+  },
+  "full_scope_baseline": {
+    "receipt_path": "docs/reports/2026-07-24/BROKER_REPORTS_GATE2_GOAL7_FULL_SCOPE_SHADOW_QUALIFICATION.receipt.safe.json",
+    "receipt_git_blob_sha256": "9b2990f59972caa1f3dde920d180ab17d38f4d6b65ba22a797e3beff20dd5288",
+    "documents_total": 1,
+    "parent_units_total": 12,
+    "derived_segments_total": 210,
+    "domain_packages_total": 41,
+    "canonical_scopes_total": 39,
+    "selected_source_refs_total": 455,
+    "accounted_source_refs_total": 455,
+    "uncovered_source_refs_total": 0,
+    "excess_source_refs_total": 0,
+    "duplicate_interpretations_total": 0,
+    "ownership_conflicts_total": 0,
+    "contradictory_decisions_total": 0,
+    "unclassified_candidate_values_total": 147,
+    "unclassified_bound_values_total": 147,
+    "unclassified_value_retention_percent": 100,
+    "fallback_total": 0,
+    "hidden_repair_total": 0
+  },
+  "model_references": {
+    "financial": {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "status": "qualified_4_of_4",
+      "published_now": true,
+      "authorization_identity_sha256": "efde8a286bc93d62b1983793d3c4d4bc5948c649b2390b3075dd3365bff3e012"
+    },
+    "checksum": {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "status": "qualified_3_of_3",
+      "published_now": true,
+      "authorization_identity_sha256": "45d955c6ef0d4270cbb82b587bcadb6f7adf2faf55e1453fb5d25ccd507ce610"
+    },
+    "published_models_total": 42,
+    "preflight_provider_calls": 0
+  },
+  "stage": {
+    "read_only_verifier_status": "failed_expected_repository_live_bundle_mismatch",
+    "release_identity": "composite",
+    "repository_live_parity": false,
+    "managed_prompts_exact": "12_of_12",
+    "private_intake_action_exact": true,
+    "factory_boundary_passed": true,
+    "functions": {
+      "broker_reports_gate1_pipe": {
+        "active": true,
+        "live_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+        "repository_sha256": "8fbcfbc970641e5076745342c6b90da5b711bf1b0bc9c3fbcba2e3fe99fc6d94",
+        "exact": false
+      },
+      "broker_reports_gate2_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+        "repository_sha256": "2b7a34b92700d29b0ed5e93de7fd65d9229291cd952adaf3bc84df63707db56a",
+        "exact": false
+      },
+      "broker_reports_gate2_domain_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "4f5424f269e88f6e18064565afa70e11e7380033a1b6c9affc349f760a3bb0d5",
+        "repository_sha256": "4e68f73e8eba260585802edc13d65941079bf83eff7e35cfde36dbceaa3ab17e",
+        "exact": false
+      }
+    },
+    "valves": {
+      "source_semantic_selection_enabled": false,
+      "domain_candidate_binding_enabled": false,
+      "financial_evidence_enabled": true,
+      "financial_evidence_registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "max_repair_attempts": 1,
+      "gate3_context_manifest_enabled": false,
+      "answer_context_selection_enabled": true
+    },
+    "mutations": 0
+  },
+  "contracts": {
+    "changed": false,
+    "explicitly_unchanged": [
+      "broker_reports_gate2_financial_evidence_registry_v1",
+      "broker_reports_gate2_financial_evidence_decision_v1",
+      "broker_reports_financial_evidence_inputs_v1",
+      "broker_reports_gate2_financial_context_v1",
+      "gate2_financial_context_checksum",
+      "legacy_readers"
+    ],
+    "new_model_facing_contract": false
+  },
+  "verification": {
+    "focused_tests_passed": 152,
+    "focused_tests_seconds": "6.76",
+    "full_tests_passed": 1400,
+    "full_tests_skipped": 20,
+    "full_tests_warnings": 5,
+    "full_tests_seconds": "92.34",
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "stage_mutations": 0,
+    "production_changes": 0,
+    "privacy": "passed"
+  },
+  "revision_boundary": {
+    "stale_receipts_used_as_current": 0,
+    "historical_full_scope_receipt_role": "frozen_product_baseline_only",
+    "live_stage_refreshed_read_only": true
+  },
+  "report": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_SCOPE_REFACTOR_GOAL0_AUTHORITY_BASELINE.report.md",
+  "next_permitted_goal": "goal1_deterministic_financial_scope_authority_after_merge"
+}
