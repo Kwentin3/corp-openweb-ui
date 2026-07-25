@@ -1,0 +1,70 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal4_receipt_v1",
+  "goal": "goal4_registry_discriminability_audit",
+  "status": "machine_gap_identified",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "types": [
+    {
+      "input_type_id": "cash_balance_snapshot_v1",
+      "conceptual_definition_sufficient": true,
+      "semantic_class": "state",
+      "positive_condition": "source_stated_ordinary_cash_balance",
+      "positive_condition_machine_required": false,
+      "source_label_required_role": false,
+      "balance_class_required_role": false,
+      "generic_shape_can_instantiate_type": true
+    },
+    {
+      "input_type_id": "printed_financial_metric_v1",
+      "conceptual_definition_sufficient": true,
+      "semantic_class": "aggregate",
+      "positive_condition": "source_printed_total_or_metric",
+      "positive_condition_machine_required": false,
+      "printed_label_reference_required": true,
+      "printed_label_reference_synthesized_for_every_scope": true,
+      "identity_ref_is_semantic_proof": false
+    }
+  ],
+  "cross_type": {
+    "conceptually_mutually_discriminable": true,
+    "same_broad_source_families": true,
+    "role_schema_mutually_discriminable": false,
+    "provider_text_is_machine_admission": false,
+    "semantic_fingerprint_is_admission_proof": false
+  },
+  "required_admission_metadata": [
+    "positive_evidence_predicate_id",
+    "required_source_context_fields",
+    "required_authoritative_association",
+    "forbidden_or_ambiguity_evidence_codes",
+    "uniqueness_rule",
+    "value_free_admission_receipt"
+  ],
+  "decision": {
+    "new_registry_type": false,
+    "mutate_registry_v1": false,
+    "change_existing_type_meaning": false,
+    "typed_admission_policy_v1": true,
+    "policy_keyed_by_existing_type_ids": true,
+    "future_registry_version": "deferred_requires_separate_evidence",
+    "safety_only_in_prompt": false
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "acceptance": {
+    "registry_types": "conceptually_mutually_discriminable",
+    "machine_admission_boundary": "explicitly_insufficient",
+    "definition_gaps": "machine_readable_admission_metadata",
+    "registry_expansion": "zero",
+    "registry_v1_semantic_drift": "zero"
+  },
+  "next_permitted_goal": "goal5_prompt_and_branch_bias_audit"
+}
