@@ -7,7 +7,7 @@
     "base_revision": "8683f250350d1aa57a3a4867397ea1b18fe4867b",
     "branch": "codex/broker-reports-gate2-scope-refactor-goal2-comparator",
     "implementation_revision": "43a315ff7c1d34f96b2811ab868deb4a129ef288",
-    "pull_request": "PENDING",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/128",
     "changed_paths_before_evidence": [
       "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_successor_product_comparator.py",
       "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_successor_product_comparator.py"

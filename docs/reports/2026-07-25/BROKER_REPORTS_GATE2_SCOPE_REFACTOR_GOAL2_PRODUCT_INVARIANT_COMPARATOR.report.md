@@ -143,7 +143,7 @@ Core comparator/materializer/context не подменяются mock-объек
   `codex/broker-reports-gate2-scope-refactor-goal2-comparator`;
 - implementation revision:
   `43a315ff7c1d34f96b2811ab868deb4a129ef288`;
-- PR: `PENDING`;
+- PR: `https://github.com/Kwentin3/corp-openweb-ui/pull/128`;
 - production runtime files changed: 0;
 - OpenWebUI bundle files changed: 0;
 - legacy benchmark files changed: 0;
