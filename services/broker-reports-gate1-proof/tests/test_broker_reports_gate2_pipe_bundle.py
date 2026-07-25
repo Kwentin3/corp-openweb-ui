@@ -16,28 +16,31 @@ DOMAIN_BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source
 SOURCE_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
 DOMAIN_PIPE = ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe.py"
 
-from build_openwebui_pipe_bundle import MODULE_ORDER, assert_gate2_bundle_contract
-from live_case_group_gate2_table_typed_vertical_proof import (
+from build_openwebui_pipe_bundle import (  # noqa: E402
+    MODULE_ORDER,
+    assert_gate2_bundle_contract,
+)
+from live_case_group_gate2_table_typed_vertical_proof import (  # noqa: E402
     FUNCTION_ID as TABLE_PROOF_FUNCTION_ID,
     TABLE_SOURCE_INPUT_MODES,
     _run_chat as run_table_proof_chat,
     _safe_target,
 )
-import live_gate2_domain_synthetic_smoke as domain_smoke
-import live_gate2_synthetic_extraction_smoke as synthetic_smoke
-from live_gate2_domain_synthetic_smoke import (
+import live_gate2_domain_synthetic_smoke as domain_smoke  # noqa: E402
+import live_gate2_synthetic_extraction_smoke as synthetic_smoke  # noqa: E402
+from live_gate2_domain_synthetic_smoke import (  # noqa: E402
     FUNCTION_ID as DOMAIN_SMOKE_FUNCTION_ID,
     _run_domain_chat as run_domain_smoke_chat,
 )
-from live_gate2_synthetic_extraction_smoke import (
+from live_gate2_synthetic_extraction_smoke import (  # noqa: E402
     _select_gate2_smoke_model,
     _synthetic_documents,
 )
-from live_update_gate2_domain_function_and_prompts import (
+from live_update_gate2_domain_function_and_prompts import (  # noqa: E402
     PROMPT_VERSION as DOMAIN_PROMPT_VERSION,
     _assert_prompt_readbacks,
 )
-from live_update_gate2_function_and_prompt import (
+from live_update_gate2_function_and_prompt import (  # noqa: E402
     PROMPT_VERSION as SOURCE_PROMPT_VERSION,
     _assert_prompt_readback,
 )
@@ -337,6 +340,12 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertNotIn("pdf_structural_row_windows", order)
         self.assertNotIn("pdf_structural_repair_shadow", order)
         bundled_package = sys.modules["broker_reports_gate1"]
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate2EconomyWorkloadPolicyFactory",
+            )
+        )
         self.assertFalse(hasattr(bundled_package, "PdfStructuralRepairRuntimeFactory"))
         self.assertFalse(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
         self.assertFalse(hasattr(bundled_package, "PdfStructuralRepairShadowFactory"))
@@ -382,6 +391,10 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertLess(
             MODULE_ORDER.index("gate2_economy_model_policy"),
+            MODULE_ORDER.index("gate2_economy_workload_policy"),
+        )
+        self.assertLess(
+            MODULE_ORDER.index("gate2_economy_workload_policy"),
             MODULE_ORDER.index("gate2_economy_provider_selection"),
         )
         self.assertLess(

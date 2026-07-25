@@ -5,8 +5,6 @@ from dataclasses import replace
 import pytest
 
 from broker_reports_gate1.gate2_economy_model_policy import (
-    MODEL_LIFECYCLE_ACTIVE,
-    MODEL_STATUS_QUALIFIED,
     WORKLOAD_GATE2_DOMAIN,
     WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
     Gate2EconomyModelPolicyFactory,
@@ -17,6 +15,11 @@ from broker_reports_gate1.gate2_economy_provider_selection import (
     SELECTION_RULE,
     Gate2EconomyProviderSelectionError,
     Gate2EconomyProviderSelectionFactory,
+)
+from broker_reports_gate1.gate2_economy_workload_policy import (
+    ECONOMY_WORKLOAD_ROUTES,
+    EconomyWorkloadProductionAdmission,
+    Gate2EconomyWorkloadPolicyFactory,
 )
 
 
@@ -29,20 +32,26 @@ def test_current_policy_fails_closed_before_provider_selection() -> None:
     assert exc_info.value.code == "gate2_economy_no_qualified_model"
 
 
-def test_runtime_selects_cheapest_qualified_then_one_fixed_fallback() -> None:
-    selector = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0, 1, 3)
-    ).create()
+def test_runtime_selects_workload_primary_then_one_fixed_secondary() -> None:
+    selector = _selector_with_production(
+        WORKLOAD_GATE2_DOMAIN,
+        (
+            "models/gemini-3.1-flash-lite",
+            "models/gemini-3.5-flash-lite",
+        ),
+    )
 
     selection = selector.select_runtime(
         workload_class=WORKLOAD_GATE2_DOMAIN
     )
 
-    assert selection.primary.exact_model_id == "gpt-5-nano-2025-08-07"
-    assert selection.primary.provider_profile_id == "openai_gpt"
+    assert selection.primary.exact_model_id == (
+        "models/gemini-3.1-flash-lite"
+    )
+    assert selection.primary.provider_profile_id == "google_gemini"
     assert selection.fallback is not None
     assert selection.fallback.exact_model_id == (
-        "gpt-5.4-nano-2026-03-17"
+        "models/gemini-3.5-flash-lite"
     )
     assert selection.selection_rule == SELECTION_RULE
     assert selection.default_provider_calls == 1
@@ -50,14 +59,15 @@ def test_runtime_selects_cheapest_qualified_then_one_fixed_fallback() -> None:
     assert selection.multi_provider_consensus_calls == 0
 
 
-def test_runtime_model_and_provider_inputs_can_only_narrow_allowlist() -> None:
-    selector = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0, 3)
-    ).create()
+def test_runtime_inputs_can_only_narrow_exact_workload_allowlist() -> None:
+    selector = _selector_with_production(
+        WORKLOAD_GATE2_DOMAIN,
+        ("models/gemini-3.1-flash-lite",),
+    )
 
     selection = selector.select_runtime(
         workload_class=WORKLOAD_GATE2_DOMAIN,
-        requested_model_ids=("gemini-3.1-flash-lite",),
+        requested_model_ids=("models/gemini-3.1-flash-lite",),
         requested_provider_profile_ids=("google_gemini",),
     )
 
@@ -66,36 +76,50 @@ def test_runtime_model_and_provider_inputs_can_only_narrow_allowlist() -> None:
     )
     assert selection.fallback is None
 
-    with pytest.raises(Gate2EconomyProviderSelectionError) as exc_info:
+    with pytest.raises(Gate2EconomyProviderSelectionError) as expansion:
+        selector.select_runtime(
+            workload_class=WORKLOAD_GATE2_DOMAIN,
+            requested_model_ids=("models/gemini-3.5-flash-lite",),
+        )
+    assert (
+        expansion.value.code
+        == "economy_runtime_allowlist_expansion_forbidden"
+    )
+
+    with pytest.raises(Gate2EconomyProviderSelectionError) as provider:
         selector.select_runtime(
             workload_class=WORKLOAD_GATE2_DOMAIN,
             requested_provider_profile_ids=("anthropic_claude",),
         )
     assert (
-        exc_info.value.code
+        provider.value.code
         == "economy_runtime_provider_allowlist_expansion_forbidden"
     )
 
 
-def test_checksum_selection_has_no_fallback_even_with_two_models() -> None:
-    selector = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0, 1)
-    ).create()
+def test_checksum_selection_has_zero_fallback_by_policy() -> None:
+    selector = _selector_with_production(
+        WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+        ("claude-haiku-4-5-20251001",),
+    )
 
     selection = selector.select_runtime(
         workload_class=WORKLOAD_GATE2_FINANCIAL_CHECKSUM
     )
 
+    assert selection.primary.exact_model_id == (
+        "claude-haiku-4-5-20251001"
+    )
     assert selection.fallback is None
     assert selection.maximum_fallback_calls == 0
 
 
-def test_qualification_route_accepts_only_registered_economy_candidate() -> None:
+def test_qualification_route_requires_exact_workload_candidate() -> None:
     selector = Gate2EconomyProviderSelectionFactory().create()
 
     selection = selector.select_qualification_candidate(
         workload_class=WORKLOAD_GATE2_DOMAIN,
-        model_id="gemini-3.1-flash-lite",
+        model_id="models/gemini-3.1-flash-lite",
         provider_profile_id="google_gemini",
     )
 
@@ -103,6 +127,17 @@ def test_qualification_route_accepts_only_registered_economy_candidate() -> None
         "models/gemini-3.1-flash-lite"
     )
     assert selection.fallback is None
+
+    with pytest.raises(Gate2EconomyProviderSelectionError) as alias:
+        selector.select_qualification_candidate(
+            workload_class=WORKLOAD_GATE2_DOMAIN,
+            model_id="gemini-3.1-flash-lite",
+            provider_profile_id="google_gemini",
+        )
+    assert (
+        alias.value.code
+        == "economy_workload_qualification_candidate_forbidden"
+    )
 
     with pytest.raises(Gate2EconomyProviderSelectionError) as expensive:
         selector.select_qualification_candidate(
@@ -115,24 +150,29 @@ def test_qualification_route_accepts_only_registered_economy_candidate() -> None
     with pytest.raises(Gate2EconomyProviderSelectionError) as mismatch:
         selector.select_qualification_candidate(
             workload_class=WORKLOAD_GATE2_DOMAIN,
-            model_id="gemini-3.1-flash-lite",
+            model_id="models/gemini-3.1-flash-lite",
             provider_profile_id="openai_gpt",
         )
     assert mismatch.value.code == "economy_qualification_candidate_forbidden"
 
 
-def test_selection_receipt_is_safe_and_policy_bound() -> None:
-    selection = Gate2EconomyProviderSelectionFactory(
-        policy=_policy_with_qualified_models(0)
-    ).create().select_runtime(workload_class=WORKLOAD_GATE2_DOMAIN)
+def test_selection_receipt_is_safe_and_bound_to_both_policies() -> None:
+    selector = _selector_with_production(
+        WORKLOAD_GATE2_DOMAIN,
+        ("models/gemini-3.1-flash-lite",),
+    )
+    selection = selector.select_runtime(
+        workload_class=WORKLOAD_GATE2_DOMAIN
+    )
 
     receipt = selection.safe_receipt()
 
     assert receipt["policy_id"] == selection.policy_id
-    assert receipt["policy_version"] == selection.policy_version
     assert receipt["policy_hash"] == selection.policy_hash
+    assert receipt["model_policy_id"] == selection.model_policy_id
+    assert receipt["model_policy_hash"] == selection.model_policy_hash
     assert receipt["primary"]["exact_model_id"] == (
-        "gpt-5-nano-2025-08-07"
+        "models/gemini-3.1-flash-lite"
     )
     assert "customer" not in str(receipt).lower()
 
@@ -142,22 +182,40 @@ def test_factory_and_forbidden_anti_drift_anchors_are_explicit() -> None:
     assert "must not accept unqualified models" in FORBIDDEN
 
 
-def _policy_with_qualified_models(*indexes: int):
-    policy = Gate2EconomyModelPolicyFactory().create()
-    qualified = set(indexes)
-    return replace(
-        policy,
-        models=tuple(
-            replace(
-                declaration,
-                lifecycle=MODEL_LIFECYCLE_ACTIVE,
-                qualification_status=MODEL_STATUS_QUALIFIED,
-                qualification_receipt_identity=(
-                    f"receipt:test:{index}"
-                ),
-            )
-            if index in qualified
-            else declaration
-            for index, declaration in enumerate(policy.models)
-        ),
+def _selector_with_production(
+    workload_class: str,
+    model_ids: tuple[str, ...],
+):
+    model_policy = Gate2EconomyModelPolicyFactory().create()
+    admissions = tuple(
+        EconomyWorkloadProductionAdmission(
+            exact_model_id=model_id,
+            provider_profile_id=(
+                model_policy.model(model_id).provider_profile_id
+            ),
+            qualification_receipt_sha256=(
+                f"{index + 1:x}" * 64
+            )[:64],
+            actual_corpus_receipt_sha256=(
+                f"{index + 5:x}" * 64
+            )[:64],
+            full_scope_receipt_sha256=(
+                f"{index + 9:x}" * 64
+            )[:64],
+        )
+        for index, model_id in enumerate(model_ids)
     )
+    routes = tuple(
+        replace(route, production_admissions=admissions)
+        if route.workload_class == workload_class
+        else route
+        for route in ECONOMY_WORKLOAD_ROUTES
+    )
+    workload_policy = Gate2EconomyWorkloadPolicyFactory(
+        model_policy=model_policy,
+        routes=routes,
+    ).create()
+    return Gate2EconomyProviderSelectionFactory(
+        policy=model_policy,
+        workload_policy=workload_policy,
+    ).create()

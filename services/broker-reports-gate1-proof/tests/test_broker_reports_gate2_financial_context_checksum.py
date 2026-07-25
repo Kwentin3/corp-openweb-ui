@@ -45,12 +45,15 @@ from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E4
     Gate2FinancialEvidenceRegistryFactory,
 )
 from broker_reports_gate1.gate2_economy_model_policy import (  # noqa: E402
-    MODEL_LIFECYCLE_ACTIVE,
-    MODEL_STATUS_QUALIFIED,
     Gate2EconomyModelPolicyFactory,
 )
 from broker_reports_gate1.gate2_economy_provider_selection import (  # noqa: E402
     Gate2EconomyProviderSelectionFactory,
+)
+from broker_reports_gate1.gate2_economy_workload_policy import (  # noqa: E402
+    ECONOMY_WORKLOAD_ROUTES,
+    EconomyWorkloadProductionAdmission,
+    Gate2EconomyWorkloadPolicyFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     Gate2StructuredModelResult,
@@ -331,8 +334,8 @@ def test_runner_uses_model_boundary_once_without_fallback_or_repair():
     client = _FakeModelClient({"metrics": _rows(contract)})
     runner = Gate2FinancialContextChecksumRunnerFactory(
         model_client=client,
-        model_id="gpt-5-nano",
-        provider_profile_id="openai_gpt",
+        model_id="claude-haiku-4-5-20251001",
+        provider_profile_id="anthropic_claude",
         economy_provider_selector=_qualified_checksum_selector(),
     ).create()
 
@@ -344,7 +347,7 @@ def test_runner_uses_model_boundary_once_without_fallback_or_repair():
     assert len(result["rows"]) == 3
     assert result["economy_provider_selection"]["primary"][
         "exact_model_id"
-    ] == "gpt-5-nano-2025-08-07"
+    ] == "claude-haiku-4-5-20251001"
 
 
 def test_runner_factory_fails_before_call_without_qualified_economy_model():
@@ -369,7 +372,10 @@ def test_runner_factory_rejects_expensive_answering_model_before_call():
             provider_profile_id="openai_gpt",
         ).create()
 
-    assert exc_info.value.code == "economy_model_not_registered"
+    assert (
+        exc_info.value.code
+        == "economy_runtime_allowlist_expansion_forbidden"
+    )
     assert client.calls == []
 
 
@@ -440,18 +446,25 @@ def test_checksum_module_has_no_direct_provider_or_gate1_import_bypass():
 
 
 def _qualified_checksum_selector():
-    policy = Gate2EconomyModelPolicyFactory().create()
+    model_policy = Gate2EconomyModelPolicyFactory().create()
+    admission = EconomyWorkloadProductionAdmission(
+        exact_model_id="claude-haiku-4-5-20251001",
+        provider_profile_id="anthropic_claude",
+        qualification_receipt_sha256="a" * 64,
+        actual_corpus_receipt_sha256="b" * 64,
+        full_scope_receipt_sha256="c" * 64,
+    )
+    routes = tuple(
+        replace(route, production_admissions=(admission,))
+        if route.workload_class == "gate2_financial_checksum"
+        else route
+        for route in ECONOMY_WORKLOAD_ROUTES
+    )
+    workload_policy = Gate2EconomyWorkloadPolicyFactory(
+        model_policy=model_policy,
+        routes=routes,
+    ).create()
     return Gate2EconomyProviderSelectionFactory(
-        policy=replace(
-            policy,
-            models=(
-                replace(
-                    policy.models[0],
-                    lifecycle=MODEL_LIFECYCLE_ACTIVE,
-                    qualification_status=MODEL_STATUS_QUALIFIED,
-                    qualification_receipt_identity="a" * 64,
-                ),
-                *policy.models[1:],
-            ),
-        )
+        policy=model_policy,
+        workload_policy=workload_policy,
     ).create()

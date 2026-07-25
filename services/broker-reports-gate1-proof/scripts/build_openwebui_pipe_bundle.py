@@ -89,6 +89,7 @@ MODULE_ORDER = [
     "gate2_model_contracts",
     "gate2_model_requests",
     "gate2_economy_model_policy",
+    "gate2_economy_workload_policy",
     "gate2_economy_provider_selection",
     "gate2_economy_budget",
     "gate2_provider_adapters",
@@ -367,6 +368,9 @@ def assert_gate2_bundle_contract(
         "economy_provider_selection_module": (
             '"gate2_economy_provider_selection"'
         ),
+        "economy_workload_policy_module": (
+            '"gate2_economy_workload_policy"'
+        ),
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
         "csv_profile_module": '"csv_profile"',
@@ -405,6 +409,12 @@ def assert_gate2_bundle_contract(
         ),
         "economy_provider_selection_factory_anchor": (
             "Gate2EconomyProviderSelectionFactory.create is the only production"
+        ),
+        "economy_workload_policy_factory": (
+            "Gate2EconomyWorkloadPolicyFactory("
+        ),
+        "economy_workload_policy_factory_anchor": (
+            "Gate2EconomyWorkloadPolicyFactory.create is the only code-owned"
         ),
         "economy_budget_enforcement": "economy_budget_enforcement=True",
         "runtime_factory": runtime_factory,

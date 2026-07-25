@@ -5,10 +5,13 @@ from decimal import Decimal
 from typing import Iterable
 
 from .gate2_economy_model_policy import (
-    MODEL_LIFECYCLE_RETIRED,
     EconomyModelDeclaration,
     Gate2EconomyModelPolicyFactory,
     Gate2EconomyModelPolicySnapshot,
+)
+from .gate2_economy_workload_policy import (
+    Gate2EconomyWorkloadPolicyFactory,
+    Gate2EconomyWorkloadPolicySnapshot,
 )
 
 
@@ -20,8 +23,8 @@ FORBIDDEN = (
     "Runtime selection must not accept unqualified models, expand the "
     "policy allowlist, call providers concurrently, or escalate model tier"
 )
-SELECTION_SCHEMA_VERSION = "broker_reports_gate2_economy_provider_selection_v1"
-SELECTION_RULE = "cheapest_qualified_first_then_preference_order_then_exact_id"
+SELECTION_SCHEMA_VERSION = "broker_reports_gate2_economy_provider_selection_v2"
+SELECTION_RULE = "cheapest_workload_qualified_primary_then_secondary"
 
 
 class Gate2EconomyProviderSelectionError(ValueError):
@@ -52,6 +55,9 @@ class Gate2EconomyProviderSelection:
     policy_id: str
     policy_version: str
     policy_hash: str
+    model_policy_id: str
+    model_policy_version: str
+    model_policy_hash: str
     primary: Gate2EconomyProviderBinding
     fallback: Gate2EconomyProviderBinding | None
     selection_rule: str = SELECTION_RULE
@@ -66,6 +72,9 @@ class Gate2EconomyProviderSelection:
             "policy_id": self.policy_id,
             "policy_version": self.policy_version,
             "policy_hash": self.policy_hash,
+            "model_policy_id": self.model_policy_id,
+            "model_policy_version": self.model_policy_version,
+            "model_policy_hash": self.model_policy_hash,
             "selection_rule": self.selection_rule,
             "primary": self.primary.to_dict(),
             "fallback": (
@@ -84,18 +93,47 @@ class Gate2EconomyProviderSelectionFactory:
         self,
         *,
         policy: Gate2EconomyModelPolicySnapshot | None = None,
+        workload_policy: Gate2EconomyWorkloadPolicySnapshot | None = None,
     ) -> None:
         self.policy = policy
+        self.workload_policy = workload_policy
 
     def create(self) -> "Gate2EconomyProviderSelector":
+        model_policy = (
+            self.policy or Gate2EconomyModelPolicyFactory().create()
+        )
+        workload_policy = (
+            self.workload_policy
+            or Gate2EconomyWorkloadPolicyFactory(
+                model_policy=model_policy
+            ).create()
+        )
+        if (
+            workload_policy.model_policy_id != model_policy.policy_id
+            or workload_policy.model_policy_version
+            != model_policy.policy_version
+            or workload_policy.model_policy_hash != model_policy.policy_hash
+        ):
+            raise Gate2EconomyProviderSelectionError(
+                "economy_provider_selection_policy_binding_mismatch",
+                "Provider selection requires an exactly bound workload "
+                "and model policy pair",
+            )
         return Gate2EconomyProviderSelector(
-            policy=self.policy or Gate2EconomyModelPolicyFactory().create()
+            policy=model_policy,
+            workload_policy=workload_policy,
         )
 
 
 class Gate2EconomyProviderSelector:
-    def __init__(self, *, policy: Gate2EconomyModelPolicySnapshot) -> None:
+    def __init__(
+        self,
+        *,
+        policy: Gate2EconomyModelPolicySnapshot,
+        workload_policy: Gate2EconomyWorkloadPolicySnapshot,
+    ) -> None:
         self.policy = policy
+        self.workload_policy = workload_policy
 
     def select_runtime(
         self,
@@ -105,7 +143,7 @@ class Gate2EconomyProviderSelector:
         requested_provider_profile_ids: Iterable[str] | None = None,
     ) -> Gate2EconomyProviderSelection:
         try:
-            allowed_model_ids = self.policy.narrow_runtime_allowlist(
+            allowed_model_ids = self.workload_policy.narrow_runtime_allowlist(
                 workload_class=workload_class,
                 requested_model_ids=requested_model_ids,
             )
@@ -120,7 +158,7 @@ class Gate2EconomyProviderSelector:
             ) from exc
         provider_ids = _normalized(requested_provider_profile_ids)
         qualified_provider_ids = set(
-            self.policy.provider_allowlist(workload_class)
+            self.workload_policy.provider_allowlist(workload_class)
         )
         if provider_ids is not None and not set(provider_ids).issubset(
             qualified_provider_ids
@@ -142,13 +180,12 @@ class Gate2EconomyProviderSelector:
                 "gate2_economy_no_qualified_model",
                 "No qualified economy model is available for the workload",
             )
+        route_order = self.workload_policy.production_allowlist(
+            workload_class
+        )
         ordered = sorted(
             declarations,
-            key=lambda item: (
-                self._maximum_operation_cost(item, workload_class),
-                item.preference_order,
-                item.exact_model_id,
-            ),
+            key=lambda item: route_order.index(item.exact_model_id),
         )
         primary = self._binding(ordered[0], workload_class)
         fallback_declaration = next(
@@ -173,8 +210,14 @@ class Gate2EconomyProviderSelector:
         provider_profile_id: str,
     ) -> Gate2EconomyProviderSelection:
         try:
-            resolution = self.policy.resolve_model_id(model_id)
-            declaration = self.policy.model(resolution.exact_model_id)
+            exact_model_id = (
+                self.workload_policy.assert_qualification_candidate(
+                    workload_class=workload_class,
+                    model_id=model_id,
+                    model_policy=self.policy,
+                )
+            )
+            declaration = self.policy.model(exact_model_id)
             workload = self.policy.workload(workload_class)
         except ValueError as exc:
             raise Gate2EconomyProviderSelectionError(
@@ -188,7 +231,6 @@ class Gate2EconomyProviderSelector:
         if (
             declaration.provider_profile_id != provider_profile_id
             or workload.workload_class not in declaration.workload_classes
-            or declaration.lifecycle == MODEL_LIFECYCLE_RETIRED
         ):
             raise Gate2EconomyProviderSelectionError(
                 "economy_qualification_candidate_forbidden",
@@ -210,13 +252,20 @@ class Gate2EconomyProviderSelector:
     ) -> Gate2EconomyProviderSelection:
         workload = self.policy.workload(workload_class)
         maximum_fallback_calls = min(
-            1, workload.maximum_fallback_calls_per_operation
+            1,
+            workload.maximum_fallback_calls_per_operation,
+            self.workload_policy.route(
+                workload_class
+            ).maximum_fallback_calls_per_operation,
         )
         return Gate2EconomyProviderSelection(
             workload_class=workload_class,
-            policy_id=self.policy.policy_id,
-            policy_version=self.policy.policy_version,
-            policy_hash=self.policy.policy_hash,
+            policy_id=self.workload_policy.policy_id,
+            policy_version=self.workload_policy.policy_version,
+            policy_hash=self.workload_policy.policy_hash,
+            model_policy_id=self.policy.policy_id,
+            model_policy_version=self.policy.policy_version,
+            model_policy_hash=self.policy.policy_hash,
             primary=primary,
             fallback=fallback if maximum_fallback_calls else None,
             maximum_fallback_calls=maximum_fallback_calls,
