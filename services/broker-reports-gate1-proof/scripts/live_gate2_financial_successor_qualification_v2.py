@@ -137,6 +137,12 @@ DEFAULT_MANIFEST_PATH = (
 )
 EXACT_MODEL_ID = "gpt-5.4-nano-2026-03-17"
 PROVIDER_PROFILE_ID = "openai_gpt"
+HAIKU_EXACT_MODEL_ID = "claude-haiku-4-5-20251001"
+HAIKU_PROVIDER_PROFILE_ID = "anthropic_claude"
+EXACT_CANDIDATE_PROVIDER_PROFILES = {
+    EXACT_MODEL_ID: PROVIDER_PROFILE_ID,
+    HAIKU_EXACT_MODEL_ID: HAIKU_PROVIDER_PROFILE_ID,
+}
 
 FACTORY_REQUIRED = (
     "Gate2EconomyQualificationPolicyFactory, "
@@ -193,7 +199,7 @@ def main() -> int:
     parser.add_argument("--base-url", default=None)
     parser.add_argument(
         "--model-id",
-        choices=(EXACT_MODEL_ID,),
+        choices=tuple(EXACT_CANDIDATE_PROVIDER_PROFILES),
         default=EXACT_MODEL_ID,
     )
     parser.add_argument("--timeout", type=int, default=240)
@@ -227,6 +233,7 @@ def main() -> int:
 
     live_action = _live_qualification_action(session, base_url)
     published = _published_model_ids(session, base_url)
+    provider_profile_id = _provider_profile_id(args.model_id)
     if args.model_id not in published:
         print(
             json.dumps(
@@ -249,7 +256,8 @@ def main() -> int:
 
     fixture = build_successor_qualification_fixture_v2()
     identity = successor_qualification_contract_identity_v2(
-        fixture=fixture
+        fixture=fixture,
+        model_id=args.model_id,
     )
     authorization = (
         Gate2EconomyQualificationPolicyFactory()
@@ -257,7 +265,7 @@ def main() -> int:
         .authorize(
             workload_class="gate2_financial_evidence",
             exact_model_id=args.model_id,
-            provider_profile_id=PROVIDER_PROFILE_ID,
+            provider_profile_id=provider_profile_id,
             receipt_identity=identity,
         )
     )
@@ -308,6 +316,7 @@ def main() -> int:
         "qualification_identity": _identity_summary_v2(
             identity=identity,
             fixture=fixture,
+            model_id=args.model_id,
         ),
         "fixture": {
             "manifest_schema_version": (
@@ -369,7 +378,7 @@ def main() -> int:
         request_profile=(
             FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2
         ),
-        provider_profile_id=PROVIDER_PROFILE_ID,
+        provider_profile_id=provider_profile_id,
         user_id=str(user["id"]),
         request_context=_request_context(session, base_url),
         completion=_completion_boundary(
@@ -502,12 +511,13 @@ def build_successor_qualification_fixture_v2(
 
 
 def _runner(*, fixture, model_client, model_id: str):
+    provider_profile_id = _provider_profile_id(model_id)
     return Gate2FinancialEvidenceSuccessorRunnerFactory(
         registry=fixture.registry,
         model_client=model_client,
         config=Gate2FinancialEvidenceSuccessorConfig(
             model_id=model_id,
-            provider_profile_id=PROVIDER_PROFILE_ID,
+            provider_profile_id=provider_profile_id,
             model_input_schema_version=(
                 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
             ),
@@ -521,6 +531,7 @@ def successor_preflight_cases_v2(
     fixture: SuccessorQualificationFixtureV2,
     model_id: str,
 ) -> list[dict[str, Any]]:
+    provider_profile_id = _provider_profile_id(model_id)
     runner = _runner(
         fixture=fixture,
         model_client=_NoCallClient(),
@@ -551,7 +562,7 @@ def successor_preflight_cases_v2(
                 request_profile=(
                     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2
                 ),
-                provider_profile_id=PROVIDER_PROFILE_ID,
+                provider_profile_id=provider_profile_id,
                 model_id=model_id,
                 prompt=runner.prompt,
                 package=runner.model_input(
@@ -979,8 +990,11 @@ def _terminal_product_proof_v2(
 def successor_qualification_contract_identity_v2(
     *,
     fixture: SuccessorQualificationFixtureV2,
+    model_id: str = EXACT_MODEL_ID,
 ) -> Gate2EconomyQualificationContractIdentity:
-    profile = gate2_provider_profile(PROVIDER_PROFILE_ID)
+    profile = gate2_provider_profile(
+        _provider_profile_id(model_id)
+    )
     prompt = Gate2FinancialEvidenceSuccessorPromptFactory().create(
         prompt_contract_id=SUCCESSOR_PROMPT_CONTRACT_ID_V3
     )
@@ -1064,11 +1078,13 @@ def _identity_summary_v2(
     *,
     identity: Gate2EconomyQualificationContractIdentity,
     fixture: SuccessorQualificationFixtureV2,
+    model_id: str = EXACT_MODEL_ID,
 ) -> dict[str, Any]:
+    provider_profile_id = _provider_profile_id(model_id)
     return {
         **identity.to_dict(),
-        "exact_model_id": EXACT_MODEL_ID,
-        "provider_profile_id": PROVIDER_PROFILE_ID,
+        "exact_model_id": model_id,
+        "provider_profile_id": provider_profile_id,
         "deterministic_scope_schema": (
             DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
         ),
@@ -1118,11 +1134,20 @@ def _apply_execution(
 def _subject(model_id: str) -> dict[str, str]:
     return {
         "exact_model_id": model_id,
-        "provider_profile_id": PROVIDER_PROFILE_ID,
+        "provider_profile_id": _provider_profile_id(model_id),
         "workload_class": (
             "gate2_financial_evidence_successor_v2"
         ),
     }
+
+
+def _provider_profile_id(model_id: str) -> str:
+    try:
+        return EXACT_CANDIDATE_PROVIDER_PROFILES[model_id]
+    except KeyError as exc:
+        raise ValueError(
+            "successor_qualification_exact_candidate_unknown"
+        ) from exc
 
 
 def _sha256_files(paths: tuple[Path, ...]) -> str:
