@@ -150,7 +150,8 @@ Goals 12–15 требуют qualified financial evidence model и поэтом�
   `3f9171b855b1004d00585d87eacb089507867acc`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal11d-haiku-qualification`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/142`;
 - code changes: `0`;
 - production admission: false.
 

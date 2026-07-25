@@ -6,7 +6,7 @@
   "repository": {
     "base_revision": "3f9171b855b1004d00585d87eacb089507867acc",
     "branch": "codex/broker-reports-gate2-ambiguity-goal11d-haiku-qualification",
-    "pull_request": "pending_creation",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/142",
     "code_changes_total": 0,
     "production_admission": false
   },
