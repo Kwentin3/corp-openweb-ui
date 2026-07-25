@@ -1,0 +1,145 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal5_receipt_v1",
+  "goal": "goal5_local_successor_proof",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "2810e9663d35862fee6e7d52e25f6d7e2776649f",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal5-local-successor-proof",
+    "implementation_revision": "9338adea9915008047d19451a9f0dd9e0c7ecef3",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/131",
+    "domain_bundle_sha256": "485c80dbf3383cdb5add152e06be26b0516ab6c7fc4ceba3b67972748fe7ca32",
+    "domain_bundle_content_changed": false,
+    "bundle_rebuild_exact": true
+  },
+  "manifest": {
+    "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v1",
+    "benchmark_id": "gate2_financial_successor_v1",
+    "frozen": true,
+    "contains_customer_data": false,
+    "cases_total": 11,
+    "required_features_total": 11,
+    "covered_features_total": 11,
+    "canonical_integrity_hash": "2ad54a8dae7e9e34a4d020310acffad5c76dc049855e5440ed557fb1efe4d687",
+    "file_sha256": "3598ce32f04decc41094a3e39510e6731f3358aabe8d6ddb3237d576683a60b6"
+  },
+  "q0_contract_tests": {
+    "status": "passed",
+    "scope_determinism": true,
+    "package_integrity": true,
+    "provider_schema_generation": true,
+    "canonical_branch_validation": true,
+    "materialization_determinism": true,
+    "context_determinism": true,
+    "compatibility_read": true,
+    "coverage_accounting": true,
+    "negative_fail_closed": true
+  },
+  "q1_product_invariant_fixtures": {
+    "status": "passed",
+    "signed_literals": true,
+    "currency_date": true,
+    "detail_vs_subtotal": true,
+    "repeated_headers": true,
+    "missing_optional_dimensions": true,
+    "adjacent_equal_values": true,
+    "adjacent_fx_values": true,
+    "multiple_hypotheses": true,
+    "forbidden_neighbouring_refs": true,
+    "explicit_unclassified": true,
+    "unsupported_source_shape": true
+  },
+  "terminal_disposition_counts": {
+    "typed_input": 7,
+    "unclassified_financial_input": 2,
+    "no_financial_input": 1,
+    "unsupported": 1
+  },
+  "provider_schema_generation": {
+    "openai_distinct_schema_hashes_total": 11,
+    "gemini_distinct_schema_hashes_total": 11,
+    "strict_json_schema": true,
+    "canonical_validator_replacement": false,
+    "transport_calls_total": 0
+  },
+  "product_invariants": {
+    "status": "passed",
+    "source_literals_total": 43,
+    "source_literals_preserved_total": 43,
+    "literal_loss_total": 0,
+    "invented_values_total": 0,
+    "duplicate_bindings_total": 0,
+    "cross_scope_bindings_total": 0,
+    "terminal_ownership_gap_total": 0,
+    "selected_source_refs_total": 22,
+    "deterministic_no_fact_refs_total": 11,
+    "unaccounted_source_refs_total": 0,
+    "forbidden_neighbouring_refs_total": 4,
+    "forbidden_neighbouring_refs_admitted_total": 0
+  },
+  "negative_checks": {
+    "out_of_package_binding_rejected": true,
+    "model_system_field_rejected": true,
+    "materialized_artifact_tamper_rejected": true,
+    "context_tamper_rejected": true,
+    "unknown_compatibility_schema_rejected": true
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "source_model_calls_total": 0,
+    "domain_model_calls_total": 0,
+    "financial_model_calls_total": 0,
+    "hidden_retry_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "persistence_writes_total": 0,
+    "production_route_activations_total": 0,
+    "stage_mutations_total": 0,
+    "browser_calls_total": 0
+  },
+  "tests": {
+    "direct": {
+      "passed": 11,
+      "failed": 0,
+      "duration_seconds": 2.18
+    },
+    "focused": {
+      "passed": 58,
+      "failed": 0,
+      "duration_seconds": 4.95
+    },
+    "full": {
+      "passed": 1447,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 96.10
+    },
+    "ruff_changed_files": "passed",
+    "manifest_json_parse": "passed",
+    "git_diff_check": "passed",
+    "bundle_rebuild_exact": true
+  },
+  "source_hashes": {
+    "proof_module_sha256": "0c7ba1fbca2a00509e2dcd75ddf62744aa1b4d5257b02b13953414c0c21f07dc",
+    "tests_sha256": "8d8b72b30f466fa6b86da221a3b620e3810ad31e2a2b07bd10d4aeb894eba551",
+    "context_integrity_hash": "2c1684ca21a545e0d28c89d8617995f3e69431843c41abcdd38c4ee18f4434c6",
+    "local_proof_receipt_integrity_hash": "38d0e189f90f4228ddd8a55e6c29b2231fdbdcbd81515a1d2e3508c44a79579f"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_model_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_refs_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "safe_receipt_value_free": true
+  },
+  "acceptance": {
+    "q0_contract_tests": "passed",
+    "q1_product_invariant_fixtures": "passed",
+    "provider_calls": "zero",
+    "literal_loss": "zero",
+    "hidden_repair": "zero"
+  },
+  "next_permitted_goal": "goal6_exact_model_successor_qualification_after_merge"
+}
