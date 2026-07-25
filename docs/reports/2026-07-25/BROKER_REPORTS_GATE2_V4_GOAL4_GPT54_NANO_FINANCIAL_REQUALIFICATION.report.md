@@ -34,7 +34,7 @@ Qualification не активирует production admission. Выбор product
   `34f440b0339024217e9b4fac3f98c08809504265`;
 - branch:
   `codex/broker-reports-gate2-v4-goal4-gpt54-nano-financial-requalification`;
-- PR: будет закреплён после открытия evidence-only PR.
+- PR: [#120](https://github.com/Kwentin3/corp-openweb-ui/pull/120).
 
 ## Exact qualification identity
 

@@ -5,7 +5,7 @@
   "git": {
     "execution_revision": "34f440b0339024217e9b4fac3f98c08809504265",
     "branch": "codex/broker-reports-gate2-v4-goal4-gpt54-nano-financial-requalification",
-    "pull_request": null
+    "pull_request": 120
   },
   "qualification_identity": {
     "exact_model_id": "gpt-5.4-nano-2026-03-17",
