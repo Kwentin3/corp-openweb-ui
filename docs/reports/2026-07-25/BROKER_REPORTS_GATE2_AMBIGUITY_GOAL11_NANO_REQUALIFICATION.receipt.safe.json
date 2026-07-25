@@ -6,7 +6,7 @@
   "repository": {
     "base_revision": "eb5c6011066a524d97aad9ac3b07d2d969f3db87",
     "branch": "codex/broker-reports-gate2-ambiguity-goal11-nano-requalification",
-    "pull_request": "pending_creation",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/138",
     "code_changes_total": 0,
     "production_admission": false
   },

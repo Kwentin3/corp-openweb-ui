@@ -124,7 +124,8 @@ The committed receipt is an aggregate/value-free projection. Privacy scan:
   `eb5c6011066a524d97aad9ac3b07d2d969f3db87`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal11-nano-requalification`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/138`;
 - code changes: `0`;
 - provider calls after terminal attempt: `0`;
 - production admission: false.
