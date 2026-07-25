@@ -12,6 +12,7 @@ from broker_reports_gate1.gate2_economy_model_policy import (
     FORBIDDEN,
     MODEL_LIFECYCLE_ACTIVE,
     MODEL_STATUS_NOT_QUALIFIED,
+    MODEL_STATUS_QUALIFICATION_REQUIRED,
     MODEL_STATUS_QUALIFIED,
     MODEL_STATUS_UNAVAILABLE,
     MODEL_STATUS_UNSUPPORTED_CONTRACT,
@@ -47,7 +48,10 @@ def test_live_qualification_statuses_are_explicit_and_fail_closed() -> None:
     ).qualification_status == MODEL_STATUS_UNAVAILABLE
     assert policy.model(
         "gpt-5.4-nano-2026-03-17"
-    ).qualification_status == MODEL_STATUS_UNAVAILABLE
+    ).qualification_status == MODEL_STATUS_QUALIFICATION_REQUIRED
+    assert policy.model(
+        "models/gemini-2.5-flash-lite"
+    ).qualification_status == MODEL_STATUS_QUALIFICATION_REQUIRED
     assert policy.model(
         "models/gemini-3.1-flash-lite"
     ).qualification_status == MODEL_STATUS_NOT_QUALIFIED
@@ -64,6 +68,10 @@ def test_live_qualification_statuses_are_explicit_and_fail_closed() -> None:
     [
         ("gpt-5-nano", "gpt-5-nano-2025-08-07"),
         ("gpt-5.4-nano", "gpt-5.4-nano-2026-03-17"),
+        (
+            "gemini-2.5-flash-lite",
+            "models/gemini-2.5-flash-lite",
+        ),
         (
             "gemini-3.1-flash-lite",
             "models/gemini-3.1-flash-lite",

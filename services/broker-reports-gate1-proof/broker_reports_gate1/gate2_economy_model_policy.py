@@ -17,7 +17,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.2.0"
+POLICY_VERSION = "1.3.0"
 POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v1"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"
@@ -350,14 +350,34 @@ ECONOMY_MODEL_DECLARATIONS = (
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
         preference_order=1,
-        reasoning_policy=REASONING_MINIMAL,
+        reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_UNAVAILABLE,
+        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
         qualification_receipt_identity=None,
-        availability_evidence="stage_models_endpoint_unavailable_2026-07-24",
+        availability_evidence="stage_models_endpoint_available_2026-07-24",
         cost=EconomyModelCost("0.20", "0.02", "1.25"),
+    ),
+    EconomyModelDeclaration(
+        provider_profile_id="google_gemini",
+        provider_id="google",
+        exact_model_id="models/gemini-2.5-flash-lite",
+        aliases=("gemini-2.5-flash-lite",),
+        model_family="flash_lite",
+        cost_class="economy",
+        supported_modalities=("text",),
+        structured_output_mode="openwebui_response_format_json_schema",
+        workload_classes=_ALL_GATE2_WORKLOADS,
+        preference_order=5,
+        reasoning_policy=REASONING_DISABLED,
+        paid_tools_allowed=False,
+        fallback_eligible=True,
+        lifecycle=MODEL_LIFECYCLE_CANDIDATE,
+        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
+        qualification_receipt_identity=None,
+        availability_evidence="stage_models_endpoint_available_2026-07-24",
+        cost=EconomyModelCost("0.10", "0.01", "0.40"),
     ),
     EconomyModelDeclaration(
         provider_profile_id="google_gemini",

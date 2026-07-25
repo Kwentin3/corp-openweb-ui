@@ -951,6 +951,8 @@ def _json_equal(left: Any, right: Any) -> bool:
 
 def provider_error_code(payload: dict[str, Any], *, source_profile: bool) -> str:
     rendered = json.dumps(payload, ensure_ascii=True, sort_keys=True).lower()
+    if "reasoning_effort" in rendered or "thinking_config" in rendered:
+        return "gate2_model_reasoning_control_rejected"
     if "oneof" in rendered or "one_of" in rendered:
         return "gate2_model_schema_oneof_unsupported"
     if source_profile:
@@ -995,7 +997,11 @@ def provider_error_code(payload: dict[str, Any], *, source_profile: bool) -> str
         )
     ):
         return "gate2_model_provider_rate_limited"
-    if "model" in rendered and ("not found" in rendered or "unavailable" in rendered):
+    if "model" in rendered and (
+        "not found" in rendered
+        or "unavailable" in rendered
+        or "404" in rendered
+    ):
         return "gate2_model_unavailable"
     if "unauthorized" in rendered or "authentication" in rendered or "api key" in rendered:
         return "gate2_model_provider_auth_failed"
