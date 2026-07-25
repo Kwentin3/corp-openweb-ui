@@ -1,0 +1,116 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal4_receipt_v1",
+  "goal": "goal4_successor_artifact_compatibility",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "bfbc19124fd7ca76fa2e1067e38e03546f936a72",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal4-successor-compatibility",
+    "implementation_revision": "1313c98c4314016fa8bcfb69c052667713cbc77c",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/130",
+    "domain_bundle_sha256": "485c80dbf3383cdb5add152e06be26b0516ab6c7fc4ceba3b67972748fe7ca32",
+    "bundle_rebuild_exact": true,
+    "customer_facing_routing_changes_total": 0,
+    "legacy_runtime_deletions_total": 0
+  },
+  "successor_schemas": {
+    "package": "broker_reports_gate2_successor_package_artifact_v1",
+    "run": "broker_reports_gate2_successor_run_artifact_v1",
+    "execution_receipt": "broker_reports_gate2_successor_execution_receipt_v1",
+    "compatibility_projection": "broker_reports_gate2_successor_compatibility_projection_v1",
+    "artifact_factory": "Gate2SuccessorArtifactFamilyFactory.create",
+    "reader_factory": "Gate2SuccessorCompatibilityReaderFactory.create"
+  },
+  "read_policy": {
+    "explicit_schema_dispatch": true,
+    "legacy_reader_retained": true,
+    "financial_evidence_reader_retained": true,
+    "fns_specialized_separate": true,
+    "unknown_schema_rejected": true,
+    "payload_hash_checked_before_after": true,
+    "legacy_payloads_rewritten_total": 0,
+    "silent_conversions_total": 0
+  },
+  "write_policy": {
+    "legacy_payloads_immutable": true,
+    "legacy_rewrite_allowed": false,
+    "silent_upcast_allowed": false,
+    "successor_single_write_status": "blocked_pending_production_admission",
+    "production_write_admitted": false,
+    "rollback_boundary": "future_routing_only"
+  },
+  "compatibility_projection": {
+    "own_schema_identity": true,
+    "own_projection_ref": true,
+    "own_integrity_hash": true,
+    "computed_fields_only": true,
+    "subtype_created": false,
+    "model_confidence_created": false,
+    "legacy_model_output_emulated": false,
+    "legacy_schema_version_used": false
+  },
+  "contracts_explicitly_unchanged": [
+    "broker_reports_source_facts_v0",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_fns_2ndfl_source_facts_v1",
+    "legacy validators and readers",
+    "production persistence and routing",
+    "Gate 1 contracts",
+    "Gate 3 contracts"
+  ],
+  "execution_boundary": {
+    "provider_calls_total": 0,
+    "customer_corpus_calls_total": 0,
+    "persistence_writes_total": 0,
+    "production_route_activations_total": 0,
+    "stage_mutations_total": 0,
+    "browser_calls_total": 0
+  },
+  "tests": {
+    "direct": {
+      "passed": 9,
+      "failed": 0
+    },
+    "focused": {
+      "passed": 53,
+      "failed": 0
+    },
+    "bundle_smoke": {
+      "passed": 20,
+      "failed": 0,
+      "duration_seconds": 2.65
+    },
+    "full": {
+      "passed": 1436,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 94.15
+    },
+    "ruff_changed_files": "passed",
+    "git_diff_check": "passed",
+    "bundle_rebuild_exact": true
+  },
+  "source_hashes": {
+    "successor_artifacts_sha256": "fec03cfb201c8ad89865be2ab6cf29d7cb6331a414361e29aae3d029383d5ce3",
+    "successor_compatibility_sha256": "ce2e61d619003225a3a7869d0d26b0d29b9faded65464e737a01d3c86109d93e",
+    "successor_tests_sha256": "43551c235e854c984c857bd1e9a79baedb77eaf1354aad1370ab0a2fbdb5cfee",
+    "domain_bundle_sha256": "485c80dbf3383cdb5add152e06be26b0516ab6c7fc4ceba3b67972748fe7ca32"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_model_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_refs_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "safe_summary_value_free": true
+  },
+  "acceptance": {
+    "successor_schema": "explicit",
+    "legacy_read": "preserved",
+    "legacy_rewrite": "zero",
+    "silent_conversion": "zero",
+    "rollback_boundary": "future_routing_only"
+  },
+  "next_permitted_goal": "goal5_local_successor_proof_after_merge"
+}
