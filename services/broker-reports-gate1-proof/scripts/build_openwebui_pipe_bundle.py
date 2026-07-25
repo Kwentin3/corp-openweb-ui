@@ -195,6 +195,8 @@ GATE2_DOMAIN_MODULE_ORDER = [
 GATE2_SUCCESSOR_MODULES = [
     "gate2_deterministic_financial_scopes",
     "gate2_financial_evidence_successor",
+    "gate2_successor_artifacts",
+    "gate2_successor_compatibility",
 ]
 _GATE2_SUCCESSOR_INSERT_AT = GATE2_DOMAIN_MODULE_ORDER.index(
     "gate2_source_unit_segmentation"
