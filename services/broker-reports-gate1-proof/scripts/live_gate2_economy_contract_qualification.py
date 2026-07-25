@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
+import hashlib
 import json
 import sys
 from dataclasses import dataclass
@@ -25,6 +26,15 @@ sys.path.insert(0, str(SERVICE_ROOT))
 
 from broker_reports_gate1.gate2_economy_budget import (  # noqa: E402
     Gate2EconomyBudgetSessionFactory,
+)
+from broker_reports_gate1.gate2_economy_qualification_policy import (  # noqa: E402
+    Gate2EconomyQualificationContractIdentity,
+    Gate2EconomyQualificationPolicyFactory,
+)
+from broker_reports_gate1.gate2_economy_workload_qualification import (  # noqa: E402
+    CONTRACT_GATE2_FINANCIAL_CHECKSUM,
+    CONTRACT_GATE2_FINANCIAL_EVIDENCE,
+    Gate2EconomyWorkloadQualificationFactory,
 )
 from broker_reports_gate1.gate2_financial_context import (  # noqa: E402
     Gate2FinancialContextProjectionFactory,
@@ -100,14 +110,18 @@ FORBIDDEN = (
     "calls, output repair, fallback, expensive models or raw provider "
     "output in its safe receipt"
 )
-QUALIFICATION_SCHEMA_VERSION = (
-    "broker_reports_gate2_economy_contract_qualification_v1"
-)
+QUALIFICATION_SCHEMA_VERSION = "broker_reports_gate2_economy_contract_qualification_v1"
 ALLOWED_PROVIDER_PROFILES = {
     "openai_gpt",
     "google_gemini",
     "anthropic_claude",
 }
+QUALIFICATION_ACTION_ID = "broker_reports_gate2_economy_qualification_action"
+QUALIFICATION_ACTION_PATH = (
+    SERVICE_ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate2_economy_qualification_action.py"
+)
 
 
 @dataclass(frozen=True)
@@ -133,15 +147,12 @@ def main() -> int:
         choices=("financial", "checksum", "all"),
         default="all",
     )
+    parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--timeout", type=int, default=240)
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))
-    base_url = (
-        args.base_url.rstrip("/")
-        if args.base_url
-        else _base_url(env)
-    )
+    base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     session = requests.Session()
     session.headers.update({"Accept": "application/json"})
     token = _signin(session, base_url, env)
@@ -149,6 +160,10 @@ def main() -> int:
     user = _current_user(session, base_url)
     published = _published_model_ids(session, base_url)
     model_published = args.model_id in published
+    qualification_action = _live_qualification_action(
+        session,
+        base_url,
+    )
     output: dict[str, Any] = {
         "schema_version": QUALIFICATION_SCHEMA_VERSION,
         "qualification_subject": {
@@ -166,6 +181,7 @@ def main() -> int:
         "inventory": {
             "exact_model_published": model_published,
             "published_models_total": len(published),
+            "qualification_action": qualification_action,
         },
         "workloads": {},
     }
@@ -174,6 +190,41 @@ def main() -> int:
         output["failure_code"] = "stage_models_endpoint_model_absent"
         print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
         return 2
+
+    workload_contracts = []
+    if args.workload in {"financial", "all"}:
+        workload_contracts.append(
+            (
+                "gate2_financial_evidence",
+                CONTRACT_GATE2_FINANCIAL_EVIDENCE,
+            )
+        )
+    if args.workload in {"checksum", "all"}:
+        workload_contracts.append(
+            (
+                "gate2_financial_checksum",
+                CONTRACT_GATE2_FINANCIAL_CHECKSUM,
+            )
+        )
+    output["qualification_authorizations"] = _qualification_authorizations(
+        model_id=args.model_id,
+        provider_profile_id=args.provider_profile_id,
+        workload_contracts=tuple(workload_contracts),
+    )
+    if args.preflight_only:
+        output["status"] = "passed"
+        output["preflight_only"] = True
+        output["provider_calls"] = 0
+        output["estimated_cost_usd_total"] = "0"
+        print(
+            json.dumps(
+                output,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
 
     request_context = _request_context(session, base_url)
     completion = _completion_boundary(
@@ -206,9 +257,7 @@ def main() -> int:
         if statuses and all(item == "passed" for item in statuses)
         else "failed"
     )
-    output["estimated_cost_usd_total"] = _receipt_cost_total(
-        output["workloads"]
-    )
+    output["estimated_cost_usd_total"] = _receipt_cost_total(output["workloads"])
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if output["status"] == "passed" else 1
 
@@ -255,9 +304,7 @@ async def _qualify_financial(
                 contract=case.contract,
                 source_package=case.source_package,
                 execution_ref=f"execution:qualification:{case.case_id}",
-                decision_validation_ref=(
-                    f"validation:qualification:{case.case_id}"
-                ),
+                decision_validation_ref=(f"validation:qualification:{case.case_id}"),
             )
             observed = result.artifact["terminal_disposition"]
             passed = (
@@ -272,9 +319,7 @@ async def _qualify_financial(
                     "expected_disposition": case.expected_disposition,
                     "observed_disposition": observed,
                     "provider_execution": result.provider_execution,
-                    "economy_budget_receipt": (
-                        result.economy_budget_receipt
-                    ),
+                    "economy_budget_receipt": (result.economy_budget_receipt),
                     "schema_dry_build": dry_build,
                     "canonical_validator_passed": True,
                     "deterministic_materialization_passed": True,
@@ -298,9 +343,7 @@ async def _qualify_financial(
     passed = sum(item["status"] == "passed" for item in results)
     return {
         "status": "passed" if passed == len(results) else "failed",
-        "contract_version": (
-            "broker_reports_gate2_financial_evidence_decision_v1"
-        ),
+        "contract_version": ("broker_reports_gate2_financial_evidence_decision_v1"),
         "cases_total": len(results),
         "cases_passed": passed,
         "four_dispositions_covered": len(results) == 4,
@@ -340,12 +383,10 @@ async def _qualify_checksum(
             response_format=contract.openai_response_format(),
         )
         result = await runner.run(contract=contract)
-        private_receipt = (
-            Gate2FinancialContextChecksumComparatorFactory().create(
-                contract=contract,
-                expected_metrics=expected,
-                answer_rows=result["rows"],
-            )
+        private_receipt = Gate2FinancialContextChecksumComparatorFactory().create(
+            contract=contract,
+            expected_metrics=expected,
+            answer_rows=result["rows"],
         )
         receipt = safe_checksum_receipt(private_receipt)
         passed = (
@@ -355,14 +396,10 @@ async def _qualify_checksum(
         )
         return {
             "status": "passed" if passed else "failed",
-            "contract_version": (
-                "broker_reports_gate2_financial_context_checksum_v1"
-            ),
+            "contract_version": ("broker_reports_gate2_financial_context_checksum_v1"),
             "schema_dry_build": dry_build,
             "provider_execution": result["provider_execution"],
-            "economy_budget_receipt": result[
-                "economy_budget_receipt"
-            ],
+            "economy_budget_receipt": result["economy_budget_receipt"],
             "checksum_receipt": receipt,
             "fallback_used": False,
             "repair_attempt_count": 0,
@@ -370,17 +407,14 @@ async def _qualify_checksum(
     except Exception as exc:
         return {
             "status": "failed",
-            "contract_version": (
-                "broker_reports_gate2_financial_context_checksum_v1"
-            ),
+            "contract_version": ("broker_reports_gate2_financial_context_checksum_v1"),
             **_safe_error(exc),
             "fallback_used": False,
             "repair_attempt_count": 0,
         }
 
 
-def build_financial_qualification_cases(
-) -> tuple[FinancialQualificationCase, ...]:
+def build_financial_qualification_cases() -> tuple[FinancialQualificationCase, ...]:
     typed_definitions = (
         (
             "amount",
@@ -493,9 +527,7 @@ def build_checksum_qualification_fixture():
         )
         for suffix, literal_value, currency, _ in specifications
     )
-    context = Gate2FinancialContextProjectionFactory(
-        registry=registry
-    ).create(
+    context = Gate2FinancialContextProjectionFactory(registry=registry).create(
         materialized_artifacts=tuple(item[0] for item in materialized),
         source_packages=tuple(item[1] for item in materialized),
     )
@@ -506,15 +538,12 @@ def build_checksum_qualification_fixture():
         )
         for suffix, _, _, _ in specifications
     )
-    contract = Gate2FinancialContextChecksumContractFactory(
-        registry=registry
-    ).create(
+    contract = Gate2FinancialContextChecksumContractFactory(registry=registry).create(
         financial_context=context,
         metric_requests=requests,
     )
     entries = {
-        item["source_scope_ref"]: item
-        for item in contract.financial_context["entries"]
+        item["source_scope_ref"]: item for item in contract.financial_context["entries"]
     }
     expected = tuple(
         Gate2ChecksumExpectedMetric(
@@ -525,16 +554,12 @@ def build_checksum_qualification_fixture():
             unit="",
             sign=sign,
             period_literals=("2025 Q4", "2025-Q4"),
-            context_entry_id=entries[f"scope:{suffix}"][
-                "context_entry_id"
-            ],
+            context_entry_id=entries[f"scope:{suffix}"]["context_entry_id"],
             source_scope_ref=f"scope:{suffix}",
             source_value_ref=f"value:amount:{suffix}",
             page_ref=f"page:{suffix}",
             semantic_visual_table_derived=True,
-            arithmetic_operands=(
-                (literal_value,) if suffix == "a" else ()
-            ),
+            arithmetic_operands=((literal_value,) if suffix == "a" else ()),
         )
         for suffix, literal_value, currency, sign in specifications
     )
@@ -693,9 +718,7 @@ def _typed_checksum_case(
             "input_type_id": "printed_financial_metric_v1",
             "value_bindings": {
                 "amount": f"value:amount:{suffix}",
-                "printed_label_evidence_ref": (
-                    f"value:printed_label:{suffix}"
-                ),
+                "printed_label_evidence_ref": (f"value:printed_label:{suffix}"),
                 "statement_scope": f"value:scope:{suffix}",
                 "as_of_date": None,
                 "currency": f"value:currency:{suffix}",
@@ -709,14 +732,18 @@ def _typed_checksum_case(
     validated = Gate2FinancialEvidenceValidatedDecisionFactory(
         contract=contract
     ).create(decision)
-    artifact = Gate2FinancialEvidenceMaterializerFactory(
-        registry=registry,
-        source_package=package,
-        execution_metadata=FinancialEvidenceExecutionMetadata(
-            execution_ref=f"execution:checksum:{suffix}",
-            decision_validation_ref=f"validation:checksum:{suffix}",
-        ),
-    ).create().materialize(validated_decision=validated)
+    artifact = (
+        Gate2FinancialEvidenceMaterializerFactory(
+            registry=registry,
+            source_package=package,
+            execution_metadata=FinancialEvidenceExecutionMetadata(
+                execution_ref=f"execution:checksum:{suffix}",
+                decision_validation_ref=f"validation:checksum:{suffix}",
+            ),
+        )
+        .create()
+        .materialize(validated_decision=validated)
+    )
     return artifact, package
 
 
@@ -753,21 +780,21 @@ def _dry_build(
     package: dict[str, Any],
     response_format: dict[str, Any],
 ) -> dict[str, Any]:
-    form_data = Gate2OpenWebUIRequestBuilder(
-        request_profile=request_profile
-    ).build(
+    form_data = Gate2OpenWebUIRequestBuilder(request_profile=request_profile).build(
         prompt=prompt,
         package=package,
         model_id=model_id,
         response_format=response_format,
     )
-    authorization = Gate2EconomyBudgetSessionFactory().create(
-        request_profile=request_profile
-    ).prepare_call(
-        form_data=form_data,
-        model_id=model_id,
-        provider_profile_id=provider_profile_id,
-        operation_identity="schema-dry-build",
+    authorization = (
+        Gate2EconomyBudgetSessionFactory()
+        .create(request_profile=request_profile)
+        .prepare_call(
+            form_data=form_data,
+            model_id=model_id,
+            provider_profile_id=provider_profile_id,
+            operation_identity="schema-dry-build",
+        )
     )
     profile = gate2_provider_profile(provider_profile_id)
     adapter = Gate2ProviderAdapterFactory(
@@ -803,9 +830,7 @@ def _request_context(
         app=SimpleNamespace(
             state=SimpleNamespace(
                 config=SimpleNamespace(
-                    OPENAI_API_BASE_URLS=config.get(
-                        "OPENAI_API_BASE_URLS"
-                    ),
+                    OPENAI_API_BASE_URLS=config.get("OPENAI_API_BASE_URLS"),
                     OPENAI_API_KEYS=config.get("OPENAI_API_KEYS"),
                     OPENAI_API_CONFIGS=config.get("OPENAI_API_CONFIGS"),
                 )
@@ -856,29 +881,104 @@ def _published_model_ids(
     if not isinstance(items, list):
         raise RuntimeError("models_response_invalid")
     return {
-        str(item["id"])
-        for item in items
-        if isinstance(item, dict) and item.get("id")
+        str(item["id"]) for item in items if isinstance(item, dict) and item.get("id")
     }
 
 
-def _safe_error(exc: Exception) -> dict[str, Any]:
-    code = str(
-        getattr(exc, "code", None)
-        or exc.__class__.__name__
+def _live_qualification_action(
+    session: requests.Session,
+    base_url: str,
+) -> dict[str, Any]:
+    response = session.get(
+        _url(
+            base_url,
+            f"/api/v1/functions/id/{QUALIFICATION_ACTION_ID}",
+        ),
+        timeout=30,
     )
+    response.raise_for_status()
+    value = response.json()
+    if not isinstance(value, dict):
+        raise RuntimeError("qualification_action_response_invalid")
+    content = str(value.get("content") or "")
+    repository_content = QUALIFICATION_ACTION_PATH.read_text(encoding="utf-8")
+    live_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    repository_sha256 = hashlib.sha256(repository_content.encode("utf-8")).hexdigest()
+    policy = Gate2EconomyQualificationPolicyFactory().create()
+    meta = value.get("meta") if isinstance(value.get("meta"), dict) else {}
+    checks = {
+        "content_hash_exact": live_sha256 == repository_sha256,
+        "type_action": value.get("type") == "action",
+        "active": value.get("is_active") is True,
+        "not_global": value.get("is_global") is False,
+        "scope_qualification_only": (
+            meta.get("qualification_scope") == "qualification_only"
+        ),
+        "policy_hash_exact": (
+            meta.get("qualification_policy_hash") == policy.qualification_policy_hash
+        ),
+    }
+    if not all(checks.values()):
+        raise RuntimeError(
+            "qualification_action_live_parity_failed:"
+            + json.dumps(checks, sort_keys=True)
+        )
+    return {
+        "action_id": QUALIFICATION_ACTION_ID,
+        "content_sha256": live_sha256,
+        "qualification_policy_hash": (policy.qualification_policy_hash),
+        "checks": checks,
+    }
+
+
+def _qualification_authorizations(
+    *,
+    model_id: str,
+    provider_profile_id: str,
+    workload_contracts: tuple[tuple[str, str], ...],
+) -> list[dict[str, object]]:
+    registry = Gate2EconomyWorkloadQualificationFactory().create()
+    policy = Gate2EconomyQualificationPolicyFactory().create()
+    receipts = []
+    for workload_class, contract_version in workload_contracts:
+        evidence = registry.status(
+            exact_model_id=model_id,
+            provider_profile_id=provider_profile_id,
+            workload_class=workload_class,
+            contract_version=contract_version,
+        )
+        authorization = policy.authorize(
+            workload_class=workload_class,
+            exact_model_id=model_id,
+            provider_profile_id=provider_profile_id,
+            receipt_identity=(
+                Gate2EconomyQualificationContractIdentity(
+                    provider_route_revision=(evidence.provider_route_revision),
+                    input_contract_version=(evidence.input_contract_version),
+                    output_contract_version=(evidence.output_contract_version),
+                    prompt_version=evidence.prompt_version,
+                    adapter_projection_revision=(evidence.adapter_projection_revision),
+                    canonical_validator_revision=(
+                        evidence.canonical_validator_revision
+                    ),
+                )
+            ),
+        )
+        receipts.append(authorization.safe_receipt())
+    return receipts
+
+
+def _safe_error(exc: Exception) -> dict[str, Any]:
+    code = str(getattr(exc, "code", None) or exc.__class__.__name__)
     result: dict[str, Any] = {
         "failure_code": code,
         "failure_class": str(
-            getattr(exc, "failure_class", None)
-            or exc.__class__.__name__
+            getattr(exc, "failure_class", None) or exc.__class__.__name__
         ),
     }
     execution = getattr(exc, "execution_metadata", None)
     if execution is not None:
-        result["provider_execution"] = (
-            gate2_provider_execution_safe_metadata(execution)
-        )
+        result["provider_execution"] = gate2_provider_execution_safe_metadata(execution)
     rich_execution = getattr(exc, "provider_execution", None)
     if isinstance(rich_execution, dict):
         result["provider_execution"] = copy.deepcopy(rich_execution)
@@ -902,10 +1002,10 @@ def _receipt_cost_total(workloads: dict[str, Any]) -> str:
 
     def visit(value: Any) -> None:
         if isinstance(value, dict):
-            if (
-                value.get("schema_version")
-                == "broker_reports_gate2_economy_budget_v1"
-                and isinstance(value.get("actual_cost_usd"), str)
+            if value.get(
+                "schema_version"
+            ) == "broker_reports_gate2_economy_budget_v1" and isinstance(
+                value.get("actual_cost_usd"), str
             ):
                 costs.append(Decimal(value["actual_cost_usd"]))
             for nested in value.values():

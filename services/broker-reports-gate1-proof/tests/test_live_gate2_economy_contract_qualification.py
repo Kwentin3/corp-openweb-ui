@@ -14,6 +14,7 @@ from live_gate2_economy_contract_qualification import (  # noqa: E402
     FACTORY_REQUIRED,
     FORBIDDEN,
     _dry_build,
+    _qualification_authorizations,
     _receipt_cost_total,
     _safe_error,
     build_checksum_qualification_fixture,
@@ -137,7 +138,6 @@ def test_financial_candidates_pass_schema_only_dry_build(
         assert receipt["maximum_output_tokens"] == 640
 
 
-
 @pytest.mark.parametrize(
     ("model_id", "provider_profile_id"),
     (
@@ -160,9 +160,7 @@ def test_checksum_candidates_pass_schema_only_dry_build(
             "Prompt",
             (),
             {
-                "content": (
-                    "{{financial_context_checksum_package_json}}"
-                ),
+                "content": ("{{financial_context_checksum_package_json}}"),
                 "prompt_ref": "code:test-checksum",
                 "hash": "a" * 64,
             },
@@ -185,15 +183,11 @@ def test_safe_failure_and_cost_helpers_never_project_raw_output() -> None:
     total = _receipt_cost_total(
         {
             "one": {
-                "schema_version": (
-                    "broker_reports_gate2_economy_budget_v1"
-                ),
+                "schema_version": ("broker_reports_gate2_economy_budget_v1"),
                 "actual_cost_usd": "0.000100000",
             },
             "two": {
-                "schema_version": (
-                    "broker_reports_gate2_economy_budget_v1"
-                ),
+                "schema_version": ("broker_reports_gate2_economy_budget_v1"),
                 "actual_cost_usd": "0.000200000",
             },
         }
@@ -205,6 +199,47 @@ def test_safe_failure_and_cost_helpers_never_project_raw_output() -> None:
     }
     assert "must-not-project" not in str(safe)
     assert total == "0.000300000"
+
+
+def test_live_harness_requires_exact_workload_policy_authorization() -> None:
+    receipts = _qualification_authorizations(
+        model_id="gpt-5.4-nano-2026-03-17",
+        provider_profile_id="openai_gpt",
+        workload_contracts=(
+            (
+                "gate2_financial_evidence",
+                "broker_reports_gate2_financial_evidence_decision_v1",
+            ),
+        ),
+    )
+
+    assert len(receipts) == 1
+    assert receipts[0]["workload_class"] == ("gate2_financial_evidence")
+    assert receipts[0]["exact_model_id"] == ("gpt-5.4-nano-2026-03-17")
+    assert receipts[0]["fallback_calls_allowed"] == 0
+    assert receipts[0]["repair_attempts_allowed"] == 0
+    assert set(receipts[0]["receipt_identity"]) == {
+        "provider_route_revision",
+        "input_contract_version",
+        "output_contract_version",
+        "prompt_version",
+        "adapter_projection_revision",
+        "canonical_validator_revision",
+    }
+
+
+def test_live_harness_rejects_alias_before_provider_call() -> None:
+    with pytest.raises(ValueError):
+        _qualification_authorizations(
+            model_id="gpt-5.4-nano",
+            provider_profile_id="openai_gpt",
+            workload_contracts=(
+                (
+                    "gate2_financial_evidence",
+                    "broker_reports_gate2_financial_evidence_decision_v1",
+                ),
+            ),
+        )
 
 
 def test_live_harness_is_factory_backed_and_has_no_vendor_sdk_bypass() -> None:
