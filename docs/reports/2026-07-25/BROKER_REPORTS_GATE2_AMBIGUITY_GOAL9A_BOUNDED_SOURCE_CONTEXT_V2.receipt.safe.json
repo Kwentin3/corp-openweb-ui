@@ -1,0 +1,121 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal9a_receipt_v1",
+  "goal": "goal9a_bounded_source_context_v2",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "f507129908088f1c9840d2ed95f2190e12e33561",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal9a-context-v2",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/135",
+    "production_admission": false
+  },
+  "new_contracts": {
+    "source_context_schema_version": "broker_reports_gate2_financial_evidence_source_context_v2",
+    "source_context_policy_version": "gate2_financial_evidence_bounded_source_context_v2",
+    "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v2",
+    "successor_result_schema_version": "broker_reports_gate2_financial_evidence_successor_result_v2"
+  },
+  "context_projection": {
+    "authority": "authoritative_gate1_model_source_projection",
+    "package_owned": true,
+    "bounded": true,
+    "grouped_associations": true,
+    "source_values_exactly_once": true,
+    "literal_authority_exact_match": true,
+    "deterministic_reference_locator_literals_exposed": false,
+    "binding_source_value_refs_exposed": true,
+    "document_refs_exposed": false,
+    "source_locator_refs_exposed": false,
+    "provenance_graph_exposed": false,
+    "expected_answer_exposed": false,
+    "source_family_exposed": false,
+    "truncation": false,
+    "model_calls": 0,
+    "semantic_type_authority": false
+  },
+  "limits": {
+    "maximum_groups": 32,
+    "maximum_values": 128,
+    "maximum_literal_chars": 4096,
+    "maximum_visible_context_chars": 160
+  },
+  "prompt_identity": {
+    "contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v2",
+    "sha256": "1362c50190bc7859d74b300e5e1fad037cf7ad4939f9946f3c43e4b88930e5fc",
+    "changed": false
+  },
+  "changed_contracts": [
+    "financial_evidence_source_context_v2",
+    "successor_model_input_v2",
+    "successor_result_v2",
+    "explicit_v1_v2_model_input_selection",
+    "shared_gate1_visible_association_extractor",
+    "closed_world_bundle_module_order"
+  ],
+  "unchanged_contracts": [
+    "gate1_contracts",
+    "typed_admission_v1",
+    "typed_admission_predicates",
+    "deterministic_financial_scope_v2",
+    "financial_evidence_registry_v1",
+    "financial_evidence_type_meanings",
+    "financial_evidence_decision_v1",
+    "four_dispositions",
+    "deterministic_materializer",
+    "financial_context_v1",
+    "successor_prompt_v2",
+    "provider_response_schema",
+    "successor_artifact_family_v1",
+    "legacy_immutable_artifacts"
+  ],
+  "tests": {
+    "direct": {
+      "passed": 9,
+      "failed": 0,
+      "duration_seconds": 0.64
+    },
+    "focused": {
+      "passed": 55,
+      "failed": 0,
+      "duration_seconds": 3.43
+    },
+    "full": {
+      "passed": 1488,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 105.29
+    },
+    "ruff": "passed",
+    "bundle_rebuild_deterministic": true
+  },
+  "bundle_sha256": {
+    "gate1": "1737afd026c51fa50c05bc2216509a15f19a6829faeed973463de9c6cb84d0d6",
+    "gate2_source": "499c631f877c56f5f41a37dcc9b663556870523208fb2cb47a5bae2e3720a766",
+    "gate2_domain": "e5212f323f5490ad5640af4381fbca27bae7c175e1088f08a9b9c31ef2ba09c1"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "tokens_total": 0,
+    "actual_cost_usd": "0",
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_in_safe_receipt": false,
+    "source_value_refs_in_safe_receipt": false,
+    "raw_provider_output_in_git": false,
+    "customer_data_in_git": false,
+    "private_evidence_in_git": false
+  },
+  "acceptance": {
+    "only_audit_approved_changes": true,
+    "contract_identities": "versioned",
+    "registry_id_semantic_drift": "zero",
+    "system_metadata_reintroduction": "zero"
+  },
+  "next_permitted_goal": "goal9b_after_goal9a_pr_merge"
+}

@@ -16,6 +16,10 @@ from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
 )
+from .gate2_financial_evidence_source_context import (
+    FinancialEvidenceVisibleValueContext,
+    financial_evidence_visible_value_contexts,
+)
 
 
 TYPED_ADMISSION_SCHEMA_VERSION = (
@@ -146,26 +150,6 @@ class Gate2FinancialEvidenceTypedAdmission:
         }
 
 
-@dataclass(frozen=True)
-class _VisibleValueContext:
-    source_value_ref: str
-    literal_value: str
-    header_label: str
-    association_group: str
-    row_role: str
-    section_role: str
-
-    def identity_payload(self) -> dict[str, Any]:
-        return {
-            "source_value_ref": self.source_value_ref,
-            "literal_value": self.literal_value,
-            "header_label": self.header_label,
-            "association_group": self.association_group,
-            "row_role": self.row_role,
-            "section_role": self.section_role,
-        }
-
-
 class Gate2FinancialEvidenceTypedAdmissionFactory:
     def __init__(
         self,
@@ -202,7 +186,9 @@ class Gate2FinancialEvidenceTypedAdmissionFactory:
             and source_family_id
             in declaration.compatible_source_families
         )
-        contexts = _visible_value_contexts(packages=packages)
+        contexts = financial_evidence_visible_value_contexts(
+            packages=packages
+        )
         values = {
             item.source_value_ref: item for item in source_values
         }
@@ -222,7 +208,8 @@ class Gate2FinancialEvidenceTypedAdmissionFactory:
                 "source_family_id": source_family_id,
                 "candidate_type_ids": list(candidate_type_ids),
                 "contexts": [
-                    item.identity_payload() for item in semantic_contexts
+                    item.typed_admission_identity_payload()
+                    for item in semantic_contexts
                 ],
                 "routing_hints": [
                     copy.deepcopy(item)
@@ -471,88 +458,6 @@ def validate_typed_admission(
         _fail("typed_admission_evidence_identity_invalid")
 
 
-def _visible_value_contexts(
-    *,
-    packages: tuple[dict[str, Any], ...],
-) -> dict[str, _VisibleValueContext]:
-    result: dict[str, _VisibleValueContext] = {}
-    for package in packages:
-        unit = package.get("source_unit") or {}
-        projection = unit.get("model_source_projection") or {}
-        default_section_role = str(
-            unit.get("section_role")
-            or unit.get("section_kind")
-            or ""
-        )
-        for row in projection.get("rows") or []:
-            association_group = str(row.get("row_ref") or "")
-            row_role = str(
-                row.get("row_role")
-                or row.get("row_kind")
-                or ""
-            )
-            for cell in row.get("cells") or []:
-                literal = cell.get("value")
-                refs = cell.get("source_value_refs") or [
-                    cell.get("source_value_ref")
-                ]
-                if not isinstance(literal, str) or not literal:
-                    continue
-                for ref in refs:
-                    normalized_ref = str(ref or "")
-                    if normalized_ref:
-                        _insert_context(
-                            result=result,
-                            context=_VisibleValueContext(
-                                source_value_ref=normalized_ref,
-                                literal_value=literal,
-                                header_label=str(
-                                    cell.get("header_label") or ""
-                                ),
-                                association_group=association_group,
-                                row_role=row_role,
-                                section_role=default_section_role,
-                            ),
-                        )
-        for segment in projection.get("segments") or []:
-            ref = str(segment.get("source_value_ref") or "")
-            literal = segment.get("value")
-            if not ref or not isinstance(literal, str) or not literal:
-                continue
-            _insert_context(
-                result=result,
-                context=_VisibleValueContext(
-                    source_value_ref=ref,
-                    literal_value=literal,
-                    header_label=str(
-                        segment.get("visible_label")
-                        or segment.get("label")
-                        or ""
-                    ),
-                    association_group=str(
-                        segment.get("text_segment_ref") or ref
-                    ),
-                    row_role="",
-                    section_role=str(
-                        segment.get("section_role")
-                        or default_section_role
-                    ),
-                ),
-            )
-    return result
-
-
-def _insert_context(
-    *,
-    result: dict[str, _VisibleValueContext],
-    context: _VisibleValueContext,
-) -> None:
-    previous = result.get(context.source_value_ref)
-    if previous is not None and previous != context:
-        _fail("typed_admission_source_context_conflict")
-    result[context.source_value_ref] = context
-
-
 def _role_refs(
     *,
     candidates: tuple[FinancialEvidenceValueCandidate, ...],
@@ -567,25 +472,31 @@ def _role_refs(
     }
 
 
-def _cash_signal(context: _VisibleValueContext) -> bool:
+def _cash_signal(
+    context: FinancialEvidenceVisibleValueContext,
+) -> bool:
     return bool(
         _CASH_SIGNAL_RE.search(context.literal_value)
-        or _CASH_SIGNAL_RE.search(context.header_label)
+        or _CASH_SIGNAL_RE.search(context.column_meaning)
+        or _CASH_SIGNAL_RE.search(context.visible_label)
     )
 
 
-def _printed_signal(context: _VisibleValueContext) -> bool:
+def _printed_signal(
+    context: FinancialEvidenceVisibleValueContext,
+) -> bool:
     return bool(
         context.row_role.strip().lower() in _PRINTED_ROW_ROLES
         or _PRINTED_SIGNAL_RE.search(context.literal_value)
-        or _PRINTED_SIGNAL_RE.search(context.header_label)
+        or _PRINTED_SIGNAL_RE.search(context.column_meaning)
+        or _PRINTED_SIGNAL_RE.search(context.visible_label)
     )
 
 
 def _same_association_group(
     *,
     refs: tuple[str, ...],
-    contexts: dict[str, _VisibleValueContext],
+    contexts: dict[str, FinancialEvidenceVisibleValueContext],
 ) -> bool:
     groups = {
         contexts[ref].association_group
