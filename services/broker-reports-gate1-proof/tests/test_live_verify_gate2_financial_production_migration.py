@@ -134,7 +134,10 @@ def test_migration_preflight_rejects_expensive_model():
             provider_profile_id="openai_gpt",
         )
 
-    assert exc_info.value.code == "economy_model_not_registered"
+    assert (
+        exc_info.value.code
+        == "economy_runtime_allowlist_expansion_forbidden"
+    )
 
 
 def test_evaluate_passes_atomic_new_schema_migration():

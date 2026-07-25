@@ -17,8 +17,8 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.3.0"
-POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v1"
+POLICY_VERSION = "1.4.0"
+POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v2"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"
 MODEL_STATUS_QUALIFIED = "qualified"
@@ -56,6 +56,12 @@ ECONOMY_WORKLOAD_CLASSES = (
 REASONING_DISABLED = "disabled"
 REASONING_MINIMAL = "minimal"
 REASONING_POLICIES = (REASONING_DISABLED, REASONING_MINIMAL)
+V3_ALLOWED_EXACT_MODEL_IDS = (
+    "models/gemini-3.1-flash-lite",
+    "models/gemini-3.5-flash-lite",
+    "gpt-5.4-nano-2026-03-17",
+    "claude-haiku-4-5-20251001",
+)
 
 
 class Gate2EconomyModelPolicyError(ValueError):
@@ -236,13 +242,7 @@ class Gate2EconomyModelPolicySnapshot:
         workload_class: str,
     ) -> tuple[str, ...]:
         self.workload(workload_class)
-        return tuple(
-            declaration.exact_model_id
-            for declaration in self.models
-            if declaration.lifecycle == MODEL_LIFECYCLE_ACTIVE
-            and declaration.qualification_status == MODEL_STATUS_QUALIFIED
-            and workload_class in declaration.workload_classes
-        )
+        return ()
 
     def assert_runtime_model_allowed(
         self,
@@ -250,22 +250,12 @@ class Gate2EconomyModelPolicySnapshot:
         model_id: str,
         workload_class: str,
     ) -> EconomyModelResolution:
-        resolution = self.resolve_model_id(model_id)
-        declaration = self.model(resolution.exact_model_id)
-        if workload_class not in declaration.workload_classes:
-            raise Gate2EconomyModelPolicyError(
-                "economy_model_workload_forbidden",
-                "Economy model is not allowed for the requested workload",
-            )
-        if (
-            declaration.lifecycle != MODEL_LIFECYCLE_ACTIVE
-            or declaration.qualification_status != MODEL_STATUS_QUALIFIED
-        ):
-            raise Gate2EconomyModelPolicyError(
-                "economy_model_not_qualified",
-                "Economy model has no accepted qualification receipt",
-            )
-        return resolution
+        self.resolve_model_id(model_id)
+        self.workload(workload_class)
+        raise Gate2EconomyModelPolicyError(
+            "economy_general_model_qualification_forbidden",
+            "General model status is not a production admission authority",
+        )
 
     def narrow_runtime_allowlist(
         self,
@@ -273,37 +263,20 @@ class Gate2EconomyModelPolicySnapshot:
         workload_class: str,
         requested_model_ids: Iterable[str] | None,
     ) -> tuple[str, ...]:
-        qualified = self.qualified_allowlist(workload_class)
-        if requested_model_ids is None:
-            return qualified
-        requested = tuple(
-            self.resolve_model_id(model_id).exact_model_id
-            for model_id in requested_model_ids
-        )
-        if not set(requested).issubset(set(qualified)):
+        self.workload(workload_class)
+        if requested_model_ids is not None:
             raise Gate2EconomyModelPolicyError(
                 "economy_runtime_allowlist_expansion_forbidden",
-                "Runtime configuration may only narrow the qualified allowlist",
+                "Production admission is owned by the workload policy",
             )
-        return tuple(
-            model_id for model_id in qualified if model_id in set(requested)
-        )
+        return ()
 
     def provider_allowlist(
         self,
         workload_class: str,
     ) -> dict[str, tuple[str, ...]]:
-        result: dict[str, list[str]] = {}
-        qualified = set(self.qualified_allowlist(workload_class))
-        for declaration in self.models:
-            if declaration.exact_model_id in qualified:
-                result.setdefault(declaration.provider_profile_id, []).append(
-                    declaration.exact_model_id
-                )
-        return {
-            provider: tuple(model_ids)
-            for provider, model_ids in sorted(result.items())
-        }
+        self.workload(workload_class)
+        return {}
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -322,26 +295,6 @@ ECONOMY_MODEL_DECLARATIONS = (
     EconomyModelDeclaration(
         provider_profile_id="openai_gpt",
         provider_id="openai",
-        exact_model_id="gpt-5-nano-2025-08-07",
-        aliases=("gpt-5-nano",),
-        model_family="nano",
-        cost_class="economy",
-        supported_modalities=("text",),
-        structured_output_mode="openwebui_response_format_json_schema",
-        workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=0,
-        reasoning_policy=REASONING_MINIMAL,
-        paid_tools_allowed=False,
-        fallback_eligible=True,
-        lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_UNAVAILABLE,
-        qualification_receipt_identity=None,
-        availability_evidence="stage_models_endpoint_unavailable_2026-07-24",
-        cost=EconomyModelCost("0.05", "0.005", "0.40"),
-    ),
-    EconomyModelDeclaration(
-        provider_profile_id="openai_gpt",
-        provider_id="openai",
         exact_model_id="gpt-5.4-nano-2026-03-17",
         aliases=("gpt-5.4-nano",),
         model_family="nano",
@@ -349,7 +302,7 @@ ECONOMY_MODEL_DECLARATIONS = (
         supported_modalities=("text",),
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=1,
+        preference_order=0,
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         fallback_eligible=True,
@@ -362,26 +315,6 @@ ECONOMY_MODEL_DECLARATIONS = (
     EconomyModelDeclaration(
         provider_profile_id="google_gemini",
         provider_id="google",
-        exact_model_id="models/gemini-2.5-flash-lite",
-        aliases=("gemini-2.5-flash-lite",),
-        model_family="flash_lite",
-        cost_class="economy",
-        supported_modalities=("text",),
-        structured_output_mode="openwebui_response_format_json_schema",
-        workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=5,
-        reasoning_policy=REASONING_DISABLED,
-        paid_tools_allowed=False,
-        fallback_eligible=True,
-        lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
-        qualification_receipt_identity=None,
-        availability_evidence="stage_models_endpoint_available_2026-07-24",
-        cost=EconomyModelCost("0.10", "0.01", "0.40"),
-    ),
-    EconomyModelDeclaration(
-        provider_profile_id="google_gemini",
-        provider_id="google",
         exact_model_id="models/gemini-3.1-flash-lite",
         aliases=("gemini-3.1-flash-lite",),
         model_family="flash_lite",
@@ -389,17 +322,16 @@ ECONOMY_MODEL_DECLARATIONS = (
         supported_modalities=("text",),
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=2,
+        preference_order=1,
         reasoning_policy=REASONING_MINIMAL,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_NOT_QUALIFIED,
+        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
         qualification_receipt_identity=None,
         availability_evidence=(
-            "stage_financial_contract_failed_"
-            "financial_evidence_decision_unclassified_shape_invalid_"
-            "2026-07-24"
+            "stage_models_endpoint_available_2026-07-25;"
+            "formal_source_domain_qualification_required"
         ),
         cost=EconomyModelCost("0.25", "0.025", "1.50"),
     ),
@@ -413,16 +345,16 @@ ECONOMY_MODEL_DECLARATIONS = (
         supported_modalities=("text",),
         structured_output_mode="openwebui_response_format_json_schema",
         workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=3,
+        preference_order=2,
         reasoning_policy=REASONING_MINIMAL,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_UNSUPPORTED_CONTRACT,
+        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
         qualification_receipt_identity=None,
         availability_evidence=(
-            "stage_source_contract_passed_but_financial_qualification_"
-            "route_unavailable_2026-07-24"
+            "stage_models_endpoint_available_2026-07-25;"
+            "formal_source_domain_qualification_required"
         ),
         cost=EconomyModelCost("0.30", "0.03", "2.50"),
     ),
@@ -438,16 +370,16 @@ ECONOMY_MODEL_DECLARATIONS = (
             "openwebui_anthropic_output_config_json_schema"
         ),
         workload_classes=_ALL_GATE2_WORKLOADS,
-        preference_order=4,
+        preference_order=3,
         reasoning_policy=REASONING_DISABLED,
         paid_tools_allowed=False,
         fallback_eligible=True,
         lifecycle=MODEL_LIFECYCLE_CANDIDATE,
-        qualification_status=MODEL_STATUS_UNSUPPORTED_CONTRACT,
+        qualification_status=MODEL_STATUS_QUALIFICATION_REQUIRED,
         qualification_receipt_identity=None,
         availability_evidence=(
-            "stage_financial_contract_rejected_"
-            "gate2_model_schema_response_format_rejected_2026-07-24"
+            "stage_models_endpoint_available_2026-07-25;"
+            "formal_checksum_requalification_required"
         ),
         cost=EconomyModelCost("1.00", "0.10", "5.00"),
     ),
@@ -608,6 +540,11 @@ def validate_economy_model_policy_inputs(
 
 
 def _validate_model_declaration(item: EconomyModelDeclaration) -> None:
+    if item.exact_model_id not in V3_ALLOWED_EXACT_MODEL_IDS:
+        raise Gate2EconomyModelPolicyError(
+            "economy_policy_exact_model_forbidden",
+            "The v3 Gate 2 contour permits only its four pinned exact IDs",
+        )
     family_valid = (
         item.provider_profile_id == "openai_gpt"
         and item.provider_id == "openai"
@@ -662,26 +599,14 @@ def _validate_model_declaration(item: EconomyModelDeclaration) -> None:
             "economy_policy_lifecycle_invalid",
             "Economy model lifecycle or qualification status is invalid",
         )
-    if item.lifecycle == MODEL_LIFECYCLE_ACTIVE:
-        if item.qualification_status != MODEL_STATUS_QUALIFIED:
-            raise Gate2EconomyModelPolicyError(
-                "economy_policy_active_model_not_qualified",
-                "Active economy model must be qualified",
-            )
-        if not _is_sha256(item.qualification_receipt_identity):
-            raise Gate2EconomyModelPolicyError(
-                "economy_policy_qualification_receipt_missing",
-                "Active economy model must bind a qualification receipt",
-            )
-    elif item.qualification_status == MODEL_STATUS_QUALIFIED:
+    if (
+        item.lifecycle != MODEL_LIFECYCLE_CANDIDATE
+        or item.qualification_status == MODEL_STATUS_QUALIFIED
+        or item.qualification_receipt_identity is not None
+    ):
         raise Gate2EconomyModelPolicyError(
-            "economy_policy_qualified_model_not_active",
-            "Qualified economy model must have active lifecycle",
-        )
-    elif item.qualification_receipt_identity is not None:
-        raise Gate2EconomyModelPolicyError(
-            "economy_policy_unqualified_receipt_forbidden",
-            "Unqualified economy model cannot bind a qualification receipt",
+            "economy_policy_general_model_qualification_forbidden",
+            "Production admission must be exact and workload-specific",
         )
     for value in (
         item.cost.input_usd_per_million,
@@ -767,11 +692,3 @@ def _policy_material(
         "models": [item.to_dict() for item in models],
         "workloads": [item.to_dict() for item in workloads],
     }
-
-
-def _is_sha256(value: str | None) -> bool:
-    return bool(
-        isinstance(value, str)
-        and len(value) == 64
-        and all(character in "0123456789abcdef" for character in value)
-    )

@@ -39,7 +39,7 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 def test_policy_cost_budgets_have_measured_basis_and_are_versioned() -> None:
     policy = Gate2EconomyModelPolicyFactory().create()
 
-    assert policy.policy_version == "1.3.0"
+    assert policy.policy_version == "1.4.0"
     assert len(policy.policy_hash) == 64
     for workload in policy.workloads:
         assert workload.maximum_estimated_cost_usd_per_operation
@@ -73,19 +73,18 @@ def test_prepare_call_applies_output_reasoning_and_paid_tool_controls() -> None:
     )
 
 
-def test_alias_is_resolved_to_exact_model_before_provider_call() -> None:
+def test_alias_is_rejected_before_provider_call() -> None:
     session = _financial_session()
 
-    authorization = session.prepare_call(
-        form_data=_form_data(),
-        model_id="gemini-3.1-flash-lite",
-        provider_profile_id="google_gemini",
-        operation_identity="alias-resolution",
-    )
+    with pytest.raises(Gate2SourceFactRuntimeError) as exc_info:
+        session.prepare_call(
+            form_data=_form_data(),
+            model_id="gemini-3.1-flash-lite",
+            provider_profile_id="google_gemini",
+            operation_identity="alias-rejection",
+        )
 
-    assert authorization.requested_model_id == "gemini-3.1-flash-lite"
-    assert authorization.exact_model_id == GEMINI_MODEL
-    assert authorization.prepared_form_data["model"] == GEMINI_MODEL
+    assert exc_info.value.code == "gate2_economy_exact_model_id_required"
 
 
 @pytest.mark.parametrize(

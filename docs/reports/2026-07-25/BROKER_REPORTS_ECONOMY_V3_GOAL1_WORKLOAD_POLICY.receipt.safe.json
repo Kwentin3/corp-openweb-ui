@@ -1,0 +1,90 @@
+{
+  "schema_version": "broker_reports_economy_v3_goal1_workload_policy_receipt_v1",
+  "created_at": "2026-07-25",
+  "goal": 1,
+  "status": "passed_for_policy_delivery",
+  "base_commit": "1a427a2d29fdd68cce7493bfcd74b7b61d818380",
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_ECONOMY_V3_GOAL1_WORKLOAD_POLICY.report.md",
+    "sha256": "d6738e2cd2012992fb1ebad89ac2553d4e845cfe781df27e71c7a3ea826c90f9"
+  },
+  "model_policy": {
+    "policy_id": "broker_reports_economy_model_policy_v1",
+    "policy_version": "1.4.0",
+    "policy_schema_version": "broker_reports_economy_model_policy_v2",
+    "policy_sha256": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9",
+    "allowed_exact_model_ids": [
+      "models/gemini-3.1-flash-lite",
+      "models/gemini-3.5-flash-lite",
+      "gpt-5.4-nano-2026-03-17",
+      "claude-haiku-4-5-20251001"
+    ],
+    "general_model_qualification_used": false
+  },
+  "workload_policy": {
+    "policy_id": "broker_reports_gate2_economy_workload_policy_v2",
+    "policy_version": "1.4.0",
+    "policy_schema_version": "broker_reports_gate2_economy_workload_policy_v2",
+    "policy_sha256": "f1eb7daa08f10c125d21addb5ec03a5dfac42207cc39a4b3aa86224820fc3a7d",
+    "production_allowlist_empty": true,
+    "routes": {
+      "gate2_source": {
+        "primary": "models/gemini-3.1-flash-lite",
+        "secondary": "models/gemini-3.5-flash-lite",
+        "maximum_fallback_calls_per_operation": 1
+      },
+      "gate2_domain": {
+        "primary": "models/gemini-3.1-flash-lite",
+        "secondary": "models/gemini-3.5-flash-lite",
+        "maximum_fallback_calls_per_operation": 1
+      },
+      "gate2_financial_evidence": {
+        "primary": "gpt-5.4-nano-2026-03-17",
+        "secondary": "models/gemini-3.5-flash-lite",
+        "diagnostic": [
+          "models/gemini-3.1-flash-lite"
+        ],
+        "maximum_fallback_calls_per_operation": 1
+      },
+      "gate2_financial_checksum": {
+        "primary": "claude-haiku-4-5-20251001",
+        "secondary": "gpt-5.4-nano-2026-03-17",
+        "diagnostic": [
+          "models/gemini-3.1-flash-lite",
+          "models/gemini-3.5-flash-lite"
+        ],
+        "maximum_fallback_calls_per_operation": 0
+      }
+    }
+  },
+  "qualification_registry": {
+    "schema_version": "broker_reports_gate2_economy_workload_qualification_v2",
+    "registry_sha256": "9a5923d61bf8ca73db2ce6acc37e9c2ea85d2c197625f15469b6cac5dae54c23",
+    "subjects_total": 16,
+    "complete_model_workload_cartesian": true,
+    "production_authority": false
+  },
+  "bundles": {
+    "broker_reports_gate1_pipe": "8fbcfbc970641e5076745342c6b90da5b711bf1b0bc9c3fbcba2e3fe99fc6d94",
+    "broker_reports_gate2_source_fact_pipe": "2b7a34b92700d29b0ed5e93de7fd65d9229291cd952adaf3bc84df63707db56a",
+    "broker_reports_gate2_domain_source_fact_pipe": "4e68f73e8eba260585802edc13d65941079bf83eff7e35cfde36dbceaa3ab17e",
+    "deterministic_rebuild": true
+  },
+  "verification": {
+    "focused_tests_passed": 87,
+    "migration_boundary_tests_passed": 12,
+    "full_tests_passed": 1360,
+    "full_tests_skipped": 20,
+    "ruff_changed_scope": "passed",
+    "compileall": "passed",
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "stage_mutations": 0
+  },
+  "acceptance": {
+    "workload_policy": "versioned",
+    "general_model_qualification": "not_used",
+    "production_allowlist": "empty",
+    "expensive_ids": "absent_from_economy_v3_workload_contour"
+  }
+}

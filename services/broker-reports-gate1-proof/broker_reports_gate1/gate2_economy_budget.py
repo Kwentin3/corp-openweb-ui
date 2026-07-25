@@ -302,6 +302,12 @@ class Gate2EconomyBudgetSession:
                 "Provider resolved outside the economy policy",
                 operation_hash=authorization.operation_identity_sha256,
             )
+        if resolved.alias_used:
+            self._block(
+                "gate2_economy_resolved_model_alias_forbidden",
+                "Provider execution must report the pinned exact model ID",
+                operation_hash=authorization.operation_identity_sha256,
+            )
         if resolved.exact_model_id != declaration.exact_model_id:
             self._block(
                 "gate2_economy_resolved_model_mismatch",
@@ -535,7 +541,13 @@ class Gate2EconomyBudgetSession:
         model_id: str,
         provider_profile_id: str,
     ) -> EconomyModelDeclaration:
-        declaration = self.policy.model(model_id)
+        resolution = self.policy.resolve_model_id(model_id)
+        if resolution.alias_used:
+            _fail(
+                "gate2_economy_exact_model_id_required",
+                "Gate 2 v3 requires a pinned exact model ID",
+            )
+        declaration = self.policy.model(resolution.exact_model_id)
         if declaration.provider_profile_id != provider_profile_id:
             _fail(
                 "gate2_economy_budget_provider_model_mismatch",

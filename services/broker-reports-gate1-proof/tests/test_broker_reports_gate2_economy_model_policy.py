@@ -11,12 +11,10 @@ from broker_reports_gate1.gate2_economy_model_policy import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     MODEL_LIFECYCLE_ACTIVE,
-    MODEL_STATUS_NOT_QUALIFIED,
     MODEL_STATUS_QUALIFICATION_REQUIRED,
     MODEL_STATUS_QUALIFIED,
-    MODEL_STATUS_UNAVAILABLE,
-    MODEL_STATUS_UNSUPPORTED_CONTRACT,
     POLICY_ID,
+    V3_ALLOWED_EXACT_MODEL_IDS,
     EconomyModelDeclaration,
     Gate2EconomyModelPolicyError,
     Gate2EconomyModelPolicyFactory,
@@ -43,35 +41,21 @@ def test_factory_is_pure_deterministic_and_has_no_qualified_models_before_receip
 def test_live_qualification_statuses_are_explicit_and_fail_closed() -> None:
     policy = Gate2EconomyModelPolicyFactory().create()
 
-    assert policy.model(
-        "gpt-5-nano-2025-08-07"
-    ).qualification_status == MODEL_STATUS_UNAVAILABLE
-    assert policy.model(
-        "gpt-5.4-nano-2026-03-17"
-    ).qualification_status == MODEL_STATUS_QUALIFICATION_REQUIRED
-    assert policy.model(
-        "models/gemini-2.5-flash-lite"
-    ).qualification_status == MODEL_STATUS_QUALIFICATION_REQUIRED
-    assert policy.model(
-        "models/gemini-3.1-flash-lite"
-    ).qualification_status == MODEL_STATUS_NOT_QUALIFIED
-    assert policy.model(
-        "models/gemini-3.5-flash-lite"
-    ).qualification_status == MODEL_STATUS_UNSUPPORTED_CONTRACT
-    assert policy.model(
-        "claude-haiku-4-5-20251001"
-    ).qualification_status == MODEL_STATUS_UNSUPPORTED_CONTRACT
+    assert policy.policy_version == "1.4.0"
+    assert {item.exact_model_id for item in policy.models} == set(
+        V3_ALLOWED_EXACT_MODEL_IDS
+    )
+    assert len(policy.models) == 4
+    assert all(
+        item.qualification_status == MODEL_STATUS_QUALIFICATION_REQUIRED
+        for item in policy.models
+    )
 
 
 @pytest.mark.parametrize(
     ("alias", "exact"),
     [
-        ("gpt-5-nano", "gpt-5-nano-2025-08-07"),
         ("gpt-5.4-nano", "gpt-5.4-nano-2026-03-17"),
-        (
-            "gemini-2.5-flash-lite",
-            "models/gemini-2.5-flash-lite",
-        ),
         (
             "gemini-3.1-flash-lite",
             "models/gemini-3.1-flash-lite",
@@ -126,7 +110,10 @@ def test_unqualified_candidate_cannot_be_selected_by_runtime() -> None:
             workload_class="gate2_financial_evidence",
         )
 
-    assert exc_info.value.code == "economy_model_not_qualified"
+    assert (
+        exc_info.value.code
+        == "economy_general_model_qualification_forbidden"
+    )
 
 
 def test_runtime_override_cannot_expand_empty_qualified_allowlist() -> None:
@@ -144,7 +131,7 @@ def test_runtime_override_cannot_expand_empty_qualified_allowlist() -> None:
     )
 
 
-def test_active_model_requires_qualified_status_and_receipt() -> None:
+def test_general_model_qualification_is_forbidden() -> None:
     invalid = _replace_first(
         lifecycle=MODEL_LIFECYCLE_ACTIVE,
         qualification_status=MODEL_STATUS_QUALIFIED,
@@ -157,7 +144,10 @@ def test_active_model_requires_qualified_status_and_receipt() -> None:
             ECONOMY_WORKLOAD_POLICIES,
         )
 
-    assert exc_info.value.code == "economy_policy_qualification_receipt_missing"
+    assert (
+        exc_info.value.code
+        == "economy_policy_general_model_qualification_forbidden"
+    )
 
 
 @pytest.mark.parametrize(
@@ -179,7 +169,7 @@ def test_policy_validation_rejects_expensive_family(
             ECONOMY_WORKLOAD_POLICIES,
         )
 
-    assert exc_info.value.code == "economy_policy_model_family_forbidden"
+    assert exc_info.value.code == "economy_policy_exact_model_forbidden"
 
 
 def test_policy_validation_rejects_paid_tools_and_multi_call_default() -> None:

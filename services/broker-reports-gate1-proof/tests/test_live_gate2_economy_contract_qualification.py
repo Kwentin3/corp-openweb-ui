@@ -105,11 +105,11 @@ def test_checksum_fixture_seals_three_metrics_and_comparator_passes() -> None:
     ("model_id", "provider_profile_id"),
     (
         ("gpt-5.4-nano-2026-03-17", "openai_gpt"),
-        ("models/gemini-2.5-flash-lite", "google_gemini"),
-        ("claude-haiku-4-5-20251001", "anthropic_claude"),
+        ("models/gemini-3.1-flash-lite", "google_gemini"),
+        ("models/gemini-3.5-flash-lite", "google_gemini"),
     ),
 )
-def test_every_published_candidate_passes_schema_only_dry_build(
+def test_financial_candidates_pass_schema_only_dry_build(
     model_id: str,
     provider_profile_id: str,
 ) -> None:
@@ -136,8 +136,23 @@ def test_every_published_candidate_passes_schema_only_dry_build(
         assert receipt["estimated_input_tokens"] <= 3_072
         assert receipt["maximum_output_tokens"] == 640
 
+
+
+@pytest.mark.parametrize(
+    ("model_id", "provider_profile_id"),
+    (
+        ("claude-haiku-4-5-20251001", "anthropic_claude"),
+        ("gpt-5.4-nano-2026-03-17", "openai_gpt"),
+        ("models/gemini-3.1-flash-lite", "google_gemini"),
+        ("models/gemini-3.5-flash-lite", "google_gemini"),
+    ),
+)
+def test_checksum_candidates_pass_schema_only_dry_build(
+    model_id: str,
+    provider_profile_id: str,
+) -> None:
     checksum, _ = build_checksum_qualification_fixture()
-    checksum_receipt = _dry_build(
+    receipt = _dry_build(
         request_profile=FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
         provider_profile_id=provider_profile_id,
         model_id=model_id,
@@ -155,8 +170,8 @@ def test_every_published_candidate_passes_schema_only_dry_build(
         package=checksum.model_package(),
         response_format=checksum.openai_response_format(),
     )
-    assert checksum_receipt["estimated_input_tokens"] <= 130_000
-    assert checksum_receipt["maximum_output_tokens"] == 1_024
+    assert receipt["estimated_input_tokens"] <= 130_000
+    assert receipt["maximum_output_tokens"] == 1_024
 
 
 def test_safe_failure_and_cost_helpers_never_project_raw_output() -> None:
