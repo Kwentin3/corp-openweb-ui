@@ -34,7 +34,7 @@ GPT-5.4 Nano остаётся независимо qualified `4/4`.
   `b296eed61e4f923b275fd9567d6ece04c8280040`;
 - branch:
   `codex/broker-reports-gate2-v4-goal5-gemini-financial-secondary`;
-- PR: будет закреплён после открытия evidence-only PR.
+- PR: [#122](https://github.com/Kwentin3/corp-openweb-ui/pull/122).
 
 ## Exact financial identity
 

@@ -5,7 +5,7 @@
   "git": {
     "execution_revision": "b296eed61e4f923b275fd9567d6ece04c8280040",
     "branch": "codex/broker-reports-gate2-v4-goal5-gemini-financial-secondary",
-    "pull_request": null
+    "pull_request": 122
   },
   "gemini_3_5": {
     "exact_model_id": "models/gemini-3.5-flash-lite",
