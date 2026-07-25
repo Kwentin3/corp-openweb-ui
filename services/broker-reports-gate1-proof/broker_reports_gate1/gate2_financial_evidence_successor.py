@@ -7,7 +7,7 @@ from typing import Any
 
 from .gate2_deterministic_financial_scopes import (
     Gate2DeterministicFinancialScope,
-    validate_deterministic_financial_scope,
+    validate_deterministic_financial_scope_any,
 )
 from .gate2_financial_evidence_decision import DECISION_SCHEMA_VERSION
 from .gate2_financial_evidence_materialization import (
@@ -193,7 +193,7 @@ class Gate2FinancialEvidenceSuccessorRunner:
         execution_ref: str,
         decision_validation_ref: str,
     ) -> Gate2FinancialEvidenceSuccessorResult:
-        validate_deterministic_financial_scope(scope)
+        validate_deterministic_financial_scope_any(scope)
         if (
             scope.decision_contract.registry.registry_version
             != self.registry.registry_version
@@ -306,7 +306,7 @@ class Gate2FinancialEvidenceSuccessorRunner:
         *,
         scope: Gate2DeterministicFinancialScope,
     ) -> dict[str, Any]:
-        validate_deterministic_financial_scope(scope)
+        validate_deterministic_financial_scope_any(scope)
         candidates = {
             item.source_value_ref: item
             for item in scope.decision_contract.package.candidates

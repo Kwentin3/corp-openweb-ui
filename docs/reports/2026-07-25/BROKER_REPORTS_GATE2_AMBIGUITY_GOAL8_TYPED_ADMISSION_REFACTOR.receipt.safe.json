@@ -1,0 +1,120 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal8_receipt_v1",
+  "goal": "goal8_typed_admission_refactor",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "226cede7e972f974b2d3cc74cc2a94607d6d8116",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal8-typed-admission",
+    "pull_request": "pending_creation",
+    "production_admission": false
+  },
+  "new_contracts": {
+    "typed_admission_schema_version": "broker_reports_gate2_financial_typed_admission_v1",
+    "typed_admission_policy_version": "gate2_financial_typed_admission_policy_v1",
+    "scope_schema_version": "broker_reports_gate2_deterministic_financial_scope_package_v2",
+    "scope_batch_schema_version": "broker_reports_gate2_deterministic_financial_scope_batch_v2",
+    "scope_policy_version": "gate2_deterministic_financial_scope_from_gate1_v2"
+  },
+  "changed_contracts": [
+    "typed_admission_factory",
+    "deterministic_financial_scope_v2",
+    "explicit_scope_v1_v2_validator_dispatch",
+    "successor_runner_scope_v2_read",
+    "product_comparator_scope_v2_read",
+    "closed_world_bundle_module_order"
+  ],
+  "unchanged_contracts": [
+    "gate1_contracts",
+    "financial_evidence_registry_v1",
+    "financial_evidence_type_meanings",
+    "financial_evidence_decision_v1",
+    "four_dispositions",
+    "deterministic_materializer",
+    "financial_context_v1",
+    "successor_model_input_v1",
+    "successor_prompt_v2",
+    "successor_artifact_family_v1",
+    "legacy_immutable_artifacts",
+    "source_domain_model_authority_zero"
+  ],
+  "admission": {
+    "authority": "code_owned_pre_model",
+    "default": "not_admitted",
+    "maximum_admitted_types": 1,
+    "positive_discriminator_required": true,
+    "unique_association_required": true,
+    "ambiguous_scope_typed_branch_present": false,
+    "conflicting_discriminators_typed_branch_present": false,
+    "post_response_typed_to_unclassified": false,
+    "default_type": false,
+    "heuristic_repair": false
+  },
+  "acceptance_cases": {
+    "unique_cash": "only_cash_branch",
+    "unique_printed_total": "only_printed_metric_branch",
+    "multiple_hypotheses": "typed_branch_absent",
+    "explicit_unclassified": "typed_branch_absent",
+    "missing_discriminator": "typed_branch_absent",
+    "adjacent_equal": "typed_branch_absent",
+    "adjacent_fx": "typed_branch_absent",
+    "conflicting_positive_evidence": "typed_branch_absent",
+    "fabricated_unadmitted_typed_decision": "canonical_rejected",
+    "tampered_admission_receipt": "rejected",
+    "legacy_v1_scope": "unchanged"
+  },
+  "tests": {
+    "direct": {
+      "passed": 15,
+      "failed": 0,
+      "duration_seconds": 0.69
+    },
+    "focused": {
+      "passed": 46,
+      "failed": 0,
+      "duration_seconds": 3.24
+    },
+    "full": {
+      "passed": 1479,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 103.79
+    },
+    "ruff": "passed",
+    "bundle_rebuild_deterministic": true
+  },
+  "bundle_sha256": {
+    "gate1": "1737afd026c51fa50c05bc2216509a15f19a6829faeed973463de9c6cb84d0d6",
+    "gate2_source": "499c631f877c56f5f41a37dcc9b663556870523208fb2cb47a5bae2e3720a766",
+    "gate2_domain": "40f6f0a1afdb9c352cdba503cbd90f95b936083278dcb9a15ef63ab3afd9a3a7"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "tokens_total": 0,
+    "actual_cost_usd": "0",
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_in_safe_receipt": false,
+    "source_value_refs_in_safe_receipt": false,
+    "raw_provider_output_in_git": false,
+    "customer_data_in_git": false,
+    "private_evidence_in_git": false
+  },
+  "acceptance": {
+    "unsafe_typed_branch": "unrepresentable_where_ambiguity_is_proven",
+    "admission_policy": "code_owned_and_versioned",
+    "post_response_repair": "zero"
+  },
+  "deferred": {
+    "artifact_identity_v2": "goal10_before_provider_call",
+    "context_v2": "goal9a",
+    "prompt_provider_projection_v3": "goal9b"
+  },
+  "next_permitted_goal": "goal9a_after_goal8_pr_merge"
+}
