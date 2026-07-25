@@ -1,0 +1,166 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal2_receipt_v1",
+  "goal": "goal2_product_invariant_successor_comparator",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "8683f250350d1aa57a3a4867397ea1b18fe4867b",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal2-comparator",
+    "implementation_revision": "43a315ff7c1d34f96b2811ab868deb4a129ef288",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/128",
+    "changed_paths_before_evidence": [
+      "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_successor_product_comparator.py",
+      "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_successor_product_comparator.py"
+    ],
+    "production_runtime_files_changed": 0,
+    "bundle_files_changed": 0,
+    "legacy_benchmark_files_changed": 0
+  },
+  "contracts_changed": {
+    "comparator_receipt_schema": "broker_reports_gate2_successor_product_comparator_v1",
+    "comparator_policy": "gate2_successor_product_invariants_v1",
+    "factory": "Gate2SuccessorProductComparatorFactory.create"
+  },
+  "contracts_explicitly_unchanged": [
+    "broker_reports_gate2_deterministic_financial_scope_package_v1",
+    "broker_reports_gate2_financial_evidence_decision_v1",
+    "broker_reports_financial_evidence_source_package_v1",
+    "broker_reports_gate2_financial_evidence_registry_v1",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_gate2_financial_context_v1",
+    "legacy source/domain schemas and benchmarks",
+    "Gate 1 contracts",
+    "Gate 3 contracts"
+  ],
+  "authoritative_product_invariants": [
+    "eligible_disposition",
+    "eligible_registry_type",
+    "exact_package_ref_membership",
+    "role_compatibility",
+    "literal_preservation",
+    "invented_values_zero",
+    "duplicate_bindings_zero",
+    "cross_scope_bindings_zero",
+    "terminal_ownership_complete",
+    "unclassified_value_preservation",
+    "deterministic_materialization_exact",
+    "final_context_integrity_exact"
+  ],
+  "comparison_boundary": {
+    "exact_equality_applied_to": [
+      "deterministic_materialized_artifacts",
+      "deterministic_final_context"
+    ],
+    "exact_equality_not_applied_to": [
+      "legacy_candidate_graph",
+      "legacy_relation_graph",
+      "legacy_fact_paths",
+      "model_confidence",
+      "model_completeness",
+      "model_uncertainty",
+      "model_audit_fields"
+    ],
+    "legacy_benchmark_rewritten": false
+  },
+  "classifications": [
+    "model_wrong",
+    "acceptable_alternative",
+    "comparator_defect",
+    "contract_gap",
+    "actual_data_loss",
+    "unknown"
+  ],
+  "positive_probe": {
+    "input_kind": "synthetic_non_customer",
+    "status": "passed",
+    "checks_passed": 14,
+    "checks_total": 14,
+    "mismatch_paths_total": 0,
+    "affected_source_refs_total": 0,
+    "literal_loss_total": 0,
+    "terminal_ownership_gap_total": 0,
+    "invented_values_total": 0,
+    "duplicate_bindings_total": 0,
+    "cross_scope_bindings_total": 0,
+    "actual_data_loss_detected": false,
+    "integrity_hash": "1dfef8b1b8a05092517904cfd4d6fbde50cf3b9154e18275957ab410cbc4b403"
+  },
+  "negative_value_loss_probe": {
+    "input_kind": "synthetic_non_customer_intentional_failure",
+    "status": "failed_as_expected",
+    "unique_affected_source_refs_total": 1,
+    "affected_source_ref_events_total": 3,
+    "literal_loss_total": 1,
+    "terminal_ownership_gap_total": 0,
+    "actual_data_loss_detected": true,
+    "classification": "actual_data_loss",
+    "mismatch_paths": [
+      "$.scopes[0].decision.value_bindings",
+      "$.scopes[0].materialized_artifact",
+      "$.final_context"
+    ]
+  },
+  "diagnostic_checks": {
+    "typed_registry_bound_pass": true,
+    "acceptable_alternative_non_blocking": true,
+    "tampered_literal_rejected": true,
+    "missing_terminal_owner_measured": true,
+    "out_of_package_ref_rejected": true,
+    "duplicate_binding_measured": true,
+    "wrong_final_context_rejected": true,
+    "mismatch_paths_value_free": true
+  },
+  "execution_boundary": {
+    "provider_calls_total": 0,
+    "customer_corpus_calls_total": 0,
+    "model_calls_total": 0,
+    "persistence_writes_total": 0,
+    "production_routing_changes_total": 0,
+    "stage_mutations_total": 0,
+    "browser_calls_total": 0
+  },
+  "tests": {
+    "direct": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_successor_product_comparator.py",
+      "passed": 10,
+      "failed": 0,
+      "duration_seconds": 0.63
+    },
+    "focused": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_successor_product_comparator.py tests/test_broker_reports_gate2_deterministic_financial_scopes.py tests/test_broker_reports_gate2_financial_evidence_decision.py tests/test_broker_reports_gate2_financial_evidence_materialization.py tests/test_broker_reports_gate2_financial_context.py tests/test_broker_reports_gate2_financial_evidence_shadow_qualification.py",
+      "passed": 87,
+      "failed": 0,
+      "duration_seconds": 1.14
+    },
+    "full": {
+      "command": "python -m pytest -q",
+      "passed": 1417,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 93.25
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "source_hashes": {
+    "comparator_sha256": "ea3a10a253e36e747c1ef8d11513acf4c785ecc3c5496bb72244eb3994599e6e",
+    "tests_sha256": "f3637f851eb2143325226bf8e4fd954ce42a09ab8e66cdbb47d4d721e12598e9"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_provider_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_refs_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "receipt_private_token_scan": "passed"
+  },
+  "acceptance": {
+    "product_invariants": "authoritative",
+    "internal_graph_exactness": "not_primary",
+    "value_free_mismatch_paths": "required",
+    "actual_data_loss": "explicitly_measured",
+    "legacy_benchmark_rewrite": "zero"
+  },
+  "next_permitted_goal": "goal3_financial_decision_integration_after_merge"
+}
