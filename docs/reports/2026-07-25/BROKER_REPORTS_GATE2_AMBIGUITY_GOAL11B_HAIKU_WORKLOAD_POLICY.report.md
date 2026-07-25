@@ -97,7 +97,8 @@ The warnings are unchanged SWIG deprecation warnings.
   `c23c4f5e7a4ca92eb8b0aaaccfeac313e3b2ab94`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal11b-haiku-workload-policy`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/140`;
 - production admission: false.
 
 ## Acceptance
