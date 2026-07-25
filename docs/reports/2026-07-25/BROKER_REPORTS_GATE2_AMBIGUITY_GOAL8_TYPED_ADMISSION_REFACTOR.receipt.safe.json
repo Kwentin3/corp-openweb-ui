@@ -6,7 +6,7 @@
   "repository": {
     "base_revision": "226cede7e972f974b2d3cc74cc2a94607d6d8116",
     "branch": "codex/broker-reports-gate2-ambiguity-goal8-typed-admission",
-    "pull_request": "pending_creation",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/134",
     "production_admission": false
   },
   "new_contracts": {
