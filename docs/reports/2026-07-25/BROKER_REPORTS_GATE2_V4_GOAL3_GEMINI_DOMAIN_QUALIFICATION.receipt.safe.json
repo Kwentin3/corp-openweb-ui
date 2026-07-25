@@ -1,0 +1,124 @@
+{
+  "schema": "broker_reports_gate2_v4_goal3_gemini_domain_qualification_receipt_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED_WITH_EXPLICIT_GAPS",
+  "git": {
+    "execution_revision": "7997d7c67b8bf3d0fdccf7a8348f26cbbc2fb75a",
+    "branch": "codex/broker-reports-gate2-v4-goal3-gemini-domain-qualification",
+    "pull_request": 116
+  },
+  "qualification_identity": {
+    "workload_class": "gate2_domain",
+    "provider_profile_id": "google_gemini",
+    "provider_route_revision": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "input_contract_version": "broker_reports_gate2_domain_qualification_manifest_v1:ee6a8ac0b364ab5abe4ce81472b6db7973813c89598cd0e9ae078d4783a89b1f",
+    "output_contract_version": "broker_reports_candidate_binding_output_v0",
+    "prompt_version": "broker_reports_gate2_domain_economy_qualification_prompt_v1",
+    "adapter_projection_revision": "gemini_response_format:1.5.0:997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "canonical_validator_revision": "broker_reports_gate2_domain_qualification_comparator_v1:46b0b0302969184bec311b181e7e3d5dbc4e2840371662e135b6a03f109e3fa9",
+    "manifest_sha256": "ee6a8ac0b364ab5abe4ce81472b6db7973813c89598cd0e9ae078d4783a89b1f",
+    "frozen_cases": 5,
+    "customer_data": false,
+    "expected_selection_sent_to_model": false
+  },
+  "results": [
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "authorization_sha256": "e5cd2fc1b17e64a229aa1c84b7d986d7ff1617a28f12f8705ae902dfa53be3b5",
+      "terminal_status": "NOT_QUALIFIED",
+      "terminal_code": "qualification_safe_receipt_unavailable",
+      "failure_layer": "local_runner_output_capture",
+      "provider_generated_output": true,
+      "canonical_validation_ran": true,
+      "terminal_result_retained": false,
+      "provider_calls": 5,
+      "http_200_responses": 5,
+      "stage_log_utc_first": "2026-07-25T10:32:55.762Z",
+      "stage_log_utc_last": "2026-07-25T10:33:08.254Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "actual_cost_usd": null,
+      "fallback_calls": 0,
+      "repair_attempts": 0
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "authorization_sha256": "d2cb2266b45fedc69d82be78071e4de8385f0f919adda391d1145ae4fbaa116c",
+      "terminal_status": "NOT_QUALIFIED",
+      "terminal_code": "qualification_safe_receipt_unavailable",
+      "failure_layer": "local_runner_output_capture",
+      "provider_generated_output": true,
+      "canonical_validation_ran": true,
+      "terminal_result_retained": false,
+      "provider_calls": 5,
+      "http_200_responses": 5,
+      "stage_log_utc_first": "2026-07-25T10:37:07.526Z",
+      "stage_log_utc_last": "2026-07-25T10:37:20.049Z",
+      "input_tokens": null,
+      "output_tokens": null,
+      "actual_cost_usd": null,
+      "fallback_calls": 0,
+      "repair_attempts": 0
+    }
+  ],
+  "aggregate": {
+    "provider_calls": 10,
+    "customer_calls": 0,
+    "input_tokens": null,
+    "output_tokens": null,
+    "actual_cost_usd": null,
+    "expensive_model_calls": 0,
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "paid_tools_used": 0,
+    "stage_mutations": 0,
+    "knowledge_rag_vector_writes": 0,
+    "gate3_executions": 0
+  },
+  "contracts_changed": {
+    "qualification_only_request_profile_added": true,
+    "frozen_domain_manifest_added": true,
+    "bounded_domain_runner_added": true,
+    "focused_tests_added": true,
+    "production_profile_tuple_changed": false,
+    "canonical_production_validator_changed": false,
+    "production_admissions_changed": false,
+    "stage_changed": false
+  },
+  "tests": {
+    "focused_passed": 48,
+    "focused_seconds": "1.14",
+    "full_passed": 1393,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "96.21",
+    "ruff_passed": true,
+    "manifest_json_parse_passed": true
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "response_bodies_in_receipt": false,
+    "secrets_in_receipt": false
+  },
+  "corrective_boundary": {
+    "narrowest_slice": "atomic_safe_receipt_path_and_per_case_checkpointing_before_one_new_bounded_run_per_exact_model",
+    "forbidden_workarounds": [
+      "qualified_claim_from_http_200",
+      "result_reconstruction_from_provider_logs",
+      "lost_receipt_reuse",
+      "canonical_validator_weakening",
+      "free_json",
+      "repair",
+      "fallback",
+      "expensive_model",
+      "production_admission",
+      "goal4_before_goal3a"
+    ]
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL3_GEMINI_DOMAIN_QUALIFICATION.report.md"
+  },
+  "next_permitted_goal": "v4_goal3a_persisted_safe_receipt_correction"
+}
