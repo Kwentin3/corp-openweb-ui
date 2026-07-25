@@ -167,7 +167,7 @@ Fail-closed тесты покрывают:
   `codex/broker-reports-gate2-scope-refactor-goal3-financial-integration`;
 - implementation revision:
   `ecaddabcb2e810884fecde7f15455a87f04c8ec0`;
-- PR: `PENDING`;
+- PR: `https://github.com/Kwentin3/corp-openweb-ui/pull/129`;
 - stage mutations: 0;
 - customer-facing routing changes: 0;
 - legacy runtime deletion: 0.

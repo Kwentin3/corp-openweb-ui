@@ -7,7 +7,7 @@
     "base_revision": "5759da886b9ff512050be30ff9ca11e32b46c3e4",
     "branch": "codex/broker-reports-gate2-scope-refactor-goal3-financial-integration",
     "implementation_revision": "ecaddabcb2e810884fecde7f15455a87f04c8ec0",
-    "pull_request": "PENDING",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/129",
     "domain_bundle_sha256": "2a8d9ec8c643510b7f4974d77208c1f4fba5f232bd1b07c6d1960bf984634abe",
     "bundle_rebuild_exact": true,
     "customer_facing_routing_changes_total": 0,
