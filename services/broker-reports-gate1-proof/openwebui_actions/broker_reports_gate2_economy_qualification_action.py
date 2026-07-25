@@ -37,7 +37,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         "policy_version": "1.4.0",
         "policy_schema_version": ("broker_reports_gate2_economy_workload_policy_v2"),
         "policy_hash": (
-            "f1eb7daa08f10c125d21addb5ec03a5dfac42207cc39a4b3aa86224820fc3a7d"
+            "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de"
         ),
     },
     "model_controls": {
@@ -79,9 +79,9 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         },
         "gate2_financial_evidence": {
             "qualification_candidate_exact_model_ids": [
-                "gpt-5.4-nano-2026-03-17",
-                "models/gemini-3.5-flash-lite",
+                "claude-haiku-4-5-20251001",
                 "models/gemini-3.1-flash-lite",
+                "models/gemini-3.5-flash-lite",
             ],
             "production_admissions": [],
         },
@@ -109,7 +109,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         "paid_tools_allowed": False,
     },
     "qualification_policy_hash": (
-        "d6b33ce5bdfd5e75b6c6afb66efa47a79150144c522f8e2ea433a7a045c23395"
+        "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe"
     ),
 }
 

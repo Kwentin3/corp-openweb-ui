@@ -256,14 +256,13 @@ ECONOMY_WORKLOAD_ROUTES = (
     EconomyWorkloadRoutePolicy(
         workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
         primary_candidate_exact_model_id=(
-            "gpt-5.4-nano-2026-03-17"
+            "claude-haiku-4-5-20251001"
         ),
-        secondary_candidate_exact_model_id=(
-            "models/gemini-3.5-flash-lite"
-        ),
+        secondary_candidate_exact_model_id=None,
         maximum_fallback_calls_per_operation=1,
         diagnostic_candidate_exact_model_ids=(
             "models/gemini-3.1-flash-lite",
+            "models/gemini-3.5-flash-lite",
         ),
     ),
     EconomyWorkloadRoutePolicy(

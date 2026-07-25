@@ -7,6 +7,7 @@ import pytest
 from broker_reports_gate1.gate2_economy_model_policy import (
     WORKLOAD_GATE2_DOMAIN,
     WORKLOAD_GATE2_FINANCIAL_CHECKSUM,
+    WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
     Gate2EconomyModelPolicyFactory,
 )
 from broker_reports_gate1.gate2_economy_provider_selection import (
@@ -127,6 +128,29 @@ def test_qualification_route_requires_exact_workload_candidate() -> None:
         "models/gemini-3.1-flash-lite"
     )
     assert selection.fallback is None
+
+    financial = selector.select_qualification_candidate(
+        workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
+        model_id="claude-haiku-4-5-20251001",
+        provider_profile_id="anthropic_claude",
+    )
+    assert financial.primary.exact_model_id == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert financial.fallback is None
+
+    with pytest.raises(
+        Gate2EconomyProviderSelectionError
+    ) as terminal_nano:
+        selector.select_qualification_candidate(
+            workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
+            model_id="gpt-5.4-nano-2026-03-17",
+            provider_profile_id="openai_gpt",
+        )
+    assert (
+        terminal_nano.value.code
+        == "economy_workload_qualification_candidate_forbidden"
+    )
 
     with pytest.raises(Gate2EconomyProviderSelectionError) as alias:
         selector.select_qualification_candidate(

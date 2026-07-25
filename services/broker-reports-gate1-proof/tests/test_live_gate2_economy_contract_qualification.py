@@ -203,8 +203,8 @@ def test_safe_failure_and_cost_helpers_never_project_raw_output() -> None:
 
 def test_live_harness_requires_exact_workload_policy_authorization() -> None:
     receipts = _qualification_authorizations(
-        model_id="gpt-5.4-nano-2026-03-17",
-        provider_profile_id="openai_gpt",
+        model_id="claude-haiku-4-5-20251001",
+        provider_profile_id="anthropic_claude",
         workload_contracts=(
             (
                 "gate2_financial_evidence",
@@ -215,7 +215,9 @@ def test_live_harness_requires_exact_workload_policy_authorization() -> None:
 
     assert len(receipts) == 1
     assert receipts[0]["workload_class"] == ("gate2_financial_evidence")
-    assert receipts[0]["exact_model_id"] == ("gpt-5.4-nano-2026-03-17")
+    assert receipts[0]["exact_model_id"] == (
+        "claude-haiku-4-5-20251001"
+    )
     assert receipts[0]["fallback_calls_allowed"] == 0
     assert receipts[0]["repair_attempts_allowed"] == 0
     assert set(receipts[0]["receipt_identity"]) == {
@@ -231,8 +233,8 @@ def test_live_harness_requires_exact_workload_policy_authorization() -> None:
 def test_live_harness_rejects_alias_before_provider_call() -> None:
     with pytest.raises(ValueError):
         _qualification_authorizations(
-            model_id="gpt-5.4-nano",
-            provider_profile_id="openai_gpt",
+            model_id="claude-haiku-4-5",
+            provider_profile_id="anthropic_claude",
             workload_contracts=(
                 (
                     "gate2_financial_evidence",
