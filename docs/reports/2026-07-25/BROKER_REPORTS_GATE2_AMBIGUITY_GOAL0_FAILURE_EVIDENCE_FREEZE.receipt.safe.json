@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal0_receipt_v1",
+  "goal": "goal0_failure_evidence_freeze",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+    "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+    "goal_commit": "592d413",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133"
+  },
+  "identity": {
+    "exact_model_id": "gpt-5.4-nano-2026-03-17",
+    "provider_profile_id": "openai_gpt",
+    "provider_route_revision": "4232f7b089fec08326548bf4c70bb33fef0ce603c23d78d6110a9c9a8aec5929",
+    "deterministic_scope_schema": "broker_reports_gate2_deterministic_financial_scope_package_v1",
+    "fixture_canonical_hash": "2ad54a8dae7e9e34a4d020310acffad5c76dc049855e5440ed557fb1efe4d687",
+    "fixture_file_sha256": "b607112e1a70f9877dbd935fdb6f6fe666b61be1ed5b290e896270bde1af886c",
+    "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+    "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "decision_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+    "prompt_v1_hash": "83f22755dd8380b4d91a5b143b1c991afdbed25afea959d9be3d882faee7f33b",
+    "prompt_v2_hash": "1362c50190bc7859d74b300e5e1fad037cf7ad4939f9946f3c43e4b88930e5fc"
+  },
+  "attempt_receipts": {
+    "attempt_v1_sha256": "e2f68329f33e50acc3db8e149546041fcf47625074d1587f330932d685277a8f",
+    "attempt_v2_sha256": "5332f99a2a3b10bc6d2594fc3aee0c93ce494ba4730eeeac6a9d58303d3b8271"
+  },
+  "private_evidence": {
+    "in_git": false,
+    "contains_customer_data": false,
+    "sha256": "af031cc0b45ba1c125b9afd4394abcdd48d9132b6712c56671745eed9b4458ad"
+  },
+  "cases": [
+    {
+      "case_id": "syn_successor_multiple_hypotheses",
+      "eligible_types_total": 2,
+      "source_values_total": 8,
+      "attempt_v1": {
+        "observed_disposition": "unclassified_financial_input",
+        "binding_count": 8,
+        "covers_all_candidates": true,
+        "recovery_candidates_evaluated": 510,
+        "matching_candidates": 1
+      },
+      "attempt_v2": {
+        "observed_disposition": "typed_input",
+        "observed_input_type_id": "cash_balance_snapshot_v1",
+        "binding_count": 5,
+        "covers_all_candidates": false,
+        "recovery_candidates_evaluated": 12,
+        "matching_candidates": 1
+      }
+    },
+    {
+      "case_id": "syn_successor_explicit_unclassified",
+      "eligible_types_total": 2,
+      "source_values_total": 6,
+      "attempt_v1": {
+        "observed_disposition": "unclassified_financial_input",
+        "binding_count": 6,
+        "covers_all_candidates": true,
+        "recovery_candidates_evaluated": 126,
+        "matching_candidates": 1
+      },
+      "attempt_v2": {
+        "observed_disposition": "typed_input",
+        "observed_input_type_id": "cash_balance_snapshot_v1",
+        "binding_count": 4,
+        "covers_all_candidates": false,
+        "recovery_candidates_evaluated": 4,
+        "matching_candidates": 1
+      }
+    }
+  ],
+  "audit_execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0,
+    "canonical_factory_route_used": true,
+    "unique_decision_recovery": true
+  },
+  "tests": {
+    "direct_passed": 7,
+    "direct_failed": 0,
+    "duration_seconds": 5.61,
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "source_hashes": {
+    "audit_script_sha256": "39994a64731a4c467c9d20cdc1ebde223ea1787a972d1f035eff83f04142b572",
+    "audit_tests_sha256": "386b1a055de68809312f3cbfeaa23f4409436102b3165181e182887341038b1a"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_provider_output_in_git": false,
+    "source_literals_in_safe_receipt": false,
+    "source_value_refs_in_safe_receipt": false,
+    "customer_data_in_git": false
+  },
+  "acceptance": {
+    "failure_evidence": "complete",
+    "two_cases": "exactly_reproducible_from_private_evidence",
+    "mixed_revisions": "zero",
+    "new_provider_calls": "zero"
+  },
+  "next_permitted_goal": "goal1_semantic_case_anatomy"
+}

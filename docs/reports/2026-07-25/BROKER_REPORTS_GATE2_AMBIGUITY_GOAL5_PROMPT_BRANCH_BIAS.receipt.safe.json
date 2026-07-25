@@ -1,0 +1,84 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal5_receipt_v1",
+  "goal": "goal5_prompt_and_branch_bias_audit",
+  "status": "passed",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "controlled_identity": {
+    "model_input_hashes_equal": true,
+    "canonical_schema_hashes_equal": true,
+    "provider_schema_hashes_equal": true,
+    "registry_equal": true,
+    "validator_materializer_comparator_equal": true,
+    "exact_model_provider_equal": true,
+    "prompt_derived_fields_only_difference": true
+  },
+  "attempt_v1": {
+    "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v1",
+    "prompt_hash": "83f22755dd8380b4d91a5b143b1c991afdbed25afea959d9be3d882faee7f33b",
+    "cases_passed": 7,
+    "dispositions": {
+      "typed_input": 6,
+      "unclassified_financial_input": 4,
+      "no_financial_input": 0,
+      "unsupported": 1
+    },
+    "disputed_cases_unclassified": 2
+  },
+  "attempt_v2": {
+    "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v2",
+    "prompt_hash": "1362c50190bc7859d74b300e5e1fad037cf7ad4939f9946f3c43e4b88930e5fc",
+    "cases_passed": 9,
+    "dispositions": {
+      "typed_input": 9,
+      "unclassified_financial_input": 0,
+      "no_financial_input": 1,
+      "unsupported": 1
+    },
+    "disputed_cases_typed_cash": 2
+  },
+  "branch_bias": {
+    "unclassified_change": -4,
+    "typed_change": 3,
+    "typed_schema_variants_precede_unclassified": true,
+    "both_disputed_cases_selected_first_cash_variant": true,
+    "schema_order_alone_causal": false,
+    "prompt_v2_exact_pair_bias": "proven",
+    "population_level_frequency_claimed": false
+  },
+  "conflict": {
+    "prompt_requires_semantic_evidence": true,
+    "schema_requires_semantic_evidence": false,
+    "explicit_unclassified_label_bound_by_typed_decision": false,
+    "prompt_is_enforced_by_validator": false,
+    "safety_only_in_prompt": true
+  },
+  "responsibility": {
+    "prompt": "bounded_decision_semantics_and_no_inference",
+    "registry": "normative_type_meaning",
+    "typed_admission_policy": "positive_proof_and_branch_availability",
+    "provider_schema": "only_admitted_typed_variants",
+    "validator": "admission_identity_and_binding_recheck"
+  },
+  "decision": {
+    "prompt_only_tweak": "rejected",
+    "prompt_v3_after_code_owned_admission": true,
+    "new_provider_calls_in_audit": 0
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "acceptance": {
+    "prompt_v2_typing_bias": "proven_for_exact_receipt_pair",
+    "prompt_responsibility": "bounded",
+    "prompt_schema_conflict": "proven",
+    "safety_only_in_prompt": "forbidden"
+  },
+  "next_permitted_goal": "goal6_benchmark_expectation_audit"
+}

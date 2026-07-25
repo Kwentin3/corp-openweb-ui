@@ -1,0 +1,81 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal6_receipt_v1",
+  "goal": "goal6_benchmark_expectation_audit",
+  "status": "passed",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "disputed_cases": [
+    {
+      "case_id": "syn_successor_multiple_hypotheses",
+      "allowed_semantic_outcomes": [
+        "unclassified_financial_input"
+      ],
+      "expected_outcome_uniquely_required": true,
+      "observed_typed_semantically_acceptable": false,
+      "difference_only_naming_or_representation": false,
+      "downstream_risk": [
+        "false_cash_state",
+        "competing_hypothesis_not_in_interpretation_representation"
+      ]
+    },
+    {
+      "case_id": "syn_successor_explicit_unclassified",
+      "allowed_semantic_outcomes": [
+        "unclassified_financial_input"
+      ],
+      "expected_outcome_uniquely_required": true,
+      "observed_typed_semantically_acceptable": false,
+      "difference_only_naming_or_representation": false,
+      "downstream_risk": [
+        "cash_type_without_positive_cash_evidence",
+        "empty_typed_literal_source_labels"
+      ]
+    }
+  ],
+  "comparator": {
+    "literal_preservation": true,
+    "exact_ref_binding": true,
+    "terminal_ownership": true,
+    "inventions_absent": true,
+    "expected_disposition_type": true,
+    "safe_typed_admission_identity": false,
+    "benchmark_v2_requires_admission_checks": true,
+    "exact_internal_graph_required": false
+  },
+  "expectation_audit": {
+    "disputed_expectations_product_grounded": true,
+    "disputed_overconstrained_expectations_total": 0,
+    "disputed_fixture_changes_required": false,
+    "adjacent_v1_defect_case_id": "syn_successor_missing_optional",
+    "adjacent_v1_defect": "typed_cash_without_positive_cash_discriminator",
+    "adjacent_v2_resolution": [
+      "add_authoritative_cash_evidence",
+      "or_expect_unclassified"
+    ]
+  },
+  "benchmark_v2": {
+    "expected_answer_in_model_input": false,
+    "fixture_naming_as_admission_evidence": false,
+    "positive_discriminator_required_for_typed": true,
+    "unique_association_required_for_typed": true,
+    "ambiguous_expected_unclassified": true,
+    "missing_discriminator_expected_unclassified": true,
+    "unclassified_value_retention_required": true
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "acceptance": {
+    "benchmark_expectations": "product_grounded",
+    "disputed_overconstrained_expectations": "zero",
+    "adjacent_v1_expectation_defect": "identified",
+    "fixture_change_justification": "defined_for_benchmark_v2"
+  },
+  "next_permitted_goal": "goal7_final_root_cause_and_refactoring_decision"
+}

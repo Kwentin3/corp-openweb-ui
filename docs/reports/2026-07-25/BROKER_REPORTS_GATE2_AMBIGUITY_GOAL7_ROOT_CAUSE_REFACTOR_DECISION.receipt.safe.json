@@ -1,0 +1,163 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal7_receipt_v1",
+  "goal": "goal7_final_root_cause_and_refactoring_decision",
+  "status": "approved",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+    "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+    "production_runtime_contracts_changed": false
+  },
+  "root_cause": {
+    "deterministic_scope": [
+      "source_associations_dropped",
+      "allowed_type_ids_not_narrowed"
+    ],
+    "model_input_context": [
+      "flat_values",
+      "row_header_associations_missing"
+    ],
+    "eligibility": [
+      "broad_source_family_only",
+      "positive_discriminator_not_required"
+    ],
+    "registry": [
+      "conceptual_definitions_sufficient",
+      "machine_admission_metadata_absent"
+    ],
+    "prompt": [
+      "v2_exact_pair_typing_bias",
+      "prose_schema_conflict",
+      "safety_only_in_prompt"
+    ],
+    "provider_schema": [
+      "unsafe_typed_variants_representable",
+      "typed_variants_precede_unclassified"
+    ],
+    "model": [
+      "over_typing_observed",
+      "disconfirming_optional_label_omitted"
+    ],
+    "benchmark_comparator": [
+      "two_disputed_expectations_product_grounded",
+      "typed_admission_identity_not_checked",
+      "adjacent_missing_optional_fixture_under_grounded"
+    ]
+  },
+  "approved_refactoring": [
+    {
+      "goal": "goal8",
+      "slice": "typed_admission_core",
+      "owner": "code",
+      "contracts": [
+        "typed_admission_policy_v1",
+        "deterministic_financial_scope_v2",
+        "successor_artifact_identity_update_if_required"
+      ],
+      "provider_calls": 0
+    },
+    {
+      "goal": "goal9a",
+      "slice": "bounded_source_context_v2",
+      "separate_pull_request": true,
+      "safety_authority": false
+    },
+    {
+      "goal": "goal9b",
+      "slice": "prompt_and_provider_projection_v3",
+      "separate_pull_request": true,
+      "prompt_only_fix": false
+    },
+    {
+      "goal": "goal10",
+      "slice": "successor_benchmark_v2",
+      "provider_calls": 0
+    },
+    {
+      "goal": "goal11",
+      "slice": "exact_model_requalification",
+      "primary_model_id": "gpt-5.4-nano-2026-03-17",
+      "one_exact_attempt": true
+    }
+  ],
+  "unchanged_authorities": [
+    "gate1_contracts",
+    "financial_evidence_registry_v1",
+    "financial_evidence_decision_v1",
+    "four_dispositions",
+    "deterministic_materializer",
+    "financial_context_v1",
+    "product_comparator_principles",
+    "legacy_immutable_artifacts",
+    "gate2_checksum_boundary",
+    "source_domain_model_authority_zero"
+  ],
+  "migration": {
+    "legacy_v1_read_preserved": true,
+    "persisted_artifact_rewrite": false,
+    "silent_upcast": false,
+    "old_qualification_receipts_reused": false,
+    "production_admission": false
+  },
+  "rejected_alternatives": [
+    "prompt_only_correction",
+    "post_response_typed_to_unclassified",
+    "validator_weakening",
+    "default_type",
+    "fixture_driven_registry_type",
+    "registry_v1_semantic_drift",
+    "expected_answer_in_model_input",
+    "broad_single_type_without_positive_evidence",
+    "model_replacement_before_refactor",
+    "expensive_model",
+    "source_domain_llm_authority",
+    "exact_internal_graph_primary_metric",
+    "comparator_relaxation"
+  ],
+  "tests": {
+    "audit_direct": {
+      "passed": 7,
+      "failed": 0,
+      "duration_seconds": 5.61
+    },
+    "focused": {
+      "passed": 82,
+      "failed": 0,
+      "duration_seconds": 12.35
+    },
+    "full": {
+      "passed": 1464,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 104.03
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "tokens_total": 0,
+    "actual_cost_usd": "0",
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_provider_output_in_git": false,
+    "source_literals_in_safe_receipts": false,
+    "source_value_refs_in_safe_receipts": false,
+    "customer_data_in_git": false,
+    "private_evidence_in_git": false
+  },
+  "acceptance": {
+    "root_cause": "localized",
+    "refactoring_set": "minimal_and_evidence_driven",
+    "rejected_alternatives": "explicit",
+    "implementation_road": "approved"
+  },
+  "next_permitted_goal": "goal8_after_research_pr_merge"
+}
