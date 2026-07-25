@@ -28,7 +28,10 @@ from live_gate2_financial_successor_qualification_v2 import (  # noqa: E402
     EXACT_MODEL_ID,
     FACTORY_REQUIRED,
     FORBIDDEN,
+    HAIKU_EXACT_MODEL_ID,
+    HAIKU_PROVIDER_PROFILE_ID,
     PROVIDER_PROFILE_ID,
+    _provider_profile_id,
     _runner,
     build_successor_qualification_fixture_v2,
     qualify_successor_model_v2,
@@ -44,8 +47,9 @@ MODULE_PATH = (
 
 
 class _FixtureClient:
-    def __init__(self, outputs):
+    def __init__(self, outputs, *, execution_metadata=None):
         self.outputs = [copy.deepcopy(item) for item in outputs]
+        self.execution_metadata = execution_metadata or _metadata()
         self.calls = []
 
     async def extract(self, **kwargs):
@@ -53,7 +57,7 @@ class _FixtureClient:
         output = self.outputs[len(self.calls) - 1]
         return Gate2StructuredModelResult(
             content=output,
-            execution_metadata=_metadata(),
+            execution_metadata=self.execution_metadata,
             economy_budget_receipt={
                 "schema_version": (
                     "broker_reports_gate2_economy_budget_v1"
@@ -86,6 +90,31 @@ def _metadata():
         output_tokens=20,
         total_tokens=120,
         finish_reason="stop",
+    )
+
+
+def _haiku_metadata():
+    return Gate2ProviderExecutionMetadata(
+        provider_id="anthropic",
+        provider_profile_id=HAIKU_PROVIDER_PROFILE_ID,
+        provider_profile_revision="qualification-haiku-test",
+        adapter_id="anthropic_native_messages",
+        adapter_version="qualification-haiku-test",
+        requested_model_id=HAIKU_EXACT_MODEL_ID,
+        resolved_model_id=HAIKU_EXACT_MODEL_ID,
+        structured_output_mode=(
+            "openwebui_anthropic_output_config_json_schema"
+        ),
+        response_format_type="json_schema",
+        response_format_schema_mode="strict_json_schema",
+        transport_type="anthropic_messages_native_via_openwebui_pipe",
+        canonical_request_schema_hash="a" * 64,
+        adapted_request_schema_hash="b" * 64,
+        schema_transform_count=1,
+        input_tokens=100,
+        output_tokens=20,
+        total_tokens=120,
+        finish_reason="end_turn",
     )
 
 
@@ -128,6 +157,33 @@ def test_preflight_v2_dry_builds_exact_stack_without_provider_calls():
         and item["schema_dry_build"]["maximum_output_tokens"] > 0
         for item in cases
     )
+
+
+def test_haiku_candidate_has_exact_profile_and_dry_builds_all_cases():
+    fixture = build_successor_qualification_fixture_v2()
+    cases = successor_preflight_cases_v2(
+        fixture=fixture,
+        model_id=HAIKU_EXACT_MODEL_ID,
+    )
+
+    assert _provider_profile_id(
+        HAIKU_EXACT_MODEL_ID
+    ) == HAIKU_PROVIDER_PROFILE_ID
+    assert len(cases) == 12
+    assert all(
+        item["schema_dry_build"]["status"] == "passed"
+        and item["schema_dry_build"]["estimated_input_tokens"] > 0
+        and item["schema_dry_build"]["maximum_output_tokens"] > 0
+        for item in cases
+    )
+    identity = successor_qualification_contract_identity_v2(
+        fixture=fixture,
+        model_id=HAIKU_EXACT_MODEL_ID,
+    ).to_dict()
+    assert "anthropic_native_messages" in identity[
+        "adapter_projection_revision"
+    ]
+    assert sum(item["typed_branch_admitted"] for item in cases) == 4
 
 
 def test_v2_request_profile_is_bounded_versioned_and_budgeted():
@@ -247,6 +303,41 @@ def test_fake_exact_model_qualifies_v2_and_all_product_invariants():
     assert len(checkpoints) == 14
     assert checkpoints[0]["provider_calls"] == 0
     assert checkpoints[-1]["execution_state"] == "terminal"
+
+
+def test_fake_exact_haiku_qualifies_same_frozen_v2_workload():
+    fixture = build_successor_qualification_fixture_v2()
+    execution = asyncio.run(
+        qualify_successor_model_v2(
+            model_client=_FixtureClient(
+                (
+                    case.expected_model_output
+                    for case in fixture.cases
+                ),
+                execution_metadata=_haiku_metadata(),
+            ),
+            model_id=HAIKU_EXACT_MODEL_ID,
+            fixture=fixture,
+        )
+    )
+
+    assert execution["status"] == "passed"
+    assert execution["provider_calls"] == 12
+    assert execution["qualification"]["aggregate_metrics"][
+        "four_dispositions_passed"
+    ] is True
+    assert execution["qualification"]["product_proof"][
+        "status"
+    ] == "passed"
+    assert all(
+        case["provider_execution"]["provider_profile_id"]
+        == HAIKU_PROVIDER_PROFILE_ID
+        and case["provider_execution"]["requested_model_id"]
+        == HAIKU_EXACT_MODEL_ID
+        and case["provider_execution"]["resolved_model_id"]
+        == HAIKU_EXACT_MODEL_ID
+        for case in execution["qualification"]["cases"]
+    )
 
 
 def test_v2_safe_execution_contains_no_raw_or_fixture_literals():
