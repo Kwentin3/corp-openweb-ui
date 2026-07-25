@@ -1,0 +1,83 @@
+{
+  "schema": "broker_reports_gate2_v4_goal1a_source_qualification_harness_correction_receipt_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED",
+  "git": {
+    "accepted_base": "b18bc6b7698634a9ec65d8cbe18f876dc5ed3949",
+    "implementation_revision": "3e90011c6d004e3d50b38e4930b034904a77cf54",
+    "branch": "codex/broker-reports-gate2-v4-goal1a-source-qualification-harness",
+    "pull_request": 114
+  },
+  "defect": {
+    "classification": "execution_boundary",
+    "legacy_live_source_pipe_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+    "legacy_pipe_used_for_qualification": false
+  },
+  "qualification_contract": {
+    "request_profile": "source_qualification_v1",
+    "package_identity": "broker_reports_gate2_source_economy_qualification_package_v1",
+    "output_identity": "broker_reports_gate2_source_economy_qualification_output_v1",
+    "prompt_identity": "broker_reports_gate2_source_economy_qualification_prompt_v1",
+    "receipt_identity": "broker_reports_gate2_source_economy_qualification_v1",
+    "provider_route_revision": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "adapter_identity": "gemini_response_format:1.5.0:997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "comparator_identity": "broker_reports_gate2_secretary_benchmark_result_v1:b024c679f447e28389479555c68494992582acc5c837f70156760466355b5f58",
+    "input_identity": "broker_reports_gate2_secretary_benchmark_manifest_v1:830c78a7ae14175fde882a30ebcc1ee08c9715a230531c5cd5a73185a139ee81",
+    "manifest_sha256": "830c78a7ae14175fde882a30ebcc1ee08c9715a230531c5cd5a73185a139ee81",
+    "canonical_schema_sha256": "4d820214a2da4e435ca8599b676ac2410bec49f27d877f575d01c3ca2641d4e9",
+    "adapted_schema_sha256": "74f2519b4c4e553cbdeade440e1697c8a431232f91605291d23f2b18130b5de4",
+    "source_cases": 5,
+    "provider_calls_per_model": 1,
+    "expected_output_sent_to_model": false,
+    "allowed_literal_values_sent_to_model": false,
+    "fallback_enabled": false,
+    "repair_enabled": false
+  },
+  "preflight": [
+    {
+      "model_id": "models/gemini-3.1-flash-lite",
+      "authorization_sha256": "2da1d9e878a93512ec275b45051758394c70622227e8767bf57e286dc9e60770",
+      "estimated_input_tokens": 1442,
+      "maximum_output_tokens": 4096,
+      "estimated_maximum_cost_usd": "0.006504500",
+      "provider_calls": 0
+    },
+    {
+      "model_id": "models/gemini-3.5-flash-lite",
+      "authorization_sha256": "28e4b69a108cfd51694afde41bc1a3486b4ac9d5bd997e3bf718d944f336468a",
+      "estimated_input_tokens": 1442,
+      "maximum_output_tokens": 4096,
+      "estimated_maximum_cost_usd": "0.010672600",
+      "provider_calls": 0
+    }
+  ],
+  "tests": {
+    "focused_passed": 65,
+    "full_passed": 1383,
+    "full_skipped": 20,
+    "ruff_check": "PASSED",
+    "ruff_format_check": "PASSED"
+  },
+  "accounting": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "stage_mutations": 0,
+    "knowledge_rag_vector_writes": 0,
+    "gate3_executions": 0
+  },
+  "privacy": {
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "secrets_in_receipt": false
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL1A_SOURCE_QUALIFICATION_HARNESS_CORRECTION.report.md",
+    "sha256": "c4392c8c31e3520a11d22750ac26071c8e6c6e8ce0fb38e43dbfe06b2beba99d"
+  },
+  "next_permitted_goal": "v4_goal2_gemini_source_qualification_after_pr_114_merge"
+}
