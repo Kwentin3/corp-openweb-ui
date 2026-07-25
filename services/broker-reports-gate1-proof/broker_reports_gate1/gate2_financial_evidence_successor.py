@@ -75,10 +75,14 @@ class Gate2FinancialEvidenceSuccessorError(ValueError):
         code: str,
         *,
         provider_execution: dict[str, Any] | None = None,
+        economy_budget_receipt: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(code)
         self.code = code
         self.provider_execution = copy.deepcopy(provider_execution or {})
+        self.economy_budget_receipt = copy.deepcopy(
+            economy_budget_receipt
+        )
 
 
 @dataclass(frozen=True)
@@ -99,6 +103,7 @@ class Gate2FinancialEvidenceSuccessorResult:
     validated_decision: FinancialEvidenceValidatedDecision
     materialized_artifact: dict[str, Any]
     provider_execution: dict[str, Any]
+    economy_budget_receipt: dict[str, Any] | None
     model_input_hash: str
     safe_summary: dict[str, Any]
 
@@ -228,6 +233,7 @@ class Gate2FinancialEvidenceSuccessorRunner:
                     "financial_evidence_successor_validation_failed",
                 ),
                 provider_execution=provider_execution,
+                economy_budget_receipt=result.economy_budget_receipt,
             ) from exc
         summary = {
             "schema_version": (
@@ -278,6 +284,9 @@ class Gate2FinancialEvidenceSuccessorRunner:
             validated_decision=validated,
             materialized_artifact=artifact,
             provider_execution=provider_execution,
+            economy_budget_receipt=copy.deepcopy(
+                result.economy_budget_receipt
+            ),
             model_input_hash=summary["model_input_hash"],
             safe_summary=summary,
         )
