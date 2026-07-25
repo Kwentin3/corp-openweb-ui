@@ -1,0 +1,115 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal1_receipt_v1",
+  "goal": "goal1_deterministic_financial_scope_authority",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "175cb9e3abbcebfc0c33b4a50416714e5fb471e2",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal1-deterministic-scope",
+    "implementation_revision": "00d7b074af4d7b30ab193225991226d529dfd01b",
+    "pull_request": "PENDING",
+    "changed_paths_before_evidence": [
+      "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_deterministic_financial_scopes.py",
+      "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_deterministic_financial_scopes.py"
+    ],
+    "production_runtime_files_changed": 0,
+    "bundle_files_changed": 0
+  },
+  "contracts_changed": {
+    "scope_schema_version": "broker_reports_gate2_deterministic_financial_scope_package_v1",
+    "batch_schema_version": "broker_reports_gate2_deterministic_financial_scope_batch_v1",
+    "scope_policy_version": "gate2_deterministic_financial_scope_from_gate1_v1",
+    "factory": "Gate2DeterministicFinancialScopeFromGate1Factory.create"
+  },
+  "contracts_explicitly_unchanged": [
+    "broker_reports_gate2_financial_evidence_decision_v1",
+    "broker_reports_financial_evidence_source_package_v1",
+    "broker_reports_gate2_financial_evidence_registry_v1",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_gate2_financial_context_v1",
+    "legacy source/domain artifact schemas",
+    "Gate 1 contracts",
+    "Gate 3 contracts"
+  ],
+  "deterministic_probe": {
+    "input_kind": "synthetic_non_customer",
+    "gate1_packages_total": 1,
+    "segmentation_plans_total": 1,
+    "scopes_total": 1,
+    "selected_source_refs_total": 2,
+    "decision_scope_source_refs_total": 1,
+    "deterministic_no_fact_source_refs_total": 1,
+    "unaccounted_source_refs_total": 0,
+    "duplicate_terminal_owner_refs_total": 0,
+    "all_selected_refs_terminally_accounted": true,
+    "scope_integrity_hash": "caa06f0c178ca3f389dfd1ca1738c5275f80ea18fa6ab55811e46b16f8390297",
+    "reverse_input_order_exact_match": true
+  },
+  "authority_checks": {
+    "stable_scope_identity": true,
+    "gate1_literal_identity_exact": true,
+    "gate1_source_value_ref_identity_exact": true,
+    "lineage_identity_complete": true,
+    "source_family_evidence_present": true,
+    "registry_eligibility_reused": true,
+    "allowed_roles_present": true,
+    "terminal_coverage_complete": true,
+    "outer_integrity_validated": true,
+    "source_package_integrity_validated": true
+  },
+  "execution_boundary": {
+    "provider_calls_total": 0,
+    "customer_corpus_calls_total": 0,
+    "model_calls_total": 0,
+    "persistence_writes_total": 0,
+    "production_routing_changes_total": 0,
+    "stage_mutations_total": 0,
+    "browser_calls_total": 0
+  },
+  "tests": {
+    "direct": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_deterministic_financial_scopes.py",
+      "passed": 7,
+      "failed": 0,
+      "duration_seconds": 0.61
+    },
+    "focused": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_deterministic_financial_scopes.py tests/test_broker_reports_gate2_domain_extractors.py tests/test_broker_reports_gate2_financial_evidence_production_runtime.py",
+      "passed": 29,
+      "failed": 0,
+      "duration_seconds": 0.89
+    },
+    "full": {
+      "command": "python -m pytest -q",
+      "passed": 1407,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 96.21
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "source_hashes": {
+    "factory_sha256": "0538023ecc80c715638a7cc5ebf8db425dc9bd24b833b1e3ac42eb5988ea46dc",
+    "tests_sha256": "d1361d67ef27961b900b00c5cac7a648f3f78a40b96e1a9b65d2d55b7d1f9fcd"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_provider_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_filenames_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "customer_payloads_in_git_evidence": false,
+    "safe_summary_refs_exposed": false
+  },
+  "acceptance": {
+    "scope_factory": "pure_and_deterministic",
+    "source_value_identity": "exact",
+    "provenance_identity": "exact",
+    "selected_ref_coverage": "complete",
+    "model_calls": "zero",
+    "production_routing_change": "zero"
+  },
+  "next_permitted_goal": "goal2_product_invariant_successor_comparator_after_merge"
+}
