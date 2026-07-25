@@ -32,7 +32,7 @@ selection. Production admissions остаются пустыми.
   `0fe1c4b9d43ce6def9703b7bf7972556521a4571`;
 - branch:
   `codex/broker-reports-gate2-v4-goal3c-persisted-domain-requalification`;
-- PR: будет закреплён после открытия evidence-only PR.
+- PR: [#119](https://github.com/Kwentin3/corp-openweb-ui/pull/119).
 
 ## Exact qualification identity
 
