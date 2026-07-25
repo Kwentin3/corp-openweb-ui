@@ -36,6 +36,7 @@ from live_gate2_domain_economy_qualification import (  # noqa: E402
     domain_qualification_contract_identity,
     qualify_domain_model,
     validate_domain_qualification_output,
+    write_safe_receipt_atomically,
 )
 
 
@@ -202,6 +203,37 @@ def test_terminal_qualification_uses_exactly_five_bounded_calls() -> None:
     assert aggregate["lost_expected_candidate_count"] == 0
     assert aggregate["invented_candidate_id_count"] == 0
     assert result["qualification"]["raw_provider_output_included"] is False
+
+
+def test_live_qualification_checkpoints_before_and_after_every_call(tmp_path) -> None:
+    fixture = build_domain_qualification_fixture()
+    client = _FakeClient(fixture)
+    checkpoints = []
+    receipt_path = tmp_path / "domain-qualification.safe.json"
+
+    def checkpoint(execution):
+        checkpoints.append(copy.deepcopy(execution))
+        write_safe_receipt_atomically(path=receipt_path, payload=execution)
+
+    result = asyncio.run(
+        qualify_domain_model(
+            model_client=client,
+            model_id=GEMINI_MODEL,
+            fixture=fixture,
+            checkpoint=checkpoint,
+        )
+    )
+    persisted = json.loads(receipt_path.read_text(encoding="utf-8"))
+
+    assert len(checkpoints) == 6
+    assert checkpoints[0]["execution_state"] == "in_progress"
+    assert checkpoints[0]["provider_calls"] == 0
+    assert [item["provider_calls"] for item in checkpoints] == [0, 1, 2, 3, 4, 5]
+    assert checkpoints[-1]["execution_state"] == "terminal"
+    assert persisted == result
+    assert persisted["status"] == "passed"
+    assert not list(tmp_path.glob("*.tmp"))
+    assert receipt_path.read_bytes()[:3] != b"\xef\xbb\xbf"
 
 
 def test_value_free_mismatch_paths_fail_without_contract_weakening() -> None:

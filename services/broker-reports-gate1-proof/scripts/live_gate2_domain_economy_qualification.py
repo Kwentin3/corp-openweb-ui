@@ -8,12 +8,13 @@ import asyncio
 import copy
 import hashlib
 import json
+import os
 import sys
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
@@ -142,7 +143,19 @@ def main() -> int:
     )
     parser.add_argument("--timeout", type=int, default=240)
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument(
+        "--receipt-path",
+        help=(
+            "Required for live execution. Atomically persists a safe checkpoint "
+            "before calls and after every case."
+        ),
+    )
     args = parser.parse_args()
+    if not args.preflight_only and not args.receipt_path:
+        parser.error("--receipt-path is required for live execution")
+    receipt_path = Path(args.receipt_path).resolve() if args.receipt_path else None
+    if receipt_path is not None and not receipt_path.name.endswith(".safe.json"):
+        parser.error("--receipt-path must end with .safe.json")
 
     env = _read_env(Path(args.env_file))
     base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
@@ -309,24 +322,48 @@ def main() -> int:
             timeout=args.timeout,
         ),
     )
+    assert receipt_path is not None
+
+    def persist_execution(execution: dict[str, Any]) -> None:
+        _apply_execution(output=output, execution=execution)
+        output["receipt_checkpoint"] = {
+            "state": execution["execution_state"],
+            "cases_persisted": len(execution["qualification"]["cases"]),
+            "atomic_write": True,
+            "raw_provider_output_included": False,
+        }
+        write_safe_receipt_atomically(path=receipt_path, payload=output)
+
     execution = asyncio.run(
         qualify_domain_model(
             model_client=client,
             model_id=args.model_id,
             fixture=fixture,
+            checkpoint=persist_execution,
         )
     )
-    output["qualification"] = execution["qualification"]
-    output["status"] = execution["status"]
-    output["provider_calls"] = execution["provider_calls"]
-    output["input_tokens"] = execution["input_tokens"]
-    output["output_tokens"] = execution["output_tokens"]
-    output["actual_cost_usd"] = execution["actual_cost_usd"]
-    if execution.get("failure"):
-        output["failure"] = execution["failure"]
+    _apply_execution(output=output, execution=execution)
+    write_safe_receipt_atomically(path=receipt_path, payload=output)
     print(
         json.dumps(
-            output,
+            {
+                "schema_version": DOMAIN_QUALIFICATION_SCHEMA_VERSION,
+                "status": output["status"],
+                "qualification_subject": output["qualification_subject"],
+                "provider_calls": output["provider_calls"],
+                "input_tokens": output["input_tokens"],
+                "output_tokens": output["output_tokens"],
+                "actual_cost_usd": output["actual_cost_usd"],
+                "cases_passed": output["qualification"]["aggregate_metrics"][
+                    "cases_passed"
+                ],
+                "cases_failed": output["qualification"]["aggregate_metrics"][
+                    "cases_failed"
+                ],
+                "receipt_path": str(receipt_path),
+                "receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+                "raw_provider_output_included": False,
+            },
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -340,6 +377,7 @@ async def qualify_domain_model(
     model_client,
     model_id: str,
     fixture: DomainQualificationFixture,
+    checkpoint: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     case_receipts: list[dict[str, Any]] = []
     provider_calls = 0
@@ -347,6 +385,20 @@ async def qualify_domain_model(
     output_tokens = 0
     actual_cost = Decimal("0")
     failure: dict[str, Any] | None = None
+
+    if checkpoint is not None:
+        checkpoint(
+            _domain_execution_result(
+                fixture=fixture,
+                case_receipts=case_receipts,
+                provider_calls=provider_calls,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                actual_cost=actual_cost,
+                failure=failure,
+                terminal=False,
+            )
+        )
 
     for case in fixture.cases:
         provider_calls += 1
@@ -366,6 +418,19 @@ async def qualify_domain_model(
                 "canonical_validation_ran": False,
                 **_safe_error(exc),
             }
+            if checkpoint is not None:
+                checkpoint(
+                    _domain_execution_result(
+                        fixture=fixture,
+                        case_receipts=case_receipts,
+                        provider_calls=provider_calls,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        actual_cost=actual_cost,
+                        failure=failure,
+                        terminal=True,
+                    )
+                )
             break
         if result.fallback_used:
             failure = {
@@ -374,6 +439,19 @@ async def qualify_domain_model(
                 "provider_generated_output": True,
                 "canonical_validation_ran": False,
             }
+            if checkpoint is not None:
+                checkpoint(
+                    _domain_execution_result(
+                        fixture=fixture,
+                        case_receipts=case_receipts,
+                        provider_calls=provider_calls,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        actual_cost=actual_cost,
+                        failure=failure,
+                        terminal=True,
+                    )
+                )
             break
         if result.repair_attempt_count:
             failure = {
@@ -382,6 +460,19 @@ async def qualify_domain_model(
                 "provider_generated_output": True,
                 "canonical_validation_ran": False,
             }
+            if checkpoint is not None:
+                checkpoint(
+                    _domain_execution_result(
+                        fixture=fixture,
+                        case_receipts=case_receipts,
+                        provider_calls=provider_calls,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        actual_cost=actual_cost,
+                        failure=failure,
+                        terminal=True,
+                    )
+                )
             break
         budget = result.economy_budget_receipt
         if not isinstance(budget, dict) or budget.get("status") != "passed":
@@ -391,21 +482,83 @@ async def qualify_domain_model(
                 "provider_generated_output": True,
                 "canonical_validation_ran": False,
             }
+            if checkpoint is not None:
+                checkpoint(
+                    _domain_execution_result(
+                        fixture=fixture,
+                        case_receipts=case_receipts,
+                        provider_calls=provider_calls,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        actual_cost=actual_cost,
+                        failure=failure,
+                        terminal=True,
+                    )
+                )
             break
         input_tokens += int(budget["input_tokens"])
         output_tokens += int(budget["output_tokens"])
         actual_cost += Decimal(str(budget["actual_cost_usd"]))
-        case_receipts.append(
-            validate_domain_qualification_output(
-                case=case,
-                content=result.content,
-                provider_execution=(
-                    gate2_provider_execution_safe_metadata(result.execution_metadata)
-                ),
-                budget_receipt=budget,
+        try:
+            case_receipts.append(
+                validate_domain_qualification_output(
+                    case=case,
+                    content=result.content,
+                    provider_execution=(
+                        gate2_provider_execution_safe_metadata(
+                            result.execution_metadata
+                        )
+                    ),
+                    budget_receipt=budget,
+                )
             )
-        )
+        except Exception as exc:
+            failure = {
+                "case_id": case.case_id,
+                "provider_generated_output": True,
+                "canonical_validation_ran": True,
+                **_safe_error(exc),
+            }
+        terminal = failure is not None or len(case_receipts) == len(fixture.cases)
+        if checkpoint is not None:
+            checkpoint(
+                _domain_execution_result(
+                    fixture=fixture,
+                    case_receipts=case_receipts,
+                    provider_calls=provider_calls,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    actual_cost=actual_cost,
+                    failure=failure,
+                    terminal=terminal,
+                )
+            )
+        if failure is not None:
+            break
 
+    return _domain_execution_result(
+        fixture=fixture,
+        case_receipts=case_receipts,
+        provider_calls=provider_calls,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        actual_cost=actual_cost,
+        failure=failure,
+        terminal=True,
+    )
+
+
+def _domain_execution_result(
+    *,
+    fixture: DomainQualificationFixture,
+    case_receipts: list[dict[str, Any]],
+    provider_calls: int,
+    input_tokens: int,
+    output_tokens: int,
+    actual_cost: Decimal,
+    failure: dict[str, Any] | None,
+    terminal: bool,
+) -> dict[str, Any]:
     all_cases_executed = len(case_receipts) == len(fixture.cases)
     all_cases_passed = all(receipt["status"] == "passed" for receipt in case_receipts)
     aggregate = {
@@ -450,12 +603,15 @@ async def qualify_domain_model(
         "repair_attempts": 0,
         "raw_provider_output_included": False,
     }
-    status = (
-        "passed"
-        if failure is None and all_cases_executed and all_cases_passed
-        else "failed"
-    )
+    status = "in_progress"
+    if terminal:
+        status = (
+            "passed"
+            if failure is None and all_cases_executed and all_cases_passed
+            else "failed"
+        )
     return {
+        "execution_state": "terminal" if terminal else "in_progress",
         "status": status,
         "provider_calls": provider_calls,
         "input_tokens": input_tokens,
@@ -471,6 +627,49 @@ async def qualify_domain_model(
         },
         "failure": failure,
     }
+
+
+def _apply_execution(
+    *,
+    output: dict[str, Any],
+    execution: dict[str, Any],
+) -> None:
+    output["qualification"] = execution["qualification"]
+    output["status"] = execution["status"]
+    output["provider_calls"] = execution["provider_calls"]
+    output["input_tokens"] = execution["input_tokens"]
+    output["output_tokens"] = execution["output_tokens"]
+    output["actual_cost_usd"] = execution["actual_cost_usd"]
+    output.pop("failure", None)
+    if execution.get("failure"):
+        output["failure"] = execution["failure"]
+
+
+def write_safe_receipt_atomically(
+    *,
+    path: Path,
+    payload: dict[str, Any],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = (
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        with temporary_path.open("wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
 
 
 def validate_domain_qualification_output(

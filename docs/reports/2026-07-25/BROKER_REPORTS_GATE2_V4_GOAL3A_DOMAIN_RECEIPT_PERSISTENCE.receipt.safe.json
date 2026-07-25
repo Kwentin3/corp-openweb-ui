@@ -1,0 +1,81 @@
+{
+  "schema": "broker_reports_gate2_v4_goal3a_domain_receipt_persistence_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED",
+  "git": {
+    "execution_revision": "ba5fedbc505e11290bbdc09a6d5958d21bc8b122",
+    "branch": "codex/broker-reports-gate2-v4-goal3a-domain-receipt-persistence",
+    "pull_request": 117
+  },
+  "change": {
+    "scope": "qualification_only_runner",
+    "explicit_receipt_path_required": true,
+    "safe_suffix_required": true,
+    "checkpoint_before_first_call": true,
+    "checkpoint_after_each_case": true,
+    "flush": true,
+    "fsync": true,
+    "atomic_replace": true,
+    "compact_terminal_stdout": true,
+    "raw_provider_output_included": false,
+    "production_route_changed": false,
+    "production_admission_changed": false
+  },
+  "verification": {
+    "focused_passed": 66,
+    "focused_seconds": "1.12",
+    "full_passed": 1394,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "93.14",
+    "ruff_passed": true,
+    "missing_receipt_path_exit_code": 2,
+    "provider_calls_before_missing_path_rejection": 0,
+    "checkpoint_provider_call_counters": [0, 1, 2, 3, 4, 5],
+    "temporary_file_residue": 0,
+    "safe_json_bom": false
+  },
+  "preflight": {
+    "models": [
+      "models/gemini-3.1-flash-lite",
+      "models/gemini-3.5-flash-lite"
+    ],
+    "published_models_total": 41,
+    "provider_calls": 0,
+    "estimated_input_tokens_per_model": 16665,
+    "gemini_3_1_estimated_maximum_cost_usd": "0.034886250",
+    "gemini_3_5_estimated_maximum_cost_usd": "0.056199500",
+    "provider_route_revision": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "canonical_validator_revision": "broker_reports_gate2_domain_qualification_comparator_v1:0c0bcde46bdd6e371177fb8b3612579351e83a64132580764e33dc67a2b9a3bf"
+  },
+  "discovered_identity_defect": {
+    "code": "domain_qualification_manifest_raw_byte_hash_platform_drift",
+    "layer": "qualification_input_contract_identity",
+    "json_content_changed": false,
+    "prior_manifest_sha256_prefix": "ee6a8ac0",
+    "windows_worktree_manifest_sha256_prefix": "6b8aa060",
+    "live_calls_after_discovery": 0,
+    "narrowest_corrective_slice": "canonical_json_hash_independent_of_crlf_lf_in_separate_goal3b_pr"
+  },
+  "accounting": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "expensive_model_calls": 0,
+    "stage_mutations": 0
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "secrets_in_receipt": false
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL3A_DOMAIN_RECEIPT_PERSISTENCE.report.md"
+  },
+  "next_permitted_goal": "v4_goal3b_canonical_manifest_identity"
+}
