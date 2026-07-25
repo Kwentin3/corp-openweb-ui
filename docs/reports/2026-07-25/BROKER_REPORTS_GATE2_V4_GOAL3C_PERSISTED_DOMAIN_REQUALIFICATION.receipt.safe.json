@@ -1,0 +1,149 @@
+{
+  "schema": "broker_reports_gate2_v4_goal3c_persisted_domain_requalification_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED_WITH_EXPLICIT_GAPS",
+  "git": {
+    "execution_revision": "0fe1c4b9d43ce6def9703b7bf7972556521a4571",
+    "branch": "codex/broker-reports-gate2-v4-goal3c-persisted-domain-requalification",
+    "pull_request": null
+  },
+  "qualification_identity": {
+    "workload_class": "gate2_domain",
+    "provider_profile_id": "google_gemini",
+    "provider_route_revision": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "input_contract_version": "broker_reports_gate2_domain_qualification_manifest_v1:edfba61488378154f7e6d37b6c532f2891a3339436d3fa107cce7ce3ba3678ca",
+    "output_contract_version": "broker_reports_candidate_binding_output_v0",
+    "prompt_version": "broker_reports_gate2_domain_economy_qualification_prompt_v1",
+    "adapter_projection_revision": "gemini_response_format:1.5.0:997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "canonical_validator_revision": "broker_reports_gate2_domain_qualification_comparator_v1:c52a2da4d26f667b5daa841b1fd219e211e387eb6b8194f1909e47d006cffaba"
+  },
+  "results": [
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "authorization_identity_sha256": "da3c4ec9a890cd76f619a40a7c9cd201c37382c6d781c75378bca39c7911f762",
+      "terminal_status": "NOT_QUALIFIED",
+      "runner_status": "failed",
+      "terminal_code": "domain_qualification_cases_failed",
+      "provider_generated_output": true,
+      "canonical_validation_ran": true,
+      "cases_executed": 5,
+      "cases_passed": 0,
+      "canonical_package_acceptance_rate": 1.0,
+      "canonical_selection_acceptance_rate": 0.6,
+      "finalized_package_acceptance_rate": 0.6,
+      "exact_expected_selection_rate": 0.0,
+      "lost_expected_candidate_count": 1,
+      "cross_row_binding_count": 0,
+      "forbidden_source_ref_count": 0,
+      "invented_candidate_id_count": 0,
+      "duplicate_candidate_binding_count": 0,
+      "provider_calls": 5,
+      "input_tokens": 16342,
+      "output_tokens": 3178,
+      "total_tokens": 19520,
+      "actual_cost_usd": "0.008852500",
+      "fallback_calls": 0,
+      "repair_attempts": 0,
+      "private_safe_receipt_sha256": "fcaeddebf89eecd0d6585f7bebe1d0dd51b4bdcb660d88fe7179572b4100c8f1"
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "authorization_identity_sha256": "29a1f31c4c35f151ce8e336ee203747c994348247d7bbd24b0d850ba2d201e55",
+      "terminal_status": "NOT_QUALIFIED",
+      "runner_status": "failed",
+      "terminal_code": "domain_qualification_cases_failed",
+      "provider_generated_output": true,
+      "canonical_validation_ran": true,
+      "cases_executed": 5,
+      "cases_passed": 0,
+      "canonical_package_acceptance_rate": 1.0,
+      "canonical_selection_acceptance_rate": 0.6,
+      "finalized_package_acceptance_rate": 0.6,
+      "exact_expected_selection_rate": 0.0,
+      "lost_expected_candidate_count": 1,
+      "cross_row_binding_count": 0,
+      "forbidden_source_ref_count": 0,
+      "invented_candidate_id_count": 0,
+      "duplicate_candidate_binding_count": 0,
+      "provider_calls": 5,
+      "input_tokens": 16342,
+      "output_tokens": 3064,
+      "total_tokens": 19406,
+      "actual_cost_usd": "0.012562600",
+      "fallback_calls": 0,
+      "repair_attempts": 0,
+      "private_safe_receipt_sha256": "e3e61690a16fca38cefdcdb369975182a447957c109cb756bd4256f47f6745ca"
+    }
+  ],
+  "aggregate": {
+    "provider_calls": 10,
+    "customer_calls": 0,
+    "input_tokens": 32684,
+    "output_tokens": 6242,
+    "total_tokens": 38926,
+    "actual_cost_usd": "0.021415100",
+    "expensive_model_calls": 0,
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "paid_tools_used": 0,
+    "stage_mutations": 0,
+    "knowledge_rag_vector_writes": 0,
+    "gate3_executions": 0
+  },
+  "case_failure_families": {
+    "syn_domain_equal_value_exact_owner": [
+      "extra_or_wrong_binding_fields",
+      "relation_count_mismatch"
+    ],
+    "syn_domain_adjacent_fx_exact_ownership": [
+      "fact_field_path_mismatch",
+      "canonical_selection_rejected"
+    ],
+    "syn_domain_multiple_hypotheses": [
+      "candidate_or_relation_mismatch",
+      "one_expected_candidate_lost"
+    ],
+    "syn_domain_forbidden_neighbour_ref": [
+      "relation_count_mismatch",
+      "forbidden_refs_zero"
+    ],
+    "syn_domain_explicit_unclassified": [
+      "confidence_completeness_uncertainty_mismatch",
+      "canonical_selection_rejected"
+    ]
+  },
+  "contracts_changed": false,
+  "tests": {
+    "focused_passed": 67,
+    "focused_seconds": "1.18",
+    "full_passed": 1395,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "92.39"
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "full_safe_receipts_committed": false,
+    "secrets_in_receipt": false
+  },
+  "corrective_boundary": {
+    "new_retry_in_goal3c": false,
+    "narrowest_future_slice": "value_free_candidate_binding_semantics_diagnosis_in_separate_program",
+    "forbidden_workarounds": [
+      "canonical_validator_weakening",
+      "expected_selection_sent_to_model",
+      "free_json",
+      "repair",
+      "fallback",
+      "expensive_model",
+      "production_admission",
+      "cross_workload_qualification_reuse"
+    ]
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL3C_PERSISTED_DOMAIN_REQUALIFICATION.report.md"
+  },
+  "next_permitted_goal": "v4_goal4_gpt_5_4_nano_financial_requalification_after_merge"
+}
