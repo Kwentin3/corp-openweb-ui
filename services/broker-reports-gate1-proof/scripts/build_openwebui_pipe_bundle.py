@@ -196,6 +196,7 @@ GATE2_SUCCESSOR_MODULES = [
     "gate2_financial_evidence_source_context",
     "gate2_financial_evidence_typed_admission",
     "gate2_deterministic_financial_scopes",
+    "gate2_financial_evidence_successor_projection",
     "gate2_financial_evidence_successor",
     "gate2_successor_artifacts",
     "gate2_successor_compatibility",

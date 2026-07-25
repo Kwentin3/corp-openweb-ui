@@ -1,0 +1,131 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal9b_receipt_v1",
+  "goal": "goal9b_prompt_provider_projection_v3",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "4796145c22ef8d9bacd49f1f3cccf16414e3ae95",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal9b-prompt-v3",
+    "pull_request": "pending_creation",
+    "production_admission": false
+  },
+  "new_contracts": {
+    "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v3",
+    "prompt_sha256": "30c823d2c509294d4634eac1a4084da9b95056b260bdd64e41d5a5598937d9ae",
+    "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v3",
+    "provider_projection_schema_version": "broker_reports_gate2_financial_evidence_provider_projection_v3",
+    "provider_projection_policy_version": "gate2_financial_evidence_unclassified_first_projection_v3",
+    "successor_result_schema_version": "broker_reports_gate2_financial_evidence_successor_result_v3"
+  },
+  "prompt": {
+    "typed_admission_authority": false,
+    "unclassified_normal_safe_outcome": true,
+    "fixture_specific_rules": false,
+    "registry_type_ids_named": false,
+    "expected_answer_received": false,
+    "repair_instruction": false,
+    "system_metadata_requested": false
+  },
+  "provider_projection": {
+    "disposition_order": [
+      "unclassified_financial_input",
+      "typed_input_if_admitted",
+      "no_financial_input",
+      "unsupported"
+    ],
+    "typed_ids_equal_admitted_ids": true,
+    "ambiguous_typed_branch_present": false,
+    "canonical_branch_hash_multiset_equal": true,
+    "canonical_outer_contract_equal": true,
+    "canonical_validator_replaced": false,
+    "strict_json_schema": true,
+    "provider_calls": 0
+  },
+  "registry_guidance": {
+    "definitions_from_registry_v1": true,
+    "counterexamples_from_registry_v1": true,
+    "maximum_counterexamples_per_type": 3,
+    "maximum_counterexample_chars": 240,
+    "semantic_drift": false
+  },
+  "prompt_v2_frozen": {
+    "contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v2",
+    "sha256": "1362c50190bc7859d74b300e5e1fad037cf7ad4939f9946f3c43e4b88930e5fc",
+    "changed": false
+  },
+  "changed_contracts": [
+    "successor_prompt_v3",
+    "successor_model_input_v3",
+    "successor_provider_projection_v3",
+    "successor_result_v3",
+    "explicit_prompt_model_input_version_pair",
+    "closed_world_bundle_module_order"
+  ],
+  "unchanged_contracts": [
+    "gate1_contracts",
+    "typed_admission_v1",
+    "typed_admission_predicates",
+    "deterministic_financial_scope_v2",
+    "financial_evidence_source_context_v2",
+    "financial_evidence_registry_v1",
+    "financial_evidence_type_meanings",
+    "financial_evidence_decision_v1",
+    "four_dispositions",
+    "canonical_decision_schema_semantics",
+    "canonical_validator",
+    "deterministic_materializer",
+    "financial_context_v1",
+    "successor_artifact_family_v1",
+    "legacy_immutable_artifacts"
+  ],
+  "tests": {
+    "direct": {
+      "passed": 9,
+      "failed": 0,
+      "duration_seconds": 0.73
+    },
+    "focused": {
+      "passed": 64,
+      "failed": 0,
+      "duration_seconds": 3.61
+    },
+    "full": {
+      "passed": 1497,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 105.88
+    },
+    "ruff": "passed",
+    "bundle_rebuild_deterministic": true
+  },
+  "bundle_sha256": {
+    "gate1": "1737afd026c51fa50c05bc2216509a15f19a6829faeed973463de9c6cb84d0d6",
+    "gate2_source": "499c631f877c56f5f41a37dcc9b663556870523208fb2cb47a5bae2e3720a766",
+    "gate2_domain": "cc19354090202c881a5fc118150bf94c52084adc9a911f29126d1ca3284f5973"
+  },
+  "execution": {
+    "external_provider_calls_total": 0,
+    "tokens_total": 0,
+    "actual_cost_usd": "0",
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_in_safe_receipt": false,
+    "source_value_refs_in_safe_receipt": false,
+    "raw_provider_output_in_git": false,
+    "customer_data_in_git": false,
+    "private_evidence_in_git": false
+  },
+  "acceptance": {
+    "only_audit_approved_changes": true,
+    "contract_identities": "versioned",
+    "registry_id_semantic_drift": "zero",
+    "safety_only_in_prompt": "forbidden"
+  },
+  "next_permitted_goal": "goal10_after_goal9b_pr_merge"
+}

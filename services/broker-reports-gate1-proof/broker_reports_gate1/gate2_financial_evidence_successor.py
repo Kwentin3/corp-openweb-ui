@@ -27,6 +27,11 @@ from .gate2_financial_evidence_source_context import (
     Gate2FinancialEvidenceSourceContext,
     validate_financial_evidence_source_context,
 )
+from .gate2_financial_evidence_successor_projection import (
+    SUCCESSOR_PROVIDER_PROJECTION_POLICY_VERSION,
+    SUCCESSOR_PROVIDER_PROJECTION_SCHEMA_VERSION,
+    Gate2FinancialEvidenceSuccessorProviderProjectionFactory,
+)
 from .gate2_model_contracts import (
     GATE2_STRICT_STRUCTURED_OUTPUT_MODES,
     Gate2StructuredModelClient,
@@ -40,12 +45,23 @@ SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION = (
 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2 = (
     "broker_reports_gate2_financial_evidence_successor_model_input_v2"
 )
+SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3 = (
+    "broker_reports_gate2_financial_evidence_successor_model_input_v3"
+)
 SUCCESSOR_RESULT_SCHEMA_VERSION_V2 = (
     "broker_reports_gate2_financial_evidence_successor_result_v2"
+)
+SUCCESSOR_RESULT_SCHEMA_VERSION_V3 = (
+    "broker_reports_gate2_financial_evidence_successor_result_v3"
 )
 SUCCESSOR_PROMPT_CONTRACT_ID = (
     "broker_reports_gate2_financial_evidence_successor_prompt_v2"
 )
+SUCCESSOR_PROMPT_CONTRACT_ID_V3 = (
+    "broker_reports_gate2_financial_evidence_successor_prompt_v3"
+)
+MAX_PROVIDER_COUNTEREXAMPLES = 3
+MAX_PROVIDER_COUNTEREXAMPLE_CHARS = 240
 FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
     {
         "audit",
@@ -113,6 +129,7 @@ class Gate2FinancialEvidenceSuccessorConfig:
     model_input_schema_version: str = (
         SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION
     )
+    prompt_contract_id: str = SUCCESSOR_PROMPT_CONTRACT_ID
 
 
 @dataclass(frozen=True)
@@ -133,41 +150,71 @@ class Gate2FinancialEvidenceSuccessorResult:
 
 
 class Gate2FinancialEvidenceSuccessorPromptFactory:
-    def create(self) -> Gate2FinancialEvidenceSuccessorPrompt:
-        content = (
-            "Make the bounded Gate 2 Financial Evidence decision. Use only "
-            "eligible Registry definitions and package values. Return one "
-            "strict disposition. Use unsupported only for "
-            "a declared unsupported source shape or profile the strict "
-            "contract cannot express. Use no_financial_input when there is no "
-            "source-stated financial value, including headers, repeated "
-            "headers and layout-only content. Use typed_input only when one "
-            "eligible definition and every required role are explicit. "
-            "cash_balance_snapshot_v1 requires an explicit source label that "
-            "identifies an ordinary cash balance. "
-            "printed_financial_metric_v1 requires an explicit source-printed "
-            "total or metric label. Role eligibility or a matching literal "
-            "alone is not semantic evidence. For equal literals, follow "
-            "explicit label, date, currency and scope associations; never use "
-            "an adjacent unrelated reference. Use "
-            "unclassified_financial_input only for actual financial values "
-            "that cannot be safely typed; bind every package value exactly "
-            "once. Bind only listed source_value_ref values to allowed roles. "
-            "Never invent, calculate or transform values. Return no system, "
-            "confidence, provenance or audit metadata; only the strict schema "
-            "object.\n{{financial_evidence_successor_input_json}}"
-        )
+    def create(
+        self,
+        *,
+        prompt_contract_id: str = SUCCESSOR_PROMPT_CONTRACT_ID,
+    ) -> Gate2FinancialEvidenceSuccessorPrompt:
+        if prompt_contract_id == SUCCESSOR_PROMPT_CONTRACT_ID:
+            content = (
+                "Make the bounded Gate 2 Financial Evidence decision. Use only "
+                "eligible Registry definitions and package values. Return one "
+                "strict disposition. Use unsupported only for "
+                "a declared unsupported source shape or profile the strict "
+                "contract cannot express. Use no_financial_input when there is no "
+                "source-stated financial value, including headers, repeated "
+                "headers and layout-only content. Use typed_input only when one "
+                "eligible definition and every required role are explicit. "
+                "cash_balance_snapshot_v1 requires an explicit source label that "
+                "identifies an ordinary cash balance. "
+                "printed_financial_metric_v1 requires an explicit source-printed "
+                "total or metric label. Role eligibility or a matching literal "
+                "alone is not semantic evidence. For equal literals, follow "
+                "explicit label, date, currency and scope associations; never use "
+                "an adjacent unrelated reference. Use "
+                "unclassified_financial_input only for actual financial values "
+                "that cannot be safely typed; bind every package value exactly "
+                "once. Bind only listed source_value_ref values to allowed roles. "
+                "Never invent, calculate or transform values. Return no system, "
+                "confidence, provenance or audit metadata; only the strict schema "
+                "object.\n{{financial_evidence_successor_input_json}}"
+            )
+        elif prompt_contract_id == SUCCESSOR_PROMPT_CONTRACT_ID_V3:
+            content = (
+                "Make one bounded Gate 2 Financial Evidence decision using "
+                "only the eligible Registry guidance and source groups. "
+                "Code-owned typed admission has already limited the strict "
+                "response schema; this instruction cannot add or widen a "
+                "typed branch. The presence of a typed branch is not an "
+                "instruction to choose it. Choose typed_input only when the "
+                "Registry definition and explicit source meaning uniquely "
+                "support it and the listed counterexamples do not apply. "
+                "When source-stated financial values cannot be safely typed, "
+                "unclassified_financial_input is the normal safe outcome; "
+                "preserve every package value with exact allowed-role "
+                "bindings. Source-group nesting is the only allowed value "
+                "association. A deterministic-reference value with a null "
+                "literal is binding evidence, not semantic evidence. Use "
+                "no_financial_input only when no source-stated financial "
+                "value exists. Use unsupported only for an unrepresentable "
+                "source shape. Never invent, calculate, transform, repair or "
+                "return system, confidence, provenance or audit metadata. "
+                "Return only the strict schema object.\n"
+                "{{financial_evidence_successor_input_json}}"
+            )
+        else:
+            _fail("financial_evidence_successor_prompt_contract_invalid")
         digest = hashlib.sha256(
             (
                 content
                 + "\ncontract:"
-                + SUCCESSOR_PROMPT_CONTRACT_ID
+                + prompt_contract_id
                 + "\ndecision:"
                 + DECISION_SCHEMA_VERSION
             ).encode("utf-8")
         ).hexdigest()
         return Gate2FinancialEvidenceSuccessorPrompt(
-            prompt_ref="code:" + SUCCESSOR_PROMPT_CONTRACT_ID,
+            prompt_ref="code:" + prompt_contract_id,
             content=content,
             hash=digest,
         )
@@ -193,14 +240,25 @@ class Gate2FinancialEvidenceSuccessorRunnerFactory:
             not in {
                 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION,
                 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2,
+                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3,
             }
+            or (
+                self.config.model_input_schema_version
+                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
+            )
+            is not (
+                self.config.prompt_contract_id
+                == SUCCESSOR_PROMPT_CONTRACT_ID_V3
+            )
         ):
             _fail("financial_evidence_successor_config_invalid")
         return Gate2FinancialEvidenceSuccessorRunner(
             registry=self.registry,
             model_client=self.model_client,
             config=self.config,
-            prompt=Gate2FinancialEvidenceSuccessorPromptFactory().create(),
+            prompt=Gate2FinancialEvidenceSuccessorPromptFactory().create(
+                prompt_contract_id=self.config.prompt_contract_id
+            ),
         )
 
 
@@ -240,13 +298,22 @@ class Gate2FinancialEvidenceSuccessorRunner:
             scope=scope,
             source_context=source_context,
         )
+        provider_projection = None
+        response_format = scope.decision_contract.openai_response_format()
+        if (
+            self.config.model_input_schema_version
+            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
+        ):
+            provider_projection = (
+                Gate2FinancialEvidenceSuccessorProviderProjectionFactory()
+                .create(contract=scope.decision_contract)
+            )
+            response_format = provider_projection.response_format
         result = await self.model_client.extract(
             prompt=self.prompt,
             package=model_input,
             model_id=self.config.model_id,
-            response_format=(
-                scope.decision_contract.openai_response_format()
-            ),
+            response_format=response_format,
         )
         if result.fallback_used:
             _fail("financial_evidence_successor_fallback_forbidden")
@@ -285,12 +352,17 @@ class Gate2FinancialEvidenceSuccessorRunner:
             ) from exc
         summary = {
             "schema_version": (
-                SUCCESSOR_RESULT_SCHEMA_VERSION_V2
+                SUCCESSOR_RESULT_SCHEMA_VERSION_V3
                 if self.config.model_input_schema_version
-                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2
+                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
                 else (
+                    SUCCESSOR_RESULT_SCHEMA_VERSION_V2
+                    if self.config.model_input_schema_version
+                    == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2
+                    else (
                     "broker_reports_gate2_financial_evidence_"
                     "successor_result_v1"
+                    )
                 )
             ),
             "status": "passed",
@@ -300,6 +372,7 @@ class Gate2FinancialEvidenceSuccessorRunner:
             ),
             "model_input_hash": sha256_json(model_input),
             "prompt_hash": self.prompt.hash,
+            "prompt_contract_id": self.config.prompt_contract_id,
             "registry_version": self.registry.registry_version,
             "registry_hash": self.registry.registry_hash,
             "eligible_registry_types_total": len(
@@ -351,6 +424,23 @@ class Gate2FinancialEvidenceSuccessorRunner:
                     ),
                 }
             )
+        if provider_projection is not None:
+            summary.update(
+                {
+                    "provider_projection_schema_version": (
+                        SUCCESSOR_PROVIDER_PROJECTION_SCHEMA_VERSION
+                    ),
+                    "provider_projection_policy_version": (
+                        SUCCESSOR_PROVIDER_PROJECTION_POLICY_VERSION
+                    ),
+                    "provider_response_format_hash": (
+                        provider_projection.response_format_hash
+                    ),
+                    "provider_disposition_order": list(
+                        provider_projection.disposition_order
+                    ),
+                }
+            )
         return Gate2FinancialEvidenceSuccessorResult(
             validated_decision=validated,
             materialized_artifact=artifact,
@@ -381,6 +471,10 @@ class Gate2FinancialEvidenceSuccessorRunner:
             if declaration.input_type_id
             in scope.decision_contract.eligible_type_ids
         ]
+        include_counterexamples = (
+            self.config.model_input_schema_version
+            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
+        )
         eligible_types = [
             {
                 "input_type_id": declaration.input_type_id,
@@ -409,6 +503,15 @@ class Gate2FinancialEvidenceSuccessorRunner:
                 ),
                 "currency_unit_requirement": (
                     declaration.currency_unit_requirement
+                ),
+                **(
+                    {
+                        "counterexamples": _provider_counterexamples(
+                            declaration.counterexamples
+                        )
+                    }
+                    if include_counterexamples
+                    else {}
                 ),
             }
             for declaration in declarations
@@ -460,12 +563,20 @@ class Gate2FinancialEvidenceSuccessorRunner:
             "eligible_types": eligible_types,
             "source_groups": source_context.provider_groups(),
         }
-        validate_financial_evidence_successor_model_input_v2(
-            model_input=model_input,
-            scope=scope,
-            registry=self.registry,
-            source_context=source_context,
-        )
+        if include_counterexamples:
+            validate_financial_evidence_successor_model_input_v3(
+                model_input=model_input,
+                scope=scope,
+                registry=self.registry,
+                source_context=source_context,
+            )
+        else:
+            validate_financial_evidence_successor_model_input_v2(
+                model_input=model_input,
+                scope=scope,
+                registry=self.registry,
+                source_context=source_context,
+            )
         return model_input
 
     def _validate_execution(
@@ -645,6 +756,59 @@ def validate_financial_evidence_successor_model_input_v2(
     )
     if source_groups != source_context.provider_groups():
         _fail("financial_evidence_successor_source_context_projection_invalid")
+
+
+def validate_financial_evidence_successor_model_input_v3(
+    *,
+    model_input: dict[str, Any],
+    scope: Gate2DeterministicFinancialScope,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    source_context: Gate2FinancialEvidenceSourceContext,
+) -> None:
+    compatibility_input = copy.deepcopy(model_input)
+    eligible_types = compatibility_input.get("eligible_types")
+    if not isinstance(eligible_types, list):
+        _fail("financial_evidence_successor_model_input_v3_type_invalid")
+    for item in eligible_types:
+        if (
+            not isinstance(item, dict)
+            or "counterexamples" not in item
+        ):
+            _fail(
+                "financial_evidence_successor_counterexamples_missing"
+            )
+        input_type_id = str(item.get("input_type_id") or "")
+        declaration = registry.get(input_type_id)
+        if item["counterexamples"] != _provider_counterexamples(
+            declaration.counterexamples
+        ):
+            _fail(
+                "financial_evidence_successor_counterexamples_invalid"
+            )
+        item.pop("counterexamples")
+    validate_financial_evidence_successor_model_input_v2(
+        model_input=compatibility_input,
+        scope=scope,
+        registry=registry,
+        source_context=source_context,
+    )
+
+
+def _provider_counterexamples(
+    counterexamples: tuple[str, ...],
+) -> list[str]:
+    if (
+        not counterexamples
+        or len(counterexamples) > MAX_PROVIDER_COUNTEREXAMPLES
+        or any(
+            not isinstance(item, str)
+            or not item
+            or len(item) > MAX_PROVIDER_COUNTEREXAMPLE_CHARS
+            for item in counterexamples
+        )
+    ):
+        _fail("financial_evidence_successor_counterexample_limit_invalid")
+    return list(counterexamples)
 
 
 def _walk_dicts(value: Any):
