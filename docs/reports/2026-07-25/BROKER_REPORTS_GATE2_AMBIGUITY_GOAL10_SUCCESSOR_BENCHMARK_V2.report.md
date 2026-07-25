@@ -177,7 +177,8 @@ Deterministic bundle SHA-256:
   `f7419e7353e28c030112b9a9d40f54bc7f73d04f`;
 - branch:
   `codex/broker-reports-gate2-ambiguity-goal10-benchmark-v2`;
-- PR: pending creation;
+- PR:
+  `https://github.com/Kwentin3/corp-openweb-ui/pull/137`;
 - production admission: false.
 
 ## Acceptance
