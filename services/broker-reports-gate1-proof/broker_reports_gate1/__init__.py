@@ -546,6 +546,14 @@ from .gate2_successor_compatibility import (
     Gate2SuccessorCompatibilityReader,
     Gate2SuccessorCompatibilityReaderFactory,
 )
+from .gate2_successor_local_proof import (
+    LOCAL_PROOF_MANIFEST_SCHEMA_VERSION,
+    LOCAL_PROOF_POLICY_VERSION,
+    LOCAL_PROOF_RECEIPT_SCHEMA_VERSION,
+    REQUIRED_FEATURES as GATE2_SUCCESSOR_LOCAL_PROOF_REQUIRED_FEATURES,
+    Gate2SuccessorLocalProofError,
+    Gate2SuccessorLocalProofFactory,
+)
 from .gate2_financial_context import (
     FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION,
     FINANCIAL_CONTEXT_SCHEMA_VERSION,
@@ -1091,6 +1099,12 @@ __all__ = [
     "Gate2SuccessorCompatibilityReadResult",
     "Gate2SuccessorCompatibilityReader",
     "Gate2SuccessorCompatibilityReaderFactory",
+    "LOCAL_PROOF_MANIFEST_SCHEMA_VERSION",
+    "LOCAL_PROOF_POLICY_VERSION",
+    "LOCAL_PROOF_RECEIPT_SCHEMA_VERSION",
+    "GATE2_SUCCESSOR_LOCAL_PROOF_REQUIRED_FEATURES",
+    "Gate2SuccessorLocalProofError",
+    "Gate2SuccessorLocalProofFactory",
     "FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION",
     "FINANCIAL_CONTEXT_SCHEMA_VERSION",
     "Gate2FinancialContextProjectionError",
