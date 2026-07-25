@@ -124,7 +124,7 @@ terminal coverage и integrity. Core factory не подменяется mock-о
   `codex/broker-reports-gate2-scope-refactor-goal1-deterministic-scope`;
 - implementation revision:
   `00d7b074af4d7b30ab193225991226d529dfd01b`;
-- PR: `PENDING`;
+- PR: `https://github.com/Kwentin3/corp-openweb-ui/pull/127`;
 - changed production/runtime files: 0;
 - changed bundle files: 0;
 - stage mutations: 0.

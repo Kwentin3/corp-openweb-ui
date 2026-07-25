@@ -7,7 +7,7 @@
     "base_revision": "175cb9e3abbcebfc0c33b4a50416714e5fb471e2",
     "branch": "codex/broker-reports-gate2-scope-refactor-goal1-deterministic-scope",
     "implementation_revision": "00d7b074af4d7b30ab193225991226d529dfd01b",
-    "pull_request": "PENDING",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/127",
     "changed_paths_before_evidence": [
       "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_deterministic_financial_scopes.py",
       "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_deterministic_financial_scopes.py"
