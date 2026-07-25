@@ -1,0 +1,67 @@
+{
+  "schema": "broker_reports_gate2_v4_goal5a_financial_shape_diagnostic_harness_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED",
+  "git": {
+    "execution_revision": "5076a676a4616d3ca47a2646ba950648d965c527",
+    "branch": "codex/broker-reports-gate2-v4-goal5a-financial-shape-diagnostic-harness",
+    "pull_request": 121
+  },
+  "change": {
+    "scope": "qualification_only_diagnostic",
+    "case_id": "unclassified",
+    "maximum_provider_calls": 1,
+    "atomic_safe_receipt": true,
+    "value_free_shape_summary": true,
+    "canonical_validation_code_recorded": true,
+    "schema_projection_diff_recorded": true,
+    "raw_provider_output_included": false,
+    "literal_values_included": false,
+    "production_contract_changed": false,
+    "adapter_changed": false
+  },
+  "preflight": {
+    "exact_model_id": "models/gemini-3.1-flash-lite",
+    "provider_profile_id": "google_gemini",
+    "workload_class": "gate2_financial_evidence",
+    "model_published": true,
+    "authorization_identity_sha256": "5c723cf8b49cd6ea216f166361c1bc927e4cb921f009612ae194fb39b10cdc46",
+    "canonical_schema_sha256": "3b4a6204d15acee98c444eb5a196ee023e78e53d0dee1b223f39e7b5d9f11a42",
+    "adapted_schema_sha256": "c34971081249a19f0ea0098aa2c2d0d950ec07a63e36a1f59dc391998b419ea1",
+    "schema_transform_count": 8,
+    "canonical_disposition_enum_present": true,
+    "adapted_disposition_enum_present": false,
+    "provider_calls": 0
+  },
+  "tests": {
+    "focused_passed": 65,
+    "focused_seconds": "1.24",
+    "full_passed": 1400,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "90.47",
+    "ruff_passed": true
+  },
+  "accounting": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "expensive_model_calls": 0,
+    "stage_mutations": 0
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "literal_values_in_receipt": false,
+    "secrets_in_receipt": false
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL5A_FINANCIAL_SHAPE_DIAGNOSTIC_HARNESS.report.md"
+  },
+  "next_permitted_goal": "v4_goal5_gemini_financial_secondary_and_narrow_diagnostic"
+}
