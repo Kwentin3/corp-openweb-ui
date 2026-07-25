@@ -34,6 +34,7 @@ from live_gate2_domain_economy_qualification import (  # noqa: E402
     build_domain_qualification_fixture,
     canonicalize_selection,
     domain_qualification_contract_identity,
+    domain_qualification_manifest_hash,
     qualify_domain_model,
     validate_domain_qualification_output,
     write_safe_receipt_atomically,
@@ -350,3 +351,29 @@ def test_manifest_is_valid_json_and_explicitly_non_customer() -> None:
     assert manifest["contains_customer_data"] is False
     assert manifest["frozen"] is True
     assert len(manifest["cases"]) == 5
+
+
+def test_manifest_identity_is_independent_of_crlf_and_json_formatting(tmp_path) -> None:
+    manifest = json.loads(
+        (
+            ROOT / "benchmarks" / "gate2_domain_qualification_v1" / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    compact_path = tmp_path / "compact.json"
+    crlf_path = tmp_path / "pretty-crlf.json"
+    compact_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+        newline="\n",
+    )
+    crlf_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=4),
+        encoding="utf-8",
+        newline="\r\n",
+    )
+
+    expected_hash = domain_qualification_manifest_hash(manifest)
+    assert (
+        build_domain_qualification_fixture(compact_path).manifest_hash == expected_hash
+    )
+    assert build_domain_qualification_fixture(crlf_path).manifest_hash == expected_hash
