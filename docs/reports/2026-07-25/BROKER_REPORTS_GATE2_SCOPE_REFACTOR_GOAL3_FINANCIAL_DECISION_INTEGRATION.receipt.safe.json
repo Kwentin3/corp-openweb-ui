@@ -1,0 +1,146 @@
+{
+  "schema_version": "broker_reports_gate2_scope_refactor_goal3_receipt_v1",
+  "goal": "goal3_financial_decision_integration",
+  "status": "passed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "5759da886b9ff512050be30ff9ca11e32b46c3e4",
+    "branch": "codex/broker-reports-gate2-scope-refactor-goal3-financial-integration",
+    "implementation_revision": "ecaddabcb2e810884fecde7f15455a87f04c8ec0",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/129",
+    "domain_bundle_sha256": "2a8d9ec8c643510b7f4974d77208c1f4fba5f232bd1b07c6d1960bf984634abe",
+    "bundle_rebuild_exact": true,
+    "customer_facing_routing_changes_total": 0,
+    "legacy_runtime_deletions_total": 0
+  },
+  "contracts_changed": {
+    "model_input_schema": "broker_reports_gate2_financial_evidence_successor_model_input_v1",
+    "prompt_contract": "broker_reports_gate2_financial_evidence_successor_prompt_v1",
+    "factory": "Gate2FinancialEvidenceSuccessorRunnerFactory.create",
+    "domain_bundle_dependency_closure": "updated_not_activated"
+  },
+  "contracts_explicitly_unchanged": [
+    "broker_reports_gate2_financial_evidence_decision_v1",
+    "broker_reports_financial_evidence_source_package_v1",
+    "broker_reports_gate2_financial_evidence_registry_v1",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_gate2_financial_context_v1",
+    "legacy source/domain runtime and schemas",
+    "Gate 1 contracts",
+    "Gate 3 contracts"
+  ],
+  "model_input": {
+    "top_level_fields": [
+      "eligible_types",
+      "source_values"
+    ],
+    "eligible_registry_definitions_only": true,
+    "package_source_values_only": true,
+    "package_bound_refs_only": true,
+    "allowed_roles_only": true,
+    "forbidden_system_fields_total": 0,
+    "candidate_graph_fields_total": 0,
+    "relation_graph_fields_total": 0,
+    "fact_path_fields_total": 0,
+    "ownership_fields_total": 0,
+    "provenance_fields_total": 0,
+    "audit_fields_total": 0
+  },
+  "decision_integration": {
+    "decision_schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+    "decision_schema_hash": "09914317fb64eb280c3b5db86b63f37eb0ff615eda29a4b7a1b54b031e502f31",
+    "new_secretary_contract_created": false,
+    "strict_four_dispositions": true,
+    "registry_bound_type_ids_only": true,
+    "package_bound_source_value_refs_only": true,
+    "existing_materializer": "Gate2FinancialEvidenceMaterializerFactory"
+  },
+  "synthetic_probe": {
+    "input_kind": "synthetic_non_customer",
+    "status": "passed",
+    "requested_model_id": "gpt-5.4-nano-2026-03-17",
+    "resolved_model_id": "gpt-5.4-nano-2026-03-17",
+    "provider_profile_id": "openai_gpt",
+    "response_format_type": "json_schema",
+    "response_format_schema_mode": "strict_json_schema",
+    "eligible_registry_types_total": 2,
+    "package_source_values_total": 6,
+    "terminal_disposition": "unclassified_financial_input",
+    "financial_evidence_client_calls_total": 1,
+    "source_model_calls_total": 0,
+    "domain_model_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "prompt_hash": "83f22755dd8380b4d91a5b143b1c991afdbed25afea959d9be3d882faee7f33b",
+    "model_input_hash": "66721bd82413736a54a2b3f8adc36d7a6e0dc92b6f544bbf16c40b6bb849bb99",
+    "materialized_artifact_integrity_hash": "765384adad22cd976528fc5f915e0f880193af1fa5f3ba3d1ecf48daa5b1445f",
+    "live_provider_qualification_claimed": false
+  },
+  "negative_checks": {
+    "fallback_rejected": true,
+    "repair_rejected": true,
+    "missing_execution_metadata_rejected": true,
+    "wrong_exact_model_rejected": true,
+    "non_strict_response_format_rejected": true,
+    "out_of_package_ref_rejected": true,
+    "model_system_field_rejected": true,
+    "model_input_system_field_rejected": true,
+    "source_domain_runtime_imports_zero": true
+  },
+  "execution_boundary": {
+    "live_provider_calls_total": 0,
+    "customer_corpus_calls_total": 0,
+    "persistence_writes_total": 0,
+    "production_route_activations_total": 0,
+    "stage_mutations_total": 0,
+    "browser_calls_total": 0
+  },
+  "tests": {
+    "direct": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_financial_evidence_successor.py",
+      "passed": 10,
+      "failed": 0,
+      "duration_seconds": 0.63
+    },
+    "focused": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate2_financial_evidence_successor.py tests/test_broker_reports_gate2_deterministic_financial_scopes.py tests/test_broker_reports_gate2_financial_evidence_decision.py tests/test_broker_reports_gate2_financial_evidence_materialization.py tests/test_broker_reports_gate2_pipe_bundle.py",
+      "passed": 75,
+      "failed": 0,
+      "duration_seconds": 2.81
+    },
+    "full": {
+      "command": "python -m pytest -q",
+      "passed": 1427,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 92.66
+    },
+    "ruff": "passed",
+    "git_diff_check": "passed",
+    "bundle_rebuild_exact": true
+  },
+  "source_hashes": {
+    "successor_runner_sha256": "2c5c645d9156f6b94ebfecd083b9745c415747dd242abede635f1cc32095db39",
+    "successor_tests_sha256": "7114cf20753aceb41c6890b41e73e457ad32ad616855c183fa7bd02d77f4b962",
+    "domain_bundle_sha256": "2a8d9ec8c643510b7f4974d77208c1f4fba5f232bd1b07c6d1960bf984634abe"
+  },
+  "privacy": {
+    "status": "passed",
+    "raw_model_output_in_git": false,
+    "customer_values_in_git_evidence": false,
+    "customer_refs_in_git_evidence": false,
+    "customer_paths_in_git_evidence": false,
+    "safe_summary_value_free": true
+  },
+  "acceptance": {
+    "new_semantic_authority": "zero",
+    "model_system_fields": "zero",
+    "package_bound_refs": "only",
+    "registry_bound_ids": "only",
+    "existing_materializer": "reused",
+    "source_domain_model_calls": "zero_in_successor_path"
+  },
+  "next_permitted_goal": "goal4_bounded_actual_corpus_qualification_after_merge"
+}

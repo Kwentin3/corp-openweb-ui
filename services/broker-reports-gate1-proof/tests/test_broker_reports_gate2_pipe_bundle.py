@@ -254,6 +254,8 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_financial_context",
             "gate2_financial_evidence_compatibility",
             "gate2_financial_evidence_production_runtime",
+            "gate2_deterministic_financial_scopes",
+            "gate2_financial_evidence_successor",
         ):
             self.assertIn(module_name, source)
         self.assertIn("prefer_table_projections", source)
@@ -302,6 +304,18 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(
             hasattr(bundled_package, "Gate2ProviderAdapterFactory")
+        )
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate2DeterministicFinancialScopeFromGate1Factory",
+            )
+        )
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate2FinancialEvidenceSuccessorRunnerFactory",
+            )
         )
         self.assertEqual(pipe.valves.provider_profile_id, "")
         self.assertEqual(pipe.valves.default_source_segment_limit, 1)
@@ -368,6 +382,14 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertLess(
             order.index("gate2_model_clients"),
             order.index("gate2_source_fact_runtime"),
+        )
+        self.assertLess(
+            order.index("gate2_source_unit_segmentation"),
+            order.index("gate2_deterministic_financial_scopes"),
+        )
+        self.assertLess(
+            order.index("gate2_deterministic_financial_scopes"),
+            order.index("gate2_financial_evidence_successor"),
         )
         clients_module = sys.modules["broker_reports_gate1.gate2_model_clients"]
         self.assertIn(

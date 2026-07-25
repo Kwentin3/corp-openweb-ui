@@ -192,6 +192,18 @@ GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_FINANCIAL_MODULES,
     *GATE2_MODULE_ORDER[_GATE2_FINANCIAL_INSERT_AT:],
 ]
+GATE2_SUCCESSOR_MODULES = [
+    "gate2_deterministic_financial_scopes",
+    "gate2_financial_evidence_successor",
+]
+_GATE2_SUCCESSOR_INSERT_AT = GATE2_DOMAIN_MODULE_ORDER.index(
+    "gate2_source_unit_segmentation"
+) + 1
+GATE2_DOMAIN_MODULE_ORDER = [
+    *GATE2_DOMAIN_MODULE_ORDER[:_GATE2_SUCCESSOR_INSERT_AT],
+    *GATE2_SUCCESSOR_MODULES,
+    *GATE2_DOMAIN_MODULE_ORDER[_GATE2_SUCCESSOR_INSERT_AT:],
+]
 
 
 def main() -> None:
@@ -209,6 +221,7 @@ def main() -> None:
             | set(GATE1_HYBRID_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
+            | set(GATE2_SUCCESSOR_MODULES)
         )
     }
     if target in {"all", "gate1"}:
@@ -420,6 +433,21 @@ def assert_gate2_bundle_contract(
         "runtime_factory": runtime_factory,
         "source_adapter": BUNDLE_ADAPTER_MARKER,
     }
+    if runtime_factory == "Gate2DomainSourceFactRuntimeFactory":
+        required_markers.update(
+            {
+                "deterministic_financial_scopes_module": (
+                    '"gate2_deterministic_financial_scopes"'
+                ),
+                "financial_successor_module": (
+                    '"gate2_financial_evidence_successor"'
+                ),
+                "financial_successor_factory_anchor": (
+                    "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "
+                    "the only"
+                ),
+            }
+        )
     missing = sorted(
         label
         for label, marker in required_markers.items()
