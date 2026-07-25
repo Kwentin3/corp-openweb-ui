@@ -1,0 +1,44 @@
+{
+  "schema_version": "broker_reports_economy_v3_goal0_current_authorities_v1",
+  "date": "2026-07-25",
+  "status": "passed_with_explicit_repository_stage_revision_boundary",
+  "repository": {
+    "branch": "codex/broker-reports-economy-requalification-v2",
+    "revision": "2d6d428",
+    "origin_main_revision": "d6c4649",
+    "economy_policy_version": "1.3.0",
+    "economy_policy_hash": "ce1a2842fe61e325fefdc0adb5a6a78729b8e7cab24988e4059636b3f215ffc3",
+    "workload_registry_schema": "broker_reports_gate2_economy_workload_qualification_v1",
+    "workload_registry_hash": "72392d9d707c7d21e2975f60fb033e1aebecdb6a29e109e227a1d48ccfde55d7",
+    "financial_registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+    "financial_registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "production_allowlists_empty": true
+  },
+  "stage": {
+    "openwebui_models_total": 41,
+    "target_exact_models_published": 4,
+    "managed_prompts_passed": 12,
+    "managed_prompts_total": 12,
+    "release_source_revision": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0",
+    "release_manifest_sha256": "09734d10f47760bf9f6519edbaaedc20e3ef0d29763dda71bfa6efade761d006",
+    "functions": {
+      "broker_reports_gate1_pipe": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+      "broker_reports_gate2_source_fact_pipe": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+      "broker_reports_gate2_domain_source_fact_pipe": "4f5424f269e88f6e18064565afa70e11e7380033a1b6c9affc349f760a3bb0d5"
+    },
+    "domain_max_repair_attempts": 1
+  },
+  "revision_boundary": {
+    "repository_live_bundle_parity": false,
+    "stage_matches_last_accepted_receipt": true,
+    "old_hashes_used_as_current_repository_parity": false,
+    "qualification_transfer_between_revisions": false
+  },
+  "acceptance": {
+    "current_authorities": "pinned",
+    "stale_receipts_used_as_current": 0,
+    "production_allowlist": "empty",
+    "stage_mutations": 0
+  },
+  "private_values_in_receipt": false
+}
