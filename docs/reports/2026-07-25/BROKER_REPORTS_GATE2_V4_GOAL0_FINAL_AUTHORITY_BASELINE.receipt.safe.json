@@ -1,0 +1,143 @@
+{
+  "schema_version": "broker_reports_gate2_v4_goal0_final_authority_baseline_v1",
+  "date": "2026-07-25",
+  "status": "completed_with_explicit_gaps",
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL0_FINAL_AUTHORITY_BASELINE.report.md",
+    "sha256": "3ac6a237c6f94bcdb7ea43aa0cb404df5f144b47aa05b3bdb9c72833dc5afac5"
+  },
+  "repository": {
+    "audited_main_revision": "54364a4c4805badca4984533f55fcbfc00ee055e",
+    "origin_main_revision": "54364a4c4805badca4984533f55fcbfc00ee055e",
+    "branch": "codex/broker-reports-gate2-v4-goal0-final-authority-baseline",
+    "worktrees_total": 1,
+    "accepted_pr_merges": {
+      "pr_110": "0e1bb9ac2d72776cabb4377f82d98dcaa905c02e",
+      "pr_111": "54364a4c4805badca4984533f55fcbfc00ee055e"
+    }
+  },
+  "authorities": {
+    "financial_registry": {
+      "version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "semantic_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+      "git_blob_sha256": "e5f3d67a0a71f8031577854d548e56019eca6b3ab20f315519d79b8b721883da"
+    },
+    "decision_contract_git_blob_sha256": "dc4fd160aeda35b2d0a3d063a871d4cc71f6efcefcc134d0d164722d5176f19f",
+    "materializer_git_blob_sha256": "7668908631897ae106c3bde18825070ccd50738b557237c9c299977ba2de41ef",
+    "context_projection_git_blob_sha256": "3207337cb2c64774c05a19a410dbf0dc8d734d53798215d02b8d0461a5e41472",
+    "checksum_comparator_git_blob_sha256": "dbe1d83dbb60ffc8c710ff69e4eb5b57fec330d93f7902c4c326aef987f1a3d8",
+    "model_policy": {
+      "version": "1.4.0",
+      "schema": "broker_reports_economy_model_policy_v2",
+      "semantic_sha256": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9",
+      "git_blob_sha256": "c85db6f738ab48bcc5dcdd1214af82d23f18b0bd6de2900bc033bd453b69da05"
+    },
+    "workload_policy": {
+      "version": "1.4.0",
+      "schema": "broker_reports_gate2_economy_workload_policy_v2",
+      "semantic_sha256": "f1eb7daa08f10c125d21addb5ec03a5dfac42207cc39a4b3aa86224820fc3a7d",
+      "git_blob_sha256": "0dee6f2d0fa757288cd193d06e2fbfbd2015fbf35695ece7710ae6ee0e8c3092"
+    },
+    "qualification_registry": {
+      "schema": "broker_reports_gate2_economy_workload_qualification_v2",
+      "subjects_total": 16,
+      "semantic_sha256": "9a5923d61bf8ca73db2ce6acc37e9c2ea85d2c197625f15469b6cac5dae54c23",
+      "git_blob_sha256": "353ff899279ce9936d7349070ac90db82a951c8ced0703ae0830859603c2a882"
+    },
+    "production_allowlists": {
+      "gate2_source": [],
+      "gate2_domain": [],
+      "gate2_financial_evidence": [],
+      "gate2_financial_checksum": []
+    }
+  },
+  "stage": {
+    "release_identity_class": "composite",
+    "advertised_source_revision": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0",
+    "advertised_manifest_sha256": "09734d10f47760bf9f6519edbaaedc20e3ef0d29763dda71bfa6efade761d006",
+    "repository_live_v1_4_parity": false,
+    "functions": {
+      "broker_reports_gate1_pipe": {
+        "active": true,
+        "live_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+        "metadata_bundle_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+        "repository_sha256": "8fbcfbc970641e5076745342c6b90da5b711bf1b0bc9c3fbcba2e3fe99fc6d94",
+        "content_origin": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0"
+      },
+      "broker_reports_gate2_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+        "metadata_bundle_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+        "repository_sha256": "2b7a34b92700d29b0ed5e93de7fd65d9229291cd952adaf3bc84df63707db56a",
+        "content_origin": "efee1fede8d4e1f70ff1c54ceb7ba6dfa11584f0"
+      },
+      "broker_reports_gate2_domain_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "4f5424f269e88f6e18064565afa70e11e7380033a1b6c9affc349f760a3bb0d5",
+        "metadata_bundle_sha256": "ea5d00a513542d82689c1434396e82ce4c21222fefd217292061fa78f46505e0",
+        "repository_sha256": "4e68f73e8eba260585802edc13d65941079bf83eff7e35cfde36dbceaa3ab17e",
+        "content_origin": "b3f381b62cc79006d73268e59dc10c450b1152e7",
+        "metadata_content_match": false
+      }
+    },
+    "managed_prompts": {
+      "matched": 12,
+      "total": 12,
+      "sha256": {
+        "broker_reports_document_metadata_passport_prompt_v0": "1f9827ad62e1f20c5187f92aa3814f2c149f28148a61356b52850afc301f2de6",
+        "broker_reports_gate1_clarification_prompt_v0": "7fd0b6dc935395bfb61aeabd24194941ed32b590ba58af03ff1581849dc2048a",
+        "broker_reports_gate2_cash_movement_prompt_v0": "c9394d07189cd3aec476a27a2fd2f3cc4b3e7883e3abaa6d43066902060d7e0e",
+        "broker_reports_gate2_currency_fx_prompt_v0": "917c1cae378223bdd2316dc8ec7d317352107943dd5988360e7572719e1bb715",
+        "broker_reports_gate2_document_summary_evidence_prompt_v0": "9bad1a06bb8556e0fa62f1f47de73c7d7b1d41e57aa752de9206c0749133088d",
+        "broker_reports_gate2_fee_commission_prompt_v0": "1d7b5c5e25f1e520d55ef8e9c84d323e6a27d73da392b428a74e95a0af6910fc",
+        "broker_reports_gate2_income_prompt_v0": "af7fcd78f4533d0f5a1f8bcef58ad113f72f102e58f547f0c30f8810ddced187",
+        "broker_reports_gate2_position_snapshot_prompt_v0": "b250663fc078782b28dfb530f10e99ee13f97789a12d4e67852938b3088c36fd",
+        "broker_reports_gate2_source_fact_prompt_v0": "97d7f27850e74f8869cedc2c4f8675f44933460fec3d077b192ed222230aae12",
+        "broker_reports_gate2_trade_operation_prompt_v0": "e819ded91b58bea3012e9bd9cde0444b63427d60120ef6712e33a4d8b515c0d1",
+        "broker_reports_gate2_unknown_source_row_prompt_v0": "776a7574542cba7b77b2c5e7686af5990c652420823bbea9a78749ac12428aa1",
+        "broker_reports_gate2_withholding_tax_prompt_v0": "e952e09ab395d21093102e9264effd0d8fce54e5b913b57c046538168d3eb228"
+      }
+    },
+    "domain_valves": {
+      "financial_evidence_enabled": true,
+      "financial_evidence_registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "max_repair_attempts": 1
+    },
+    "openwebui_models_total": 41
+  },
+  "provider_routes": {
+    "repository_profile_revisions": {
+      "openai_gpt": "4232f7b089fec08326548bf4c70bb33fef0ce603c23d78d6110a9c9a8aec5929",
+      "google_gemini": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+      "anthropic_claude": "289bf0618825d53f49ebe2fda1272aa284e5c5b23f072a262f990c80111d74e7"
+    },
+    "published_exact_models": {
+      "gpt-5.4-nano-2026-03-17": 0,
+      "claude-haiku-4-5-20251001": 1,
+      "models/gemini-3.1-flash-lite": 3,
+      "models/gemini-3.5-flash-lite": 3
+    }
+  },
+  "verification": {
+    "contracts_changed": 0,
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cost_usd": "0",
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "focused_tests_passed": 136,
+    "full_tests_passed": 1360,
+    "full_tests_skipped": 20,
+    "privacy": "passed",
+    "stage_mutations": 0
+  },
+  "revision_boundary": {
+    "stale_receipts_used_as_current": 0,
+    "old_whole_stage_manifest_used_as_current": false,
+    "old_synthetic_qualification_transferred": false,
+    "stage_content_reported_as_repository_v1_4": false
+  },
+  "next_permitted_goal": "v4_goal1_qualification_only_policy_delivery"
+}
