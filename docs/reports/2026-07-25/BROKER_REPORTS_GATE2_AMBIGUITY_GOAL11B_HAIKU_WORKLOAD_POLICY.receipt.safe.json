@@ -1,0 +1,96 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal11b_receipt_v1",
+  "goal": "goal11b_haiku_financial_workload_policy",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "c23c4f5e7a4ca92eb8b0aaaccfeac313e3b2ab94",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal11b-haiku-workload-policy",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/140",
+    "production_admission": false
+  },
+  "preflight_blocker": {
+    "failure_code": "economy_workload_qualification_candidate_forbidden",
+    "blocked_before_provider_call": true,
+    "exact_model_published": true,
+    "provider_calls_total": 0,
+    "qualification_attempt_consumed": false,
+    "stage_mutations_total": 0
+  },
+  "financial_evidence_workload_policy": {
+    "primary_candidate_exact_model_id": "claude-haiku-4-5-20251001",
+    "secondary_candidate_exact_model_id": null,
+    "diagnostic_candidate_exact_model_ids": [
+      "models/gemini-3.1-flash-lite",
+      "models/gemini-3.5-flash-lite"
+    ],
+    "terminal_nano_candidate_present": false,
+    "maximum_fallback_calls_per_operation": 1,
+    "production_admissions": []
+  },
+  "policy_identities": {
+    "model_policy_version": "1.4.0",
+    "model_policy_hash": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9",
+    "workload_policy_version": "1.4.0",
+    "workload_policy_hash": "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de",
+    "qualification_policy_hash": "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe",
+    "repository_action_source_sha256": "f178b142403e52897d2caf74ad75576162331efa85b0da85d472d8301ad24932"
+  },
+  "unchanged_contracts": [
+    "economy_model_declarations",
+    "economy_model_costs",
+    "gate2_financial_successor_v2_benchmark",
+    "deterministic_financial_scope_v2",
+    "financial_source_context_v2",
+    "financial_successor_prompt_input_projection_v3",
+    "financial_registry_decision_validator_materializer",
+    "successor_artifact_family_v2",
+    "source_domain_checksum_workload_routes",
+    "production_admissions"
+  ],
+  "tests": {
+    "focused": {
+      "passed": 64,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 10.87
+    },
+    "full": {
+      "passed": 1522,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": 115.98
+    },
+    "ruff": "passed",
+    "bundle_rebuild_deterministic": true
+  },
+  "bundle_sha256": {
+    "gate1": "19406e0300f821328d6625877e5d0c393803231472a7a6b92a294223ed1012b2",
+    "gate2_source": "507bf34b4467de5d500055853c36d544a8e0b278b55c294eadaf44d92f6a6bb2",
+    "gate2_domain": "05c56b1599910b33dfe17473727a7ea6f950a61b8bb73438a57469175a4da621"
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0,
+    "production_route_activations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_included": false,
+    "source_value_refs_included": false,
+    "private_source_context_included": false,
+    "raw_provider_output_included": false,
+    "customer_data_included": false
+  },
+  "acceptance": {
+    "haiku_financial_authorization": "code_owned",
+    "terminal_nano_reauthorization": "structurally_forbidden",
+    "production_admissions": "empty",
+    "provider_calls": "zero"
+  },
+  "next_permitted_goal": "qualification_action_stage_delivery_after_merge"
+}

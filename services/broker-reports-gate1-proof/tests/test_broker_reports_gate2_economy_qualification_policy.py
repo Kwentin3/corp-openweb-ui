@@ -93,8 +93,8 @@ def test_snapshot_is_exact_policy_1_4_qualification_only() -> None:
         ),
         (
             "gate2_financial_evidence",
-            "gpt-5.4-nano-2026-03-17",
-            "openai_gpt",
+            "claude-haiku-4-5-20251001",
+            "anthropic_claude",
             "disabled",
         ),
         (
