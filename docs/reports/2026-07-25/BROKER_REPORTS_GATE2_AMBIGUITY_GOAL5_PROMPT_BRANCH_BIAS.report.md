@@ -1,6 +1,7 @@
 ﻿# Broker Reports — Gate 2 ambiguity discipline, Goal 5
 
-Дата: 2026-07-25  
+Дата: 2026-07-25
+
 Статус: `PROMPT_V2_TYPING_BIAS: PROVEN_FOR_EXACT_RECEIPT_PAIR`
 
 ## Controlled comparison

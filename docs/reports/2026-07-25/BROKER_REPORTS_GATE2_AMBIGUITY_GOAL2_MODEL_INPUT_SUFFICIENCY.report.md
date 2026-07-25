@@ -1,6 +1,7 @@
 ﻿# Broker Reports — Gate 2 ambiguity discipline, Goal 2
 
-Дата: 2026-07-25  
+Дата: 2026-07-25
+
 Статус: `SEMANTIC_CONTEXT_SUFFICIENCY: GAP_IDENTIFIED`
 
 ## Результат

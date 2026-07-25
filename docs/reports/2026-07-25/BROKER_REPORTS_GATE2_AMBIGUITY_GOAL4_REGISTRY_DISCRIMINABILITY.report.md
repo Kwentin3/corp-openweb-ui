@@ -1,6 +1,7 @@
 ﻿# Broker Reports — Gate 2 ambiguity discipline, Goal 4
 
-Дата: 2026-07-25  
+Дата: 2026-07-25
+
 Статус: `REGISTRY_DISCRIMINABILITY: MACHINE_GAP_IDENTIFIED`
 
 ## Result

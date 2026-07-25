@@ -1,6 +1,7 @@
 ﻿# Broker Reports — Gate 2 ambiguity discipline, Goal 3
 
-Дата: 2026-07-25  
+Дата: 2026-07-25
+
 Статус: `ELIGIBILITY_ROOT_CAUSE: LOCALIZED`
 
 ## Current eligibility path

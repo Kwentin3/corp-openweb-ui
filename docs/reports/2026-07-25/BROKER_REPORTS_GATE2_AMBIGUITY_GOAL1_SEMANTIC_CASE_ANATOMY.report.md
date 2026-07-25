@@ -1,6 +1,7 @@
 ﻿# Broker Reports — Gate 2 ambiguity discipline, Goal 1
 
-Дата: 2026-07-25  
+Дата: 2026-07-25
+
 Статус: `SEMANTIC_CASE_ANATOMY: PASSED`
 
 ## Метод
