@@ -31,6 +31,10 @@ from .gate2_financial_evidence_materialization_contracts import (
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
 )
+from .gate2_financial_evidence_typed_admission import (
+    Gate2FinancialEvidenceTypedAdmissionFactory,
+    validate_typed_admission,
+)
 from .gate2_financial_evidence_source_package import (
     validate_source_package_integrity,
 )
@@ -50,6 +54,15 @@ DETERMINISTIC_FINANCIAL_SCOPE_BATCH_SCHEMA_VERSION = (
 )
 DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION = (
     "gate2_deterministic_financial_scope_from_gate1_v1"
+)
+DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2 = (
+    "broker_reports_gate2_deterministic_financial_scope_package_v2"
+)
+DETERMINISTIC_FINANCIAL_SCOPE_BATCH_SCHEMA_VERSION_V2 = (
+    "broker_reports_gate2_deterministic_financial_scope_batch_v2"
+)
+DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2 = (
+    "gate2_deterministic_financial_scope_from_gate1_v2"
 )
 NORMALIZED_TEXT_SOURCE_FAMILY = (
     "broker_reports_normalized_text_projection_v0"
@@ -134,6 +147,30 @@ class Gate2DeterministicFinancialScopeBatch:
             "provider_calls_total": 0,
             "persistence_writes_total": 0,
         }
+
+
+@dataclass(frozen=True)
+class Gate2DeterministicFinancialScopeBatchV2(
+    Gate2DeterministicFinancialScopeBatch
+):
+    def safe_summary(self) -> dict[str, Any]:
+        summary = super().safe_summary()
+        summary.update(
+            {
+                "schema_version": (
+                    DETERMINISTIC_FINANCIAL_SCOPE_BATCH_SCHEMA_VERSION_V2
+                ),
+                "scope_schema_version": (
+                    DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
+                ),
+                "scope_policy_version": (
+                    DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2
+                ),
+                "typed_admission_policy": "code_owned_pre_model_v1",
+                "post_response_conversion": False,
+            }
+        )
+        return summary
 
 
 class Gate2DeterministicFinancialScopeFromGate1Factory:
@@ -501,6 +538,90 @@ class Gate2DeterministicFinancialScopeFromGate1Factory:
         return scope
 
 
+class Gate2DeterministicFinancialScopeFromGate1V2Factory(
+    Gate2DeterministicFinancialScopeFromGate1Factory
+):
+    def create(
+        self,
+        *,
+        gate1_packages: Iterable[dict[str, Any]],
+    ) -> Gate2DeterministicFinancialScopeBatchV2:
+        batch = super().create(gate1_packages=gate1_packages)
+        return Gate2DeterministicFinancialScopeBatchV2(
+            scopes=batch.scopes,
+            segmentation_plans=batch.segmentation_plans,
+            coverage=batch.coverage,
+        )
+
+    def _scope(
+        self,
+        *,
+        component: tuple[dict[str, Any], ...],
+        routing_evidence: dict[str, dict[str, Any]],
+    ) -> Gate2DeterministicFinancialScope:
+        legacy_scope = super()._scope(
+            component=component,
+            routing_evidence=routing_evidence,
+        )
+        legacy_contract = legacy_scope.decision_contract
+        admission = Gate2FinancialEvidenceTypedAdmissionFactory(
+            registry=self.registry
+        ).create(
+            source_scope_ref=legacy_scope.source_package.source_scope_ref,
+            source_family_id=legacy_scope.source_package.source_family_id,
+            source_values=legacy_scope.source_package.source_values,
+            candidates=legacy_contract.package.candidates,
+            gate1_packages=component,
+        )
+        decision_contract = Gate2FinancialEvidenceDecisionContractFactory(
+            registry=self.registry,
+            package=FinancialEvidenceDecisionPackage(
+                source_scope_ref=legacy_contract.package.source_scope_ref,
+                source_family_id=legacy_contract.package.source_family_id,
+                candidates=legacy_contract.package.candidates,
+                allowed_type_ids=admission.admitted_type_ids,
+            ),
+        ).create()
+        package = copy.deepcopy(legacy_scope.package)
+        package.update(
+            {
+                "schema_version": (
+                    DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
+                ),
+                "scope_policy_version": (
+                    DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2
+                ),
+                "authority": (
+                    "gate1_evidence_deterministic_registry_rules_and_"
+                    "code_owned_typed_admission"
+                ),
+                "typed_admission": admission.to_dict(),
+            }
+        )
+        package["registry"]["eligible_input_type_ids"] = list(
+            decision_contract.eligible_type_ids
+        )
+        package["decision_contract"]["schema_hash"] = (
+            decision_contract.canonical_schema_hash()
+        )
+        package["execution_boundary"].update(
+            {
+                "typed_admission_pre_model": True,
+                "post_response_conversion": False,
+            }
+        )
+        package.pop("integrity_hash", None)
+        package["integrity_hash"] = sha256_json(package)
+        scope = Gate2DeterministicFinancialScope(
+            package=package,
+            decision_contract=decision_contract,
+            source_package=legacy_scope.source_package,
+            selected_source_refs=legacy_scope.selected_source_refs,
+        )
+        validate_deterministic_financial_scope_v2(scope)
+        return scope
+
+
 def validate_deterministic_financial_scope(
     scope: Gate2DeterministicFinancialScope,
 ) -> None:
@@ -601,6 +722,89 @@ def validate_deterministic_financial_scope(
             "deterministic_source_reference",
         }:
             _fail("deterministic_financial_scope_value_authority_invalid")
+
+
+def validate_deterministic_financial_scope_v2(
+    scope: Gate2DeterministicFinancialScope,
+) -> None:
+    package = scope.package
+    if (
+        package.get("schema_version")
+        != DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
+        or package.get("scope_policy_version")
+        != DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2
+    ):
+        _fail("deterministic_financial_scope_v2_identity_invalid")
+    payload = copy.deepcopy(package)
+    integrity_hash = payload.pop("integrity_hash", None)
+    if integrity_hash != sha256_json(payload):
+        _fail("deterministic_financial_scope_v2_integrity_invalid")
+    admission = package.get("typed_admission")
+    validate_typed_admission(
+        payload=admission,
+        registry=scope.decision_contract.registry,
+        source_scope_ref=scope.source_package.source_scope_ref,
+    )
+    admitted_type_ids = tuple(admission["admitted_type_ids"])
+    if (
+        scope.decision_contract.package.allowed_type_ids
+        != admitted_type_ids
+        or scope.decision_contract.eligible_type_ids
+        != admitted_type_ids
+        or package.get("registry", {}).get("eligible_input_type_ids")
+        != list(admitted_type_ids)
+    ):
+        _fail("deterministic_financial_scope_v2_admission_mismatch")
+    execution = package.get("execution_boundary") or {}
+    if (
+        execution.get("typed_admission_pre_model") is not True
+        or execution.get("post_response_conversion") is not False
+        or admission.get("provider_calls_total") != 0
+        or admission.get("post_response_conversion") is not False
+    ):
+        _fail("deterministic_financial_scope_v2_execution_boundary_invalid")
+
+    compatibility_package = copy.deepcopy(package)
+    compatibility_package["schema_version"] = (
+        DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION
+    )
+    compatibility_package["scope_policy_version"] = (
+        DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION
+    )
+    compatibility_package["authority"] = (
+        "gate1_evidence_and_deterministic_registry_rules"
+    )
+    compatibility_package["execution_boundary"].pop(
+        "typed_admission_pre_model", None
+    )
+    compatibility_package["execution_boundary"].pop(
+        "post_response_conversion", None
+    )
+    compatibility_package.pop("typed_admission", None)
+    compatibility_package.pop("integrity_hash", None)
+    compatibility_package["integrity_hash"] = sha256_json(
+        compatibility_package
+    )
+    validate_deterministic_financial_scope(
+        Gate2DeterministicFinancialScope(
+            package=compatibility_package,
+            decision_contract=scope.decision_contract,
+            source_package=scope.source_package,
+            selected_source_refs=scope.selected_source_refs,
+        )
+    )
+
+
+def validate_deterministic_financial_scope_any(
+    scope: Gate2DeterministicFinancialScope,
+) -> None:
+    if (
+        scope.package.get("schema_version")
+        == DETERMINISTIC_FINANCIAL_SCOPE_SCHEMA_VERSION_V2
+    ):
+        validate_deterministic_financial_scope_v2(scope)
+        return
+    validate_deterministic_financial_scope(scope)
 
 
 def _validate_gate1_package_identities(

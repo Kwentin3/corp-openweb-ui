@@ -193,6 +193,7 @@ GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_MODULE_ORDER[_GATE2_FINANCIAL_INSERT_AT:],
 ]
 GATE2_SUCCESSOR_MODULES = [
+    "gate2_financial_evidence_typed_admission",
     "gate2_deterministic_financial_scopes",
     "gate2_financial_evidence_successor",
     "gate2_successor_artifacts",

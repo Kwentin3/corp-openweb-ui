@@ -9,7 +9,7 @@ from typing import Any, Iterable
 from .gate2_deterministic_financial_scopes import (
     Gate2DeterministicFinancialScope,
     Gate2DeterministicFinancialScopeError,
-    validate_deterministic_financial_scope,
+    validate_deterministic_financial_scope_any,
 )
 from .gate2_financial_context import (
     Gate2FinancialContextProjectionError,
@@ -156,7 +156,7 @@ class Gate2SuccessorProductComparator:
         candidate_owners: defaultdict[str, set[str]] = defaultdict(set)
         for index, scope in enumerate(scopes):
             try:
-                validate_deterministic_financial_scope(scope)
+                validate_deterministic_financial_scope_any(scope)
             except Gate2DeterministicFinancialScopeError as exc:
                 checks["exact_package_ref_membership"] = False
                 _mismatch(
