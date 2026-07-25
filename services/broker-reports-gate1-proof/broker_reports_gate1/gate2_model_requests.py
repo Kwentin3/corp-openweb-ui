@@ -8,6 +8,7 @@ from .gate2_source_fact_contracts import Gate2PromptError
 
 
 SOURCE_REQUEST_PROFILE = "source_v0"
+SOURCE_QUALIFICATION_REQUEST_PROFILE = "source_qualification_v1"
 DOMAIN_REQUEST_PROFILE = "domain_v0"
 FINANCIAL_EVIDENCE_REQUEST_PROFILE = "financial_evidence_decision_v1"
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
@@ -16,6 +17,7 @@ FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
 GATE2_REQUEST_PROFILES = (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE)
 _SUPPORTED_REQUEST_PROFILES = (
     *GATE2_REQUEST_PROFILES,
+    SOURCE_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_EVIDENCE_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
@@ -40,6 +42,13 @@ class Gate2OpenWebUIRequestBuilder:
     ) -> dict[str, Any]:
         if self.request_profile == SOURCE_REQUEST_PROFILE:
             return self._build_source(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if self.request_profile == SOURCE_QUALIFICATION_REQUEST_PROFILE:
+            return self._build_source_qualification(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -118,6 +127,82 @@ class Gate2OpenWebUIRequestBuilder:
                         "output_schema_hash"
                     ),
                     "package_ref": package.get("package_artifact_ref"),
+                }
+            },
+        }
+
+    def _build_source_qualification(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{source_qualification_package_json}}"
+        if marker not in prompt.content:
+            raise Gate2PromptError(
+                "gate2_source_qualification_prompt_contract_mismatch",
+                "Source qualification Prompt input marker is missing",
+            )
+        model_package = package.get("llm_context_package")
+        if not isinstance(model_package, dict):
+            raise Gate2PromptError(
+                "gate2_source_qualification_package_missing",
+                "Source qualification model package is missing",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                model_package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": (
+                                "qualify_broker_reports_source_"
+                                "secretary_v1"
+                            ),
+                            "instruction": (
+                                "Return exactly one strict source "
+                                "qualification object for every supplied "
+                                "synthetic case. Do not add prose."
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "source_qualification": True,
+                    "synthetic_non_customer": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "output_schema_id": prompt.output_schema_id,
+                    "output_schema_version": (
+                        prompt.output_schema_version
+                    ),
+                    "output_schema_hash": package.get(
+                        "output_schema",
+                        {},
+                    ).get("output_schema_hash"),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
                 }
             },
         }

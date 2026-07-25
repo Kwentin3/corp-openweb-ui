@@ -21,6 +21,7 @@ from .gate2_model_contracts import (
     gate2_provider_profile,
 )
 from .gate2_model_requests import (
+    SOURCE_QUALIFICATION_REQUEST_PROFILE,
     SOURCE_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
 )
@@ -223,7 +224,11 @@ class Gate2OpenWebUIStructuredModelClient:
                 raise Gate2SourceFactRuntimeError(
                     provider_error_code(
                         response_payload,
-                        source_profile=self.request_profile == SOURCE_REQUEST_PROFILE,
+                        source_profile=self.request_profile
+                        in {
+                            SOURCE_REQUEST_PROFILE,
+                            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+                        },
                     ),
                     self._provider_error_message(),
                     raw_output=response_payload,
@@ -311,7 +316,10 @@ class Gate2OpenWebUIStructuredModelClient:
 
     def _validate_request_context(self) -> str:
         user_id = self._user_id(self.user)
-        if self.request_profile == SOURCE_REQUEST_PROFILE:
+        if self.request_profile in {
+            SOURCE_REQUEST_PROFILE,
+            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+        }:
             if self.request is None:
                 raise Gate2SourceFactRuntimeError(
                     "gate2_model_unavailable",
@@ -549,22 +557,34 @@ class Gate2OpenWebUIStructuredModelClient:
         )
 
     def _user_unavailable_message(self) -> str:
-        if self.request_profile == SOURCE_REQUEST_PROFILE:
+        if self.request_profile in {
+            SOURCE_REQUEST_PROFILE,
+            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+        }:
             return "OpenWebUI user model is unavailable"
         return "OpenWebUI user is unavailable"
 
     def _invalid_body_message(self) -> str:
-        if self.request_profile == SOURCE_REQUEST_PROFILE:
+        if self.request_profile in {
+            SOURCE_REQUEST_PROFILE,
+            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+        }:
             return "Completion response body is not JSON"
         return "Completion body is not JSON"
 
     def _unsupported_response_message(self) -> str:
-        if self.request_profile == SOURCE_REQUEST_PROFILE:
+        if self.request_profile in {
+            SOURCE_REQUEST_PROFILE,
+            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+        }:
             return "Unsupported completion response shape"
         return "Unsupported completion response"
 
     def _provider_error_message(self) -> str:
-        if self.request_profile == SOURCE_REQUEST_PROFILE:
+        if self.request_profile in {
+            SOURCE_REQUEST_PROFILE,
+            SOURCE_QUALIFICATION_REQUEST_PROFILE,
+        }:
             return "Provider returned a typed error object"
         return "Provider returned a typed error"
 
