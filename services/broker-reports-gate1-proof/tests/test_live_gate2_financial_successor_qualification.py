@@ -182,12 +182,28 @@ def test_qualification_identity_pins_every_required_successor_layer():
     assert "broker_reports_gate2_financial_evidence_decision_v1" in (
         identity["output_contract_version"]
     )
-    assert "broker_reports_gate2_financial_evidence_successor_prompt_v1" in (
+    assert "broker_reports_gate2_financial_evidence_successor_prompt_v2" in (
         identity["prompt_version"]
     )
     assert "gate2_successor_product_invariants_v1" in identity[
         "canonical_validator_revision"
     ]
+
+
+def test_successor_prompt_v2_has_explicit_conservative_decision_boundaries():
+    prompt = Gate2FinancialEvidenceSuccessorPromptFactory().create()
+
+    assert prompt.prompt_ref.endswith("_prompt_v2")
+    assert "headers, repeated headers and layout-only content" in prompt.content
+    assert "cash_balance_snapshot_v1 requires an explicit source label" in (
+        prompt.content
+    )
+    assert (
+        "printed_financial_metric_v1 requires an explicit source-printed"
+        in prompt.content
+    )
+    assert "For equal literals, follow explicit label" in prompt.content
+    assert "cannot be safely typed" in prompt.content
 
 
 def test_fake_exact_model_qualifies_all_cases_and_product_invariants():
