@@ -1,0 +1,63 @@
+{
+  "schema": "broker_reports_gate2_v4_goal3b_canonical_manifest_identity_v1",
+  "date": "2026-07-25",
+  "status": "COMPLETED",
+  "git": {
+    "execution_revision": "4add5cdbacbade716d868f914b17ffccfcf0a8c3",
+    "branch": "codex/broker-reports-gate2-v4-goal3b-canonical-manifest-identity",
+    "pull_request": 118
+  },
+  "change": {
+    "scope": "qualification_input_contract_identity",
+    "raw_byte_hash_removed": true,
+    "canonical_json_hash": true,
+    "sort_keys": true,
+    "compact_separators": true,
+    "encoding": "utf-8",
+    "canonical_manifest_sha256": "edfba61488378154f7e6d37b6c532f2891a3339436d3fa107cce7ce3ba3678ca",
+    "manifest_semantics_changed": false,
+    "canonical_comparison_behavior_changed": false,
+    "production_contract_changed": false
+  },
+  "qualification_identity": {
+    "input_contract_version": "broker_reports_gate2_domain_qualification_manifest_v1:edfba61488378154f7e6d37b6c532f2891a3339436d3fa107cce7ce3ba3678ca",
+    "canonical_validator_revision": "broker_reports_gate2_domain_qualification_comparator_v1:c52a2da4d26f667b5daa841b1fd219e211e387eb6b8194f1909e47d006cffaba",
+    "provider_route_revision": "997bc0306756ddc127bf7d87b2a8e495af88f6fe03814414d1bf289eacdeeeba",
+    "gemini_3_1_authorization_identity_sha256": "da3c4ec9a890cd76f619a40a7c9cd201c37382c6d781c75378bca39c7911f762",
+    "gemini_3_5_authorization_identity_sha256": "29a1f31c4c35f151ce8e336ee203747c994348247d7bbd24b0d850ba2d201e55"
+  },
+  "verification": {
+    "crlf_lf_identity_equal": true,
+    "compact_pretty_identity_equal": true,
+    "focused_passed": 67,
+    "focused_seconds": "1.13",
+    "full_passed": 1395,
+    "full_skipped": 20,
+    "full_warnings": 5,
+    "full_seconds": "90.35",
+    "ruff_passed": true,
+    "gemini_preflights_passed": 2,
+    "published_models_total": 41
+  },
+  "accounting": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "fallback_calls": 0,
+    "repair_attempts": 0,
+    "expensive_model_calls": 0,
+    "stage_mutations": 0
+  },
+  "privacy": {
+    "status": "PASSED",
+    "customer_corpus_read": false,
+    "raw_provider_output_in_git": false,
+    "secrets_in_receipt": false
+  },
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL3B_CANONICAL_MANIFEST_IDENTITY.report.md"
+  },
+  "next_permitted_goal": "v4_goal3c_persisted_domain_requalification"
+}
