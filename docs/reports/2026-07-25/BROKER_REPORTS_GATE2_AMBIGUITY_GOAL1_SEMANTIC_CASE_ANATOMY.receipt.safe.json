@@ -1,0 +1,79 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal1_receipt_v1",
+  "goal": "goal1_semantic_case_anatomy",
+  "status": "passed",
+  "date": "2026-07-25",
+  "evidence_revision": "ebf6d94d1c66bbe34a2790c192aa166d3b24f36c",
+  "branch": "codex/broker-reports-gate2-ambiguity-research-goals0-7",
+  "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/133",
+  "cases": [
+    {
+      "case_id": "syn_successor_multiple_hypotheses",
+      "primary_classification": "CONTEXT_INSUFFICIENT",
+      "additional_classifications": [
+        "EXPECTED_UNCLASSIFIED_UNIQUELY_REQUIRED",
+        "ELIGIBILITY_TOO_BROAD",
+        "MODEL_OVER_TYPING"
+      ],
+      "source_values_total": 8,
+      "eligible_types_total": 2,
+      "association_context_present_in_model_input": false,
+      "observed_disposition": "typed_input",
+      "observed_input_type_id": "cash_balance_snapshot_v1",
+      "observed_bindings_total": 5,
+      "observed_covers_all_candidates": false,
+      "expected_safe_disposition": "unclassified_financial_input",
+      "expected_outcome_uniquely_required": true,
+      "typed_result_semantically_acceptable": false,
+      "product_risk": [
+        "false_cash_balance_context",
+        "competing_hypothesis_absent_from_typed_projection"
+      ],
+      "decision_sha256": "a1627ab21cb7e729465d2df9784d20028e2eb8ac774ac1e72405a948f79dc014"
+    },
+    {
+      "case_id": "syn_successor_explicit_unclassified",
+      "primary_classification": "ELIGIBILITY_TOO_BROAD",
+      "additional_classifications": [
+        "EXPECTED_UNCLASSIFIED_UNIQUELY_REQUIRED",
+        "MODEL_OVER_TYPING"
+      ],
+      "source_values_total": 6,
+      "eligible_types_total": 2,
+      "disconfirming_label_present_in_model_input": true,
+      "disconfirming_label_bound_by_observed_typed_decision": false,
+      "observed_disposition": "typed_input",
+      "observed_input_type_id": "cash_balance_snapshot_v1",
+      "observed_bindings_total": 4,
+      "observed_covers_all_candidates": false,
+      "expected_safe_disposition": "unclassified_financial_input",
+      "expected_outcome_uniquely_required": true,
+      "typed_result_semantically_acceptable": false,
+      "product_risk": [
+        "generic_financial_row_canonicalized_as_cash_without_cash_evidence"
+      ],
+      "decision_sha256": "1aa572a997703852f3a332e94e49827a6a0a8625402a93666323482ad4517cce"
+    }
+  ],
+  "cross_case": {
+    "single_root_cause_rejected": true,
+    "validator_defect": false,
+    "materializer_defect": false,
+    "unsafe_type_admitted_pre_model": true,
+    "source_literal_loss": 0,
+    "new_provider_calls": 0,
+    "customer_calls": 0
+  },
+  "acceptance": {
+    "expected_outcome_uniqueness": "proven_per_case",
+    "observed_typed_choice": "semantically_explained",
+    "product_risk": "explicit"
+  },
+  "privacy": {
+    "raw_provider_output_in_git": false,
+    "source_literals_in_receipt": false,
+    "source_value_refs_in_receipt": false,
+    "customer_data_in_git": false
+  },
+  "next_permitted_goal": "goal2_model_input_sufficiency_audit"
+}
