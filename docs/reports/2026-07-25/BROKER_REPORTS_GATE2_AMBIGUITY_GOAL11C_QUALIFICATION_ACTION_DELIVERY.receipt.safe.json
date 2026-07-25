@@ -1,0 +1,89 @@
+{
+  "schema_version": "broker_reports_gate2_ambiguity_goal11c_receipt_v1",
+  "goal": "goal11c_qualification_action_stage_delivery",
+  "status": "completed",
+  "date": "2026-07-25",
+  "repository": {
+    "base_revision": "cb5817584ab1307fc30e8b8b4292301e62bb8289",
+    "branch": "codex/broker-reports-gate2-ambiguity-goal11c-action-delivery",
+    "pull_request": "pending_creation",
+    "code_changes_total": 0
+  },
+  "read_only_preflight": {
+    "attempts_total": 2,
+    "transient_transport_errors_total": 1,
+    "transient_error_class": "ssl_wrong_version_number",
+    "terminal_status": "validated",
+    "provider_calls_total": 0,
+    "stage_mutations_total": 0
+  },
+  "delivery": {
+    "schema_version": "broker_reports_gate2_economy_qualification_action_delivery_v1",
+    "applied": true,
+    "rollback_requested": true,
+    "previous_state_restored": true,
+    "candidate_state_restored": true,
+    "previous_state_identity_sha256": "3dbe2c15b143e2d03e72a814139b87e1b76da9441d550c14e6bf567fcccdf16f",
+    "stage_mutations_total": 3
+  },
+  "action": {
+    "action_id": "broker_reports_gate2_economy_qualification_action",
+    "content_sha256": "f178b142403e52897d2caf74ad75576162331efa85b0da85d472d8301ad24932",
+    "meta_sha256": "6cf2907e2cff2e82a9dc212d27ead39e2bf0f2fe3dc035ba1d2c6e2ccf674bd7",
+    "valves_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "source_revision": "cb5817584ab1307fc30e8b8b4292301e62bb8289",
+    "active": true,
+    "global": false,
+    "qualification_scope": "qualification_only"
+  },
+  "policy": {
+    "model_policy_hash": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9",
+    "workload_policy_hash": "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de",
+    "qualification_policy_hash": "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe",
+    "financial_evidence_candidates": [
+      "claude-haiku-4-5-20251001",
+      "models/gemini-3.1-flash-lite",
+      "models/gemini-3.5-flash-lite"
+    ],
+    "production_admissions_empty": true
+  },
+  "non_delta_proof": {
+    "maintained_function_state_sha256": "a19a142c0f046c520db12aa4e4fd4ba628704fc708ce9c128bc9fda93b4bc480",
+    "maintained_functions_unchanged": true,
+    "gate1_visual_behavior_delta_zero": true,
+    "published_models_total": 42,
+    "published_model_inventory_unchanged": true
+  },
+  "independent_readback": {
+    "status": "validated",
+    "content_sha256_exact": true,
+    "source_revision_exact": true,
+    "qualification_policy_hash_exact": true,
+    "production_admissions_empty": true,
+    "target_models_published": true,
+    "stage_mutations_total": 0
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "production_route_activations_total": 0
+  },
+  "privacy": {
+    "status": "passed",
+    "source_literals_included": false,
+    "source_value_refs_included": false,
+    "private_source_context_included": false,
+    "raw_provider_output_included": false,
+    "customer_data_included": false
+  },
+  "acceptance": {
+    "action_repository_live_parity": "passed",
+    "rollback_reapply": "passed",
+    "independent_readback": "passed",
+    "production_admissions": "empty",
+    "provider_calls": "zero"
+  },
+  "next_permitted_goal": "one_attempt_live_haiku_qualification_after_merge"
+}
