@@ -1,0 +1,215 @@
+{
+  "schema_version": "broker_reports_gate2_v4_goal1_qualification_only_policy_delivery_receipt_v1",
+  "status": "completed",
+  "goal": "v4_goal1_qualification_only_policy_delivery",
+  "report": {
+    "path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_V4_GOAL1_QUALIFICATION_ONLY_POLICY_DELIVERY.report.md",
+    "sha256": "2575cc4d589d2e9728982213e700930f3b4c14565a5869a60793cde9ec836375"
+  },
+  "git": {
+    "accepted_base_revision": "a42624b62628009a3a10e8b043404215553b19e3",
+    "implementation_stage_source_revision": "e52375878f58b268fe910158e94db905bc7f5843",
+    "branch": "codex/broker-reports-gate2-v4-goal1-qualification-policy-live",
+    "pull_request": 113
+  },
+  "acceptance": {
+    "qualification_policy_live": "exact",
+    "production_model_admission": "empty",
+    "gate1_visual_behavior_delta": 0,
+    "repository_live_parity_for_qualification_scope": "exact",
+    "rollback": "proven",
+    "production_activation": false
+  },
+  "live_action": {
+    "action_id": "broker_reports_gate2_economy_qualification_action",
+    "type": "action",
+    "active": true,
+    "global": false,
+    "repository_live_content_sha256": "6310dcdeb5419a830779aa2395dd3b0e9e087619648c616da7bbe8b6e1c2ffb0",
+    "meta_sha256": "65b755c6a7c23f9e78261c68d4c5e79b4e58468be994ccdf5b2630cbfa5d9f4d",
+    "valves_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "scope": "qualification_only",
+    "provider_execution_capability": false,
+    "workspace_imports": false,
+    "openwebui_runtime_imports": false
+  },
+  "policies": {
+    "model_policy": {
+      "policy_id": "broker_reports_economy_model_policy_v1",
+      "policy_version": "1.4.0",
+      "policy_schema_version": "broker_reports_economy_model_policy_v2",
+      "policy_hash": "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9"
+    },
+    "workload_policy": {
+      "policy_id": "broker_reports_gate2_economy_workload_policy_v2",
+      "policy_version": "1.4.0",
+      "policy_schema_version": "broker_reports_gate2_economy_workload_policy_v2",
+      "policy_hash": "f1eb7daa08f10c125d21addb5ec03a5dfac42207cc39a4b3aa86224820fc3a7d"
+    },
+    "qualification_policy": {
+      "schema_version": "broker_reports_gate2_economy_qualification_policy_v1",
+      "policy_hash": "d6b33ce5bdfd5e75b6c6afb66efa47a79150144c522f8e2ea433a7a045c23395"
+    },
+    "qualification_authorization_schema": "broker_reports_gate2_economy_qualification_authorization_v1",
+    "production_admissions": {
+      "gate2_source": [],
+      "gate2_domain": [],
+      "gate2_financial_evidence": [],
+      "gate2_financial_checksum": []
+    }
+  },
+  "qualification_controls": {
+    "receipt_identity_fields": [
+      "exact_model_id",
+      "provider_profile_id",
+      "provider_route_revision",
+      "workload",
+      "input_contract_version",
+      "output_contract_version",
+      "prompt_version",
+      "adapter_projection_revision",
+      "canonical_validator_revision"
+    ],
+    "exact_model_id_required": true,
+    "aliases_allowed": false,
+    "paid_tools_allowed": false,
+    "fallback_calls_allowed": 0,
+    "repair_attempts_allowed": 0
+  },
+  "models": [
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "provider_profile_id": "google_gemini",
+      "published": true,
+      "reasoning_policy": "minimal"
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "provider_profile_id": "google_gemini",
+      "published": true,
+      "reasoning_policy": "minimal"
+    },
+    {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "provider_profile_id": "openai_gpt",
+      "published": true,
+      "reasoning_policy": "disabled"
+    },
+    {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "provider_profile_id": "anthropic_claude",
+      "published": true,
+      "reasoning_policy": "disabled"
+    }
+  ],
+  "authorization_preflight": [
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "workload": "gate2_source",
+      "authorization_identity_sha256": "681de6b84a606c95642095dedbc32f4af68dd8b2e62f3fa2bb089ea60477f669"
+    },
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "workload": "gate2_domain",
+      "authorization_identity_sha256": "2beb99b92a218d58d9e517885b255a2ee56de2d58c381d6fcbe84cfc01845926"
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "workload": "gate2_source",
+      "authorization_identity_sha256": "38bf9f0a5e875076c395990a42d345c714faab89069f355bcad7f0b42db0810e"
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "workload": "gate2_domain",
+      "authorization_identity_sha256": "29784fe18037998f400dea46b477651788613cf380bc53b8f6aa9e449f5daee7"
+    },
+    {
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "workload": "gate2_financial_evidence",
+      "authorization_identity_sha256": "5c723cf8b49cd6ea216f166361c1bc927e4cb921f009612ae194fb39b10cdc46"
+    },
+    {
+      "exact_model_id": "models/gemini-3.5-flash-lite",
+      "workload": "gate2_financial_evidence",
+      "authorization_identity_sha256": "ff256b7362da6dabe7b51b020bbba5cc572a46236e42ecb01d7bd157b66a5402"
+    },
+    {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "workload": "gate2_financial_evidence",
+      "authorization_identity_sha256": "efde8a286bc93d62b1983793d3c4d4bc5948c649b2390b3075dd3365bff3e012"
+    },
+    {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "workload": "gate2_financial_checksum",
+      "authorization_identity_sha256": "45d955c6ef0d4270cbb82b587bcadb6f7adf2faf55e1453fb5d25ccd507ce610"
+    }
+  ],
+  "stage": {
+    "published_models_total": 41,
+    "maintained_function_state_sha256": "a19a142c0f046c520db12aa4e4fd4ba628704fc708ce9c128bc9fda93b4bc480",
+    "maintained_functions_changed": [],
+    "managed_prompts_changed": [],
+    "provider_profiles_changed": [],
+    "published_model_inventory_changed": false,
+    "whole_stage_parity_claimed": false,
+    "qualification_scope_parity": "exact",
+    "mutations": 5
+  },
+  "rollback": {
+    "initial_state": "absent",
+    "previous_state_identity_sha256": "222667f43f9523fc629245ed567d43490d97c8c68ac48af5bae6433827d01900",
+    "previous_state_restored": true,
+    "candidate_state_restored": true
+  },
+  "calls_and_cost": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "generated_outputs": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "actual_cost_usd": "0",
+    "expensive_model_calls": 0,
+    "fallback_calls": 0,
+    "repair_attempts": 0
+  },
+  "tests": {
+    "focused": {
+      "passed": 62,
+      "failed": 0,
+      "duration_seconds": "1.61"
+    },
+    "full": {
+      "passed": 1377,
+      "skipped": 20,
+      "failed": 0,
+      "warnings": 5,
+      "duration_seconds": "100.63"
+    },
+    "ruff_check": "passed",
+    "ruff_format_check": "passed"
+  },
+  "privacy": {
+    "status": "passed",
+    "customer_corpus_used": false,
+    "customer_values_read": false,
+    "raw_provider_output_included": false,
+    "secrets_included": false,
+    "knowledge_rag_vector_writes": 0,
+    "gate3_execution": 0
+  },
+  "contracts_explicitly_unchanged": [
+    "broker_reports_gate2_financial_evidence_registry_v1",
+    "four_disposition_contract",
+    "broker_reports_financial_evidence_inputs_v1",
+    "broker_reports_gate2_financial_context_v1",
+    "canonical_validators",
+    "financial_checksum_contract",
+    "gate1_visual_behavior",
+    "gate1_source_domain_pipe_bundles",
+    "managed_prompts",
+    "provider_connections",
+    "legacy_dual_read_new_schema_single_write",
+    "gate3_out_of_scope"
+  ],
+  "next_permitted_goal_after_pr_merge": "v4_goal2_gemini_source_qualification"
+}
