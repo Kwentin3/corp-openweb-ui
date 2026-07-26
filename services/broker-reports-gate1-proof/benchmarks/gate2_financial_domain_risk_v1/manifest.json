@@ -1,0 +1,306 @@
+{
+  "schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_manifest_v1",
+  "risk_policy_version": "broker_reports_gate2_financial_domain_risk_policy_v1",
+  "benchmark_id": "gate2_financial_domain_risk_v1",
+  "corpus_role": "controlled_synthetic_product_risk_benchmark",
+  "contains_customer_data": false,
+  "frozen": true,
+  "case_count": 6,
+  "hard_blockers": [
+    "incorrect_typed_type",
+    "invented_value",
+    "invalid_ref",
+    "wrong_role",
+    "duplicate_or_cross_scope_binding",
+    "literal_or_provenance_loss",
+    "missing_terminal_owner",
+    "incomplete_query_response"
+  ],
+  "quality_metrics": [
+    "safe_under_typing",
+    "typed_recall",
+    "unclassified_rate",
+    "layout_noise_handling",
+    "classification_precision"
+  ],
+  "execution_policy": {
+    "provider_calls": 0,
+    "customer_calls": 0,
+    "repair": false,
+    "fallback": false,
+    "raw_output_in_safe_report": false,
+    "exact_disposition_distribution_is_primary": false
+  },
+  "cases": [
+    {
+      "case_id": "syn_risk_typed_exact",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "layout_noise": false,
+      "source_scope_ref": "scope:synthetic:typed-exact",
+      "structural_evidence": null,
+      "reference": {
+        "disposition": "typed_input",
+        "input_type_id": "cash_balance_snapshot_v1",
+        "bindings": [
+          {
+            "role_id": "amount",
+            "source_value_ref": "value:synthetic:typed-exact:amount",
+            "source_scope_ref": "scope:synthetic:typed-exact"
+          },
+          {
+            "role_id": "as_of_date",
+            "source_value_ref": "value:synthetic:typed-exact:date",
+            "source_scope_ref": "scope:synthetic:typed-exact"
+          }
+        ],
+        "source_values": [
+          {
+            "source_value_ref": "value:synthetic:typed-exact:amount",
+            "literal_value": "1250.00"
+          },
+          {
+            "source_value_ref": "value:synthetic:typed-exact:date",
+            "literal_value": "2026-06-30"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:typed-exact"
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:typed-exact"
+        ]
+      },
+      "sealed_candidate": {
+        "disposition": "typed_input",
+        "input_type_id": "cash_balance_snapshot_v1",
+        "bindings": [
+          {
+            "role_id": "amount",
+            "source_value_ref": "value:synthetic:typed-exact:amount",
+            "source_scope_ref": "scope:synthetic:typed-exact"
+          },
+          {
+            "role_id": "as_of_date",
+            "source_value_ref": "value:synthetic:typed-exact:date",
+            "source_scope_ref": "scope:synthetic:typed-exact"
+          }
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:typed-exact"
+        ],
+        "retained_values": [
+          {
+            "source_value_ref": "value:synthetic:typed-exact:amount",
+            "literal_value": "1250.00"
+          },
+          {
+            "source_value_ref": "value:synthetic:typed-exact:date",
+            "literal_value": "2026-06-30"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:typed-exact"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_risk_safe_under_typed",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "layout_noise": false,
+      "source_scope_ref": "scope:synthetic:safe-under",
+      "structural_evidence": null,
+      "reference": {
+        "disposition": "typed_input",
+        "input_type_id": "printed_financial_metric_v1",
+        "bindings": [
+          {
+            "role_id": "amount",
+            "source_value_ref": "value:synthetic:safe-under:amount",
+            "source_scope_ref": "scope:synthetic:safe-under"
+          }
+        ],
+        "source_values": [
+          {
+            "source_value_ref": "value:synthetic:safe-under:amount",
+            "literal_value": "-44.500"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:safe-under"
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:safe-under"
+        ]
+      },
+      "sealed_candidate": {
+        "disposition": "unclassified_financial_input",
+        "input_type_id": null,
+        "bindings": [],
+        "terminal_owner_ids": [
+          "owner:synthetic:safe-under"
+        ],
+        "retained_values": [
+          {
+            "source_value_ref": "value:synthetic:safe-under:amount",
+            "literal_value": "-44.500"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:safe-under"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_risk_unclassified_preserved",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "layout_noise": false,
+      "source_scope_ref": "scope:synthetic:unclassified",
+      "structural_evidence": null,
+      "reference": {
+        "disposition": "unclassified_financial_input",
+        "input_type_id": null,
+        "bindings": [],
+        "source_values": [
+          {
+            "source_value_ref": "value:synthetic:unclassified:1",
+            "literal_value": "77,005"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:unclassified"
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:unclassified"
+        ]
+      },
+      "sealed_candidate": {
+        "disposition": "unclassified_financial_input",
+        "input_type_id": null,
+        "bindings": [],
+        "terminal_owner_ids": [
+          "owner:synthetic:unclassified"
+        ],
+        "retained_values": [
+          {
+            "source_value_ref": "value:synthetic:unclassified:1",
+            "literal_value": "77,005"
+          }
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:unclassified"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_risk_layout_header",
+      "evaluation_kind": "decision",
+      "evaluation_route": "deterministic_structural",
+      "layout_noise": true,
+      "source_scope_ref": "scope:synthetic:layout-header",
+      "structural_evidence": {
+        "source_supported": true,
+        "structural_role": "layout_header",
+        "financial_value_candidates_total": 0
+      },
+      "reference": {
+        "disposition": "no_financial_input",
+        "input_type_id": null,
+        "bindings": [],
+        "source_values": [],
+        "provenance_refs": [
+          "provenance:synthetic:layout-header"
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:layout-header"
+        ]
+      },
+      "sealed_candidate": {
+        "disposition": "no_financial_input",
+        "input_type_id": null,
+        "bindings": [],
+        "terminal_owner_ids": [
+          "owner:synthetic:layout-header"
+        ],
+        "retained_values": [],
+        "provenance_refs": [
+          "provenance:synthetic:layout-header"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_risk_unsupported_projection",
+      "evaluation_kind": "decision",
+      "evaluation_route": "deterministic_structural",
+      "layout_noise": false,
+      "source_scope_ref": "scope:synthetic:unsupported",
+      "structural_evidence": {
+        "source_supported": false,
+        "structural_role": "opaque_projection",
+        "financial_value_candidates_total": 0
+      },
+      "reference": {
+        "disposition": "unsupported",
+        "input_type_id": null,
+        "bindings": [],
+        "source_values": [],
+        "provenance_refs": [
+          "provenance:synthetic:unsupported"
+        ],
+        "terminal_owner_ids": [
+          "owner:synthetic:unsupported"
+        ]
+      },
+      "sealed_candidate": {
+        "disposition": "unsupported",
+        "input_type_id": null,
+        "bindings": [],
+        "terminal_owner_ids": [
+          "owner:synthetic:unsupported"
+        ],
+        "retained_values": [],
+        "provenance_refs": [
+          "provenance:synthetic:unsupported"
+        ]
+      }
+    },
+    {
+      "case_id": "syn_risk_query_complete",
+      "evaluation_kind": "query",
+      "evaluation_route": "domain_query",
+      "layout_noise": false,
+      "source_scope_ref": "scope:synthetic:query",
+      "structural_evidence": null,
+      "reference": {
+        "matching_record_ids": [
+          "record:synthetic:1",
+          "record:synthetic:2",
+          "record:synthetic:3"
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:query:1",
+          "provenance:synthetic:query:2",
+          "provenance:synthetic:query:3"
+        ]
+      },
+      "sealed_candidate": {
+        "matching_records_total": 3,
+        "records_returned_through_page": 3,
+        "query_result_complete": true,
+        "result_record_ids": [
+          "record:synthetic:1",
+          "record:synthetic:2",
+          "record:synthetic:3"
+        ],
+        "provenance_refs": [
+          "provenance:synthetic:query:1",
+          "provenance:synthetic:query:2",
+          "provenance:synthetic:query:3"
+        ]
+      }
+    }
+  ],
+  "manifest_integrity_sha256": "7e425f89d6ecb1280d1909adbedfc242e0602036d30a07524e07fa1189b3aca7"
+}
