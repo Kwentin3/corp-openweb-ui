@@ -254,16 +254,16 @@
     "new_candidate_or_policy_only_after_separate_review"
   ],
   "tooling": {
-    "audit_script_file_sha256": "38572dadf27f1a9f3704713c63e59f8a95f8ed78d814b5e60b27314ee7f342f9",
-    "behavioral_test_file_sha256": "4ed5e6d4b69144314f2a45ca67fa4c67d9cf4b9e70af784faee52360477f428a",
+    "audit_script_file_sha256": "feb113dac337a4c9905d21aab45cebbc734d92eba9e00a74f1831b9df3425742",
+    "behavioral_test_file_sha256": "c17d952e4a1d4f276315800a01092535e89168039abc2a8b651c3729bf59727f",
     "factory_route_only": true,
     "provider_client_created": false,
     "writes_only_local_atomic_evidence": true
   },
   "verification": {
     "absolute_windows_paths_in_safe_deliverables": 0,
-    "focused_tests": "63_passed",
-    "full_tests": "1621_passed_20_skipped_5_unchanged_warnings",
+    "focused_tests": "65_passed",
+    "full_tests": "1623_passed_20_skipped_5_unchanged_warnings",
     "private_literal_matches_in_safe_deliverables": 0,
     "private_ref_matches_in_safe_deliverables": 0,
     "python_compile": "passed",
@@ -271,6 +271,17 @@
     "ruff": "passed",
     "shell": "PowerShell",
     "test_environment": "none"
+  },
+  "remote_diff_review": {
+    "pr_number": 156,
+    "review_result": "research_tooling_gaps_corrected",
+    "corrections": [
+      "private_safe_snapshot_hash_linkage_verified",
+      "neighbour_cell_privacy_coverage_added",
+      "clean_revision_and_local_output_boundary_enforced"
+    ],
+    "root_cause_conclusion_changed": false,
+    "runtime_product_diff_changed": false
   },
   "privacy": {
     "customer_data_included": false,

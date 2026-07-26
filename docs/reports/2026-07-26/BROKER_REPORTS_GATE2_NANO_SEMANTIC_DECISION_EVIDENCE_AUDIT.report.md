@@ -608,9 +608,9 @@ Added research-only files:
 Tooling file SHA-256:
 
 - audit script:
-  `38572dadf27f1a9f3704713c63e59f8a95f8ed78d814b5e60b27314ee7f342f9`;
+  `feb113dac337a4c9905d21aab45cebbc734d92eba9e00a74f1831b9df3425742`;
 - behavioral tests:
-  `4ed5e6d4b69144314f2a45ca67fa4c67d9cf4b9e70af784faee52360477f428a`.
+  `c17d952e4a1d4f276315800a01092535e89168039abc2a8b651c3729bf59727f`.
 
 The tool:
 
@@ -626,15 +626,15 @@ literal, opaque source ref, private path, customer data, or raw provider
 response from this audit.
 
 Repository-safe audit receipt file SHA-256:
-`84522ad42d41752603d8f6b3f1c2239a6f16789e32f8167271250fa3e09fe53d`.
+`900f476cf8aac6d1edff1bd76b28c22fd950940693ec2559fe1dbf065e64e8bd`.
 
 Verification from explicit PowerShell cwd
 `services/broker-reports-gate1-proof`, test environment none:
 
 - audit and direct evidence dependencies:
-  `63 passed in 38.58s`;
+  `65 passed in 36.42s`;
 - full Broker Reports suite:
-  `1621 passed, 20 skipped, 5 unchanged warnings in 152.75s`;
+  `1623 passed, 20 skipped, 5 unchanged warnings in 150.94s`;
 - repository privacy guard:
   `3 passed in 0.77s`;
 - targeted Ruff: passed;
@@ -642,6 +642,17 @@ Verification from explicit PowerShell cwd
 - private-literal/ref scan over both safe deliverables: zero matches;
 - absolute Windows paths in safe deliverables: zero;
 - provider/customer calls during all audit and test work: zero.
+
+Fresh remote-diff review of PR #156 found and corrected three
+research-tooling gaps:
+
+- cross-revision combine now verifies the private/safe snapshot hash linkage;
+- the built-in privacy scan now covers neighbouring fixture cells;
+- CLI output is restricted to service-local JSON evidence and pinned snapshots
+  require a clean tracked worktree.
+
+The corrections do not change the reconstructed case decisions, private annex
+hash, root-cause classification, or runtime/product boundary.
 
 ## 15. Final decision
 

@@ -22,9 +22,12 @@ from scripts.gate2_nano_semantic_decision_evidence_audit import (
     _mode_contract,
     _runner,
     _validate_safe_payload,
+    _json_bytes,
+    _sha256_bytes,
     combine_revision_snapshots,
     recover_exact_decision,
     request_token_anatomy,
+    validate_local_evidence_output_path,
 )
 from scripts.live_gate2_financial_successor_qualification_v2 import (
     EXACT_MODEL_ID,
@@ -136,13 +139,49 @@ def test_cross_revision_comparison_preserves_raw_response_gap():
     v4_cases = copy.deepcopy(v3_cases)
     v4_cases[0]["observed_disposition"] = "typed_input"
     v4_cases[0]["observed_input_type_id"] = "type_v1"
-    v3_safe = {"mode": "v3", "cases_total": 12, "cases": v3_cases}
-    v4_safe = {"mode": "v4", "cases_total": 12, "cases": v4_cases}
+    v3_private = {
+        "mode": "v3",
+        "repository_revision": (
+            "eb5c6011066a524d97aad9ac3b07d2d969f3db87"
+        ),
+        "receipt_sha256": (
+            "39f6a990d233926d7493056570730bdfa82f29df9a63d3f8f9d6cfa0e47dc641"
+        ),
+        "cases": [{} for _ in range(12)],
+    }
+    v4_private = {
+        "mode": "v4",
+        "repository_revision": (
+            "2b451e7a1168165b1b1902c0c635b7b8bf246715"
+        ),
+        "receipt_sha256": (
+            "c371262b9c9d6911b2bb250f441f1f158e5ed1259e93d2d3eefa6df5280f5426"
+        ),
+        "cases": [{} for _ in range(12)],
+    }
+    v3_safe = {
+        "mode": "v3",
+        "repository_revision": v3_private["repository_revision"],
+        "receipt_sha256": v3_private["receipt_sha256"],
+        "cases_total": 12,
+        "cases": v3_cases,
+        "checks": {"all_checks": True},
+        "private_annex_sha256": _sha256_bytes(_json_bytes(v3_private)),
+    }
+    v4_safe = {
+        "mode": "v4",
+        "repository_revision": v4_private["repository_revision"],
+        "receipt_sha256": v4_private["receipt_sha256"],
+        "cases_total": 12,
+        "cases": v4_cases,
+        "checks": {"all_checks": True},
+        "private_annex_sha256": _sha256_bytes(_json_bytes(v4_private)),
+    }
 
     _private, safe = combine_revision_snapshots(
-        v3_private={"cases": []},
+        v3_private=v3_private,
         v3_safe=v3_safe,
-        v4_private={"cases": []},
+        v4_private=v4_private,
         v4_safe=v4_safe,
     )
 
@@ -172,6 +211,49 @@ def test_safe_payload_rejects_source_refs():
         match="safe_payload_invalid",
     ):
         _validate_safe_payload(safe=safe, private=private)
+
+
+def test_safe_payload_rejects_neighbour_literal():
+    safe = {
+        "provider_calls_created_by_audit": 0,
+        "checks": {"provider_calls_zero": True},
+        "summary": "private neighbour value",
+    }
+    private = {
+        "cases": [
+            {
+                "manifest_case": {
+                    "cells": [],
+                    "neighbour_cells": [
+                        {"literal": "private neighbour value"}
+                    ],
+                }
+            }
+        ]
+    }
+
+    with pytest.raises(
+        Gate2NanoSemanticEvidenceAuditError,
+        match="literal_in_safe_payload",
+    ):
+        _validate_safe_payload(safe=safe, private=private)
+
+
+def test_output_paths_must_stay_under_service_local(tmp_path):
+    allowed = (
+        tmp_path
+        / "services"
+        / "broker-reports-gate1-proof"
+        / "local"
+        / "evidence.json"
+    )
+    validate_local_evidence_output_path(allowed)
+
+    with pytest.raises(
+        Gate2NanoSemanticEvidenceAuditError,
+        match="output_outside_local_boundary",
+    ):
+        validate_local_evidence_output_path(tmp_path / "docs" / "leak.json")
 
 
 def test_anti_drift_contract_forbids_provider_and_factory_bypass():

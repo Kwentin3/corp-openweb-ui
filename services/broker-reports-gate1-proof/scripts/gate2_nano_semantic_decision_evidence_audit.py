@@ -172,6 +172,29 @@ def _git_revision() -> str:
     return result.stdout.strip()
 
 
+def _git_worktree_is_clean() -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return not result.stdout.strip()
+
+
+def validate_local_evidence_output_path(path: Path) -> None:
+    resolved = path.resolve()
+    lowered = [part.casefold() for part in resolved.parts]
+    expected = ("services", "broker-reports-gate1-proof", "local")
+    contains_local_boundary = any(
+        tuple(lowered[index : index + len(expected)]) == expected
+        for index in range(len(lowered) - len(expected) + 1)
+    )
+    if not contains_local_boundary or resolved.suffix != ".json":
+        _fail("nano_semantic_audit_output_outside_local_boundary")
+
+
 def _mode_contract(mode: str) -> dict[str, str]:
     if mode == "v3":
         return {
@@ -806,7 +829,12 @@ def _validate_safe_payload(
     ):
         _fail("nano_semantic_audit_safe_payload_invalid")
     for case in private["cases"]:
-        for cell in case["manifest_case"].get("cells", []):
+        manifest_case = case["manifest_case"]
+        private_cells = (
+            manifest_case.get("cells", [])
+            + manifest_case.get("neighbour_cells", [])
+        )
+        for cell in private_cells:
             literal = cell.get("literal")
             if (
                 isinstance(literal, str)
@@ -816,6 +844,29 @@ def _validate_safe_payload(
                 _fail("nano_semantic_audit_literal_in_safe_payload")
 
 
+def _verify_snapshot_pair(
+    *,
+    private: dict[str, Any],
+    safe: dict[str, Any],
+    mode: str,
+) -> None:
+    contract = _mode_contract(mode)
+    if (
+        private.get("mode") != mode
+        or safe.get("mode") != mode
+        or private.get("repository_revision") != contract["revision"]
+        or safe.get("repository_revision") != contract["revision"]
+        or private.get("receipt_sha256") != contract["receipt_sha256"]
+        or safe.get("receipt_sha256") != contract["receipt_sha256"]
+        or len(private.get("cases", [])) != 12
+        or safe.get("cases_total") != 12
+        or not all(safe.get("checks", {}).values())
+        or safe.get("private_annex_sha256")
+        != _sha256_bytes(_json_bytes(private))
+    ):
+        _fail("nano_semantic_audit_snapshot_pair_invalid")
+
+
 def combine_revision_snapshots(
     *,
     v3_private: dict[str, Any],
@@ -823,13 +874,16 @@ def combine_revision_snapshots(
     v4_private: dict[str, Any],
     v4_safe: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    if (
-        v3_safe.get("mode") != "v3"
-        or v4_safe.get("mode") != "v4"
-        or v3_safe.get("cases_total") != 12
-        or v4_safe.get("cases_total") != 12
-    ):
-        _fail("nano_semantic_audit_snapshot_identity_invalid")
+    _verify_snapshot_pair(
+        private=v3_private,
+        safe=v3_safe,
+        mode="v3",
+    )
+    _verify_snapshot_pair(
+        private=v4_private,
+        safe=v4_safe,
+        mode="v4",
+    )
     by_v3 = {item["case_id"]: item for item in v3_safe["cases"]}
     by_v4 = {item["case_id"]: item for item in v4_safe["cases"]}
     if set(by_v3) != set(by_v4) or len(by_v3) != 12:
@@ -958,8 +1012,10 @@ def write_bundle(
 def _snapshot_command(args: argparse.Namespace) -> int:
     contract = _mode_contract(args.mode)
     revision = _git_revision()
-    if revision != contract["revision"]:
+    if revision != contract["revision"] or not _git_worktree_is_clean():
         _fail("nano_semantic_audit_repository_revision_mismatch")
+    validate_local_evidence_output_path(args.private_output)
+    validate_local_evidence_output_path(args.safe_output)
     receipt, receipt_sha256 = load_pinned_json(
         path=args.receipt,
         expected_sha256=contract["receipt_sha256"],
@@ -996,6 +1052,10 @@ def _snapshot_command(args: argparse.Namespace) -> int:
 
 
 def _combine_command(args: argparse.Namespace) -> int:
+    if not _git_worktree_is_clean():
+        _fail("nano_semantic_audit_repository_revision_mismatch")
+    validate_local_evidence_output_path(args.private_output)
+    validate_local_evidence_output_path(args.safe_output)
     v3_private = json.loads(
         args.v3_private.read_text(encoding="utf-8")
     )
