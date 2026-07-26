@@ -1,0 +1,340 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal0_current_authority_baseline_v1",
+  "goal": "goal0_current_authority_baseline",
+  "date": "2026-07-26",
+  "status": "completed_with_explicit_live_repository_drift",
+  "repository": {
+    "base_revision": "485ab1a9deeda6e9fa644b55e75d2289638df884",
+    "origin_main_revision": "485ab1a9deeda6e9fa644b55e75d2289638df884",
+    "implementation_revision": "9fa25351910d6a2360725686ae235279ff4ab61d",
+    "branch": "codex/broker-reports-gate2-domain-goal0-current-authority-baseline",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/143",
+    "pull_request_draft": true,
+    "worktrees_total": 1,
+    "production_change": false
+  },
+  "authorities": {
+    "deterministic_scope": {
+      "schema_version": "broker_reports_gate2_deterministic_financial_scope_package_v2",
+      "batch_schema_version": "broker_reports_gate2_deterministic_financial_scope_batch_v2",
+      "policy_version": "gate2_deterministic_financial_scope_from_gate1_v2",
+      "factory": "Gate2DeterministicFinancialScopeFromGate1V2Factory.create",
+      "source_sha256": "d9fdf30e21b8ff240568e168b9b865f067753ae8f30adb90fc3cea963ccbd883"
+    },
+    "registry": {
+      "registry_id": "broker_reports_gate2_financial_evidence_registry",
+      "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "registry_hash": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+      "declarations_total": 2,
+      "active_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "initial_catalog_version": "broker_reports_gate2_initial_financial_catalog_v1",
+      "registry_source_sha256": "0c2bfdea806c423b5a20402a54a9150ece90f5d93e759edc1b67f8ff0ea13efe",
+      "catalog_source_sha256": "8c90ed5a850162bcaf3b55ffa9d7ca848bd9e65725010eb573ec262f83993bba",
+      "research_fact_registry_production_authority": false
+    },
+    "decision": {
+      "schema_version": "broker_reports_gate2_financial_evidence_decision_v1",
+      "dispositions": [
+        "typed_input",
+        "unclassified_financial_input",
+        "no_financial_input",
+        "unsupported"
+      ],
+      "factory": "Gate2FinancialEvidenceDecisionContractFactory",
+      "source_sha256": "747d83552f394f4bd56249820e9630adc97a4d2435da60cbd9b2b376685eb5be"
+    },
+    "source_context": {
+      "schema_version": "broker_reports_gate2_financial_evidence_source_context_v2",
+      "policy_version": "gate2_financial_evidence_bounded_source_context_v2",
+      "factory": "Gate2FinancialEvidenceSourceContextFactory",
+      "source_sha256": "aaa96670992247f3d3d42b9863312d2bb4726078c0db3c2f86db445ad8baf764"
+    },
+    "successor_model_boundary": {
+      "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v3",
+      "result_schema_version": "broker_reports_gate2_financial_evidence_successor_result_v3",
+      "prompt_contract_id": "broker_reports_gate2_financial_evidence_successor_prompt_v3",
+      "prompt_sha256": "30c823d2c509294d4634eac1a4084da9b95056b260bdd64e41d5a5598937d9ae",
+      "provider_projection_schema_version": "broker_reports_gate2_financial_evidence_provider_projection_v3",
+      "provider_projection_policy_version": "gate2_financial_evidence_unclassified_first_projection_v3",
+      "successor_source_sha256": "a7699a537fd5faf638e9f30261ebac9e7973e6a526d75533a6be99ab4b4dc917",
+      "provider_projection_source_sha256": "a8f83101438b514a0f35a88a429bf8d64be1e517c65ceffb82e10993a60dc21d"
+    },
+    "materialization": {
+      "financial_inputs_schema_version": "broker_reports_financial_evidence_inputs_v1",
+      "source_package_schema_version": "broker_reports_financial_evidence_source_package_v1",
+      "validated_decision_schema_version": "broker_reports_financial_evidence_validated_decision_v1",
+      "policy_version": "broker_reports_financial_evidence_materialization_v1",
+      "materializer_source_sha256": "543633b6e133d761f669450402647af80703ab000a3ba5e5132a0888be8eb434",
+      "contracts_source_sha256": "c0b771b376f2b90332d7d0efd2f1912c89ec715b447c79e1b5176913f80f6748"
+    },
+    "financial_context": {
+      "schema_version": "broker_reports_gate2_financial_context_v1",
+      "policy_version": "broker_reports_gate2_financial_context_projection_v1",
+      "source_sha256": "9516f9b3d1dc7171cc85346c79aba46e999a4f33c8b76efb35b808d8df78b7a3",
+      "contracts_source_sha256": "c887e162aacabafe12458ba3b8812bf774dee6e46d15d4942758407c32d4e367"
+    },
+    "successor_artifact_family": {
+      "package_schema_version": "broker_reports_gate2_successor_package_artifact_v2",
+      "run_schema_version": "broker_reports_gate2_successor_run_artifact_v2",
+      "receipt_schema_version": "broker_reports_gate2_successor_execution_receipt_v2",
+      "policy_version": "gate2_successor_artifact_family_v2",
+      "source_sha256": "921dbe7bf279a02f6c43ecf6034403a796370ee13983cb21cc3879532c7b1b04",
+      "production_write_admitted": false,
+      "private_source_context_stored": false,
+      "legacy_payload_rewrite": false,
+      "silent_upcast": false
+    },
+    "active_stage_financial_family": {
+      "runtime_schema_version": "broker_reports_gate2_financial_evidence_production_run_v1",
+      "receipt_schema_version": "broker_reports_gate2_financial_evidence_production_receipt_v1",
+      "input_schema_version": "broker_reports_financial_evidence_inputs_v1",
+      "context_schema_version": "broker_reports_gate2_financial_context_v1",
+      "prompt_contract_id": "broker_reports_gate2_financial_evidence_production_prompt_v1",
+      "prompt_sha256": "2c37960492da3fb8304d2296e691f507861b3e7533340f4d1664e9fed83d851e"
+    },
+    "compatibility": {
+      "policy_version": "broker_reports_financial_evidence_compatibility_v1",
+      "read_policy": "dual_read",
+      "automatic_legacy_alias": false,
+      "silent_legacy_rewrite": false,
+      "source_sha256": "91bb51bd0661c9b93a6324235a3cb1b66ce957984eab68665b21c3c177c85435"
+    }
+  },
+  "type_specific_python_semantics": {
+    "classification": "migration_debt",
+    "typed_admission_schema_version": "broker_reports_gate2_financial_typed_admission_v1",
+    "typed_admission_policy_version": "gate2_financial_typed_admission_policy_v1",
+    "source_sha256": "834a3d7d70c014b79588b1aaf38236d246b2a9fbb7a1b1ff0d23ce27ebc31695",
+    "hardcoded_financial_type_ids_total": 2,
+    "financial_language_regexes_total": 2,
+    "type_specific_predicate_functions_total": 2,
+    "hardcoded_semantic_row_role_sets_total": 1,
+    "type_specific_admission_branches_total": 2,
+    "post_response_typed_to_unclassified_branches_total": 0,
+    "predicates": [
+      {
+        "type_id": "cash_balance_snapshot_v1",
+        "predicate": "_cash_signal",
+        "semantic_inputs": [
+          "literal_value",
+          "column_meaning",
+          "visible_label"
+        ],
+        "admission_line": 270
+      },
+      {
+        "type_id": "printed_financial_metric_v1",
+        "predicate": "_printed_signal",
+        "semantic_inputs": [
+          "row_role",
+          "literal_value",
+          "column_meaning",
+          "visible_label"
+        ],
+        "admission_line": 287
+      }
+    ],
+    "related_downstream_type_specific_branches": [
+      {
+        "component": "financial_context_projection",
+        "type_id": "printed_financial_metric_v1",
+        "projection": "source_printed"
+      },
+      {
+        "component": "financial_context_validator",
+        "type_id": "printed_financial_metric_v1",
+        "expected_projection": "source_printed"
+      }
+    ]
+  },
+  "full_scope_baseline": {
+    "authority_role": "frozen_predecessor_product_baseline_only",
+    "receipt_path": "docs/reports/2026-07-24/BROKER_REPORTS_GATE2_GOAL7_FULL_SCOPE_SHADOW_QUALIFICATION.receipt.safe.json",
+    "receipt_file_sha256": "19d325bf1522bdc7b9b5a3b685eccfe323c4dd7ec1dade5dbfb1e2bc5159e6ed",
+    "selected_source_refs_total": 455,
+    "accounted_source_refs_total": 455,
+    "uncovered_source_refs_total": 0,
+    "duplicate_interpretations_total": 0,
+    "ownership_conflicts_total": 0,
+    "unclassified_candidate_values_total": 147,
+    "unclassified_bound_values_total": 147,
+    "unclassified_value_retention_percent": 100,
+    "fallback_total": 0,
+    "hidden_repair_total": 0,
+    "current_successor_v2_actual_corpus_qualification": false,
+    "production_admission": false
+  },
+  "current_successor_benchmark": {
+    "benchmark_id": "gate2_financial_successor_v2",
+    "manifest_schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+    "canonical_hash": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "cases_total": 12,
+    "local_contract_product_proof": "passed",
+    "provider_calls_total": 0,
+    "receipt_path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_AMBIGUITY_GOAL10_SUCCESSOR_BENCHMARK_V2.receipt.safe.json",
+    "receipt_file_sha256": "c907d9b54d3443f0c366c2e2f0d3eef5fb9df8a6d9a647643470ebb208ee345a"
+  },
+  "model_qualification": {
+    "current_successor_v2_qualified_models_total": 0,
+    "gpt_5_4_nano": {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "status": "terminal_failed",
+      "cases_passed": 10,
+      "cases_total": 12,
+      "unsafe_typed_inputs_total": 0,
+      "receipt_path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_AMBIGUITY_GOAL11_NANO_REQUALIFICATION.receipt.safe.json",
+      "receipt_file_sha256": "2168652711cd939b5cffd63e9e3f79e4df3b09e7de3710a2c3904e1bd260951b"
+    },
+    "claude_haiku": {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "status": "terminal_failed",
+      "cases_passed": 6,
+      "cases_total": 12,
+      "provider_schema_rejections_total": 4,
+      "complete_product_proof": false,
+      "receipt_path": "docs/reports/2026-07-25/BROKER_REPORTS_GATE2_AMBIGUITY_GOAL11D_HAIKU_QUALIFICATION.receipt.safe.json",
+      "receipt_file_sha256": "eeb001ae7afe350686289e1bf615a423b8911e4d8fe4136faa9e025350754811"
+    },
+    "predecessor_workload_registry": {
+      "schema_version": "broker_reports_gate2_economy_workload_qualification_v2",
+      "registry_hash": "13c00dfae9b4963b3db9e7f579502418b70fc6cf90d9a1c3ce7d5b54ab431fef",
+      "workload_policy_version": "1.4.0",
+      "workload_policy_hash": "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de",
+      "financial_evidence_production_admissions_total": 0,
+      "successor_v2_authority": false
+    }
+  },
+  "live_stage": {
+    "observed_at": "2026-07-26T10:11:21+03:00",
+    "read_only": true,
+    "verifier_status": "failed_expected_repository_live_bundle_drift",
+    "repository_live_parity": false,
+    "functions": {
+      "broker_reports_gate1_pipe": {
+        "active": true,
+        "live_sha256": "a042ff14d0bc26a4c207db9b49d10ca3be4e3b2483e60e21a479e1e8f2f70519",
+        "repository_sha256": "19406e0300f821328d6625877e5d0c393803231472a7a6b92a294223ed1012b2",
+        "exact": false
+      },
+      "broker_reports_gate2_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "d3ba38ed554d87e01a97d7dceaffee71eaa02c88375706477d819f4ccc83d503",
+        "repository_sha256": "507bf34b4467de5d500055853c36d544a8e0b278b55c294eadaf44d92f6a6bb2",
+        "exact": false
+      },
+      "broker_reports_gate2_domain_source_fact_pipe": {
+        "active": true,
+        "live_sha256": "4f5424f269e88f6e18064565afa70e11e7380033a1b6c9affc349f760a3bb0d5",
+        "repository_sha256": "05c56b1599910b33dfe17473727a7ea6f950a61b8bb73438a57469175a4da621",
+        "exact": false,
+        "production_runtime_v1_present": true,
+        "successor_v2_v3_markers_present": false
+      },
+      "broker_reports_gate2_economy_qualification_action": {
+        "active": true,
+        "live_and_repository_text_sha256": "f178b142403e52897d2caf74ad75576162331efa85b0da85d472d8301ad24932",
+        "exact": true,
+        "metadata_source_revision": "cb5817584ab1307fc30e8b8b4292301e62bb8289"
+      }
+    },
+    "managed_prompts": {
+      "matched": 12,
+      "total": 12,
+      "all_active": true,
+      "successor_v3_managed_prompt_present": false,
+      "content_sha256": {
+        "broker_reports_document_metadata_passport_prompt_v0": "1f9827ad62e1f20c5187f92aa3814f2c149f28148a61356b52850afc301f2de6",
+        "broker_reports_gate1_clarification_prompt_v0": "7fd0b6dc935395bfb61aeabd24194941ed32b590ba58af03ff1581849dc2048a",
+        "broker_reports_gate2_cash_movement_prompt_v0": "c9394d07189cd3aec476a27a2fd2f3cc4b3e7883e3abaa6d43066902060d7e0e",
+        "broker_reports_gate2_currency_fx_prompt_v0": "917c1cae378223bdd2316dc8ec7d317352107943dd5988360e7572719e1bb715",
+        "broker_reports_gate2_document_summary_evidence_prompt_v0": "9bad1a06bb8556e0fa62f1f47de73c7d7b1d41e57aa752de9206c0749133088d",
+        "broker_reports_gate2_fee_commission_prompt_v0": "1d7b5c5e25f1e520d55ef8e9c84d323e6a27d73da392b428a74e95a0af6910fc",
+        "broker_reports_gate2_income_prompt_v0": "af7fcd78f4533d0f5a1f8bcef58ad113f72f102e58f547f0c30f8810ddced187",
+        "broker_reports_gate2_position_snapshot_prompt_v0": "b250663fc078782b28dfb530f10e99ee13f97789a12d4e67852938b3088c36fd",
+        "broker_reports_gate2_source_fact_prompt_v0": "97d7f27850e74f8869cedc2c4f8675f44933460fec3d077b192ed222230aae12",
+        "broker_reports_gate2_trade_operation_prompt_v0": "e819ded91b58bea3012e9bd9cde0444b63427d60120ef6712e33a4d8b515c0d1",
+        "broker_reports_gate2_unknown_source_row_prompt_v0": "776a7574542cba7b77b2c5e7686af5990c652420823bbea9a78749ac12428aa1",
+        "broker_reports_gate2_withholding_tax_prompt_v0": "e952e09ab395d21093102e9264effd0d8fce54e5b913b57c046538168d3eb228"
+      }
+    },
+    "managed_skills": {
+      "total": 0,
+      "financial_domain_skill_present": false
+    },
+    "domain_valves": {
+      "candidate_binding_enabled": false,
+      "financial_evidence_enabled": true,
+      "financial_evidence_registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+      "financial_evidence_maximum_scopes": 64,
+      "max_repair_attempts": 1,
+      "gate3_context_manifest_enabled": false,
+      "answer_context_selection_enabled": true
+    },
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "stage_mutations_total": 0
+  },
+  "receipt_freshness": {
+    "stale_receipts_used_as_current": 0,
+    "predecessor_full_scope_receipt_role": "frozen_product_baseline_only",
+    "successor_v1_model_receipts_used_for_v2": false,
+    "old_stage_release_receipts_used_for_current_parity": false,
+    "live_stage_refreshed_read_only": true
+  },
+  "contracts": {
+    "changed": false,
+    "explicitly_unchanged": [
+      "gate1_normalized_evidence_and_provenance",
+      "broker_reports_gate2_financial_evidence_registry_v1",
+      "broker_reports_gate2_financial_evidence_decision_v1",
+      "four_dispositions",
+      "broker_reports_financial_evidence_inputs_v1",
+      "broker_reports_gate2_financial_context_v1",
+      "legacy_immutable_artifact_policy",
+      "source_domain_llm_authority_zero_in_successor_path"
+    ],
+    "new_model_facing_contract": false
+  },
+  "execution": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "input_tokens_total": 0,
+    "output_tokens_total": 0,
+    "actual_cost_usd": "0",
+    "fallback_total": 0,
+    "repair_attempts_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "verification": {
+    "focused_tests": {
+      "passed": 153,
+      "failed": 0,
+      "duration_seconds": "5.00"
+    },
+    "full_suite": {
+      "passed": 1522,
+      "skipped": 20,
+      "warnings": 5,
+      "failed": 0,
+      "duration_seconds": "110.84"
+    },
+    "json_parse": "passed",
+    "privacy": "passed"
+  },
+  "acceptance": {
+    "authorities": "pinned",
+    "type_specific_python_semantics": "fully_inventoried",
+    "stale_receipts_used_as_current": 0,
+    "production_change": 0,
+    "repository_live_parity": "false_and_explicit"
+  },
+  "report": {
+    "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL0_CURRENT_AUTHORITY_BASELINE.report.md",
+    "sha256": "60bd055a30f34e825d882e34ec31a6c70c3fb2edc140bd9450aff27a48263a9e"
+  },
+  "next_permitted_goal": "goal1_managed_financial_domain_contract_after_merge_and_acceptance"
+}
