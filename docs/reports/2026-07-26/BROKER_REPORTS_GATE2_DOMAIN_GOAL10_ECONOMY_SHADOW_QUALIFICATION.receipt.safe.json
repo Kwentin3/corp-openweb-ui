@@ -1,0 +1,217 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal10_economy_shadow_qualification_receipt_v1",
+  "goal": "GOAL_10_ECONOMY_MODEL_SHADOW_QUALIFICATION",
+  "status": "TERMINAL_NOT_ACCEPTED",
+  "review_status": "PENDING_AUTONOMOUS_REVIEW",
+  "acceptance_status": "NOT_ACCEPTED",
+  "base_revision": "c49bba056d777b65baaa9969390e32454f4d0468",
+  "implementation_revision": "2b451e7a1168165b1b1902c0c635b7b8bf246715",
+  "branch": "codex/broker-reports-gate2-domain-goal10-economy-shadow",
+  "qualification_subject": {
+    "exact_model_id": "gpt-5.4-nano-2026-03-17",
+    "provider_profile_id": "openai_gpt",
+    "workload_class": "gate2_managed_financial_domain_shadow_v1",
+    "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v4",
+    "prompt_contract_id": "broker_reports_gate2_financial_evidence_managed_prompt_v1"
+  },
+  "attempt_policy": {
+    "exact_v4_attempts_authorized": 1,
+    "exact_v4_attempts_started": 1,
+    "terminal_receipts_total": 1,
+    "retry_authorized": false,
+    "retry_performed": false,
+    "candidate_search_authorized": false,
+    "previous_v3_terminal_receipt_transferred": false
+  },
+  "qualification_identity": {
+    "model_policy_version": "1.5.0",
+    "model_policy_sha256": "04394ee5320d19000639eb73305894e64d104758d2a5f9d824229a3b95d6c53b",
+    "workload_policy_version": "1.5.0",
+    "workload_policy_sha256": "ef1fdf3fd3f9de4a412be130ee476405f3ccc9bf24f9facee2028b4f64fb3d3b",
+    "qualification_policy_sha256": "4923be403dafb15145a02d36907ad840a7e71213e405455b9d43dbcee4b20a67",
+    "authorization_identity_sha256": "9560563de99ec80432937187fede47e39b65cca49ab8def6ed7e9f9d4859e651",
+    "semantic_pack_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "managed_asset_manifest_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59",
+    "fixture_manifest_canonical_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "local_domain_proof_integrity_sha256": "44cdee8b668abe6784119af36bde13605633a2165296a756a93a446f27087d58"
+  },
+  "preflight": {
+    "status": "passed",
+    "cases_total": 12,
+    "provider_calls_total": 0,
+    "maximum_estimated_input_tokens": 5393,
+    "maximum_allowed_input_tokens": 6144,
+    "estimated_input_tokens_total": 58773,
+    "estimated_maximum_cost_usd": "0.021354600",
+    "qualification_action_content_exact": true,
+    "qualification_policy_exact": true,
+    "production_admissions_empty": true,
+    "local_domain_proof": "PASSED",
+    "literal_loss": "ZERO",
+    "query_gaps": "ZERO"
+  },
+  "terminal_qualification": {
+    "status": "failed",
+    "model_safe_for_shadow": "no",
+    "cases_total": 12,
+    "cases_executed": 12,
+    "safety_cases_passed": 11,
+    "safety_cases_failed": 1,
+    "hard_gates": {
+      "unsafe_typed_zero": false,
+      "data_loss_zero": true,
+      "inventions_zero": true,
+      "invalid_refs_zero": true,
+      "wrong_roles_zero": true,
+      "duplicate_cross_scope_zero": true,
+      "ownership_gaps_zero": true,
+      "canonical_materialization_errors_zero": true,
+      "product_safety_proof_passed": true
+    },
+    "metrics": {
+      "unsafe_typed_total": 1,
+      "data_loss_total": 0,
+      "invented_values_total": 0,
+      "invalid_refs_total": 0,
+      "wrong_roles_total": 0,
+      "duplicate_bindings_total": 0,
+      "cross_scope_bindings_total": 0,
+      "ownership_gaps_total": 0,
+      "canonical_materialization_errors_total": 0,
+      "typed_expected_total": 4,
+      "typed_observed_total": 3,
+      "typed_correct_total": 2,
+      "typed_precision": 0.666667,
+      "typed_recall": 0.5,
+      "safe_under_typing_total": 2,
+      "unclassified_total": 9,
+      "unclassified_rate": 0.75,
+      "exact_quality_matches_total": 7,
+      "exact_quality_match_rate": 0.583333,
+      "terminal_disposition_counts": {
+        "typed_input": 3,
+        "unclassified_financial_input": 9,
+        "no_financial_input": 0,
+        "unsupported": 0
+      }
+    },
+    "unsafe_typed_categories": [
+      {
+        "expected_disposition": "unclassified_financial_input",
+        "observed_disposition": "typed_input",
+        "events_total": 1
+      }
+    ],
+    "safe_under_typing_categories": [
+      {
+        "expected_disposition": "typed_input",
+        "observed_disposition": "unclassified_financial_input",
+        "events_total": 2
+      }
+    ]
+  },
+  "execution_accounting": {
+    "provider_calls_total": 12,
+    "customer_calls_total": 0,
+    "input_tokens_total": 53047,
+    "output_tokens_total": 2447,
+    "actual_cost_usd": "0.010119990",
+    "latency_observed_attempts": 12,
+    "latency_total_ms": 38451,
+    "latency_average_ms": 3204.25,
+    "latency_max_ms": 4828,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "hidden_retry_total": 0,
+    "paid_tools_total": 0,
+    "source_model_calls_total": 0,
+    "domain_model_calls_total": 0,
+    "expensive_model_calls_total": 0
+  },
+  "private_terminal_receipt": {
+    "stored_outside_git": true,
+    "sha256": "c371262b9c9d6911b2bb250f441f1f158e5ed1259e93d2d3eefa6df5280f5426",
+    "raw_provider_output_included": false,
+    "terminal_checkpoint": true
+  },
+  "stage_lifecycle": {
+    "qualification_action_candidate_applied": true,
+    "delivery_rollback_proven": true,
+    "candidate_reapplied_for_qualification": true,
+    "pre_goal_state_restored_after_failure": true,
+    "stage_mutations_total": 4,
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "maintained_functions_unchanged": true,
+    "published_model_inventory_unchanged": true,
+    "terminal_action_state": {
+      "content_sha256": "f178b142403e52897d2caf74ad75576162331efa85b0da85d472d8301ad24932",
+      "meta_sha256": "6cf2907e2cff2e82a9dc212d27ead39e2bf0f2fe3dc035ba1d2c6e2ccf674bd7",
+      "qualification_policy_sha256": "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe",
+      "active": true,
+      "global": false
+    }
+  },
+  "privacy": {
+    "synthetic_cases_total": 12,
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "fixture_literals_in_safe_receipt": 0,
+    "source_value_refs_in_safe_receipt": 0,
+    "source_scope_refs_in_safe_receipt": 0,
+    "source_groups_in_safe_receipt": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "verification": {
+    "focused_goal10_policy_and_harness": "98 passed in 20.17s",
+    "full_suite": "1624 passed, 20 skipped, 5 warnings in 173.98s",
+    "repository_privacy_guard": "3 passed in 0.83s",
+    "ruff_targeted": "passed",
+    "compile_targeted": "passed",
+    "git_diff_check": "passed"
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_MANAGED_FINANCIAL_DOMAIN_SHADOW_QUALIFICATION.v1.md",
+      "git_blob_sha256": "f79eb6e2eb425b42715e3c2ebbd095fb65846647a5b39094440c9974861e72bc"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_model_policy.py",
+      "git_blob_sha256": "dd6c6ed61689451235a0a8ef6a5f406f74c60e439a6b098aefbc752f8c6ab4ed"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_workload_policy.py",
+      "git_blob_sha256": "356e4ac901c9166467dbaec44ef8c966f6c318505d6234c4f1dc50a7d4ddd316"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate2_economy_qualification_action.py",
+      "git_blob_sha256": "d75d96e1c4df1e448cec5e2dddf3f22f790f41d153dc2705e627667ff7e46e5d"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/scripts/live_gate2_managed_financial_domain_shadow_qualification.py",
+      "git_blob_sha256": "42479859164fe437650e48a8b7f310061f0a46e17b742c699a072ea40d794ca8"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_live_gate2_managed_financial_domain_shadow_qualification.py",
+      "git_blob_sha256": "e6088be3071d8de0a1ba3903c6204c569df3373339b635f3bcb9a98c084d0de8"
+    }
+  ],
+  "explicitly_unchanged": {
+    "semantic_pack_bytes": true,
+    "managed_asset_bytes": true,
+    "decision_contract": true,
+    "production_routes": true,
+    "production_admissions": true,
+    "customer_data": true,
+    "gate3_consumer": true
+  },
+  "acceptance": {
+    "model_safe_for_shadow": "NO",
+    "unsafe_typed": "NON_ZERO",
+    "data_loss": "ZERO",
+    "recall": "MEASURED"
+  },
+  "next_permitted_action": "EXPLICIT_NEW_CANDIDATE_OR_QUALIFICATION_POLICY_DECISION_REQUIRED"
+}
