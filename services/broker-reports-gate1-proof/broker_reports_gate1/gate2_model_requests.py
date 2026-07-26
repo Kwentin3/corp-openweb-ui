@@ -21,6 +21,7 @@ FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2 = (
 FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3 = (
     "financial_evidence_successor_qualification_v3"
 )
+FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE = "financial_semantic_v5"
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -33,6 +34,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2,
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3,
+    FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -107,6 +109,13 @@ class Gate2OpenWebUIRequestBuilder:
             == FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3
         ):
             return self._build_financial_evidence_successor_qualification_v3(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if self.request_profile == FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE:
+            return self._build_financial_semantic_v5(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -525,6 +534,71 @@ class Gate2OpenWebUIRequestBuilder:
                     ),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_semantic_v5(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{financial_semantic_decision_packet_json}}"
+        if prompt.content.count(marker) != 1:
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v5_prompt_contract_mismatch",
+                "Managed V5 decision-packet marker is missing or duplicated",
+            )
+        if not isinstance(package, dict) or not package:
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v5_packet_invalid",
+                "V5 decision packet must be one non-empty object",
+            )
+        json_schema = response_format.get("json_schema")
+        if (
+            response_format.get("type") != "json_schema"
+            or not isinstance(json_schema, dict)
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+        ):
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v5_response_schema_not_strict",
+                "V5 requires one strict JSON response schema",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_semantic_v5": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "semantic_selection_owner": "llm",
+                    "execution_components": [
+                        "managed_prompt",
+                        "decision_packet",
+                        "strict_response_schema",
+                    ],
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                 }
