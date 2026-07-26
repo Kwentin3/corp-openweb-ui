@@ -17,7 +17,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.4.0"
+POLICY_VERSION = "1.5.0"
 POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v2"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"

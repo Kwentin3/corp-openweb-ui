@@ -21,7 +21,7 @@ from broker_reports_gate1.gate2_economy_workload_policy import (
 def test_v3_candidate_matrix_is_exact_and_production_empty() -> None:
     policy = Gate2EconomyWorkloadPolicyFactory().create()
 
-    assert policy.policy_version == "1.4.0"
+    assert policy.policy_version == "1.5.0"
     assert len(policy.policy_hash) == 64
     assert policy.route("gate2_source").target_candidate_ids == (
         "models/gemini-3.1-flash-lite",
@@ -34,7 +34,7 @@ def test_v3_candidate_matrix_is_exact_and_production_empty() -> None:
     assert policy.route(
         "gate2_financial_evidence"
     ).target_candidate_ids == (
-        "claude-haiku-4-5-20251001",
+        "gpt-5.4-nano-2026-03-17",
     )
     assert policy.route(
         "gate2_financial_checksum"
@@ -45,6 +45,7 @@ def test_v3_candidate_matrix_is_exact_and_production_empty() -> None:
     assert policy.route(
         "gate2_financial_evidence"
     ).diagnostic_candidate_exact_model_ids == (
+        "claude-haiku-4-5-20251001",
         "models/gemini-3.1-flash-lite",
         "models/gemini-3.5-flash-lite",
     )
@@ -95,18 +96,12 @@ def test_qualification_requires_exact_id_and_correct_workload() -> None:
         == "economy_workload_qualification_candidate_forbidden"
     )
 
-    with pytest.raises(
-        Gate2EconomyWorkloadPolicyError
-    ) as terminal_nano:
-        policy.assert_qualification_candidate(
-            workload_class="gate2_financial_evidence",
-            model_id="gpt-5.4-nano-2026-03-17",
-            model_policy=model_policy,
-        )
-    assert (
-        terminal_nano.value.code
-        == "economy_workload_qualification_candidate_forbidden"
+    nano_v5 = policy.assert_qualification_candidate(
+        workload_class="gate2_financial_evidence",
+        model_id="gpt-5.4-nano-2026-03-17",
+        model_policy=model_policy,
     )
+    assert nano_v5 == "gpt-5.4-nano-2026-03-17"
 
 
 def test_runtime_config_can_only_narrow_production_admissions() -> None:

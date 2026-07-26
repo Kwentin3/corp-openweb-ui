@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 2 Economy Qualification Policy
 author: Alpha Soft
-version: 1.0.0
+version: 1.1.0
 required_open_webui_version: 0.9.6
 """
 
@@ -26,18 +26,18 @@ POLICY_SNAPSHOT: dict[str, Any] = {
     "scope": "qualification_only",
     "model_policy": {
         "policy_id": "broker_reports_economy_model_policy_v1",
-        "policy_version": "1.4.0",
+        "policy_version": "1.5.0",
         "policy_schema_version": ("broker_reports_economy_model_policy_v2"),
         "policy_hash": (
-            "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9"
+            "467ce6050a69ff96f1a3cae4e2f37d8c4c62fb2dd69c757208d9ee9813698714"
         ),
     },
     "workload_policy": {
         "policy_id": "broker_reports_gate2_economy_workload_policy_v2",
-        "policy_version": "1.4.0",
+        "policy_version": "1.5.0",
         "policy_schema_version": ("broker_reports_gate2_economy_workload_policy_v2"),
         "policy_hash": (
-            "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de"
+            "08449e2b11951f7c303885d29504b06171d739a5bc85e44037575600fac414a2"
         ),
     },
     "model_controls": {
@@ -79,6 +79,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         },
         "gate2_financial_evidence": {
             "qualification_candidate_exact_model_ids": [
+                "gpt-5.4-nano-2026-03-17",
                 "claude-haiku-4-5-20251001",
                 "models/gemini-3.1-flash-lite",
                 "models/gemini-3.5-flash-lite",
@@ -109,7 +110,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         "paid_tools_allowed": False,
     },
     "qualification_policy_hash": (
-        "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe"
+        "49531f672018665d0fed4fafb4ff1c4cf4d29c2ef6a47a3c1171a766d09cab34"
     ),
 }
 
@@ -132,7 +133,7 @@ class Action:
         )
         return {
             "content": (
-                "Broker Reports Gate 2 qualification-only policy 1.4.0 "
+                "Broker Reports Gate 2 qualification-only policy 1.5.0 "
                 "is live. Production admissions remain empty."
             ),
             "broker_reports_gate2_economy_qualification_policy": (

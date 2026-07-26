@@ -139,18 +139,15 @@ def test_qualification_route_requires_exact_workload_candidate() -> None:
     )
     assert financial.fallback is None
 
-    with pytest.raises(
-        Gate2EconomyProviderSelectionError
-    ) as terminal_nano:
-        selector.select_qualification_candidate(
-            workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
-            model_id="gpt-5.4-nano-2026-03-17",
-            provider_profile_id="openai_gpt",
-        )
-    assert (
-        terminal_nano.value.code
-        == "economy_workload_qualification_candidate_forbidden"
+    nano_v5 = selector.select_qualification_candidate(
+        workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
+        model_id="gpt-5.4-nano-2026-03-17",
+        provider_profile_id="openai_gpt",
     )
+    assert nano_v5.primary.exact_model_id == (
+        "gpt-5.4-nano-2026-03-17"
+    )
+    assert nano_v5.fallback is None
 
     with pytest.raises(Gate2EconomyProviderSelectionError) as alias:
         selector.select_qualification_candidate(
