@@ -76,7 +76,9 @@ construction entrypoint. It fails closed unless:
 - every declared source scope has exactly one of the four terminal outcomes;
 - the snapshot carries the exact active Registry and managed Semantic Pack
   identities;
-- created/expiry timestamps and the server-issued access scope are valid.
+- created/expiry timestamps are valid;
+- the opaque access scope is derived only from the current server context:
+  user, case-or-chat, optional workspace, and source availability.
 
 The immutable snapshot ID binds the artifacts, package integrity hashes,
 Registry, Pack, access-scope fingerprint, and retention timestamps. The
@@ -85,8 +87,10 @@ hash.
 
 `Gate2FinancialDomainQueryFactory.create` revalidates all snapshot content,
 compares its Registry and Pack identities with current server authorities,
-checks the trusted access-scope fingerprint, and rejects an expired snapshot.
-Direct query-object construction fails.
+recomputes the access scope from the current server context, requires current
+source availability, validates a server-held continuation key, and rejects an
+expired snapshot. A caller cannot authorize itself by echoing the fingerprint
+visible in the snapshot. Direct query-object construction fails.
 
 ## 5. Capabilities
 
@@ -162,7 +166,9 @@ limits fail closed.
 
 The query fingerprint binds the snapshot, query capability, all normalized
 filters, provenance projection, page limit, and `record_id_asc` order. The
-opaque continuation additionally binds:
+opaque continuation is an HMAC-SHA-256 token under a server-held key that
+never enters a snapshot, response, report, receipt, or client input. It
+additionally binds:
 
 - next record position;
 - trusted access-scope fingerprint;

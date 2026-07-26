@@ -648,7 +648,7 @@ from .gate2_financial_domain_contracts import (
     FINANCIAL_DOMAIN_TYPED_RECORD_SCHEMA_VERSION,
     FINANCIAL_DOMAIN_UNCLASSIFIED_RECORD_SCHEMA_VERSION,
     MAXIMUM_QUERY_LIMIT,
-    FinancialDomainAccessScope,
+    FinancialDomainAccessContext,
     FinancialDomainQueryFilters,
     Gate2FinancialDomainError,
     validate_financial_domain_query_response,

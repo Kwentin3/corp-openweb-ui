@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
 from dataclasses import dataclass
@@ -71,6 +72,52 @@ class Gate2FinancialDomainError(ValueError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
+
+
+@dataclass(frozen=True)
+class FinancialDomainAccessContext:
+    user_ref: str
+    case_ref: str | None = None
+    chat_ref: str | None = None
+    workspace_ref: str | None = None
+    source_available: bool = True
+
+    def access_scope(self) -> "FinancialDomainAccessScope":
+        values = (
+            self.user_ref,
+            self.case_ref,
+            self.chat_ref,
+            self.workspace_ref,
+        )
+        if (
+            any(
+                value is not None and not _bounded_text(value)
+                for value in values
+            )
+            or not self.user_ref
+            or (self.case_ref is None and self.chat_ref is None)
+            or not isinstance(self.source_available, bool)
+        ):
+            fail("financial_domain_access_context_invalid")
+        if not self.source_available:
+            fail("financial_domain_source_unavailable")
+        fingerprint = sha256_json(
+            {
+                "user_ref": self.user_ref,
+                "case_ref": self.case_ref,
+                "chat_ref": self.chat_ref,
+                "workspace_ref": self.workspace_ref,
+                "same_user_required": True,
+                "same_case_or_chat_required": True,
+                "same_workspace_required_when_present": True,
+                "source_availability_required": True,
+            }
+        )
+        return FinancialDomainAccessScope(
+            access_scope_ref="findomaccess_" + fingerprint[:32],
+            access_scope_fingerprint=fingerprint,
+            same_workspace_required_when_present=True,
+        )
 
 
 @dataclass(frozen=True)
@@ -169,6 +216,7 @@ def query_page(
     snapshot_id: str,
     access_scope_fingerprint: str,
     expires_at: str | None,
+    continuation_key: bytes,
     query_kind: str,
     filters: FinancialDomainQueryFilters,
     include_provenance: bool,
@@ -179,6 +227,7 @@ def query_page(
         fail("financial_domain_query_kind_invalid")
     if not isinstance(include_provenance, bool):
         fail("financial_domain_query_projection_invalid")
+    _validate_continuation_key(continuation_key)
     if (
         isinstance(limit, bool)
         or not isinstance(limit, int)
@@ -198,6 +247,7 @@ def query_page(
         snapshot_id=snapshot_id,
         access_scope_fingerprint=access_scope_fingerprint,
         expires_at=expires_at,
+        continuation_key=continuation_key,
         query_fingerprint_value=fingerprint,
     )
     if offset > len(values):
@@ -213,6 +263,7 @@ def query_page(
             snapshot_id=snapshot_id,
             access_scope_fingerprint=access_scope_fingerprint,
             expires_at=expires_at,
+            continuation_key=continuation_key,
             query_fingerprint_value=fingerprint,
         )
         if returned_through < len(values)
@@ -398,9 +449,10 @@ def _cursor(
     snapshot_id: str,
     access_scope_fingerprint: str,
     expires_at: str | None,
+    continuation_key: bytes,
     query_fingerprint_value: str,
 ) -> str:
-    digest = sha256_json(
+    material = canonical_json(
         {
             "domain_snapshot_id": snapshot_id,
             "query_fingerprint": query_fingerprint_value,
@@ -408,7 +460,12 @@ def _cursor(
             "access_scope_fingerprint": access_scope_fingerprint,
             "expires_at": expires_at,
         }
-    )[:24]
+    ).encode("utf-8")
+    digest = hmac.new(
+        continuation_key,
+        material,
+        hashlib.sha256,
+    ).hexdigest()[:24]
     return f"findompage_{offset}_{digest}"
 
 
@@ -418,6 +475,7 @@ def _cursor_offset(
     snapshot_id: str,
     access_scope_fingerprint: str,
     expires_at: str | None,
+    continuation_key: bytes,
     query_fingerprint_value: str,
 ) -> int:
     if continuation is None:
@@ -433,6 +491,7 @@ def _cursor_offset(
         snapshot_id=snapshot_id,
         access_scope_fingerprint=access_scope_fingerprint,
         expires_at=expires_at,
+        continuation_key=continuation_key,
         query_fingerprint_value=query_fingerprint_value,
     ):
         fail("financial_domain_query_continuation_invalid")
@@ -445,3 +504,8 @@ def _bounded_text(value: Any) -> bool:
         and bool(value)
         and len(value) <= _MAX_FILTER_TEXT
     )
+
+
+def _validate_continuation_key(value: Any) -> None:
+    if not isinstance(value, bytes) or len(value) < 32:
+        fail("financial_domain_continuation_key_invalid")

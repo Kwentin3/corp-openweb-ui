@@ -7,6 +7,7 @@ from typing import Any, Iterable
 from .gate2_financial_domain_contracts import (
     FINANCIAL_DOMAIN_CONTRACT_VERSION,
     FINANCIAL_DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+    FinancialDomainAccessContext,
     FinancialDomainAccessScope,
     canonical_json,
     fail,
@@ -165,12 +166,13 @@ class Gate2FinancialDomainCatalogFactory:
         *,
         materialized_artifacts: Iterable[dict[str, Any]],
         source_packages: Iterable[Gate2FinancialEvidenceSourcePackage],
-        access_scope: FinancialDomainAccessScope,
+        access_context: FinancialDomainAccessContext,
         created_at: str,
         expires_at: str | None,
     ) -> Gate2FinancialDomainSnapshot:
         artifacts = tuple(materialized_artifacts)
         packages = self._packages(source_packages)
+        access_scope = access_context.access_scope()
         normalized_created, normalized_expires = _retention_identity(
             access_scope=access_scope,
             created_at=created_at,

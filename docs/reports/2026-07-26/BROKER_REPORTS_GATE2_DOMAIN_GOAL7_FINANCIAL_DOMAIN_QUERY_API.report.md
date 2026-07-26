@@ -121,7 +121,10 @@ closed.
 
 - revalidates the entire snapshot;
 - compares Registry and Pack identities with current server authorities;
-- requires the trusted access-scope fingerprint;
+- recomputes the access scope from current user, case-or-chat, workspace, and
+  source-availability context;
+- rejects source-unavailable or mismatched current context;
+- requires a server-held HMAC continuation key of at least 32 bytes;
 - rejects an expired snapshot;
 - is the only valid query construction route.
 
@@ -129,6 +132,17 @@ Direct query construction is rejected. Domain modules import neither
 Artifact Store nor Artifact Resolver. Gate 3 receives only the validated
 snapshot-backed API. No provider, filesystem, network, Knowledge/RAG,
 embedding, or vectorization route exists.
+
+Fresh review of remote head `1e19b111e53dab0d50b14d3645d30ff5fafb105c`
+returned `CHANGES_REQUIRED` for two authority defects. The first version
+accepted a scalar access fingerprint also visible in the response, so a
+caller could echo it without proving current server context. Its continuation
+digest was unkeyed SHA-256 over response-derivable inputs, so a caller could
+compute another offset. The corrected factory derives access only from current
+server context, rejects unavailable source state, and authenticates every
+continuation with a server-held HMAC key. Negative tests reject foreign/echoed
+context, source unavailability, a short key, a wrong-key token, and the former
+unkeyed token construction.
 
 Typed and unclassified responses contain private domain values by design and
 require the server boundary. Provenance responses contain refs and hashes, not
@@ -148,7 +162,7 @@ The official Gate 2 domain bundle installs these modules in dependency order.
 Two rebuilds were byte-exact:
 
 ```text
-bundle_sha256=075da1fcd2026b944377623d877c5e4d24db856471b731848a2536b442ce0b8f
+bundle_sha256=ad384fd722d91f47e5148d3831c035021d4a3c3e54ae2af1f76b92e6762aa618
 bundle_rebuild=exact
 ```
 
@@ -157,13 +171,13 @@ bundle_rebuild=exact
 Explicit PowerShell test cwd:
 `services/broker-reports-gate1-proof`; test ENV: none.
 
-- focused API tests: `20 passed in 1.86s`;
-- broad financial regression set: `245 passed in 7.62s`;
+- focused API tests: `20 passed in 2.03s`;
+- broad financial regression set: `245 passed in 8.21s`;
 - domain bundle/architecture/contract set after module split:
-  `48 passed in 8.39s`;
+  `48 passed in 9.13s`;
 - full Broker Reports suite:
-  `1582 passed, 20 skipped, 5 unchanged warnings in 144.41s`;
-- repository privacy guard: `3 passed in 0.93s`;
+  `1582 passed, 20 skipped, 5 unchanged warnings in 145.89s`;
+- repository privacy guard: `3 passed in 0.79s`;
 - two official bundle rebuilds: exact;
 - targeted Ruff: passed;
 - targeted compileall: passed;
@@ -212,4 +226,4 @@ secrets, private paths, or live-stage claim.
 
 Exact staged receipt Git-blob SHA-256:
 
-`1e599025616de42d9b00bff55aed0485f81f66e14a7add57552f21263d56a23a`.
+`bc7212bd99254c055ee0ba3a4942940487d155bbb1da5a1a30baf7d089c11b65`.

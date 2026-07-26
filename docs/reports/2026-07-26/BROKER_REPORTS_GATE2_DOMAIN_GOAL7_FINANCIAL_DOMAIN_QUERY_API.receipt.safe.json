@@ -39,6 +39,8 @@
     "semantic_pack_identity_checked": true,
     "registry_identity_checked": true,
     "access_scope_fingerprint_bound": true,
+    "access_scope_derived_from_current_server_context": true,
+    "source_unavailable_rejected": true,
     "retention_identity_bound": true,
     "expired_snapshot_rejected": true,
     "direct_query_construction_rejected": true,
@@ -58,10 +60,14 @@
     "continuation_filter_bound": true,
     "continuation_projection_limit_order_bound": true,
     "continuation_access_scope_bound": true,
-    "continuation_retention_bound": true
+    "continuation_retention_bound": true,
+    "continuation_hmac_sha256": true,
+    "continuation_server_key_minimum_bytes": 32,
+    "unkeyed_continuation_forgery_rejected": true,
+    "wrong_key_continuation_rejected": true
   },
   "closed_world_bundle": {
-    "bundle_sha256": "075da1fcd2026b944377623d877c5e4d24db856471b731848a2536b442ce0b8f",
+    "bundle_sha256": "ad384fd722d91f47e5148d3831c035021d4a3c3e54ae2af1f76b92e6762aa618",
     "bundle_rebuild_exact": true,
     "dependency_order_verified": true,
     "bundle_load_verified": true,
@@ -73,11 +79,11 @@
     "vectorization_calls_total": 0
   },
   "verification": {
-    "focused_api": "20 passed in 1.86s",
-    "broad_financial_regression": "245 passed in 7.62s",
-    "bundle_architecture_contract": "48 passed in 8.39s",
-    "full_suite": "1582 passed, 20 skipped, 5 warnings in 144.41s",
-    "privacy_guard": "3 passed in 0.93s",
+    "focused_api": "20 passed in 2.03s",
+    "broad_financial_regression": "245 passed in 8.21s",
+    "bundle_architecture_contract": "48 passed in 9.13s",
+    "full_suite": "1582 passed, 20 skipped, 5 warnings in 145.89s",
+    "privacy_guard": "3 passed in 0.79s",
     "bundle_rebuild": "exact",
     "ruff_targeted": "passed",
     "compileall": "passed",
@@ -123,11 +129,15 @@
   "deliverables": [
     {
       "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md",
-      "git_blob_sha256": "f538492cf38de1a9cc493345b00c992f92c2444522800b2734395ed79c66c82b"
+      "git_blob_sha256": "8a8c1dea1f71b10abab24cb58b6955b0796af3e1a365a74aabe3009c0a8aed52"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/__init__.py",
+      "git_blob_sha256": "baabdaaedb87a89740d0e5e06281165428fb5adc2a54793060ac9cd1cf2df7c9"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_contracts.py",
-      "git_blob_sha256": "f29475f3059968b3d57a5d219190f3650cd697249e2585c9d8c531a3eb0fed53"
+      "git_blob_sha256": "690dec139c8b380eab0930f81f735e7ab0bb3461c5dd31e20d5b77431ce5370a"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_projection.py",
@@ -139,11 +149,11 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_catalog.py",
-      "git_blob_sha256": "56b89eb1a3283516d11c8fdcf8227c6133243ceed91610cc8a68d8fc14d08c5b"
+      "git_blob_sha256": "683221b016176cbb9458319f5bc759a4a7faf825af8b064d7a89c7491c79c6fa"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_query.py",
-      "git_blob_sha256": "d3175d54e78b84cdebe3deddafcb6f5c5c3f8fa45a5bf311b52bb6e6a61969d4"
+      "git_blob_sha256": "30f389d76e696cf6e52886ca74d422ecd547d67b086503fb717a46b0f5118b5c"
     },
     {
       "path": "services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py",
@@ -151,11 +161,11 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py",
-      "git_blob_sha256": "075da1fcd2026b944377623d877c5e4d24db856471b731848a2536b442ce0b8f"
+      "git_blob_sha256": "ad384fd722d91f47e5148d3831c035021d4a3c3e54ae2af1f76b92e6762aa618"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_query.py",
-      "git_blob_sha256": "f74fa57ed157a68489f6940e7609c4892c6fcd3b2d740dd718154096836a16b6"
+      "git_blob_sha256": "49a7b58ec155cebaf4c1b4889992ede05d76c4f6ef16e8c759e6f14292faafeb"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_pipe_bundle.py",

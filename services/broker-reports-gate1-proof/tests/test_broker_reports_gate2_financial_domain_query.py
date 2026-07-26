@@ -21,7 +21,7 @@ from broker_reports_gate1.gate2_financial_domain_contracts import (  # noqa: E40
     FINANCIAL_DOMAIN_QUERY_POLICY_VERSION,
     FINANCIAL_DOMAIN_QUERY_SCHEMA_VERSION,
     FINANCIAL_DOMAIN_SNAPSHOT_SCHEMA_VERSION,
-    FinancialDomainAccessScope,
+    FinancialDomainAccessContext,
     FinancialDomainQueryFilters,
     Gate2FinancialDomainError,
     canonical_json,
@@ -63,11 +63,15 @@ BOUNDARY_MODULE_PATHS = (
     ROOT / "broker_reports_gate1" / "gate2_financial_domain_catalog.py",
     ROOT / "broker_reports_gate1" / "gate2_financial_domain_query.py",
 )
-ACCESS_SCOPE_FINGERPRINT = "a" * 64
-ACCESS_SCOPE = FinancialDomainAccessScope(
-    access_scope_ref="access:synthetic:case",
-    access_scope_fingerprint=ACCESS_SCOPE_FINGERPRINT,
+ACCESS_CONTEXT = FinancialDomainAccessContext(
+    user_ref="user:synthetic",
+    case_ref="case:synthetic",
+    workspace_ref="workspace:synthetic",
 )
+ACCESS_SCOPE_FINGERPRINT = (
+    ACCESS_CONTEXT.access_scope().access_scope_fingerprint
+)
+CONTINUATION_KEY = b"synthetic-server-continuation-key-32-bytes"
 CREATED_AT = "2026-07-26T00:00:00+00:00"
 MANAGED_DOMAIN_SCHEMA = (
     ROOT.parents[1]
@@ -251,14 +255,15 @@ def _domain(*, prefix: str = ""):
     ).create(
         materialized_artifacts=tuple(item[0] for item in cases),
         source_packages=tuple(item[1] for item in cases),
-        access_scope=ACCESS_SCOPE,
+        access_context=ACCESS_CONTEXT,
         created_at=CREATED_AT,
         expires_at=None,
     )
     query = Gate2FinancialDomainQueryFactory(
         snapshot=snapshot,
         registry=registry,
-        access_scope_fingerprint=ACCESS_SCOPE_FINGERPRINT,
+        access_context=ACCESS_CONTEXT,
+        continuation_key=CONTINUATION_KEY,
     ).create()
     return query, snapshot, cases, registry
 
@@ -316,6 +321,10 @@ def test_domain_catalog_describes_pack_scope_and_capabilities():
     }
     assert response["coverage"]["declared_source_refs_total"] == 4
     assert response["coverage"]["terminal_ownership_complete"] is True
+    encoded_snapshot = canonical_json(response["domain_snapshot"])
+    assert "user:synthetic" not in encoded_snapshot
+    assert "case:synthetic" not in encoded_snapshot
+    assert "workspace:synthetic" not in encoded_snapshot
 
 
 @pytest.mark.parametrize(
@@ -435,7 +444,7 @@ def test_provenance_query_exposes_refs_without_literal_values():
 
 
 def test_continuation_is_bounded_deterministic_and_scope_bound():
-    query, _, _, _ = _domain()
+    query, snapshot, _, registry = _domain()
     first = query.get_coverage(limit=1)
     repeated = query.get_coverage(limit=1)
 
@@ -486,6 +495,36 @@ def test_continuation_is_bounded_deterministic_and_scope_bound():
             limit=1,
             continuation=first["continuation"],
         )
+    wrong_key_query = Gate2FinancialDomainQueryFactory(
+        snapshot=snapshot,
+        registry=registry,
+        access_context=ACCESS_CONTEXT,
+        continuation_key=b"different-server-continuation-key-32-bytes",
+    ).create()
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_query_continuation_invalid",
+    ):
+        wrong_key_query.get_coverage(
+            limit=1,
+            continuation=first["continuation"],
+        )
+    unkeyed_forgery = "findompage_2_" + sha256_json(
+        {
+            "domain_snapshot_id": snapshot.snapshot_id,
+            "query_fingerprint": first["query_fingerprint"],
+            "next_record_position": 2,
+            "access_scope_fingerprint": (
+                snapshot.access_scope_fingerprint()
+            ),
+            "expires_at": snapshot.expires_at(),
+        }
+    )[:24]
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_query_continuation_invalid",
+    ):
+        query.get_coverage(limit=1, continuation=unkeyed_forgery)
 
 
 def test_query_response_integrity_is_fail_closed():
@@ -512,7 +551,7 @@ def test_catalog_rejects_missing_package_and_rehashed_forgery():
         factory.create(
             materialized_artifacts=tuple(item[0] for item in cases),
             source_packages=tuple(item[1] for item in cases[:-1]),
-            access_scope=ACCESS_SCOPE,
+            access_context=ACCESS_CONTEXT,
             created_at=CREATED_AT,
             expires_at=None,
         )
@@ -533,7 +572,7 @@ def test_catalog_rejects_missing_package_and_rehashed_forgery():
                 *(item[0] for item in cases[1:]),
             ),
             source_packages=tuple(item[1] for item in cases),
-            access_scope=ACCESS_SCOPE,
+            access_context=ACCESS_CONTEXT,
             created_at=CREATED_AT,
             expires_at=None,
         )
@@ -572,7 +611,8 @@ def test_query_factory_rejects_self_consistent_forged_authority():
         Gate2FinancialDomainQueryFactory(
             snapshot=forged,
             registry=registry,
-            access_scope_fingerprint=ACCESS_SCOPE_FINGERPRINT,
+            access_context=ACCESS_CONTEXT,
+            continuation_key=CONTINUATION_KEY,
         ).create()
 
 
@@ -637,7 +677,12 @@ def test_access_scope_and_factory_bypass_fail_closed():
         Gate2FinancialDomainQueryFactory(
             snapshot=snapshot,
             registry=registry,
-            access_scope_fingerprint="b" * 64,
+            access_context=FinancialDomainAccessContext(
+                user_ref="user:foreign",
+                case_ref="case:synthetic",
+                workspace_ref="workspace:synthetic",
+            ),
+            continuation_key=CONTINUATION_KEY,
         ).create()
     with pytest.raises(
         Gate2FinancialDomainError,
@@ -646,7 +691,33 @@ def test_access_scope_and_factory_bypass_fail_closed():
         Gate2FinancialDomainQuery(
             snapshot=snapshot,
             access_scope_fingerprint=ACCESS_SCOPE_FINGERPRINT,
+            continuation_key=CONTINUATION_KEY,
         )
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_source_unavailable",
+    ):
+        Gate2FinancialDomainQueryFactory(
+            snapshot=snapshot,
+            registry=registry,
+            access_context=FinancialDomainAccessContext(
+                user_ref="user:synthetic",
+                case_ref="case:synthetic",
+                workspace_ref="workspace:synthetic",
+                source_available=False,
+            ),
+            continuation_key=CONTINUATION_KEY,
+        ).create()
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_continuation_key_invalid",
+    ):
+        Gate2FinancialDomainQueryFactory(
+            snapshot=snapshot,
+            registry=registry,
+            access_context=ACCESS_CONTEXT,
+            continuation_key=b"short",
+        ).create()
 
 
 def test_expired_snapshot_is_not_queryable():
@@ -656,7 +727,7 @@ def test_expired_snapshot_is_not_queryable():
     ).create(
         materialized_artifacts=tuple(item[0] for item in cases),
         source_packages=tuple(item[1] for item in cases),
-        access_scope=ACCESS_SCOPE,
+        access_context=ACCESS_CONTEXT,
         created_at="2020-01-01T00:00:00+00:00",
         expires_at="2021-01-01T00:00:00+00:00",
     )
@@ -668,7 +739,8 @@ def test_expired_snapshot_is_not_queryable():
         Gate2FinancialDomainQueryFactory(
             snapshot=snapshot,
             registry=registry,
-            access_scope_fingerprint=ACCESS_SCOPE_FINGERPRINT,
+            access_context=ACCESS_CONTEXT,
+            continuation_key=CONTINUATION_KEY,
         ).create()
 
 

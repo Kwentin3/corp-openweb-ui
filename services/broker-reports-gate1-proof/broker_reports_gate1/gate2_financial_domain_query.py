@@ -9,6 +9,7 @@ from .gate2_financial_domain_contracts import (
     DEFAULT_QUERY_LIMIT,
     FINANCIAL_DOMAIN_QUERY_POLICY_VERSION,
     FINANCIAL_DOMAIN_QUERY_SCHEMA_VERSION,
+    FinancialDomainAccessContext,
     FinancialDomainQueryFilters,
     fail,
     query_fingerprint,
@@ -45,11 +46,13 @@ class Gate2FinancialDomainQueryFactory:
         *,
         snapshot: Gate2FinancialDomainSnapshot,
         registry: Gate2FinancialEvidenceRegistrySnapshot,
-        access_scope_fingerprint: str,
+        access_context: FinancialDomainAccessContext,
+        continuation_key: bytes,
     ) -> None:
         self.snapshot = snapshot
         self.registry = registry
-        self.access_scope_fingerprint = access_scope_fingerprint
+        self.access_context = access_context
+        self.continuation_key = continuation_key
 
     def create(self) -> "Gate2FinancialDomainQuery":
         self.snapshot.validate()
@@ -75,15 +78,23 @@ class Gate2FinancialDomainQueryFactory:
             != semantic_pack_identity["canonical_sha256"]
         ):
             fail("financial_domain_snapshot_authority_mismatch")
-        if (
-            self.access_scope_fingerprint
-            != self.snapshot.access_scope_fingerprint()
-        ):
+        access_scope = self.access_context.access_scope()
+        if access_scope.to_dict() != self.snapshot.identity_payload()[
+            "access_scope"
+        ]:
             fail("financial_domain_access_scope_mismatch")
+        if (
+            not isinstance(self.continuation_key, bytes)
+            or len(self.continuation_key) < 32
+        ):
+            fail("financial_domain_continuation_key_invalid")
         _ensure_not_expired(self.snapshot)
         return Gate2FinancialDomainQuery(
             snapshot=self.snapshot,
-            access_scope_fingerprint=self.access_scope_fingerprint,
+            access_scope_fingerprint=(
+                access_scope.access_scope_fingerprint
+            ),
+            continuation_key=self.continuation_key,
             _factory_token=_FACTORY_TOKEN,
         )
 
@@ -94,12 +105,14 @@ class Gate2FinancialDomainQuery:
         *,
         snapshot: Gate2FinancialDomainSnapshot,
         access_scope_fingerprint: str,
+        continuation_key: bytes,
         _factory_token: object | None = None,
     ) -> None:
         if _factory_token is not _FACTORY_TOKEN:
             fail("financial_domain_query_factory_required")
         self.snapshot = snapshot
         self.access_scope_fingerprint = access_scope_fingerprint
+        self.continuation_key = continuation_key
 
     def describe_domain(
         self,
@@ -247,6 +260,7 @@ class Gate2FinancialDomainQuery:
                     self.access_scope_fingerprint
                 ),
                 expires_at=self.snapshot.expires_at(),
+                continuation_key=self.continuation_key,
                 query_kind=query_kind,
                 filters=filters,
                 include_provenance=include_provenance,
