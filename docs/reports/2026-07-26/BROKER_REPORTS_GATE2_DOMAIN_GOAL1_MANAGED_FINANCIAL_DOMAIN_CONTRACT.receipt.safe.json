@@ -1,0 +1,139 @@
+{
+  "schema_version": "broker_reports_gate2_managed_financial_domain_goal1_receipt_v1",
+  "goal": "GOAL_1_MANAGED_FINANCIAL_DOMAIN_CONTRACT",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "7e7897cd0d8e7e5918b1836865202d97e7fd6071",
+  "branch": "codex/broker-reports-gate2-domain-goal1-managed-domain-contract",
+  "contract": {
+    "contract_version": "broker_reports_managed_financial_domain_contract_v1",
+    "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
+    "json_schema_id": "urn:broker-reports:contracts:managed-financial-domain:v1",
+    "runtime_activation": false,
+    "production_authority_changed": false,
+    "gate3_tax_methodology_added": false,
+    "transport_implemented": false,
+    "persistence_implemented": false
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.md",
+      "sha256": "8edb4a49e1d12cda03ac31ccd3b633e43d60806d28333faff01f06ac4d9f74d9"
+    },
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.schema.json",
+      "sha256": "1a522ef75b38fbb6c827fc4de321273ccf3b1ec7c16a6a550c8f3ae35e6113bd",
+      "canonical_json_sha256": "0e4255441f82c0b323022695c2ec603dea842ebe64d0eef5d95064e92d0af3c9",
+      "canonical_json_bytes": 17583
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_managed_financial_domain_contract.py",
+      "sha256": "ae0a3b787d43f1e93ba96c2ad619a3360bad97a62bccac2520f5b79d7fcf566c"
+    }
+  ],
+  "entity_schema_versions": [
+    "broker_reports_managed_financial_record_v1",
+    "broker_reports_managed_financial_unclassified_record_v1",
+    "broker_reports_managed_financial_domain_snapshot_v1",
+    "broker_reports_managed_financial_domain_catalog_v1",
+    "broker_reports_managed_financial_domain_coverage_v1",
+    "broker_reports_managed_financial_domain_provenance_v1",
+    "broker_reports_managed_financial_domain_query_request_v1",
+    "broker_reports_managed_financial_domain_query_response_v1"
+  ],
+  "consumer_capabilities": {
+    "declared_types_visible": true,
+    "populated_types_visible": true,
+    "document_coverage_visible": true,
+    "period_coverage_visible": true,
+    "currency_coverage_visible": true,
+    "typed_records_count_visible": true,
+    "unclassified_records_count_visible": true,
+    "uncovered_refs_visible": true,
+    "provenance_request_defined": true
+  },
+  "completeness": {
+    "query_result_and_source_coverage_separated": true,
+    "immutable_snapshot_required": true,
+    "deterministic_order": "record_id_asc",
+    "page_limit_minimum": 1,
+    "page_limit_maximum": 200,
+    "continued_page_requires_token": true,
+    "continued_page_requires_positive_progress": true,
+    "final_page_requires_complete_result": true,
+    "blocked_response_records_allowed": false,
+    "query_response_self_pins_pack_coverage_filters_and_limit": true,
+    "silent_matching_record_omission_allowed": false,
+    "terminal_source_outcomes": [
+      "typed",
+      "unclassified",
+      "no_financial_input",
+      "unsupported"
+    ]
+  },
+  "review_corrections": {
+    "initial_review_status": "CHANGES_REQUIRED",
+    "findings_total": 4,
+    "continued_empty_page_closed": true,
+    "blocked_partial_payload_closed": true,
+    "query_response_self_identity_completed": true,
+    "canonical_hash_material_defined": true,
+    "all_findings_resolved_in_goal_scope": true
+  },
+  "verification": {
+    "contract_tests": {
+      "command_context": "PowerShell; cwd=services/broker-reports-gate1-proof; no ENV",
+      "result": "6 passed in 0.40s"
+    },
+    "focused_tests": {
+      "command_context": "PowerShell exact path array; cwd=services/broker-reports-gate1-proof; no ENV",
+      "result": "120 passed in 1.55s"
+    },
+    "full_suite": {
+      "command_context": "PowerShell; cwd=services/broker-reports-gate1-proof; no ENV",
+      "result": "1528 passed, 20 skipped, 5 warnings in 111.50s"
+    },
+    "schema_instance_probe": {
+      "positive_cases_passed": 10,
+      "negative_cases_rejected": 9,
+      "meta_schema_validation": "passed"
+    },
+    "ruff": "passed",
+    "compileall": "passed",
+    "privacy_guard": "3 passed in 0.77s",
+    "git_diff_check": "passed",
+    "staged_diff_scope": "5 added files; 2200 additions; 0 deletions"
+  },
+  "excluded_invalid_run": {
+    "count": 1,
+    "reason": "Unix backslash was incorrectly used as PowerShell continuation, causing pytest to collect D drive; no valid test result was taken from that run",
+    "repository_mutations": 0,
+    "superseded_by_exact_power_shell_path_array": true
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "source_llm_calls_total": 0,
+    "domain_llm_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0,
+    "examples": "synthetic_only"
+  },
+  "acceptance_markers": {
+    "FINANCIAL_DOMAIN_CONTRACT": "VERSIONED",
+    "GATE3_CONSUMER_BOUNDARY": "EXPLICIT",
+    "QUERY_COMPLETENESS": "DEFINED",
+    "UNCLASSIFIED": "FIRST_CLASS_DATA"
+  },
+  "next_permitted_goal": "GOAL_2_AFTER_GOAL_1_REVIEW_ACCEPTANCE_AND_MERGE"
+}
