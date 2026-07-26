@@ -182,6 +182,11 @@ GATE2_FINANCIAL_MODULES = [
     "gate2_financial_context_contracts",
     "gate2_financial_context_validation",
     "gate2_financial_context",
+    "gate2_financial_domain_contracts",
+    "gate2_financial_domain_projection",
+    "gate2_financial_domain_validation",
+    "gate2_financial_domain_catalog",
+    "gate2_financial_domain_query",
     "gate2_financial_evidence_legacy_validation",
     "gate2_financial_evidence_compatibility",
     "gate2_financial_evidence_production_runtime",
@@ -461,6 +466,24 @@ def assert_gate2_bundle_contract(
                 ),
                 "financial_semantic_contract_factory_anchor": (
                     "Gate2FinancialSemanticContractFactory.create is the only"
+                ),
+                "financial_domain_catalog_module": (
+                    '"gate2_financial_domain_catalog"'
+                ),
+                "financial_domain_projection_module": (
+                    '"gate2_financial_domain_projection"'
+                ),
+                "financial_domain_validation_module": (
+                    '"gate2_financial_domain_validation"'
+                ),
+                "financial_domain_catalog_factory_anchor": (
+                    "Gate2FinancialDomainCatalogFactory.create is the only"
+                ),
+                "financial_domain_query_module": (
+                    '"gate2_financial_domain_query"'
+                ),
+                "financial_domain_query_factory_anchor": (
+                    "Gate2FinancialDomainQueryFactory.create is the only"
                 ),
                 "financial_successor_factory_anchor": (
                     "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "

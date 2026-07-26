@@ -252,6 +252,11 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_financial_evidence_decision",
             "gate2_financial_evidence_materialization",
             "gate2_financial_context",
+            "gate2_financial_domain_contracts",
+            "gate2_financial_domain_projection",
+            "gate2_financial_domain_validation",
+            "gate2_financial_domain_catalog",
+            "gate2_financial_domain_query",
             "gate2_financial_evidence_compatibility",
             "gate2_financial_evidence_production_runtime",
             "gate2_deterministic_financial_scopes",
@@ -295,6 +300,18 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
         self.assertTrue(
             hasattr(bundled_package, "Gate2CandidateBindingKernelFactory")
+        )
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate2FinancialDomainCatalogFactory",
+            )
+        )
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate2FinancialDomainQueryFactory",
+            )
         )
         self.assertTrue(
             hasattr(bundled_package, "Gate2CandidateBindingRuntimeFactory")
