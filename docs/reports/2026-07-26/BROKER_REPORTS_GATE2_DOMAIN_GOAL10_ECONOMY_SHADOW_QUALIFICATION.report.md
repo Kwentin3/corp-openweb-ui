@@ -12,9 +12,14 @@ Implementation revision:
 `2b451e7a1168165b1b1902c0c635b7b8bf246715`
 
 Authoring status:
-`TERMINAL_BLOCKER_PENDING_AUTONOMOUS_REVIEW`
+`TERMINAL_REVIEWED_NOT_ACCEPTABLE`
 
 Acceptance status: `NOT_ACCEPTED`
+
+Review status: `NOT_ACCEPTABLE`
+
+Blocking review finding:
+`BR-G10-R1_UNSAFE_TYPED_NON_ZERO`
 
 ## 1. Outcome
 
@@ -209,7 +214,7 @@ Normative contract Git-blob SHA-256:
 `f79eb6e2eb425b42715e3c2ebbd095fb65846647a5b39094440c9974861e72bc`.
 
 Repository-safe receipt Git-blob SHA-256:
-`4fa752937b5563ebeafbe10ab932c61eac6d3e6d46f2f2b33e4d28709e3d6194`.
+`a726b99bcb744eb7e9cab7ede5042c3393a3b7d23aafd6408e1655c063f3adf2`.
 
 ## 12. Scope stops
 
