@@ -69,8 +69,11 @@ class Gate2FinancialContextProjectionFactory:
         materialized_artifacts: Iterable[dict[str, Any]],
         source_packages: Iterable[Gate2FinancialEvidenceSourcePackage],
     ) -> dict[str, Any]:
-        artifacts = self._validated_artifacts(materialized_artifacts)
         packages = self._validated_packages(source_packages)
+        artifacts = self._validated_artifacts(
+            materialized_artifacts,
+            source_packages=packages,
+        )
         artifact_package_refs = {
             item["source_package"]["package_ref"] for item in artifacts
         }
@@ -132,12 +135,31 @@ class Gate2FinancialContextProjectionFactory:
     def _validated_artifacts(
         self,
         artifacts: Iterable[dict[str, Any]],
+        *,
+        source_packages: dict[
+            str,
+            Gate2FinancialEvidenceSourcePackage,
+        ],
     ) -> list[dict[str, Any]]:
         unique: dict[tuple[str, str], dict[str, Any]] = {}
         for artifact in artifacts:
+            source_projection = (
+                artifact.get("source_package")
+                if isinstance(artifact, dict)
+                else None
+            )
+            package_ref = (
+                source_projection.get("package_ref")
+                if isinstance(source_projection, dict)
+                else None
+            )
+            source_package = source_packages.get(str(package_ref or ""))
+            if source_package is None:
+                fail("financial_context_source_package_set_mismatch")
             validate_financial_evidence_inputs(
                 payload=artifact,
                 registry=self.registry,
+                source_package=source_package,
             )
             key = (
                 artifact["artifact_id"],

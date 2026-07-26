@@ -95,6 +95,12 @@ The four terminal dispositions and coverage closure remain unchanged. IDs,
 values, comparison projections, dimensions, provenance, restrictions,
 validation refs, and integrity remain code-owned.
 
+Fresh remote-diff review found that the context factory initially performed
+only structural artifact validation before projection. The accepted correction
+resolves the artifact's authoritative Source Package first and reruns the full
+package-binding and ownership validator before any context entry is built. A
+negative test rehashes a forged source ref and proves terminal rejection.
+
 ## 6. Removed type-specific branch
 
 The former branch:
@@ -132,7 +138,7 @@ The official Gate 2 domain bundle now installs modules in dependency order:
 Two official rebuilds were byte-exact:
 
 ```text
-bundle_sha256=b96dd3c0db149f507753936f587161df7cd0ab263fa87eb279997b4170d9d7ef
+bundle_sha256=0ec5d2ff2332c709c7011de12650c2a9a3dd8f3894a039e3f0ecbb95436a41af
 bundle_rebuild=exact
 ```
 
@@ -146,11 +152,11 @@ Explicit PowerShell test cwd:
 `services/broker-reports-gate1-proof`; test ENV: none.
 
 - focused generic/compatibility/runtime/bundle/replay suite:
-  `128 passed in 23.66s`;
+  `129 passed in 32.42s`;
 - corrected regression recheck: `9 passed in 19.36s`;
 - final full Broker Reports suite:
-  `1561 passed, 20 skipped, 5 unchanged warnings in 140.44s`;
-- repository privacy guard: `3 passed in 0.86s`;
+  `1562 passed, 20 skipped, 5 unchanged warnings in 150.71s`;
+- repository privacy guard: `3 passed in 0.78s`;
 - official bundle rebuild: exact;
 - targeted Ruff: passed;
 - package-facade Ruff: passed with historical `F401` excluded;
@@ -201,4 +207,4 @@ Repository-safe receipt:
 
 Exact staged Git-blob SHA-256:
 
-`92e57f10820ef04805b34a1d3ee7feae273c01c373659f9a634cae935d012d8d`
+`72abe2c08b2d3ac57393a54b9ec2f9ad6b20013d894d68d36ba3c25a7a883508`

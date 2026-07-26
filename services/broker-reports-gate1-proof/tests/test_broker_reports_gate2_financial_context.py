@@ -30,6 +30,7 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (  # n
     FinancialEvidenceAuthoritativeSourceValue,
     FinancialEvidenceExecutionMetadata,
     FinancialEvidenceSourceLineage,
+    Gate2FinancialEvidenceMaterializationError,
     Gate2FinancialEvidenceMaterializerFactory,
     Gate2FinancialEvidenceSourcePackageFactory,
     Gate2FinancialEvidenceValidatedDecisionFactory,
@@ -523,6 +524,29 @@ def test_context_integrity_validator_detects_tampering():
         )
 
     assert exc.value.code == "financial_context_integrity_invalid"
+
+
+def test_rehashed_cross_package_value_fails_before_projection():
+    artifact, package = _case("cash", "cash")
+    tampered = copy.deepcopy(artifact)
+    terminal = tampered["typed_inputs"][0]
+    terminal["source_values"][0]["source_ref"] = (
+        "source:outside:authoritative-package"
+    )
+    terminal.pop("integrity_hash")
+    terminal["integrity_hash"] = sha256_json(terminal)
+    tampered.pop("integrity_hash")
+    tampered["integrity_hash"] = sha256_json(tampered)
+
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        Gate2FinancialContextProjectionFactory(
+            registry=_registry()
+        ).create(
+            materialized_artifacts=(tampered,),
+            source_packages=(package,),
+        )
+
+    assert exc.value.code == "financial_evidence_package_binding_invalid"
 
 
 def test_context_contains_no_raw_gate1_provider_tax_or_answer_payload():

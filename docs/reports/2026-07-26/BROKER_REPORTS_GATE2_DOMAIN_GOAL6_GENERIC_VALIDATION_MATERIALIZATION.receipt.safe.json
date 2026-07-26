@@ -41,6 +41,7 @@
     "duplicates_checked": true,
     "cross_scope_bindings_checked": true,
     "terminal_ownership_checked": true,
+    "context_projection_revalidates_authoritative_package": true,
     "integrity_checked": true,
     "concrete_financial_type_ids_total": 0,
     "financial_language_branches_total": 0
@@ -70,7 +71,7 @@
     "frozen_v1_hash_replay_can_write": false
   },
   "closed_world_bundle": {
-    "bundle_sha256": "b96dd3c0db149f507753936f587161df7cd0ab263fa87eb279997b4170d9d7ef",
+    "bundle_sha256": "0ec5d2ff2332c709c7011de12650c2a9a3dd8f3894a039e3f0ecbb95436a41af",
     "bundle_rebuild_exact": true,
     "semantic_model_assets_before_runtime_contract": true,
     "runtime_contract_before_materializer": true,
@@ -80,10 +81,10 @@
     "network_calls_total": 0
   },
   "verification": {
-    "focused_total": "128 passed in 23.66s",
-    "full_suite": "1561 passed, 20 skipped, 5 warnings in 140.44s",
+    "focused_total": "129 passed in 32.42s",
+    "full_suite": "1562 passed, 20 skipped, 5 warnings in 150.71s",
     "regression_recheck": "9 passed in 19.36s",
-    "privacy_guard": "3 passed in 0.86s",
+    "privacy_guard": "3 passed in 0.78s",
     "bundle_rebuild": "exact",
     "ruff_targeted": "passed",
     "ruff_package_facade": "passed with historical F401 excluded",
@@ -147,7 +148,7 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_context.py",
-      "git_blob_sha256": "e4f0c13bbe2a4c50dccdab8ecd8032b052fabfdb6d57de9345c5cd7a48e176ea"
+      "git_blob_sha256": "a8c832cb988e2732e46cbd672b61baed18f744e2d6120ab028f977ce3460179f"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_context_validation.py",
@@ -171,7 +172,7 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py",
-      "git_blob_sha256": "b96dd3c0db149f507753936f587161df7cd0ab263fa87eb279997b4170d9d7ef"
+      "git_blob_sha256": "0ec5d2ff2332c709c7011de12650c2a9a3dd8f3894a039e3f0ecbb95436a41af"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_materialization.py",
@@ -179,7 +180,7 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_context.py",
-      "git_blob_sha256": "ace984986bf132dc7140e7192f8e2f8b261f80cf217e1602fbcff5fd19539626"
+      "git_blob_sha256": "8fad3a0567577fd9378607e6ca0f41d959b5840e8a3fc2e24757ead444cf39f6"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_compatibility.py",
