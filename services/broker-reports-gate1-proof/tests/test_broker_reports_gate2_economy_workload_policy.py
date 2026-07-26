@@ -18,10 +18,10 @@ from broker_reports_gate1.gate2_economy_workload_policy import (
 )
 
 
-def test_v3_candidate_matrix_is_exact_and_production_empty() -> None:
+def test_current_candidate_matrix_is_exact_and_production_empty() -> None:
     policy = Gate2EconomyWorkloadPolicyFactory().create()
 
-    assert policy.policy_version == "1.4.0"
+    assert policy.policy_version == "1.5.0"
     assert len(policy.policy_hash) == 64
     assert policy.route("gate2_source").target_candidate_ids == (
         "models/gemini-3.1-flash-lite",
@@ -34,7 +34,7 @@ def test_v3_candidate_matrix_is_exact_and_production_empty() -> None:
     assert policy.route(
         "gate2_financial_evidence"
     ).target_candidate_ids == (
-        "claude-haiku-4-5-20251001",
+        "gpt-5.4-nano-2026-03-17",
     )
     assert policy.route(
         "gate2_financial_checksum"
@@ -68,10 +68,10 @@ def test_qualification_requires_exact_id_and_correct_workload() -> None:
 
     financial_exact = policy.assert_qualification_candidate(
         workload_class="gate2_financial_evidence",
-        model_id="claude-haiku-4-5-20251001",
+        model_id="gpt-5.4-nano-2026-03-17",
         model_policy=model_policy,
     )
-    assert financial_exact == "claude-haiku-4-5-20251001"
+    assert financial_exact == "gpt-5.4-nano-2026-03-17"
 
     with pytest.raises(Gate2EconomyWorkloadPolicyError) as alias:
         policy.assert_qualification_candidate(
@@ -95,16 +95,14 @@ def test_qualification_requires_exact_id_and_correct_workload() -> None:
         == "economy_workload_qualification_candidate_forbidden"
     )
 
-    with pytest.raises(
-        Gate2EconomyWorkloadPolicyError
-    ) as terminal_nano:
+    with pytest.raises(Gate2EconomyWorkloadPolicyError) as terminal_haiku:
         policy.assert_qualification_candidate(
             workload_class="gate2_financial_evidence",
-            model_id="gpt-5.4-nano-2026-03-17",
+            model_id="claude-haiku-4-5-20251001",
             model_policy=model_policy,
         )
     assert (
-        terminal_nano.value.code
+        terminal_haiku.value.code
         == "economy_workload_qualification_candidate_forbidden"
     )
 

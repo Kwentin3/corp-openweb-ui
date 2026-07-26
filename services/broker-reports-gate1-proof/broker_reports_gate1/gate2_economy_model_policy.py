@@ -17,7 +17,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_economy_model_policy_v1"
-POLICY_VERSION = "1.4.0"
+POLICY_VERSION = "1.5.0"
 POLICY_SCHEMA_VERSION = "broker_reports_economy_model_policy_v2"
 
 MODEL_STATUS_QUALIFICATION_REQUIRED = "qualification_required"
@@ -424,7 +424,7 @@ ECONOMY_WORKLOAD_POLICIES = (
     ),
     EconomyWorkloadPolicy(
         workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
-        maximum_estimated_input_tokens=3_072,
+        maximum_estimated_input_tokens=6_144,
         maximum_output_tokens=640,
         maximum_provider_calls_per_operation=1,
         maximum_fallback_calls_per_operation=1,
@@ -432,8 +432,8 @@ ECONOMY_WORKLOAD_POLICIES = (
         maximum_estimated_cost_usd_per_operation="0.012544",
         maximum_estimated_cost_usd_per_full_scope_run="0.401408",
         budget_measurement_basis=(
-            "actual_corpus_max_input_2666_output_506;"
-            "caps_3072_input_640_output;64_total_calls;"
+            "actual_managed_pack_v4_local_max_input_5393_output_640;"
+            "caps_6144_input_640_output;64_total_calls;"
             "worst_allowed_haiku_price"
         ),
         reasoning_policy=REASONING_DISABLED,

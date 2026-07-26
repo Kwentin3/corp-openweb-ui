@@ -26,18 +26,18 @@ POLICY_SNAPSHOT: dict[str, Any] = {
     "scope": "qualification_only",
     "model_policy": {
         "policy_id": "broker_reports_economy_model_policy_v1",
-        "policy_version": "1.4.0",
+        "policy_version": "1.5.0",
         "policy_schema_version": ("broker_reports_economy_model_policy_v2"),
         "policy_hash": (
-            "e71bbb7c95774058bc2324343a2de2adef2f3307d8b30f8e92d8cbf514bd09c9"
+            "04394ee5320d19000639eb73305894e64d104758d2a5f9d824229a3b95d6c53b"
         ),
     },
     "workload_policy": {
         "policy_id": "broker_reports_gate2_economy_workload_policy_v2",
-        "policy_version": "1.4.0",
+        "policy_version": "1.5.0",
         "policy_schema_version": ("broker_reports_gate2_economy_workload_policy_v2"),
         "policy_hash": (
-            "3d3531d060dacf189c9c82701b5d0a71e93d102cbce8c64aa7093677071373de"
+            "ef1fdf3fd3f9de4a412be130ee476405f3ccc9bf24f9facee2028b4f64fb3d3b"
         ),
     },
     "model_controls": {
@@ -79,7 +79,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         },
         "gate2_financial_evidence": {
             "qualification_candidate_exact_model_ids": [
-                "claude-haiku-4-5-20251001",
+                "gpt-5.4-nano-2026-03-17",
                 "models/gemini-3.1-flash-lite",
                 "models/gemini-3.5-flash-lite",
             ],
@@ -109,7 +109,7 @@ POLICY_SNAPSHOT: dict[str, Any] = {
         "paid_tools_allowed": False,
     },
     "qualification_policy_hash": (
-        "901c32f1afe865a835d849285862e8077bbe5f62b7690f63737accbe143a6ebe"
+        "4923be403dafb15145a02d36907ad840a7e71213e405455b9d43dbcee4b20a67"
     ),
 }
 
@@ -132,7 +132,7 @@ class Action:
         )
         return {
             "content": (
-                "Broker Reports Gate 2 qualification-only policy 1.4.0 "
+                "Broker Reports Gate 2 qualification-only policy 1.5.0 "
                 "is live. Production admissions remain empty."
             ),
             "broker_reports_gate2_economy_qualification_policy": (

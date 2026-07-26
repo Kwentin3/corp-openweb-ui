@@ -51,7 +51,7 @@ def _load_action_module():
     return module
 
 
-def test_snapshot_is_exact_policy_1_4_qualification_only() -> None:
+def test_snapshot_is_exact_policy_1_5_qualification_only() -> None:
     policy = Gate2EconomyQualificationPolicyFactory().create()
     snapshot = policy.snapshot()
     model_policy = Gate2EconomyModelPolicyFactory().create()
@@ -60,7 +60,7 @@ def test_snapshot_is_exact_policy_1_4_qualification_only() -> None:
     ).create()
 
     assert snapshot["scope"] == "qualification_only"
-    assert snapshot["model_policy"]["policy_version"] == "1.4.0"
+    assert snapshot["model_policy"]["policy_version"] == "1.5.0"
     assert snapshot["model_policy"]["policy_hash"] == model_policy.policy_hash
     assert snapshot["workload_policy"]["policy_hash"] == workload_policy.policy_hash
     assert len(snapshot["qualification_policy_hash"]) == 64
@@ -93,8 +93,8 @@ def test_snapshot_is_exact_policy_1_4_qualification_only() -> None:
         ),
         (
             "gate2_financial_evidence",
-            "claude-haiku-4-5-20251001",
-            "anthropic_claude",
+            "gpt-5.4-nano-2026-03-17",
+            "openai_gpt",
             "disabled",
         ),
         (
