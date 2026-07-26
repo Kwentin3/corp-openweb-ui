@@ -31,6 +31,8 @@ from broker_reports_gate1.gate2_financial_semantic_v5_qualification import (  # 
     V5_QUALIFICATION_SCHEMA_VERSION,
     Gate2FinancialSemanticV5QualificationFixtureFactory,
     Gate2FinancialSemanticV5QualificationPreflightFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_v5_qualification_run import (  # noqa: E402
     qualify_financial_semantic_v5,
 )
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
@@ -52,20 +54,12 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
 
 
 DEFAULT_V5_MANIFEST = (
-    SERVICE_ROOT
-    / "benchmarks"
-    / "gate2_financial_semantic_v5"
-    / "manifest.json"
+    SERVICE_ROOT / "benchmarks" / "gate2_financial_semantic_v5" / "manifest.json"
 )
 DEFAULT_BASE_MANIFEST = (
-    SERVICE_ROOT
-    / "benchmarks"
-    / "gate2_financial_successor_v2"
-    / "manifest.json"
+    SERVICE_ROOT / "benchmarks" / "gate2_financial_successor_v2" / "manifest.json"
 )
-SNAPSHOT_AUTHORITY_KEY = (
-    b"gate2-v5-qualification-snapshot-authority-key-v1"
-)
+SNAPSHOT_AUTHORITY_KEY = b"gate2-v5-qualification-snapshot-authority-key-v1"
 CONTINUATION_KEY = b"gate2-v5-qualification-continuation-key-v1"
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV5QualificationFixtureFactory.create, "
@@ -105,23 +99,16 @@ def main() -> int:
     if args.preflight_only and args.execute_exact_attempt:
         parser.error("choose one mode")
     execute = bool(args.execute_exact_attempt)
-    if execute and (
-        not args.safe_receipt_path or not args.private_evidence_dir
-    ):
+    if execute and (not args.safe_receipt_path or not args.private_evidence_dir):
         parser.error(
-            "live execution requires --safe-receipt-path and "
-            "--private-evidence-dir"
+            "live execution requires --safe-receipt-path and --private-evidence-dir"
         )
 
     safe_path = (
-        Path(args.safe_receipt_path).resolve()
-        if args.safe_receipt_path
-        else None
+        Path(args.safe_receipt_path).resolve() if args.safe_receipt_path else None
     )
     private_dir = (
-        Path(args.private_evidence_dir).resolve()
-        if args.private_evidence_dir
-        else None
+        Path(args.private_evidence_dir).resolve() if args.private_evidence_dir else None
     )
     if execute:
         _validate_new_attempt_paths(
@@ -130,9 +117,7 @@ def main() -> int:
         )
 
     env = _read_env(Path(args.env_file))
-    base_url = (
-        args.base_url.rstrip("/") if args.base_url else _base_url(env)
-    )
+    base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     session = requests.Session()
     session.headers.update({"Accept": "application/json"})
     token = _signin(session, base_url, env)
@@ -154,9 +139,7 @@ def main() -> int:
         return 0
 
     if not _worktree_clean():
-        raise V5QualificationCliError(
-            "financial_semantic_v5_live_worktree_not_clean"
-        )
+        raise V5QualificationCliError("financial_semantic_v5_live_worktree_not_clean")
     assert safe_path is not None
     assert private_dir is not None
     private_dir.mkdir(parents=True, exist_ok=False)
@@ -222,9 +205,7 @@ def main() -> int:
 
 def _fixture():
     manifest = json.loads(DEFAULT_V5_MANIFEST.read_text(encoding="utf-8"))
-    base_manifest = json.loads(
-        DEFAULT_BASE_MANIFEST.read_text(encoding="utf-8")
-    )
+    base_manifest = json.loads(DEFAULT_BASE_MANIFEST.read_text(encoding="utf-8"))
     return Gate2FinancialSemanticV5QualificationFixtureFactory(
         registry=Gate2FinancialEvidenceRegistryFactory().create(),
         snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
@@ -294,9 +275,7 @@ def _write_json_atomically(
     require_absent: bool = False,
 ) -> None:
     if require_absent and path.exists():
-        raise V5QualificationCliError(
-            "financial_semantic_v5_attempt_already_consumed"
-        )
+        raise V5QualificationCliError("financial_semantic_v5_attempt_already_consumed")
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = _pretty_json(payload)
     descriptor, temp_name = tempfile.mkstemp(

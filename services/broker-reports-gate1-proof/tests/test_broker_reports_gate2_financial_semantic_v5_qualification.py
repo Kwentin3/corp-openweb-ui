@@ -16,6 +16,8 @@ from broker_reports_gate1.gate2_financial_semantic_v5_qualification import (
     SEMANTIC_CASES_TOTAL,
     Gate2FinancialSemanticV5QualificationFixtureFactory,
     Gate2FinancialSemanticV5QualificationPreflightFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_v5_qualification_run import (
     qualify_financial_semantic_v5,
 )
 from broker_reports_gate1.gate2_model_contracts import (
@@ -32,18 +34,12 @@ CONTINUATION_KEY = b"v5-qualification-test-continuation-key"
 def _fixture():
     manifest = json.loads(
         (
-            ROOT
-            / "benchmarks"
-            / "gate2_financial_semantic_v5"
-            / "manifest.json"
+            ROOT / "benchmarks" / "gate2_financial_semantic_v5" / "manifest.json"
         ).read_text(encoding="utf-8")
     )
     base = json.loads(
         (
-            ROOT
-            / "benchmarks"
-            / "gate2_financial_successor_v2"
-            / "manifest.json"
+            ROOT / "benchmarks" / "gate2_financial_successor_v2" / "manifest.json"
         ).read_text(encoding="utf-8")
     )
     return Gate2FinancialSemanticV5QualificationFixtureFactory(
@@ -98,14 +94,10 @@ class _ExactFakeClient:
                 adapter_version="test",
                 requested_model_id=model_id,
                 resolved_model_id=model_id,
-                structured_output_mode=(
-                    "openwebui_response_format_json_schema"
-                ),
+                structured_output_mode=("openwebui_response_format_json_schema"),
                 response_format_type="json_schema",
                 response_format_schema_mode="strict_json_schema",
-                canonical_request_schema_hash=sha256_json(
-                    response_format
-                ),
+                canonical_request_schema_hash=sha256_json(response_format),
                 adapted_request_schema_hash=sha256_json(response_format),
                 duration_ms=5,
                 input_tokens=100,
