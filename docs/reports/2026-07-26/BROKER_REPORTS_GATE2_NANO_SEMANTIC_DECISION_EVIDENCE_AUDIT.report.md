@@ -636,7 +636,7 @@ Verification from explicit PowerShell cwd
 - full Broker Reports suite:
   `1623 passed, 20 skipped, 5 unchanged warnings in 150.94s`;
 - repository privacy guard:
-  `3 passed in 0.77s`;
+  `3 passed`;
 - targeted Ruff: passed;
 - targeted Python compile: passed;
 - private-literal/ref scan over both safe deliverables: zero matches;
