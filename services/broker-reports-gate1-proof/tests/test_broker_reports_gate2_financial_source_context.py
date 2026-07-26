@@ -155,7 +155,12 @@ def test_provider_projection_has_no_locator_graph_or_expected_answer():
     )
 
     assert set(model_input) == {"eligible_types", "source_groups"}
-    assert model_input["eligible_types"] == []
+    assert [
+        item["input_type_id"] for item in model_input["eligible_types"]
+    ] == [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1",
+    ]
     assert len(model_input["source_groups"]) == 2
     assert not {
         key

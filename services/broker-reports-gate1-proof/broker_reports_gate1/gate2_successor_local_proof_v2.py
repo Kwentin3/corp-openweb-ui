@@ -177,24 +177,25 @@ class Gate2SuccessorLocalProofV2Factory:
             )
             admission = scope.package["typed_admission"]
             expected_decision = case["decision"]
-            expected_admitted_type_ids = (
-                [expected_decision["input_type_id"]]
-                if expected_decision["disposition"] == "typed_input"
-                else []
-            )
+            structurally_eligible_type_ids = admission[
+                "admitted_type_ids"
+            ]
             if (
-                admission["admitted_type_ids"]
-                != expected_admitted_type_ids
-                or list(scope.decision_contract.eligible_type_ids)
-                != expected_admitted_type_ids
+                list(scope.decision_contract.eligible_type_ids)
+                != structurally_eligible_type_ids
+                or (
+                    expected_decision["disposition"] == "typed_input"
+                    and expected_decision["input_type_id"]
+                    not in structurally_eligible_type_ids
+                )
             ):
                 _fail(
-                    "successor_local_proof_v2_admission_expectation_invalid"
+                    "successor_local_proof_v2_structural_filter_invalid"
                 )
             typed_admission_hashes.add(admission["integrity_hash"])
             admission_counts[
                 "typed_available"
-                if expected_admitted_type_ids
+                if structurally_eligible_type_ids
                 else "typed_absent"
             ] += 1
             if (
@@ -253,7 +254,7 @@ class Gate2SuccessorLocalProofV2Factory:
             )
             if (
                 ("typed_input" in dispositions)
-                is not bool(expected_admitted_type_ids)
+                is not bool(structurally_eligible_type_ids)
             ):
                 _fail(
                     "successor_local_proof_v2_typed_branch_shape_invalid"

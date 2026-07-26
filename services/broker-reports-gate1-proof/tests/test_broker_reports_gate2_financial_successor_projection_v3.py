@@ -183,7 +183,7 @@ def test_prompt_v3_is_generic_and_v2_identity_stays_frozen():
     assert "adjacent" not in v3.content
 
 
-def test_model_input_v3_adds_only_registry_counterexamples():
+def test_model_input_v3_projects_every_structurally_eligible_type():
     scope, context, registry = _scope_context(
         "syn_successor_signed_literal"
     )
@@ -195,12 +195,17 @@ def test_model_input_v3_adds_only_registry_counterexamples():
     )
 
     assert set(model_input) == {"eligible_types", "source_groups"}
-    assert len(model_input["eligible_types"]) == 1
-    projected = model_input["eligible_types"][0]
-    declaration = registry.get(projected["input_type_id"])
-    assert projected["counterexamples"] == list(
-        declaration.counterexamples
-    )
+    assert [
+        item["input_type_id"] for item in model_input["eligible_types"]
+    ] == [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1",
+    ]
+    for projected in model_input["eligible_types"]:
+        declaration = registry.get(projected["input_type_id"])
+        assert projected["counterexamples"] == list(
+            declaration.counterexamples
+        )
     assert "expected_answer" not in json.dumps(model_input)
     assert model_input["source_groups"] == context.provider_groups()
 
@@ -242,11 +247,13 @@ def test_provider_projection_is_unclassified_first_and_semantic_only():
     assert projection.disposition_order == (
         "unclassified_financial_input",
         "typed_input",
+        "typed_input",
         "no_financial_input",
         "unsupported",
     )
     assert projection.typed_type_ids == (
         "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1",
     )
     assert sorted(
         sha256_json(item) for item in _variants(canonical)
@@ -265,7 +272,7 @@ def test_provider_projection_is_unclassified_first_and_semantic_only():
     assert summary["provider_calls_total"] == 0
 
 
-def test_ambiguous_scope_provider_schema_has_no_typed_variant():
+def test_semantic_ambiguity_does_not_remove_structural_typed_variants():
     scope, _, _ = _scope_context(
         "syn_successor_multiple_hypotheses"
     )
@@ -278,15 +285,21 @@ def test_ambiguous_scope_provider_schema_has_no_typed_variant():
 
     assert projection.disposition_order == (
         "unclassified_financial_input",
+        "typed_input",
+        "typed_input",
         "no_financial_input",
         "unsupported",
     )
-    assert projection.typed_type_ids == ()
+    assert projection.typed_type_ids == (
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1",
+    )
     assert {
         _disposition(item)
         for item in _variants(projection.response_format)
     } == {
         "unclassified_financial_input",
+        "typed_input",
         "no_financial_input",
         "unsupported",
     }

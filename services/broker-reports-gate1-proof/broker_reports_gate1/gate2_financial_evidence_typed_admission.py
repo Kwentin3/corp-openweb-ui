@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -14,50 +13,26 @@ from .gate2_financial_evidence_materialization import (
 )
 from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_evidence_registry import (
+    FinancialEvidenceInputTypeDeclaration,
     Gate2FinancialEvidenceRegistrySnapshot,
-)
-from .gate2_financial_evidence_source_context import (
-    FinancialEvidenceVisibleValueContext,
-    financial_evidence_visible_value_contexts,
 )
 
 
 TYPED_ADMISSION_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_typed_admission_v1"
+    "broker_reports_gate2_financial_typed_admission_v2"
 )
 TYPED_ADMISSION_POLICY_VERSION = (
-    "gate2_financial_typed_admission_policy_v1"
+    "gate2_financial_generic_structural_filter_v1"
 )
 
 FACTORY_REQUIRED = (
     "Gate2FinancialEvidenceTypedAdmissionFactory.create is the only "
-    "successor typed-branch admission authority"
+    "successor structural type-filter authority"
 )
 FORBIDDEN = (
-    "Typed admission must not call a model, infer a default type, expose "
-    "source literals in its receipt, admit conflicting hypotheses or repair "
-    "a typed response after the model call"
-)
-
-_CASH_TYPE_ID = "cash_balance_snapshot_v1"
-_PRINTED_TYPE_ID = "printed_financial_metric_v1"
-_CASH_SIGNAL_RE = re.compile(
-    r"(?:\bcash\b|денежн\w*\s+средств\w*|остат\w*\s+денежн\w*)",
-    re.IGNORECASE,
-)
-_PRINTED_SIGNAL_RE = re.compile(
-    r"(?:\btotal\b|\bsubtotal\b|\bsummary\b|итог\w*|всего|подытог\w*)",
-    re.IGNORECASE,
-)
-_PRINTED_ROW_ROLES = frozenset(
-    {
-        "summary",
-        "summary_row",
-        "subtotal",
-        "subtotal_row",
-        "total",
-        "total_row",
-    }
+    "The structural filter must not inspect financial words, headings, "
+    "labels or row roles, call a model, infer a semantic type, expose source "
+    "literals in its receipt or repair a response after the model call"
 )
 
 
@@ -78,12 +53,10 @@ class Gate2FinancialEvidenceTypedAdmission:
     reason_codes: tuple[str, ...]
     evidence_identity_hash: str
     source_values_total: int
-    semantic_context_values_total: int
-    association_groups_total: int
-    amount_candidates_total: int
-    date_candidates_total: int
-    currency_candidates_total: int
-    semantic_label_candidates_total: int
+    candidate_values_total: int
+    package_member_values_total: int
+    required_roles_evaluated_total: int
+    infeasible_required_roles_total: int
     integrity_hash: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -97,19 +70,23 @@ class Gate2FinancialEvidenceTypedAdmission:
             "candidate_type_ids": list(self.candidate_type_ids),
             "admitted_type_ids": list(self.admitted_type_ids),
             "typed_branch_available": bool(self.admitted_type_ids),
+            "filter_kind": "generic_structural",
+            "semantic_selection_owner": "llm",
             "reason_codes": list(self.reason_codes),
             "evidence_identity_hash": self.evidence_identity_hash,
             "source_values_total": self.source_values_total,
-            "semantic_context_values_total": (
-                self.semantic_context_values_total
+            "candidate_values_total": self.candidate_values_total,
+            "package_member_values_total": (
+                self.package_member_values_total
             ),
-            "association_groups_total": self.association_groups_total,
-            "amount_candidates_total": self.amount_candidates_total,
-            "date_candidates_total": self.date_candidates_total,
-            "currency_candidates_total": self.currency_candidates_total,
-            "semantic_label_candidates_total": (
-                self.semantic_label_candidates_total
+            "required_roles_evaluated_total": (
+                self.required_roles_evaluated_total
             ),
+            "infeasible_required_roles_total": (
+                self.infeasible_required_roles_total
+            ),
+            "financial_language_predicates_total": 0,
+            "type_specific_admission_branches_total": 0,
             "contains_source_literals": False,
             "contains_source_value_refs": False,
             "provider_calls_total": 0,
@@ -129,19 +106,23 @@ class Gate2FinancialEvidenceTypedAdmission:
             "candidate_type_ids": list(self.candidate_type_ids),
             "admitted_type_ids": list(self.admitted_type_ids),
             "typed_branch_available": bool(self.admitted_type_ids),
+            "filter_kind": "generic_structural",
+            "semantic_selection_owner": "llm",
             "reason_codes": list(self.reason_codes),
             "evidence_identity_hash": self.evidence_identity_hash,
             "source_values_total": self.source_values_total,
-            "semantic_context_values_total": (
-                self.semantic_context_values_total
+            "candidate_values_total": self.candidate_values_total,
+            "package_member_values_total": (
+                self.package_member_values_total
             ),
-            "association_groups_total": self.association_groups_total,
-            "amount_candidates_total": self.amount_candidates_total,
-            "date_candidates_total": self.date_candidates_total,
-            "currency_candidates_total": self.currency_candidates_total,
-            "semantic_label_candidates_total": (
-                self.semantic_label_candidates_total
+            "required_roles_evaluated_total": (
+                self.required_roles_evaluated_total
             ),
+            "infeasible_required_roles_total": (
+                self.infeasible_required_roles_total
+            ),
+            "financial_language_predicates_total": 0,
+            "type_specific_admission_branches_total": 0,
             "contains_source_literals": False,
             "contains_source_value_refs": False,
             "provider_calls_total": 0,
@@ -179,144 +160,51 @@ class Gate2FinancialEvidenceTypedAdmissionFactory:
             or not packages
         ):
             _fail("typed_admission_input_invalid")
-        candidate_type_ids = tuple(
-            declaration.input_type_id
-            for declaration in self.registry.declarations
-            if declaration.lifecycle == "active"
-            and source_family_id
-            in declaration.compatible_source_families
+        candidate_type_ids = _candidate_type_ids(
+            registry=self.registry,
+            source_family_id=source_family_id,
         )
-        contexts = financial_evidence_visible_value_contexts(
-            packages=packages
+        package_member_values_total = _validate_package_membership(
+            source_values=source_values,
+            candidates=candidates,
+            packages=packages,
         )
-        values = {
-            item.source_value_ref: item for item in source_values
-        }
-        candidate_by_ref = {
-            item.source_value_ref: item for item in candidates
-        }
-        if set(values) != set(candidate_by_ref):
-            _fail("typed_admission_candidate_identity_mismatch")
-        semantic_contexts = tuple(
-            contexts[ref]
-            for ref in sorted(contexts)
-            if ref in values
+        (
+            admitted_type_ids,
+            required_roles_evaluated_total,
+            infeasible_required_roles_total,
+        ) = _structurally_eligible_type_ids(
+            registry=self.registry,
+            source_family_id=source_family_id,
+            candidates=candidates,
+        )
+        reason_codes = _reason_codes(
+            candidate_type_ids=candidate_type_ids,
+            admitted_type_ids=admitted_type_ids,
+            infeasible_required_roles_total=(
+                infeasible_required_roles_total
+            ),
         )
         evidence_identity_hash = sha256_json(
             {
                 "source_scope_ref": source_scope_ref,
                 "source_family_id": source_family_id,
                 "candidate_type_ids": list(candidate_type_ids),
-                "contexts": [
-                    item.typed_admission_identity_payload()
-                    for item in semantic_contexts
+                "admitted_type_ids": list(admitted_type_ids),
+                "candidate_shapes": [
+                    {
+                        "source_value_ref": item.source_value_ref,
+                        "source_ref": item.source_ref,
+                        "value_type": item.value_type,
+                        "allowed_roles": list(item.allowed_roles),
+                    }
+                    for item in candidates
                 ],
-                "routing_hints": [
-                    copy.deepcopy(item)
-                    for package in packages
-                    for item in (
-                        (package.get("typed_admission_routing_hints") or [])
-                    )
-                ],
+                "package_member_values_total": (
+                    package_member_values_total
+                ),
             }
         )
-        role_refs = _role_refs(candidates=candidates)
-        amounts = role_refs.get("amount", ())
-        dates = role_refs.get("as_of_date", ())
-        currencies = role_refs.get("currency", ())
-        semantic_labels = tuple(
-            ref
-            for ref in role_refs.get("source_label", ())
-            if ref in contexts
-        )
-        reasons: set[str] = set()
-        admitted_candidates: list[str] = []
-        if not candidate_type_ids:
-            reasons.add("source_family_has_no_registry_candidate")
-        if len(amounts) != 1:
-            reasons.add(
-                "ambiguous_amount_candidates"
-                if len(amounts) > 1
-                else "required_amount_missing"
-            )
-        if len(dates) != 1:
-            reasons.add(
-                "ambiguous_date_candidates"
-                if len(dates) > 1
-                else "required_date_missing"
-            )
-        if len(currencies) != 1:
-            reasons.add(
-                "ambiguous_currency_candidates"
-                if len(currencies) > 1
-                else "required_currency_missing"
-            )
-        structural_roles_unique = (
-            len(amounts) == 1
-            and len(dates) == 1
-            and len(currencies) == 1
-        )
-        cash_signal_refs = tuple(
-            ref
-            for ref in semantic_labels
-            if _cash_signal(contexts[ref])
-        )
-        printed_signal_refs = tuple(
-            ref
-            for ref in contexts
-            if _printed_signal(contexts[ref])
-        )
-        if (
-            _CASH_TYPE_ID in candidate_type_ids
-            and structural_roles_unique
-            and len(cash_signal_refs) == 1
-            and _same_association_group(
-                refs=(
-                    amounts[0],
-                    dates[0],
-                    currencies[0],
-                    cash_signal_refs[0],
-                ),
-                contexts=contexts,
-            )
-        ):
-            admitted_candidates.append(_CASH_TYPE_ID)
-        elif _CASH_TYPE_ID in candidate_type_ids:
-            reasons.add("cash_positive_discriminator_not_proven")
-        if (
-            _PRINTED_TYPE_ID in candidate_type_ids
-            and structural_roles_unique
-            and printed_signal_refs
-            and _same_association_group(
-                refs=(
-                    amounts[0],
-                    dates[0],
-                    currencies[0],
-                    printed_signal_refs[0],
-                ),
-                contexts=contexts,
-            )
-        ):
-            admitted_candidates.append(_PRINTED_TYPE_ID)
-        elif _PRINTED_TYPE_ID in candidate_type_ids:
-            reasons.add("printed_positive_discriminator_not_proven")
-        if len(admitted_candidates) > 1:
-            admitted_type_ids: tuple[str, ...] = ()
-            reasons.add("conflicting_positive_discriminators")
-        elif len(admitted_candidates) == 1:
-            admitted_type_ids = tuple(admitted_candidates)
-            reasons.add(
-                "unique_positive_discriminator_proven:"
-                + admitted_type_ids[0]
-            )
-        else:
-            admitted_type_ids = ()
-            reasons.add("no_safe_typed_admission")
-        association_groups = {
-            item.association_group
-            for item in semantic_contexts
-            if item.association_group
-        }
         material = {
             "schema_version": TYPED_ADMISSION_SCHEMA_VERSION,
             "policy_version": TYPED_ADMISSION_POLICY_VERSION,
@@ -327,15 +215,21 @@ class Gate2FinancialEvidenceTypedAdmissionFactory:
             "candidate_type_ids": list(candidate_type_ids),
             "admitted_type_ids": list(admitted_type_ids),
             "typed_branch_available": bool(admitted_type_ids),
-            "reason_codes": sorted(reasons),
+            "filter_kind": "generic_structural",
+            "semantic_selection_owner": "llm",
+            "reason_codes": list(reason_codes),
             "evidence_identity_hash": evidence_identity_hash,
             "source_values_total": len(source_values),
-            "semantic_context_values_total": len(semantic_contexts),
-            "association_groups_total": len(association_groups),
-            "amount_candidates_total": len(amounts),
-            "date_candidates_total": len(dates),
-            "currency_candidates_total": len(currencies),
-            "semantic_label_candidates_total": len(semantic_labels),
+            "candidate_values_total": len(candidates),
+            "package_member_values_total": package_member_values_total,
+            "required_roles_evaluated_total": (
+                required_roles_evaluated_total
+            ),
+            "infeasible_required_roles_total": (
+                infeasible_required_roles_total
+            ),
+            "financial_language_predicates_total": 0,
+            "type_specific_admission_branches_total": 0,
             "contains_source_literals": False,
             "contains_source_value_refs": False,
             "provider_calls_total": 0,
@@ -348,21 +242,24 @@ class Gate2FinancialEvidenceTypedAdmissionFactory:
             source_family_id=source_family_id,
             candidate_type_ids=candidate_type_ids,
             admitted_type_ids=admitted_type_ids,
-            reason_codes=tuple(sorted(reasons)),
+            reason_codes=reason_codes,
             evidence_identity_hash=evidence_identity_hash,
             source_values_total=len(source_values),
-            semantic_context_values_total=len(semantic_contexts),
-            association_groups_total=len(association_groups),
-            amount_candidates_total=len(amounts),
-            date_candidates_total=len(dates),
-            currency_candidates_total=len(currencies),
-            semantic_label_candidates_total=len(semantic_labels),
+            candidate_values_total=len(candidates),
+            package_member_values_total=package_member_values_total,
+            required_roles_evaluated_total=(
+                required_roles_evaluated_total
+            ),
+            infeasible_required_roles_total=(
+                infeasible_required_roles_total
+            ),
             integrity_hash=sha256_json(material),
         )
         validate_typed_admission(
             payload=result.to_dict(),
             registry=self.registry,
             source_scope_ref=source_scope_ref,
+            candidates=candidates,
         )
         return result
 
@@ -372,6 +269,7 @@ def validate_typed_admission(
     payload: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
     source_scope_ref: str,
+    candidates: tuple[FinancialEvidenceValueCandidate, ...],
 ) -> None:
     if (
         not isinstance(payload, dict)
@@ -391,13 +289,21 @@ def validate_typed_admission(
     candidate_type_ids = payload.get("candidate_type_ids")
     admitted_type_ids = payload.get("admitted_type_ids")
     active_ids = set(registry.provider_type_enum())
-    expected_candidate_type_ids = [
-        declaration.input_type_id
-        for declaration in registry.declarations
-        if declaration.lifecycle == "active"
-        and payload.get("source_family_id")
-        in declaration.compatible_source_families
-    ]
+    expected_candidate_type_ids = list(
+        _candidate_type_ids(
+            registry=registry,
+            source_family_id=str(payload.get("source_family_id") or ""),
+        )
+    )
+    (
+        expected_admitted_type_ids,
+        required_roles_evaluated_total,
+        infeasible_required_roles_total,
+    ) = _structurally_eligible_type_ids(
+        registry=registry,
+        source_family_id=str(payload.get("source_family_id") or ""),
+        candidates=candidates,
+    )
     if (
         not isinstance(candidate_type_ids, list)
         or candidate_type_ids != sorted(set(candidate_type_ids))
@@ -405,7 +311,7 @@ def validate_typed_admission(
         or not set(candidate_type_ids) <= active_ids
         or not isinstance(admitted_type_ids, list)
         or admitted_type_ids != sorted(set(admitted_type_ids))
-        or len(admitted_type_ids) > 1
+        or admitted_type_ids != list(expected_admitted_type_ids)
         or not set(admitted_type_ids) <= set(candidate_type_ids)
         or payload.get("typed_branch_available")
         is not bool(admitted_type_ids)
@@ -416,41 +322,44 @@ def validate_typed_admission(
         or not payload["reason_codes"]
         or payload["reason_codes"]
         != sorted(set(payload["reason_codes"]))
+        or payload["reason_codes"]
+        != list(
+            _reason_codes(
+                candidate_type_ids=tuple(candidate_type_ids),
+                admitted_type_ids=tuple(admitted_type_ids),
+                infeasible_required_roles_total=(
+                    infeasible_required_roles_total
+                ),
+            )
+        )
+        or payload.get("filter_kind") != "generic_structural"
+        or payload.get("semantic_selection_owner") != "llm"
+        or payload.get("financial_language_predicates_total") != 0
+        or payload.get("type_specific_admission_branches_total") != 0
         or payload.get("contains_source_literals") is not False
         or payload.get("contains_source_value_refs") is not False
         or payload.get("provider_calls_total") != 0
         or payload.get("post_response_conversion") is not False
     ):
         _fail("typed_admission_policy_invalid")
-    reason_codes = payload["reason_codes"]
-    if admitted_type_ids:
-        expected_reason = (
-            "unique_positive_discriminator_proven:"
-            + admitted_type_ids[0]
-        )
-        if (
-            expected_reason not in reason_codes
-            or "no_safe_typed_admission" in reason_codes
-            or "conflicting_positive_discriminators" in reason_codes
-        ):
-            _fail("typed_admission_positive_proof_invalid")
-    elif not {
-        "no_safe_typed_admission",
-        "conflicting_positive_discriminators",
-    } & set(reason_codes):
-        _fail("typed_admission_negative_proof_invalid")
     for field in (
         "source_values_total",
-        "semantic_context_values_total",
-        "association_groups_total",
-        "amount_candidates_total",
-        "date_candidates_total",
-        "currency_candidates_total",
-        "semantic_label_candidates_total",
+        "candidate_values_total",
+        "package_member_values_total",
+        "required_roles_evaluated_total",
+        "infeasible_required_roles_total",
     ):
         value = payload.get(field)
         if not isinstance(value, int) or value < 0:
             _fail("typed_admission_count_invalid")
+    if (
+        payload.get("candidate_values_total") != len(candidates)
+        or payload.get("required_roles_evaluated_total")
+        != required_roles_evaluated_total
+        or payload.get("infeasible_required_roles_total")
+        != infeasible_required_roles_total
+    ):
+        _fail("typed_admission_structural_counts_invalid")
     if (
         not isinstance(payload.get("evidence_identity_hash"), str)
         or len(payload["evidence_identity_hash"]) != 64
@@ -458,52 +367,134 @@ def validate_typed_admission(
         _fail("typed_admission_evidence_identity_invalid")
 
 
-def _role_refs(
+def _candidate_type_ids(
     *,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    source_family_id: str,
+) -> tuple[str, ...]:
+    return tuple(
+        declaration.input_type_id
+        for declaration in registry.declarations
+        if declaration.lifecycle == "active"
+        and source_family_id in declaration.compatible_source_families
+    )
+
+
+def _structurally_eligible_type_ids(
+    *,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    source_family_id: str,
     candidates: tuple[FinancialEvidenceValueCandidate, ...],
-) -> dict[str, tuple[str, ...]]:
-    roles: dict[str, list[str]] = {}
-    for candidate in candidates:
-        for role_id in candidate.allowed_roles:
-            roles.setdefault(role_id, []).append(candidate.source_value_ref)
-    return {
-        role_id: tuple(sorted(refs))
-        for role_id, refs in sorted(roles.items())
-    }
-
-
-def _cash_signal(
-    context: FinancialEvidenceVisibleValueContext,
-) -> bool:
-    return bool(
-        _CASH_SIGNAL_RE.search(context.literal_value)
-        or _CASH_SIGNAL_RE.search(context.column_meaning)
-        or _CASH_SIGNAL_RE.search(context.visible_label)
+) -> tuple[tuple[str, ...], int, int]:
+    eligible: list[str] = []
+    required_roles_evaluated_total = 0
+    infeasible_required_roles_total = 0
+    for declaration in registry.declarations:
+        if (
+            declaration.lifecycle != "active"
+            or source_family_id
+            not in declaration.compatible_source_families
+        ):
+            continue
+        missing = _infeasible_required_roles(
+            declaration=declaration,
+            candidates=candidates,
+        )
+        required_roles_evaluated_total += len(
+            declaration.required_roles
+        )
+        infeasible_required_roles_total += len(missing)
+        if not missing:
+            eligible.append(declaration.input_type_id)
+    return (
+        tuple(eligible),
+        required_roles_evaluated_total,
+        infeasible_required_roles_total,
     )
 
 
-def _printed_signal(
-    context: FinancialEvidenceVisibleValueContext,
-) -> bool:
-    return bool(
-        context.row_role.strip().lower() in _PRINTED_ROW_ROLES
-        or _PRINTED_SIGNAL_RE.search(context.literal_value)
-        or _PRINTED_SIGNAL_RE.search(context.column_meaning)
-        or _PRINTED_SIGNAL_RE.search(context.visible_label)
-    )
-
-
-def _same_association_group(
+def _infeasible_required_roles(
     *,
-    refs: tuple[str, ...],
-    contexts: dict[str, FinancialEvidenceVisibleValueContext],
-) -> bool:
-    groups = {
-        contexts[ref].association_group
-        for ref in refs
-        if ref in contexts and contexts[ref].association_group
+    declaration: FinancialEvidenceInputTypeDeclaration,
+    candidates: tuple[FinancialEvidenceValueCandidate, ...],
+) -> tuple[str, ...]:
+    specs = {item.role_id: item for item in declaration.role_specs}
+    return tuple(
+        role_id
+        for role_id in declaration.required_roles
+        if not any(
+            role_id in candidate.allowed_roles
+            and candidate.value_type == specs[role_id].value_type
+            for candidate in candidates
+        )
+    )
+
+
+def _reason_codes(
+    *,
+    candidate_type_ids: tuple[str, ...],
+    admitted_type_ids: tuple[str, ...],
+    infeasible_required_roles_total: int,
+) -> tuple[str, ...]:
+    reasons: set[str] = set()
+    if not candidate_type_ids:
+        reasons.add("source_family_has_no_registry_candidate")
+    if infeasible_required_roles_total:
+        reasons.add("required_role_feasibility_excluded_types")
+    reasons.add(
+        "structurally_eligible_types_available"
+        if admitted_type_ids
+        else "no_structurally_eligible_types"
+    )
+    return tuple(sorted(reasons))
+
+
+def _validate_package_membership(
+    *,
+    source_values: tuple[
+        FinancialEvidenceAuthoritativeSourceValue,
+        ...,
+    ],
+    candidates: tuple[FinancialEvidenceValueCandidate, ...],
+    packages: tuple[dict[str, Any], ...],
+) -> int:
+    values = {
+        item.source_value_ref: item for item in source_values
     }
-    return len(groups) == 1 and all(ref in contexts for ref in refs)
+    candidate_by_ref = {
+        item.source_value_ref: item for item in candidates
+    }
+    if (
+        len(values) != len(source_values)
+        or len(candidate_by_ref) != len(candidates)
+        or set(values) != set(candidate_by_ref)
+    ):
+        _fail("typed_admission_candidate_identity_mismatch")
+    package_value_refs = {
+        str(ref)
+        for package in packages
+        for ref in package.get("allowed_source_value_refs") or []
+        if ref
+    }
+    package_evidence_refs = {
+        str(ref)
+        for package in packages
+        for ref in package.get("allowed_evidence_refs") or []
+        if ref
+    }
+    for ref, value in values.items():
+        candidate = candidate_by_ref[ref]
+        if (
+            candidate.source_ref != value.source_ref
+            or candidate.value_type != value.value_type
+        ):
+            _fail("typed_admission_candidate_shape_mismatch")
+        if value.value_type == "source_reference":
+            if value.source_ref not in package_evidence_refs:
+                _fail("typed_admission_reference_membership_invalid")
+        elif ref not in package_value_refs:
+            _fail("typed_admission_value_membership_invalid")
+    return len(values)
 
 
 def _fail(code: str) -> None:

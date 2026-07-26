@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = ROOT / "scripts"
@@ -18,6 +20,7 @@ from broker_reports_gate1.gate2_economy_budget import (  # noqa: E402
 )
 from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     Gate2ProviderExecutionMetadata,
+    Gate2SourceFactRuntimeError,
     Gate2StructuredModelResult,
 )
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
@@ -142,39 +145,42 @@ def test_fixture_v2_reuses_frozen_manifest_and_local_q0_q1_proof():
     }
 
 
-def test_preflight_v2_dry_builds_exact_stack_without_provider_calls():
+def test_preflight_v2_records_new_structural_schema_budget_blocker():
     fixture = build_successor_qualification_fixture_v2()
-    cases = successor_preflight_cases_v2(
-        fixture=fixture,
-        model_id=EXACT_MODEL_ID,
+    with pytest.raises(Gate2SourceFactRuntimeError) as exc_info:
+        successor_preflight_cases_v2(
+            fixture=fixture,
+            model_id=EXACT_MODEL_ID,
+        )
+
+    assert (
+        exc_info.value.code
+        == "gate2_economy_input_token_budget_exceeded"
     )
-
-    assert len(cases) == 12
-    assert sum(item["typed_branch_admitted"] for item in cases) == 4
-    assert all(
-        item["schema_dry_build"]["status"] == "passed"
-        and item["schema_dry_build"]["estimated_input_tokens"] > 0
-        and item["schema_dry_build"]["maximum_output_tokens"] > 0
-        for item in cases
-    )
+    receipt = exc_info.value.raw_output["economy_budget_receipt"]
+    assert receipt["provider_calls_authorized_total"] == 0
+    assert receipt["observed"] > receipt["allowed"]
 
 
-def test_haiku_candidate_has_exact_profile_and_dry_builds_all_cases():
+def test_haiku_candidate_identity_is_exact_and_budget_blocks_preflight():
     fixture = build_successor_qualification_fixture_v2()
-    cases = successor_preflight_cases_v2(
-        fixture=fixture,
-        model_id=HAIKU_EXACT_MODEL_ID,
-    )
-
     assert _provider_profile_id(
         HAIKU_EXACT_MODEL_ID
     ) == HAIKU_PROVIDER_PROFILE_ID
-    assert len(cases) == 12
-    assert all(
-        item["schema_dry_build"]["status"] == "passed"
-        and item["schema_dry_build"]["estimated_input_tokens"] > 0
-        and item["schema_dry_build"]["maximum_output_tokens"] > 0
-        for item in cases
+    with pytest.raises(Gate2SourceFactRuntimeError) as exc_info:
+        successor_preflight_cases_v2(
+            fixture=fixture,
+            model_id=HAIKU_EXACT_MODEL_ID,
+        )
+    assert (
+        exc_info.value.code
+        == "gate2_economy_input_token_budget_exceeded"
+    )
+    assert (
+        exc_info.value.raw_output["economy_budget_receipt"][
+            "provider_calls_authorized_total"
+        ]
+        == 0
     )
     identity = successor_qualification_contract_identity_v2(
         fixture=fixture,
@@ -183,7 +189,6 @@ def test_haiku_candidate_has_exact_profile_and_dry_builds_all_cases():
     assert "anthropic_native_messages" in identity[
         "adapter_projection_revision"
     ]
-    assert sum(item["typed_branch_admitted"] for item in cases) == 4
 
 
 def test_v2_request_profile_is_bounded_versioned_and_budgeted():
