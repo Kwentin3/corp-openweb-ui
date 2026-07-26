@@ -1,24 +1,28 @@
 {
   "schema_version": "broker_reports_gate2_managed_financial_domain_goal2c_receipt_v1",
   "goal": "GOAL_2C_RECONCILE_SAFE_EVIDENCE",
-  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "status": "SUPERSEDED_INCORRECT_HASH_BOUNDARY",
+  "current_authority": false,
+  "superseded_by": "GOAL_2D_PORTABLE_GIT_BLOB_EVIDENCE",
   "base_revision": "4bdca5f1bc70ccebe55791d47aa10791a28399b2",
   "branch": "codex/broker-reports-gate2-domain-goal2c-reconcile-safe-evidence",
   "finding": {
-    "code": "goal2_deliverable_hashes_stale_after_review_correction",
-    "severity": "blocking_evidence_integrity",
-    "stale_hash_claims_total": 4,
+    "code": "windows_checkout_crlf_mistaken_for_repository_blob_drift",
+    "severity": "corrective_goal_required",
+    "original_stale_hash_claims_total": 0,
+    "false_positive_hash_claims_total": 4,
     "semantic_pack_content_defect": false,
     "semantic_pack_integrity_defect": false,
     "production_or_stage_defect": false
   },
   "correction": {
-    "stale_hash_claims_replaced_total": 4,
-    "deliverable_hashes_recomputed_from_merged_bytes": true,
-    "goal2_report_reconciled": true,
-    "goal2_receipt_reconciled": true,
-    "regression_guard": "test_goal2_safe_receipt_hashes_current_deliverables"
+    "status": "invalid_superseded",
+    "hash_boundary_used": "windows_worktree_crlf_bytes",
+    "required_hash_boundary": "git_blob_bytes",
+    "checkout_portable": false,
+    "regression_guard": "superseded"
   },
+  "deliverable_hash_boundary": "windows_worktree_crlf_bytes_not_current_authority",
   "deliverables": [
     {
       "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.report.md",
@@ -41,7 +45,8 @@
     "compileall": "passed",
     "git_diff_check": "passed",
     "goal2_deliverable_hash_mismatches_total": 0,
-    "goal2_report_receipt_hash_matches": true
+    "goal2_report_receipt_hash_matches": true,
+    "verification_authority": "invalid_wrong_byte_boundary"
   },
   "execution_accounting": {
     "provider_calls_total": 0,
@@ -62,10 +67,10 @@
     "private_paths_in_deliverables": 0
   },
   "acceptance_markers": {
-    "STALE_GOAL2_DELIVERABLE_HASHES": "ZERO",
-    "CURRENT_HASH_GUARD": "ENFORCED",
+    "GOAL2C_STATUS": "SUPERSEDED_NOT_AUTHORITY",
+    "PORTABLE_HASH_BOUNDARY": "FAILED",
     "SEMANTIC_AUTHORITY_CHANGE": "ZERO",
     "STAGE_PRODUCTION_CHANGE": "ZERO"
   },
-  "next_permitted_goal": "GOAL_3_AFTER_GOAL_2C_REVIEW_ACCEPTANCE_AND_MERGE"
+  "next_permitted_goal": "GOAL_2D_CORRECTION_REQUIRED_BEFORE_GOAL_3"
 }

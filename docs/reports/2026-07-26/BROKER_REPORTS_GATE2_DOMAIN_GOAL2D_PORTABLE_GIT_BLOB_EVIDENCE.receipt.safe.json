@@ -1,0 +1,86 @@
+{
+  "schema_version": "broker_reports_gate2_managed_financial_domain_goal2d_receipt_v1",
+  "goal": "GOAL_2D_PORTABLE_GIT_BLOB_EVIDENCE",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "85c61d545269c0e66f6700298b429fc9ed06132b",
+  "branch": "codex/broker-reports-gate2-domain-goal2d-portable-blob-evidence",
+  "finding": {
+    "code": "goal2c_windows_crlf_checkout_hash_boundary_invalid",
+    "severity": "blocking_evidence_integrity",
+    "root_cause": "core_autocrlf_worktree_bytes_compared_to_git_blob_hashes",
+    "original_goal2_repository_hashes_were_correct": true,
+    "goal2c_false_positive_hashes_total": 4,
+    "semantic_pack_content_defect": false,
+    "semantic_pack_integrity_defect": false,
+    "production_or_stage_defect": false
+  },
+  "correction": {
+    "hash_boundary": "git_blob_bytes",
+    "checkout_newline_independent": true,
+    "original_goal2_blob_hashes_restored_total": 3,
+    "goal2_test_blob_hash_updated_for_guard": true,
+    "goal2_report_receipt_hash_updated": true,
+    "goal2c_status": "SUPERSEDED_INCORRECT_HASH_BOUNDARY",
+    "goal2c_current_authority": false,
+    "regression_guard": "test_goal2_safe_receipt_hashes_current_git_blobs"
+  },
+  "deliverables": [
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.report.md",
+      "git_blob_sha256": "f7038cbc24c2c4085ba1aaf328b770fd1c24d05a1769ff4772c051f15936114d"
+    },
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json",
+      "git_blob_sha256": "1e166f561af894dd1fc0102abd2b7f0bd069e273ceeb90ac8f8d14c31d6cabe6"
+    },
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2C_SAFE_EVIDENCE_RECONCILIATION.report.md",
+      "git_blob_sha256": "f1330394cfc63835e533cf420793594759a61ea06cf9a1336ac4a25c7bfe2170"
+    },
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2C_SAFE_EVIDENCE_RECONCILIATION.receipt.safe.json",
+      "git_blob_sha256": "066d3da029e9b4a3017c8c34417b8e1492c550938b14a69598e7b7049ef4aadb"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py",
+      "git_blob_sha256": "c88b9eb317ae826fe02788520f569140a4c8a4a28f1fe275358c534d7a2fdbe8"
+    }
+  ],
+  "verification": {
+    "focused_tests": "9 passed in 0.44s",
+    "full_suite": "1537 passed, 20 skipped, 5 warnings in 112.14s",
+    "privacy_guard": "3 passed in 0.76s",
+    "ruff": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed",
+    "goal2_git_blob_hash_mismatches_total": 0,
+    "goal2_report_receipt_git_blob_hash_matches": true,
+    "windows_worktree_bytes_used_as_authority": false
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "acceptance_markers": {
+    "PORTABLE_HASH_BOUNDARY": "GIT_BLOB_BYTES",
+    "GOAL2_GIT_BLOB_HASH_MISMATCHES": "ZERO",
+    "GOAL2C_CURRENT_AUTHORITY": "FALSE",
+    "SEMANTIC_AUTHORITY_CHANGE": "ZERO",
+    "STAGE_PRODUCTION_CHANGE": "ZERO"
+  },
+  "next_permitted_goal": "GOAL_3_AFTER_GOAL_2D_REVIEW_ACCEPTANCE_AND_MERGE"
+}
