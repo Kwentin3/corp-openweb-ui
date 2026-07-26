@@ -1,0 +1,302 @@
+{
+  "schema_version": "broker_reports_gate2_nano_semantic_decision_evidence_audit_receipt_v1",
+  "status": "AUDIT_COMPLETE_ROOT_CAUSE_IDENTIFIED",
+  "audit_boundary": {
+    "base_revision": "c49bba056d777b65baaa9969390e32454f4d0468",
+    "branch": "codex/broker-reports-gate2-nano-semantic-evidence-audit",
+    "customer_calls": 0,
+    "model_calls": 0,
+    "production_changes": 0,
+    "provider_calls": 0,
+    "runtime_product_diff": 0,
+    "stage_mutations": 0
+  },
+  "exact_evidence": {
+    "cases_total": 12,
+    "fixture_manifest_canonical_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "private_annex_sha256": "d247368b9f496206a8337b3a825bd3c0159dfe83a1bb3f8e08a698fa692a6547",
+    "repository_safe_local_projection_sha256": "e362c9413c5f0e8bb96837c60be39ec50c3671a2a3b9f3192429058f91a849d9",
+    "semantic_decisions_uniquely_recovered_total": 12,
+    "v3": {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "repository_revision": "eb5c6011066a524d97aad9ac3b07d2d969f3db87",
+      "receipt_sha256": "39f6a990d233926d7493056570730bdfa82f29df9a63d3f8f9d6cfa0e47dc641"
+    },
+    "v4": {
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "execution_revision": "2b451e7a1168165b1b1902c0c635b7b8bf246715",
+      "terminal_review_revision": "6a68cd6ae890742363af1a5a644f35d25189f6c3",
+      "receipt_sha256": "c371262b9c9d6911b2bb250f441f1f158e5ed1259e93d2d3eefa6df5280f5426"
+    },
+    "v4_execution_identity": {
+      "managed_asset_manifest_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59",
+      "managed_pack_tool_git_blob_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
+      "managed_skill_git_blob_sha256": "08a405c69b66aac2fcc1ed0be355a59e2df8e2b012fc7d107fdb2243208e02d5",
+      "model_input_schema": "broker_reports_gate2_financial_evidence_successor_model_input_v4",
+      "prompt_git_blob_sha256": "3f169c79a9bf6f0eb1b476853ed1ace50cca9b2f7fd2d2fe3394f2ab3f6d5a2e",
+      "provider_profile_id": "openai_gpt",
+      "provider_projection_schema": "broker_reports_gate2_financial_evidence_provider_projection_v3",
+      "provider_route_revision": "4232f7b089fec08326548bf4c70bb33fef0ce603c23d78d6110a9c9a8aec5929",
+      "risk_scorer_policy": "gate2_financial_domain_shadow_safety_gates_v1",
+      "semantic_pack_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+      "source_context_policy": "gate2_financial_evidence_bounded_source_context_v2",
+      "stage_action_content_sha256": "d75d96e1c4df1e448cec5e2dddf3f22f790f41d153dc2705e627667ff7e46e5d",
+      "stage_action_id": "broker_reports_gate2_economy_qualification_action",
+      "stage_qualification_policy_sha256": "4923be403dafb15145a02d36907ad840a7e71213e405455b9d43dbcee4b20a67",
+      "structural_scope_schema": "broker_reports_gate2_deterministic_financial_scope_package_v2",
+      "validator_materializer": "broker_reports_financial_evidence_validated_decision_v2:broker_reports_financial_evidence_materialization_v2",
+      "qualification_authorization_sha256": "9560563de99ec80432937187fede47e39b65cca49ab8def6ed7e9f9d4859e651"
+    }
+  },
+  "completeness": {
+    "exact_expected_decisions": "12_of_12",
+    "exact_model_inputs": "12_of_12_hash_matched",
+    "exact_provider_request_forms": "12_of_12_reconstructed",
+    "exact_response_formats": "12_of_12_hash_matched",
+    "exact_semantic_provider_decisions": "12_of_12_uniquely_recovered",
+    "exact_source_contexts": "12_of_12_hash_matched",
+    "raw_provider_response_bytes": "unavailable_0_of_12",
+    "validator_materializer_paths": "12_of_12_hash_matched"
+  },
+  "v4_aggregate": {
+    "exact_quality_matches": 7,
+    "input_tokens": 53047,
+    "output_tokens": 2447,
+    "provider_duration_ms": 38451,
+    "safe_under_typing_total": 2,
+    "typed_precision": 0.666667,
+    "typed_recall": 0.5,
+    "unclassified_rate": 0.75,
+    "unsafe_typed_total": 1
+  },
+  "case_cards": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "expected": "typed_cash",
+      "observed_v3": "typed_cash",
+      "observed_v4": "typed_cash",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "expected": "typed_printed_metric",
+      "observed_v3": "unclassified",
+      "observed_v4": "typed_printed_metric",
+      "assessment": "v4_improvement",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_repeated_header",
+      "expected": "no_financial_input",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "quality_mismatch",
+      "benchmark_grounding": "product_valid_model_input_under_grounded"
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "typed_cash",
+      "assessment": "unsafe_typed",
+      "benchmark_grounding": "sufficient_and_uniquely_safety_required"
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "expected": "unclassified",
+      "observed_v3": "unclassified",
+      "observed_v4": "unclassified",
+      "assessment": "exact_match",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "expected": "typed_cash",
+      "observed_v3": "typed_cash",
+      "observed_v4": "unclassified",
+      "assessment": "safe_under_typing",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "expected": "typed_cash",
+      "observed_v3": "typed_cash",
+      "observed_v4": "unclassified",
+      "assessment": "safe_under_typing",
+      "benchmark_grounding": "sufficient"
+    },
+    {
+      "case_id": "syn_successor_v2_unsupported_shape",
+      "expected": "unsupported",
+      "observed_v3": "unsupported",
+      "observed_v4": "unclassified",
+      "assessment": "quality_mismatch",
+      "benchmark_grounding": "product_valid_model_input_under_grounded"
+    }
+  ],
+  "v3_v4_delta": {
+    "decision_changes_total": 5,
+    "improvements_total": 1,
+    "safe_recall_regressions_total": 2,
+    "terminal_category_regressions_total": 1,
+    "unsafe_regressions_total": 1
+  },
+  "token_anatomy": {
+    "component_measurement": "exact_utf8_bytes_not_provider_token_allocation",
+    "provider_component_token_allocation_available": false,
+    "skill_content_transmitted_bytes": 0,
+    "v3_provider_input_tokens": 16484,
+    "v4_pack_bytes_per_case": 8286,
+    "v4_pack_share_of_system_message_max": 0.681302,
+    "v4_pack_share_of_system_message_min": 0.600174,
+    "v4_prompt_static_bytes_per_case": 1218,
+    "v4_provider_input_tokens": 53047,
+    "v4_source_context_bytes_max": 1811,
+    "v4_source_context_bytes_min": 811
+  },
+  "pack_assessment": {
+    "machine_enforcement": "none_by_design",
+    "primary_defect": false,
+    "semantic_discriminability_for_unsafe_case": "sufficient"
+  },
+  "prompt_skill_schema_assessment": {
+    "adapter_defect": "rejected",
+    "prompt_primary_typing_bias": "rejected",
+    "prompt_skill_tool_execution_mismatch": "confirmed",
+    "schema_order_bias": "rejected",
+    "schema_representability_enabler": "confirmed",
+    "skill_body_transmitted": false,
+    "validator_materializer_defect": "rejected"
+  },
+  "benchmark_assessment": {
+    "model_input_grounded_expectations": 10,
+    "product_expectations_valid": 12,
+    "unsafe_case_benchmark_defect": "rejected"
+  },
+  "root_cause": {
+    "direct_event": {
+      "class": "model_semantic_error",
+      "confidence": "high_for_exact_event"
+    },
+    "primary": {
+      "class": "scope_defect",
+      "confidence": "high",
+      "finding": "contract_conforming_but_absolute_safety_insufficient"
+    },
+    "contributors": [
+      {
+        "class": "skill_defect",
+        "confidence": "medium"
+      },
+      {
+        "class": "context_burial",
+        "confidence": "low_to_medium"
+      }
+    ],
+    "rejected_for_unsafe_case": [
+      "pack_defect",
+      "source_context_defect",
+      "benchmark_defect",
+      "adapter_defect",
+      "schema_order_bias",
+      "validator_defect",
+      "materializer_defect"
+    ],
+    "unresolved_alternative": {
+      "class": "stochastic_model_variance",
+      "confidence": "unknown_without_forbidden_repeat"
+    }
+  },
+  "downstream_impact": {
+    "production_customer_impact_realized": "zero",
+    "quality_mismatch_severity": "medium",
+    "safe_under_typing_quality_severity": "medium",
+    "unsafe_typed_potential_semantic_severity": "high"
+  },
+  "roadmap": [
+    "future_private_exact_response_evidence_contract",
+    "generic_benchmark_input_adequacy",
+    "explicit_absolute_safety_policy_decision",
+    "truthful_managed_skill_prompt_transport",
+    "new_candidate_or_policy_only_after_separate_review"
+  ],
+  "tooling": {
+    "audit_script_file_sha256": "feb113dac337a4c9905d21aab45cebbc734d92eba9e00a74f1831b9df3425742",
+    "behavioral_test_file_sha256": "c17d952e4a1d4f276315800a01092535e89168039abc2a8b651c3729bf59727f",
+    "factory_route_only": true,
+    "provider_client_created": false,
+    "writes_only_local_atomic_evidence": true
+  },
+  "verification": {
+    "absolute_windows_paths_in_safe_deliverables": 0,
+    "focused_tests": "65_passed",
+    "full_tests": "1623_passed_20_skipped_5_unchanged_warnings",
+    "private_literal_matches_in_safe_deliverables": 0,
+    "private_ref_matches_in_safe_deliverables": 0,
+    "python_compile": "passed",
+    "repository_privacy_guard": "3_passed",
+    "ruff": "passed",
+    "shell": "PowerShell",
+    "test_environment": "none"
+  },
+  "remote_diff_review": {
+    "pr_number": 156,
+    "review_result": "research_tooling_gaps_corrected",
+    "corrections": [
+      "private_safe_snapshot_hash_linkage_verified",
+      "neighbour_cell_privacy_coverage_added",
+      "clean_revision_and_local_output_boundary_enforced"
+    ],
+    "root_cause_conclusion_changed": false,
+    "runtime_product_diff_changed": false
+  },
+  "privacy": {
+    "customer_data_included": false,
+    "private_paths_included": false,
+    "raw_provider_output_included": false,
+    "source_literals_included": false,
+    "source_refs_included": false
+  },
+  "scope_stops": [
+    "no_nano_v4_rerun",
+    "no_provider_or_customer_calls",
+    "no_pack_skill_prompt_or_benchmark_change",
+    "no_runtime_contract_change",
+    "no_financial_regex_or_type_semantics",
+    "no_stage_or_production_activation",
+    "no_customer_acceptance_claim"
+  ]
+}
