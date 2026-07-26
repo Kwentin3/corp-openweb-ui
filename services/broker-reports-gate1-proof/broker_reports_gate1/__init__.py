@@ -632,6 +632,31 @@ from .gate2_financial_context import (
     Gate2FinancialContextProjectionFactory,
     validate_financial_context,
 )
+from .gate2_financial_domain_catalog import (
+    Gate2FinancialDomainCatalogFactory,
+    Gate2FinancialDomainSnapshot,
+)
+from .gate2_financial_domain_contracts import (
+    DEFAULT_QUERY_LIMIT,
+    FINANCIAL_DOMAIN_CATALOG_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_CONTRACT_VERSION,
+    FINANCIAL_DOMAIN_COVERAGE_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_PROVENANCE_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_QUERY_POLICY_VERSION,
+    FINANCIAL_DOMAIN_QUERY_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_TYPED_RECORD_SCHEMA_VERSION,
+    FINANCIAL_DOMAIN_UNCLASSIFIED_RECORD_SCHEMA_VERSION,
+    MAXIMUM_QUERY_LIMIT,
+    FinancialDomainAccessContext,
+    FinancialDomainQueryFilters,
+    Gate2FinancialDomainError,
+    validate_financial_domain_query_response,
+)
+from .gate2_financial_domain_query import (
+    Gate2FinancialDomainQuery,
+    Gate2FinancialDomainQueryFactory,
+)
 from .gate2_financial_semantic_contract import (
     FINANCIAL_SEMANTIC_RUNTIME_CONTRACT_SCHEMA_VERSION,
     FinancialSemanticRoleContract,

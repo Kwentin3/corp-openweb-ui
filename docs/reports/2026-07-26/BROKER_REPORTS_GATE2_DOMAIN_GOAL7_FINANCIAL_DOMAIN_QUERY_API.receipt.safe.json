@@ -1,0 +1,183 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal7_financial_domain_query_api_receipt_v1",
+  "goal": "GOAL_7_FINANCIAL_DOMAIN_CATALOG_AND_QUERY_API",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "e9cbe896d9f87085fdd527d83a82bbc521b9b899",
+  "branch": "codex/broker-reports-gate2-domain-goal7-query-api",
+  "hash_boundary": "git_blob_bytes",
+  "contract": {
+    "normative_contract_version": "broker_reports_managed_financial_domain_contract_v1",
+    "api_response_version": "broker_reports_gate2_financial_domain_api_response_v1",
+    "query_policy_version": "broker_reports_gate2_financial_domain_query_v2",
+    "snapshot_version": "broker_reports_managed_financial_domain_snapshot_v1",
+    "catalog_version": "broker_reports_managed_financial_domain_catalog_v1",
+    "coverage_version": "broker_reports_managed_financial_domain_coverage_v1",
+    "typed_record_version": "broker_reports_managed_financial_record_v1",
+    "unclassified_record_version": "broker_reports_managed_financial_unclassified_record_v1",
+    "provenance_version": "broker_reports_managed_financial_domain_provenance_v1",
+    "goal1_json_schema_instances_valid": true,
+    "run_and_status_filter_extension_explicitly_versioned": true
+  },
+  "capabilities": {
+    "describe_domain": true,
+    "query_typed_records": true,
+    "query_unclassified_records": true,
+    "get_coverage": true,
+    "get_provenance": true
+  },
+  "filters": {
+    "input_type_id": true,
+    "normalization_run_ref": true,
+    "document_ref": true,
+    "period": true,
+    "currency": true,
+    "classification_status": true,
+    "exact_after_bounded_normalization": true
+  },
+  "snapshot_authority": {
+    "authoritative_source_package_validation": true,
+    "semantic_pack_identity_checked": true,
+    "registry_identity_checked": true,
+    "snapshot_authority_hmac_sha256": true,
+    "snapshot_authority_server_key_minimum_bytes": 32,
+    "self_consistent_current_authority_forgery_rejected": true,
+    "wrong_snapshot_authority_key_rejected": true,
+    "short_snapshot_authority_key_rejected": true,
+    "access_scope_fingerprint_bound": true,
+    "access_scope_derived_from_current_server_context": true,
+    "source_unavailable_rejected": true,
+    "retention_identity_bound": true,
+    "expired_snapshot_rejected": true,
+    "direct_query_construction_rejected": true,
+    "closed_dto_shapes_checked": true,
+    "record_set_integrity_checked": true,
+    "catalog_accounting_checked": true,
+    "coverage_accounting_checked": true,
+    "provenance_ownership_checked": true,
+    "rehashed_cross_entity_drift_rejected": true
+  },
+  "query_completeness": {
+    "matching_records_exact": true,
+    "cumulative_progress_reported": true,
+    "continued_page_positive_progress_required": true,
+    "final_page_exact": true,
+    "continuation_snapshot_bound": true,
+    "continuation_filter_bound": true,
+    "continuation_projection_limit_order_bound": true,
+    "continuation_access_scope_bound": true,
+    "continuation_retention_bound": true,
+    "continuation_hmac_sha256": true,
+    "continuation_server_key_minimum_bytes": 32,
+    "unkeyed_continuation_forgery_rejected": true,
+    "wrong_key_continuation_rejected": true
+  },
+  "closed_world_bundle": {
+    "bundle_sha256": "2726e08484f077504f6cd32e76a8dd0c79552f45c0224910b7de9dc084d3d8ef",
+    "bundle_rebuild_exact": true,
+    "dependency_order_verified": true,
+    "bundle_load_verified": true,
+    "domain_artifact_store_imports_total": 0,
+    "domain_artifact_resolver_imports_total": 0,
+    "runtime_filesystem_reads_total": 0,
+    "network_calls_total": 0,
+    "knowledge_rag_calls_total": 0,
+    "vectorization_calls_total": 0
+  },
+  "verification": {
+    "focused_api": "22 passed in 2.19s",
+    "broad_financial_regression": "276 passed in 20.81s",
+    "bundle_architecture_contract": "50 passed in 10.04s",
+    "full_suite": "1584 passed, 20 skipped, 5 warnings in 146.15s",
+    "privacy_guard": "3 passed in 0.84s",
+    "bundle_rebuild": "exact",
+    "ruff_targeted": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "snapshot_authority_key_in_snapshot_response_or_evidence": 0,
+    "continuation_key_in_snapshot_response_or_evidence": 0,
+    "private_paths_in_deliverables": 0,
+    "provenance_literals_in_query_response": 0
+  },
+  "explicitly_unchanged": {
+    "semantic_pack_bytes": true,
+    "managed_skill_bytes": true,
+    "managed_prompt_bytes": true,
+    "four_disposition_decision_contract": true,
+    "live_stage_artifacts": true,
+    "production_allowlists": true,
+    "economy_workload_budget": true,
+    "provider_admission": true,
+    "gate3_methodology": true
+  },
+  "acceptance_markers": {
+    "DOMAIN_CATALOG": "QUERYABLE",
+    "TYPED_QUERY": "COMPLETE_FOR_DECLARED_SCOPE",
+    "UNCLASSIFIED_QUERY": "SUPPORTED",
+    "PROVENANCE_QUERY": "SUPPORTED",
+    "DIRECT_GATE3_ARTIFACTSTORE_ACCESS": "ZERO"
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md",
+      "git_blob_sha256": "9fc13709ba34a450fb38b4e91c541ab5811b9b76e25743ed52e62b86c2cbea32"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/__init__.py",
+      "git_blob_sha256": "baabdaaedb87a89740d0e5e06281165428fb5adc2a54793060ac9cd1cf2df7c9"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_contracts.py",
+      "git_blob_sha256": "bc8181425381986f6666d6353af466ee26db7b94265310c3024664bc1d4dad9c"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_projection.py",
+      "git_blob_sha256": "32f601431bf74fa8654104be2f5b1b8eb9aa070f2c7d8cb376c28802a5605b4e"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_validation.py",
+      "git_blob_sha256": "27800ff5cf9015cfec5745abf4d905dba866d9254e4ab0325704820a26d8f987"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_catalog.py",
+      "git_blob_sha256": "40de82f7f4ed6d31e8f70136e3e3bcb4ccaf354cd55db355e502fc8a595a7e1e"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_query.py",
+      "git_blob_sha256": "d97dc469fd19c7be6a8e5a1e3bf81f34e81104dcd66af6b69afe2e3805a3cbdb"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py",
+      "git_blob_sha256": "ab0634a2f2421a9346d9ec17cd6e0777aeaeef403d2785f30dbfe90d4e778e80"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py",
+      "git_blob_sha256": "2726e08484f077504f6cd32e76a8dd0c79552f45c0224910b7de9dc084d3d8ef"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_query.py",
+      "git_blob_sha256": "e4d11a3dfe5af2a0251b091c44493ac19f362a12c4ae7c8bb3d71b4a8bfb7126"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_pipe_bundle.py",
+      "git_blob_sha256": "06751f5806fb5485a730aeeb14b687e4cbadedcc6886ea71950d043af09d1f6e"
+    }
+  ],
+  "next_permitted_goal": "GOAL_8_AFTER_GOAL_7_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"
+}
