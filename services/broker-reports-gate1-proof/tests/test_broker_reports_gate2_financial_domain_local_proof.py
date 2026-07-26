@@ -25,6 +25,7 @@ from broker_reports_gate1.gate2_financial_domain_local_proof import (  # noqa: E
     LOCAL_DOMAIN_PROOF_POLICY_VERSION,
     LOCAL_DOMAIN_PROOF_RECEIPT_SCHEMA_VERSION,
     Gate2FinancialDomainLocalProofFactory,
+    _rejects,
 )
 from broker_reports_gate1.gate2_financial_domain_persistence import (  # noqa: E402,E501
     FINANCIAL_DOMAIN_PERSISTENCE_SCHEMA_VERSION,
@@ -168,6 +169,23 @@ def test_local_domain_proof_fail_closed_negatives_are_executed():
         "continuation_tamper_rejected": True,
         "query_gap_rejected": True,
     }
+
+
+def test_negative_check_requires_exact_terminal_error_code():
+    def expected_error():
+        raise ValueError("expected_terminal_code")
+
+    def unrelated_error():
+        raise ValueError("unrelated_terminal_code")
+
+    assert _rejects(
+        expected_error,
+        expected_code="expected_terminal_code",
+    )
+    assert not _rejects(
+        unrelated_error,
+        expected_code="expected_terminal_code",
+    )
 
 
 def test_local_domain_proof_is_deterministic_and_safe():

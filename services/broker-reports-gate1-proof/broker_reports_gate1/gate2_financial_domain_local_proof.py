@@ -500,13 +500,21 @@ class Gate2FinancialDomainLocalProofFactory:
                 model_input=tampered_input,
                 scope=scope,
                 source_context=source_context,
-            )
+            ),
+            expected_code=(
+                "financial_evidence_successor_managed_asset_identity_invalid"
+            ),
         )
 
         tampered_artifacts = copy.deepcopy(artifacts)
         tampered_artifacts[0]["coverage"][
             "candidate_refs_total"
         ] = -1
+        unsigned_artifact = dict(tampered_artifacts[0])
+        unsigned_artifact.pop("integrity_hash")
+        tampered_artifacts[0]["integrity_hash"] = sha256_json(
+            unsigned_artifact
+        )
         artifact_rejected = _rejects(
             lambda: Gate2FinancialDomainCatalogFactory(
                 registry=self.registry,
@@ -517,7 +525,10 @@ class Gate2FinancialDomainLocalProofFactory:
                 access_context=_ACCESS_CONTEXT,
                 created_at=_CREATED_AT,
                 expires_at=None,
-            )
+            ),
+            expected_code=(
+                "financial_evidence_coverage_candidate_count_invalid"
+            ),
         )
 
         envelope = json.loads(serialized)
@@ -526,14 +537,18 @@ class Gate2FinancialDomainLocalProofFactory:
             snapshot_authority_key=self._snapshot_authority_key
         )
         persistence_tamper_rejected = _rejects(
-            lambda: persistence.restore(serialized=canonical_json(envelope))
+            lambda: persistence.restore(serialized=canonical_json(envelope)),
+            expected_code="financial_domain_persistence_payload_invalid",
         )
         wrong_key_rejected = _rejects(
             lambda: Gate2FinancialDomainPersistenceFactory(
                 snapshot_authority_key=(
                     b"wrong-local-domain-proof-authority-key"
                 )
-            ).restore(serialized=serialized)
+            ).restore(serialized=serialized),
+            expected_code=(
+                "financial_domain_snapshot_authority_attestation_invalid"
+            ),
         )
         wrong_access_rejected = _rejects(
             lambda: Gate2FinancialDomainQueryFactory(
@@ -548,7 +563,8 @@ class Gate2FinancialDomainLocalProofFactory:
                 ),
                 snapshot_authority_key=self._snapshot_authority_key,
                 continuation_key=self._continuation_key,
-            ).create()
+            ).create(),
+            expected_code="financial_domain_access_scope_mismatch",
         )
         first_page = query.get_coverage(limit=1)
         continuation = first_page["continuation"]
@@ -561,14 +577,16 @@ class Gate2FinancialDomainLocalProofFactory:
             lambda: query.get_coverage(
                 limit=1,
                 continuation=tampered_continuation,
-            )
+            ),
+            expected_code="financial_domain_query_continuation_invalid",
         )
         query_gap_rejected = _rejects(
             lambda: _assert_exact_results(
                 expected=snapshot.coverage_records(),
                 observed=snapshot.coverage_records()[:-1],
                 code="financial_domain_local_proof_query_gap",
-            )
+            ),
+            expected_code="financial_domain_local_proof_query_gap",
         )
         return {
             "managed_asset_drift_rejected": model_input_rejected,
@@ -695,11 +713,15 @@ def _assert_exact_results(
         _fail(code)
 
 
-def _rejects(operation: Callable[[], Any]) -> bool:
+def _rejects(
+    operation: Callable[[], Any],
+    *,
+    expected_code: str,
+) -> bool:
     try:
         operation()
-    except ValueError:
-        return True
+    except ValueError as exc:
+        return str(exc) == expected_code
     return False
 
 

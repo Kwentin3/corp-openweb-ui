@@ -164,7 +164,8 @@ Executed negatives reject:
 
 All seven checks passed. The prerequisite successor-v2 proof additionally
 covers invalid binding, unknown-field, literal, integrity, and ownership
-negatives.
+negatives. Each GOAL 9 negative matches its exact expected terminal error
+code; an unrelated `ValueError` is rejected by a dedicated regression test.
 
 ## 9. Closed-world and privacy accounting
 
@@ -191,11 +192,11 @@ private path, or live-stage value.
 Run from `services/broker-reports-gate1-proof`:
 
 - focused local proof plus direct dependencies:
-  `39 passed in 16.48s`;
+  `40 passed in 16.54s`;
 - full suite:
-  `1614 passed, 20 skipped, 5 warnings in 153.95s`;
+  `1615 passed, 20 skipped, 5 warnings in 152.47s`;
 - repository privacy guard:
-  `3 passed in 0.74s`;
+  `3 passed in 0.82s`;
 - targeted Ruff: passed;
 - targeted `py_compile`: passed;
 - `git diff --check`: passed.
@@ -216,7 +217,7 @@ both implementation modules, and the focused test file.
 
 Exact staged safe-receipt Git-blob SHA-256:
 
-`d8be5e3859f5db24c399ff92371d40baa3226d26e5f31505bab3361ee0c1a5e0`.
+`0b98ee6fc3ee5670edd3c407f7112e554288c2ab51039331054916deb74dc4cc`.
 
 ## 12. Scope stops
 

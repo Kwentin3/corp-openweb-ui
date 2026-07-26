@@ -106,9 +106,9 @@
     }
   },
   "verification": {
-    "focused_local_domain_and_dependencies": "39 passed in 16.48s",
-    "full_suite": "1614 passed, 20 skipped, 5 warnings in 153.95s",
-    "repository_privacy_guard": "3 passed in 0.74s",
+    "focused_local_domain_and_dependencies": "40 passed in 16.54s",
+    "full_suite": "1615 passed, 20 skipped, 5 warnings in 152.47s",
+    "repository_privacy_guard": "3 passed in 0.82s",
     "ruff_targeted": "passed",
     "compile_targeted": "passed",
     "git_diff_check": "passed"
@@ -149,11 +149,11 @@
   "deliverables": [
     {
       "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_LOCAL_DOMAIN_PROOF.v1.md",
-      "git_blob_sha256": "d1857ebcdb44151dc309efd3bdffef2325deeef5a0d2a728ba6f389cafdf192d"
+      "git_blob_sha256": "2701c9fde4e98c19c088c902e91de32c8d5b5b22a5a2f4b40a52e54cb4083b79"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_local_proof.py",
-      "git_blob_sha256": "9886f976bb5cb9a88205c1db73520ab11f0910ca88028874301a3db25bcb048b"
+      "git_blob_sha256": "1261b38dd8052eb99dfe735f88e83f53ac966e7c27a602cd5fa9557384c9d375"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_persistence.py",
@@ -161,7 +161,7 @@
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_local_proof.py",
-      "git_blob_sha256": "745e63a921bae275ad6b3f43c547e2f3d8fbb5e3a5e10a258be95b1948407b74"
+      "git_blob_sha256": "9624000af5fc47645f6442c11f35c858cec9089da7e8f8625ec7d2c0984154d0"
     }
   ],
   "next_permitted_goal": "GOAL_10_AFTER_GOAL_9_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"

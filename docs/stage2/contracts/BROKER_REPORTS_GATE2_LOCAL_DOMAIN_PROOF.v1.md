@@ -122,6 +122,10 @@ Existing successor-v2 prerequisite checks continue to cover invalid decision
 bindings, unknown fields, artifact integrity drift, literal invention, and
 cross-scope ownership failures.
 
+A negative passes only when the intended operation raises its exact declared
+terminal error code. An unrelated validation error must not satisfy a
+fail-closed check.
+
 ## 7. Acceptance
 
 GOAL 9 is accepted only when the safe receipt states:
