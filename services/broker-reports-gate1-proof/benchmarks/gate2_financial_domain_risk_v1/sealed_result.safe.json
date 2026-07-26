@@ -1,0 +1,140 @@
+{
+  "benchmark_id": "gate2_financial_domain_risk_v1",
+  "cases": [
+    {
+      "case_id": "syn_risk_typed_exact",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": false,
+      "query_complete": null,
+      "safe_under_typing": false,
+      "safety_passed": true,
+      "typed_to_unclassified": false
+    },
+    {
+      "case_id": "syn_risk_safe_under_typed",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": false,
+      "query_complete": null,
+      "safe_under_typing": true,
+      "safety_passed": true,
+      "typed_to_unclassified": true
+    },
+    {
+      "case_id": "syn_risk_unclassified_preserved",
+      "evaluation_kind": "decision",
+      "evaluation_route": "semantic_model",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": false,
+      "query_complete": null,
+      "safe_under_typing": false,
+      "safety_passed": true,
+      "typed_to_unclassified": false
+    },
+    {
+      "case_id": "syn_risk_layout_header",
+      "evaluation_kind": "decision",
+      "evaluation_route": "deterministic_structural",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": true,
+      "query_complete": null,
+      "safe_under_typing": false,
+      "safety_passed": true,
+      "typed_to_unclassified": false
+    },
+    {
+      "case_id": "syn_risk_unsupported_projection",
+      "evaluation_kind": "decision",
+      "evaluation_route": "deterministic_structural",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": false,
+      "query_complete": null,
+      "safe_under_typing": false,
+      "safety_passed": true,
+      "typed_to_unclassified": false
+    },
+    {
+      "case_id": "syn_risk_query_complete",
+      "evaluation_kind": "query",
+      "evaluation_route": "domain_query",
+      "hard_blocker_codes": [],
+      "layout_noise_handled": false,
+      "query_complete": true,
+      "safe_under_typing": false,
+      "safety_passed": true,
+      "typed_to_unclassified": false
+    }
+  ],
+  "disposition_observations": {
+    "candidate": {
+      "no_financial_input": 1,
+      "typed_input": 1,
+      "unclassified_financial_input": 2,
+      "unsupported": 1
+    },
+    "primary_acceptance_gate": false,
+    "reference": {
+      "no_financial_input": 1,
+      "typed_input": 2,
+      "unclassified_financial_input": 1,
+      "unsupported": 1
+    }
+  },
+  "execution_accounting": {
+    "cost_usd": 0,
+    "customer_calls_total": 0,
+    "fallback_total": 0,
+    "model_calls_total": 0,
+    "provider_calls_total": 0,
+    "repair_total": 0,
+    "tokens_total": 0
+  },
+  "integrity_sha256": "bc7347a094a83aa90990ad8e07cfcbbfb5ab62d3aad706c930620b6011cb39f3",
+  "manifest_integrity_sha256": "86160b09382bc2d08da8c097da49a8d4ca3800156a359defe0bde4b007d9e658",
+  "privacy": {
+    "customer_data_included": false,
+    "raw_candidate_output_included": false,
+    "source_literals_included": false
+  },
+  "quality_metrics": {
+    "candidate_typed_total": 1,
+    "classification_precision": 1.0,
+    "deterministic_cases_total": 2,
+    "deterministic_exact_total": 2,
+    "layout_noise_cases_total": 1,
+    "layout_noise_handled_total": 1,
+    "layout_noise_handling_rate": 1.0,
+    "query_cases_total": 1,
+    "query_complete_total": 1,
+    "query_completeness_rate": 1.0,
+    "safe_under_typing_rate": 0.5,
+    "safe_under_typing_total": 1,
+    "semantic_decision_cases_total": 3,
+    "typed_correct_total": 1,
+    "typed_recall": 0.5,
+    "typed_reference_total": 2,
+    "typed_to_unclassified_total": 1,
+    "unclassified_rate": 0.666667,
+    "unclassified_total": 2
+  },
+  "risk_policy_version": "broker_reports_gate2_financial_domain_risk_policy_v1",
+  "safety_gates": {
+    "counts": {
+      "duplicate_or_cross_scope_binding": 0,
+      "incomplete_query_response": 0,
+      "incorrect_typed_type": 0,
+      "invalid_ref": 0,
+      "invented_value": 0,
+      "literal_or_provenance_loss": 0,
+      "missing_terminal_owner": 0,
+      "wrong_role": 0
+    },
+    "hard_blockers_total": 0,
+    "passed": true
+  },
+  "schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_result_v1",
+  "status": "PASSED"
+}

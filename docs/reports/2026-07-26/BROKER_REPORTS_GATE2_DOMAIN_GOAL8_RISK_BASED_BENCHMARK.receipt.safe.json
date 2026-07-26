@@ -1,0 +1,156 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal8_risk_based_benchmark_receipt_v1",
+  "goal": "GOAL_8_RISK_BASED_BENCHMARK",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "09e76058adfe6991f189e838f5524987da3afd8b",
+  "branch": "codex/broker-reports-gate2-domain-goal8-risk-benchmark",
+  "hash_boundary": "git_blob_bytes",
+  "contracts": {
+    "manifest_schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_manifest_v1",
+    "risk_policy_version": "broker_reports_gate2_financial_domain_risk_policy_v1",
+    "result_schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_result_v1",
+    "manifest_integrity_sha256": "86160b09382bc2d08da8c097da49a8d4ca3800156a359defe0bde4b007d9e658",
+    "sealed_result_integrity_sha256": "bc7347a094a83aa90990ad8e07cfcbbfb5ab62d3aad706c930620b6011cb39f3",
+    "frozen_synthetic_cases_total": 6,
+    "customer_data_in_manifest": false
+  },
+  "safety_gates": {
+    "absolute": true,
+    "passed": true,
+    "hard_blockers_total": 0,
+    "incorrect_typed_type": 0,
+    "invented_value": 0,
+    "invalid_ref": 0,
+    "wrong_role": 0,
+    "duplicate_or_cross_scope_binding": 0,
+    "literal_or_provenance_loss": 0,
+    "missing_terminal_owner": 0,
+    "incomplete_query_response": 0,
+    "each_blocker_negative_tested": true
+  },
+  "quality_metrics": {
+    "typed_reference_total": 2,
+    "typed_correct_total": 1,
+    "typed_recall": 0.5,
+    "candidate_typed_total": 1,
+    "classification_precision": 1.0,
+    "typed_to_unclassified_total": 1,
+    "safe_under_typing_total": 1,
+    "safe_under_typing_rate": 0.5,
+    "semantic_decision_cases_total": 3,
+    "unclassified_total": 2,
+    "unclassified_rate": 0.666667,
+    "layout_noise_cases_total": 1,
+    "layout_noise_handled_total": 1,
+    "layout_noise_handling_rate": 1.0
+  },
+  "disposition_policy": {
+    "exact_distribution_primary": false,
+    "safe_typed_to_unclassified_is_unsafe_misclassification": false,
+    "quality_cannot_override_safety": true
+  },
+  "structural_preclose": {
+    "source_support_only": true,
+    "closed_layout_roles_only": true,
+    "structural_candidate_count_only": true,
+    "financial_words_in_target_python": 0,
+    "pack_type_ids_in_target_python": 0,
+    "type_specific_financial_regex_in_target_python": 0,
+    "semantic_admission_branches_in_target_python": 0,
+    "unproven_structural_outcome_returns_none": true
+  },
+  "query_completeness": {
+    "cases_total": 1,
+    "complete_total": 1,
+    "rate": 1.0,
+    "exact_matching_count_required": true,
+    "exact_cumulative_count_required": true,
+    "final_complete_required": true,
+    "exact_ordered_record_set_required": true,
+    "record_content_sha256_required": true,
+    "candidate_record_sha256_recomputed_from_canonical_content": true,
+    "copied_stale_record_hash_rejected": true,
+    "changed_record_with_recomputed_hash_rejected": true,
+    "required_provenance_required": true,
+    "partial_false_final_fails": true,
+    "foreign_record_ref_rejected": true,
+    "malformed_candidate_ref_rejected_without_filtering": true
+  },
+  "verification": {
+    "focused_risk_benchmark": "22 passed in 0.77s",
+    "benchmark_domain_relevant": "65 passed in 2.60s",
+    "full_suite": "1606 passed, 20 skipped, 5 warnings in 145.47s",
+    "privacy_guard": "3 passed in 0.77s",
+    "deterministic_result_rebuild": "exact",
+    "ruff_targeted": "passed",
+    "python_compile_targeted": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_safe_result": 0,
+    "source_literals_in_safe_result": 0,
+    "raw_candidate_output_in_git_evidence": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "explicitly_unchanged": {
+    "semantic_pack_bytes": true,
+    "managed_skill_bytes": true,
+    "managed_prompt_bytes": true,
+    "managed_function_bytes": true,
+    "four_disposition_decision_contract": true,
+    "scope_model_input_validator_materializer": true,
+    "financial_domain_query_api": true,
+    "artifact_store_and_persistence": true,
+    "provider_and_workload_policy": true,
+    "production_allowlists": true,
+    "live_stage_artifacts": true,
+    "gate3_methodology": true
+  },
+  "acceptance_markers": {
+    "SAFETY_GATES": "ABSOLUTE",
+    "SAFE_UNDERTYPING": "MEASURED",
+    "EXACT_DISPOSITION_DISTRIBUTION": "NOT_PRIMARY",
+    "QUERY_COMPLETENESS": "TESTED"
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_RISK_BENCHMARK.v1.md",
+      "git_blob_sha256": "f1137536296a034426ca1b92865fd6d146cfe5380ebadc316649a987cb50ed4a"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/benchmarks/gate2_financial_domain_risk_v1/manifest.json",
+      "git_blob_sha256": "e0b59e61c4879731dac133c176b73b4ed61a485145602fc5a121c3baf703ddba"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/benchmarks/gate2_financial_domain_risk_v1/sealed_result.safe.json",
+      "git_blob_sha256": "727fb01a3bcfffd1e77af06022bf918cf1fb82d833b8f36237389a12651d6109"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_risk_benchmark_contracts.py",
+      "git_blob_sha256": "2abc4bd6630c34bdd870d882862255e0ed31af289d5da7f199d1f504430d3361"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_risk_benchmark.py",
+      "git_blob_sha256": "2936e52682f5d8063c2d352bad2b1b4673e67802a911f58694c882bed53186dc"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_risk_benchmark.py",
+      "git_blob_sha256": "71e6a34cb292b4259f869fa1abe4437fe7af4bb9cb9c78a37ace8ce89c452046"
+    }
+  ],
+  "next_permitted_goal": "GOAL_9_AFTER_GOAL_8_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"
+}
