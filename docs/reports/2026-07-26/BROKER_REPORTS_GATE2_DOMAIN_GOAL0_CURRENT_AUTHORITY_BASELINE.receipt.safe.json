@@ -6,6 +6,7 @@
   "repository": {
     "base_revision": "485ab1a9deeda6e9fa644b55e75d2289638df884",
     "origin_main_revision": "485ab1a9deeda6e9fa644b55e75d2289638df884",
+    "implementation_revision": "9fa25351910d6a2360725686ae235279ff4ab61d",
     "branch": "codex/broker-reports-gate2-domain-goal0-current-authority-baseline",
     "worktrees_total": 1,
     "production_change": false
@@ -331,7 +332,7 @@
   },
   "report": {
     "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL0_CURRENT_AUTHORITY_BASELINE.report.md",
-    "sha256": "9c4d6e88b2365bd4a04f8b85d0246d7af0d16a51c0dc4f251c821eee0c5a10aa"
+    "sha256": "049bd2baa19d6f84d9068e77c8e27c92151d0dd3f74b123903b44ac9374c5f4e"
   },
   "next_permitted_goal": "goal1_managed_financial_domain_contract_after_merge_and_acceptance"
 }

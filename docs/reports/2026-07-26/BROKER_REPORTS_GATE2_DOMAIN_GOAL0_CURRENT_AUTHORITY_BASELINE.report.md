@@ -1,8 +1,9 @@
 # Broker Reports Gate 2 Managed Financial Domain — Goal 0 Current Authority Baseline
 
-Date: 2026-07-26  
-Status: `COMPLETED_WITH_EXPLICIT_LIVE_REPOSITORY_DRIFT`  
-Base revision: `485ab1a9deeda6e9fa644b55e75d2289638df884`  
+Date: 2026-07-26
+Status: `COMPLETED_WITH_EXPLICIT_LIVE_REPOSITORY_DRIFT`
+Base revision: `485ab1a9deeda6e9fa644b55e75d2289638df884`
+Implementation revision: `9fa25351910d6a2360725686ae235279ff4ab61d`
 Branch: `codex/broker-reports-gate2-domain-goal0-current-authority-baseline`
 
 ## 1. Goal boundary
