@@ -78,19 +78,26 @@ construction entrypoint. It fails closed unless:
   identities;
 - created/expiry timestamps are valid;
 - the opaque access scope is derived only from the current server context:
-  user, case-or-chat, optional workspace, and source availability.
+  user, case-or-chat, optional workspace, and source availability;
+- a separate server-held snapshot authority key is at least 32 bytes and
+  authenticates the complete published snapshot envelope with HMAC-SHA-256.
 
 The immutable snapshot ID binds the artifacts, package integrity hashes,
 Registry, Pack, access-scope fingerprint, and retention timestamps. The
 snapshot binds its catalog and coverage refs plus the exact sorted record-set
-hash.
+hash. Its server envelope additionally carries an authority HMAC over the
+snapshot schema, identity, seed, complete internal integrity hash, Registry
+identity, and source-data completeness. This HMAC is not part of a normative
+domain DTO or query response.
 
 `Gate2FinancialDomainQueryFactory.create` revalidates all snapshot content,
 compares its Registry and Pack identities with current server authorities,
+verifies the snapshot-envelope HMAC with the current server authority key,
 recomputes the access scope from the current server context, requires current
 source availability, validates a server-held continuation key, and rejects an
 expired snapshot. A caller cannot authorize itself by echoing the fingerprint
-visible in the snapshot. Direct query-object construction fails.
+visible in the snapshot or publish altered content by recalculating public
+SHA-256 fields. Direct query-object construction fails.
 
 ## 5. Capabilities
 
@@ -166,9 +173,10 @@ limits fail closed.
 
 The query fingerprint binds the snapshot, query capability, all normalized
 filters, provenance projection, page limit, and `record_id_asc` order. The
-opaque continuation is an HMAC-SHA-256 token under a server-held key that
-never enters a snapshot, response, report, receipt, or client input. It
-additionally binds:
+opaque continuation is an HMAC-SHA-256 token under a server-held key separate
+from the snapshot-authority key. Neither secret key enters a snapshot,
+response, report, receipt, or client input. The continuation additionally
+binds:
 
 - next record position;
 - trusted access-scope fingerprint;
@@ -205,5 +213,7 @@ Proof requires all four terminal outcomes, all declared filters, normative DTO
 schema validation, access and expiry binding, bounded cumulative pagination,
 cross-snapshot/filter/tamper rejection, response-integrity rejection,
 authoritative package-forgery rejection, Pack/Registry authority rejection,
-reference-only provenance, AST import checks, closed-world bundle loading,
-deterministic bundle rebuild, focused and full tests, and privacy checks.
+self-consistent current-authority snapshot-forgery rejection, wrong/short
+authority-key rejection, reference-only provenance, AST import checks,
+closed-world bundle loading, deterministic bundle rebuild, focused and full
+tests, and privacy checks.

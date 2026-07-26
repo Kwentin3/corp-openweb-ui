@@ -84,7 +84,9 @@ continuation, or filter object fails closed.
 - binds the exact Registry and managed Semantic Pack identities;
 - binds access-scope fingerprint and retention timestamps;
 - hashes every record, record set, provenance lineage, catalog, coverage, and
-  complete internal snapshot material.
+  complete internal snapshot material;
+- authenticates the published snapshot envelope with a separate server-held
+  HMAC-SHA-256 authority key of at least 32 bytes.
 
 Snapshot validation separately checks closed DTO shapes, all hashes,
 cross-entity identities, record indexes, catalog counts, populated type
@@ -121,6 +123,7 @@ closed.
 
 - revalidates the entire snapshot;
 - compares Registry and Pack identities with current server authorities;
+- verifies the snapshot-envelope authority HMAC with the current server key;
 - recomputes the access scope from current user, case-or-chat, workspace, and
   source-availability context;
 - rejects source-unavailable or mismatched current context;
@@ -144,6 +147,19 @@ continuation with a server-held HMAC key. Negative tests reject foreign/echoed
 context, source unavailability, a short key, a wrong-key token, and the former
 unkeyed token construction.
 
+Fresh review of corrected remote head
+`79f61def6d65d1e655bb9243063382b602e90e4b` returned a second
+`CHANGES_REQUIRED`: public SHA-256 fields proved internal consistency but did
+not prove that the authoritative catalog factory published the snapshot. A
+current-Registry/Pack caller could alter a record and recalculate the public
+record/set/snapshot hashes. The server envelope now has a separate
+HMAC-SHA-256 authority attestation over its schema, identity, seed, complete
+internal integrity, Registry identity, and source-data completeness. Negative
+tests prove rejection of the formerly accepted self-consistent record forgery,
+a copied attestation under altered content, a wrong authority key, and short
+authority keys. Neither server key enters normative DTOs, query responses, or
+safe evidence.
+
 Typed and unclassified responses contain private domain values by design and
 require the server boundary. Provenance responses contain refs and hashes, not
 literal values. Repository tests use synthetic inputs only.
@@ -162,7 +178,7 @@ The official Gate 2 domain bundle installs these modules in dependency order.
 Two rebuilds were byte-exact:
 
 ```text
-bundle_sha256=ad384fd722d91f47e5148d3831c035021d4a3c3e54ae2af1f76b92e6762aa618
+bundle_sha256=2726e08484f077504f6cd32e76a8dd0c79552f45c0224910b7de9dc084d3d8ef
 bundle_rebuild=exact
 ```
 
@@ -171,13 +187,13 @@ bundle_rebuild=exact
 Explicit PowerShell test cwd:
 `services/broker-reports-gate1-proof`; test ENV: none.
 
-- focused API tests: `20 passed in 2.03s`;
-- broad financial regression set: `245 passed in 8.21s`;
+- focused API tests: `22 passed in 2.19s`;
+- broad financial regression set: `276 passed in 20.81s`;
 - domain bundle/architecture/contract set after module split:
-  `48 passed in 9.13s`;
+  `50 passed in 10.04s`;
 - full Broker Reports suite:
-  `1582 passed, 20 skipped, 5 unchanged warnings in 145.89s`;
-- repository privacy guard: `3 passed in 0.79s`;
+  `1584 passed, 20 skipped, 5 unchanged warnings in 146.15s`;
+- repository privacy guard: `3 passed in 0.84s`;
 - two official bundle rebuilds: exact;
 - targeted Ruff: passed;
 - targeted compileall: passed;
@@ -226,4 +242,4 @@ secrets, private paths, or live-stage claim.
 
 Exact staged receipt Git-blob SHA-256:
 
-`bc7212bd99254c055ee0ba3a4942940487d155bbb1da5a1a30baf7d089c11b65`.
+`a13f6862de22200e9e2fb58f62894997d8a2e3a4023ec7c4cc1376cdebea1610`.

@@ -16,7 +16,9 @@ from .gate2_financial_domain_contracts import (
     query_page,
     sha256_json,
     validate_financial_domain_query_response,
+    validate_snapshot_authority_key,
     validate_timestamp,
+    verify_snapshot_authority_hmac,
 )
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
@@ -47,12 +49,14 @@ class Gate2FinancialDomainQueryFactory:
         snapshot: Gate2FinancialDomainSnapshot,
         registry: Gate2FinancialEvidenceRegistrySnapshot,
         access_context: FinancialDomainAccessContext,
+        snapshot_authority_key: bytes,
         continuation_key: bytes,
     ) -> None:
         self.snapshot = snapshot
         self.registry = registry
         self.access_context = access_context
-        self.continuation_key = continuation_key
+        self._snapshot_authority_key = snapshot_authority_key
+        self._continuation_key = continuation_key
 
     def create(self) -> "Gate2FinancialDomainQuery":
         self.snapshot.validate()
@@ -78,14 +82,26 @@ class Gate2FinancialDomainQueryFactory:
             != semantic_pack_identity["canonical_sha256"]
         ):
             fail("financial_domain_snapshot_authority_mismatch")
+        validate_snapshot_authority_key(self._snapshot_authority_key)
+        verify_snapshot_authority_hmac(
+            claimed_hmac=self.snapshot.authority_hmac_sha256,
+            schema_version=self.snapshot.schema_version,
+            snapshot_id=self.snapshot.snapshot_id,
+            snapshot_seed_sha256=self.snapshot.snapshot_seed_sha256,
+            integrity_sha256=self.snapshot.integrity_sha256,
+            registry_version=self.snapshot.registry_version,
+            registry_hash=self.snapshot.registry_hash,
+            completeness_status=self.snapshot.completeness_status,
+            authority_key=self._snapshot_authority_key,
+        )
         access_scope = self.access_context.access_scope()
         if access_scope.to_dict() != self.snapshot.identity_payload()[
             "access_scope"
         ]:
             fail("financial_domain_access_scope_mismatch")
         if (
-            not isinstance(self.continuation_key, bytes)
-            or len(self.continuation_key) < 32
+            not isinstance(self._continuation_key, bytes)
+            or len(self._continuation_key) < 32
         ):
             fail("financial_domain_continuation_key_invalid")
         _ensure_not_expired(self.snapshot)
@@ -94,7 +110,7 @@ class Gate2FinancialDomainQueryFactory:
             access_scope_fingerprint=(
                 access_scope.access_scope_fingerprint
             ),
-            continuation_key=self.continuation_key,
+            continuation_key=self._continuation_key,
             _factory_token=_FACTORY_TOKEN,
         )
 
@@ -112,7 +128,7 @@ class Gate2FinancialDomainQuery:
             fail("financial_domain_query_factory_required")
         self.snapshot = snapshot
         self.access_scope_fingerprint = access_scope_fingerprint
-        self.continuation_key = continuation_key
+        self._continuation_key = continuation_key
 
     def describe_domain(
         self,
@@ -260,7 +276,7 @@ class Gate2FinancialDomainQuery:
                     self.access_scope_fingerprint
                 ),
                 expires_at=self.snapshot.expires_at(),
-                continuation_key=self.continuation_key,
+                continuation_key=self._continuation_key,
                 query_kind=query_kind,
                 filters=filters,
                 include_provenance=include_provenance,

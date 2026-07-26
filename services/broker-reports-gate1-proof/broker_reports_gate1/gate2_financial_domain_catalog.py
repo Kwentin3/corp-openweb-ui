@@ -12,7 +12,9 @@ from .gate2_financial_domain_contracts import (
     canonical_json,
     fail,
     sha256_json,
+    snapshot_authority_hmac,
     validate_timestamp,
+    validate_snapshot_authority_key,
 )
 from .gate2_financial_domain_projection import (
     coverage_record as build_coverage_record,
@@ -64,6 +66,7 @@ class Gate2FinancialDomainSnapshot:
     snapshot_id: str
     snapshot_seed_sha256: str
     integrity_sha256: str
+    authority_hmac_sha256: str
     registry_version: str
     registry_hash: str
     completeness_status: str
@@ -116,6 +119,15 @@ class Gate2FinancialDomainSnapshot:
         return str(value) if value is not None else None
 
     def validate(self) -> None:
+        if (
+            not isinstance(self.authority_hmac_sha256, str)
+            or len(self.authority_hmac_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.authority_hmac_sha256
+            )
+        ):
+            fail("financial_domain_snapshot_authority_attestation_invalid")
         validate_financial_domain_snapshot(
             schema_version=self.schema_version,
             snapshot_id=self.snapshot_id,
@@ -141,8 +153,11 @@ class Gate2FinancialDomainCatalogFactory:
         self,
         *,
         registry: Gate2FinancialEvidenceRegistrySnapshot,
+        snapshot_authority_key: bytes,
     ) -> None:
+        validate_snapshot_authority_key(snapshot_authority_key)
         self.registry = registry
+        self._snapshot_authority_key = bytes(snapshot_authority_key)
         self.semantic_contract = Gate2FinancialSemanticContractFactory(
             registry=registry
         ).create()
@@ -251,11 +266,23 @@ class Gate2FinancialDomainCatalogFactory:
             completeness_status=completeness_status,
             snapshot_seed_sha256=snapshot_seed_sha256,
         )
+        integrity_sha256 = sha256_json(material)
+        authority_hmac_sha256 = snapshot_authority_hmac(
+            schema_version=FINANCIAL_DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+            snapshot_id=snapshot_id,
+            snapshot_seed_sha256=snapshot_seed_sha256,
+            integrity_sha256=integrity_sha256,
+            registry_version=self.registry.registry_version,
+            registry_hash=self.registry.registry_hash,
+            completeness_status=completeness_status,
+            authority_key=self._snapshot_authority_key,
+        )
         snapshot = Gate2FinancialDomainSnapshot(
             schema_version=FINANCIAL_DOMAIN_SNAPSHOT_SCHEMA_VERSION,
             snapshot_id=snapshot_id,
             snapshot_seed_sha256=snapshot_seed_sha256,
-            integrity_sha256=sha256_json(material),
+            integrity_sha256=integrity_sha256,
+            authority_hmac_sha256=authority_hmac_sha256,
             registry_version=self.registry.registry_version,
             registry_hash=self.registry.registry_hash,
             completeness_status=completeness_status,

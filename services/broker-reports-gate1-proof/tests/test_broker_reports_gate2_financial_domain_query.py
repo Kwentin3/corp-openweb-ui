@@ -72,6 +72,9 @@ ACCESS_SCOPE_FINGERPRINT = (
     ACCESS_CONTEXT.access_scope().access_scope_fingerprint
 )
 CONTINUATION_KEY = b"synthetic-server-continuation-key-32-bytes"
+SNAPSHOT_AUTHORITY_KEY = (
+    b"synthetic-server-snapshot-authority-key-32-bytes"
+)
 CREATED_AT = "2026-07-26T00:00:00+00:00"
 MANAGED_DOMAIN_SCHEMA = (
     ROOT.parents[1]
@@ -251,7 +254,8 @@ def _domain(*, prefix: str = ""):
         _case("unsupported", f"{prefix}unsupported"),
     )
     snapshot = Gate2FinancialDomainCatalogFactory(
-        registry=registry
+        registry=registry,
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
     ).create(
         materialized_artifacts=tuple(item[0] for item in cases),
         source_packages=tuple(item[1] for item in cases),
@@ -263,6 +267,7 @@ def _domain(*, prefix: str = ""):
         snapshot=snapshot,
         registry=registry,
         access_context=ACCESS_CONTEXT,
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
         continuation_key=CONTINUATION_KEY,
     ).create()
     return query, snapshot, cases, registry
@@ -325,6 +330,10 @@ def test_domain_catalog_describes_pack_scope_and_capabilities():
     assert "user:synthetic" not in encoded_snapshot
     assert "case:synthetic" not in encoded_snapshot
     assert "workspace:synthetic" not in encoded_snapshot
+    assert "authority_hmac_sha256" not in encoded_snapshot
+    encoded_response = canonical_json(response)
+    assert CONTINUATION_KEY.decode("ascii") not in encoded_response
+    assert SNAPSHOT_AUTHORITY_KEY.decode("ascii") not in encoded_response
 
 
 @pytest.mark.parametrize(
@@ -499,6 +508,7 @@ def test_continuation_is_bounded_deterministic_and_scope_bound():
         snapshot=snapshot,
         registry=registry,
         access_context=ACCESS_CONTEXT,
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
         continuation_key=b"different-server-continuation-key-32-bytes",
     ).create()
     with pytest.raises(
@@ -543,7 +553,10 @@ def test_query_response_integrity_is_fail_closed():
 
 def test_catalog_rejects_missing_package_and_rehashed_forgery():
     _, _, cases, registry = _domain()
-    factory = Gate2FinancialDomainCatalogFactory(registry=registry)
+    factory = Gate2FinancialDomainCatalogFactory(
+        registry=registry,
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
+    )
     with pytest.raises(
         Gate2FinancialDomainError,
         match="financial_domain_source_package_set_mismatch",
@@ -612,8 +625,106 @@ def test_query_factory_rejects_self_consistent_forged_authority():
             snapshot=forged,
             registry=registry,
             access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
             continuation_key=CONTINUATION_KEY,
         ).create()
+
+
+def test_query_factory_rejects_current_authority_record_forgery():
+    _, snapshot, _, registry = _domain()
+    typed_records = snapshot.typed_records()
+    typed_records[0]["role_values"][0][
+        "literal_value"
+    ] = "synthetic forged value"
+    unsigned_record = dict(typed_records[0])
+    unsigned_record.pop("record_sha256")
+    typed_records[0]["record_sha256"] = sha256_json(unsigned_record)
+    snapshot_payload = snapshot.identity_payload()
+    all_records = sorted(
+        [*typed_records, *snapshot.unclassified_records()],
+        key=lambda item: item["record_id"],
+    )
+    snapshot_payload["record_set_sha256"] = sha256_json(
+        [
+            {
+                "record_id": item["record_id"],
+                "record_sha256": item["record_sha256"],
+            }
+            for item in all_records
+        ]
+    )
+    material = _snapshot_integrity_material(
+        snapshot=snapshot_payload,
+        catalog=snapshot.declared_scope(),
+        coverage=snapshot.coverage_summary(),
+        typed_records=typed_records,
+        unclassified_records=snapshot.unclassified_records(),
+        record_index_values=snapshot.record_index(),
+        coverage_records=snapshot.coverage_records(),
+        provenance_records=snapshot.provenance_records(),
+        registry_version=snapshot.registry_version,
+        registry_hash=snapshot.registry_hash,
+        completeness_status=snapshot.completeness_status,
+        snapshot_seed_sha256=snapshot.snapshot_seed_sha256,
+    )
+    forged = replace(
+        snapshot,
+        snapshot_json=canonical_json(snapshot_payload),
+        typed_records_json=tuple(
+            canonical_json(item) for item in typed_records
+        ),
+        integrity_sha256=sha256_json(material),
+    )
+    forged.validate()
+
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_snapshot_authority_attestation_invalid",
+    ):
+        Gate2FinancialDomainQueryFactory(
+            snapshot=forged,
+            registry=registry,
+            access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
+            continuation_key=CONTINUATION_KEY,
+        ).create()
+
+
+def test_snapshot_authority_keys_fail_closed():
+    _, snapshot, _, registry = _domain()
+
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_snapshot_authority_attestation_invalid",
+    ):
+        Gate2FinancialDomainQueryFactory(
+            snapshot=snapshot,
+            registry=registry,
+            access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=(
+                b"different-server-snapshot-authority-key-32-bytes"
+            ),
+            continuation_key=CONTINUATION_KEY,
+        ).create()
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_snapshot_authority_key_invalid",
+    ):
+        Gate2FinancialDomainQueryFactory(
+            snapshot=snapshot,
+            registry=registry,
+            access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=b"short",
+            continuation_key=CONTINUATION_KEY,
+        ).create()
+    with pytest.raises(
+        Gate2FinancialDomainError,
+        match="financial_domain_snapshot_authority_key_invalid",
+    ):
+        Gate2FinancialDomainCatalogFactory(
+            registry=registry,
+            snapshot_authority_key=b"short",
+        )
 
 
 def test_snapshot_rejects_rehashed_cross_entity_count_drift():
@@ -682,6 +793,7 @@ def test_access_scope_and_factory_bypass_fail_closed():
                 case_ref="case:synthetic",
                 workspace_ref="workspace:synthetic",
             ),
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
             continuation_key=CONTINUATION_KEY,
         ).create()
     with pytest.raises(
@@ -706,6 +818,7 @@ def test_access_scope_and_factory_bypass_fail_closed():
                 workspace_ref="workspace:synthetic",
                 source_available=False,
             ),
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
             continuation_key=CONTINUATION_KEY,
         ).create()
     with pytest.raises(
@@ -716,6 +829,7 @@ def test_access_scope_and_factory_bypass_fail_closed():
             snapshot=snapshot,
             registry=registry,
             access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
             continuation_key=b"short",
         ).create()
 
@@ -723,7 +837,8 @@ def test_access_scope_and_factory_bypass_fail_closed():
 def test_expired_snapshot_is_not_queryable():
     _, _, cases, registry = _domain()
     snapshot = Gate2FinancialDomainCatalogFactory(
-        registry=registry
+        registry=registry,
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
     ).create(
         materialized_artifacts=tuple(item[0] for item in cases),
         source_packages=tuple(item[1] for item in cases),
@@ -740,6 +855,7 @@ def test_expired_snapshot_is_not_queryable():
             snapshot=snapshot,
             registry=registry,
             access_context=ACCESS_CONTEXT,
+            snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
             continuation_key=CONTINUATION_KEY,
         ).create()
 

@@ -439,6 +439,77 @@ def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def snapshot_authority_hmac(
+    *,
+    schema_version: str,
+    snapshot_id: str,
+    snapshot_seed_sha256: str,
+    integrity_sha256: str,
+    registry_version: str,
+    registry_hash: str,
+    completeness_status: str,
+    authority_key: bytes,
+) -> str:
+    validate_snapshot_authority_key(authority_key)
+    if (
+        not _bounded_text(schema_version)
+        or not _bounded_text(snapshot_id)
+        or not _SHA256_RE.fullmatch(snapshot_seed_sha256)
+        or not _SHA256_RE.fullmatch(integrity_sha256)
+        or not _bounded_text(registry_version)
+        or not _SHA256_RE.fullmatch(registry_hash)
+        or completeness_status not in COMPLETENESS_STATUSES
+    ):
+        fail("financial_domain_snapshot_authority_material_invalid")
+    material = canonical_json(
+        {
+            "schema_version": schema_version,
+            "domain_snapshot_id": snapshot_id,
+            "snapshot_seed_sha256": snapshot_seed_sha256,
+            "integrity_sha256": integrity_sha256,
+            "registry_version": registry_version,
+            "registry_hash": registry_hash,
+            "completeness_status": completeness_status,
+        }
+    ).encode("utf-8")
+    return hmac.new(authority_key, material, hashlib.sha256).hexdigest()
+
+
+def validate_snapshot_authority_key(value: Any) -> None:
+    if not isinstance(value, bytes) or len(value) < 32:
+        fail("financial_domain_snapshot_authority_key_invalid")
+
+
+def verify_snapshot_authority_hmac(
+    *,
+    claimed_hmac: str,
+    schema_version: str,
+    snapshot_id: str,
+    snapshot_seed_sha256: str,
+    integrity_sha256: str,
+    registry_version: str,
+    registry_hash: str,
+    completeness_status: str,
+    authority_key: bytes,
+) -> None:
+    if not isinstance(claimed_hmac, str) or not _SHA256_RE.fullmatch(
+        claimed_hmac
+    ):
+        fail("financial_domain_snapshot_authority_attestation_invalid")
+    expected = snapshot_authority_hmac(
+        schema_version=schema_version,
+        snapshot_id=snapshot_id,
+        snapshot_seed_sha256=snapshot_seed_sha256,
+        integrity_sha256=integrity_sha256,
+        registry_version=registry_version,
+        registry_hash=registry_hash,
+        completeness_status=completeness_status,
+        authority_key=authority_key,
+    )
+    if not hmac.compare_digest(claimed_hmac, expected):
+        fail("financial_domain_snapshot_authority_attestation_invalid")
+
+
 def fail(code: str) -> None:
     raise Gate2FinancialDomainError(code)
 
