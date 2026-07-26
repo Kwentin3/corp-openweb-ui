@@ -18,6 +18,9 @@ from broker_reports_gate1.gate2_financial_evidence_materialization_contracts imp
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
+from broker_reports_gate1.gate2_successor_local_proof import (  # noqa: E402
+    Gate2SuccessorLocalProofError,
+)
 from broker_reports_gate1.gate2_successor_local_proof_v2 import (  # noqa: E402
     FACTORY_REQUIRED,
     FORBIDDEN,
@@ -89,12 +92,12 @@ def test_frozen_benchmark_v2_passes_q0_q1_and_all_dispositions():
     }
 
 
-def test_benchmark_v2_structurally_closes_overtyping_cases():
+def test_benchmark_v2_structural_filter_is_not_semantic_admission():
     receipt = _proof()
 
     admission = receipt["typed_admission"]
-    assert admission["typed_available_scopes_total"] == 4
-    assert admission["typed_absent_scopes_total"] == 8
+    assert admission["typed_available_scopes_total"] == 10
+    assert admission["typed_absent_scopes_total"] == 2
     assert admission["overtyping_negative_tests_total"] == 6
     assert admission["overtyping_negative_tests_passed"] == 6
     assert admission["unsafe_typed_branches_total"] == 0
@@ -137,7 +140,7 @@ def test_benchmark_v2_exact_contracts_and_hashes_are_deterministic():
             "broker_reports_gate2_deterministic_financial_scope_package_v2"
         ),
         "typed_admission_schema_version": (
-            "broker_reports_gate2_financial_typed_admission_v1"
+            "broker_reports_gate2_financial_typed_admission_v2"
         ),
         "source_context_schema_version": (
             "broker_reports_gate2_financial_evidence_source_context_v2"
@@ -208,7 +211,7 @@ def test_benchmark_v2_has_zero_calls_repair_writes_and_activation():
     }
 
 
-def test_manifest_expectation_cannot_override_typed_admission():
+def test_manifest_typed_expectation_cannot_bypass_role_completeness():
     manifest = _manifest()
     case = next(
         item
@@ -223,10 +226,8 @@ def test_manifest_expectation_cannot_override_typed_admission():
     }
 
     with pytest.raises(
-        Gate2SuccessorLocalProofV2Error,
-        match=(
-            "successor_local_proof_v2_admission_expectation_invalid"
-        ),
+        Gate2SuccessorLocalProofError,
+        match="successor_local_proof_fixture_typed_roles_invalid",
     ):
         _proof(manifest)
 

@@ -166,7 +166,10 @@ class Gate2DeterministicFinancialScopeBatchV2(
                 "scope_policy_version": (
                     DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2
                 ),
-                "typed_admission_policy": "code_owned_pre_model_v1",
+                "typed_admission_policy": (
+                    "generic_structural_filter_pre_model_v1"
+                ),
+                "semantic_selection_owner": "llm",
                 "post_response_conversion": False,
             }
         )
@@ -592,8 +595,8 @@ class Gate2DeterministicFinancialScopeFromGate1V2Factory(
                     DETERMINISTIC_FINANCIAL_SCOPE_POLICY_VERSION_V2
                 ),
                 "authority": (
-                    "gate1_evidence_deterministic_registry_rules_and_"
-                    "code_owned_typed_admission"
+                    "gate1_evidence_registry_structural_filter_and_"
+                    "llm_semantic_selection"
                 ),
                 "typed_admission": admission.to_dict(),
             }
@@ -744,6 +747,7 @@ def validate_deterministic_financial_scope_v2(
         payload=admission,
         registry=scope.decision_contract.registry,
         source_scope_ref=scope.source_package.source_scope_ref,
+        candidates=scope.decision_contract.package.candidates,
     )
     admitted_type_ids = tuple(admission["admitted_type_ids"])
     if (

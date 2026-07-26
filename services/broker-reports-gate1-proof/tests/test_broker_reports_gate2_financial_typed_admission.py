@@ -23,6 +23,9 @@ from broker_reports_gate1.gate2_deterministic_financial_scopes import (  # noqa:
 from broker_reports_gate1.gate2_financial_evidence_materialization import (  # noqa: E402
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
+from broker_reports_gate1.gate2_financial_evidence_decision import (  # noqa: E402
+    FinancialEvidenceValueCandidate,
+)
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
@@ -31,6 +34,7 @@ from broker_reports_gate1.gate2_financial_evidence_typed_admission import (  # n
     FORBIDDEN,
     TYPED_ADMISSION_POLICY_VERSION,
     TYPED_ADMISSION_SCHEMA_VERSION,
+    Gate2FinancialEvidenceTypedAdmissionFactory,
     Gate2FinancialEvidenceTypedAdmissionError,
 )
 from broker_reports_gate1.gate2_successor_local_proof import (  # noqa: E402
@@ -48,6 +52,11 @@ MODULE_PATH = (
     ROOT
     / "broker_reports_gate1"
     / "gate2_financial_evidence_typed_admission.py"
+)
+BUNDLE_PATH = (
+    ROOT
+    / "openwebui_actions"
+    / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
 )
 CASH_TYPE = "cash_balance_snapshot_v1"
 PRINTED_TYPE = "printed_financial_metric_v1"
@@ -102,25 +111,6 @@ def _dispositions(scope) -> set[str]:
         "syn_successor_signed_literal",
         "syn_successor_currency_date",
         "syn_successor_forbidden_neighbour",
-    ),
-)
-def test_unique_cash_discriminator_admits_only_cash(case_id):
-    scope, _, _ = _scope(_cases()[case_id])
-
-    admission = scope.package["typed_admission"]
-    assert admission["admitted_type_ids"] == [CASH_TYPE]
-    assert scope.decision_contract.eligible_type_ids == (CASH_TYPE,)
-    assert _dispositions(scope) == {
-        "typed_input",
-        "unclassified_financial_input",
-        "no_financial_input",
-        "unsupported",
-    }
-
-
-@pytest.mark.parametrize(
-    "case_id",
-    (
         "syn_successor_multiple_hypotheses",
         "syn_successor_explicit_unclassified",
         "syn_successor_missing_optional",
@@ -128,20 +118,35 @@ def test_unique_cash_discriminator_admits_only_cash(case_id):
         "syn_successor_adjacent_fx",
     ),
 )
-def test_unproven_or_ambiguous_scope_has_no_typed_branch(case_id):
+def test_all_structurally_compatible_types_reach_the_model(case_id):
     scope, _, _ = _scope(_cases()[case_id])
 
     admission = scope.package["typed_admission"]
-    assert admission["admitted_type_ids"] == []
-    assert scope.decision_contract.eligible_type_ids == ()
+    assert admission["candidate_type_ids"] == [
+        CASH_TYPE,
+        PRINTED_TYPE,
+    ]
+    assert admission["admitted_type_ids"] == [
+        CASH_TYPE,
+        PRINTED_TYPE,
+    ]
+    assert scope.decision_contract.eligible_type_ids == (
+        CASH_TYPE,
+        PRINTED_TYPE,
+    )
     assert _dispositions(scope) == {
+        "typed_input",
         "unclassified_financial_input",
         "no_financial_input",
         "unsupported",
     }
+    assert admission["filter_kind"] == "generic_structural"
+    assert admission["semantic_selection_owner"] == "llm"
+    assert admission["financial_language_predicates_total"] == 0
+    assert admission["type_specific_admission_branches_total"] == 0
 
 
-def test_removed_typed_branch_is_rejected_by_canonical_contract():
+def test_semantically_ambiguous_scope_keeps_structural_typed_branches():
     scope, _, fixture = _scope(
         _cases()["syn_successor_multiple_hypotheses"]
     )
@@ -169,37 +174,76 @@ def test_removed_typed_branch_is_rejected_by_canonical_contract():
         }
     }
 
-    with pytest.raises(ValueError):
-        Gate2FinancialEvidenceValidatedDecisionFactory(
-            contract=scope.decision_contract
-        ).create(raw)
+    validated = Gate2FinancialEvidenceValidatedDecisionFactory(
+        contract=scope.decision_contract
+    ).create(raw)
+    assert validated.decision.input_type_id == CASH_TYPE
 
 
-def test_printed_total_positive_discriminator_admits_only_printed():
+@pytest.mark.parametrize(
+    "visible_label",
+    (
+        "Cash",
+        "Printed total",
+        "Cash total",
+        "Semantically unrelated heading",
+    ),
+)
+def test_financial_words_do_not_change_structural_eligibility(
+    visible_label,
+):
+    baseline, _, _ = _scope(_cases()["syn_successor_signed_literal"])
     case = copy.deepcopy(_cases()["syn_successor_signed_literal"])
-    case["case_id"] = "syn_successor_printed_total_admission"
-    case["cells"][0]["literal"] = "Printed total"
+    case["case_id"] = "syn_successor_semantic_label_invariance"
+    case["cells"][0]["literal"] = visible_label
 
     scope, _, _ = _scope(case)
 
     assert scope.package["typed_admission"]["admitted_type_ids"] == [
-        PRINTED_TYPE
+        CASH_TYPE,
+        PRINTED_TYPE,
     ]
-    assert scope.decision_contract.eligible_type_ids == (PRINTED_TYPE,)
+    assert scope.package["typed_admission"]["admitted_type_ids"] == (
+        baseline.package["typed_admission"]["admitted_type_ids"]
+    )
 
 
-def test_conflicting_cash_and_total_discriminators_admit_no_type():
-    case = copy.deepcopy(_cases()["syn_successor_signed_literal"])
-    case["case_id"] = "syn_successor_conflicting_admission"
-    case["cells"][0]["literal"] = "Cash total"
+def test_required_role_feasibility_is_generic_and_fail_closed():
+    case = _cases()["syn_successor_signed_literal"]
+    registry = Gate2FinancialEvidenceRegistryFactory().create()
+    fixture = _fixture_package(case)
+    legacy = Gate2DeterministicFinancialScopeFromGate1Factory(
+        registry=registry
+    ).create(gate1_packages=(fixture.payload,)).scopes[0]
+    candidates = tuple(
+        FinancialEvidenceValueCandidate(
+            source_value_ref=item.source_value_ref,
+            source_ref=item.source_ref,
+            value_type=item.value_type,
+            allowed_roles=tuple(
+                role for role in item.allowed_roles if role != "amount"
+            ),
+        )
+        for item in legacy.decision_contract.package.candidates
+    )
 
-    scope, _, _ = _scope(case)
+    result = Gate2FinancialEvidenceTypedAdmissionFactory(
+        registry=registry
+    ).create(
+        source_scope_ref=legacy.source_package.source_scope_ref,
+        source_family_id=legacy.source_package.source_family_id,
+        source_values=legacy.source_package.source_values,
+        candidates=candidates,
+        gate1_packages=(fixture.payload,),
+    )
 
-    admission = scope.package["typed_admission"]
-    assert admission["admitted_type_ids"] == []
-    assert "conflicting_positive_discriminators" in admission[
-        "reason_codes"
-    ]
+    assert result.candidate_type_ids == (CASH_TYPE, PRINTED_TYPE)
+    assert result.admitted_type_ids == ()
+    assert result.infeasible_required_roles_total == 2
+    assert result.reason_codes == (
+        "no_structurally_eligible_types",
+        "required_role_feasibility_excluded_types",
+    )
 
 
 def test_v2_identity_and_admission_integrity_are_revalidated():
@@ -277,10 +321,10 @@ def test_v2_is_deterministic_and_safe_summary_is_value_free():
 
 
 def test_admission_factory_is_code_owned_and_has_no_provider_dependency():
-    assert "only successor typed-branch admission authority" in (
+    assert "only successor structural type-filter authority" in (
         FACTORY_REQUIRED
     )
-    assert "must not call a model" in FORBIDDEN
+    assert "must not inspect financial words" in FORBIDDEN
     tree = ast.parse(MODULE_PATH.read_text(encoding="utf-8"))
     imported_modules = {
         str(node.module or "")
@@ -294,3 +338,31 @@ def test_admission_factory_is_code_owned_and_has_no_provider_dependency():
         or "model_client" in name
         or "production_runtime" in name
     }
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    for forbidden in (
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1",
+        "_CASH_SIGNAL_RE",
+        "_PRINTED_SIGNAL_RE",
+        "_PRINTED_ROW_ROLES",
+        "_cash_signal",
+        "_printed_signal",
+        "row_role",
+        "column_meaning",
+        "visible_label",
+        "re.compile",
+    ):
+        assert forbidden not in source
+    bundle = BUNDLE_PATH.read_text(encoding="utf-8")
+    for forbidden in (
+        "_CASH_SIGNAL_RE",
+        "_PRINTED_SIGNAL_RE",
+        "_PRINTED_ROW_ROLES",
+        "_cash_signal",
+        "_printed_signal",
+        "cash_positive_discriminator_not_proven",
+        "printed_positive_discriminator_not_proven",
+        "conflicting_positive_discriminators",
+        "unique_positive_discriminator_proven",
+    ):
+        assert forbidden not in bundle
