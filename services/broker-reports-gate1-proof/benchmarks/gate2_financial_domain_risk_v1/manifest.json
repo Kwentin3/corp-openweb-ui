@@ -274,10 +274,19 @@
       "source_scope_ref": "scope:synthetic:query",
       "structural_evidence": null,
       "reference": {
-        "matching_record_ids": [
-          "record:synthetic:1",
-          "record:synthetic:2",
-          "record:synthetic:3"
+        "matching_records": [
+          {
+            "record_id": "record:synthetic:1",
+            "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "record_id": "record:synthetic:2",
+            "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          {
+            "record_id": "record:synthetic:3",
+            "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          }
         ],
         "provenance_refs": [
           "provenance:synthetic:query:1",
@@ -289,10 +298,19 @@
         "matching_records_total": 3,
         "records_returned_through_page": 3,
         "query_result_complete": true,
-        "result_record_ids": [
-          "record:synthetic:1",
-          "record:synthetic:2",
-          "record:synthetic:3"
+        "result_records": [
+          {
+            "record_id": "record:synthetic:1",
+            "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "record_id": "record:synthetic:2",
+            "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          {
+            "record_id": "record:synthetic:3",
+            "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          }
         ],
         "provenance_refs": [
           "provenance:synthetic:query:1",
@@ -302,5 +320,5 @@
       }
     }
   ],
-  "manifest_integrity_sha256": "7e425f89d6ecb1280d1909adbedfc242e0602036d30a07524e07fa1189b3aca7"
+  "manifest_integrity_sha256": "d13378c1b065b5f48449115a965d51532ff7f06a7659bc95df7768703ee960c0"
 }

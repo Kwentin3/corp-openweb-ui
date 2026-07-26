@@ -166,7 +166,11 @@ def _evaluate_decision_case(
         blockers.add(HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS)
 
     expected_provenance = set(reference["provenance_refs"])
-    actual_provenance = _string_values(actual.get("provenance_refs"))
+    actual_provenance, provenance_valid = _strict_string_values(
+        actual.get("provenance_refs")
+    )
+    if not provenance_valid:
+        blockers.add(HARD_BLOCKER_INVALID_REF)
     if len(actual_provenance) != len(set(actual_provenance)):
         blockers.add(HARD_BLOCKER_DUPLICATE_OR_CROSS_SCOPE)
     if not set(actual_provenance) <= expected_provenance:
@@ -175,7 +179,11 @@ def _evaluate_decision_case(
         blockers.add(HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS)
 
     expected_owners = reference["terminal_owner_ids"]
-    owners = _string_values(actual.get("terminal_owner_ids"))
+    owners, owners_valid = _strict_string_values(
+        actual.get("terminal_owner_ids")
+    )
+    if not owners_valid:
+        blockers.add(HARD_BLOCKER_INVALID_REF)
     if not owners:
         blockers.add(HARD_BLOCKER_MISSING_TERMINAL_OWNER)
     elif len(owners) != 1 or len(owners) != len(set(owners)):
@@ -239,22 +247,56 @@ def _evaluate_query_case(
 ) -> dict[str, Any]:
     reference = case["reference"]
     actual = candidate if isinstance(candidate, Mapping) else {}
-    expected_ids = reference["matching_record_ids"]
+    expected_records = [
+        (item["record_id"], item["record_sha256"])
+        for item in reference["matching_records"]
+    ]
+    expected_ids = {record_id for record_id, _ in expected_records}
+    expected_hashes = dict(expected_records)
     expected_provenance = set(reference["provenance_refs"])
-    result_ids = _string_values(actual.get("result_record_ids"))
-    provenance = _string_values(actual.get("provenance_refs"))
-    expected_count = len(expected_ids)
+    result_records, records_valid = _strict_record_values(
+        actual.get("result_records")
+    )
+    result_ids = [record_id for record_id, _ in result_records]
+    provenance, provenance_valid = _strict_string_values(
+        actual.get("provenance_refs")
+    )
+    expected_count = len(expected_records)
+    counts_valid = all(
+        _is_nonnegative_int(actual.get(field))
+        for field in (
+            "matching_records_total",
+            "records_returned_through_page",
+        )
+    )
     query_complete = (
-        actual.get("query_result_complete") is True
+        counts_valid
+        and records_valid
+        and provenance_valid
+        and actual.get("query_result_complete") is True
         and actual.get("matching_records_total") == expected_count
         and actual.get("records_returned_through_page")
         == expected_count
-        and result_ids == expected_ids
+        and result_records == expected_records
         and len(result_ids) == len(set(result_ids))
     )
     blockers: set[str] = set()
     if not query_complete:
         blockers.add(HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE)
+    if (
+        not records_valid
+        or not provenance_valid
+        or not set(result_ids) <= expected_ids
+    ):
+        blockers.add(HARD_BLOCKER_INVALID_REF)
+    if len(result_ids) != len(set(result_ids)):
+        blockers.add(HARD_BLOCKER_DUPLICATE_OR_CROSS_SCOPE)
+    if any(
+        expected_hashes.get(record_id) != record_hash
+        for record_id, record_hash in result_records
+        if record_id in expected_hashes
+    ) or not expected_ids <= set(result_ids):
+        blockers.add(HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS)
     if not set(provenance) <= expected_provenance:
         blockers.add(HARD_BLOCKER_INVALID_REF)
     if (
@@ -262,6 +304,8 @@ def _evaluate_query_case(
         or len(provenance) != len(set(provenance))
     ):
         blockers.add(HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS)
+    if len(provenance) != len(set(provenance)):
+        blockers.add(HARD_BLOCKER_DUPLICATE_OR_CROSS_SCOPE)
     ordered_blockers = _ordered_blockers(blockers)
     return {
         "case_id": case["case_id"],
@@ -351,10 +395,47 @@ def _value_map(value: Any) -> tuple[dict[str, Any], bool]:
     return result, duplicate
 
 
-def _string_values(value: Any) -> list[str]:
+def _strict_string_values(value: Any) -> tuple[list[str], bool]:
     if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
+        return [], False
+    values = [item for item in value if isinstance(item, str)]
+    return values, len(values) == len(value)
+
+
+def _strict_record_values(
+    value: Any,
+) -> tuple[list[tuple[str, str]], bool]:
+    if not isinstance(value, list):
+        return [], False
+    records: list[tuple[str, str]] = []
+    valid = True
+    for item in value:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"record_id", "record_sha256"}
+            or not isinstance(item.get("record_id"), str)
+            or not _is_sha256(item.get("record_sha256"))
+        ):
+            valid = False
+            continue
+        records.append((item["record_id"], item["record_sha256"]))
+    return records, valid
+
+
+def _is_nonnegative_int(value: Any) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value >= 0
+    )
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _ordered_blockers(values: set[str]) -> tuple[str, ...]:

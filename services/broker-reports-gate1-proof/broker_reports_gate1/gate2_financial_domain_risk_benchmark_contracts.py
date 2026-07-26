@@ -259,11 +259,11 @@ def _validate_query_case(case: Mapping[str, Any]) -> None:
     reference = case["reference"]
     _require_keys(
         reference,
-        {"matching_record_ids", "provenance_refs"},
+        {"matching_records", "provenance_refs"},
         "financial_domain_risk_query_reference_invalid",
     )
-    _string_list(
-        reference["matching_record_ids"],
+    _record_list(
+        reference["matching_records"],
         unique=True,
         code="financial_domain_risk_query_reference_invalid",
     )
@@ -279,7 +279,7 @@ def _validate_query_case(case: Mapping[str, Any]) -> None:
             "matching_records_total",
             "records_returned_through_page",
             "query_result_complete",
-            "result_record_ids",
+            "result_records",
             "provenance_refs",
         },
         "financial_domain_risk_query_candidate_invalid",
@@ -296,8 +296,8 @@ def _validate_query_case(case: Mapping[str, Any]) -> None:
             _fail("financial_domain_risk_query_candidate_invalid")
     if not isinstance(candidate["query_result_complete"], bool):
         _fail("financial_domain_risk_query_candidate_invalid")
-    _string_list(
-        candidate["result_record_ids"],
+    _record_list(
+        candidate["result_records"],
         unique=False,
         code="financial_domain_risk_query_candidate_invalid",
     )
@@ -414,6 +414,23 @@ def _string_list(value: Any, *, unique: bool, code: str) -> None:
         or any(not _bounded_text(item) for item in value)
         or (unique and len(value) != len(set(value)))
     ):
+        _fail(code)
+
+
+def _record_list(value: Any, *, unique: bool, code: str) -> None:
+    if not isinstance(value, list):
+        _fail(code)
+    record_ids = []
+    for item in value:
+        _require_keys(item, {"record_id", "record_sha256"}, code)
+        if (
+            not _bounded_text(item["record_id"])
+            or not isinstance(item["record_sha256"], str)
+            or not _SHA256_RE.fullmatch(item["record_sha256"])
+        ):
+            _fail(code)
+        record_ids.append(item["record_id"])
+    if unique and len(record_ids) != len(set(record_ids)):
         _fail(code)
 
 

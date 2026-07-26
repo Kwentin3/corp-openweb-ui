@@ -143,24 +143,37 @@ The controlled query case requires:
 
 - `query_result_complete=true`;
 - exact matching and cumulative counts;
-- the exact complete ordered record-ID set;
+- the exact complete ordered `{record_id, record_sha256}` set, binding
+  literal-bearing record content without exposing literals;
 - no duplicate record ID;
 - all required and no foreign provenance refs.
 
 Negative tests independently prove failure for false completeness, a partial
-cumulative count, changed order, and provenance loss.
+cumulative count, changed order, changed record content hash, foreign or
+malformed refs, and provenance loss. Candidate lists are checked closed;
+malformed entries cannot disappear during scoring.
+
+Fresh review of remote implementation head
+`63976821d181fea06cf20cb496c306414c10233e` returned
+`CHANGES_REQUIRED`. The first query fixture pinned record IDs but not record
+content integrity, so changed literal-bearing record content under unchanged
+IDs could pass. Candidate ref parsing also discarded malformed non-string
+entries. The corrected contract freezes ordered `{record_id, record_sha256}`
+pairs, treats a missing/changed hash as incomplete query plus literal loss,
+marks foreign/malformed refs invalid, and never filters malformed list
+members. Dedicated negatives prove each corrected boundary.
 
 ## 8. Frozen artifacts and deterministic result
 
 ```text
 manifest_integrity_sha256=
-7e425f89d6ecb1280d1909adbedfc242e0602036d30a07524e07fa1189b3aca7
+d13378c1b065b5f48449115a965d51532ff7f06a7659bc95df7768703ee960c0
 
 sealed_result_integrity_sha256=
-929815c507c83c8e763f40188c6680d67fc1ae327fe0832e0879b2b741ec834b
+c6a4fc1f4d536a9c9fed45fd72ea3402032abf47709db2027b2b869500b3ad05
 
 sealed_result_file_sha256=
-a3c0a7f761b0a874d086f1b2f1866e9a2b06e21307aba379db07467689bbabe3
+01d06df5c57ccc8209eeffb31f8fa9dd5e054610f25adda6a5bfe4465b4dab32
 ```
 
 Two scorer executions were exact and equal to the committed safe result.
@@ -174,15 +187,15 @@ Explicit test cwd:
 
 Test environment: none.
 
-- focused risk benchmark: `20 passed in 0.81s`;
-- benchmark/domain relevant set: `63 passed in 2.49s`;
+- focused risk benchmark: `22 passed in 0.74s`;
+- benchmark/domain relevant set: `65 passed in 2.52s`;
 - full Broker Reports suite:
-  `1604 passed, 20 skipped, 5 unchanged warnings in 144.79s`;
+  `1606 passed, 20 skipped, 5 unchanged warnings in 143.29s`;
 - targeted Ruff: passed;
 - targeted Python compile: passed;
 - deterministic scorer rebuild: exact;
 - `git diff --check`: passed;
-- repository privacy guard: `3 passed in 0.78s`.
+- repository privacy guard: `3 passed in 0.74s`.
 
 Execution accounting:
 
@@ -242,4 +255,4 @@ or live-stage claim.
 
 Exact staged receipt Git-blob SHA-256:
 
-`677a16bed913e9847f491f4ffaa5b0fa0784396a6f45d02defcc334f6541f6bd`.
+`d9f102cb6b04d31f9fbfdb40de5b42ced46cc2273022e4a0cbe36d3445d54579`.

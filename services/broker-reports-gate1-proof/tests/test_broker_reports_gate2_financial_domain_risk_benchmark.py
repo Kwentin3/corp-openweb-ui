@@ -277,7 +277,7 @@ def test_terminal_owner_must_be_the_exact_reference_owner():
 
 def test_query_requires_exact_order_count_completion_and_provenance():
     def mutate(candidate):
-        candidate["result_record_ids"].reverse()
+        candidate["result_records"].reverse()
         candidate["provenance_refs"].pop()
 
     report = _score_mutation("syn_risk_query_complete", mutate)
@@ -291,6 +291,63 @@ def test_query_requires_exact_order_count_completion_and_provenance():
         "hard_blocker_codes"
     ]
     assert report["quality_metrics"]["query_completeness_rate"] == 0.0
+
+
+def test_query_binds_record_content_integrity_without_safe_literals():
+    def mutate(candidate):
+        candidate["result_records"][0]["record_sha256"] = "f" * 64
+
+    report = _score_mutation("syn_risk_query_complete", mutate)
+    result = _result_case(report, "syn_risk_query_complete")
+
+    assert HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE in result[
+        "hard_blocker_codes"
+    ]
+    assert HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS in result[
+        "hard_blocker_codes"
+    ]
+
+
+def test_foreign_and_malformed_candidate_refs_are_not_filtered_out():
+    def mutate_query(candidate):
+        candidate["result_records"].append(
+            {
+                "record_id": "record:synthetic:foreign",
+                "record_sha256": "f" * 64,
+            }
+        )
+        candidate["provenance_refs"].append(7)
+
+    query_report = _score_mutation(
+        "syn_risk_query_complete",
+        mutate_query,
+    )
+    query_result = _result_case(
+        query_report,
+        "syn_risk_query_complete",
+    )
+    assert HARD_BLOCKER_INVALID_REF in query_result[
+        "hard_blocker_codes"
+    ]
+    assert HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE in query_result[
+        "hard_blocker_codes"
+    ]
+
+    def mutate_decision(candidate):
+        candidate["terminal_owner_ids"].append(7)
+        candidate["provenance_refs"].append(7)
+
+    decision_report = _score_mutation(
+        "syn_risk_typed_exact",
+        mutate_decision,
+    )
+    decision_result = _result_case(
+        decision_report,
+        "syn_risk_typed_exact",
+    )
+    assert HARD_BLOCKER_INVALID_REF in decision_result[
+        "hard_blocker_codes"
+    ]
 
 
 def test_structural_preclose_uses_only_closed_nonsemantic_evidence():

@@ -150,12 +150,15 @@ A query case passes only when all of the following are exact:
 - `query_result_complete=true`;
 - `matching_records_total` equals the frozen matching set;
 - `records_returned_through_page` equals that same total;
-- ordered result IDs equal the complete frozen ordered set;
+- ordered `{record_id, record_sha256}` pairs equal the complete frozen ordered
+  set, binding the response to exact literal-bearing record content;
 - result IDs contain no duplicate;
 - required provenance refs are present and no foreign ref is introduced.
 
 Partial pagination presented as final, a missing or extra record, order drift,
-duplicate records, false completeness, or provenance loss is a hard failure.
+changed record content/hash, duplicate records, false completeness, malformed
+or foreign refs, or provenance loss is a hard failure. Candidate lists are
+closed; malformed entries are rejected rather than filtered out.
 
 ## 9. Safe evidence
 

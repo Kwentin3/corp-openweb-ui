@@ -92,8 +92,8 @@
     "repair_total": 0,
     "tokens_total": 0
   },
-  "integrity_sha256": "929815c507c83c8e763f40188c6680d67fc1ae327fe0832e0879b2b741ec834b",
-  "manifest_integrity_sha256": "7e425f89d6ecb1280d1909adbedfc242e0602036d30a07524e07fa1189b3aca7",
+  "integrity_sha256": "c6a4fc1f4d536a9c9fed45fd72ea3402032abf47709db2027b2b869500b3ad05",
+  "manifest_integrity_sha256": "d13378c1b065b5f48449115a965d51532ff7f06a7659bc95df7768703ee960c0",
   "privacy": {
     "customer_data_included": false,
     "raw_candidate_output_included": false,
