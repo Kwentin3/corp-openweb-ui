@@ -626,7 +626,7 @@ literal, opaque source ref, private path, customer data, or raw provider
 response from this audit.
 
 Repository-safe audit receipt file SHA-256:
-`900f476cf8aac6d1edff1bd76b28c22fd950940693ec2559fe1dbf065e64e8bd`.
+`57d7e3ce7be00c7a1d8e8a1b35cd12b25ebf8429d41e45dd18f11c98249fd7d7`.
 
 Verification from explicit PowerShell cwd
 `services/broker-reports-gate1-proof`, test environment none:
