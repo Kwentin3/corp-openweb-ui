@@ -1,0 +1,324 @@
+{
+  "schema_version": "broker_reports_financial_semantic_pack_v1",
+  "pack_id": "broker_reports_managed_financial_semantic_pack",
+  "semantic_version": "1.0.0",
+  "managed_asset_ref": "openwebui:financial-semantic-pack:1.0.0",
+  "consumer_contract_version": "broker_reports_managed_financial_domain_contract_v1",
+  "authority_status": "target_normative_not_live",
+  "runtime_activation": false,
+  "source_baseline": {
+    "registry_version": "broker_reports_gate2_financial_evidence_registry_v1",
+    "registry_sha256": "0bac59aad259b9e11a5037bb73b09642c2a87fd2baca36b8e4db7c5d5e852ac8",
+    "accepted_type_ids": [
+      "cash_balance_snapshot_v1",
+      "printed_financial_metric_v1"
+    ],
+    "deferred_candidate_ids": [
+      "credit_loss_allowance_movement_v1",
+      "credit_loss_allowance_snapshot_v1",
+      "equity_balance_snapshot_v1",
+      "lease_liability_snapshot_v1",
+      "lease_payment_schedule_item_v1",
+      "lease_right_of_use_asset_snapshot_v1",
+      "payable_balance_snapshot_v1",
+      "receivable_balance_snapshot_v1",
+      "regulated_asset_balance_snapshot_v1",
+      "security_inventory_balance_snapshot_v1"
+    ],
+    "legacy_python_status": "current_runtime_migration_source_not_target_authority"
+  },
+  "canonical_serialization": {
+    "encoding": "UTF-8",
+    "bom": false,
+    "object_key_order": "lexicographic",
+    "array_order": "preserved_normative_order",
+    "whitespace": "none",
+    "hash_algorithm": "SHA-256",
+    "integrity_field_omitted": "integrity_sha256"
+  },
+  "full_compact_snapshot": [
+    {
+      "input_type_id": "cash_balance_snapshot_v1",
+      "title": "Cash balance snapshot",
+      "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+      "semantic_class": "state",
+      "lifecycle": {
+        "status": "active",
+        "introduced_in": "1.0.0",
+        "deprecated_in": null,
+        "retired_in": null,
+        "replacement_input_type_id": null
+      },
+      "compatible_source_families": [
+        "broker_reports_normalized_table_projection_v0",
+        "semantic_visual_logical_table_v1"
+      ],
+      "roles": {
+        "required": [
+          {
+            "role_id": "amount",
+            "value_type": "source_decimal",
+            "cardinality": "one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "as_of_date",
+            "value_type": "source_date",
+            "cardinality": "one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "statement_scope",
+            "value_type": "source_reference",
+            "cardinality": "one",
+            "source_ref_required": true
+          }
+        ],
+        "optional": [
+          {
+            "role_id": "balance_class",
+            "value_type": "source_text",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "currency",
+            "value_type": "source_currency",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "source_label",
+            "value_type": "source_text",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "unit",
+            "value_type": "source_unit",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          }
+        ],
+        "forbidden": [
+          "event_date",
+          "period_end",
+          "period_start"
+        ]
+      },
+      "date_period_requirement": "as_of_date_required",
+      "currency_unit_requirement": "currency_or_unit_required",
+      "source_sign_policy": "preserve_source_sign",
+      "identity_roles": [
+        "as_of_date",
+        "statement_scope",
+        "balance_class"
+      ],
+      "synonyms": [
+        "ordinary cash balance",
+        "cash balance as of reporting date",
+        "денежные средства на отчетную дату"
+      ],
+      "examples": [
+        "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope."
+      ],
+      "counterexamples": [
+        "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+        "A synthetic deposit event records movement rather than an as-of balance.",
+        "A source prints a broad total whose cash classification is not explicit."
+      ],
+      "semantic_distinctions": [
+        {
+          "against": "printed_financial_metric_v1",
+          "rule": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+        },
+        {
+          "against": "cash_movement",
+          "rule": "A movement is an event over time; this type is a state at one reporting date."
+        },
+        {
+          "against": "regulated_asset_balance_snapshot_v1",
+          "rule": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+        }
+      ],
+      "ambiguity_guidance": [
+        "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+        "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+        "A cash-like label alone is insufficient without a source-stated amount and state context."
+      ],
+      "model_guidance": "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity.",
+      "operational_contracts": {
+        "materialization_profile_id": "cash_balance_materialization_v1",
+        "validation_profile_id": "cash_balance_validation_v1",
+        "context_projection_rule_id": "cash_balance_context_v1"
+      },
+      "evidence_refs": [
+        "safe_receipt:f8862b9a2104a8b4f08b24b6ebe06fc784ce78bb27524e2dd67e8cce92eff1f5",
+        "safe_report:BROKER_REPORTS_GATE2_CANONICAL_DOMAIN_GOAL1_ACTUAL_CORPUS_CONCEPT_INVENTORY"
+      ],
+      "test_refs": [
+        "test_broker_reports_gate2_financial_evidence_catalog"
+      ],
+      "compatibility": {
+        "legacy_registry_semantic_fingerprint": "651f655772e728c895d8f94d32ff34eba1dc1ee719232398dbb44f67ae1ba008",
+        "predecessor_input_type_ids": [],
+        "legacy_mappings": []
+      }
+    },
+    {
+      "input_type_id": "printed_financial_metric_v1",
+      "title": "Printed financial metric",
+      "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+      "semantic_class": "aggregate",
+      "lifecycle": {
+        "status": "active",
+        "introduced_in": "1.0.0",
+        "deprecated_in": null,
+        "retired_in": null,
+        "replacement_input_type_id": null
+      },
+      "compatible_source_families": [
+        "broker_reports_normalized_table_projection_v0",
+        "semantic_visual_logical_table_v1"
+      ],
+      "roles": {
+        "required": [
+          {
+            "role_id": "amount",
+            "value_type": "source_decimal",
+            "cardinality": "one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "printed_label_evidence_ref",
+            "value_type": "source_reference",
+            "cardinality": "one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "statement_scope",
+            "value_type": "source_reference",
+            "cardinality": "one",
+            "source_ref_required": true
+          }
+        ],
+        "optional": [
+          {
+            "role_id": "as_of_date",
+            "value_type": "source_date",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "currency",
+            "value_type": "source_currency",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "period",
+            "value_type": "source_period",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "source_label",
+            "value_type": "source_text",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          },
+          {
+            "role_id": "unit",
+            "value_type": "source_unit",
+            "cardinality": "zero_or_one",
+            "source_ref_required": true
+          }
+        ],
+        "forbidden": [
+          "calculation_method",
+          "component_kind"
+        ]
+      },
+      "date_period_requirement": "date_or_period_required",
+      "currency_unit_requirement": "currency_or_unit_required",
+      "source_sign_policy": "preserve_source_sign",
+      "identity_roles": [
+        "printed_label_evidence_ref",
+        "statement_scope",
+        "as_of_date",
+        "period"
+      ],
+      "synonyms": [
+        "source-printed financial total",
+        "reported financial metric",
+        "финансовый итог, напечатанный в источнике"
+      ],
+      "examples": [
+        "A synthetic statement prints a labelled total for an explicit period and statement scope."
+      ],
+      "counterexamples": [
+        "A total calculated by Gate 2 from child rows.",
+        "A repeated visual representation of the same printed source metric.",
+        "An unlabeled amount whose reporting scope cannot be bound."
+      ],
+      "semantic_distinctions": [
+        {
+          "against": "cash_balance_snapshot_v1",
+          "rule": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+        },
+        {
+          "against": "gate2_calculated_aggregate",
+          "rule": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+        },
+        {
+          "against": "detail_source_row",
+          "rule": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+        }
+      ],
+      "ambiguity_guidance": [
+        "Choose unclassified when the printed label cannot be bound to exact evidence.",
+        "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+        "Do not infer that a visually emphasized or last row is a printed total."
+      ],
+      "model_guidance": "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate.",
+      "operational_contracts": {
+        "materialization_profile_id": "printed_metric_materialization_v1",
+        "validation_profile_id": "printed_metric_validation_v1",
+        "context_projection_rule_id": "printed_metric_context_v1"
+      },
+      "evidence_refs": [
+        "safe_receipt:f8862b9a2104a8b4f08b24b6ebe06fc784ce78bb27524e2dd67e8cce92eff1f5",
+        "safe_report:BROKER_REPORTS_GATE2_CANONICAL_DOMAIN_GOAL1_ACTUAL_CORPUS_CONCEPT_INVENTORY"
+      ],
+      "test_refs": [
+        "test_broker_reports_gate2_financial_evidence_catalog"
+      ],
+      "compatibility": {
+        "legacy_registry_semantic_fingerprint": "758ca2eadf1a82285d18dd3e13e43a78846bd21c99961263a0cd4be9c1431983",
+        "predecessor_input_type_ids": [],
+        "legacy_mappings": []
+      }
+    }
+  ],
+  "tenant_overlay_policy": {
+    "schema_version": "broker_reports_financial_semantic_pack_tenant_overlay_v1",
+    "status": "explicit_versioned_optional",
+    "default_enabled": false,
+    "base_pack_hash_required": true,
+    "overlay_semantic_version_required": true,
+    "allowed_changes": [
+      "augment_guidance",
+      "add_experimental_type"
+    ],
+    "forbidden_changes": [
+      "modify_base_definition",
+      "modify_base_roles",
+      "modify_base_identity",
+      "remove_base_type",
+      "activate_unqualified_type",
+      "add_tax_methodology"
+    ],
+    "production_qualification_required": true
+  },
+  "integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
+}

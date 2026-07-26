@@ -1,0 +1,742 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:broker-reports:semantic-packs:financial:v1",
+  "title": "Broker Reports Financial Semantic Pack v1",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/semanticPack"
+    },
+    {
+      "$ref": "#/$defs/tenantOverlay"
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "boundedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1600
+    },
+    "roleSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role_id",
+        "value_type",
+        "cardinality",
+        "source_ref_required"
+      ],
+      "properties": {
+        "role_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "value_type": {
+          "enum": [
+            "source_decimal",
+            "source_integer",
+            "source_text",
+            "source_date",
+            "source_period",
+            "source_currency",
+            "source_unit",
+            "source_reference"
+          ]
+        },
+        "cardinality": {
+          "enum": [
+            "one",
+            "zero_or_one",
+            "one_or_more"
+          ]
+        },
+        "source_ref_required": {
+          "const": true
+        }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "optional",
+        "forbidden"
+      ],
+      "properties": {
+        "required": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/roleSpec"
+          }
+        },
+        "optional": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/roleSpec"
+          }
+        },
+        "forbidden": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "introduced_in",
+        "deprecated_in",
+        "retired_in",
+        "replacement_input_type_id"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "experimental",
+            "active",
+            "deprecated",
+            "retired"
+          ]
+        },
+        "introduced_in": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "deprecated_in": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retired_in": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replacement_input_type_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "semanticDistinction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "against",
+        "rule"
+      ],
+      "properties": {
+        "against": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "rule": {
+          "$ref": "#/$defs/boundedText"
+        }
+      }
+    },
+    "typeDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_type_id",
+        "title",
+        "definition",
+        "semantic_class",
+        "lifecycle",
+        "compatible_source_families",
+        "roles",
+        "date_period_requirement",
+        "currency_unit_requirement",
+        "source_sign_policy",
+        "identity_roles",
+        "synonyms",
+        "examples",
+        "counterexamples",
+        "semantic_distinctions",
+        "ambiguity_guidance",
+        "model_guidance",
+        "operational_contracts",
+        "evidence_refs",
+        "test_refs",
+        "compatibility"
+      ],
+      "properties": {
+        "input_type_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "definition": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "semantic_class": {
+          "enum": [
+            "event",
+            "state",
+            "aggregate",
+            "attribute"
+          ]
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "compatible_source_families": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          }
+        },
+        "roles": {
+          "$ref": "#/$defs/roles"
+        },
+        "date_period_requirement": {
+          "enum": [
+            "event_date_required",
+            "as_of_date_required",
+            "period_required",
+            "date_or_period_required",
+            "optional",
+            "forbidden"
+          ]
+        },
+        "currency_unit_requirement": {
+          "enum": [
+            "currency_required",
+            "unit_required",
+            "currency_or_unit_required",
+            "optional",
+            "forbidden"
+          ]
+        },
+        "source_sign_policy": {
+          "enum": [
+            "preserve_source_sign",
+            "preserve_source_sign_and_explicit_direction",
+            "unsigned_source_value",
+            "not_applicable"
+          ]
+        },
+        "identity_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "synonyms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          }
+        },
+        "examples": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "counterexamples": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "semantic_distinctions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/semanticDistinction"
+          }
+        },
+        "ambiguity_guidance": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "model_guidance": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "operational_contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "materialization_profile_id",
+            "validation_profile_id",
+            "context_projection_rule_id"
+          ],
+          "properties": {
+            "materialization_profile_id": {
+              "$ref": "#/$defs/boundedId"
+            },
+            "validation_profile_id": {
+              "$ref": "#/$defs/boundedId"
+            },
+            "context_projection_rule_id": {
+              "$ref": "#/$defs/boundedId"
+            }
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          }
+        },
+        "test_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "legacy_registry_semantic_fingerprint",
+            "predecessor_input_type_ids",
+            "legacy_mappings"
+          ],
+          "properties": {
+            "legacy_registry_semantic_fingerprint": {
+              "$ref": "#/$defs/sha256"
+            },
+            "predecessor_input_type_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+              }
+            },
+            "legacy_mappings": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/boundedId"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalSerialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encoding",
+        "bom",
+        "object_key_order",
+        "array_order",
+        "whitespace",
+        "hash_algorithm",
+        "integrity_field_omitted"
+      ],
+      "properties": {
+        "encoding": {
+          "const": "UTF-8"
+        },
+        "bom": {
+          "const": false
+        },
+        "object_key_order": {
+          "const": "lexicographic"
+        },
+        "array_order": {
+          "const": "preserved_normative_order"
+        },
+        "whitespace": {
+          "const": "none"
+        },
+        "hash_algorithm": {
+          "const": "SHA-256"
+        },
+        "integrity_field_omitted": {
+          "const": "integrity_sha256"
+        }
+      }
+    },
+    "tenantOverlayPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status",
+        "default_enabled",
+        "base_pack_hash_required",
+        "overlay_semantic_version_required",
+        "allowed_changes",
+        "forbidden_changes",
+        "production_qualification_required"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_financial_semantic_pack_tenant_overlay_v1"
+        },
+        "status": {
+          "const": "explicit_versioned_optional"
+        },
+        "default_enabled": {
+          "const": false
+        },
+        "base_pack_hash_required": {
+          "const": true
+        },
+        "overlay_semantic_version_required": {
+          "const": true
+        },
+        "allowed_changes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "augment_guidance",
+              "add_experimental_type"
+            ]
+          }
+        },
+        "forbidden_changes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "modify_base_definition",
+              "modify_base_roles",
+              "modify_base_identity",
+              "remove_base_type",
+              "activate_unqualified_type",
+              "add_tax_methodology"
+            ]
+          }
+        },
+        "production_qualification_required": {
+          "const": true
+        }
+      }
+    },
+    "sourceBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_version",
+        "registry_sha256",
+        "accepted_type_ids",
+        "deferred_candidate_ids",
+        "legacy_python_status"
+      ],
+      "properties": {
+        "registry_version": {
+          "const": "broker_reports_gate2_financial_evidence_registry_v1"
+        },
+        "registry_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "accepted_type_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+          }
+        },
+        "deferred_candidate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+          }
+        },
+        "legacy_python_status": {
+          "const": "current_runtime_migration_source_not_target_authority"
+        }
+      }
+    },
+    "semanticPack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "pack_id",
+        "semantic_version",
+        "managed_asset_ref",
+        "consumer_contract_version",
+        "authority_status",
+        "runtime_activation",
+        "source_baseline",
+        "canonical_serialization",
+        "full_compact_snapshot",
+        "tenant_overlay_policy",
+        "integrity_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_financial_semantic_pack_v1"
+        },
+        "pack_id": {
+          "const": "broker_reports_managed_financial_semantic_pack"
+        },
+        "semantic_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "managed_asset_ref": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "consumer_contract_version": {
+          "const": "broker_reports_managed_financial_domain_contract_v1"
+        },
+        "authority_status": {
+          "const": "target_normative_not_live"
+        },
+        "runtime_activation": {
+          "const": false
+        },
+        "source_baseline": {
+          "$ref": "#/$defs/sourceBaseline"
+        },
+        "canonical_serialization": {
+          "$ref": "#/$defs/canonicalSerialization"
+        },
+        "full_compact_snapshot": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/typeDefinition"
+          }
+        },
+        "tenant_overlay_policy": {
+          "$ref": "#/$defs/tenantOverlayPolicy"
+        },
+        "integrity_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "basePackIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pack_id",
+        "semantic_version",
+        "integrity_sha256"
+      ],
+      "properties": {
+        "pack_id": {
+          "const": "broker_reports_managed_financial_semantic_pack"
+        },
+        "semantic_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "integrity_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "guidanceAddition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_type_id",
+        "synonyms",
+        "examples",
+        "counterexamples",
+        "ambiguity_guidance"
+      ],
+      "properties": {
+        "input_type_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+        },
+        "synonyms": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "counterexamples": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        },
+        "ambiguity_guidance": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedText"
+          }
+        }
+      }
+    },
+    "tenantExperimentalTypeDefinition": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/typeDefinition"
+        },
+        {
+          "properties": {
+            "input_type_id": {
+              "type": "string",
+              "pattern": "^tenant_[a-z0-9_]*_v[1-9][0-9]*$"
+            },
+            "lifecycle": {
+              "properties": {
+                "status": {
+                  "const": "experimental"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tenantOverlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "overlay_id",
+        "semantic_version",
+        "tenant_scope_ref",
+        "lifecycle",
+        "base_pack_identity",
+        "guidance_additions",
+        "experimental_type_additions",
+        "integrity_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_financial_semantic_pack_tenant_overlay_v1"
+        },
+        "overlay_id": {
+          "type": "string",
+          "pattern": "^tenant_overlay_[a-z0-9_]+_v[1-9][0-9]*$"
+        },
+        "semantic_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "tenant_scope_ref": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "lifecycle": {
+          "enum": [
+            "draft",
+            "qualified",
+            "retired"
+          ]
+        },
+        "base_pack_identity": {
+          "$ref": "#/$defs/basePackIdentity"
+        },
+        "guidance_additions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/guidanceAddition"
+          }
+        },
+        "experimental_type_additions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/tenantExperimentalTypeDefinition"
+          }
+        },
+        "integrity_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "guidance_additions": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "experimental_type_additions": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}
