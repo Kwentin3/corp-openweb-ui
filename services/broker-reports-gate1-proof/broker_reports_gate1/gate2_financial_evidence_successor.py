@@ -27,6 +27,11 @@ from .gate2_financial_evidence_source_context import (
     Gate2FinancialEvidenceSourceContext,
     validate_financial_evidence_source_context,
 )
+from .gate2_financial_semantic_model_assets import (
+    PACK_INTEGRITY_SHA256,
+    SEMANTIC_MODEL_ASSET_SCHEMA_VERSION,
+    load_gate2_financial_semantic_model_assets,
+)
 from .gate2_financial_evidence_successor_projection import (
     SUCCESSOR_PROVIDER_PROJECTION_POLICY_VERSION,
     SUCCESSOR_PROVIDER_PROJECTION_SCHEMA_VERSION,
@@ -48,17 +53,26 @@ SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2 = (
 SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3 = (
     "broker_reports_gate2_financial_evidence_successor_model_input_v3"
 )
+SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4 = (
+    "broker_reports_gate2_financial_evidence_successor_model_input_v4"
+)
 SUCCESSOR_RESULT_SCHEMA_VERSION_V2 = (
     "broker_reports_gate2_financial_evidence_successor_result_v2"
 )
 SUCCESSOR_RESULT_SCHEMA_VERSION_V3 = (
     "broker_reports_gate2_financial_evidence_successor_result_v3"
 )
+SUCCESSOR_RESULT_SCHEMA_VERSION_V4 = (
+    "broker_reports_gate2_financial_evidence_successor_result_v4"
+)
 SUCCESSOR_PROMPT_CONTRACT_ID = (
     "broker_reports_gate2_financial_evidence_successor_prompt_v2"
 )
 SUCCESSOR_PROMPT_CONTRACT_ID_V3 = (
     "broker_reports_gate2_financial_evidence_successor_prompt_v3"
+)
+SUCCESSOR_PROMPT_CONTRACT_ID_V4 = (
+    "broker_reports_gate2_financial_evidence_managed_prompt_v1"
 )
 MAX_PROVIDER_COUNTEREXAMPLES = 3
 MAX_PROVIDER_COUNTEREXAMPLE_CHARS = 240
@@ -71,9 +85,14 @@ FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
         "completeness",
         "confidence",
         "document_ref",
+        "document_id",
         "expected_answer",
         "fact_paths",
+        "file_id",
+        "filename",
+        "gate3_methodology",
         "integrity_hash",
+        "internal_graph",
         "issue_refs",
         "lineage",
         "normalization_run_ref",
@@ -82,6 +101,8 @@ FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
         "page_ref",
         "path",
         "provenance",
+        "provenance_graph",
+        "raw_output",
         "relation_graph",
         "restriction_codes",
         "row_ref",
@@ -90,6 +111,7 @@ FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
         "source_family_id",
         "source_ref",
         "source_scope_ref",
+        "system_audit",
         "table_ref",
         "uncertainty",
     }
@@ -202,6 +224,14 @@ class Gate2FinancialEvidenceSuccessorPromptFactory:
                 "Return only the strict schema object.\n"
                 "{{financial_evidence_successor_input_json}}"
             )
+        elif prompt_contract_id == SUCCESSOR_PROMPT_CONTRACT_ID_V4:
+            assets = load_gate2_financial_semantic_model_assets()
+            content = str(assets["prompt_content"])
+            return Gate2FinancialEvidenceSuccessorPrompt(
+                prompt_ref=str(assets["prompt_ref"]),
+                content=content,
+                hash=str(assets["prompt_git_blob_sha256"]),
+            )
         else:
             _fail("financial_evidence_successor_prompt_contract_invalid")
         digest = hashlib.sha256(
@@ -233,22 +263,28 @@ class Gate2FinancialEvidenceSuccessorRunnerFactory:
         self.config = config
 
     def create(self) -> "Gate2FinancialEvidenceSuccessorRunner":
+        version_prompt_pairs = {
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION: (
+                SUCCESSOR_PROMPT_CONTRACT_ID
+            ),
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2: (
+                SUCCESSOR_PROMPT_CONTRACT_ID
+            ),
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3: (
+                SUCCESSOR_PROMPT_CONTRACT_ID_V3
+            ),
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4: (
+                SUCCESSOR_PROMPT_CONTRACT_ID_V4
+            ),
+        }
         if (
             not self.config.model_id
             or not self.config.provider_profile_id
             or self.config.model_input_schema_version
-            not in {
-                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION,
-                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2,
-                SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3,
-            }
-            or (
+            not in version_prompt_pairs
+            or self.config.prompt_contract_id
+            != version_prompt_pairs.get(
                 self.config.model_input_schema_version
-                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
-            )
-            is not (
-                self.config.prompt_contract_id
-                == SUCCESSOR_PROMPT_CONTRACT_ID_V3
             )
         ):
             _fail("financial_evidence_successor_config_invalid")
@@ -300,10 +336,10 @@ class Gate2FinancialEvidenceSuccessorRunner:
         )
         provider_projection = None
         response_format = scope.decision_contract.openai_response_format()
-        if (
-            self.config.model_input_schema_version
-            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
-        ):
+        if self.config.model_input_schema_version in {
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3,
+            SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4,
+        }:
             provider_projection = (
                 Gate2FinancialEvidenceSuccessorProviderProjectionFactory()
                 .create(contract=scope.decision_contract)
@@ -352,16 +388,21 @@ class Gate2FinancialEvidenceSuccessorRunner:
             ) from exc
         summary = {
             "schema_version": (
-                SUCCESSOR_RESULT_SCHEMA_VERSION_V3
+                SUCCESSOR_RESULT_SCHEMA_VERSION_V4
                 if self.config.model_input_schema_version
-                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
+                == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4
                 else (
-                    SUCCESSOR_RESULT_SCHEMA_VERSION_V2
+                    SUCCESSOR_RESULT_SCHEMA_VERSION_V3
                     if self.config.model_input_schema_version
-                    == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2
+                    == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V3
                     else (
-                    "broker_reports_gate2_financial_evidence_"
-                    "successor_result_v1"
+                        SUCCESSOR_RESULT_SCHEMA_VERSION_V2
+                        if self.config.model_input_schema_version
+                        == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V2
+                        else (
+                            "broker_reports_gate2_financial_evidence_"
+                            "successor_result_v1"
+                        )
                     )
                 )
             ),
@@ -422,6 +463,28 @@ class Gate2FinancialEvidenceSuccessorRunner:
                     "source_context_groups_total": len(
                         source_context.groups
                     ),
+                }
+            )
+        if (
+            self.config.model_input_schema_version
+            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4
+        ):
+            assets = load_gate2_financial_semantic_model_assets()
+            summary.update(
+                {
+                    "semantic_model_asset_schema_version": (
+                        SEMANTIC_MODEL_ASSET_SCHEMA_VERSION
+                    ),
+                    "semantic_pack_integrity_sha256": (
+                        PACK_INTEGRITY_SHA256
+                    ),
+                    "semantic_pack_types_total": len(
+                        assets["semantic_pack"][
+                            "full_compact_snapshot"
+                        ]
+                    ),
+                    "semantic_selection_owner": "llm",
+                    "duplicate_semantic_authorities_total": 0,
                 }
             )
         if provider_projection is not None:
@@ -559,6 +622,44 @@ class Gate2FinancialEvidenceSuccessorRunner:
             source_values=scope.source_package.source_values,
             candidates=scope.decision_contract.package.candidates,
         )
+        if (
+            self.config.model_input_schema_version
+            == SUCCESSOR_MODEL_INPUT_SCHEMA_VERSION_V4
+        ):
+            assets = load_gate2_financial_semantic_model_assets()
+            model_input = {
+                "managed_assets": copy.deepcopy(
+                    assets["managed_assets"]
+                ),
+                "semantic_pack": copy.deepcopy(
+                    assets["semantic_pack"]
+                ),
+                "structural_scope": {
+                    "eligible_type_ids": list(
+                        scope.decision_contract.eligible_type_ids
+                    ),
+                    "allowed_role_ref_combinations": [
+                        {
+                            "source_value_ref": candidate.source_value_ref,
+                            "allowed_roles": list(
+                                candidate.allowed_roles
+                            ),
+                        }
+                        for candidate in (
+                            scope.decision_contract.package.candidates
+                        )
+                    ],
+                },
+                "source_groups": _model_source_groups_v4(
+                    source_context
+                ),
+            }
+            validate_financial_evidence_successor_model_input_v4(
+                model_input=model_input,
+                scope=scope,
+                source_context=source_context,
+            )
+            return model_input
         model_input = {
             "eligible_types": eligible_types,
             "source_groups": source_context.provider_groups(),
@@ -792,6 +893,124 @@ def validate_financial_evidence_successor_model_input_v3(
         registry=registry,
         source_context=source_context,
     )
+
+
+def validate_financial_evidence_successor_model_input_v4(
+    *,
+    model_input: dict[str, Any],
+    scope: Gate2DeterministicFinancialScope,
+    source_context: Gate2FinancialEvidenceSourceContext,
+) -> None:
+    if set(model_input) != {
+        "managed_assets",
+        "semantic_pack",
+        "structural_scope",
+        "source_groups",
+    }:
+        _fail("financial_evidence_successor_model_input_v4_shape_invalid")
+    forbidden = {
+        key
+        for item in _walk_dicts(model_input)
+        for key in item
+        if key in FORBIDDEN_MODEL_INPUT_FIELDS
+    }
+    if forbidden:
+        _fail("financial_evidence_successor_model_system_field_forbidden")
+
+    assets = load_gate2_financial_semantic_model_assets()
+    if model_input.get("managed_assets") != assets["managed_assets"]:
+        _fail("financial_evidence_successor_managed_asset_identity_invalid")
+    semantic_pack = model_input.get("semantic_pack")
+    if semantic_pack != assets["semantic_pack"]:
+        _fail("financial_evidence_successor_semantic_pack_incomplete")
+    if (
+        not isinstance(semantic_pack, dict)
+        or semantic_pack.get("integrity_sha256")
+        != PACK_INTEGRITY_SHA256
+    ):
+        _fail("financial_evidence_successor_semantic_pack_identity_invalid")
+    snapshot = semantic_pack.get("full_compact_snapshot")
+    if not isinstance(snapshot, list) or not snapshot:
+        _fail("financial_evidence_successor_semantic_pack_incomplete")
+    pack_type_ids = [
+        item.get("input_type_id")
+        for item in snapshot
+        if isinstance(item, dict)
+    ]
+    if (
+        len(pack_type_ids) != len(snapshot)
+        or len(pack_type_ids) != len(set(pack_type_ids))
+    ):
+        _fail("financial_evidence_successor_semantic_pack_type_ids_invalid")
+
+    structural_scope = model_input.get("structural_scope")
+    if not isinstance(structural_scope, dict) or set(
+        structural_scope
+    ) != {
+        "eligible_type_ids",
+        "allowed_role_ref_combinations",
+    }:
+        _fail("financial_evidence_successor_structural_scope_invalid")
+    expected_type_ids = list(scope.decision_contract.eligible_type_ids)
+    if (
+        structural_scope["eligible_type_ids"] != expected_type_ids
+        or any(item not in pack_type_ids for item in expected_type_ids)
+    ):
+        _fail("financial_evidence_successor_structural_types_invalid")
+    expected_combinations = [
+        {
+            "source_value_ref": candidate.source_value_ref,
+            "allowed_roles": list(candidate.allowed_roles),
+        }
+        for candidate in scope.decision_contract.package.candidates
+    ]
+    if (
+        structural_scope["allowed_role_ref_combinations"]
+        != expected_combinations
+        or any(
+            not item["allowed_roles"]
+            or len(item["allowed_roles"])
+            != len(set(item["allowed_roles"]))
+            for item in expected_combinations
+        )
+    ):
+        _fail("financial_evidence_successor_role_ref_combinations_invalid")
+
+    validate_financial_evidence_source_context(
+        context=source_context,
+        source_scope_ref=scope.source_package.source_scope_ref,
+        source_values=scope.source_package.source_values,
+        candidates=scope.decision_contract.package.candidates,
+    )
+    if model_input.get("source_groups") != _model_source_groups_v4(
+        source_context
+    ):
+        _fail("financial_evidence_successor_source_context_projection_invalid")
+
+    non_pack_input = {
+        key: value
+        for key, value in model_input.items()
+        if key != "semantic_pack"
+    }
+    if any(
+        "definition" in item
+        or "synonyms" in item
+        or "counterexamples" in item
+        or "semantic_distinctions" in item
+        or "ambiguity_guidance" in item
+        for item in _walk_dicts(non_pack_input)
+    ):
+        _fail("financial_evidence_successor_duplicate_semantic_authority")
+
+
+def _model_source_groups_v4(
+    source_context: Gate2FinancialEvidenceSourceContext,
+) -> list[dict[str, Any]]:
+    groups = source_context.provider_groups()
+    for group in groups:
+        for value in group["values"]:
+            value.pop("allowed_roles")
+    return groups
 
 
 def _provider_counterexamples(

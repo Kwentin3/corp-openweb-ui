@@ -197,6 +197,7 @@ GATE2_SUCCESSOR_MODULES = [
     "gate2_financial_evidence_typed_admission",
     "gate2_deterministic_financial_scopes",
     "gate2_financial_evidence_successor_projection",
+    "gate2_financial_semantic_model_assets",
     "gate2_financial_evidence_successor",
     "gate2_successor_artifacts",
     "gate2_successor_artifacts_v2",
@@ -447,6 +448,12 @@ def assert_gate2_bundle_contract(
                 ),
                 "financial_successor_module": (
                     '"gate2_financial_evidence_successor"'
+                ),
+                "financial_semantic_model_assets_module": (
+                    '"gate2_financial_semantic_model_assets"'
+                ),
+                "financial_semantic_model_assets_factory_anchor": (
+                    "load_gate2_financial_semantic_model_assets is the only"
                 ),
                 "financial_successor_factory_anchor": (
                     "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "
