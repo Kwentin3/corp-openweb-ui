@@ -1,0 +1,148 @@
+{
+  "schema_version": "broker_reports_gate2_financial_semantic_v5_benchmark_v1",
+  "benchmark_id": "gate2_financial_semantic_v5",
+  "corpus_role": "frozen_synthetic_v5_semantic_risk_and_local_proof",
+  "contains_customer_data": false,
+  "frozen": true,
+  "case_count": 12,
+  "base_manifest": {
+    "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+    "benchmark_id": "gate2_financial_successor_v2",
+    "canonical_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "case_count": 12
+  },
+  "execution_policy": {
+    "provider_calls": 0,
+    "hidden_retry": false,
+    "repair": false,
+    "fallback": false,
+    "fixture_decisions_are_provider_outputs": false,
+    "technical_cases_call_model": false,
+    "runtime_activation": false,
+    "persistence_writes": false
+  },
+  "required_feature_families": [
+    "uniquely_typed",
+    "multiple_compatible_types",
+    "explicit_no_registry_type",
+    "missing_discriminating_evidence",
+    "sufficient_discriminating_evidence",
+    "repeated_header",
+    "detail_vs_subtotal",
+    "adjacent_equal_values",
+    "adjacent_fx_values",
+    "optional_missing_dimensions",
+    "forbidden_neighbouring_refs",
+    "unsupported_shape"
+  ],
+  "cases": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "feature_families": ["uniquely_typed", "sufficient_discriminating_evidence"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "feature_families": ["uniquely_typed", "sufficient_discriminating_evidence"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "printed_financial_metric_v1",
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "feature_families": ["multiple_compatible_types"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 0
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "feature_families": ["explicit_no_registry_type"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "feature_families": ["missing_discriminating_evidence"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_repeated_header",
+      "feature_families": ["repeated_header"],
+      "expected_route": "technical_preclose",
+      "expected_disposition": "no_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": null,
+      "technical_evidence": {
+        "source_support": "supported",
+        "authoritative_layout_only": true,
+        "source_value_candidates_total": 0,
+        "scope_valid": true
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "feature_families": ["detail_vs_subtotal"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "feature_families": ["adjacent_equal_values"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "feature_families": ["adjacent_fx_values"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": 0
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "feature_families": ["optional_missing_dimensions"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "feature_families": ["forbidden_neighbouring_refs"],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_available_type_cards": 2
+    },
+    {
+      "case_id": "syn_successor_v2_unsupported_shape",
+      "feature_families": ["unsupported_shape"],
+      "expected_route": "technical_preclose",
+      "expected_disposition": "unsupported",
+      "expected_input_type_id": null,
+      "expected_available_type_cards": null,
+      "technical_evidence": {
+        "source_support": "source_shape_unsupported",
+        "authoritative_layout_only": false,
+        "source_value_candidates_total": 0,
+        "scope_valid": true
+      }
+    }
+  ]
+}
