@@ -1,0 +1,168 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal9_local_domain_proof_receipt_v1",
+  "goal": "GOAL_9_LOCAL_END_TO_END_DOMAIN_PROOF",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "27ee880c30fd5b90bf82528ecb6400c4dc54de96",
+  "branch": "codex/broker-reports-gate2-domain-goal9-local-e2e-proof",
+  "hash_boundary": "git_blob_bytes",
+  "local_proof": {
+    "schema_version": "broker_reports_gate2_managed_financial_domain_local_proof_receipt_v1",
+    "policy_version": "gate2_managed_financial_domain_local_end_to_end_proof_v1",
+    "status": "passed",
+    "integrity_sha256": "10b55f1c3464a64d308d5531e5eb292212840ec9af4a9b91b97c6b1893d0a4cc",
+    "acceptance": {
+      "local_domain_proof": "PASSED",
+      "literal_loss": "ZERO",
+      "query_gaps": "ZERO",
+      "provider_calls": "ZERO"
+    },
+    "manifest": {
+      "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+      "benchmark_id": "gate2_financial_successor_v2",
+      "integrity_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+      "contains_customer_data": false,
+      "cases_total": 12
+    },
+    "exact_contracts": {
+      "model_input_schema_version": "broker_reports_gate2_financial_evidence_successor_model_input_v4",
+      "prompt_contract_id": "broker_reports_gate2_financial_evidence_managed_prompt_v1",
+      "prompt_sha256": "3f169c79a9bf6f0eb1b476853ed1ace50cca9b2f7fd2d2fe3394f2ab3f6d5a2e",
+      "source_context_schema_version": "broker_reports_gate2_financial_evidence_source_context_v2",
+      "domain_snapshot_schema_version": "broker_reports_managed_financial_domain_snapshot_v1",
+      "persistence_schema_version": "broker_reports_managed_financial_domain_persistence_v1",
+      "query_schema_version": "broker_reports_gate2_financial_domain_api_response_v1",
+      "query_policy_version": "broker_reports_gate2_financial_domain_query_v2",
+      "semantic_pack_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+      "managed_asset_identities_git_blob_sha256": "a8de2b91f4cbde77bc2215ffb85b726e7b963dc77d6eb1a86e0b3e80499509a4",
+      "managed_asset_manifest_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59"
+    },
+    "terminal_disposition_counts": {
+      "typed_input": 4,
+      "unclassified_financial_input": 6,
+      "no_financial_input": 1,
+      "unsupported": 1
+    },
+    "product_invariants": {
+      "literal_loss_total": 0,
+      "invented_values_total": 0,
+      "duplicate_bindings_total": 0,
+      "cross_scope_bindings_total": 0,
+      "terminal_ownership_gap_total": 0
+    },
+    "domain": {
+      "records_total": 10,
+      "typed_records_total": 4,
+      "unclassified_records_total": 6,
+      "coverage_records_total": 12,
+      "provenance_records_total": 12,
+      "declared_types_total": 2,
+      "query_pages_total": 36,
+      "query_gaps_total": 0,
+      "coverage_gaps_total": 0,
+      "provenance_gaps_total": 0,
+      "snapshot_integrity_sha256": "74a369622397cfab87ddd94626901dbe583ab0667bdf1d1b4f499906a71bfa77",
+      "serialized_snapshot_sha256": "390be395bde51e0c0a17611e3653030ce4edff7b9e62ac6ad38e4825a5e31ebc",
+      "query_results_sha256": "8bb7a3dc83a8231b8f11c5eb5e1156cbb0ed8b80e02531c33ec52f6f6db069f6"
+    },
+    "negative_checks": {
+      "managed_asset_drift_rejected": true,
+      "materialized_artifact_tamper_rejected": true,
+      "persistence_envelope_tamper_rejected": true,
+      "wrong_snapshot_authority_rejected": true,
+      "wrong_access_scope_rejected": true,
+      "continuation_tamper_rejected": true,
+      "query_gap_rejected": true
+    },
+    "exact_hashes": {
+      "prerequisite_receipt_sha256": "91be1484ec2895810e676b0991351b10f9e7d3e19d9ee0eecb8ab5d2f9af4994",
+      "model_input_sha256": [
+        "143f120bf5b72fc9e1ffa46d88920d331cc871612348ab60a77ab7622435708a",
+        "1b042ca41ee3c67df8601436623588501a2c01c850283ae02caba2978c26aa5f",
+        "1fbc411f725b74f2f1b906503d9919bbe77440636a8c92bd7ad8d74b1d833855",
+        "3757b9cdadd6028a0379ae4874be587fc4759dcc4960b4bd169974d3921a28a1",
+        "3c321fbf28bdaf12452d4b694fb20c8ee6035257c82a5d24b63375a5500c4cf9",
+        "48290748b579c307c06e0dcea3555da13094555c18af28890c5299a61cdd5d99",
+        "605c027c71a68f2851a3c2aafe923a7f880157b79c6abe1c96f490bd65b1ccb0",
+        "6d778c08d32fa8c893fdf7e18128823b652d79924f025cea5bccfb622292cd39",
+        "71c8e9b70f00a73f8e3471f41515a92f188b96dedacb06a7fc4e7c311603d5d9",
+        "99a6e387ad552007d7df33f545c00328535990f53160c7cc3c7b53573bad1079",
+        "b82476eb0dc3857c8b9ca06e0e4d282353e2475babaefbd511345df14e6f129c",
+        "ec5d20d91b3099ebcc7dfd9e2da6739ba37e075e6b66e92a90681f54bda5103d"
+      ],
+      "source_context_sha256": [
+        "1a11c6dc5204d376621f1212fe52b4cc45c683e908a284802dad158aae32e7ae",
+        "1e9542b75200759fa496b2b42556a78ad54367f3d7654b03cdd52c27011915c6",
+        "2dc72b6c3234240bc2b042a62e71811a0f154abb2b8b0779da8a4f9ec66499c3",
+        "367b9f23d95763ba256fa3818a6d16f8d79cf869b51af27b6e0005c1af5abfa9",
+        "4c00de449833817e07e5882e80d04668ae83efbffbdca27b9663362df2304636",
+        "536b54373c8cffd91d78d5d9899be0b58d691aa53bef70f62ad0a9d31a16b31b",
+        "5f5520334e0cbdced86f49c8dba5cd6d514ff785d98f5b2ca69bcabc08032899",
+        "98c8495c86cabb6ef4f3a59f8ff5fa1a5a749f1270f8c7dc543f3f5d5afd869f",
+        "9fa510e1f67a1961eb84fa54e44a3e1a521e53dda3a09863ea2624f0dc6f7760",
+        "a39c50416f8ecea24002464809841ea68000ff2d78ea0b643e447c0c6375fc2c",
+        "e6df22e8e48d986d7faa310ffdd825103a756f96b789939ec04426e2f5649688",
+        "e8b2a20ca32fc2cc23a22711e687d258cf398549f46737a06d4d0c12ca19e1d7"
+      ]
+    }
+  },
+  "verification": {
+    "focused_local_domain_and_dependencies": "39 passed in 16.48s",
+    "full_suite": "1614 passed, 20 skipped, 5 warnings in 153.95s",
+    "repository_privacy_guard": "3 passed in 0.74s",
+    "ruff_targeted": "passed",
+    "compile_targeted": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "hidden_retry_total": 0,
+    "persistence_writes_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "frozen_synthetic_cases_total": 12,
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "server_held_keys_in_evidence": 0,
+    "fixture_literals_in_safe_receipt": 0,
+    "source_value_refs_in_safe_receipt": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "explicitly_unchanged": {
+    "semantic_pack_bytes": true,
+    "managed_asset_bytes": true,
+    "decision_contract": true,
+    "production_routes": true,
+    "provider_admission": true,
+    "stage_state": true,
+    "gate3_consumer": true
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_LOCAL_DOMAIN_PROOF.v1.md",
+      "git_blob_sha256": "d1857ebcdb44151dc309efd3bdffef2325deeef5a0d2a728ba6f389cafdf192d"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_local_proof.py",
+      "git_blob_sha256": "9886f976bb5cb9a88205c1db73520ab11f0910ca88028874301a3db25bcb048b"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_persistence.py",
+      "git_blob_sha256": "418d593732728b7e1a858844d8436cf505ff7e7972a7d9e5b0e87aab2c22dbfc"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_local_proof.py",
+      "git_blob_sha256": "745e63a921bae275ad6b3f43c547e2f3d8fbb5e3a5e10a258be95b1948407b74"
+    }
+  ],
+  "next_permitted_goal": "GOAL_10_AFTER_GOAL_9_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"
+}
