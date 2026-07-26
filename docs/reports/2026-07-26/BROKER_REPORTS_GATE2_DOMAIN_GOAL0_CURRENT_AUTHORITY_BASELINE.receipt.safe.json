@@ -8,6 +8,8 @@
     "origin_main_revision": "485ab1a9deeda6e9fa644b55e75d2289638df884",
     "implementation_revision": "9fa25351910d6a2360725686ae235279ff4ab61d",
     "branch": "codex/broker-reports-gate2-domain-goal0-current-authority-baseline",
+    "pull_request": "https://github.com/Kwentin3/corp-openweb-ui/pull/143",
+    "pull_request_draft": true,
     "worktrees_total": 1,
     "production_change": false
   },
@@ -332,7 +334,7 @@
   },
   "report": {
     "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL0_CURRENT_AUTHORITY_BASELINE.report.md",
-    "sha256": "049bd2baa19d6f84d9068e77c8e27c92151d0dd3f74b123903b44ac9374c5f4e"
+    "sha256": "60bd055a30f34e825d882e34ec31a6c70c3fb2edc140bd9450aff27a48263a9e"
   },
   "next_permitted_goal": "goal1_managed_financial_domain_contract_after_merge_and_acceptance"
 }
