@@ -18,6 +18,9 @@ FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE = (
 FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2 = (
     "financial_evidence_successor_qualification_v2"
 )
+FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3 = (
+    "financial_evidence_successor_qualification_v3"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -29,6 +32,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_EVIDENCE_REQUEST_PROFILE,
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2,
+    FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -93,6 +97,16 @@ class Gate2OpenWebUIRequestBuilder:
             == FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2
         ):
             return self._build_financial_evidence_successor_qualification_v2(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if (
+            self.request_profile
+            == FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3
+        ):
+            return self._build_financial_evidence_successor_qualification_v3(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -433,6 +447,79 @@ class Gate2OpenWebUIRequestBuilder:
                 "broker_reports_gate2": {
                     "financial_evidence_successor_qualification_v2": True,
                     "synthetic_non_customer": True,
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": prompt.prompt_ref,
+                    "prompt_hash": prompt.hash,
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_evidence_successor_qualification_v3(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        marker = "{{financial_semantic_matching_input_json}}"
+        if marker not in prompt.content:
+            raise Gate2PromptError(
+                "gate2_financial_evidence_successor_v3_prompt_contract_mismatch",
+                "Managed successor v3 Financial Domain marker is missing",
+            )
+        if set(package) != {
+            "managed_assets",
+            "semantic_pack",
+            "structural_scope",
+            "source_groups",
+        }:
+            raise Gate2PromptError(
+                "gate2_financial_evidence_successor_v3_package_invalid",
+                "Successor v3 package is not the bounded Pack projection",
+            )
+        system_content = prompt.content.replace(
+            marker,
+            json.dumps(
+                package,
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": (
+                                "qualify_broker_reports_financial_evidence_"
+                                "successor_v3"
+                            ),
+                            "instruction": (
+                                "Return exactly one decision object allowed "
+                                "by the supplied strict JSON Schema."
+                            ),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_evidence_successor_qualification_v3": True,
+                    "synthetic_non_customer": True,
+                    "semantic_pack_complete": True,
+                    "semantic_selection_owner": "llm",
                     "structured_output_mode": (
                         "openwebui_response_format_json_schema"
                     ),
