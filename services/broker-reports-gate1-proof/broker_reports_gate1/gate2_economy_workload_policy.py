@@ -27,7 +27,7 @@ FORBIDDEN = (
 )
 
 POLICY_ID = "broker_reports_gate2_economy_workload_policy_v2"
-POLICY_VERSION = "1.4.0"
+POLICY_VERSION = "1.5.0"
 POLICY_SCHEMA_VERSION = "broker_reports_gate2_economy_workload_policy_v2"
 
 
@@ -256,11 +256,12 @@ ECONOMY_WORKLOAD_ROUTES = (
     EconomyWorkloadRoutePolicy(
         workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
         primary_candidate_exact_model_id=(
-            "claude-haiku-4-5-20251001"
+            "gpt-5.4-nano-2026-03-17"
         ),
         secondary_candidate_exact_model_id=None,
         maximum_fallback_calls_per_operation=1,
         diagnostic_candidate_exact_model_ids=(
+            "claude-haiku-4-5-20251001",
             "models/gemini-3.1-flash-lite",
             "models/gemini-3.5-flash-lite",
         ),

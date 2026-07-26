@@ -41,7 +41,7 @@ def test_factory_is_pure_deterministic_and_has_no_qualified_models_before_receip
 def test_live_qualification_statuses_are_explicit_and_fail_closed() -> None:
     policy = Gate2EconomyModelPolicyFactory().create()
 
-    assert policy.policy_version == "1.4.0"
+    assert policy.policy_version == "1.5.0"
     assert {item.exact_model_id for item in policy.models} == set(
         V3_ALLOWED_EXACT_MODEL_IDS
     )

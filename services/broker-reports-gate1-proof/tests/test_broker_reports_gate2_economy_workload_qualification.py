@@ -27,7 +27,7 @@ def test_registry_is_deterministic_and_bound_to_policy() -> None:
     assert first.policy_hash == policy.policy_hash
     assert len(first.registry_hash) == 64
     assert len(first.entries) == 16
-    assert first.workload_policy_version == "1.4.0"
+    assert first.workload_policy_version == "1.5.0"
     assert len(first.workload_policy_hash) == 64
     assert all(item.customer_calls_total == 0 for item in first.entries)
     assert all(item.fallback_calls_total == 0 for item in first.entries)
