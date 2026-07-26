@@ -1,0 +1,147 @@
+{
+  "schema_version": "broker_reports_gate2_managed_financial_domain_goal3_receipt_v1",
+  "goal": "GOAL_3_OPENWEBUI_MANAGED_ASSET_FAMILY",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "bebeed378e0c2efeb9f5290ddea62526dd40293f",
+  "branch": "codex/broker-reports-gate2-domain-goal3-managed-openwebui-assets",
+  "hash_boundary": "git_blob_bytes",
+  "asset_family": {
+    "schema_version": "broker_reports_financial_domain_managed_asset_manifest_v1",
+    "family_id": "broker_reports_gate2_financial_domain_assets",
+    "semantic_version": "1.0.0",
+    "authority_status": "target_normative_not_live",
+    "runtime_activation": false,
+    "manifest_git_blob_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315",
+    "manifest_integrity_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59",
+    "assets_total": 3,
+    "dependencies_total": 4,
+    "supporting_knowledge_total": 0
+  },
+  "managed_skill": {
+    "asset_id": "broker_reports_financial_domain_skill",
+    "openwebui_id": "broker-reports-financial-domain-matching",
+    "semantic_version": "1.0.0",
+    "method_only": true,
+    "accepted_type_ids_copied_total": 0,
+    "type_definitions_copied_total": 0
+  },
+  "managed_prompt": {
+    "asset_id": "broker_reports_gate2_financial_matching_prompt",
+    "openwebui_id": "broker-reports-gate2-financial-matching-v1",
+    "command": "broker_gate2_financial_match_v1",
+    "semantic_version": "1.0.0",
+    "bounded_input_placeholders_total": 1,
+    "accepted_type_ids_copied_total": 0,
+    "type_definitions_copied_total": 0
+  },
+  "semantic_pack_tool": {
+    "asset_id": "broker_reports_financial_semantic_pack_tool",
+    "openwebui_id": "broker_reports_financial_semantic_pack",
+    "public_method": "load_financial_semantic_pack",
+    "semantic_version": "1.0.0",
+    "tool_git_blob_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
+    "pack_git_blob_sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+    "pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "canonical_semantic_bytes": 9404,
+    "exact_complete_pack_delivery": true,
+    "tamper_fails_closed": true,
+    "runtime_filesystem_reads_total": 0,
+    "runtime_network_calls_total": 0,
+    "non_standard_library_imports_total": 0
+  },
+  "authority": {
+    "financial_semantic_authority": "semantic_pack_only",
+    "full_pack_required": true,
+    "rag_only_authority_allowed": false,
+    "knowledge_authority_allowed": false,
+    "python_type_meanings_allowed": false,
+    "prompt_type_meanings_allowed": false,
+    "gate3_methodology_included": false
+  },
+  "openwebui": {
+    "target_version": "0.9.6",
+    "skill_api": "/api/v1/skills",
+    "prompt_api": "/api/v1/prompts",
+    "tool_api": "/api/v1/tools",
+    "live_install_performed": false,
+    "live_activation_performed": false
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md",
+      "git_blob_sha256": "a69198b6fdabcc397f03bbcba174941fb1729aa87092d08f100fbbcaedbf2fcb"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v1.manifest.json",
+      "git_blob_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v1.manifest.schema.json",
+      "git_blob_sha256": "5f827cb0e88017e6b893a6e1f3e5f68d5cc123cb1768a55552629ebedfd925a3"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/managed_assets/prompts/broker_reports_gate2_financial_matching_prompt.v1.md",
+      "git_blob_sha256": "3f169c79a9bf6f0eb1b476853ed1ace50cca9b2f7fd2d2fe3394f2ab3f6d5a2e"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/managed_assets/skills/broker_reports_financial_domain_skill.v1.md",
+      "git_blob_sha256": "08a405c69b66aac2fcc1ed0be355a59e2df8e2b012fc7d107fdb2243208e02d5"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/managed_assets/tools/broker_reports_financial_semantic_pack_tool.v1.py",
+      "git_blob_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/scripts/build_openwebui_managed_financial_assets.py",
+      "git_blob_sha256": "e6dcc7069a327138ceb447275009b988dfa08893252b4d5a43933e3ac8f1da43"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_openwebui_managed_asset_family.py",
+      "git_blob_sha256": "a0a1638ecad0ba1cbdd9814b454836ff68676e1c5d64d71ff14b2250f89299d7"
+    }
+  ],
+  "verification": {
+    "asset_tests": "8 passed in 0.89s",
+    "focused_tests": "45 passed in 1.37s",
+    "full_suite": "1545 passed, 20 skipped, 5 warnings in 114.90s",
+    "privacy_guard": "3 passed in 0.86s",
+    "manifest_schema_validation": "passed",
+    "manifest_integrity_validation": "passed",
+    "all_manifest_git_blob_hashes": "matched",
+    "tool_pack_git_blob_parity": "exact",
+    "tool_pack_semantic_integrity": "exact",
+    "tamper_probe": "failed_closed",
+    "deterministic_build_check": "passed",
+    "closed_world_import_check": "passed",
+    "factory_antidrift_anchors": "enforced",
+    "ruff": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "acceptance_markers": {
+    "MANAGED_SKILL": "VERSIONED",
+    "MANAGED_PROMPT": "VERSIONED",
+    "SEMANTIC_PACK_FUNCTION": "EXACT",
+    "ASSET_MANIFEST": "PINNED",
+    "RAG_ONLY_AUTHORITY": "FORBIDDEN"
+  },
+  "next_permitted_goal": "GOAL_4_AFTER_GOAL_3_REVIEW_ACCEPTANCE_AND_MERGE"
+}

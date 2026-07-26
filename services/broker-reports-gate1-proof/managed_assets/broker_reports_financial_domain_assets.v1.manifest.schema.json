@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:broker-reports:managed-assets:financial-domain:v1",
+  "title": "Broker Reports Financial Domain managed OpenWebUI asset family v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "family_id",
+    "semantic_version",
+    "authority_status",
+    "runtime_activation",
+    "hash_boundary",
+    "openwebui",
+    "assets",
+    "dependencies",
+    "composition",
+    "authority",
+    "supporting_knowledge",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_financial_domain_managed_asset_manifest_v1"
+    },
+    "family_id": {
+      "const": "broker_reports_gate2_financial_domain_assets"
+    },
+    "semantic_version": {
+      "const": "1.0.0"
+    },
+    "authority_status": {
+      "const": "target_normative_not_live"
+    },
+    "runtime_activation": {
+      "const": false
+    },
+    "hash_boundary": {
+      "const": "git_blob_bytes"
+    },
+    "openwebui": {
+      "$ref": "#/$defs/openwebui"
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "composition": {
+      "$ref": "#/$defs/composition"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "supporting_knowledge": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safeId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.:-]{2,127}$"
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 260,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.\\-/]+$"
+    },
+    "openwebui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distribution",
+        "target_version",
+        "upstream_tag",
+        "skill_api",
+        "prompt_api",
+        "tool_api"
+      ],
+      "properties": {
+        "distribution": {
+          "const": "open-webui"
+        },
+        "target_version": {
+          "const": "0.9.6"
+        },
+        "upstream_tag": {
+          "const": "v0.9.6"
+        },
+        "skill_api": {
+          "const": "/api/v1/skills"
+        },
+        "prompt_api": {
+          "const": "/api/v1/prompts"
+        },
+        "tool_api": {
+          "const": "/api/v1/tools"
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset_id",
+        "kind",
+        "semantic_version",
+        "repository_relative_path",
+        "media_type",
+        "git_blob_sha256",
+        "activation",
+        "api_identity"
+      ],
+      "properties": {
+        "asset_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "kind": {
+          "enum": [
+            "openwebui_skill",
+            "openwebui_prompt",
+            "openwebui_workspace_tool"
+          ]
+        },
+        "semantic_version": {
+          "const": "1.0.0"
+        },
+        "repository_relative_path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "media_type": {
+          "enum": [
+            "text/markdown",
+            "text/x-python"
+          ]
+        },
+        "git_blob_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activation": {
+          "const": "repository_managed_not_live"
+        },
+        "api_identity": {
+          "$ref": "#/$defs/apiIdentity"
+        }
+      }
+    },
+    "apiIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "description": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 500
+        },
+        "command": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{2,127}$"
+        },
+        "version_id": {
+          "const": "1.0.0"
+        },
+        "is_active": {
+          "const": true
+        },
+        "meta": {
+          "type": "object"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependency_id",
+        "kind",
+        "contract_identity",
+        "repository_relative_path",
+        "git_blob_sha256"
+      ],
+      "properties": {
+        "dependency_id": {
+          "$ref": "#/$defs/safeId"
+        },
+        "kind": {
+          "enum": [
+            "semantic_pack",
+            "semantic_pack_schema",
+            "consumer_contract_schema",
+            "decision_contract_source"
+          ]
+        },
+        "contract_identity": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 180
+        },
+        "repository_relative_path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "git_blob_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semantic_version": {
+          "const": "1.0.0"
+        },
+        "semantic_integrity_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "canonical_semantic_bytes": {
+          "type": "integer",
+          "const": 9404
+        }
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method_asset_id",
+        "operation_asset_id",
+        "pack_loader_asset_id",
+        "pack_loader_method",
+        "semantic_pack_dependency_id",
+        "strict_output_contract",
+        "bounded_input_placeholder"
+      ],
+      "properties": {
+        "method_asset_id": {
+          "const": "broker_reports_financial_domain_skill"
+        },
+        "operation_asset_id": {
+          "const": "broker_reports_gate2_financial_matching_prompt"
+        },
+        "pack_loader_asset_id": {
+          "const": "broker_reports_financial_semantic_pack_tool"
+        },
+        "pack_loader_method": {
+          "const": "load_financial_semantic_pack"
+        },
+        "semantic_pack_dependency_id": {
+          "const": "broker_reports_financial_semantic_pack"
+        },
+        "strict_output_contract": {
+          "const": "broker_reports_gate2_financial_evidence_decision_v1"
+        },
+        "bounded_input_placeholder": {
+          "const": "{{financial_semantic_matching_input_json}}"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "financial_semantic_authority_dependency_id",
+        "full_pack_required",
+        "rag_only_authority_allowed",
+        "knowledge_authority_allowed",
+        "python_type_meanings_allowed",
+        "prompt_type_meanings_allowed"
+      ],
+      "properties": {
+        "financial_semantic_authority_dependency_id": {
+          "const": "broker_reports_financial_semantic_pack"
+        },
+        "full_pack_required": {
+          "const": true
+        },
+        "rag_only_authority_allowed": {
+          "const": false
+        },
+        "knowledge_authority_allowed": {
+          "const": false
+        },
+        "python_type_meanings_allowed": {
+          "const": false
+        },
+        "prompt_type_meanings_allowed": {
+          "const": false
+        }
+      }
+    }
+  }
+}
