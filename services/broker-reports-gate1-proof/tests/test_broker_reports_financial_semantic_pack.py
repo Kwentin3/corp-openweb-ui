@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -224,13 +225,31 @@ def test_pack_contains_no_gate3_methodology_fields() -> None:
         assert forbidden_fields.isdisjoint(definition["operational_contracts"])
 
 
-def test_goal2_safe_receipt_hashes_current_deliverables() -> None:
+def _git_index_blob(path: Path) -> bytes:
+    relative = path.relative_to(REPO_ROOT).as_posix()
+    completed = subprocess.run(
+        ["git", "show", f":{relative}"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+    assert completed.returncode == 0, completed.stderr.decode(
+        "utf-8",
+        errors="replace",
+    )
+    return completed.stdout
+
+
+def test_goal2_safe_receipt_hashes_current_git_blobs() -> None:
     receipt = _read(GOAL2_RECEIPT_PATH)
     mismatches = {}
 
+    assert receipt["evidence_reconciliation"]["hash_boundary"] == (
+        "git_blob_bytes"
+    )
     for item in receipt["deliverables"]:
         path = REPO_ROOT / item["path"]
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        actual = hashlib.sha256(_git_index_blob(path)).hexdigest()
         if actual != item["sha256"]:
             mismatches[item["path"]] = {
                 "claimed": item["sha256"],

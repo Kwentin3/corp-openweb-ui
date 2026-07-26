@@ -118,20 +118,20 @@ This GOAL adds no:
 
 1. `services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.json`
    - SHA-256:
-     `9538ccb8f2111efa24e25d1b7b10145ccff8ca4e3c655cdc6d71b916d926c3fd`
+     `ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f`
 2. `services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.schema.json`
    - SHA-256:
-     `833b1d15b0e383ee80220ba5f347b4009d150ff8ce19336e17aff3c805d70385`
+     `cea99c199ba6b20905fd988fed481e963a999d1a74464a0af055d38eb0c76b9e`
 3. `docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md`
    - SHA-256:
-     `a34f3ab1db3f9cbfb92541b5045b5425b5547dec52f17e08d97525e49490305f`
+     `3f326a6c2da1baf4b636689648e6f6eabca5ff24850edd2a64f69929f11c76c6`
 4. `services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py`
    - SHA-256:
-     `62ff2dad6bfade42e9f0c553a72f55ae9b5ac67f70f24f3f717607ea978db4a4`
+     `c88b9eb317ae826fe02788520f569140a4c8a4a28f1fe275358c534d7a2fdbe8`
 5. repository-safe receipt:
    [`BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json`](./BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json)
    - SHA-256:
-     `31b8a9709f39d5014ccadcf9a0ff13fabad923488ff3d82ed339318d998bd3cf`
+     `1e166f561af894dd1fc0102abd2b7f0bd069e273ceeb90ac8f8d14c31d6cabe6`
 
 ## 8. Fresh review correction
 
@@ -144,19 +144,22 @@ Both definitions now have byte-exact Registry parity (`2/2`). Synonyms,
 distinctions, and ambiguity guidance remain separate Pack fields. A dedicated
 test prevents future definition drift.
 
-## 9. Evidence reconciliation
+## 9. Evidence boundary correction
 
-The semantic-definition correction changed all four hashed GOAL 2
-deliverables after their initial report/receipt hashes had been calculated.
-The stale pre-correction SHA-256 values were discovered after merge during the
-next fresh repository pass.
+The original GOAL 2 deliverable hashes were SHA-256 values of repository Git
+blob bytes and were correct. A later Windows checkout check compared those
+portable LF-normalized Git bytes to CRLF-expanded working-tree files under
+`core.autocrlf=true`, incorrectly reported four stale hashes, and replaced
+them in GOAL 2C.
 
-Corrective GOAL 2C replaces all four stale values with hashes of the merged
-artifacts and adds
-`test_goal2_safe_receipt_hashes_current_deliverables`, which recomputes every
-declared deliverable hash from repository bytes. The Pack semantic integrity
-hash, canonical semantic bytes, authority boundary, and production state did
-not change.
+Corrective GOAL 2D restores the portable repository hashes and adds
+`test_goal2_safe_receipt_hashes_current_git_blobs`. The guard reads the staged
+Git blob for every declared repository-relative deliverable, so its result is
+independent of checkout newline conversion. GOAL 2C is retained only as
+superseded audit history and is not current authority.
+
+The Pack semantic integrity hash, canonical semantic bytes, semantic meaning,
+authority boundary, and production state never changed.
 
 ## 10. Verification
 
