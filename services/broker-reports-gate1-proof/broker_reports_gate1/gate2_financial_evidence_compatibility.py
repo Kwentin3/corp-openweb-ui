@@ -18,6 +18,7 @@ from .gate2_financial_evidence_legacy_validation import (
 )
 from .gate2_financial_evidence_materialization_contracts import (
     FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
     IDENTIFIER_RE,
     sha256_json,
 )
@@ -161,7 +162,10 @@ class Gate2FinancialEvidenceCompatibility:
                 payload=payload,
                 artifact_sha256=before_sha256,
             )
-        elif schema_version == FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION:
+        elif schema_version in {
+            FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
+            FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+        }:
             result = self._read_successor(
                 artifact_ref=artifact_ref,
                 payload=payload,

@@ -531,6 +531,11 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         / "broker_reports_gate1/"
         "gate2_financial_evidence_production_runtime.py"
     ).read_text(encoding="utf-8")
+    financial_contracts = (
+        SERVICE_ROOT
+        / "broker_reports_gate1/"
+        "gate2_financial_evidence_materialization_contracts.py"
+    ).read_text(encoding="utf-8")
     smoke_paths = (
         SERVICE_ROOT / "scripts/live_gate2_domain_synthetic_smoke.py",
         SERVICE_ROOT / "scripts/live_case_group_gate2_table_typed_vertical_proof.py",
@@ -620,8 +625,13 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         ),
         "financial_runtime_single_writes_new_schema": (
             '"write_policy": "new_schema_only"' in financial_runtime
-            and "broker_reports_financial_evidence_inputs_v1"
+            and (
+                "FINANCIAL_INPUT_ARTIFACT_TYPE = "
+                "FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION"
+            )
             in financial_runtime
+            and "broker_reports_financial_evidence_inputs_v2"
+            in financial_contracts
         ),
         "model_client_has_no_json_object_downgrade": "json_object" not in model_clients,
         "candidate_binding_default_is_false": "candidate_binding_enabled: bool = Field(default=False)" in domain_pipe,

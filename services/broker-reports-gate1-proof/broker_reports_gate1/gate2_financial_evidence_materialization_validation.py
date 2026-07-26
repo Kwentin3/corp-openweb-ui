@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any
 
 from .gate2_financial_evidence_decision import DECISION_SCHEMA_VERSION
 from .gate2_financial_evidence_materialization_contracts import (
     COMPLETENESS_VALUES,
     FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
     MATERIALIZATION_POLICY_VERSION,
+    MATERIALIZATION_POLICY_VERSION_V1,
     MEASUREMENT_ROLES,
     SHA256_RE,
     TEMPORAL_ROLES,
+    Gate2FinancialEvidenceSourcePackage,
     fail,
     normalize_comparison_value,
     role_projection,
@@ -22,13 +26,34 @@ from .gate2_financial_evidence_registry import (
     REGISTRY_ID,
     Gate2FinancialEvidenceRegistrySnapshot,
 )
+from .gate2_financial_semantic_contract import (
+    Gate2FinancialSemanticContractFactory,
+    Gate2FinancialSemanticContractSnapshot,
+)
+from .gate2_financial_evidence_source_package import (
+    validate_source_package_integrity,
+)
 
 
 def validate_financial_evidence_inputs(
     *,
     payload: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    source_package: Gate2FinancialEvidenceSourcePackage | None = None,
 ) -> None:
+    schema_version = (
+        payload.get("schema_version")
+        if isinstance(payload, dict)
+        else None
+    )
+    legacy_v1 = (
+        schema_version == FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1
+    )
+    if (
+        not legacy_v1
+        and schema_version != FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION
+    ):
+        fail("financial_evidence_inputs_version_invalid")
     expected_keys = {
         "schema_version",
         "materialization_policy_version",
@@ -42,15 +67,28 @@ def validate_financial_evidence_inputs(
         "execution",
         "integrity_hash",
     }
+    if not legacy_v1:
+        expected_keys.add("semantic_pack")
     if not isinstance(payload, dict) or set(payload) != expected_keys:
         fail("financial_evidence_inputs_shape_invalid")
     if (
-        payload["schema_version"]
-        != FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION
-        or payload["materialization_policy_version"]
-        != MATERIALIZATION_POLICY_VERSION
+        payload["materialization_policy_version"]
+        != (
+            MATERIALIZATION_POLICY_VERSION_V1
+            if legacy_v1
+            else MATERIALIZATION_POLICY_VERSION
+        )
     ):
         fail("financial_evidence_inputs_version_invalid")
+    semantic_contract = Gate2FinancialSemanticContractFactory(
+        registry=registry
+    ).create()
+    if (
+        not legacy_v1
+        and payload["semantic_pack"]
+        != semantic_contract.identity_payload()
+    ):
+        fail("financial_evidence_inputs_semantic_pack_invalid")
     if payload["registry"] != {
         "registry_id": REGISTRY_ID,
         "registry_version": registry.registry_version,
@@ -82,14 +120,24 @@ def validate_financial_evidence_inputs(
         fail("financial_evidence_inputs_terminal_shape_invalid")
     for item in typed:
         _validate_terminal_integrity(item, "input_id", "finin_")
-        _validate_typed_input(item, registry)
+        _validate_typed_input(
+            item,
+            registry,
+            semantic_contract=semantic_contract,
+            legacy_v1=legacy_v1,
+        )
     for item in unclassified:
         _validate_terminal_integrity(
             item,
             "unclassified_input_id",
             "finun_",
         )
-        _validate_unclassified_input(item, registry)
+        _validate_unclassified_input(
+            item,
+            registry,
+            semantic_contract=semantic_contract,
+            legacy_v1=legacy_v1,
+        )
 
     coverage = payload["coverage"]
     if (
@@ -116,8 +164,10 @@ def validate_financial_evidence_inputs(
     ] + [
         item["unclassified_input_id"] for item in unclassified
     ]
-    source_package = payload["source_package"]
-    if not isinstance(source_package, dict) or set(source_package) != {
+    source_package_projection = payload["source_package"]
+    if (
+        not isinstance(source_package_projection, dict)
+        or set(source_package_projection) != {
         "schema_version",
         "package_ref",
         "integrity_hash",
@@ -125,30 +175,39 @@ def validate_financial_evidence_inputs(
         "source_family_id",
         "source_values_total",
         "source_value_refs_hash",
-    }:
+        }
+    ):
         fail("financial_evidence_inputs_source_package_invalid")
     for item in [*typed, *unclassified]:
         ownership = item["source_ownership"]
         if (
             item["source_scope_ref"]
-            != source_package["source_scope_ref"]
+            != source_package_projection["source_scope_ref"]
             or not isinstance(ownership, dict)
             or ownership.get("source_package_ref")
-            != source_package["package_ref"]
+            != source_package_projection["package_ref"]
             or ownership.get("source_scope_ref")
-            != source_package["source_scope_ref"]
+            != source_package_projection["source_scope_ref"]
         ):
             fail("financial_evidence_inputs_source_ownership_invalid")
-    if coverage["source_scope_ref"] != source_package["source_scope_ref"]:
+    if (
+        coverage["source_scope_ref"]
+        != source_package_projection["source_scope_ref"]
+    ):
         fail("financial_evidence_coverage_scope_invalid")
     if (
         coverage["candidate_refs_total"]
-        != source_package["source_values_total"]
+        != source_package_projection["source_values_total"]
         or not SHA256_RE.fullmatch(
-            source_package["source_value_refs_hash"]
+            source_package_projection["source_value_refs_hash"]
         )
     ):
         fail("financial_evidence_coverage_candidate_count_invalid")
+    if source_package is not None:
+        _validate_source_package_bindings(
+            payload=payload,
+            source_package=source_package,
+        )
     expected_bound_refs = sorted(
         value["source_value_ref"]
         for item in [*typed, *unclassified]
@@ -159,16 +218,18 @@ def validate_financial_evidence_inputs(
     if (
         disposition == "unclassified_financial_input"
         and sha256_json(expected_bound_refs)
-        != source_package["source_value_refs_hash"]
+        != source_package_projection["source_value_refs_hash"]
     ):
         fail("financial_evidence_unclassified_value_loss")
     expected_coverage_id = "finclose_" + sha256_json(
         {
             "registry_hash": registry.registry_hash,
-            "source_package_integrity_hash": source_package[
+            "source_package_integrity_hash": source_package_projection[
                 "integrity_hash"
             ],
-            "source_scope_ref": source_package["source_scope_ref"],
+            "source_scope_ref": source_package_projection[
+                "source_scope_ref"
+            ],
             "terminal_disposition": disposition,
             "reason_code": coverage["reason_code"],
             "bound_source_value_refs": coverage[
@@ -178,17 +239,22 @@ def validate_financial_evidence_inputs(
     )[:32]
     if coverage["coverage_id"] != expected_coverage_id:
         fail("financial_evidence_coverage_id_invalid")
+    artifact_identity = {
+        "schema_version": schema_version,
+        "registry_hash": registry.registry_hash,
+        "source_package_integrity_hash": source_package_projection[
+            "integrity_hash"
+        ],
+        "terminal_disposition": disposition,
+        "terminal_ids": terminal_ids,
+        "coverage_id": coverage["coverage_id"],
+    }
+    if not legacy_v1:
+        artifact_identity["semantic_pack_integrity_sha256"] = (
+            semantic_contract.integrity_sha256
+        )
     expected_artifact_id = "finset_" + sha256_json(
-        {
-            "schema_version": FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
-            "registry_hash": registry.registry_hash,
-            "source_package_integrity_hash": source_package[
-                "integrity_hash"
-            ],
-            "terminal_disposition": disposition,
-            "terminal_ids": terminal_ids,
-            "coverage_id": coverage["coverage_id"],
-        }
+        artifact_identity
     )[:32]
     if payload["artifact_id"] != expected_artifact_id:
         fail("financial_evidence_inputs_artifact_id_invalid")
@@ -228,6 +294,9 @@ def _validate_terminal_integrity(
 def _validate_typed_input(
     item: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    *,
+    semantic_contract: Gate2FinancialSemanticContractSnapshot,
+    legacy_v1: bool,
 ) -> None:
     expected_keys = {
         "input_id",
@@ -253,11 +322,18 @@ def _validate_typed_input(
         "issue_refs",
         "integrity_hash",
     }
+    if not legacy_v1:
+        expected_keys.add("semantic_pack_integrity_sha256")
     if set(item) != expected_keys:
         fail("financial_evidence_typed_input_shape_invalid")
-    declaration = registry.get(item["input_type_id"])
+    declaration = semantic_contract.type_contract(item["input_type_id"])
     if (
         item["semantic_class"] != declaration.semantic_class
+        or (
+            not legacy_v1
+            and item["semantic_pack_integrity_sha256"]
+            != semantic_contract.integrity_sha256
+        )
         or item["registry_version"] != registry.registry_version
         or item["registry_hash"] != registry.registry_hash
         or item["materialization_profile_id"]
@@ -276,6 +352,23 @@ def _validate_typed_input(
         <= set(declaration.required_roles + declaration.optional_roles)
     ):
         fail("financial_evidence_typed_input_roles_invalid")
+    role_counts = {
+        role_id: sum(
+            value["role_id"] == role_id for value in values
+        )
+        for role_id in bound_roles
+    }
+    for value in values:
+        role = declaration.role(value["role_id"])
+        if value["value_type"] != role.value_type:
+            fail("financial_evidence_typed_input_role_value_type_invalid")
+    for role_id, count in role_counts.items():
+        cardinality = declaration.role(role_id).cardinality
+        if (
+            cardinality in {"one", "zero_or_one"}
+            and count != 1
+        ) or (cardinality == "one_or_more" and count < 1):
+            fail("financial_evidence_typed_input_role_cardinality_invalid")
     validate_dimension_requirements(
         date_period_requirement=declaration.date_period_requirement,
         currency_unit_requirement=declaration.currency_unit_requirement,
@@ -283,37 +376,34 @@ def _validate_typed_input(
     )
     identity_policy = item["identity_policy"]
     if identity_policy != {
-        "identity_roles": list(
-            declaration.identity_policy.identity_roles
-        ),
-        "include_source_scope": (
-            declaration.identity_policy.include_source_scope
-        ),
-        "include_source_evidence_refs": (
-            declaration.identity_policy.include_source_evidence_refs
-        ),
+        "identity_roles": list(declaration.identity_roles),
+        "include_source_scope": True,
+        "include_source_evidence_refs": True,
     }:
         fail("financial_evidence_typed_input_identity_policy_invalid")
-    identity_roles = set(declaration.identity_policy.identity_roles)
-    expected_id = "finin_" + sha256_json(
-        {
-            "registry_hash": registry.registry_hash,
-            "input_type_id": item["input_type_id"],
-            "source_scope_ref": item["source_scope_ref"],
-            "identity_values": [
-                {
-                    "role_id": value["role_id"],
-                    "source_value_ref": value["source_value_ref"],
-                    "normalized_comparison_value": value[
-                        "normalized_comparison_value"
-                    ],
-                }
-                for value in values
-                if value["role_id"] in identity_roles
-            ],
-            "source_evidence_refs": item["source_evidence_refs"],
-        }
-    )[:32]
+    identity_roles = set(declaration.identity_roles)
+    identity = {
+        "registry_hash": registry.registry_hash,
+        "input_type_id": item["input_type_id"],
+        "source_scope_ref": item["source_scope_ref"],
+        "identity_values": [
+            {
+                "role_id": value["role_id"],
+                "source_value_ref": value["source_value_ref"],
+                "normalized_comparison_value": value[
+                    "normalized_comparison_value"
+                ],
+            }
+            for value in values
+            if value["role_id"] in identity_roles
+        ],
+        "source_evidence_refs": item["source_evidence_refs"],
+    }
+    if not legacy_v1:
+        identity["semantic_pack_integrity_sha256"] = (
+            semantic_contract.integrity_sha256
+        )
+    expected_id = "finin_" + sha256_json(identity)[:32]
     if item["input_id"] != expected_id:
         fail("financial_evidence_typed_input_id_invalid")
 
@@ -321,6 +411,9 @@ def _validate_typed_input(
 def _validate_unclassified_input(
     item: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    *,
+    semantic_contract: Gate2FinancialSemanticContractSnapshot,
+    legacy_v1: bool,
 ) -> None:
     expected_keys = {
         "unclassified_input_id",
@@ -343,9 +436,17 @@ def _validate_unclassified_input(
         "issue_refs",
         "integrity_hash",
     }
+    if not legacy_v1:
+        expected_keys.add("semantic_pack_integrity_sha256")
     if set(item) != expected_keys:
         fail("financial_evidence_unclassified_shape_invalid")
     if (
+        (
+            not legacy_v1
+            and item["semantic_pack_integrity_sha256"]
+            != semantic_contract.integrity_sha256
+        )
+        or
         item["registry_version"] != registry.registry_version
         or item["registry_hash"] != registry.registry_hash
         or item["registry_gap"] is not True
@@ -354,23 +455,26 @@ def _validate_unclassified_input(
         fail("financial_evidence_unclassified_state_invalid")
     values = _validate_materialized_values(item["source_values"])
     _validate_materialized_projections(item, values)
-    expected_id = "finun_" + sha256_json(
-        {
-            "registry_hash": registry.registry_hash,
-            "source_scope_ref": item["source_scope_ref"],
-            "source_values": [
-                {
-                    "role_id": value["role_id"],
-                    "source_value_ref": value["source_value_ref"],
-                    "normalized_comparison_value": value[
-                        "normalized_comparison_value"
-                    ],
-                }
-                for value in values
-            ],
-            "source_evidence_refs": item["source_evidence_refs"],
-        }
-    )[:32]
+    identity = {
+        "registry_hash": registry.registry_hash,
+        "source_scope_ref": item["source_scope_ref"],
+        "source_values": [
+            {
+                "role_id": value["role_id"],
+                "source_value_ref": value["source_value_ref"],
+                "normalized_comparison_value": value[
+                    "normalized_comparison_value"
+                ],
+            }
+            for value in values
+        ],
+        "source_evidence_refs": item["source_evidence_refs"],
+    }
+    if not legacy_v1:
+        identity["semantic_pack_integrity_sha256"] = (
+            semantic_contract.integrity_sha256
+        )
+    expected_id = "finun_" + sha256_json(identity)[:32]
     if item["unclassified_input_id"] != expected_id:
         fail("financial_evidence_unclassified_id_invalid")
 
@@ -466,6 +570,66 @@ def _validate_materialized_projections(
             or field_values != sorted(set(field_values))
         ):
             fail(f"financial_evidence_{field}_invalid")
+
+
+def _validate_source_package_bindings(
+    *,
+    payload: dict[str, Any],
+    source_package: Gate2FinancialEvidenceSourcePackage,
+) -> None:
+    validate_source_package_integrity(source_package)
+    expected_projection = {
+        "schema_version": source_package.schema_version,
+        "package_ref": source_package.package_ref,
+        "integrity_hash": source_package.integrity_hash,
+        "source_scope_ref": source_package.source_scope_ref,
+        "source_family_id": source_package.source_family_id,
+        "source_values_total": len(source_package.source_values),
+        "source_value_refs_hash": sha256_json(
+            [
+                value.source_value_ref
+                for value in source_package.source_values
+            ]
+        ),
+    }
+    if payload["source_package"] != expected_projection:
+        fail("financial_evidence_source_package_authority_mismatch")
+    authoritative = {
+        value.source_value_ref: value
+        for value in source_package.source_values
+    }
+    observed_refs: list[str] = []
+    for terminal in [
+        *payload["typed_inputs"],
+        *payload["unclassified_inputs"],
+    ]:
+        ownership = terminal["source_ownership"]
+        if ownership != {
+            "normalization_run_ref": (
+                source_package.normalization_run_ref
+            ),
+            "document_ref": source_package.document_ref,
+            "source_package_ref": source_package.package_ref,
+            "source_scope_ref": source_package.source_scope_ref,
+        }:
+            fail("financial_evidence_cross_scope_binding")
+        for materialized in terminal["source_values"]:
+            source = authoritative.get(
+                materialized["source_value_ref"]
+            )
+            if (
+                source is None
+                or materialized["source_ref"] != source.source_ref
+                or materialized["value_type"] != source.value_type
+                or materialized["literal_value"] != source.literal_value
+                or materialized["source_evidence_refs"]
+                != list(source.source_evidence_refs)
+                or materialized["lineage"] != asdict(source.lineage)
+            ):
+                fail("financial_evidence_package_binding_invalid")
+            observed_refs.append(materialized["source_value_ref"])
+    if len(observed_refs) != len(set(observed_refs)):
+        fail("financial_evidence_package_binding_duplicate")
 
 
 def _contains_gate3_field(value: Any) -> bool:

@@ -13,12 +13,15 @@ from .gate2_financial_evidence_decision import (
 )
 from .gate2_financial_evidence_materialization_contracts import (
     FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
     MATERIALIZATION_POLICY_VERSION,
+    MATERIALIZATION_POLICY_VERSION_V1,
     MEASUREMENT_ROLES,
     SHA256_RE,
     SOURCE_PACKAGE_SCHEMA_VERSION,
     TEMPORAL_ROLES,
     VALIDATED_DECISION_SCHEMA_VERSION,
+    VALIDATED_DECISION_SCHEMA_VERSION_V1,
     FinancialEvidenceAuthoritativeSourceValue,
     FinancialEvidenceExecutionMetadata,
     FinancialEvidenceSourceLineage,
@@ -46,6 +49,10 @@ from .gate2_financial_evidence_source_package import (
     Gate2FinancialEvidenceSourcePackageFactory,
     validate_source_package_integrity,
 )
+from .gate2_financial_semantic_contract import (
+    Gate2FinancialSemanticContractFactory,
+    Gate2FinancialSemanticContractSnapshot,
+)
 
 
 FACTORY_REQUIRED = (
@@ -59,9 +66,12 @@ FORBIDDEN = (
 
 __all__ = [
     "FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION",
+    "FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1",
     "MATERIALIZATION_POLICY_VERSION",
+    "MATERIALIZATION_POLICY_VERSION_V1",
     "SOURCE_PACKAGE_SCHEMA_VERSION",
     "VALIDATED_DECISION_SCHEMA_VERSION",
+    "VALIDATED_DECISION_SCHEMA_VERSION_V1",
     "FinancialEvidenceAuthoritativeSourceValue",
     "FinancialEvidenceExecutionMetadata",
     "FinancialEvidenceSourceLineage",
@@ -87,12 +97,22 @@ class Gate2FinancialEvidenceValidatedDecisionFactory:
     def create(
         self, model_output: str | dict[str, Any]
     ) -> FinancialEvidenceValidatedDecision:
+        semantic_contract = Gate2FinancialSemanticContractFactory(
+            registry=self.contract.registry
+        ).create()
         decision = self.contract.parse_model_output(model_output)
+        if isinstance(decision, TypedFinancialInputDecision):
+            semantic_contract.type_contract(decision.input_type_id)
         candidates = self.contract.package.candidates
         return FinancialEvidenceValidatedDecision(
             schema_version=VALIDATED_DECISION_SCHEMA_VERSION,
             decision_schema_version=DECISION_SCHEMA_VERSION,
             decision_schema_hash=self.contract.canonical_schema_hash(),
+            semantic_pack_id=semantic_contract.pack_id,
+            semantic_pack_version=semantic_contract.semantic_version,
+            semantic_pack_integrity_sha256=(
+                semantic_contract.integrity_sha256
+            ),
             registry_version=self.contract.registry.registry_version,
             registry_hash=self.contract.registry.registry_hash,
             source_scope_ref=self.contract.package.source_scope_ref,
@@ -128,6 +148,9 @@ class Gate2FinancialEvidenceMaterializerFactory:
 
     def create(self) -> "Gate2FinancialEvidenceMaterializer":
         validate_source_package_integrity(self.source_package)
+        semantic_contract = Gate2FinancialSemanticContractFactory(
+            registry=self.registry
+        ).create()
         identifier(
             self.execution_metadata.execution_ref,
             "execution_ref",
@@ -138,6 +161,7 @@ class Gate2FinancialEvidenceMaterializerFactory:
         )
         return Gate2FinancialEvidenceMaterializer(
             registry=self.registry,
+            semantic_contract=semantic_contract,
             source_package=self.source_package,
             execution_metadata=self.execution_metadata,
         )
@@ -148,10 +172,12 @@ class Gate2FinancialEvidenceMaterializer:
         self,
         *,
         registry: Gate2FinancialEvidenceRegistrySnapshot,
+        semantic_contract: Gate2FinancialSemanticContractSnapshot,
         source_package: Gate2FinancialEvidenceSourcePackage,
         execution_metadata: FinancialEvidenceExecutionMetadata,
     ) -> None:
         self.registry = registry
+        self.semantic_contract = semantic_contract
         self.source_package = source_package
         self.execution_metadata = execution_metadata
 
@@ -199,6 +225,9 @@ class Gate2FinancialEvidenceMaterializer:
         artifact_id = "finset_" + sha256_json(
             {
                 "schema_version": FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+                "semantic_pack_integrity_sha256": (
+                    self.semantic_contract.integrity_sha256
+                ),
                 "registry_hash": self.registry.registry_hash,
                 "source_package_integrity_hash": (
                     self.source_package.integrity_hash
@@ -214,6 +243,7 @@ class Gate2FinancialEvidenceMaterializer:
                 MATERIALIZATION_POLICY_VERSION
             ),
             "artifact_id": artifact_id,
+            "semantic_pack": self.semantic_contract.identity_payload(),
             "registry": {
                 "registry_id": REGISTRY_ID,
                 "registry_version": self.registry.registry_version,
@@ -241,6 +271,7 @@ class Gate2FinancialEvidenceMaterializer:
         validate_financial_evidence_inputs(
             payload=payload,
             registry=self.registry,
+            source_package=self.source_package,
         )
         return payload
 
@@ -256,6 +287,12 @@ class Gate2FinancialEvidenceMaterializer:
             or not SHA256_RE.fullmatch(
                 validated_decision.decision_schema_hash
             )
+            or validated_decision.semantic_pack_id
+            != self.semantic_contract.pack_id
+            or validated_decision.semantic_pack_version
+            != self.semantic_contract.semantic_version
+            or validated_decision.semantic_pack_integrity_sha256
+            != self.semantic_contract.integrity_sha256
         ):
             fail("financial_evidence_validated_decision_invalid")
         if (
@@ -298,7 +335,9 @@ class Gate2FinancialEvidenceMaterializer:
         self,
         decision: TypedFinancialInputDecision,
     ) -> dict[str, Any]:
-        declaration = self.registry.get(decision.input_type_id)
+        declaration = self.semantic_contract.type_contract(
+            decision.input_type_id
+        )
         values = self._bound_values(decision.value_bindings)
         if not set(declaration.required_roles) <= {
             item["role_id"] for item in values
@@ -311,13 +350,16 @@ class Gate2FinancialEvidenceMaterializer:
             ),
             bound_roles={item["role_id"] for item in values},
         )
-        identity_roles = tuple(declaration.identity_policy.identity_roles)
+        identity_roles = tuple(declaration.identity_roles)
         evidence = evidence_refs(
             values,
             self.source_package.source_evidence_refs,
         )
         input_id = "finin_" + sha256_json(
             {
+                "semantic_pack_integrity_sha256": (
+                    self.semantic_contract.integrity_sha256
+                ),
                 "registry_hash": self.registry.registry_hash,
                 "input_type_id": decision.input_type_id,
                 "source_scope_ref": self.source_package.source_scope_ref,
@@ -339,6 +381,9 @@ class Gate2FinancialEvidenceMaterializer:
             "input_id": input_id,
             "input_type_id": decision.input_type_id,
             "semantic_class": declaration.semantic_class,
+            "semantic_pack_integrity_sha256": (
+                self.semantic_contract.integrity_sha256
+            ),
             "registry_version": self.registry.registry_version,
             "registry_hash": self.registry.registry_hash,
             "materialization_profile_id": (
@@ -350,12 +395,8 @@ class Gate2FinancialEvidenceMaterializer:
             "source_sign_policy": declaration.source_sign_policy,
             "identity_policy": {
                 "identity_roles": list(identity_roles),
-                "include_source_scope": (
-                    declaration.identity_policy.include_source_scope
-                ),
-                "include_source_evidence_refs": (
-                    declaration.identity_policy.include_source_evidence_refs
-                ),
+                "include_source_scope": True,
+                "include_source_evidence_refs": True,
             },
             **self._source_context(values, evidence),
         }
@@ -379,6 +420,9 @@ class Gate2FinancialEvidenceMaterializer:
         )
         unclassified_id = "finun_" + sha256_json(
             {
+                "semantic_pack_integrity_sha256": (
+                    self.semantic_contract.integrity_sha256
+                ),
                 "registry_hash": self.registry.registry_hash,
                 "source_scope_ref": self.source_package.source_scope_ref,
                 "source_values": [
@@ -396,6 +440,9 @@ class Gate2FinancialEvidenceMaterializer:
         )[:32]
         payload: dict[str, Any] = {
             "unclassified_input_id": unclassified_id,
+            "semantic_pack_integrity_sha256": (
+                self.semantic_contract.integrity_sha256
+            ),
             "registry_version": self.registry.registry_version,
             "registry_hash": self.registry.registry_hash,
             "registry_gap": True,

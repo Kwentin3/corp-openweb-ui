@@ -5,7 +5,9 @@ from typing import Any
 from .gate2_financial_context_contracts import (
     AGGREGATE_SEMANTICS,
     FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION,
+    FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION_V1,
     FINANCIAL_CONTEXT_SCHEMA_VERSION,
+    FINANCIAL_CONTEXT_SCHEMA_VERSION_V1,
     STATUSES,
     fail,
 )
@@ -27,6 +29,10 @@ from .gate2_financial_evidence_materialization_contracts import (
 from .gate2_financial_evidence_registry import (
     REGISTRY_ID,
     Gate2FinancialEvidenceRegistrySnapshot,
+)
+from .gate2_financial_semantic_contract import (
+    Gate2FinancialSemanticContractFactory,
+    Gate2FinancialSemanticContractSnapshot,
 )
 
 
@@ -50,21 +56,47 @@ def validate_financial_context(
     payload: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
 ) -> None:
-    if not isinstance(payload, dict) or set(payload) != {
+    schema_version = (
+        payload.get("schema_version")
+        if isinstance(payload, dict)
+        else None
+    )
+    legacy_v1 = schema_version == FINANCIAL_CONTEXT_SCHEMA_VERSION_V1
+    if (
+        not legacy_v1
+        and schema_version != FINANCIAL_CONTEXT_SCHEMA_VERSION
+    ):
+        fail("financial_context_version_invalid")
+    expected_keys = {
         "schema_version",
         "projection_policy_version",
         "registry",
         "entries",
         "scope_coverage",
         "integrity_hash",
-    }:
+    }
+    if not legacy_v1:
+        expected_keys.add("semantic_pack")
+    if not isinstance(payload, dict) or set(payload) != expected_keys:
         fail("financial_context_shape_invalid")
     if (
-        payload["schema_version"] != FINANCIAL_CONTEXT_SCHEMA_VERSION
-        or payload["projection_policy_version"]
-        != FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION
+        payload["projection_policy_version"]
+        != (
+            FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION_V1
+            if legacy_v1
+            else FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION
+        )
     ):
         fail("financial_context_version_invalid")
+    semantic_contract = Gate2FinancialSemanticContractFactory(
+        registry=registry
+    ).create()
+    if (
+        not legacy_v1
+        and payload["semantic_pack"]
+        != semantic_contract.identity_payload()
+    ):
+        fail("financial_context_semantic_pack_invalid")
     if payload["registry"] != {
         "registry_id": REGISTRY_ID,
         "registry_version": registry.registry_version,
@@ -81,7 +113,12 @@ def validate_financial_context(
     scopes: list[str] = []
     status_counts = {status: 0 for status in sorted(STATUSES)}
     for entry in entries:
-        _validate_entry(entry, registry)
+        _validate_entry(
+            entry,
+            registry,
+            semantic_contract=semantic_contract,
+            legacy_v1=legacy_v1,
+        )
         scopes.append(entry["source_scope_ref"])
         status_counts[entry["status"]] += 1
     if scopes != sorted(set(scopes)):
@@ -107,6 +144,9 @@ def validate_financial_context(
 def _validate_entry(
     entry: Any,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    *,
+    semantic_contract: Gate2FinancialSemanticContractSnapshot,
+    legacy_v1: bool,
 ) -> None:
     if not isinstance(entry, dict) or set(entry) != {
         "context_entry_id",
@@ -124,6 +164,8 @@ def _validate_entry(
         status=entry["status"],
         source_scope_ref=entry["source_scope_ref"],
         registry=registry,
+        semantic_contract=semantic_contract,
+        legacy_v1=legacy_v1,
     )
     provenance = entry["provenance_only_representations"]
     if not isinstance(provenance, list):
@@ -205,6 +247,8 @@ def _validate_interpretation(
     status: str,
     source_scope_ref: str,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    semantic_contract: Gate2FinancialSemanticContractSnapshot,
+    legacy_v1: bool,
 ) -> None:
     if not isinstance(interpretation, dict) or set(interpretation) != {
         "representation_id",
@@ -244,24 +288,33 @@ def _validate_interpretation(
     input_type = interpretation["input_type"]
     semantics = interpretation["aggregate_semantics"]
     if status == "typed_input":
-        if not isinstance(input_type, dict) or set(input_type) != {
+        expected_type_keys = {
             "input_type_id",
             "title",
             "semantic_class",
-        }:
+        }
+        if not legacy_v1:
+            expected_type_keys.add("semantic_pack_integrity_sha256")
+        if (
+            not isinstance(input_type, dict)
+            or set(input_type) != expected_type_keys
+        ):
             fail("financial_context_input_type_invalid")
-        declaration = registry.get(input_type["input_type_id"])
-        if input_type != {
+        declaration = semantic_contract.type_contract(
+            input_type["input_type_id"]
+        )
+        expected_type = {
             "input_type_id": declaration.input_type_id,
             "title": declaration.title,
             "semantic_class": declaration.semantic_class,
-        }:
+        }
+        if not legacy_v1:
+            expected_type["semantic_pack_integrity_sha256"] = (
+                semantic_contract.integrity_sha256
+            )
+        if input_type != expected_type:
             fail("financial_context_input_type_invalid")
-        expected_semantics = (
-            "source_printed"
-            if declaration.input_type_id == "printed_financial_metric_v1"
-            else "not_aggregate"
-        )
+        expected_semantics = declaration.aggregate_semantics()
         if semantics != expected_semantics:
             fail("financial_context_aggregate_semantics_invalid")
     elif input_type is not None:

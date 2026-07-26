@@ -172,10 +172,12 @@ GATE2_MODULE_ORDER = [
 GATE2_FINANCIAL_MODULES = [
     "gate2_financial_evidence_registry",
     "gate2_financial_evidence_catalog",
+    "gate2_financial_semantic_model_assets",
+    "gate2_financial_semantic_contract",
     "gate2_financial_evidence_decision",
     "gate2_financial_evidence_materialization_contracts",
-    "gate2_financial_evidence_materialization_validation",
     "gate2_financial_evidence_source_package",
+    "gate2_financial_evidence_materialization_validation",
     "gate2_financial_evidence_materialization",
     "gate2_financial_context_contracts",
     "gate2_financial_context_validation",
@@ -197,7 +199,6 @@ GATE2_SUCCESSOR_MODULES = [
     "gate2_financial_evidence_typed_admission",
     "gate2_deterministic_financial_scopes",
     "gate2_financial_evidence_successor_projection",
-    "gate2_financial_semantic_model_assets",
     "gate2_financial_evidence_successor",
     "gate2_successor_artifacts",
     "gate2_successor_artifacts_v2",
@@ -454,6 +455,12 @@ def assert_gate2_bundle_contract(
                 ),
                 "financial_semantic_model_assets_factory_anchor": (
                     "load_gate2_financial_semantic_model_assets is the only"
+                ),
+                "financial_semantic_contract_module": (
+                    '"gate2_financial_semantic_contract"'
+                ),
+                "financial_semantic_contract_factory_anchor": (
+                    "Gate2FinancialSemanticContractFactory.create is the only"
                 ),
                 "financial_successor_factory_anchor": (
                     "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "

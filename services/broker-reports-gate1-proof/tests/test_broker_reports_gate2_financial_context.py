@@ -34,6 +34,9 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (  # n
     Gate2FinancialEvidenceSourcePackageFactory,
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
+from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (  # noqa: E402,E501
+    sha256_json,
+)
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
@@ -270,11 +273,29 @@ def _project(*cases):
 
 def test_context_contract_is_explicit_and_minimal():
     assert FINANCIAL_CONTEXT_SCHEMA_VERSION == (
-        "broker_reports_gate2_financial_context_v1"
+        "broker_reports_gate2_financial_context_v2"
     )
     assert FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION == (
+        "broker_reports_gate2_financial_context_projection_v2"
+    )
+
+
+def test_legacy_v1_context_remains_validator_compatible():
+    context = copy.deepcopy(_project(_case("cash", "cash")))
+    context["schema_version"] = (
+        "broker_reports_gate2_financial_context_v1"
+    )
+    context["projection_policy_version"] = (
         "broker_reports_gate2_financial_context_projection_v1"
     )
+    context.pop("semantic_pack")
+    context["entries"][0]["interpretation_representation"][
+        "input_type"
+    ].pop("semantic_pack_integrity_sha256")
+    context.pop("integrity_hash")
+    context["integrity_hash"] = sha256_json(context)
+
+    validate_financial_context(payload=context, registry=_registry())
 
 
 def test_typed_context_is_structured_literal_and_source_bound():
@@ -553,6 +574,7 @@ def test_context_projection_is_factory_managed_and_closed_world():
         "gate2_financial_evidence_materialization_contracts",
         "gate2_financial_evidence_materialization_validation",
         "gate2_financial_evidence_registry",
+        "gate2_financial_semantic_contract",
         "gate2_financial_evidence_source_package",
         "typing",
     }

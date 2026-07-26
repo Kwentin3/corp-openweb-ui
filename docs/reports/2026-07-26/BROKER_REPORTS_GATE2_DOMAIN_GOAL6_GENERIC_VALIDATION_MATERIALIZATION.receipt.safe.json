@@ -1,0 +1,190 @@
+{
+  "schema_version": "broker_reports_gate2_domain_goal6_generic_validation_materialization_receipt_v1",
+  "goal": "GOAL_6_GENERIC_VALIDATION_AND_MATERIALIZATION",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "258c3d6356ae46efe02e409b493923d007a220bd",
+  "branch": "codex/broker-reports-gate2-domain-goal6-generic-materialization",
+  "hash_boundary": "git_blob_bytes",
+  "contract": {
+    "contract_id": "BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1",
+    "semantic_runtime_contract": "broker_reports_gate2_financial_semantic_runtime_contract_v1",
+    "validated_decision_write_version": "broker_reports_financial_evidence_validated_decision_v2",
+    "financial_inputs_write_version": "broker_reports_financial_evidence_inputs_v2",
+    "materialization_policy_version": "broker_reports_financial_evidence_materialization_v2",
+    "financial_context_write_version": "broker_reports_gate2_financial_context_v2",
+    "context_projection_policy_version": "broker_reports_gate2_financial_context_projection_v2",
+    "legacy_financial_inputs_read_version": "broker_reports_financial_evidence_inputs_v1",
+    "legacy_financial_context_read_version": "broker_reports_gate2_financial_context_v1",
+    "legacy_write_allowed": false
+  },
+  "semantic_pack": {
+    "pack_id": "broker_reports_managed_financial_semantic_pack",
+    "semantic_version": "1.0.0",
+    "integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "pack_registry_exact_parity": true,
+    "pack_hash_on_root_record": true,
+    "pack_hash_on_typed_record": true,
+    "pack_hash_on_unclassified_record": true,
+    "pack_hash_in_terminal_id": true,
+    "pack_hash_in_artifact_id": true,
+    "pack_registry_drift_fails_closed": true
+  },
+  "generic_validator": {
+    "pack_identity_checked": true,
+    "disposition_checked": true,
+    "type_membership_checked": true,
+    "role_membership_checked": true,
+    "role_completeness_checked": true,
+    "role_value_compatibility_checked": true,
+    "role_cardinality_checked": true,
+    "authoritative_package_ref_membership_checked": true,
+    "duplicates_checked": true,
+    "cross_scope_bindings_checked": true,
+    "terminal_ownership_checked": true,
+    "integrity_checked": true,
+    "concrete_financial_type_ids_total": 0,
+    "financial_language_branches_total": 0
+  },
+  "generic_materializer": {
+    "ids_code_owned": true,
+    "values_literal_preserving": true,
+    "dimensions_code_owned": true,
+    "provenance_code_owned": true,
+    "ownership_code_owned": true,
+    "coverage_code_owned": true,
+    "restrictions_code_owned": true,
+    "validation_refs_code_owned": true,
+    "integrity_hashes_code_owned": true,
+    "compatibility_projection_code_owned": true,
+    "concrete_type_branches_total": 0,
+    "aggregate_schema_rules_total": 1,
+    "aggregate_schema_rule": "semantic_class:aggregate->source_printed",
+    "unsupported_semantic_class_fails_closed": true
+  },
+  "compatibility": {
+    "v1_financial_inputs_readable": true,
+    "v2_financial_inputs_readable": true,
+    "v1_financial_context_validator_compatible": true,
+    "v2_only_write_contract": true,
+    "frozen_v1_hash_replay_value_free": true,
+    "frozen_v1_hash_replay_can_write": false
+  },
+  "closed_world_bundle": {
+    "bundle_sha256": "b96dd3c0db149f507753936f587161df7cd0ab263fa87eb279997b4170d9d7ef",
+    "bundle_rebuild_exact": true,
+    "semantic_model_assets_before_runtime_contract": true,
+    "runtime_contract_before_materializer": true,
+    "bundle_load_verified": true,
+    "workspace_only_imports_total": 0,
+    "runtime_filesystem_reads_total": 0,
+    "network_calls_total": 0
+  },
+  "verification": {
+    "focused_total": "128 passed in 23.66s",
+    "full_suite": "1561 passed, 20 skipped, 5 warnings in 140.44s",
+    "regression_recheck": "9 passed in 19.36s",
+    "privacy_guard": "3 passed in 0.86s",
+    "bundle_rebuild": "exact",
+    "ruff_targeted": "passed",
+    "ruff_package_facade": "passed with historical F401 excluded",
+    "compileall": "passed",
+    "git_diff_check": "passed"
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "explicitly_unchanged": {
+    "semantic_pack_bytes": true,
+    "managed_skill_bytes": true,
+    "managed_prompt_bytes": true,
+    "four_disposition_decision_contract": true,
+    "live_stage_artifacts": true,
+    "production_allowlists": true,
+    "economy_workload_budget": true,
+    "domain_query_api_goal7": true,
+    "gate3_tools": true
+  },
+  "acceptance_markers": {
+    "VALIDATOR_FINANCIAL_LANGUAGE_KNOWLEDGE": "ZERO",
+    "MATERIALIZER_TYPE_BRANCHES": "ZERO_OR_SCHEMA_JUSTIFIED",
+    "PACK_HASH_ON_RECORD": "REQUIRED"
+  },
+  "deliverables": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md",
+      "git_blob_sha256": "18bb502ddfa3d59651675fcf6c114d829b06c4a3cf6c849d27ba0b4e2451ff5c"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_contract.py",
+      "git_blob_sha256": "3dea6730fb8f1eb714b6a45ec35b42668589eecd232bcf7f25c9786a00f2017a"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization_contracts.py",
+      "git_blob_sha256": "887e61ea3fb3b59a296d78b52446969cd87d6045cb95c39e3057e7c6d1793176"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py",
+      "git_blob_sha256": "e46e31c8a17bd16f1d13abac11f7f4fbc1a787f0bdec9ab9929c151fbb4dda74"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization_validation.py",
+      "git_blob_sha256": "033d2768992a9e43cbef59237564d841edbd3ac8426184b78d32336e69dc1806"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_context.py",
+      "git_blob_sha256": "e4f0c13bbe2a4c50dccdab8ecd8032b052fabfdb6d57de9345c5cd7a48e176ea"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_context_validation.py",
+      "git_blob_sha256": "7f1206b1b4eb81bfef6fd5ef43d1c596962e27c6037ed30cd39cd23dd862e32e"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_compatibility.py",
+      "git_blob_sha256": "094f17b5ef5245449302f86239f8a94194918186d6a6610c4c959e0c8e5ada9a"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_production_runtime.py",
+      "git_blob_sha256": "b92537a5fbfe9ad0ff35fdbbb6812a97905b62a041ccea89705a712c1f3c24ec"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/scripts/gate2_successor_ambiguity_audit.py",
+      "git_blob_sha256": "e73094b6439bd4ff46cf22d3edf694852f869f51a9d1d9c1c2d9c13f23d188d7"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py",
+      "git_blob_sha256": "5ed10993b9333bcdefb035f6e4f7f6410f452d1e6b062cf91c59697c6b208119"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py",
+      "git_blob_sha256": "b96dd3c0db149f507753936f587161df7cd0ab263fa87eb279997b4170d9d7ef"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_materialization.py",
+      "git_blob_sha256": "ffcdbed54f0f51a84a421f192b5928424e8a1d695bc4a5cd42daa7591cb44dc9"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_context.py",
+      "git_blob_sha256": "ace984986bf132dc7140e7192f8e2f8b261f80cf217e1602fbcff5fd19539626"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_compatibility.py",
+      "git_blob_sha256": "d6bc5240e69b03aa98a039ffcb99ea2bc468eff537afd19ff1c9b9dcca0e627a"
+    }
+  ],
+  "next_permitted_goal": "GOAL_7_AFTER_GOAL_6_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"
+}

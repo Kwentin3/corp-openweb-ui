@@ -39,6 +39,9 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (  # n
     Gate2FinancialEvidenceSourcePackageFactory,
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
+from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (  # noqa: E402,E501
+    sha256_json,
+)
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
@@ -255,6 +258,56 @@ def _successor_artifact():
     ).create().materialize(validated_decision=validated)
 
 
+def _legacy_v1_successor_artifact():
+    payload = copy.deepcopy(_successor_artifact())
+    payload["schema_version"] = (
+        "broker_reports_financial_evidence_inputs_v1"
+    )
+    payload["materialization_policy_version"] = (
+        "broker_reports_financial_evidence_materialization_v1"
+    )
+    payload.pop("semantic_pack")
+    terminal = payload["typed_inputs"][0]
+    terminal.pop("semantic_pack_integrity_sha256")
+    identity_roles = set(terminal["identity_policy"]["identity_roles"])
+    terminal["input_id"] = "finin_" + sha256_json(
+        {
+            "registry_hash": terminal["registry_hash"],
+            "input_type_id": terminal["input_type_id"],
+            "source_scope_ref": terminal["source_scope_ref"],
+            "identity_values": [
+                {
+                    "role_id": item["role_id"],
+                    "source_value_ref": item["source_value_ref"],
+                    "normalized_comparison_value": item[
+                        "normalized_comparison_value"
+                    ],
+                }
+                for item in terminal["source_values"]
+                if item["role_id"] in identity_roles
+            ],
+            "source_evidence_refs": terminal["source_evidence_refs"],
+        }
+    )[:32]
+    terminal.pop("integrity_hash")
+    terminal["integrity_hash"] = sha256_json(terminal)
+    payload["artifact_id"] = "finset_" + sha256_json(
+        {
+            "schema_version": payload["schema_version"],
+            "registry_hash": payload["registry"]["registry_hash"],
+            "source_package_integrity_hash": payload["source_package"][
+                "integrity_hash"
+            ],
+            "terminal_disposition": payload["terminal_disposition"],
+            "terminal_ids": [terminal["input_id"]],
+            "coverage_id": payload["coverage"]["coverage_id"],
+        }
+    )[:32]
+    payload.pop("integrity_hash")
+    payload["integrity_hash"] = sha256_json(payload)
+    return payload
+
+
 def _fns_fact(family: str, index: int):
     fact_id = f"fns-fact:{index}"
     node_ref = f"fns-node:{index}"
@@ -465,6 +518,27 @@ def test_successor_artifact_is_dual_read_as_native_contract():
     )
 
 
+def test_v1_successor_remains_readable_but_is_not_a_write_contract():
+    compatibility = _compatibility()
+    payload = _legacy_v1_successor_artifact()
+    original = copy.deepcopy(payload)
+
+    result = compatibility.read(
+        artifact_ref="artifact:successor:v1",
+        payload=payload,
+    )
+
+    assert result.artifact_schema_version == (
+        "broker_reports_financial_evidence_inputs_v1"
+    )
+    assert result.read_kind == "successor_financial_evidence"
+    assert result.payload_copy() == original
+    assert payload == original
+    with pytest.raises(Gate2FinancialEvidenceCompatibilityError) as exc:
+        compatibility.validate_write_contract(payload)
+    assert exc.value.code == "financial_evidence_legacy_write_forbidden"
+
+
 def test_write_policy_rejects_legacy_and_accepts_successor_only():
     compatibility = _compatibility()
     successor = _successor_artifact()
@@ -506,7 +580,7 @@ def test_explicit_migration_prepares_single_successor_write():
     assert prepared.receipt["automatic_aliases_used"] is False
     assert len(prepared.receipt["explicit_mappings"]) == 3
     assert prepared.receipt["target_schema_version"] == (
-        "broker_reports_financial_evidence_inputs_v1"
+        "broker_reports_financial_evidence_inputs_v2"
     )
 
 
