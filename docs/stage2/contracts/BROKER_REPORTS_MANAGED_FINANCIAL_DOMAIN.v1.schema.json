@@ -1,0 +1,1313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:broker-reports:contracts:managed-financial-domain:v1",
+  "title": "Broker Reports Managed Financial Domain Consumer Contract v1",
+  "description": "Strict private-case DTO contract between Gate 2 Managed Financial Domain and Gate 3.",
+  "x-contract-version": "broker_reports_managed_financial_domain_contract_v1",
+  "x-runtime-activation": false,
+  "oneOf": [
+    {
+      "$ref": "#/$defs/financialRecord"
+    },
+    {
+      "$ref": "#/$defs/unclassifiedRecord"
+    },
+    {
+      "$ref": "#/$defs/domainSnapshot"
+    },
+    {
+      "$ref": "#/$defs/domainCatalog"
+    },
+    {
+      "$ref": "#/$defs/domainCoverage"
+    },
+    {
+      "$ref": "#/$defs/domainProvenance"
+    },
+    {
+      "$ref": "#/$defs/queryRequest"
+    },
+    {
+      "$ref": "#/$defs/queryResponse"
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundedId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "boundedRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "nullableBoundedRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/boundedRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "semanticPackIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pack_schema_version",
+        "semantic_version",
+        "canonical_sha256",
+        "managed_asset_ref"
+      ],
+      "properties": {
+        "pack_schema_version": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "semantic_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "canonical_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "managed_asset_ref": {
+          "$ref": "#/$defs/boundedRef"
+        }
+      }
+    },
+    "accessScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "access_scope_ref",
+        "access_scope_fingerprint",
+        "same_user_required",
+        "same_case_or_chat_required",
+        "same_workspace_required_when_present",
+        "source_availability_required"
+      ],
+      "properties": {
+        "access_scope_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "access_scope_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "same_user_required": {
+          "const": true
+        },
+        "same_case_or_chat_required": {
+          "const": true
+        },
+        "same_workspace_required_when_present": {
+          "type": "boolean"
+        },
+        "source_availability_required": {
+          "const": true
+        }
+      }
+    },
+    "periodDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "period_key",
+        "period_kind",
+        "source_literal",
+        "start_date",
+        "end_date",
+        "as_of_date"
+      ],
+      "properties": {
+        "period_key": {
+          "$ref": "#/$defs/boundedId"
+        },
+        "period_kind": {
+          "enum": [
+            "instant",
+            "range",
+            "named_period",
+            "source_literal_only"
+          ]
+        },
+        "source_literal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "start_date": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_date": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "as_of_date": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "recordDimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_refs",
+        "periods",
+        "currency_keys"
+      ],
+      "properties": {
+        "document_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "periods": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/periodDimension"
+          }
+        },
+        "currency_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z0-9][A-Z0-9._:-]{0,31}$"
+          }
+        }
+      }
+    },
+    "sourceValueBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_value_ref",
+        "source_ref",
+        "value_type",
+        "literal_value",
+        "normalized_value",
+        "source_sign",
+        "source_evidence_refs"
+      ],
+      "properties": {
+        "source_value_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "source_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "value_type": {
+          "enum": [
+            "source_decimal",
+            "source_integer",
+            "source_text",
+            "source_date",
+            "source_period",
+            "source_currency",
+            "source_unit",
+            "source_reference"
+          ]
+        },
+        "literal_value": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "normalized_value": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sign": {
+          "enum": [
+            "positive",
+            "negative",
+            "zero",
+            "not_applicable"
+          ]
+        },
+        "source_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        }
+      }
+    },
+    "boundRoleValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role_id",
+        "source_value_ref",
+        "source_ref",
+        "value_type",
+        "literal_value",
+        "normalized_value",
+        "source_sign",
+        "source_evidence_refs"
+      ],
+      "properties": {
+        "role_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "source_value_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "source_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "value_type": {
+          "enum": [
+            "source_decimal",
+            "source_integer",
+            "source_text",
+            "source_date",
+            "source_period",
+            "source_currency",
+            "source_unit",
+            "source_reference"
+          ]
+        },
+        "literal_value": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "normalized_value": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sign": {
+          "enum": [
+            "positive",
+            "negative",
+            "zero",
+            "not_applicable"
+          ]
+        },
+        "source_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        }
+      }
+    },
+    "domainProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "provenance_ref",
+        "domain_snapshot_id",
+        "document_refs",
+        "source_scope_refs",
+        "source_refs",
+        "source_value_refs",
+        "source_evidence_refs",
+        "source_package_refs",
+        "source_package_integrity_hashes",
+        "lineage_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_provenance_v1"
+        },
+        "provenance_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "document_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_scope_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_value_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_package_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "source_package_integrity_hashes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "lineage_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "nullableProvenance": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/domainProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "financialRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_kind",
+        "record_id",
+        "domain_snapshot_id",
+        "semantic_pack_identity",
+        "input_type_id",
+        "role_values",
+        "dimensions",
+        "provenance_ref",
+        "provenance",
+        "record_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_record_v1"
+        },
+        "record_kind": {
+          "const": "typed"
+        },
+        "record_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "semantic_pack_identity": {
+          "$ref": "#/$defs/semanticPackIdentity"
+        },
+        "input_type_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+        },
+        "role_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/boundRoleValue"
+          }
+        },
+        "dimensions": {
+          "$ref": "#/$defs/recordDimensions"
+        },
+        "provenance_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/nullableProvenance"
+        },
+        "record_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "unclassifiedRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "record_kind",
+        "record_id",
+        "domain_snapshot_id",
+        "semantic_pack_identity",
+        "source_values",
+        "reason_codes",
+        "dimensions",
+        "provenance_ref",
+        "provenance",
+        "record_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_unclassified_record_v1"
+        },
+        "record_kind": {
+          "const": "unclassified"
+        },
+        "record_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "semantic_pack_identity": {
+          "$ref": "#/$defs/semanticPackIdentity"
+        },
+        "source_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sourceValueBase"
+          }
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "dimensions": {
+          "$ref": "#/$defs/recordDimensions"
+        },
+        "provenance_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "provenance": {
+          "$ref": "#/$defs/nullableProvenance"
+        },
+        "record_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "domainSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract_version",
+        "domain_snapshot_id",
+        "snapshot_status",
+        "source_extraction_run_refs",
+        "gate2_run_refs",
+        "semantic_pack_identity",
+        "catalog_ref",
+        "coverage_ref",
+        "records_total",
+        "record_set_sha256",
+        "access_scope",
+        "created_at",
+        "expires_at"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_snapshot_v1"
+        },
+        "contract_version": {
+          "const": "broker_reports_managed_financial_domain_contract_v1"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "snapshot_status": {
+          "const": "immutable"
+        },
+        "source_extraction_run_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "gate2_run_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "semantic_pack_identity": {
+          "$ref": "#/$defs/semanticPackIdentity"
+        },
+        "catalog_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "coverage_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "records_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "record_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "access_scope": {
+          "$ref": "#/$defs/accessScope"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expires_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "declaredType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_type_id",
+        "title",
+        "semantic_class",
+        "lifecycle"
+      ],
+      "properties": {
+        "input_type_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "semantic_class": {
+          "enum": [
+            "event",
+            "state",
+            "aggregate",
+            "attribute"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "experimental",
+            "active",
+            "deprecated",
+            "retired"
+          ]
+        }
+      }
+    },
+    "populatedType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_type_id",
+        "records_total"
+      ],
+      "properties": {
+        "input_type_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+        },
+        "records_total": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "dimensionCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "records_total"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "records_total": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "domainCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "catalog_ref",
+        "domain_snapshot_id",
+        "semantic_pack_identity",
+        "declared_types",
+        "populated_types",
+        "typed_records_total",
+        "unclassified_records_total",
+        "records_total",
+        "documents",
+        "periods",
+        "currencies",
+        "catalog_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_catalog_v1"
+        },
+        "catalog_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "semantic_pack_identity": {
+          "$ref": "#/$defs/semanticPackIdentity"
+        },
+        "declared_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/declaredType"
+          }
+        },
+        "populated_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/populatedType"
+          }
+        },
+        "typed_records_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclassified_records_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "records_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "documents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/dimensionCount"
+          }
+        },
+        "periods": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/dimensionCount"
+          }
+        },
+        "currencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/dimensionCount"
+          }
+        },
+        "catalog_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "terminalCoverageCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "typed_source_refs_total",
+        "unclassified_source_refs_total",
+        "no_financial_input_source_refs_total",
+        "unsupported_source_refs_total",
+        "uncovered_source_refs_total",
+        "duplicate_terminal_ownership_total",
+        "ownership_conflicts_total"
+      ],
+      "properties": {
+        "typed_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclassified_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_financial_input_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unsupported_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uncovered_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicate_terminal_ownership_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ownership_conflicts_total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "domainCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "coverage_ref",
+        "domain_snapshot_id",
+        "coverage_status",
+        "declared_source_refs_total",
+        "declared_source_refs_sha256",
+        "terminal_counts",
+        "terminal_ownership_complete",
+        "uncovered_source_refs",
+        "coverage_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_coverage_v1"
+        },
+        "coverage_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "coverage_status": {
+          "enum": [
+            "complete",
+            "partial",
+            "blocked"
+          ]
+        },
+        "declared_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_source_refs_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "terminal_counts": {
+          "$ref": "#/$defs/terminalCoverageCounts"
+        },
+        "terminal_ownership_complete": {
+          "type": "boolean"
+        },
+        "uncovered_source_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "coverage_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "coverage_status": {
+                "const": "complete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "terminal_ownership_complete": {
+                "const": true
+              },
+              "uncovered_source_refs": {
+                "maxItems": 0
+              },
+              "terminal_counts": {
+                "properties": {
+                  "uncovered_source_refs_total": {
+                    "const": 0
+                  },
+                  "duplicate_terminal_ownership_total": {
+                    "const": 0
+                  },
+                  "ownership_conflicts_total": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "queryFilters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_kinds",
+        "input_type_ids",
+        "document_refs",
+        "period_keys",
+        "currency_keys"
+      ],
+      "properties": {
+        "record_kinds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "typed",
+              "unclassified"
+            ]
+          }
+        },
+        "input_type_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*_v[1-9][0-9]*$"
+          }
+        },
+        "document_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedRef"
+          }
+        },
+        "period_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/boundedId"
+          }
+        },
+        "currency_keys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z0-9][A-Z0-9._:-]{0,31}$"
+          }
+        }
+      }
+    },
+    "queryProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "include_provenance"
+      ],
+      "properties": {
+        "include_provenance": {
+          "type": "boolean"
+        }
+      }
+    },
+    "pageRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limit",
+        "order",
+        "continuation_token"
+      ],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "order": {
+          "const": "record_id_asc"
+        },
+        "continuation_token": {
+          "$ref": "#/$defs/nullableBoundedRef"
+        }
+      }
+    },
+    "queryRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "domain_snapshot_id",
+        "filters",
+        "projection",
+        "page"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_query_request_v1"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "filters": {
+          "$ref": "#/$defs/queryFilters"
+        },
+        "projection": {
+          "$ref": "#/$defs/queryProjection"
+        },
+        "page": {
+          "$ref": "#/$defs/pageRequest"
+        }
+      }
+    },
+    "queryCompleteness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_status",
+        "matching_records_total",
+        "records_returned_this_page",
+        "records_returned_through_page",
+        "query_result_complete",
+        "domain_coverage_status",
+        "uncovered_source_refs_total",
+        "reason_codes"
+      ],
+      "properties": {
+        "page_status": {
+          "enum": [
+            "continued",
+            "complete_final_page",
+            "blocked"
+          ]
+        },
+        "matching_records_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "records_returned_this_page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "records_returned_through_page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "query_result_complete": {
+          "type": "boolean"
+        },
+        "domain_coverage_status": {
+          "enum": [
+            "complete",
+            "partial",
+            "blocked"
+          ]
+        },
+        "uncovered_source_refs_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "page_status": {
+                "const": "continued"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query_result_complete": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "page_status": {
+                "const": "complete_final_page"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query_result_complete": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "page_status": {
+                "const": "blocked"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query_result_complete": {
+                "const": false
+              },
+              "reason_codes": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "queryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "domain_snapshot_id",
+        "semantic_pack_identity",
+        "coverage_ref",
+        "query_fingerprint",
+        "effective_filters",
+        "page_limit",
+        "order",
+        "provenance_included",
+        "records",
+        "completeness",
+        "next_continuation_token"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_financial_domain_query_response_v1"
+        },
+        "domain_snapshot_id": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "semantic_pack_identity": {
+          "$ref": "#/$defs/semanticPackIdentity"
+        },
+        "coverage_ref": {
+          "$ref": "#/$defs/boundedRef"
+        },
+        "query_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "effective_filters": {
+          "$ref": "#/$defs/queryFilters"
+        },
+        "page_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "order": {
+          "const": "record_id_asc"
+        },
+        "provenance_included": {
+          "type": "boolean"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/financialRecord"
+              },
+              {
+                "$ref": "#/$defs/unclassifiedRecord"
+              }
+            ]
+          }
+        },
+        "completeness": {
+          "$ref": "#/$defs/queryCompleteness"
+        },
+        "next_continuation_token": {
+          "$ref": "#/$defs/nullableBoundedRef"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "completeness": {
+                "properties": {
+                  "page_status": {
+                    "const": "continued"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "next_continuation_token": {
+                "$ref": "#/$defs/boundedRef"
+              },
+              "records": {
+                "minItems": 1
+              },
+              "completeness": {
+                "properties": {
+                  "records_returned_this_page": {
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "completeness": {
+                "properties": {
+                  "page_status": {
+                    "enum": [
+                      "complete_final_page",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "next_continuation_token": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "completeness": {
+                "properties": {
+                  "page_status": {
+                    "const": "blocked"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "maxItems": 0
+              },
+              "completeness": {
+                "properties": {
+                  "records_returned_this_page": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
