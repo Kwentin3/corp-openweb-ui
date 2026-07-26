@@ -32,19 +32,19 @@
   "deliverables": [
     {
       "path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.json",
-      "sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f"
+      "sha256": "9538ccb8f2111efa24e25d1b7b10145ccff8ca4e3c655cdc6d71b916d926c3fd"
     },
     {
       "path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.schema.json",
-      "sha256": "cea99c199ba6b20905fd988fed481e963a999d1a74464a0af055d38eb0c76b9e"
+      "sha256": "833b1d15b0e383ee80220ba5f347b4009d150ff8ce19336e17aff3c805d70385"
     },
     {
       "path": "docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md",
-      "sha256": "3f326a6c2da1baf4b636689648e6f6eabca5ff24850edd2a64f69929f11c76c6"
+      "sha256": "a34f3ab1db3f9cbfb92541b5045b5425b5547dec52f17e08d97525e49490305f"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py",
-      "sha256": "765f9710938d9a553a06a2ffe64f5f9f1e7f9551b6dfe6198be078df9daab71b"
+      "sha256": "62ff2dad6bfade42e9f0c553a72f55ae9b5ac67f70f24f3f717607ea978db4a4"
     }
   ],
   "type_contract": {
@@ -77,6 +77,14 @@
     "accepted_registry_definition_parity": "2/2",
     "roles_and_policies_parity": "2/2",
     "all_findings_resolved_in_goal_scope": true
+  },
+  "evidence_reconciliation": {
+    "corrective_goal": "GOAL_2C_RECONCILE_SAFE_EVIDENCE",
+    "reason": "post_review_semantic_correction_changed_four_deliverables",
+    "stale_deliverable_hashes_replaced_total": 4,
+    "current_deliverable_hash_guard": "test_goal2_safe_receipt_hashes_current_deliverables",
+    "semantic_pack_integrity_unchanged": true,
+    "production_authority_changed": false
   },
   "verification": {
     "pack_tests": "8 passed in 0.33s",

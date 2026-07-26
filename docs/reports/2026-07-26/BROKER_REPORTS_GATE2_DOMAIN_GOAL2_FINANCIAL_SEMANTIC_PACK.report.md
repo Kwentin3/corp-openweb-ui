@@ -118,20 +118,20 @@ This GOAL adds no:
 
 1. `services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.json`
    - SHA-256:
-     `ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f`
+     `9538ccb8f2111efa24e25d1b7b10145ccff8ca4e3c655cdc6d71b916d926c3fd`
 2. `services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.schema.json`
    - SHA-256:
-     `cea99c199ba6b20905fd988fed481e963a999d1a74464a0af055d38eb0c76b9e`
+     `833b1d15b0e383ee80220ba5f347b4009d150ff8ce19336e17aff3c805d70385`
 3. `docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md`
    - SHA-256:
-     `3f326a6c2da1baf4b636689648e6f6eabca5ff24850edd2a64f69929f11c76c6`
+     `a34f3ab1db3f9cbfb92541b5045b5425b5547dec52f17e08d97525e49490305f`
 4. `services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py`
    - SHA-256:
-     `765f9710938d9a553a06a2ffe64f5f9f1e7f9551b6dfe6198be078df9daab71b`
+     `62ff2dad6bfade42e9f0c553a72f55ae9b5ac67f70f24f3f717607ea978db4a4`
 5. repository-safe receipt:
    [`BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json`](./BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json)
    - SHA-256:
-     `49607beee66ae8ce4c6b5f2cbbe2dec964893dac1fc24d040061aad0f76f5fdf`
+     `31b8a9709f39d5014ccadcf9a0ff13fabad923488ff3d82ed339318d998bd3cf`
 
 ## 8. Fresh review correction
 
@@ -144,7 +144,21 @@ Both definitions now have byte-exact Registry parity (`2/2`). Synonyms,
 distinctions, and ambiguity guidance remain separate Pack fields. A dedicated
 test prevents future definition drift.
 
-## 9. Verification
+## 9. Evidence reconciliation
+
+The semantic-definition correction changed all four hashed GOAL 2
+deliverables after their initial report/receipt hashes had been calculated.
+The stale pre-correction SHA-256 values were discovered after merge during the
+next fresh repository pass.
+
+Corrective GOAL 2C replaces all four stale values with hashes of the merged
+artifacts and adds
+`test_goal2_safe_receipt_hashes_current_deliverables`, which recomputes every
+declared deliverable hash from repository bytes. The Pack semantic integrity
+hash, canonical semantic bytes, authority boundary, and production state did
+not change.
+
+## 10. Verification
 
 Explicit PowerShell cwd:
 `services/broker-reports-gate1-proof`; test ENV: none.
@@ -165,7 +179,7 @@ Explicit PowerShell cwd:
 - provider/customer/model calls: 0;
 - stage/production mutations: 0.
 
-## 10. Acceptance markers
+## 11. Acceptance markers
 
 ```text
 SEMANTIC_PACK: VALIDATED_AND_VERSIONED

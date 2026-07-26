@@ -8,9 +8,17 @@ from typing import Any
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = SERVICE_ROOT.parents[1]
 PACK_ROOT = SERVICE_ROOT / "semantic_packs"
 PACK_PATH = PACK_ROOT / "broker_reports_financial_semantic_pack.v1.json"
 SCHEMA_PATH = PACK_ROOT / "broker_reports_financial_semantic_pack.v1.schema.json"
+GOAL2_RECEIPT_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "reports"
+    / "2026-07-26"
+    / "BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json"
+)
 EXPECTED_TYPES = (
     "cash_balance_snapshot_v1",
     "printed_financial_metric_v1",
@@ -214,3 +222,19 @@ def test_pack_contains_no_gate3_methodology_fields() -> None:
     for definition in pack["full_compact_snapshot"]:
         assert forbidden_fields.isdisjoint(definition)
         assert forbidden_fields.isdisjoint(definition["operational_contracts"])
+
+
+def test_goal2_safe_receipt_hashes_current_deliverables() -> None:
+    receipt = _read(GOAL2_RECEIPT_PATH)
+    mismatches = {}
+
+    for item in receipt["deliverables"]:
+        path = REPO_ROOT / item["path"]
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != item["sha256"]:
+            mismatches[item["path"]] = {
+                "claimed": item["sha256"],
+                "actual": actual,
+            }
+
+    assert mismatches == {}

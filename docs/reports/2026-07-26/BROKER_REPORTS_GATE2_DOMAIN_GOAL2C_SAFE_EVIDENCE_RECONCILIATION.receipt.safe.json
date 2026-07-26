@@ -1,0 +1,71 @@
+{
+  "schema_version": "broker_reports_gate2_managed_financial_domain_goal2c_receipt_v1",
+  "goal": "GOAL_2C_RECONCILE_SAFE_EVIDENCE",
+  "status": "IMPLEMENTED_AND_VERIFIED_PENDING_AUTONOMOUS_REVIEW",
+  "base_revision": "4bdca5f1bc70ccebe55791d47aa10791a28399b2",
+  "branch": "codex/broker-reports-gate2-domain-goal2c-reconcile-safe-evidence",
+  "finding": {
+    "code": "goal2_deliverable_hashes_stale_after_review_correction",
+    "severity": "blocking_evidence_integrity",
+    "stale_hash_claims_total": 4,
+    "semantic_pack_content_defect": false,
+    "semantic_pack_integrity_defect": false,
+    "production_or_stage_defect": false
+  },
+  "correction": {
+    "stale_hash_claims_replaced_total": 4,
+    "deliverable_hashes_recomputed_from_merged_bytes": true,
+    "goal2_report_reconciled": true,
+    "goal2_receipt_reconciled": true,
+    "regression_guard": "test_goal2_safe_receipt_hashes_current_deliverables"
+  },
+  "deliverables": [
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.report.md",
+      "sha256": "32e179d0e01d631bfa5b16485e6f05b3e90665848297192b8f81c554c6f8680a"
+    },
+    {
+      "path": "docs/reports/2026-07-26/BROKER_REPORTS_GATE2_DOMAIN_GOAL2_FINANCIAL_SEMANTIC_PACK.receipt.safe.json",
+      "sha256": "31b8a9709f39d5014ccadcf9a0ff13fabad923488ff3d82ed339318d998bd3cf"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py",
+      "sha256": "62ff2dad6bfade42e9f0c553a72f55ae9b5ac67f70f24f3f717607ea978db4a4"
+    }
+  ],
+  "verification": {
+    "focused_tests": "9 passed in 0.36s",
+    "full_suite": "1537 passed, 20 skipped, 5 warnings in 114.32s",
+    "privacy_guard": "3 passed in 0.79s",
+    "ruff": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed",
+    "goal2_deliverable_hash_mismatches_total": 0,
+    "goal2_report_receipt_hash_matches": true
+  },
+  "execution_accounting": {
+    "provider_calls_total": 0,
+    "customer_calls_total": 0,
+    "model_calls_total": 0,
+    "tokens_total": 0,
+    "cost_usd": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "stage_mutations_total": 0,
+    "production_changes_total": 0
+  },
+  "privacy": {
+    "customer_documents_in_git": 0,
+    "customer_values_in_git": 0,
+    "raw_provider_output_in_git": 0,
+    "secrets_in_git": 0,
+    "private_paths_in_deliverables": 0
+  },
+  "acceptance_markers": {
+    "STALE_GOAL2_DELIVERABLE_HASHES": "ZERO",
+    "CURRENT_HASH_GUARD": "ENFORCED",
+    "SEMANTIC_AUTHORITY_CHANGE": "ZERO",
+    "STAGE_PRODUCTION_CHANGE": "ZERO"
+  },
+  "next_permitted_goal": "GOAL_3_AFTER_GOAL_2C_REVIEW_ACCEPTANCE_AND_MERGE"
+}
