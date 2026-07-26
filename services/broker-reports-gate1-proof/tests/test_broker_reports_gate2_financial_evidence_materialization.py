@@ -13,6 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import broker_reports_gate1.gate2_financial_semantic_contract as semantic_contract_module  # noqa: E402,E501
 from broker_reports_gate1.gate2_financial_evidence_catalog import (  # noqa: E402
     SUPPORTED_SOURCE_FAMILIES,
 )
@@ -37,6 +38,13 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (  # n
 from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
     Gate2FinancialEvidenceRegistryFactory,
 )
+from broker_reports_gate1.gate2_financial_semantic_contract import (  # noqa: E402
+    Gate2FinancialSemanticContractError,
+    Gate2FinancialSemanticContractFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_model_assets import (  # noqa: E402,E501
+    load_gate2_financial_semantic_model_assets,
+)
 
 
 MODULE_PATH = (
@@ -55,6 +63,19 @@ BOUNDARY_MODULE_PATHS = (
     ROOT
     / "broker_reports_gate1"
     / "gate2_financial_evidence_materialization_validation.py",
+)
+GENERIC_RUNTIME_MODULE_PATHS = (
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_semantic_contract.py",
+    MODULE_PATH,
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_evidence_materialization_validation.py",
+    ROOT / "broker_reports_gate1" / "gate2_financial_context.py",
+    ROOT
+    / "broker_reports_gate1"
+    / "gate2_financial_context_validation.py",
 )
 
 _VALUE_DEFINITIONS = (
@@ -287,13 +308,17 @@ def _validated(model_output, *, contract=None):
     ).create(model_output)
 
 
+def _registry():
+    return Gate2FinancialEvidenceRegistryFactory().create()
+
+
 def _materializer(
     *,
     source_package=None,
     execution_ref: str = "execution:synthetic:1",
 ):
     package = source_package or _source_package()
-    registry = Gate2FinancialEvidenceRegistryFactory().create()
+    registry = _registry()
     return Gate2FinancialEvidenceMaterializerFactory(
         registry=registry,
         source_package=package,
@@ -322,10 +347,10 @@ def _sha256_json(payload) -> str:
 
 def test_successor_schema_is_explicit_and_does_not_redefine_source_facts():
     assert FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION == (
-        "broker_reports_financial_evidence_inputs_v1"
+        "broker_reports_financial_evidence_inputs_v2"
     )
     assert MATERIALIZATION_POLICY_VERSION == (
-        "broker_reports_financial_evidence_materialization_v1"
+        "broker_reports_financial_evidence_materialization_v2"
     )
     assert FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION != (
         "broker_reports_source_facts_v0"
@@ -720,6 +745,150 @@ def test_output_has_no_gate3_or_model_owned_fields():
         assert forbidden not in rendered
 
 
+def test_pack_identity_is_bound_to_every_v2_record():
+    typed = _materialize(_typed_payload())
+    unclassified = _materialize(_unclassified_payload())
+    expected = Gate2FinancialSemanticContractFactory(
+        registry=_registry()
+    ).create().identity_payload()
+
+    assert typed["semantic_pack"] == expected
+    assert unclassified["semantic_pack"] == expected
+    assert typed["typed_inputs"][0][
+        "semantic_pack_integrity_sha256"
+    ] == expected["integrity_sha256"]
+    assert unclassified["unclassified_inputs"][0][
+        "semantic_pack_integrity_sha256"
+    ] == expected["integrity_sha256"]
+
+
+def test_pack_registry_drift_fails_closed(monkeypatch):
+    assets = load_gate2_financial_semantic_model_assets()
+    assets["semantic_pack"]["full_compact_snapshot"][0][
+        "semantic_class"
+    ] = "event"
+    monkeypatch.setattr(
+        semantic_contract_module,
+        "load_gate2_financial_semantic_model_assets",
+        lambda: assets,
+    )
+
+    with pytest.raises(Gate2FinancialSemanticContractError) as exc:
+        Gate2FinancialSemanticContractFactory(
+            registry=_registry()
+        ).create()
+
+    assert exc.value.code == (
+        "financial_semantic_pack_registry_contract_mismatch"
+    )
+
+
+def test_aggregate_semantics_are_semantic_class_driven():
+    contract = Gate2FinancialSemanticContractFactory(
+        registry=_registry()
+    ).create().type_contracts[0]
+
+    assert replace(
+        contract,
+        input_type_id="synthetic_aggregate_v1",
+        semantic_class="aggregate",
+    ).aggregate_semantics() == "source_printed"
+    assert replace(
+        contract,
+        input_type_id="synthetic_state_v1",
+        semantic_class="state",
+    ).aggregate_semantics() == "not_aggregate"
+
+
+def _resign_materialized(payload):
+    terminal = payload["typed_inputs"][0]
+    terminal["integrity_hash"] = _sha256_json(
+        {
+            key: value
+            for key, value in terminal.items()
+            if key != "integrity_hash"
+        }
+    )
+    payload["integrity_hash"] = _sha256_json(
+        {
+            key: value
+            for key, value in payload.items()
+            if key != "integrity_hash"
+        }
+    )
+
+
+def test_validator_enforces_role_value_package_and_scope_contracts():
+    package = _source_package()
+    base = _materialize(_typed_payload())
+
+    role_tamper = copy.deepcopy(base)
+    changed_role = next(
+        item
+        for item in role_tamper["typed_inputs"][0]["source_values"]
+        if item["role_id"] == "currency"
+    )
+    changed_role["value_type"] = "source_unit"
+    changed_role["normalized_comparison_value"] = "rub"
+    role_tamper["typed_inputs"][0]["normalized_comparison_values"][
+        changed_role["source_value_ref"]
+    ] = "rub"
+    role_tamper["typed_inputs"][0]["currency_unit"]["currency"] = "rub"
+    _resign_materialized(role_tamper)
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        validate_financial_evidence_inputs(
+            payload=role_tamper,
+            registry=_registry(),
+            source_package=package,
+        )
+    assert exc.value.code == (
+        "financial_evidence_typed_input_role_value_type_invalid"
+    )
+
+    package_tamper = copy.deepcopy(base)
+    package_tamper["typed_inputs"][0]["source_values"][0][
+        "source_ref"
+    ] = "source:outside:package"
+    _resign_materialized(package_tamper)
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        validate_financial_evidence_inputs(
+            payload=package_tamper,
+            registry=_registry(),
+            source_package=package,
+        )
+    assert exc.value.code == "financial_evidence_package_binding_invalid"
+
+    scope_tamper = copy.deepcopy(base)
+    scope_tamper["typed_inputs"][0]["source_ownership"][
+        "document_ref"
+    ] = "document:outside:scope"
+    _resign_materialized(scope_tamper)
+    with pytest.raises(Gate2FinancialEvidenceMaterializationError) as exc:
+        validate_financial_evidence_inputs(
+            payload=scope_tamper,
+            registry=_registry(),
+            source_package=package,
+        )
+    assert exc.value.code == "financial_evidence_cross_scope_binding"
+
+
+def test_generic_runtime_has_no_concrete_type_id_branch():
+    sources = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in GENERIC_RUNTIME_MODULE_PATHS
+    }
+    combined = "\n".join(sources.values())
+
+    assert "cash_balance_snapshot_v1" not in combined
+    assert "printed_financial_metric_v1" not in combined
+    assert sum(
+        source.count('"source_printed"') for source in sources.values()
+    ) == 1
+    assert sources["gate2_financial_semantic_contract.py"].count(
+        '"source_printed"'
+    ) == 1
+
+
 def test_materialization_is_factory_managed_and_closed_world():
     sources = [
         path.read_text(encoding="utf-8")
@@ -751,6 +920,7 @@ def test_materialization_is_factory_managed_and_closed_world():
         "gate2_financial_evidence_materialization_contracts",
         "gate2_financial_evidence_materialization_validation",
         "gate2_financial_evidence_registry",
+        "gate2_financial_semantic_contract",
         "gate2_financial_evidence_source_package",
         "hashlib",
         "json",

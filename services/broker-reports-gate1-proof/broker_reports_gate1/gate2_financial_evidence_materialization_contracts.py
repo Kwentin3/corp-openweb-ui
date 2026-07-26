@@ -12,17 +12,26 @@ from typing import Any
 from .gate2_financial_evidence_decision import FinancialEvidenceDecision
 
 
-FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION = (
+FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1 = (
     "broker_reports_financial_evidence_inputs_v1"
+)
+FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION = (
+    "broker_reports_financial_evidence_inputs_v2"
 )
 SOURCE_PACKAGE_SCHEMA_VERSION = (
     "broker_reports_financial_evidence_source_package_v1"
 )
-VALIDATED_DECISION_SCHEMA_VERSION = (
+VALIDATED_DECISION_SCHEMA_VERSION_V1 = (
     "broker_reports_financial_evidence_validated_decision_v1"
 )
-MATERIALIZATION_POLICY_VERSION = (
+VALIDATED_DECISION_SCHEMA_VERSION = (
+    "broker_reports_financial_evidence_validated_decision_v2"
+)
+MATERIALIZATION_POLICY_VERSION_V1 = (
     "broker_reports_financial_evidence_materialization_v1"
+)
+MATERIALIZATION_POLICY_VERSION = (
+    "broker_reports_financial_evidence_materialization_v2"
 )
 
 COMPLETENESS_VALUES = frozenset(
@@ -90,6 +99,9 @@ class FinancialEvidenceValidatedDecision:
     schema_version: str
     decision_schema_version: str
     decision_schema_hash: str
+    semantic_pack_id: str
+    semantic_pack_version: str
+    semantic_pack_integrity_sha256: str
     registry_version: str
     registry_hash: str
     source_scope_ref: str

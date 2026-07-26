@@ -17,6 +17,7 @@ from .artifact_models import (
 )
 from .artifact_resolver import ArtifactResolver
 from .gate2_financial_context import (
+    FINANCIAL_CONTEXT_SCHEMA_VERSION,
     Gate2FinancialContextProjectionFactory,
 )
 from .gate2_financial_evidence_catalog import (
@@ -38,6 +39,7 @@ from .gate2_financial_evidence_materialization import (
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
 from .gate2_financial_evidence_materialization_contracts import (
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
     sha256_json,
 )
 from .gate2_financial_evidence_registry import (
@@ -55,18 +57,14 @@ PRODUCTION_RUNTIME_SCHEMA_VERSION = (
 PRODUCTION_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_evidence_production_receipt_v1"
 )
-FINANCIAL_CONTEXT_ARTIFACT_TYPE = (
-    "broker_reports_gate2_financial_context_v1"
-)
+FINANCIAL_CONTEXT_ARTIFACT_TYPE = FINANCIAL_CONTEXT_SCHEMA_VERSION
 FINANCIAL_RUN_ARTIFACT_TYPE = (
     "broker_reports_gate2_financial_evidence_production_run_v1"
 )
 FINANCIAL_RECEIPT_ARTIFACT_TYPE = (
     "broker_reports_gate2_financial_evidence_production_receipt_v1"
 )
-FINANCIAL_INPUT_ARTIFACT_TYPE = (
-    "broker_reports_financial_evidence_inputs_v1"
-)
+FINANCIAL_INPUT_ARTIFACT_TYPE = FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION
 PRODUCTION_PROMPT_CONTRACT_ID = (
     "broker_reports_gate2_financial_evidence_production_prompt_v1"
 )

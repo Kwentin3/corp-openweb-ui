@@ -23,6 +23,8 @@ from broker_reports_gate1.gate2_financial_evidence_materialization import (
     Gate2FinancialEvidenceValidatedDecisionFactory,
 )
 from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
+    MATERIALIZATION_POLICY_VERSION_V1,
     sha256_json,
 )
 from broker_reports_gate1.gate2_financial_evidence_successor import (
@@ -176,7 +178,10 @@ def recover_exact_decision(
             ).create().materialize(validated_decision=validated)
         except ValueError:
             continue
-        if artifact["integrity_hash"] == target_artifact_hash:
+        if target_artifact_hash in {
+            artifact["integrity_hash"],
+            _legacy_v1_artifact_integrity_hash(artifact),
+        }:
             matches.append(copy.deepcopy(decision))
     if len(matches) != 1:
         _fail(
@@ -189,6 +194,89 @@ def recover_exact_decision(
         "candidates_evaluated": evaluated,
         "matching_candidates": 1,
     }
+
+
+def _legacy_v1_artifact_integrity_hash(
+    artifact: dict[str, Any],
+) -> str:
+    """Reproduce the frozen v1 hash without admitting a v1 write."""
+
+    payload = copy.deepcopy(artifact)
+    payload["schema_version"] = (
+        FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1
+    )
+    payload["materialization_policy_version"] = (
+        MATERIALIZATION_POLICY_VERSION_V1
+    )
+    payload.pop("semantic_pack", None)
+    terminal_ids: list[str] = []
+    for terminal in payload["typed_inputs"]:
+        terminal.pop("semantic_pack_integrity_sha256", None)
+        identity_roles = set(
+            terminal["identity_policy"]["identity_roles"]
+        )
+        terminal["input_id"] = "finin_" + sha256_json(
+            {
+                "registry_hash": terminal["registry_hash"],
+                "input_type_id": terminal["input_type_id"],
+                "source_scope_ref": terminal["source_scope_ref"],
+                "identity_values": [
+                    {
+                        "role_id": value["role_id"],
+                        "source_value_ref": value["source_value_ref"],
+                        "normalized_comparison_value": value[
+                            "normalized_comparison_value"
+                        ],
+                    }
+                    for value in terminal["source_values"]
+                    if value["role_id"] in identity_roles
+                ],
+                "source_evidence_refs": terminal[
+                    "source_evidence_refs"
+                ],
+            }
+        )[:32]
+        terminal.pop("integrity_hash", None)
+        terminal["integrity_hash"] = sha256_json(terminal)
+        terminal_ids.append(terminal["input_id"])
+    for terminal in payload["unclassified_inputs"]:
+        terminal.pop("semantic_pack_integrity_sha256", None)
+        terminal["unclassified_input_id"] = "finun_" + sha256_json(
+            {
+                "registry_hash": terminal["registry_hash"],
+                "source_scope_ref": terminal["source_scope_ref"],
+                "source_values": [
+                    {
+                        "role_id": value["role_id"],
+                        "source_value_ref": value["source_value_ref"],
+                        "normalized_comparison_value": value[
+                            "normalized_comparison_value"
+                        ],
+                    }
+                    for value in terminal["source_values"]
+                ],
+                "source_evidence_refs": terminal[
+                    "source_evidence_refs"
+                ],
+            }
+        )[:32]
+        terminal.pop("integrity_hash", None)
+        terminal["integrity_hash"] = sha256_json(terminal)
+        terminal_ids.append(terminal["unclassified_input_id"])
+    payload["artifact_id"] = "finset_" + sha256_json(
+        {
+            "schema_version": payload["schema_version"],
+            "registry_hash": payload["registry"]["registry_hash"],
+            "source_package_integrity_hash": payload[
+                "source_package"
+            ]["integrity_hash"],
+            "terminal_disposition": payload["terminal_disposition"],
+            "terminal_ids": terminal_ids,
+            "coverage_id": payload["coverage"]["coverage_id"],
+        }
+    )[:32]
+    payload.pop("integrity_hash", None)
+    return sha256_json(payload)
 
 
 def _decision_candidates(

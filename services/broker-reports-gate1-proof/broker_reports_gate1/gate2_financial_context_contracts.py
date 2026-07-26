@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 
-FINANCIAL_CONTEXT_SCHEMA_VERSION = (
+FINANCIAL_CONTEXT_SCHEMA_VERSION_V1 = (
     "broker_reports_gate2_financial_context_v1"
 )
-FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION = (
+FINANCIAL_CONTEXT_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_context_v2"
+)
+FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION_V1 = (
     "broker_reports_gate2_financial_context_projection_v1"
+)
+FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION = (
+    "broker_reports_gate2_financial_context_projection_v2"
 )
 
 FACTORY_REQUIRED = (

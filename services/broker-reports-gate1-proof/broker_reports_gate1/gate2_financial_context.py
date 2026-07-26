@@ -5,7 +5,9 @@ from typing import Any, Iterable
 
 from .gate2_financial_context_contracts import (
     FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION,
+    FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION_V1,
     FINANCIAL_CONTEXT_SCHEMA_VERSION,
+    FINANCIAL_CONTEXT_SCHEMA_VERSION_V1,
     Gate2FinancialContextProjectionError,
     fail,
 )
@@ -25,6 +27,9 @@ from .gate2_financial_evidence_registry import (
 from .gate2_financial_evidence_source_package import (
     validate_source_package_integrity,
 )
+from .gate2_financial_semantic_contract import (
+    Gate2FinancialSemanticContractFactory,
+)
 
 
 FACTORY_REQUIRED = (
@@ -38,7 +43,9 @@ FORBIDDEN = (
 
 __all__ = [
     "FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION",
+    "FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION_V1",
     "FINANCIAL_CONTEXT_SCHEMA_VERSION",
+    "FINANCIAL_CONTEXT_SCHEMA_VERSION_V1",
     "Gate2FinancialContextProjectionError",
     "Gate2FinancialContextProjectionFactory",
     "validate_financial_context",
@@ -52,6 +59,9 @@ class Gate2FinancialContextProjectionFactory:
         registry: Gate2FinancialEvidenceRegistrySnapshot,
     ) -> None:
         self.registry = registry
+        self.semantic_contract = Gate2FinancialSemanticContractFactory(
+            registry=registry
+        ).create()
 
     def create(
         self,
@@ -59,8 +69,11 @@ class Gate2FinancialContextProjectionFactory:
         materialized_artifacts: Iterable[dict[str, Any]],
         source_packages: Iterable[Gate2FinancialEvidenceSourcePackage],
     ) -> dict[str, Any]:
-        artifacts = self._validated_artifacts(materialized_artifacts)
         packages = self._validated_packages(source_packages)
+        artifacts = self._validated_artifacts(
+            materialized_artifacts,
+            source_packages=packages,
+        )
         artifact_package_refs = {
             item["source_package"]["package_ref"] for item in artifacts
         }
@@ -85,6 +98,7 @@ class Gate2FinancialContextProjectionFactory:
             "projection_policy_version": (
                 FINANCIAL_CONTEXT_PROJECTION_POLICY_VERSION
             ),
+            "semantic_pack": self.semantic_contract.identity_payload(),
             "registry": {
                 "registry_id": REGISTRY_ID,
                 "registry_version": self.registry.registry_version,
@@ -121,12 +135,31 @@ class Gate2FinancialContextProjectionFactory:
     def _validated_artifacts(
         self,
         artifacts: Iterable[dict[str, Any]],
+        *,
+        source_packages: dict[
+            str,
+            Gate2FinancialEvidenceSourcePackage,
+        ],
     ) -> list[dict[str, Any]]:
         unique: dict[tuple[str, str], dict[str, Any]] = {}
         for artifact in artifacts:
+            source_projection = (
+                artifact.get("source_package")
+                if isinstance(artifact, dict)
+                else None
+            )
+            package_ref = (
+                source_projection.get("package_ref")
+                if isinstance(source_projection, dict)
+                else None
+            )
+            source_package = source_packages.get(str(package_ref or ""))
+            if source_package is None:
+                fail("financial_context_source_package_set_mismatch")
             validate_financial_evidence_inputs(
                 payload=artifact,
                 registry=self.registry,
+                source_package=source_package,
             )
             key = (
                 artifact["artifact_id"],
@@ -281,11 +314,16 @@ class Gate2FinancialContextProjectionFactory:
     ) -> dict[str, str] | None:
         if terminal is None or "input_type_id" not in terminal:
             return None
-        declaration = self.registry.get(terminal["input_type_id"])
+        declaration = self.semantic_contract.type_contract(
+            terminal["input_type_id"]
+        )
         return {
             "input_type_id": declaration.input_type_id,
             "title": declaration.title,
             "semantic_class": declaration.semantic_class,
+            "semantic_pack_integrity_sha256": (
+                self.semantic_contract.integrity_sha256
+            ),
         }
 
     def _aggregate_semantics(
@@ -298,12 +336,9 @@ class Gate2FinancialContextProjectionFactory:
             return "unclassified"
         if status != "typed_input" or terminal is None:
             return "not_applicable"
-        if (
+        return self.semantic_contract.type_contract(
             terminal["input_type_id"]
-            == "printed_financial_metric_v1"
-        ):
-            return "source_printed"
-        return "not_aggregate"
+        ).aggregate_semantics()
 
     def _evidence_identity(
         self,

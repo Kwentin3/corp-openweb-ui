@@ -18,6 +18,7 @@ from broker_reports_gate1.gate2_financial_context import (  # noqa: E402
 )
 from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (  # noqa: E402
     FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION,
+    FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1,
     sha256_json,
 )
 from broker_reports_gate1.gate2_fns_2ndfl_contracts import (  # noqa: E402
@@ -335,6 +336,9 @@ def test_contract_boundaries_are_explicit_and_legacy_versions_are_unchanged():
     assert "rewrite legacy" in FORBIDDEN
     assert SOURCE_FACTS_SCHEMA_VERSION == "broker_reports_source_facts_v0"
     assert FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION == (
+        "broker_reports_financial_evidence_inputs_v2"
+    )
+    assert FINANCIAL_EVIDENCE_INPUTS_SCHEMA_VERSION_V1 == (
         "broker_reports_financial_evidence_inputs_v1"
     )
     assert TYPED_FACTS_SCHEMA_VERSION == (
