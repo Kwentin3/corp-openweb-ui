@@ -294,28 +294,62 @@ def test_query_requires_exact_order_count_completion_and_provenance():
 
 
 def test_query_binds_record_content_integrity_without_safe_literals():
-    def mutate(candidate):
-        candidate["result_records"][0]["record_sha256"] = "f" * 64
+    def copied_hash(candidate):
+        candidate["result_records"][0]["values"][0][
+            "literal_value"
+        ] = "changed with copied hash"
 
-    report = _score_mutation("syn_risk_query_complete", mutate)
-    result = _result_case(report, "syn_risk_query_complete")
+    copied_report = _score_mutation(
+        "syn_risk_query_complete",
+        copied_hash,
+    )
+    copied_result = _result_case(
+        copied_report,
+        "syn_risk_query_complete",
+    )
 
-    assert HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE in result[
+    assert HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE in copied_result[
         "hard_blocker_codes"
     ]
-    assert HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS in result[
+    assert HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS in copied_result[
         "hard_blocker_codes"
     ]
+
+    def recomputed_hash(candidate):
+        record = candidate["result_records"][0]
+        record["values"][0]["literal_value"] = (
+            "changed with recomputed hash"
+        )
+        unsigned = dict(record)
+        unsigned.pop("record_sha256")
+        record["record_sha256"] = sha256_json(unsigned)
+
+    recomputed_report = _score_mutation(
+        "syn_risk_query_complete",
+        recomputed_hash,
+    )
+    recomputed_result = _result_case(
+        recomputed_report,
+        "syn_risk_query_complete",
+    )
+    assert HARD_BLOCKER_INCOMPLETE_QUERY_RESPONSE in recomputed_result[
+        "hard_blocker_codes"
+    ]
+    assert HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS in (
+        recomputed_result["hard_blocker_codes"]
+    )
 
 
 def test_foreign_and_malformed_candidate_refs_are_not_filtered_out():
     def mutate_query(candidate):
-        candidate["result_records"].append(
-            {
-                "record_id": "record:synthetic:foreign",
-                "record_sha256": "f" * 64,
-            }
-        )
+        foreign = {
+            "record_id": "record:synthetic:foreign",
+            "record_kind": "typed",
+            "values": [],
+            "provenance_ref": "provenance:synthetic:foreign",
+        }
+        foreign["record_sha256"] = sha256_json(foreign)
+        candidate["result_records"].append(foreign)
         candidate["provenance_refs"].append(7)
 
     query_report = _score_mutation(
@@ -407,6 +441,8 @@ def test_safe_result_contains_only_aggregate_risk_evidence():
 
     assert "1250.00" not in encoded
     assert "77,005" not in encoded
+    assert "10.00" not in encoded
+    assert "20,500" not in encoded
     assert "value:synthetic:" not in encoded
     assert report["privacy"]["customer_data_included"] is False
     assert report["privacy"]["raw_candidate_output_included"] is False

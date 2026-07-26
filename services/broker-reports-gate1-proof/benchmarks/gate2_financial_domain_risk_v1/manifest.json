@@ -277,15 +277,15 @@
         "matching_records": [
           {
             "record_id": "record:synthetic:1",
-            "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            "record_sha256": "3fae2639f00c1907016a406c856b18b0db63945e89443d54ce28c05f1b1d4839"
           },
           {
             "record_id": "record:synthetic:2",
-            "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            "record_sha256": "90d6cbe754d41f1fb9dd5f040f740968ded3abb6cd5ee8d1044dbd45b942dbd4"
           },
           {
             "record_id": "record:synthetic:3",
-            "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+            "record_sha256": "cabf7dd7be65ef67f0adc2b55445029eb34b0cfff90cd1d1b8a3fff9fc25a88c"
           }
         ],
         "provenance_refs": [
@@ -301,15 +301,39 @@
         "result_records": [
           {
             "record_id": "record:synthetic:1",
-            "record_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+            "record_kind": "typed",
+            "values": [
+              {
+                "source_value_ref": "value:synthetic:query:1",
+                "literal_value": "10.00"
+              }
+            ],
+            "provenance_ref": "provenance:synthetic:query:1",
+            "record_sha256": "3fae2639f00c1907016a406c856b18b0db63945e89443d54ce28c05f1b1d4839"
           },
           {
             "record_id": "record:synthetic:2",
-            "record_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+            "record_kind": "unclassified",
+            "values": [
+              {
+                "source_value_ref": "value:synthetic:query:2",
+                "literal_value": "20,500"
+              }
+            ],
+            "provenance_ref": "provenance:synthetic:query:2",
+            "record_sha256": "90d6cbe754d41f1fb9dd5f040f740968ded3abb6cd5ee8d1044dbd45b942dbd4"
           },
           {
             "record_id": "record:synthetic:3",
-            "record_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+            "record_kind": "typed",
+            "values": [
+              {
+                "source_value_ref": "value:synthetic:query:3",
+                "literal_value": "-3.25"
+              }
+            ],
+            "provenance_ref": "provenance:synthetic:query:3",
+            "record_sha256": "cabf7dd7be65ef67f0adc2b55445029eb34b0cfff90cd1d1b8a3fff9fc25a88c"
           }
         ],
         "provenance_refs": [
@@ -320,5 +344,5 @@
       }
     }
   ],
-  "manifest_integrity_sha256": "d13378c1b065b5f48449115a965d51532ff7f06a7659bc95df7768703ee960c0"
+  "manifest_integrity_sha256": "86160b09382bc2d08da8c097da49a8d4ca3800156a359defe0bde4b007d9e658"
 }

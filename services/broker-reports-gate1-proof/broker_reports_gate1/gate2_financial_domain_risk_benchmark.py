@@ -254,9 +254,11 @@ def _evaluate_query_case(
     expected_ids = {record_id for record_id, _ in expected_records}
     expected_hashes = dict(expected_records)
     expected_provenance = set(reference["provenance_refs"])
-    result_records, records_valid = _strict_record_values(
-        actual.get("result_records")
-    )
+    (
+        result_records,
+        records_valid,
+        record_integrity_valid,
+    ) = _strict_record_values(actual.get("result_records"))
     result_ids = [record_id for record_id, _ in result_records]
     provenance, provenance_valid = _strict_string_values(
         actual.get("provenance_refs")
@@ -272,6 +274,7 @@ def _evaluate_query_case(
     query_complete = (
         counts_valid
         and records_valid
+        and record_integrity_valid
         and provenance_valid
         and actual.get("query_result_complete") is True
         and actual.get("matching_records_total") == expected_count
@@ -289,6 +292,8 @@ def _evaluate_query_case(
         or not set(result_ids) <= expected_ids
     ):
         blockers.add(HARD_BLOCKER_INVALID_REF)
+    if not record_integrity_valid:
+        blockers.add(HARD_BLOCKER_LITERAL_OR_PROVENANCE_LOSS)
     if len(result_ids) != len(set(result_ids)):
         blockers.add(HARD_BLOCKER_DUPLICATE_OR_CROSS_SCOPE)
     if any(
@@ -404,22 +409,32 @@ def _strict_string_values(value: Any) -> tuple[list[str], bool]:
 
 def _strict_record_values(
     value: Any,
-) -> tuple[list[tuple[str, str]], bool]:
+) -> tuple[list[tuple[str, str]], bool, bool]:
     if not isinstance(value, list):
-        return [], False
+        return [], False, False
     records: list[tuple[str, str]] = []
-    valid = True
+    shape_valid = True
+    integrity_valid = True
     for item in value:
         if (
             not isinstance(item, Mapping)
-            or set(item) != {"record_id", "record_sha256"}
             or not isinstance(item.get("record_id"), str)
             or not _is_sha256(item.get("record_sha256"))
         ):
-            valid = False
+            shape_valid = False
             continue
-        records.append((item["record_id"], item["record_sha256"]))
-    return records, valid
+        claimed = item["record_sha256"]
+        records.append((item["record_id"], claimed))
+        unsigned = dict(item)
+        del unsigned["record_sha256"]
+        try:
+            computed = sha256_json(unsigned)
+        except (TypeError, ValueError):
+            integrity_valid = False
+            continue
+        if claimed != computed:
+            integrity_valid = False
+    return records, shape_valid, integrity_valid
 
 
 def _is_nonnegative_int(value: Any) -> bool:

@@ -152,6 +152,8 @@ A query case passes only when all of the following are exact:
 - `records_returned_through_page` equals that same total;
 - ordered `{record_id, record_sha256}` pairs equal the complete frozen ordered
   set, binding the response to exact literal-bearing record content;
+- every candidate result supplies its complete record object and the scorer
+  recomputes `record_sha256` from canonical content before comparison;
 - result IDs contain no duplicate;
 - required provenance refs are present and no foreign ref is introduced.
 

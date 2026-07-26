@@ -9,8 +9,8 @@
     "manifest_schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_manifest_v1",
     "risk_policy_version": "broker_reports_gate2_financial_domain_risk_policy_v1",
     "result_schema_version": "broker_reports_gate2_financial_domain_risk_benchmark_result_v1",
-    "manifest_integrity_sha256": "d13378c1b065b5f48449115a965d51532ff7f06a7659bc95df7768703ee960c0",
-    "sealed_result_integrity_sha256": "c6a4fc1f4d536a9c9fed45fd72ea3402032abf47709db2027b2b869500b3ad05",
+    "manifest_integrity_sha256": "86160b09382bc2d08da8c097da49a8d4ca3800156a359defe0bde4b007d9e658",
+    "sealed_result_integrity_sha256": "bc7347a094a83aa90990ad8e07cfcbbfb5ab62d3aad706c930620b6011cb39f3",
     "frozen_synthetic_cases_total": 6,
     "customer_data_in_manifest": false
   },
@@ -68,16 +68,19 @@
     "final_complete_required": true,
     "exact_ordered_record_set_required": true,
     "record_content_sha256_required": true,
+    "candidate_record_sha256_recomputed_from_canonical_content": true,
+    "copied_stale_record_hash_rejected": true,
+    "changed_record_with_recomputed_hash_rejected": true,
     "required_provenance_required": true,
     "partial_false_final_fails": true,
     "foreign_record_ref_rejected": true,
     "malformed_candidate_ref_rejected_without_filtering": true
   },
   "verification": {
-    "focused_risk_benchmark": "22 passed in 0.74s",
-    "benchmark_domain_relevant": "65 passed in 2.52s",
-    "full_suite": "1606 passed, 20 skipped, 5 warnings in 143.29s",
-    "privacy_guard": "3 passed in 0.74s",
+    "focused_risk_benchmark": "22 passed in 0.77s",
+    "benchmark_domain_relevant": "65 passed in 2.60s",
+    "full_suite": "1606 passed, 20 skipped, 5 warnings in 145.47s",
+    "privacy_guard": "3 passed in 0.77s",
     "deterministic_result_rebuild": "exact",
     "ruff_targeted": "passed",
     "python_compile_targeted": "passed",
@@ -126,27 +129,27 @@
   "deliverables": [
     {
       "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_RISK_BENCHMARK.v1.md",
-      "git_blob_sha256": "7b19c12586d34678b198434f7b0ebdf9cb5d805468586aa3658932ad3556cd4e"
+      "git_blob_sha256": "f1137536296a034426ca1b92865fd6d146cfe5380ebadc316649a987cb50ed4a"
     },
     {
       "path": "services/broker-reports-gate1-proof/benchmarks/gate2_financial_domain_risk_v1/manifest.json",
-      "git_blob_sha256": "50940390f84ef31f31eeee5d8fda00a6a20d81e76e8f929afa1880dec4e1db27"
+      "git_blob_sha256": "e0b59e61c4879731dac133c176b73b4ed61a485145602fc5a121c3baf703ddba"
     },
     {
       "path": "services/broker-reports-gate1-proof/benchmarks/gate2_financial_domain_risk_v1/sealed_result.safe.json",
-      "git_blob_sha256": "01d06df5c57ccc8209eeffb31f8fa9dd5e054610f25adda6a5bfe4465b4dab32"
+      "git_blob_sha256": "727fb01a3bcfffd1e77af06022bf918cf1fb82d833b8f36237389a12651d6109"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_risk_benchmark_contracts.py",
-      "git_blob_sha256": "b1ae4d1c31119497f6075f2d2d4a092bcd4e9c63f812f675f53b6c631090aa7b"
+      "git_blob_sha256": "2abc4bd6630c34bdd870d882862255e0ed31af289d5da7f199d1f504430d3361"
     },
     {
       "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_risk_benchmark.py",
-      "git_blob_sha256": "cdfb40a159ea2bff5c5c522f4eccfd02b9b8a8be01f5249835d2d8f8661898d0"
+      "git_blob_sha256": "2936e52682f5d8063c2d352bad2b1b4673e67802a911f58694c882bed53186dc"
     },
     {
       "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_domain_risk_benchmark.py",
-      "git_blob_sha256": "c7b496d6752eedfc03c4334a3ffd59091e094aba9d5457d33c2730e510bbedd0"
+      "git_blob_sha256": "71e6a34cb292b4259f869fa1abe4437fe7af4bb9cb9c78a37ace8ce89c452046"
     }
   ],
   "next_permitted_goal": "GOAL_9_AFTER_GOAL_8_REVIEW_ACCEPTANCE_MERGE_AND_CLEANUP"

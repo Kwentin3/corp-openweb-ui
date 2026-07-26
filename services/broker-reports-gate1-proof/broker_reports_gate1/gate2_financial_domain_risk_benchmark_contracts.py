@@ -262,7 +262,7 @@ def _validate_query_case(case: Mapping[str, Any]) -> None:
         {"matching_records", "provenance_refs"},
         "financial_domain_risk_query_reference_invalid",
     )
-    _record_list(
+    _record_reference_list(
         reference["matching_records"],
         unique=True,
         code="financial_domain_risk_query_reference_invalid",
@@ -296,11 +296,7 @@ def _validate_query_case(case: Mapping[str, Any]) -> None:
             _fail("financial_domain_risk_query_candidate_invalid")
     if not isinstance(candidate["query_result_complete"], bool):
         _fail("financial_domain_risk_query_candidate_invalid")
-    _record_list(
-        candidate["result_records"],
-        unique=False,
-        code="financial_domain_risk_query_candidate_invalid",
-    )
+    _candidate_record_list(candidate["result_records"])
     _string_list(
         candidate["provenance_refs"],
         unique=False,
@@ -417,7 +413,12 @@ def _string_list(value: Any, *, unique: bool, code: str) -> None:
         _fail(code)
 
 
-def _record_list(value: Any, *, unique: bool, code: str) -> None:
+def _record_reference_list(
+    value: Any,
+    *,
+    unique: bool,
+    code: str,
+) -> None:
     if not isinstance(value, list):
         _fail(code)
     record_ids = []
@@ -432,6 +433,25 @@ def _record_list(value: Any, *, unique: bool, code: str) -> None:
         record_ids.append(item["record_id"])
     if unique and len(record_ids) != len(set(record_ids)):
         _fail(code)
+
+
+def _candidate_record_list(value: Any) -> None:
+    code = "financial_domain_risk_query_candidate_invalid"
+    if not isinstance(value, list):
+        _fail(code)
+    for item in value:
+        if not isinstance(item, dict):
+            _fail(code)
+        if (
+            not _bounded_text(item.get("record_id"))
+            or not isinstance(item.get("record_sha256"), str)
+            or not _SHA256_RE.fullmatch(item["record_sha256"])
+        ):
+            _fail(code)
+        unsigned = dict(item)
+        claimed = unsigned.pop("record_sha256")
+        if claimed != sha256_json(unsigned):
+            _fail(code)
 
 
 def _require_keys(value: Any, expected: set[str], code: str) -> None:
