@@ -327,6 +327,12 @@ class _Gate2OpenWebUIProviderAdapter:
             "completion_tokens_details",
             "output_tokens_details",
         )
+        input_tokens = _optional_int(
+            usage.get("prompt_tokens", usage.get("input_tokens"))
+        )
+        output_tokens = _optional_int(
+            usage.get("completion_tokens", usage.get("output_tokens"))
+        )
         choices = value.get("choices") if isinstance(value.get("choices"), list) else []
         first = choices[0] if choices and isinstance(choices[0], dict) else {}
         return Gate2ProviderExecutionMetadata(
@@ -348,13 +354,13 @@ class _Gate2OpenWebUIProviderAdapter:
             adapted_request_schema_hash=prepared_request.adapted_schema_hash,
             schema_transform_count=prepared_request.schema_transform_count,
             duration_ms=duration_ms,
-            input_tokens=_optional_int(
-                usage.get("prompt_tokens", usage.get("input_tokens"))
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=_normalized_usage_total(
+                reported_total=usage.get("total_tokens"),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             ),
-            output_tokens=_optional_int(
-                usage.get("completion_tokens", usage.get("output_tokens"))
-            ),
-            total_tokens=_optional_int(usage.get("total_tokens")),
             cached_input_tokens=_first_optional_int(
                 input_details.get("cached_tokens"),
                 usage.get("cached_input_tokens"),
@@ -528,6 +534,8 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
             "output_tokens_details",
             "completion_tokens_details",
         )
+        input_tokens = _optional_int(usage.get("input_tokens"))
+        output_tokens = _optional_int(usage.get("output_tokens"))
         return Gate2ProviderExecutionMetadata(
             provider_id=self.profile.provider_id,
             provider_profile_id=self.profile.profile_id,
@@ -545,9 +553,13 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
             resolved_model_id=_optional_string(value.get("model")),
             provider_response_id=_optional_string(value.get("id")),
             duration_ms=duration_ms,
-            input_tokens=_optional_int(usage.get("input_tokens")),
-            output_tokens=_optional_int(usage.get("output_tokens")),
-            total_tokens=_optional_int(usage.get("total_tokens")),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=_normalized_usage_total(
+                reported_total=usage.get("total_tokens"),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            ),
             cached_input_tokens=_first_optional_int(
                 usage.get("cache_read_input_tokens"),
                 usage.get("cached_input_tokens"),
@@ -1063,6 +1075,24 @@ def _first_optional_int(*values: Any) -> int | None:
         parsed = _optional_int(value)
         if parsed is not None:
             return parsed
+    return None
+
+
+def _normalized_usage_total(
+    *,
+    reported_total: Any,
+    input_tokens: int | None,
+    output_tokens: int | None,
+) -> int | None:
+    total_tokens = _optional_int(reported_total)
+    if total_tokens is not None:
+        return total_tokens
+    if (
+        reported_total is None
+        and input_tokens is not None
+        and output_tokens is not None
+    ):
+        return input_tokens + output_tokens
     return None
 
 
