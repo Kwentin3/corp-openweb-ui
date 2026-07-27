@@ -30,8 +30,10 @@ filesystem dependency.
 Focused verification:
 
 ```text
-python -m pytest -q tests/test_broker_reports_gate2_financial_domain_query.py
-24 passed
+python -m pytest -q \
+  tests/test_broker_reports_gate2_financial_domain_query.py \
+  tests/test_broker_reports_gate_architecture.py
+35 passed
 ```
 
 The deterministic domain fixture proves:
