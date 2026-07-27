@@ -1,7 +1,7 @@
 # Broker Reports Gate 2 Financial Semantic V6 Qualification Harness
 
-Status: V6 completion Goal 2 terminal smoke evidence; full qualification is
-blocked.
+Status: canonical V6 qualification and bounded-smoke harness. Full
+qualification always requires separate explicit authorization.
 
 ## Exact workload
 
@@ -92,3 +92,25 @@ passed the full technical path and exact zero-call replay. Both semantic smoke
 expectations failed. The result is not a model qualification or model-safety
 verdict. The smoke is not accepted, may not be retried under this
 authorization, and the full Nano qualification must not run.
+
+## Strong-candidate transparent smoke
+
+A later explicit authorization may select the fixed stronger candidate
+`claude-haiku-4-5-20251001` through `anthropic_claude` while retaining the
+same two cases and every semantic authority above. The CLI requires an
+explicit exact-candidate selector in both zero-call preflight and execute
+modes. Execution additionally requires a new safe receipt, a new private
+directory outside Git, and a new dated `*.report.md` path under
+`docs/reports/`.
+
+`Gate2FinancialSemanticV6TransparentSmokeReportFactory` is a reporting
+projection only. For the two allowlisted synthetic cases it renders, in
+primary-evidence-first order, the readable packet fields actually used for
+the semantic decision, exact returned semantic JSON, normalized Choice,
+field-by-field comparison, and a bounded diagnosis. It cannot select cases,
+call a provider, parse a response, validate, materialize, replay, or publish a
+qualification verdict.
+
+The transparent report is not permitted for actual corpus. Actual-corpus
+source context and raw values remain outside Git; repository evidence remains
+redacted and hash-linked.

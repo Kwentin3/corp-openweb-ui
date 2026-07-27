@@ -44,6 +44,9 @@ from .gate2_financial_semantic_v6_stronger_candidate import (
     V6_GOAL12_EXACT_MODEL_ID,
     V6_GOAL12_PROVIDER_PROFILE_ID,
 )
+from .gate2_financial_semantic_v6_smoke_report import (
+    Gate2FinancialSemanticV6TransparentSmokeReportFactory,
+)
 from .gate2_model_contracts import (
     Gate2StructuredModelClient,
     Gate2StructuredModelResult,
@@ -477,6 +480,9 @@ async def smoke_financial_semantic_v6(
     exact_identity: dict[str, Any],
     private_case_checkpoint: Callable[[str, dict[str, Any]], None],
     safe_checkpoint: Callable[[dict[str, Any]], None] | None = None,
+    transparent_case_checkpoint: (
+        Callable[[str, dict[str, Any]], None] | None
+    ) = None,
 ) -> dict[str, Any]:
     exact_model_id, provider_profile_id = _validate_exact_identity(
         exact_identity
@@ -540,8 +546,13 @@ async def smoke_financial_semantic_v6(
         started = time.perf_counter()
         result: Gate2StructuredModelResult | None = None
         model_output: Any = None
+        normalized_choice: dict[str, Any] | None = None
         canonical_request: dict[str, Any] | None = None
         response_format: dict[str, Any] | None = None
+        packet: Any = None
+        choice_contract: Any = None
+        transparent_failure_code: str | None = None
+        technical_pipeline_passed = False
         execution_identity: Gate2FinancialSemanticV6ExecutionIdentity | None = (
             None
         )
@@ -656,6 +667,7 @@ async def smoke_financial_semantic_v6(
                 and disposition_exact
                 and usage_normalized
             )
+            technical_pipeline_passed = replay_exact and usage_normalized
             private_case_checkpoint(
                 case.case_id,
                 evidence.private_evidence,
@@ -687,6 +699,7 @@ async def smoke_financial_semantic_v6(
             provider_submissions += lifecycle["provider_submissions"]
             provider_responses += lifecycle["provider_responses"]
             code = _failure_code(exc)
+            transparent_failure_code = code
             terminal_class = _failure_terminal_class(
                 exception=exc,
                 failure_code=code,
@@ -765,6 +778,23 @@ async def smoke_financial_semantic_v6(
         case_receipts.append(receipt)
         if safe_checkpoint is not None:
             safe_checkpoint(current(terminal=False))
+        if transparent_case_checkpoint is not None:
+            transparent_case_checkpoint(
+                case.case_id,
+                Gate2FinancialSemanticV6TransparentSmokeReportFactory().create_case(
+                    case=case,
+                    packet=packet if packet is not None else case.packet,
+                    choice_contract=(
+                        choice_contract
+                        if choice_contract is not None
+                        else case.choice_contract
+                    ),
+                    exact_model_answer=model_output,
+                    normalized_answer=normalized_choice,
+                    technical_pipeline_passed=technical_pipeline_passed,
+                    failure_code=transparent_failure_code,
+                ),
+            )
 
     terminal_receipt = current(terminal=True)
     if safe_checkpoint is not None:
