@@ -20,6 +20,8 @@ from .gate2_financial_semantic_v6_evidence import (
     financial_semantic_v6_canonical_request,
 )
 from .gate2_financial_semantic_v6_execution_identity import (
+    V6_EXACT_MODEL_ID,
+    V6_PROVIDER_PROFILE_ID,
     V6_QUALIFICATION_REQUEST_PROFILE,
     Gate2FinancialSemanticV6CapturedExecution,
     Gate2FinancialSemanticV6ExecutionIdentity,
@@ -37,11 +39,17 @@ from .gate2_financial_semantic_v6_qualification import (
     _prompt,
     _semantic_authorities,
 )
+from .gate2_financial_semantic_v6_stronger_candidate import (
+    V6_GOAL12_EXACT_MODEL_ID,
+    V6_GOAL12_PROVIDER_PROFILE_ID,
+)
 from .gate2_model_contracts import (
     Gate2StructuredModelClient,
     Gate2StructuredModelResult,
     gate2_provider_profile,
 )
+
+
 V6_QUALIFICATION_RUN_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_qualification_run_v1"
 )
@@ -606,6 +614,10 @@ def _validate_exact_identity(
         profile = gate2_provider_profile(provider_profile_id)
     except ValueError:
         profile = None
+    allowed_candidate_pairs = {
+        (V6_EXACT_MODEL_ID, V6_PROVIDER_PROFILE_ID),
+        (V6_GOAL12_EXACT_MODEL_ID, V6_GOAL12_PROVIDER_PROFILE_ID),
+    }
     if (
         exact_identity.get("identity_hash") != sha256_json(material)
         or not isinstance(exact_model_id, str)
@@ -613,6 +625,8 @@ def _validate_exact_identity(
         or not isinstance(provider_profile_id, str)
         or profile is None
         or not exact_model_id.startswith(profile.model_id_prefixes)
+        or (exact_model_id, provider_profile_id)
+        not in allowed_candidate_pairs
         or model_provider.get("request_profile")
         != V6_QUALIFICATION_REQUEST_PROFILE
         or attempt.get("full_scope_attempts_total") != 1

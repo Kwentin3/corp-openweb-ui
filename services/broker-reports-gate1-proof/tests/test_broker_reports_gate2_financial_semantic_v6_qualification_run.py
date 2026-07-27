@@ -412,3 +412,32 @@ def test_goal12_candidate_uses_same_terminal_runner_without_prompt_drift() -> No
     )
     assert replay.status == "EXACT"
     assert replay.provider_calls_total == 0
+
+
+def test_terminal_runner_rejects_unowned_candidate_pair_before_call() -> None:
+    fixture = _fixture()
+    identity = _preflight(fixture)["exact_identity"]
+    identity["model_provider"]["exact_model_id"] = "gpt-unowned-candidate"
+    identity["identity_hash"] = sha256_json(
+        {
+            key: value
+            for key, value in identity.items()
+            if key != "identity_hash"
+        }
+    )
+    client = _ExactFakeClient(fixture)
+
+    try:
+        asyncio.run(
+            qualify_financial_semantic_v6(
+                fixture=fixture,
+                model_client=client,
+                exact_identity=identity,
+                private_case_checkpoint=lambda _case_id, _payload: None,
+            )
+        )
+    except ValueError as exc:
+        assert str(exc) == "financial_semantic_v6_qualification_identity_invalid"
+    else:  # pragma: no cover
+        raise AssertionError("unowned candidate pair must fail closed")
+    assert client.calls == 0
