@@ -54,6 +54,9 @@ from broker_reports_gate1.gate2_model_contracts import (
     gate2_provider_profile,
     gate2_provider_profile_revision,
 )
+from broker_reports_gate1.gate2_provider_adapters import (
+    Gate2ProviderAdapterFactory,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -187,8 +190,16 @@ class _ExactFakeClient:
         assert prompt.hash == sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
         profile = gate2_provider_profile(self.provider_profile_id)
         self.calls += 1
-        choice_schema_hash = sha256_json(
-            response_format["json_schema"]["schema"]
+        prepared = Gate2ProviderAdapterFactory(
+            profile=profile,
+            capability_probe=True,
+        ).create().prepare_form_data(
+            form_data={
+                "model": model_id,
+                "messages": [{"role": "user", "content": "schema-projection"}],
+                "response_format": response_format,
+            },
+            response_format=response_format,
         )
         metadata = Gate2ProviderExecutionMetadata(
             provider_id=profile.provider_id,
@@ -205,9 +216,9 @@ class _ExactFakeClient:
             response_format_type=profile.response_format_type,
             response_format_schema_mode=profile.response_format_schema_mode,
             transport_type=profile.transport_type,
-            canonical_request_schema_hash=choice_schema_hash,
-            adapted_request_schema_hash=choice_schema_hash,
-            schema_transform_count=0,
+            canonical_request_schema_hash=prepared.canonical_schema_hash,
+            adapted_request_schema_hash=prepared.adapted_schema_hash,
+            schema_transform_count=prepared.schema_transform_count,
             duration_ms=5,
             input_tokens=100,
             output_tokens=20,

@@ -52,6 +52,9 @@ from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     gate2_provider_profile,
     gate2_provider_profile_revision,
 )
+from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
+    Gate2ProviderAdapterFactory,
+)
 from broker_reports_gate1.gate2_successor_local_proof import (  # noqa: E402
     _fixture_package,
 )
@@ -96,6 +99,17 @@ def _choice_contract():
 def _captured_execution(choice_contract):
     profile = gate2_provider_profile(V6_PROVIDER_PROFILE_ID)
     response_format = financial_semantic_v6_response_format(choice_contract)
+    prepared = Gate2ProviderAdapterFactory(
+        profile=profile,
+        capability_probe=True,
+    ).create().prepare_form_data(
+        form_data={
+            "model": V6_EXACT_MODEL_ID,
+            "messages": [{"role": "user", "content": "schema-projection"}],
+            "response_format": response_format,
+        },
+        response_format=response_format,
+    )
     metadata = Gate2ProviderExecutionMetadata(
         provider_id=profile.provider_id,
         provider_profile_id=profile.profile_id,
@@ -109,9 +123,9 @@ def _captured_execution(choice_contract):
         response_format_type=profile.response_format_type,
         response_format_schema_mode=profile.response_format_schema_mode,
         transport_type=profile.transport_type,
-        canonical_request_schema_hash=choice_contract.choice_schema_hash,
-        adapted_request_schema_hash=choice_contract.choice_schema_hash,
-        schema_transform_count=0,
+        canonical_request_schema_hash=prepared.canonical_schema_hash,
+        adapted_request_schema_hash=prepared.adapted_schema_hash,
+        schema_transform_count=prepared.schema_transform_count,
         duration_ms=87,
         input_tokens=211,
         output_tokens=19,
@@ -140,6 +154,10 @@ def test_synthetic_captured_execution_identity_dry_proof_passes() -> None:
     assert identity.canonical_request_schema_hash == (
         choice_contract.choice_schema_hash
     )
+    assert identity.adapted_request_schema_hash != (
+        identity.canonical_request_schema_hash
+    )
+    assert identity.schema_transform_count == 1
     assert identity.response_format_hash != identity.canonical_request_schema_hash
     assert identity.cached_input_tokens == 0
     assert identity.reasoning_tokens == 0
@@ -216,7 +234,14 @@ def test_request_profile_mismatch_fails_as_provider_metadata_defect() -> None:
             item,
             execution_metadata=replace(
                 item.execution_metadata,
-                schema_transform_count=1,
+                adapted_request_schema_hash="0" * 64,
+            ),
+        ),
+        lambda item: replace(
+            item,
+            execution_metadata=replace(
+                item.execution_metadata,
+                schema_transform_count=0,
             ),
         ),
     ],
