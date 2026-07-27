@@ -77,6 +77,14 @@ class Gate2FinancialSemanticV5Projection:
         return tuple(copy.deepcopy(self.payload["type_cards"]))
 
 
+# OWNER:
+# Sole maintained model-facing Semantic Pack projection, shared with V6.
+#
+# REUSE:
+# Call Gate2FinancialSemanticV5ProjectionFactory.create(...).
+#
+# MUST NOT:
+# Do not copy a V6 projection or reinterpret Pack meaning here.
 class Gate2FinancialSemanticV5ProjectionFactory:
     def create(self) -> Gate2FinancialSemanticV5Projection:
         assets = load_gate2_financial_semantic_model_assets()

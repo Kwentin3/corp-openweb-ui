@@ -148,6 +148,14 @@ class Gate2FinancialDomainSnapshot:
         )
 
 
+# OWNER:
+# Sole immutable Financial Domain snapshot construction authority.
+#
+# REUSE:
+# Call Gate2FinancialDomainCatalogFactory.create(...).
+#
+# MUST NOT:
+# Consumers must not build direct record catalogs or mutable snapshots.
 class Gate2FinancialDomainCatalogFactory:
     def __init__(
         self,

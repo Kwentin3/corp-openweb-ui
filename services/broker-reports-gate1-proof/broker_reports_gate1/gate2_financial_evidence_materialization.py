@@ -86,6 +86,14 @@ __all__ = [
 ]
 
 
+# OWNER:
+# Sole canonical accepted-decision validation boundary.
+#
+# REUSE:
+# Call Gate2FinancialEvidenceValidatedDecisionFactory.create(...).
+#
+# MUST NOT:
+# Callers must not weaken validation or treat provider output as canonical.
 class Gate2FinancialEvidenceValidatedDecisionFactory:
     def __init__(
         self,
@@ -134,6 +142,14 @@ class Gate2FinancialEvidenceValidatedDecisionFactory:
         )
 
 
+# OWNER:
+# Sole canonical financial evidence materialization authority.
+#
+# REUSE:
+# Call Gate2FinancialEvidenceMaterializerFactory.create(...).materialize(...).
+#
+# MUST NOT:
+# Callers must not mint IDs, bindings, provenance or retention.
 class Gate2FinancialEvidenceMaterializerFactory:
     def __init__(
         self,

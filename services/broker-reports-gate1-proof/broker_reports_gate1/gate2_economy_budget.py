@@ -120,6 +120,14 @@ class Gate2EconomyCallAuthorization:
     prepared_form_data: dict[str, Any]
 
 
+# OWNER:
+# Sole authority for Gate 2 budget admission and usage/cost accounting.
+#
+# REUSE:
+# Call Gate2EconomyBudgetSessionFactory.create(...).
+#
+# MUST NOT:
+# Callers must not bypass admission or recalculate provider usage.
 class Gate2EconomyBudgetSessionFactory:
     def __init__(
         self,

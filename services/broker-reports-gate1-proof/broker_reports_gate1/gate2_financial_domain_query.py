@@ -42,6 +42,14 @@ FORBIDDEN = (
 _FACTORY_TOKEN = object()
 
 
+# OWNER:
+# Sole server-authoritative Financial Domain query construction boundary.
+#
+# REUSE:
+# Call Gate2FinancialDomainQueryFactory.create(...).
+#
+# MUST NOT:
+# Consumers must not create query facades over raw records or sources.
 class Gate2FinancialDomainQueryFactory:
     def __init__(
         self,

@@ -35,6 +35,14 @@ class Gate3FinancialDomainContextError(RuntimeError):
         self.code = code
 
 
+# OWNER:
+# Sole Gate 3 consumer boundary for the Financial Domain Query API.
+#
+# REUSE:
+# Call Gate3FinancialDomainContextFactory.create(...).
+#
+# MUST NOT:
+# Gate 3 must not read Gate 1, storage, provider output or raw records.
 class Gate3FinancialDomainContextFactory:
     def __init__(
         self,
