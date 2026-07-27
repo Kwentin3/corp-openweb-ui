@@ -76,6 +76,7 @@ FORBIDDEN = (
     "semantic choices, expanded decisions, source refs, literals, provider "
     "response IDs, raw provider output or private transport bytes"
 )
+COMPATIBILITY_WRAPPER_DELEGATES_ONLY = True
 
 _CASE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
 _PRIVATE_FIELDS = (

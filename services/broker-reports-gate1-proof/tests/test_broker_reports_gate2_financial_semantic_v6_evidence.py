@@ -12,6 +12,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import broker_reports_gate1.gate2_financial_semantic_v6_evidence as evidence_module  # noqa: E402,E501
+
 from broker_reports_gate1.gate2_deterministic_financial_scopes import (  # noqa: E402
     Gate2DeterministicFinancialScopeFromGate1V2Factory,
 )
@@ -31,6 +33,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_choice import (  # noqa: E
     Gate2FinancialSemanticV6ChoiceContractFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa: E402,E501
+    COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
     FACTORY_REQUIRED,
     FORBIDDEN,
     Gate2FinancialSemanticV6DecisionEvidenceError,
@@ -214,6 +217,44 @@ def _rehash(private):
     material.pop("private_evidence_hash")
     private["private_evidence_hash"] = financial_semantic_v6_private_evidence_hash(
         material
+    )
+
+
+def test_canonical_request_wrapper_delegates_to_canonical_builder(
+    monkeypatch,
+) -> None:
+    authorities = _authorities("syn_successor_signed_literal")
+    delegated_request = {"delegated": True}
+    calls = {}
+
+    class SpyRequestBuilder:
+        def __init__(self, *, request_profile):
+            calls["request_profile"] = request_profile
+
+        def build(self, **kwargs):
+            calls["build"] = kwargs
+            return delegated_request
+
+    monkeypatch.setattr(
+        evidence_module,
+        "Gate2OpenWebUIRequestBuilder",
+        SpyRequestBuilder,
+    )
+
+    result = financial_semantic_v6_canonical_request(
+        packet=authorities["packet"],
+        choice_contract=authorities["choice"],
+    )
+
+    assert COMPATIBILITY_WRAPPER_DELEGATES_ONLY is True
+    assert result is delegated_request
+    assert calls["request_profile"] == (
+        evidence_module.FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+    )
+    assert calls["build"]["package"] is authorities["packet"].payload
+    assert calls["build"]["model_id"] == V6_EXACT_MODEL_ID
+    assert calls["build"]["response_format"] == (
+        financial_semantic_v6_response_format(authorities["choice"])
     )
 
 
