@@ -1,6 +1,6 @@
 # Broker Reports Architecture Authorities
 
-Status: `GOAL_2_COMPACT_AND_ACTIONABLE`
+Status: `GOAL_5_COMPATIBILITY_REFINED`
 
 This is the compact orientation index for maintained Broker Reports
 implementation authorities. It supplements, and does not replace, the
@@ -67,15 +67,18 @@ that does not permit a second owner for any operation.
 - No proven active duplicate owns the same maintained product operation.
 - `financial_semantic_v6_canonical_request` validates V6 inputs and delegates to
   `Gate2OpenWebUIRequestBuilder.build`; it is a wrapper, not a second builder.
-  Its compatibility status is not yet marked with the required common marker.
+  It is marked `COMPATIBILITY_WRAPPER_DELEGATES_ONLY` and has a delegation test.
 - `Gate2FinancialSemanticV5ProjectionFactory` is intentionally consumed by V6.
   Renaming or replacing it would create migration risk; document the
-  cross-version ownership instead of creating a V6 copy.
+  cross-version ownership instead of creating a V6 copy. Keep it as the one
+  shared maintained projection authority.
 - `gate2_financial_evidence_compatibility.py`,
   `gate2_financial_evidence_legacy_validation.py` and
   `gate2_successor_compatibility.py` are active compatibility readers. Their
-  schemas and validation policies are separate by version, but their
-  delegation-only status needs a uniform marker and executable proof.
+  readers are marked `COMPATIBILITY_WRAPPER_DELEGATES_ONLY` and delegate to
+  canonical or pinned validators. The pinned legacy validator is explicitly a
+  `HISTORICAL_VERSION_PINNED_AUTHORITY`; it is read-only and cannot define
+  current meaning or writes.
 - `gate3_context_manifest.py` is the legacy bounded Gate 2 handoff root;
   `gate3_financial_domain_context.py` is the Financial Domain successor
   consumer. The successor is intentionally forbidden from importing the
@@ -98,14 +101,12 @@ that does not permit a second owner for any operation.
    existing-owner-first sequence.
 3. Critical modules use `FACTORY_REQUIRED` / `FORBIDDEN` anchors, but the
    requested `OWNER / REUSE / MUST NOT` comments are not yet uniform.
-4. Compatibility readers are fail-closed, but the shared
-   `COMPATIBILITY_WRAPPER_DELEGATES_ONLY` marker is absent.
-5. Generated bundles are deterministically rebuilt and tested, but their file
+4. Generated bundles are deterministically rebuilt and tested, but their file
    headers do not make generated-only status obvious.
-6. Financial Domain persistence owns an envelope, not a storage backend. A
+5. Financial Domain persistence owns an envelope, not a storage backend. A
    future storage adapter must delegate serialization and may not mint snapshot
    authority.
-7. The current qualification blocker
+6. The current qualification blocker
    `gate2_model_schema_response_format_rejected` is classified by the provider
    adapter. The safe evidence is insufficient at Goal 0 to decide whether the
    exact defect is canonical schema, provider projection or provider
@@ -128,6 +129,16 @@ STAGE_MUTATIONS: ZERO
 AUTHORITY_MAP: COMPACT_AND_ACTIONABLE
 EXACT_CODE_REFERENCES: PRESENT
 FULL_CONTRACT_DUPLICATION: ZERO
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
+
+## Goal 5 acceptance
+
+```text
+ACTIVE_DUPLICATE_AUTHORITIES: ZERO
+COMPATIBILITY_REIMPLEMENTATION: ZERO
+PRODUCT_BEHAVIOR_CHANGE: ZERO
 PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 ```

@@ -56,6 +56,7 @@ FORBIDDEN = (
     "Compatibility must not rewrite persisted payloads, auto-alias legacy "
     "broad IDs, map FNS families or write legacy contracts"
 )
+COMPATIBILITY_WRAPPER_DELEGATES_ONLY = True
 
 
 class Gate2FinancialEvidenceCompatibilityError(ValueError):

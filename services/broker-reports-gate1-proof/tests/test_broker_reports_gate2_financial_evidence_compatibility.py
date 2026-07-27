@@ -10,11 +10,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import broker_reports_gate1.gate2_financial_evidence_compatibility as compatibility_module  # noqa: E402,E501
+
 from broker_reports_gate1.gate2_financial_evidence_catalog import (  # noqa: E402
     LEGACY_BROAD_FINANCIAL_IDS,
     SUPPORTED_SOURCE_FAMILIES,
 )
 from broker_reports_gate1.gate2_financial_evidence_compatibility import (  # noqa: E402
+    COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
     COMPATIBILITY_POLICY_VERSION,
     DUAL_READ_RESULT_SCHEMA_VERSION,
     ExplicitLegacyFinancialEvidenceMapping,
@@ -27,6 +30,7 @@ from broker_reports_gate1.gate2_financial_evidence_decision import (  # noqa: E4
     Gate2FinancialEvidenceDecisionContractFactory,
 )
 from broker_reports_gate1.gate2_financial_evidence_legacy_validation import (  # noqa: E402
+    HISTORICAL_VERSION_PINNED_AUTHORITY,
     LEGACY_VALIDATOR_ID,
     LEGACY_VALIDATOR_POLICY_VERSION,
     PinnedLegacySourceFactsValidatorFactory,
@@ -382,6 +386,8 @@ def _fns_payload():
 
 
 def test_compatibility_policy_and_pinned_validator_are_explicit():
+    assert COMPATIBILITY_WRAPPER_DELEGATES_ONLY is True
+    assert HISTORICAL_VERSION_PINNED_AUTHORITY is True
     assert COMPATIBILITY_POLICY_VERSION == (
         "broker_reports_financial_evidence_compatibility_v1"
     )
@@ -394,6 +400,69 @@ def test_compatibility_policy_and_pinned_validator_are_explicit():
     assert LEGACY_VALIDATOR_POLICY_VERSION == (
         "broker_reports_legacy_source_facts_replay_policy_v1"
     )
+
+
+def test_compatibility_reader_delegates_all_versioned_validation(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    class SpyLegacyValidator:
+        def validate(self, payload):
+            calls.append(("legacy", payload))
+            return {"validator_status": "passed"}
+
+    class SpyLegacyValidatorFactory:
+        def create(self):
+            return SpyLegacyValidator()
+
+    monkeypatch.setattr(
+        compatibility_module,
+        "PinnedLegacySourceFactsValidatorFactory",
+        SpyLegacyValidatorFactory,
+    )
+    compatibility = Gate2FinancialEvidenceCompatibilityFactory(
+        registry=_registry()
+    ).create()
+
+    legacy = _legacy_payload()
+    compatibility.read(
+        artifact_ref="artifact:legacy:delegation",
+        payload=legacy,
+    )
+
+    def spy_successor_validator(*, payload, registry):
+        calls.append(("successor", payload, registry))
+
+    monkeypatch.setattr(
+        compatibility_module,
+        "validate_financial_evidence_inputs",
+        spy_successor_validator,
+    )
+    successor = _successor_artifact()
+    compatibility.read(
+        artifact_ref="artifact:successor:delegation",
+        payload=successor,
+    )
+
+    def spy_fns_validator(payload):
+        calls.append(("fns", payload))
+        return {"validator_status": "passed"}
+
+    monkeypatch.setattr(
+        compatibility_module,
+        "validate_fns_2ndfl_typed_output",
+        spy_fns_validator,
+    )
+    fns = _fns_payload()
+    compatibility.read(
+        artifact_ref="artifact:fns:delegation",
+        payload=fns,
+    )
+
+    assert calls[0] == ("legacy", legacy)
+    assert calls[1] == ("successor", successor, compatibility.registry)
+    assert calls[2] == ("fns", fns)
 
 
 def test_legacy_artifact_is_readable_without_payload_rewrite():

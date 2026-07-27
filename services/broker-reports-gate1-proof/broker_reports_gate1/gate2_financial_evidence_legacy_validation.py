@@ -24,6 +24,7 @@ FORBIDDEN = (
     "Legacy replay must not call current model/provider paths, repair payloads "
     "or reinterpret legacy fact IDs as Registry type IDs"
 )
+HISTORICAL_VERSION_PINNED_AUTHORITY = True
 
 _REQUIRED_TOP_LEVEL_FIELDS = {
     "schema_version",

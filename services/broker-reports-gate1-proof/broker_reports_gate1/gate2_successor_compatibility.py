@@ -54,6 +54,7 @@ FORBIDDEN = (
     "The successor reader must not rewrite legacy payloads, silently upcast "
     "schemas, adopt the separate FNS family or admit successor writes"
 )
+COMPATIBILITY_WRAPPER_DELEGATES_ONLY = True
 
 _DELEGATED_SCHEMAS = frozenset(
     {

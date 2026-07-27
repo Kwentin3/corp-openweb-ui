@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
+import broker_reports_gate1.gate2_successor_compatibility as successor_compatibility_module  # noqa: E402,E501
+
 from broker_reports_gate1.gate2_financial_context import (  # noqa: E402
     Gate2FinancialContextProjectionFactory,
 )
@@ -41,6 +43,7 @@ from broker_reports_gate1.gate2_successor_artifacts import (  # noqa: E402
     validate_successor_package_artifact,
 )
 from broker_reports_gate1.gate2_successor_compatibility import (  # noqa: E402
+    COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
     SUCCESSOR_COMPATIBILITY_READ_RESULT_SCHEMA_VERSION,
     SUCCESSOR_COMPATIBILITY_READER_POLICY_VERSION,
     Gate2SuccessorCompatibilityError,
@@ -255,6 +258,76 @@ def test_explicit_reader_retains_legacy_and_fns_without_rewrite(
     assert result.fns_specialized_separate is (
         read_kind == "fns_specialized"
     )
+
+
+def test_successor_reader_delegates_legacy_and_registered_validation(
+    monkeypatch,
+) -> None:
+    family, _, registry = _successor_family()
+    legacy_payload = _legacy_payload()
+    legacy_ref = "artifact:legacy:delegation"
+    delegated = (
+        successor_compatibility_module.Gate2FinancialEvidenceCompatibilityFactory(
+            registry=registry
+        )
+        .create()
+        .read(artifact_ref=legacy_ref, payload=legacy_payload)
+    )
+    calls = []
+
+    class SpyLegacyReader:
+        def read(self, *, artifact_ref, payload):
+            calls.append(("legacy_read", artifact_ref, payload))
+            return delegated
+
+    class SpyLegacyReaderFactory:
+        def __init__(self, *, registry):
+            calls.append(("legacy_factory", registry))
+
+        def create(self):
+            return SpyLegacyReader()
+
+    monkeypatch.setattr(
+        successor_compatibility_module,
+        "Gate2FinancialEvidenceCompatibilityFactory",
+        SpyLegacyReaderFactory,
+    )
+    reader = Gate2SuccessorCompatibilityReaderFactory(
+        registry=registry
+    ).create()
+    legacy_result = reader.read(
+        artifact_ref=legacy_ref,
+        payload=legacy_payload,
+    )
+
+    successor_payload = family.package_artifacts[0]
+    schema_version = successor_payload["schema_version"]
+    read_kind, validator = (
+        successor_compatibility_module._SUCCESSOR_VALIDATORS[
+            schema_version
+        ]
+    )
+
+    def spy_successor_validator(payload):
+        calls.append(("successor_validator", payload))
+        validator(payload)
+
+    monkeypatch.setitem(
+        successor_compatibility_module._SUCCESSOR_VALIDATORS,
+        schema_version,
+        (read_kind, spy_successor_validator),
+    )
+    successor_result = reader.read(
+        artifact_ref="artifact:successor:delegation",
+        payload=successor_payload,
+    )
+
+    assert COMPATIBILITY_WRAPPER_DELEGATES_ONLY is True
+    assert calls[0] == ("legacy_factory", registry)
+    assert calls[1] == ("legacy_read", legacy_ref, legacy_payload)
+    assert calls[2] == ("successor_validator", successor_payload)
+    assert legacy_result.read_kind == delegated.read_kind
+    assert successor_result.read_kind == read_kind
 
 
 def test_reader_explicitly_dispatches_financial_input_and_successor_family():
