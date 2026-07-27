@@ -44,6 +44,12 @@ Replay performs no provider call, repair, fallback or hidden retry. Any
 authority, identity, expansion, validator, artifact or private/safe hash-link
 mismatch fails closed.
 
+Persisted private JSON is restored through
+`restore_financial_semantic_v6_private_evidence` before replay. The restorer
+accepts only the exact private field set, verifies `private_evidence_hash`,
+and reinstates canonical contract order after ordinary JSON writers sort
+object keys. It does not change values or weaken replay validation.
+
 ## Goal 2 provider-smoke evidence
 
 The two-case provider smoke checkpoints every returned response immediately.

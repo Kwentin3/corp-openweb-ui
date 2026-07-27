@@ -67,7 +67,8 @@ V6_DECISION_REPLAY_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_replay_v1"
 )
 FACTORY_REQUIRED = (
-    "Gate2FinancialSemanticV6DecisionEvidenceFactory.create and "
+    "Gate2FinancialSemanticV6DecisionEvidenceFactory.create, "
+    "restore_financial_semantic_v6_private_evidence and "
     "replay_financial_semantic_v6_decision are the only V6 exact-decision "
     "evidence entrypoints"
 )
@@ -390,6 +391,55 @@ def financial_semantic_v6_private_evidence_hash(
     ):
         _fail("financial_semantic_v6_private_evidence_shape_invalid")
     return sha256_json(private_evidence_without_hash)
+
+
+def restore_financial_semantic_v6_private_evidence(
+    serialized: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(serialized, dict) or set(serialized) != {
+        *_PRIVATE_FIELDS,
+        "private_evidence_hash",
+    }:
+        _fail("financial_semantic_v6_private_evidence_shape_invalid")
+    material = {
+        field: copy.deepcopy(serialized[field]) for field in _PRIVATE_FIELDS
+    }
+    if serialized["private_evidence_hash"] != (
+        financial_semantic_v6_private_evidence_hash(material)
+    ):
+        _fail("financial_semantic_v6_private_evidence_hash_invalid")
+    expanded = material.get("expanded_canonical_decision")
+    validated = (
+        expanded.get("validated_decision")
+        if isinstance(expanded, dict)
+        else None
+    )
+    decision = (
+        validated.get("decision")
+        if isinstance(validated, dict)
+        else None
+    )
+    candidate_refs = (
+        validated.get("candidate_refs")
+        if isinstance(validated, dict)
+        else None
+    )
+    value_bindings = (
+        decision.get("value_bindings")
+        if isinstance(decision, dict)
+        else None
+    )
+    if not isinstance(candidate_refs, list) or not isinstance(
+        value_bindings,
+        list,
+    ):
+        _fail("financial_semantic_v6_private_evidence_json_types_invalid")
+    validated["candidate_refs"] = tuple(candidate_refs)
+    decision["value_bindings"] = tuple(value_bindings)
+    return {
+        **material,
+        "private_evidence_hash": serialized["private_evidence_hash"],
+    }
 
 
 def _execute_chain(

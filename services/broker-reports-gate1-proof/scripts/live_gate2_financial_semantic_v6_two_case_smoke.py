@@ -26,6 +26,9 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
     V6_EXACT_MODEL_ID,
     V6_PROVIDER_PROFILE_ID,
 )
+from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa: E402,E501
+    restore_financial_semantic_v6_private_evidence,
+)
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
     Gate2FinancialSemanticV6QualificationPreflightFactory,
 )
@@ -316,7 +319,9 @@ def _read_resume_private_evidence(
         raise ValueError(
             "financial_semantic_v6_smoke_resume_private_evidence_invalid"
         )
-    evidence = _read_json_object(paths[0])
+    evidence = restore_financial_semantic_v6_private_evidence(
+        _read_json_object(paths[0])
+    )
     case_id = str(evidence.get("case_id") or "")
     if paths[0].name != f"{case_id}.private.json":
         raise ValueError(

@@ -18,6 +18,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
     replay_financial_semantic_v6_decision,
+    restore_financial_semantic_v6_private_evidence,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_prompt import (
     V6_SEMANTIC_PROMPT_VERSION,
@@ -532,6 +533,15 @@ def test_two_case_smoke_resumes_only_missing_case_from_exact_checkpoint() -> Non
         item for item in checkpoints if item["cases_executed"] == 1
     )
     typed_case_id = V6_PROVIDER_SMOKE_CASES[0][1]
+    disk_roundtrip_private = restore_financial_semantic_v6_private_evidence(
+        json.loads(
+            json.dumps(
+                private[typed_case_id],
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    )
     resumed_client = _ExactFakeClient(
         fixture,
         string_output=True,
@@ -549,7 +559,9 @@ def test_two_case_smoke_resumes_only_missing_case_from_exact_checkpoint() -> Non
                 transparent.__setitem__(case_id, payload)
             ),
             resume_receipt=one_case_receipt,
-            resume_private_evidence={typed_case_id: private[typed_case_id]},
+            resume_private_evidence={
+                typed_case_id: disk_roundtrip_private,
+            },
         )
     )
 
