@@ -54,8 +54,6 @@ from .gate2_financial_semantic_v6_choice import (
 from .gate2_financial_semantic_v6_evidence import (
     V6_PRIVATE_DECISION_EVIDENCE_SCHEMA_VERSION,
     V6_SAFE_DECISION_RECEIPT_SCHEMA_VERSION,
-    V6_SEMANTIC_PROMPT_VERSION,
-    V6_SEMANTIC_SYSTEM_PROMPT,
     Gate2FinancialSemanticV6DecisionEvidenceFactory,
     financial_semantic_v6_canonical_request,
 )
@@ -83,6 +81,11 @@ from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6Packet,
     Gate2FinancialSemanticV6PacketFactory,
 )
+from .gate2_financial_semantic_v6_prompt import (
+    V6_SEMANTIC_PROMPT_HASH,
+    V6_SEMANTIC_PROMPT_VERSION,
+    financial_semantic_v6_prompt,
+)
 from .gate2_financial_semantic_v6_totality import (
     TOTAL_MATERIALIZATION_POLICY_VERSION,
     TOTAL_MATERIALIZATION_SCHEMA_VERSION,
@@ -98,7 +101,6 @@ from .gate2_model_contracts import (
 )
 from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
-    Gate2OpenWebUIRequestBuilder,
 )
 from .gate2_successor_local_proof import _fixture_package
 
@@ -129,15 +131,6 @@ class Gate2FinancialSemanticV6QualificationError(ValueError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
-
-
-@dataclass(frozen=True)
-class Gate2FinancialSemanticV6QualificationPrompt:
-    version: str
-    content: str
-    hash: str
-    packet_hash: str
-    choice_schema_hash: str
 
 
 @dataclass(frozen=True)
@@ -382,7 +375,7 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
             evidence_bundle, compilation, packet, choice_contract = (
                 _semantic_authorities(case)
             )
-            prompt = _prompt(
+            prompt = financial_semantic_v6_prompt(
                 packet=packet,
                 choice_contract=choice_contract,
             )
@@ -391,17 +384,8 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
                 packet=packet,
                 choice_contract=choice_contract,
                 exact_model_id=exact_model_id,
-            )
-            built_request = Gate2OpenWebUIRequestBuilder(
-                request_profile=(FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE)
-            ).build(
                 prompt=prompt,
-                package=packet.payload,
-                model_id=exact_model_id,
-                response_format=response_format,
             )
-            if built_request != canonical_request:
-                _fail("financial_semantic_v6_canonical_request_parity_failed")
             budget = budget_session.prepare_call(
                 form_data=canonical_request,
                 model_id=exact_model_id,
@@ -581,7 +565,7 @@ def _qualification_contract_identity(
             f"{sha256_json(sorted(item.choice_schema_hash for item in contracts))}"
         ),
         prompt_version=(
-            f"{V6_SEMANTIC_PROMPT_VERSION}:{sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)}"
+            f"{V6_SEMANTIC_PROMPT_VERSION}:{V6_SEMANTIC_PROMPT_HASH}"
         ),
         adapter_projection_revision=(
             f"{profile.adapter_id}:{profile.adapter_version}:"
@@ -635,7 +619,7 @@ def _exact_identity(
         },
         "prompt": {
             "version": V6_SEMANTIC_PROMPT_VERSION,
-            "hash": sha256_json(V6_SEMANTIC_SYSTEM_PROMPT),
+            "hash": V6_SEMANTIC_PROMPT_HASH,
         },
         "ambiguity_policy": {
             "rule": SEMANTIC_PACKET_AMBIGUITY_RULE,
@@ -695,20 +679,6 @@ def _exact_identity(
             "base_v6_publication_hash": V6_QUALIFICATION_PUBLICATION_HASH,
         }
     return {**material, "identity_hash": sha256_json(material)}
-
-
-def _prompt(
-    *,
-    packet: Gate2FinancialSemanticV6Packet,
-    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
-) -> Gate2FinancialSemanticV6QualificationPrompt:
-    return Gate2FinancialSemanticV6QualificationPrompt(
-        version=V6_SEMANTIC_PROMPT_VERSION,
-        content=V6_SEMANTIC_SYSTEM_PROMPT,
-        hash=sha256_json(V6_SEMANTIC_SYSTEM_PROMPT),
-        packet_hash=packet.packet_hash,
-        choice_schema_hash=choice_contract.choice_schema_hash,
-    )
 
 
 def _synthetic_capture(

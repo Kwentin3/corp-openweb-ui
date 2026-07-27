@@ -4,6 +4,7 @@ import ast
 import importlib.util
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,15 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
     V6_EXECUTION_IDENTITY_POLICY_VERSION,
     V6_PROVIDER_PROFILE_ID,
     V6_QUALIFICATION_REQUEST_PROFILE,
+    financial_semantic_v6_response_format,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa: E402,E501
+    financial_semantic_v6_canonical_request,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_prompt import (  # noqa: E402,E501
+    V6_SEMANTIC_PROMPT_HASH,
+    V6_SEMANTIC_PROMPT_VERSION,
+    financial_semantic_v6_prompt,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
     FACTORY_REQUIRED,
@@ -32,6 +42,13 @@ from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # 
     Gate2FinancialSemanticV6QualificationFixtureFactory,
     Gate2FinancialSemanticV6QualificationPreflightFactory,
     financial_semantic_v6_qualification_publication,
+)
+from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
+    FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
+    Gate2OpenWebUIRequestBuilder,
+)
+from broker_reports_gate1.gate2_source_fact_contracts import (  # noqa: E402
+    Gate2PromptError,
 )
 
 
@@ -180,6 +197,82 @@ def test_preflight_builds_ten_exact_requests_and_preserves_evidence_contract() -
     assert receipt["budget"]["within_budget"] is True
     assert receipt["budget"]["estimated_input_tokens_max"] == 3004
     assert receipt["budget"]["estimated_input_tokens_max"] <= 3072
+
+
+def test_v6_exact_prompt_uses_the_canonical_request_builder() -> None:
+    case = _fixture().semantic_cases[0]
+    packet = case.packet
+    choice_contract = case.choice_contract
+    assert packet is not None
+    assert choice_contract is not None
+    prompt = financial_semantic_v6_prompt(
+        packet=packet,
+        choice_contract=choice_contract,
+    )
+    response_format = financial_semantic_v6_response_format(choice_contract)
+    request = Gate2OpenWebUIRequestBuilder(
+        request_profile=FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+    ).build(
+        prompt=prompt,
+        package=packet.payload,
+        model_id=V6_EXACT_MODEL_ID,
+        response_format=response_format,
+    )
+
+    assert request == financial_semantic_v6_canonical_request(
+        packet=packet,
+        choice_contract=choice_contract,
+        prompt=prompt,
+    )
+    assert request["messages"][0] == {
+        "role": "system",
+        "content": prompt.content,
+    }
+    encoded_packet = json.dumps(
+        packet.payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    assert sum(
+        item.get("content") == encoded_packet for item in request["messages"]
+    ) == 1
+    assert json.loads(request["messages"][1]["content"]) == packet.payload
+    assert request["response_format"] == response_format
+    assert request["response_format"]["json_schema"]["strict"] is True
+    metadata = request["metadata"]["broker_reports_gate2"]
+    assert prompt.hash == V6_SEMANTIC_PROMPT_HASH
+    assert metadata["prompt_hash"] == V6_SEMANTIC_PROMPT_HASH
+    assert metadata["prompt_version"] == V6_SEMANTIC_PROMPT_VERSION
+    assert metadata["packet_hash"] == packet.packet_hash
+    assert metadata["choice_schema_hash"] == choice_contract.choice_schema_hash
+
+
+def test_v6_request_builder_fails_closed_for_unsupported_prompt_version() -> None:
+    case = _fixture().semantic_cases[0]
+    packet = case.packet
+    choice_contract = case.choice_contract
+    assert packet is not None
+    assert choice_contract is not None
+    prompt = replace(
+        financial_semantic_v6_prompt(
+            packet=packet,
+            choice_contract=choice_contract,
+        ),
+        version="financial_semantic_v6_candidate_choice_unsupported",
+    )
+
+    with pytest.raises(Gate2PromptError) as exc_info:
+        Gate2OpenWebUIRequestBuilder(
+            request_profile=FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+        ).build(
+            prompt=prompt,
+            package=packet.payload,
+            model_id=V6_EXACT_MODEL_ID,
+            response_format=financial_semantic_v6_response_format(choice_contract),
+        )
+    assert exc_info.value.code == (
+        "gate2_financial_semantic_v6_prompt_contract_mismatch"
+    )
 
 
 def test_action_publishes_exact_v6_workload_and_keeps_admissions_empty() -> None:
