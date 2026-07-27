@@ -1,6 +1,7 @@
 # Broker Reports Gate 2 Financial Semantic V6 Qualification Harness
 
-Status: Goal 11A qualification-only contract.
+Status: V6 completion Goal 2 terminal smoke evidence; full qualification is
+blocked.
 
 ## Exact workload
 
@@ -65,3 +66,29 @@ zero, exact typed precision and recall, ten semantic calls, zero technical
 calls, zero hidden retries/fallbacks/repairs, exact evidence for every call,
 and all canonical product invariants. This qualification does not admit a
 production model.
+
+## Bounded two-case smoke
+
+`smoke_financial_semantic_v6` is the only bounded V6 smoke entrypoint. It
+selects exactly one frozen unambiguous typed case and one frozen unambiguous
+unclassified case from the qualification fixture. The dedicated CLI requires
+`--execute-two-case-smoke`, a new repository-safe receipt path and a new
+private directory outside Git. It rejects a dirty worktree or consumed path.
+
+The smoke reuses the canonical request builder, model-client/provider-adapter
+factory, execution identity, decision evidence, deterministic expansion,
+validator/materializer and offline replay. It never executes technical cases,
+publishes qualification metrics or admits a production model.
+
+The 2026-07-27 exact Nano run consumed both authorized submissions. The
+responses exposed stale execution-identity assumptions about the now-required
+OpenAI root-object projection. The existing execution-identity owner was
+corrected to compare provider metadata with the exact projection produced by
+`Gate2ProviderAdapterFactory.create`, rather than assuming zero transforms and
+equal canonical/adapted hashes.
+
+Offline processing of the two exact preserved responses after that correction
+passed the full technical path and exact zero-call replay. Both semantic smoke
+expectations failed. The result is not a model qualification or model-safety
+verdict. The smoke is not accepted, may not be retried under this
+authorization, and the full Nano qualification must not run.

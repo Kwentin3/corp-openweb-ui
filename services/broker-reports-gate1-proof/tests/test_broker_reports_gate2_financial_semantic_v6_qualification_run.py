@@ -36,8 +36,11 @@ from broker_reports_gate1.gate2_financial_semantic_v6_qualification_run import (
     PROVIDER_TRANSPORT_FAILED,
     PROVIDER_USAGE_METADATA_INCOMPLETE,
     REQUEST_BUILD_FAILED,
+    V6_PROVIDER_SMOKE_CASES,
     V6_QUALIFICATION_TERMINAL_CLASSES,
+    financial_semantic_v6_provider_smoke_initial_receipt,
     qualify_financial_semantic_v6,
+    smoke_financial_semantic_v6,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (
     V6_GOAL12_EXACT_MODEL_ID,
@@ -50,6 +53,9 @@ from broker_reports_gate1.gate2_model_contracts import (
     Gate2StructuredModelResult,
     gate2_provider_profile,
     gate2_provider_profile_revision,
+)
+from broker_reports_gate1.gate2_provider_adapters import (
+    Gate2ProviderAdapterFactory,
 )
 
 
@@ -184,8 +190,16 @@ class _ExactFakeClient:
         assert prompt.hash == sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
         profile = gate2_provider_profile(self.provider_profile_id)
         self.calls += 1
-        choice_schema_hash = sha256_json(
-            response_format["json_schema"]["schema"]
+        prepared = Gate2ProviderAdapterFactory(
+            profile=profile,
+            capability_probe=True,
+        ).create().prepare_form_data(
+            form_data={
+                "model": model_id,
+                "messages": [{"role": "user", "content": "schema-projection"}],
+                "response_format": response_format,
+            },
+            response_format=response_format,
         )
         metadata = Gate2ProviderExecutionMetadata(
             provider_id=profile.provider_id,
@@ -202,9 +216,9 @@ class _ExactFakeClient:
             response_format_type=profile.response_format_type,
             response_format_schema_mode=profile.response_format_schema_mode,
             transport_type=profile.transport_type,
-            canonical_request_schema_hash=choice_schema_hash,
-            adapted_request_schema_hash=choice_schema_hash,
-            schema_transform_count=0,
+            canonical_request_schema_hash=prepared.canonical_schema_hash,
+            adapted_request_schema_hash=prepared.adapted_schema_hash,
+            schema_transform_count=prepared.schema_transform_count,
             duration_ms=5,
             input_tokens=100,
             output_tokens=20,
@@ -327,6 +341,120 @@ def test_one_attempt_runs_ten_semantic_calls_and_passes_exact_gate() -> None:
     assert result["exact_evidence_preserved"] is True
     assert result["raw_private_data_in_receipt"] is False
     assert checkpoints[-1] == result
+
+
+def test_two_case_smoke_runs_exact_cases_and_replays_without_metrics() -> None:
+    fixture = _fixture()
+    client = _ExactFakeClient(fixture)
+    private: dict[str, dict] = {}
+    checkpoints: list[dict] = []
+
+    result = asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=_preflight(fixture)["exact_identity"],
+            private_case_checkpoint=lambda case_id, payload: private.__setitem__(
+                case_id,
+                payload,
+            ),
+            safe_checkpoint=checkpoints.append,
+        )
+    )
+
+    expected_case_ids = {item[1] for item in V6_PROVIDER_SMOKE_CASES}
+    assert client.calls == 2
+    assert set(private) == expected_case_ids
+    assert result["status"] == "passed"
+    assert result["terminal_class"] == "SMOKE_PASSED"
+    assert result["model_qualification_performed"] is False
+    assert result["product_gate"] is None
+    assert result["precision_recall_published"] is False
+    assert result["quality"] is None
+    assert result["acceptance"] == {
+        "provider_submissions": "TWO",
+        "typed_smoke": "PASSED",
+        "unclassified_smoke": "PASSED",
+        "usage_normalization": "PASSED",
+        "offline_replay": "EXACT",
+    }
+    assert result["attempt_accounting"] == {
+        "local_invocations_total": 2,
+        "provider_submissions_total": 2,
+        "provider_responses_total": 2,
+        "semantic_decisions_total": 2,
+        "product_admitted_decisions_total": 2,
+        "offline_replays_total": 2,
+        "qualification_attempts_total": 0,
+        "hidden_retry_total": 0,
+        "fallback_total": 0,
+        "repair_total": 0,
+    }
+    assert checkpoints[-1] == result
+
+
+def test_two_case_smoke_initial_receipt_consumes_nothing() -> None:
+    fixture = _fixture()
+    initial = financial_semantic_v6_provider_smoke_initial_receipt(
+        exact_identity=_preflight(fixture)["exact_identity"],
+    )
+
+    assert initial["execution_state"] == "in_progress"
+    assert initial["status"] == "in_progress"
+    assert initial["model_qualification_performed"] is False
+    assert initial["precision_recall_published"] is False
+    assert initial["quality"] is None
+    assert initial["attempt_accounting"] == {
+        "local_invocations_total": 0,
+        "provider_submissions_total": 0,
+        "provider_responses_total": 0,
+        "semantic_decisions_total": 0,
+        "product_admitted_decisions_total": 0,
+        "offline_replays_total": 0,
+        "qualification_attempts_total": 0,
+        "hidden_retry_total": 0,
+        "fallback_total": 0,
+        "repair_total": 0,
+    }
+
+
+def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
+    source = (
+        ROOT
+        / "scripts"
+        / "live_gate2_financial_semantic_v6_two_case_smoke.py"
+    ).read_text(encoding="utf-8")
+
+    assert "_model_client(" in source
+    assert "smoke_financial_semantic_v6(" in source
+    assert "Gate2FinancialSemanticV6QualificationPreflightFactory" in source
+    assert "generate_chat_completion" not in source
+    assert "urlopen(" not in source
+    assert "OpenAI(" not in source
+    assert "Anthropic(" not in source
+
+
+def test_two_case_smoke_semantic_miss_is_not_qualification_verdict() -> None:
+    fixture = _fixture()
+    client = _ExactFakeClient(fixture, wrong_type=True)
+
+    result = asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=_preflight(fixture)["exact_identity"],
+            private_case_checkpoint=lambda _case_id, _payload: None,
+        )
+    )
+
+    assert client.calls == 2
+    assert result["status"] == "failed"
+    assert result["terminal_class"] == MODEL_SEMANTIC_GATE_FAILED
+    assert result["product_gate"] is None
+    assert result["model_qualification_performed"] is False
+    assert result["precision_recall_published"] is False
+    assert result["attempt_accounting"]["provider_submissions_total"] == 2
+    assert result["attempt_accounting"]["offline_replays_total"] == 2
 
 
 def test_valid_but_wrong_type_is_terminal_without_retry_and_fails_gate() -> None:

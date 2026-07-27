@@ -15,6 +15,7 @@ from .gate2_model_contracts import (
     gate2_provider_profile,
     gate2_provider_profile_revision,
 )
+from .gate2_provider_adapters import Gate2ProviderAdapterFactory
 
 
 V6_EXECUTION_IDENTITY_SCHEMA_VERSION = (
@@ -174,6 +175,17 @@ class Gate2FinancialSemanticV6ExecutionIdentityFactory:
             choice_contract
         )
         expected_response_format_hash = sha256_json(expected_response_format)
+        expected_provider_request = Gate2ProviderAdapterFactory(
+            profile=profile,
+            capability_probe=True,
+        ).create().prepare_form_data(
+            form_data={
+                "model": capture.exact_model_id,
+                "messages": [{"role": "user", "content": "schema-projection"}],
+                "response_format": expected_response_format,
+            },
+            response_format=expected_response_format,
+        )
         metadata = capture.execution_metadata
         if not isinstance(metadata, Gate2ProviderExecutionMetadata):
             _provider_fail("financial_semantic_v6_provider_metadata_invalid")
@@ -195,10 +207,11 @@ class Gate2FinancialSemanticV6ExecutionIdentityFactory:
             _HASH_RE.fullmatch(capture.response_format_hash) is None
             or capture.response_format_hash != expected_response_format_hash
             or metadata.canonical_request_schema_hash
-            != choice_contract.choice_schema_hash
+            != expected_provider_request.canonical_schema_hash
             or metadata.adapted_request_schema_hash
-            != choice_contract.choice_schema_hash
-            or metadata.schema_transform_count != 0
+            != expected_provider_request.adapted_schema_hash
+            or metadata.schema_transform_count
+            != expected_provider_request.schema_transform_count
         ):
             _schema_fail("financial_semantic_v6_provider_schema_identity_mismatch")
         if (

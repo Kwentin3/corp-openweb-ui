@@ -102,6 +102,7 @@ from .gate2_model_contracts import (
 from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
 )
+from .gate2_provider_adapters import Gate2ProviderAdapterFactory
 from .gate2_successor_local_proof import _fixture_package
 
 
@@ -690,6 +691,17 @@ def _synthetic_capture(
 ) -> Gate2FinancialSemanticV6CapturedExecution:
     profile = gate2_provider_profile(provider_profile_id)
     response_format = financial_semantic_v6_response_format(choice_contract)
+    prepared = Gate2ProviderAdapterFactory(
+        profile=profile,
+        capability_probe=True,
+    ).create().prepare_form_data(
+        form_data={
+            "model": exact_model_id,
+            "messages": [{"role": "user", "content": "schema-projection"}],
+            "response_format": response_format,
+        },
+        response_format=response_format,
+    )
     metadata = Gate2ProviderExecutionMetadata(
         provider_id=profile.provider_id,
         provider_profile_id=profile.profile_id,
@@ -703,9 +715,9 @@ def _synthetic_capture(
         response_format_type=profile.response_format_type,
         response_format_schema_mode=profile.response_format_schema_mode,
         transport_type=profile.transport_type,
-        canonical_request_schema_hash=choice_contract.choice_schema_hash,
-        adapted_request_schema_hash=choice_contract.choice_schema_hash,
-        schema_transform_count=0,
+        canonical_request_schema_hash=prepared.canonical_schema_hash,
+        adapted_request_schema_hash=prepared.adapted_schema_hash,
+        schema_transform_count=prepared.schema_transform_count,
         duration_ms=0,
         input_tokens=0,
         output_tokens=0,
