@@ -18,6 +18,7 @@ from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_semantic_v6_evidence import (
     Gate2FinancialSemanticV6DecisionEvidenceFactory,
     financial_semantic_v6_canonical_request,
+    replay_financial_semantic_v6_decision,
 )
 from .gate2_financial_semantic_v6_execution_identity import (
     V6_EXACT_MODEL_ID,
@@ -59,6 +60,17 @@ V6_PRIVATE_FAILURE_EVIDENCE_SCHEMA_VERSION = (
 V6_SAFE_FAILURE_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_safe_failure_receipt_v2"
 )
+V6_PROVIDER_SMOKE_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_provider_smoke_v1"
+)
+V6_PROVIDER_SMOKE_CASES = (
+    ("typed", "syn_successor_v2_unique_cash", "typed_input"),
+    (
+        "unclassified",
+        "syn_successor_v2_no_registry_type",
+        "unclassified_financial_input",
+    ),
+)
 FACTORY_REQUIRED = (
     "qualify_financial_semantic_v6 is the only terminal V6 qualification "
     "execution and product-gate evaluation entrypoint"
@@ -94,6 +106,30 @@ V6_QUALIFICATION_TERMINAL_CLASSES = (
 )
 
 _SAFE_CODE_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,199}$")
+
+
+def financial_semantic_v6_provider_smoke_initial_receipt(
+    *,
+    exact_identity: dict[str, Any],
+) -> dict[str, Any]:
+    _validate_exact_identity(exact_identity)
+    return _provider_smoke_receipt(
+        exact_identity=exact_identity,
+        case_receipts=[],
+        local_invocations=0,
+        provider_submissions=0,
+        provider_responses=0,
+        semantic_decisions=0,
+        product_admitted_decisions=0,
+        replay_exact_total=0,
+        private_evidence_cases=0,
+        input_tokens=0,
+        output_tokens=0,
+        actual_cost=Decimal("0"),
+        latency_ms_total=0,
+        latency_ms_max=0,
+        terminal=False,
+    )
 
 
 async def qualify_financial_semantic_v6(
@@ -434,6 +470,308 @@ async def qualify_financial_semantic_v6(
     return terminal_receipt
 
 
+async def smoke_financial_semantic_v6(
+    *,
+    fixture: Gate2FinancialSemanticV6QualificationFixture,
+    model_client: Gate2StructuredModelClient,
+    exact_identity: dict[str, Any],
+    private_case_checkpoint: Callable[[str, dict[str, Any]], None],
+    safe_checkpoint: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    exact_model_id, provider_profile_id = _validate_exact_identity(
+        exact_identity
+    )
+    _qualification_lifecycle_snapshot(model_client)
+    semantic_by_id = {
+        case.case_id: case for case in fixture.semantic_cases
+    }
+    selected_cases: list[
+        tuple[str, Gate2FinancialSemanticV6QualificationCase]
+    ] = []
+    for role, case_id, expected_disposition in V6_PROVIDER_SMOKE_CASES:
+        case = semantic_by_id.get(case_id)
+        if (
+            case is None
+            or case.route != "semantic_model"
+            or case.expected_disposition != expected_disposition
+        ):
+            _fail("financial_semantic_v6_provider_smoke_case_invalid")
+        selected_cases.append((role, case))
+
+    case_receipts: list[dict[str, Any]] = []
+    local_invocations = 0
+    provider_submissions = 0
+    provider_responses = 0
+    semantic_decisions = 0
+    product_admitted_decisions = 0
+    replay_exact_total = 0
+    private_evidence_cases = 0
+    input_tokens = 0
+    output_tokens = 0
+    actual_cost = Decimal("0")
+    latency_ms_total = 0
+    latency_ms_max = 0
+
+    def current(*, terminal: bool) -> dict[str, Any]:
+        return _provider_smoke_receipt(
+            exact_identity=exact_identity,
+            case_receipts=case_receipts,
+            local_invocations=local_invocations,
+            provider_submissions=provider_submissions,
+            provider_responses=provider_responses,
+            semantic_decisions=semantic_decisions,
+            product_admitted_decisions=product_admitted_decisions,
+            replay_exact_total=replay_exact_total,
+            private_evidence_cases=private_evidence_cases,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            actual_cost=actual_cost,
+            latency_ms_total=latency_ms_total,
+            latency_ms_max=latency_ms_max,
+            terminal=terminal,
+        )
+
+    if safe_checkpoint is not None:
+        safe_checkpoint(current(terminal=False))
+
+    for smoke_role, case in selected_cases:
+        local_invocations += 1
+        lifecycle_before = _qualification_lifecycle_snapshot(model_client)
+        started = time.perf_counter()
+        result: Gate2StructuredModelResult | None = None
+        model_output: Any = None
+        canonical_request: dict[str, Any] | None = None
+        response_format: dict[str, Any] | None = None
+        execution_identity: Gate2FinancialSemanticV6ExecutionIdentity | None = (
+            None
+        )
+        try:
+            (
+                evidence_bundle,
+                compilation,
+                packet,
+                choice_contract,
+            ) = _semantic_authorities(case)
+            prompt = financial_semantic_v6_prompt(
+                packet=packet,
+                choice_contract=choice_contract,
+            )
+            canonical_request = financial_semantic_v6_canonical_request(
+                packet=packet,
+                choice_contract=choice_contract,
+                exact_model_id=exact_model_id,
+                prompt=prompt,
+            )
+            response_format = financial_semantic_v6_response_format(
+                choice_contract
+            )
+            result = await model_client.extract(
+                prompt=prompt,
+                package=packet.payload,
+                model_id=exact_model_id,
+                response_format=response_format,
+            )
+            extraction_lifecycle = _qualification_lifecycle_delta(
+                before=lifecycle_before,
+                after=_qualification_lifecycle_snapshot(model_client),
+            )
+            if extraction_lifecycle != {
+                "local_invocations": 1,
+                "provider_submissions": 1,
+                "provider_responses": 1,
+            }:
+                _fail("financial_semantic_v6_extract_lifecycle_invalid")
+            model_output = copy.deepcopy(result.content)
+            _validate_provider_result(result)
+            budget = _required_budget(result)
+            capture = Gate2FinancialSemanticV6CapturedExecution(
+                request_profile=V6_QUALIFICATION_REQUEST_PROFILE,
+                response_format_hash=sha256_json(response_format),
+                execution_metadata=result.execution_metadata,
+                actual_cost_usd=str(budget["actual_cost_usd"]),
+                exact_model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
+            )
+            execution_identity = (
+                Gate2FinancialSemanticV6ExecutionIdentityFactory().create(
+                    capture=capture,
+                    choice_contract=choice_contract,
+                )
+            )
+            if _invalid_choice_total(model_output=model_output, case=case):
+                _fail("financial_semantic_v6_model_output_schema_invalid")
+            semantic_decisions += 1
+            evidence = Gate2FinancialSemanticV6DecisionEvidenceFactory(
+                registry=fixture.registry,
+                exact_model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
+            ).create(
+                case_id=case.case_id,
+                canonical_request=canonical_request,
+                model_output=model_output,
+                execution_capture=capture,
+                execution_identity=execution_identity,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=case.scope.source_package,
+                compilation=compilation,
+            )
+            product_admitted_decisions += 1
+            replay = replay_financial_semantic_v6_decision(
+                private_evidence=evidence.private_evidence,
+                safe_receipt=evidence.safe_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=case.scope.source_package,
+                compilation=compilation,
+                registry=fixture.registry,
+            )
+            replay_exact = (
+                replay.status == "EXACT"
+                and replay.provider_calls_total == 0
+            )
+            replay_exact_total += int(replay_exact)
+            normalized_choice = evidence.private_evidence[
+                "normalized_semantic_choice"
+            ]
+            expected_choice_exact = (
+                normalized_choice == case.expected_model_choice
+            )
+            observed_disposition = evidence.safe_receipt[
+                "decision_classification"
+            ]["disposition"]
+            disposition_exact = (
+                observed_disposition == case.expected_disposition
+            )
+            usage_normalized = (
+                execution_identity.total_tokens
+                == execution_identity.input_tokens
+                + execution_identity.output_tokens
+            )
+            passed = (
+                replay_exact
+                and expected_choice_exact
+                and disposition_exact
+                and usage_normalized
+            )
+            private_case_checkpoint(
+                case.case_id,
+                evidence.private_evidence,
+            )
+            private_evidence_cases += 1
+            receipt = {
+                "case_id": case.case_id,
+                "smoke_role": smoke_role,
+                "status": "passed" if passed else "failed",
+                "terminal_class": (
+                    None if passed else MODEL_SEMANTIC_GATE_FAILED
+                ),
+                "provider_calls_total": 1,
+                "provider_responses_total": 1,
+                "semantic_decision_admitted": True,
+                "product_admitted": True,
+                "usage_normalized": usage_normalized,
+                "expected_choice_exact": expected_choice_exact,
+                "disposition_exact": disposition_exact,
+                "offline_replay": "EXACT" if replay_exact else "FAILED",
+                "safe_decision_receipt": evidence.safe_receipt,
+                "exact_evidence_preserved": True,
+            }
+        except Exception as exc:
+            lifecycle = _qualification_lifecycle_delta(
+                before=lifecycle_before,
+                after=_qualification_lifecycle_snapshot(model_client),
+            )
+            provider_submissions += lifecycle["provider_submissions"]
+            provider_responses += lifecycle["provider_responses"]
+            code = _failure_code(exc)
+            terminal_class = _failure_terminal_class(
+                exception=exc,
+                failure_code=code,
+                provider_submissions=lifecycle["provider_submissions"],
+                provider_responses=lifecycle["provider_responses"],
+                model_output=model_output,
+            )
+            available_output = (
+                model_output
+                if model_output is not None
+                else copy.deepcopy(getattr(exc, "raw_output", None))
+            )
+            private_failure = _private_failure_evidence(
+                case_id=case.case_id,
+                canonical_request=canonical_request,
+                response_format=response_format,
+                model_output=available_output,
+                result=result,
+                execution_identity=execution_identity,
+                exception=exc,
+                failure_code=code,
+                terminal_class=terminal_class,
+                elapsed_ms=_elapsed_ms(started),
+            )
+            private_case_checkpoint(case.case_id, private_failure)
+            private_evidence_cases += 1
+            safe_failure = _safe_failure_receipt(
+                case_id=case.case_id,
+                route=case.route,
+                private_failure=private_failure,
+                failure_code=code,
+                terminal_class=terminal_class,
+                provider_submissions=lifecycle["provider_submissions"],
+                provider_responses=lifecycle["provider_responses"],
+                provider_decision_returned=model_output is not None,
+                semantic_decision_admitted=False,
+                product_admitted=False,
+            )
+            receipt = {
+                "case_id": case.case_id,
+                "smoke_role": smoke_role,
+                "status": "failed",
+                "terminal_class": terminal_class,
+                "provider_calls_total": lifecycle[
+                    "provider_submissions"
+                ],
+                "provider_responses_total": lifecycle[
+                    "provider_responses"
+                ],
+                "semantic_decision_admitted": False,
+                "product_admitted": False,
+                "usage_normalized": False,
+                "expected_choice_exact": False,
+                "disposition_exact": False,
+                "offline_replay": "NOT_RUN",
+                "safe_failure_receipt": safe_failure,
+                "exact_evidence_preserved": True,
+            }
+        else:
+            lifecycle = _qualification_lifecycle_delta(
+                before=lifecycle_before,
+                after=_qualification_lifecycle_snapshot(model_client),
+            )
+            provider_submissions += lifecycle["provider_submissions"]
+            provider_responses += lifecycle["provider_responses"]
+        call_metrics = _provider_metrics(
+            result=result,
+            execution_identity=execution_identity,
+            elapsed_ms=_elapsed_ms(started),
+        )
+        input_tokens += call_metrics["input_tokens"]
+        output_tokens += call_metrics["output_tokens"]
+        actual_cost += call_metrics["actual_cost"]
+        latency_ms_total += call_metrics["latency_ms"]
+        latency_ms_max = max(latency_ms_max, call_metrics["latency_ms"])
+        case_receipts.append(receipt)
+        if safe_checkpoint is not None:
+            safe_checkpoint(current(terminal=False))
+
+    terminal_receipt = current(terminal=True)
+    if safe_checkpoint is not None:
+        safe_checkpoint(terminal_receipt)
+    return terminal_receipt
+
+
 def _qualification_receipt(
     *,
     fixture: Gate2FinancialSemanticV6QualificationFixture,
@@ -648,6 +986,154 @@ def _qualification_receipt(
     }
     receipt["integrity_sha256"] = sha256_json(receipt)
     return receipt
+
+
+def _provider_smoke_receipt(
+    *,
+    exact_identity: dict[str, Any],
+    case_receipts: list[dict[str, Any]],
+    local_invocations: int,
+    provider_submissions: int,
+    provider_responses: int,
+    semantic_decisions: int,
+    product_admitted_decisions: int,
+    replay_exact_total: int,
+    private_evidence_cases: int,
+    input_tokens: int,
+    output_tokens: int,
+    actual_cost: Decimal,
+    latency_ms_total: int,
+    latency_ms_max: int,
+    terminal: bool,
+) -> dict[str, Any]:
+    by_role = {
+        item["smoke_role"]: item
+        for item in case_receipts
+        if item.get("smoke_role") in {"typed", "unclassified"}
+    }
+
+    def smoke_status(role: str) -> str:
+        outcome = by_role.get(role)
+        if outcome is None:
+            return "PENDING"
+        return "PASSED" if outcome["status"] == "passed" else "FAILED"
+
+    usage_normalized = (
+        len(case_receipts) == len(V6_PROVIDER_SMOKE_CASES)
+        and all(item.get("usage_normalized") is True for item in case_receipts)
+    )
+    replay_exact = replay_exact_total == len(V6_PROVIDER_SMOKE_CASES)
+    exact_evidence_preserved = (
+        private_evidence_cases == len(case_receipts)
+        and all(
+            item.get("exact_evidence_preserved") is True
+            for item in case_receipts
+        )
+    )
+    passed = (
+        terminal
+        and len(case_receipts) == len(V6_PROVIDER_SMOKE_CASES)
+        and provider_submissions == len(V6_PROVIDER_SMOKE_CASES)
+        and provider_responses == len(V6_PROVIDER_SMOKE_CASES)
+        and semantic_decisions == len(V6_PROVIDER_SMOKE_CASES)
+        and product_admitted_decisions == len(V6_PROVIDER_SMOKE_CASES)
+        and replay_exact
+        and usage_normalized
+        and all(item["status"] == "passed" for item in case_receipts)
+    )
+    failure_classes = [
+        item["terminal_class"]
+        for item in case_receipts
+        if item.get("terminal_class") is not None
+    ]
+    terminal_class = (
+        "SMOKE_PASSED"
+        if passed
+        else failure_classes[0]
+        if terminal and failure_classes
+        else "SMOKE_INCOMPLETE"
+        if terminal
+        else None
+    )
+    material = {
+        "schema_version": V6_PROVIDER_SMOKE_SCHEMA_VERSION,
+        "execution_state": "terminal" if terminal else "in_progress",
+        "status": (
+            "passed"
+            if passed
+            else "failed"
+            if terminal
+            else "in_progress"
+        ),
+        "terminal_class": terminal_class,
+        "model_qualification_performed": False,
+        "product_gate": None,
+        "precision_recall_published": False,
+        "quality": None,
+        "acceptance": {
+            "provider_submissions": (
+                "TWO"
+                if provider_submissions == len(V6_PROVIDER_SMOKE_CASES)
+                else "FAILED"
+                if terminal
+                else "IN_PROGRESS"
+            ),
+            "typed_smoke": smoke_status("typed"),
+            "unclassified_smoke": smoke_status("unclassified"),
+            "usage_normalization": (
+                "PASSED"
+                if usage_normalized
+                else "FAILED"
+                if terminal
+                else "IN_PROGRESS"
+            ),
+            "offline_replay": (
+                "EXACT"
+                if replay_exact
+                else "FAILED"
+                if terminal
+                else "IN_PROGRESS"
+            ),
+        },
+        "exact_identity": copy.deepcopy(exact_identity),
+        "attempt_accounting": {
+            "local_invocations_total": local_invocations,
+            "provider_submissions_total": provider_submissions,
+            "provider_responses_total": provider_responses,
+            "semantic_decisions_total": semantic_decisions,
+            "product_admitted_decisions_total": (
+                product_admitted_decisions
+            ),
+            "offline_replays_total": replay_exact_total,
+            "qualification_attempts_total": 0,
+            "hidden_retry_total": 0,
+            "fallback_total": 0,
+            "repair_total": 0,
+        },
+        "provider_metrics": {
+            "input_tokens_total": input_tokens,
+            "output_tokens_total": output_tokens,
+            "actual_cost_usd": format(actual_cost, "f"),
+            "latency_total_ms": latency_ms_total,
+            "latency_average_ms": (
+                latency_ms_total // provider_submissions
+                if provider_submissions
+                else 0
+            ),
+            "latency_max_ms": latency_ms_max,
+        },
+        "cases_total": len(V6_PROVIDER_SMOKE_CASES),
+        "cases_executed": len(case_receipts),
+        "cases_passed": sum(
+            item["status"] == "passed" for item in case_receipts
+        ),
+        "private_evidence_cases_total": private_evidence_cases,
+        "case_receipts": copy.deepcopy(case_receipts),
+        "exact_evidence_preserved": exact_evidence_preserved,
+        "raw_private_data_in_receipt": False,
+        "production_admissions_total": 0,
+    }
+    return {**material, "integrity_sha256": sha256_json(material)}
 
 
 def _local_preflight_failure_receipt(

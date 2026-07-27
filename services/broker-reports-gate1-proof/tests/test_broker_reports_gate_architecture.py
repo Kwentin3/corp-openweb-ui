@@ -275,7 +275,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 qualification,
                 "financial_semantic_v6_canonical_request",
             ),
-            {"qualify_financial_semantic_v6"},
+            {
+                "qualify_financial_semantic_v6",
+                "smoke_financial_semantic_v6",
+            },
         )
 
     def test_qualification_does_not_parse_provider_specific_fields(self):
