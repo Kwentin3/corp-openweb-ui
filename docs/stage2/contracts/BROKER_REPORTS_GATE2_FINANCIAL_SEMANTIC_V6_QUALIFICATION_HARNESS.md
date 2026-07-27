@@ -123,3 +123,23 @@ current frozen-authority parity, reconstruct its synthetic report projection,
 skip it, and submit only the one missing case. Any other partial shape fails
 closed. The original interrupted safe receipt remains immutable beside the
 terminal combined receipt.
+
+## 2026-07-27 strong-model smoke result
+
+The exact `claude-haiku-4-5-20251001` smoke consumed exactly two provider
+submissions and two responses. The typed case selected the expected
+`cash_balance_snapshot_v1` Typed Option; the unclassified case selected
+`unclassified_financial_input` with `no_registry_type`. Both normalized
+Choices matched the frozen expected answers exactly.
+
+Usage normalization, deterministic expansion, validator/materializer and
+zero-call offline replay passed for both cases. Hidden retry, fallback and
+repair remained zero. The initial process stopped after the already-passed
+typed checkpoint because the new report projector did not yet accept the
+Anthropic adapter's JSON-string content shape. The fail-closed continuation
+replayed that checkpoint locally and submitted only the missing unclassified
+case.
+
+The terminal result is `SMOKE_PASSED`, not a qualification or model-safety
+verdict. The exact model is eligible for a separately authorized full V6
+qualification benchmark; that benchmark was not run by this smoke.

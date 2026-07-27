@@ -96,3 +96,14 @@ reasoning, raw provider envelopes, internal filesystem paths, or execution
 metadata. It neither changes nor substitutes the exact private evidence and
 safe hash link. Actual-corpus values and exact context are never eligible for
 this projection.
+
+The 2026-07-27 strong-model smoke evidence is:
+
+- [terminal safe receipt](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE.receipt.safe.json);
+- [immutable interrupted one-case receipt](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE_INTERRUPTED_AFTER_TYPED.receipt.safe.json);
+- [transparent synthetic report](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE.report.md).
+
+The terminal receipt records exactly two submissions/responses, both case
+passes, exact replay, zero hidden retry/fallback/repair and no qualification
+attempt. The interrupted receipt proves the first process stopped with one
+passed typed case before the continuation submitted only the missing case.

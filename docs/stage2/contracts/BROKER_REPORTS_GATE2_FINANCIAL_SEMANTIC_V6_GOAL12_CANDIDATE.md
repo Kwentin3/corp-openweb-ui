@@ -68,3 +68,9 @@ The new authorization is consumed by exactly two submissions with zero
 fallback, repair, or hidden retry. A transparent full-context repository
 report is allowed only because both cases are synthetic; exact
 actual-corpus context remains private and hash-linked.
+
+The bounded 2026-07-27 smoke passed both frozen cases with exact expected
+Choices and a passed technical/replay path. This does not replace or revise
+the historical terminal Goal 12 qualification result. It only makes the exact
+candidate eligible for a new, separately authorized full V6 qualification
+benchmark under the current frozen architecture.

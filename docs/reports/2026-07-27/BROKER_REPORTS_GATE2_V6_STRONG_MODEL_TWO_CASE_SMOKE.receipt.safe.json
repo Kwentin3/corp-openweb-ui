@@ -1,22 +1,22 @@
 {
   "acceptance": {
-    "offline_replay": "IN_PROGRESS",
-    "provider_submissions": "IN_PROGRESS",
+    "offline_replay": "EXACT",
+    "provider_submissions": "TWO",
     "typed_smoke": "PASSED",
-    "unclassified_smoke": "PENDING",
-    "usage_normalization": "IN_PROGRESS"
+    "unclassified_smoke": "PASSED",
+    "usage_normalization": "PASSED"
   },
   "attempt_accounting": {
     "fallback_total": 0,
     "hidden_retry_total": 0,
-    "local_invocations_total": 1,
-    "offline_replays_total": 1,
-    "product_admitted_decisions_total": 1,
-    "provider_responses_total": 1,
-    "provider_submissions_total": 1,
+    "local_invocations_total": 2,
+    "offline_replays_total": 2,
+    "product_admitted_decisions_total": 2,
+    "provider_responses_total": 2,
+    "provider_submissions_total": 2,
     "qualification_attempts_total": 0,
     "repair_total": 0,
-    "semantic_decisions_total": 1
+    "semantic_decisions_total": 2
   },
   "case_receipts": [
     {
@@ -73,10 +73,65 @@
       "status": "passed",
       "terminal_class": null,
       "usage_normalized": true
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "disposition_exact": true,
+      "exact_evidence_preserved": true,
+      "expected_choice_exact": true,
+      "offline_replay": "EXACT",
+      "product_admitted": true,
+      "provider_calls_total": 1,
+      "provider_responses_total": 1,
+      "safe_decision_receipt": {
+        "case_id": "syn_successor_v2_no_registry_type",
+        "counts": {
+          "input_tokens": 3359,
+          "output_tokens": 28,
+          "provider_calls_total": 1,
+          "retained_source_values_total": 6,
+          "total_tokens": 3387,
+          "typed_options_total": 2
+        },
+        "decision_classification": {
+          "disposition": "unclassified_financial_input"
+        },
+        "exact_choice_preserved": "YES",
+        "hashes": {
+          "canonical_decision_hash": "c48749dcb60a8f1e0e321e776874aa5856054f4e65f2ceaa5bf41a7a20949371",
+          "canonical_request_hash": "7b3cca84c0e2a065f59d59a71436cfad0d7bedade91c51b19d9ec1148990e28e",
+          "expansion_integrity_hash": "6d7f02a94a8fb41525f25165723fd6c835bbd7766ca6d5fa053d92f364d13117",
+          "materialized_artifact_hash": "7db58598ea14b2875632a771a0fbeb307f0ece54b01ded2d8fca0d242ddd94bd",
+          "materialized_artifact_integrity_hash": "afa6b5925d471f1335ffff456a2ab90f76c04ff4f655cd0a48f574862ce6741a",
+          "private_evidence_hash": "bd036ed0e09a6adc847767aa7be656884d32b343ec5ba5cd91bae7a1d54f49cc",
+          "provider_execution_identity_hash": "f8ba103660baa8eb9c9c2d9ab77eba5766247fd46c557d0ae918680fe4ced164",
+          "provider_schema_hash": "10a54d609f1658982b18b12ed3a4ac1a8c0b39a3e35dcbfdf02af79abe728d7f",
+          "response_format_hash": "50f730c12cc046b32387494e42862c2f0b31e8f7b30aff76362a8349a32f5179",
+          "semantic_choice_hash": "a86b925dd2e401f52eed7934d240ec5d9d9fb42a002db705d752bf3438e1ee20"
+        },
+        "materializer_status": "proven_for_expansion",
+        "offline_replay": "EXACT",
+        "private_safe_hash_link": "VERIFIED",
+        "private_safe_hash_link_verified": true,
+        "provider_metrics": {
+          "actual_cost_usd": "0.003499000",
+          "latency_ms": 3516
+        },
+        "raw_private_data_in_git": "ZERO",
+        "raw_private_data_in_receipt": false,
+        "receipt_hash": "1f3421e09508c97b6e00829074231cba203dbf97cc4b1a59f48cf16e97c0bbce",
+        "schema_version": "broker_reports_gate2_financial_semantic_v6_safe_receipt_v1",
+        "validator_status": "passed"
+      },
+      "semantic_decision_admitted": true,
+      "smoke_role": "unclassified",
+      "status": "passed",
+      "terminal_class": null,
+      "usage_normalized": true
     }
   ],
-  "cases_executed": 1,
-  "cases_passed": 1,
+  "cases_executed": 2,
+  "cases_passed": 2,
   "cases_total": 2,
   "exact_evidence_preserved": true,
   "exact_identity": {
@@ -150,24 +205,24 @@
     "typed_option_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
     "typed_option_schema": "broker_reports_gate2_financial_typed_option_v1"
   },
-  "execution_state": "in_progress",
-  "integrity_sha256": "22e2d7fc5ce5aa61c458593d7e6ee354af1c0af49b637058aaace6c5fcd0a989",
+  "execution_state": "terminal",
+  "integrity_sha256": "cd16fc79047208e0c334c61c2841be7824bfaab46e21476ed2bce6d5da353e3c",
   "model_qualification_performed": false,
   "precision_recall_published": false,
-  "private_evidence_cases_total": 1,
+  "private_evidence_cases_total": 2,
   "product_gate": null,
   "production_admissions_total": 0,
   "provider_metrics": {
-    "actual_cost_usd": "0.003549000",
-    "input_tokens_total": 3319,
-    "latency_average_ms": 3282,
-    "latency_max_ms": 3282,
-    "latency_total_ms": 3282,
-    "output_tokens_total": 46
+    "actual_cost_usd": "0.007048000",
+    "input_tokens_total": 6678,
+    "latency_average_ms": 3399,
+    "latency_max_ms": 3516,
+    "latency_total_ms": 6798,
+    "output_tokens_total": 74
   },
   "quality": null,
   "raw_private_data_in_receipt": false,
   "schema_version": "broker_reports_gate2_financial_semantic_v6_provider_smoke_v1",
-  "status": "in_progress",
-  "terminal_class": null
+  "status": "passed",
+  "terminal_class": "SMOKE_PASSED"
 }
