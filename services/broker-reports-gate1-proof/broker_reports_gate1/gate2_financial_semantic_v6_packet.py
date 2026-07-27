@@ -42,6 +42,14 @@ SEMANTIC_PACKET_AMBIGUITY_RULE = (
     "Select a typed option only when the visible source uniquely supports "
     "its complete prebound record; otherwise select unclassified."
 )
+SEMANTIC_PACKET_TYPE_CARD_FIELDS = (
+    "input_type_id",
+    "short_meaning",
+    "required_roles",
+    "optional_roles",
+    "key_semantic_distinctions",
+    "ambiguity_rule",
+)
 SEMANTIC_PACKET_FORBIDDEN_FIELDS = frozenset(
     {
         "audit",
@@ -152,7 +160,7 @@ class Gate2FinancialSemanticV6PacketFactory:
             },
             "source_context": _source_context(evidence_bundle),
             "available_type_cards": [
-                copy.deepcopy(cards_by_type[input_type_id])
+                _compact_type_card(cards_by_type[input_type_id])
                 for input_type_id in available_type_ids
             ],
             "typed_options": _typed_options(
@@ -165,7 +173,8 @@ class Gate2FinancialSemanticV6PacketFactory:
             evidence_bundle=evidence_bundle,
             compilation=compilation,
             expected_cards=[
-                cards_by_type[input_type_id] for input_type_id in available_type_ids
+                _compact_type_card(cards_by_type[input_type_id])
+                for input_type_id in available_type_ids
             ],
         )
         return Gate2FinancialSemanticV6Packet(
@@ -365,6 +374,16 @@ def _typed_options(
             }
         )
     return result
+
+
+def _compact_type_card(card: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(card, dict) or any(
+        field not in card for field in SEMANTIC_PACKET_TYPE_CARD_FIELDS
+    ):
+        _fail("financial_semantic_v6_packet_type_card_invalid")
+    return {
+        field: copy.deepcopy(card[field]) for field in SEMANTIC_PACKET_TYPE_CARD_FIELDS
+    }
 
 
 def _validate_payload(

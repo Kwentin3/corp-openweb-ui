@@ -47,6 +47,9 @@ from broker_reports_gate1.gate2_financial_context_checksum import (  # noqa: E40
     Gate2FinancialContextChecksumRunnerFactory,
     safe_checksum_receipt,
 )
+from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
+    V6_QUALIFICATION_PUBLICATION_HASH,
+)
 from broker_reports_gate1.gate2_financial_evidence_catalog import (  # noqa: E402
     SUPPORTED_SOURCE_FAMILIES,
 )
@@ -917,6 +920,10 @@ def _live_qualification_action(
         "policy_hash_exact": (
             meta.get("qualification_policy_hash") == policy.qualification_policy_hash
         ),
+        "v6_qualification_snapshot_exact": (
+            meta.get("v6_qualification_snapshot_hash")
+            == V6_QUALIFICATION_PUBLICATION_HASH
+        ),
     }
     if not all(checks.values()):
         raise RuntimeError(
@@ -927,6 +934,8 @@ def _live_qualification_action(
         "action_id": QUALIFICATION_ACTION_ID,
         "content_sha256": live_sha256,
         "qualification_policy_hash": (policy.qualification_policy_hash),
+        "v6_qualification_snapshot_hash": (V6_QUALIFICATION_PUBLICATION_HASH),
+        "production_admissions_empty": True,
         "checks": checks,
     }
 

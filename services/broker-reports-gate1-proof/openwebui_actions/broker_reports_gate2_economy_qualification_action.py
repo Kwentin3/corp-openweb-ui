@@ -1,13 +1,15 @@
 """
 title: Broker Reports Gate 2 Economy Qualification Policy
 author: Alpha Soft
-version: 1.1.0
+version: 1.2.0
 required_open_webui_version: 0.9.6
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from typing import Any
 
 
@@ -114,6 +116,32 @@ POLICY_SNAPSHOT: dict[str, Any] = {
     ),
 }
 
+V6_QUALIFICATION_SNAPSHOT: dict[str, Any] = {
+    "schema_version": (
+        "broker_reports_gate2_financial_semantic_v6_qualification_preflight_v1"
+    ),
+    "policy_version": "broker_reports_gate2_financial_semantic_v6_one_attempt_v1",
+    "scope": "qualification_only",
+    "workload_identity": "financial_semantic_v6_qualification_v1",
+    "exact_model_id": "gpt-5.4-nano-2026-03-17",
+    "provider_profile_id": "openai_gpt",
+    "attempts_total": 1,
+    "semantic_provider_calls_total": 10,
+    "technical_provider_calls_total": 0,
+    "fallback_total": 0,
+    "repair_total": 0,
+    "hidden_retry_total": 0,
+    "production_admissions": [],
+}
+V6_QUALIFICATION_SNAPSHOT_HASH = hashlib.sha256(
+    json.dumps(
+        V6_QUALIFICATION_SNAPSHOT,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+).hexdigest()
+
 
 class Action:
     """Read-only policy publication boundary for controlled qualification."""
@@ -138,6 +166,12 @@ class Action:
             ),
             "broker_reports_gate2_economy_qualification_policy": (
                 copy.deepcopy(POLICY_SNAPSHOT)
+            ),
+            "broker_reports_gate2_financial_semantic_v6_qualification": (
+                copy.deepcopy(V6_QUALIFICATION_SNAPSHOT)
+            ),
+            "broker_reports_gate2_financial_semantic_v6_qualification_hash": (
+                V6_QUALIFICATION_SNAPSHOT_HASH
             ),
         }
 
