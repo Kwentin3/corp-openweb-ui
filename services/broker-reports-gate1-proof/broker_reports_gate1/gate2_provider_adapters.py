@@ -674,12 +674,14 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
                 "gate2_model_invalid_response",
                 "Anthropic native transport returned invalid JSON",
                 raw_output=diagnostic,
+                failure_class="provider_response_invalid",
             ) from exc
         if not isinstance(payload, dict):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_invalid_response",
                 "Anthropic native transport returned a non-object response",
                 raw_output=diagnostic,
+                failure_class="provider_response_invalid",
             )
         return payload
 

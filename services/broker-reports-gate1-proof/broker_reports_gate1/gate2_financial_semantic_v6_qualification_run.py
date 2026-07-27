@@ -51,13 +51,13 @@ from .gate2_model_contracts import (
 
 
 V6_QUALIFICATION_RUN_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_v6_qualification_run_v1"
+    "broker_reports_gate2_financial_semantic_v6_qualification_run_v2"
 )
 V6_PRIVATE_FAILURE_EVIDENCE_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_v6_private_failure_evidence_v1"
+    "broker_reports_gate2_financial_semantic_v6_private_failure_evidence_v2"
 )
 V6_SAFE_FAILURE_RECEIPT_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_v6_safe_failure_receipt_v1"
+    "broker_reports_gate2_financial_semantic_v6_safe_failure_receipt_v2"
 )
 FACTORY_REQUIRED = (
     "qualify_financial_semantic_v6 is the only terminal V6 qualification "
@@ -66,6 +66,31 @@ FACTORY_REQUIRED = (
 FORBIDDEN = (
     "The V6 runner must not call technical cases, retry, repair, fallback, "
     "write production state or place exact private evidence in a safe receipt"
+)
+
+LOCAL_PREFLIGHT_FAILED = "LOCAL_PREFLIGHT_FAILED"
+REQUEST_BUILD_FAILED = "REQUEST_BUILD_FAILED"
+PROVIDER_TRANSPORT_FAILED = "PROVIDER_TRANSPORT_FAILED"
+PROVIDER_RESPONSE_INVALID = "PROVIDER_RESPONSE_INVALID"
+PROVIDER_USAGE_METADATA_INCOMPLETE = (
+    "PROVIDER_USAGE_METADATA_INCOMPLETE"
+)
+MODEL_OUTPUT_SCHEMA_FAILED = "MODEL_OUTPUT_SCHEMA_FAILED"
+MODEL_SEMANTIC_GATE_FAILED = "MODEL_SEMANTIC_GATE_FAILED"
+PRODUCT_VALIDATION_FAILED = "PRODUCT_VALIDATION_FAILED"
+PRODUCT_MATERIALIZATION_FAILED = "PRODUCT_MATERIALIZATION_FAILED"
+MODEL_SAFE_FOR_SHADOW = "MODEL_SAFE_FOR_SHADOW"
+V6_QUALIFICATION_TERMINAL_CLASSES = (
+    LOCAL_PREFLIGHT_FAILED,
+    REQUEST_BUILD_FAILED,
+    PROVIDER_TRANSPORT_FAILED,
+    PROVIDER_RESPONSE_INVALID,
+    PROVIDER_USAGE_METADATA_INCOMPLETE,
+    MODEL_OUTPUT_SCHEMA_FAILED,
+    MODEL_SEMANTIC_GATE_FAILED,
+    PRODUCT_VALIDATION_FAILED,
+    PRODUCT_MATERIALIZATION_FAILED,
+    MODEL_SAFE_FOR_SHADOW,
 )
 
 _SAFE_CODE_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,199}$")
@@ -79,14 +104,29 @@ async def qualify_financial_semantic_v6(
     private_case_checkpoint: Callable[[str, dict[str, Any]], None],
     safe_checkpoint: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    exact_model_id, provider_profile_id = _validate_exact_identity(
-        exact_identity
-    )
+    try:
+        exact_model_id, provider_profile_id = _validate_exact_identity(
+            exact_identity
+        )
+        _qualification_lifecycle_snapshot(model_client)
+    except Exception as exc:
+        receipt = _local_preflight_failure_receipt(
+            fixture=fixture,
+            exact_identity=exact_identity,
+            failure_code=_failure_code(exc),
+        )
+        if safe_checkpoint is not None:
+            safe_checkpoint(receipt)
+        return receipt
 
     case_receipts: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     source_packages: list[Any] = []
-    provider_calls = 0
+    local_invocations = 0
+    provider_submissions = 0
+    provider_responses = 0
+    semantic_decisions = 0
+    product_admitted_decisions = 0
     private_evidence_cases = 0
     input_tokens = 0
     output_tokens = 0
@@ -107,7 +147,11 @@ async def qualify_financial_semantic_v6(
             case_receipts=case_receipts,
             artifacts=artifacts,
             source_packages=source_packages,
-            provider_calls=provider_calls,
+            local_invocations=local_invocations,
+            provider_submissions=provider_submissions,
+            provider_responses=provider_responses,
+            semantic_decisions=semantic_decisions,
+            product_admitted_decisions=product_admitted_decisions,
             private_evidence_cases=private_evidence_cases,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -151,43 +195,64 @@ async def qualify_financial_semantic_v6(
                 "route": case.route,
                 "status": "passed",
                 "provider_calls_total": 0,
+                "provider_responses_total": 0,
+                "terminal_class": None,
+                "semantic_decision_admitted": False,
+                "product_admitted": True,
                 "canonical_validation_ran": True,
                 "exact_evidence_preserved": True,
             }
         else:
-            (
-                evidence_bundle,
-                compilation,
-                packet,
-                choice_contract,
-            ) = _semantic_authorities(case)
-            prompt = financial_semantic_v6_prompt(
-                packet=packet,
-                choice_contract=choice_contract,
-            )
-            canonical_request = financial_semantic_v6_canonical_request(
-                packet=packet,
-                choice_contract=choice_contract,
-                exact_model_id=exact_model_id,
-                prompt=prompt,
-            )
-            response_format = financial_semantic_v6_response_format(
-                choice_contract
-            )
-            provider_calls += 1
+            local_invocations += 1
+            lifecycle_before = _qualification_lifecycle_snapshot(model_client)
             started = time.perf_counter()
             result: Gate2StructuredModelResult | None = None
             model_output: Any = None
+            canonical_request: dict[str, Any] | None = None
+            response_format: dict[str, Any] | None = None
             execution_identity: Gate2FinancialSemanticV6ExecutionIdentity | None = (
                 None
             )
+            semantic_decision_admitted = False
+            product_admitted = False
             try:
+                (
+                    evidence_bundle,
+                    compilation,
+                    packet,
+                    choice_contract,
+                ) = _semantic_authorities(case)
+                prompt = financial_semantic_v6_prompt(
+                    packet=packet,
+                    choice_contract=choice_contract,
+                )
+                canonical_request = financial_semantic_v6_canonical_request(
+                    packet=packet,
+                    choice_contract=choice_contract,
+                    exact_model_id=exact_model_id,
+                    prompt=prompt,
+                )
+                response_format = financial_semantic_v6_response_format(
+                    choice_contract
+                )
                 result = await model_client.extract(
                     prompt=prompt,
                     package=packet.payload,
                     model_id=exact_model_id,
                     response_format=response_format,
                 )
+                extraction_lifecycle = _qualification_lifecycle_delta(
+                    before=lifecycle_before,
+                    after=_qualification_lifecycle_snapshot(model_client),
+                )
+                if extraction_lifecycle != {
+                    "local_invocations": 1,
+                    "provider_submissions": 1,
+                    "provider_responses": 1,
+                }:
+                    _fail(
+                        "financial_semantic_v6_extract_lifecycle_invalid"
+                    )
                 model_output = copy.deepcopy(result.content)
                 _validate_provider_result(result)
                 budget = _required_budget(result)
@@ -205,6 +270,14 @@ async def qualify_financial_semantic_v6(
                         choice_contract=choice_contract,
                     )
                 )
+                invalid_choice = _invalid_choice_total(
+                    model_output=model_output,
+                    case=case,
+                )
+                if invalid_choice:
+                    _fail("financial_semantic_v6_model_output_schema_invalid")
+                semantic_decisions += 1
+                semantic_decision_admitted = True
                 evidence = Gate2FinancialSemanticV6DecisionEvidenceFactory(
                     registry=fixture.registry,
                     exact_model_id=exact_model_id,
@@ -223,6 +296,8 @@ async def qualify_financial_semantic_v6(
                 )
                 private_case_checkpoint(case.case_id, evidence.private_evidence)
                 private_evidence_cases += 1
+                product_admitted_decisions += 1
+                product_admitted = True
 
                 safe = evidence.safe_receipt
                 normalized_choice = evidence.private_evidence[
@@ -256,23 +331,45 @@ async def qualify_financial_semantic_v6(
                     "route": case.route,
                     "status": "passed",
                     "provider_calls_total": 1,
+                    "terminal_class": None,
+                    "semantic_decision_admitted": True,
+                    "product_admitted": True,
                     "canonical_validation_ran": True,
                     "exact_evidence_preserved": True,
                     "safe_decision_receipt": safe,
                 }
             except Exception as exc:
+                lifecycle = _qualification_lifecycle_delta(
+                    before=lifecycle_before,
+                    after=_qualification_lifecycle_snapshot(model_client),
+                )
+                provider_submissions += lifecycle["provider_submissions"]
+                provider_responses += lifecycle["provider_responses"]
                 code = _failure_code(exc)
+                terminal_class = _failure_terminal_class(
+                    exception=exc,
+                    failure_code=code,
+                    provider_submissions=lifecycle["provider_submissions"],
+                    provider_responses=lifecycle["provider_responses"],
+                    model_output=model_output,
+                )
                 available_output = (
                     model_output
                     if model_output is not None
                     else copy.deepcopy(getattr(exc, "raw_output", None))
                 )
                 canonical_failures += 1
-                invalid_options += _invalid_choice_total(
-                    model_output=available_output,
-                    case=case,
+                invalid_options += (
+                    _invalid_choice_total(
+                        model_output=model_output,
+                        case=case,
+                    )
+                    if model_output is not None
+                    else 0
                 )
-                materialization_failures += int("materialization" in code)
+                materialization_failures += int(
+                    terminal_class == PRODUCT_MATERIALIZATION_FAILED
+                )
                 elapsed_ms = _elapsed_ms(started)
                 private_failure = _private_failure_evidence(
                     case_id=case.case_id,
@@ -283,6 +380,7 @@ async def qualify_financial_semantic_v6(
                     execution_identity=execution_identity,
                     exception=exc,
                     failure_code=code,
+                    terminal_class=terminal_class,
                     elapsed_ms=elapsed_ms,
                 )
                 private_case_checkpoint(case.case_id, private_failure)
@@ -292,8 +390,26 @@ async def qualify_financial_semantic_v6(
                     route=case.route,
                     private_failure=private_failure,
                     failure_code=code,
-                    provider_decision_returned=available_output is not None,
+                    terminal_class=terminal_class,
+                    provider_submissions=lifecycle["provider_submissions"],
+                    provider_responses=lifecycle["provider_responses"],
+                    provider_decision_returned=model_output is not None,
+                    semantic_decision_admitted=semantic_decision_admitted,
+                    product_admitted=product_admitted,
                 )
+            else:
+                lifecycle = _qualification_lifecycle_delta(
+                    before=lifecycle_before,
+                    after=_qualification_lifecycle_snapshot(model_client),
+                )
+                provider_submissions += lifecycle["provider_submissions"]
+                provider_responses += lifecycle["provider_responses"]
+                receipt["provider_calls_total"] = lifecycle[
+                    "provider_submissions"
+                ]
+                receipt["provider_responses_total"] = lifecycle[
+                    "provider_responses"
+                ]
             call_metrics = _provider_metrics(
                 result=result,
                 execution_identity=execution_identity,
@@ -325,7 +441,11 @@ def _qualification_receipt(
     case_receipts: list[dict[str, Any]],
     artifacts: list[dict[str, Any]],
     source_packages: list[Any],
-    provider_calls: int,
+    local_invocations: int,
+    provider_submissions: int,
+    provider_responses: int,
+    semantic_decisions: int,
+    product_admitted_decisions: int,
     private_evidence_cases: int,
     input_tokens: int,
     output_tokens: int,
@@ -389,41 +509,62 @@ def _qualification_receipt(
             "cross_scope_bindings_total"
         ],
     }
-    quality = {
-        "typed_precision_basis_points": _rate(exact_typed, observed_typed),
-        "typed_recall_basis_points": _rate(exact_typed, expected_typed),
-        "typed_expected_total": expected_typed,
-        "typed_observed_total": observed_typed,
-        "typed_exact_total": exact_typed,
-        "unclassified_total": unclassified,
-        "unclassified_rate_basis_points": _rate(
-            unclassified,
-            SEMANTIC_CASES_TOTAL,
-        ),
-    }
+    model_metrics_published = (
+        semantic_decisions == SEMANTIC_CASES_TOTAL
+        and product_admitted_decisions == SEMANTIC_CASES_TOTAL
+    )
+    quality = (
+        {
+            "typed_precision_basis_points": _rate(
+                exact_typed,
+                observed_typed,
+            ),
+            "typed_recall_basis_points": _rate(exact_typed, expected_typed),
+            "typed_expected_total": expected_typed,
+            "typed_observed_total": observed_typed,
+            "typed_exact_total": exact_typed,
+            "unclassified_total": unclassified,
+            "unclassified_rate_basis_points": _rate(
+                unclassified,
+                SEMANTIC_CASES_TOTAL,
+            ),
+        }
+        if model_metrics_published
+        else None
+    )
     terminal_complete = (
         terminal
         and len(case_receipts) == len(fixture.cases)
-        and provider_calls == SEMANTIC_CASES_TOTAL
-        and private_evidence_cases == SEMANTIC_CASES_TOTAL
     )
-    safe_for_shadow = (
-        terminal_complete
-        and all(item["status"] == "passed" for item in case_receipts)
-        and all(value == 0 for value in hard_gates.values())
-        and product_invariants["status"] == "passed"
-        and quality["typed_precision_basis_points"] == 10_000
-        and quality["typed_recall_basis_points"] == 10_000
+    failure_class_counts = {
+        failure_class: sum(
+            item.get("terminal_class") == failure_class
+            for item in case_receipts
+        )
+        for failure_class in V6_QUALIFICATION_TERMINAL_CLASSES
+        if failure_class != MODEL_SAFE_FOR_SHADOW
+    }
+    failure_class_counts = {
+        key: value for key, value in failure_class_counts.items() if value
+    }
+    terminal_class = _aggregate_terminal_class(
+        terminal_complete=terminal_complete,
+        failure_class_counts=failure_class_counts,
+        hard_gates=hard_gates,
+        product_invariants=product_invariants,
+        quality=quality,
+        product_admitted_decisions=product_admitted_decisions,
     )
+    safe_for_shadow = terminal_class == MODEL_SAFE_FOR_SHADOW
     product_gate = (
-        "MODEL_SAFE_FOR_SHADOW"
+        MODEL_SAFE_FOR_SHADOW
         if safe_for_shadow
         else "MODEL_NOT_SAFE_FOR_SHADOW"
-        if terminal_complete
+        if terminal_class == MODEL_SEMANTIC_GATE_FAILED
         else None
     )
     exact_evidence_preserved = (
-        private_evidence_cases == provider_calls
+        bool(case_receipts)
         and all(
             item.get("exact_evidence_preserved") is True
             for item in case_receipts
@@ -441,9 +582,13 @@ def _qualification_receipt(
             if terminal
             else "in_progress"
         ),
+        "terminal_class": terminal_class,
+        "failure_class_counts": failure_class_counts,
         "product_gate": product_gate,
         "acceptance": {
-            "provider_attempts": "EXACTLY_ONE",
+            "provider_attempts": (
+                "EXACTLY_ONE" if provider_submissions else "ZERO"
+            ),
             "hidden_retry": "ZERO",
             "exact_evidence": (
                 "PRESERVED" if exact_evidence_preserved else "IN_PROGRESS"
@@ -452,8 +597,14 @@ def _qualification_receipt(
         },
         "exact_identity": copy.deepcopy(exact_identity),
         "attempt_accounting": {
-            "provider_attempts_total": 1,
-            "provider_calls_total": provider_calls,
+            "provider_attempts_total": int(provider_submissions > 0),
+            "model_attempts_consumed_total": int(provider_submissions > 0),
+            "local_invocations_total": local_invocations,
+            "provider_submissions_total": provider_submissions,
+            "provider_responses_total": provider_responses,
+            "semantic_decisions_total": semantic_decisions,
+            "product_admitted_decisions_total": product_admitted_decisions,
+            "provider_calls_total": provider_submissions,
             "semantic_cases_total": SEMANTIC_CASES_TOTAL,
             "technical_cases_total": TECHNICAL_CASES_TOTAL,
             "technical_case_provider_calls_total": 0,
@@ -463,13 +614,20 @@ def _qualification_receipt(
         },
         "hard_gates": hard_gates,
         "quality": quality,
+        "model_metrics_status": (
+            "PUBLISHED"
+            if model_metrics_published
+            else "NOT_PUBLISHED"
+        ),
         "provider_metrics": {
             "input_tokens_total": input_tokens,
             "output_tokens_total": output_tokens,
             "actual_cost_usd": format(actual_cost, "f"),
             "latency_total_ms": latency_ms_total,
             "latency_average_ms": (
-                latency_ms_total // provider_calls if provider_calls else 0
+                latency_ms_total // provider_submissions
+                if provider_submissions
+                else 0
             ),
             "latency_max_ms": latency_ms_max,
         },
@@ -490,6 +648,235 @@ def _qualification_receipt(
     }
     receipt["integrity_sha256"] = sha256_json(receipt)
     return receipt
+
+
+def _local_preflight_failure_receipt(
+    *,
+    fixture: Gate2FinancialSemanticV6QualificationFixture,
+    exact_identity: dict[str, Any],
+    failure_code: str,
+) -> dict[str, Any]:
+    material = {
+        "schema_version": V6_QUALIFICATION_RUN_SCHEMA_VERSION,
+        "harness_schema_version": V6_QUALIFICATION_SCHEMA_VERSION,
+        "policy_version": V6_QUALIFICATION_POLICY_VERSION,
+        "execution_state": "terminal",
+        "status": "failed",
+        "terminal_class": LOCAL_PREFLIGHT_FAILED,
+        "failure_class_counts": {LOCAL_PREFLIGHT_FAILED: 1},
+        "failure_code": failure_code,
+        "product_gate": None,
+        "acceptance": {
+            "provider_attempts": "ZERO",
+            "hidden_retry": "ZERO",
+            "exact_evidence": "NOT_STARTED",
+            "product_gate": None,
+        },
+        "exact_identity_hash": sha256_json(exact_identity),
+        "attempt_accounting": {
+            "provider_attempts_total": 0,
+            "model_attempts_consumed_total": 0,
+            "local_invocations_total": 0,
+            "provider_submissions_total": 0,
+            "provider_responses_total": 0,
+            "semantic_decisions_total": 0,
+            "product_admitted_decisions_total": 0,
+            "provider_calls_total": 0,
+            "semantic_cases_total": SEMANTIC_CASES_TOTAL,
+            "technical_cases_total": TECHNICAL_CASES_TOTAL,
+            "technical_case_provider_calls_total": 0,
+            "hidden_retry_total": 0,
+            "fallback_total": 0,
+            "repair_total": 0,
+        },
+        "hard_gates": None,
+        "quality": None,
+        "model_metrics_status": "NOT_PUBLISHED",
+        "provider_metrics": {
+            "input_tokens_total": 0,
+            "output_tokens_total": 0,
+            "actual_cost_usd": "0",
+            "latency_total_ms": 0,
+            "latency_average_ms": 0,
+            "latency_max_ms": 0,
+        },
+        "cases_total": len(fixture.cases),
+        "cases_executed": 0,
+        "cases_passed": 0,
+        "cases_failed": 0,
+        "private_evidence_cases_total": 0,
+        "case_receipts": [],
+        "product_comparator": None,
+        "exact_evidence_preserved": False,
+        "raw_private_data_in_receipt": False,
+        "production_admissions_total": 0,
+    }
+    return {**material, "integrity_sha256": sha256_json(material)}
+
+
+def _qualification_lifecycle_snapshot(
+    model_client: Gate2StructuredModelClient,
+) -> dict[str, int]:
+    snapshot = model_client.qualification_lifecycle_snapshot()
+    required = {
+        "local_invocations_total",
+        "provider_submissions_total",
+        "provider_responses_total",
+    }
+    if (
+        not isinstance(snapshot, dict)
+        or set(snapshot) != required
+        or any(
+            isinstance(snapshot[key], bool)
+            or not isinstance(snapshot[key], int)
+            or snapshot[key] < 0
+            for key in required
+        )
+        or snapshot["provider_responses_total"]
+        > snapshot["provider_submissions_total"]
+    ):
+        _fail("financial_semantic_v6_lifecycle_snapshot_invalid")
+    return copy.deepcopy(snapshot)
+
+
+def _qualification_lifecycle_delta(
+    *,
+    before: dict[str, int],
+    after: dict[str, int],
+) -> dict[str, int]:
+    local_invocations = (
+        after["local_invocations_total"]
+        - before["local_invocations_total"]
+    )
+    provider_submissions = (
+        after["provider_submissions_total"]
+        - before["provider_submissions_total"]
+    )
+    provider_responses = (
+        after["provider_responses_total"]
+        - before["provider_responses_total"]
+    )
+    if (
+        local_invocations not in {0, 1}
+        or provider_submissions not in {0, 1}
+        or provider_responses not in {0, 1}
+        or provider_responses > provider_submissions
+        or provider_submissions > local_invocations
+    ):
+        _fail("financial_semantic_v6_lifecycle_delta_invalid")
+    return {
+        "local_invocations": local_invocations,
+        "provider_submissions": provider_submissions,
+        "provider_responses": provider_responses,
+    }
+
+
+def _failure_terminal_class(
+    *,
+    exception: Exception,
+    failure_code: str,
+    provider_submissions: int,
+    provider_responses: int,
+    model_output: Any,
+) -> str:
+    if provider_submissions == 0:
+        return REQUEST_BUILD_FAILED
+    if provider_responses == 0:
+        return PROVIDER_TRANSPORT_FAILED
+    codes = _exception_codes(exception) | {failure_code}
+    failure_class = str(getattr(exception, "failure_class", "") or "")
+    if any(
+        "usage" in code
+        or code
+        in {
+            "financial_semantic_v6_qualification_budget_missing",
+            "financial_semantic_v6_qualification_budget_invalid",
+            "financial_semantic_v6_evidence_execution_identity_invalid",
+        }
+        for code in codes
+    ):
+        return PROVIDER_USAGE_METADATA_INCOMPLETE
+    if (
+        model_output is None
+        or failure_class
+        in {
+            "provider_error_response",
+            "provider_model_mismatch",
+            "provider_response_invalid",
+            "response_budget",
+        }
+        or any(
+            code.startswith("gate2_model_invalid_response")
+            or code.startswith("gate2_provider_")
+            for code in codes
+        )
+    ):
+        return PROVIDER_RESPONSE_INVALID
+    if any(
+        marker in code
+        for code in codes
+        for marker in (
+            "model_output_schema",
+            "output_size_invalid",
+            "json_invalid",
+            "choice_invalid",
+            "typed_shape_invalid",
+            "option_unknown",
+            "unclassified_shape_invalid",
+            "reason_invalid",
+            "disposition_invalid",
+            "duplicate_key",
+        )
+    ):
+        return MODEL_OUTPUT_SCHEMA_FAILED
+    if any("materialization" in code or "totality" in code for code in codes):
+        return PRODUCT_MATERIALIZATION_FAILED
+    return PRODUCT_VALIDATION_FAILED
+
+
+def _exception_codes(exception: Exception) -> set[str]:
+    codes: set[str] = set()
+    current: BaseException | None = exception
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        code = getattr(current, "code", None)
+        if isinstance(code, str):
+            codes.add(code)
+        text = str(current)
+        if _SAFE_CODE_RE.fullmatch(text):
+            codes.add(text)
+        current = current.__cause__ or current.__context__
+    return codes
+
+
+def _aggregate_terminal_class(
+    *,
+    terminal_complete: bool,
+    failure_class_counts: dict[str, int],
+    hard_gates: dict[str, int],
+    product_invariants: dict[str, Any],
+    quality: dict[str, int] | None,
+    product_admitted_decisions: int,
+) -> str | None:
+    if not terminal_complete:
+        return None
+    for terminal_class in V6_QUALIFICATION_TERMINAL_CLASSES:
+        if failure_class_counts.get(terminal_class):
+            return terminal_class
+    if (
+        product_admitted_decisions != SEMANTIC_CASES_TOTAL
+        or product_invariants["status"] != "passed"
+    ):
+        return PRODUCT_VALIDATION_FAILED
+    if (
+        quality is None
+        or any(value != 0 for value in hard_gates.values())
+        or quality["typed_precision_basis_points"] != 10_000
+        or quality["typed_recall_basis_points"] != 10_000
+    ):
+        return MODEL_SEMANTIC_GATE_FAILED
+    return MODEL_SAFE_FOR_SHADOW
 
 
 def _v6_product_invariants(
@@ -733,13 +1120,14 @@ def _invalid_choice_total(
 def _private_failure_evidence(
     *,
     case_id: str,
-    canonical_request: dict[str, Any],
-    response_format: dict[str, Any],
+    canonical_request: dict[str, Any] | None,
+    response_format: dict[str, Any] | None,
     model_output: Any,
     result: Gate2StructuredModelResult | None,
     execution_identity: Gate2FinancialSemanticV6ExecutionIdentity | None,
     exception: Exception,
     failure_code: str,
+    terminal_class: str,
     elapsed_ms: int,
 ) -> dict[str, Any]:
     exception_metadata = getattr(exception, "execution_metadata", None)
@@ -773,6 +1161,7 @@ def _private_failure_evidence(
         ),
         "failure_code": failure_code,
         "failure_class": getattr(exception, "failure_class", None),
+        "terminal_class": terminal_class,
         "elapsed_ms": elapsed_ms,
         "exact_available_evidence_preserved": True,
         "raw_provider_transport_preserved": False,
@@ -786,17 +1175,26 @@ def _safe_failure_receipt(
     route: str,
     private_failure: dict[str, Any],
     failure_code: str,
+    terminal_class: str,
+    provider_submissions: int,
+    provider_responses: int,
     provider_decision_returned: bool,
+    semantic_decision_admitted: bool,
+    product_admitted: bool,
 ) -> dict[str, Any]:
     material = {
         "schema_version": V6_SAFE_FAILURE_RECEIPT_SCHEMA_VERSION,
         "case_id": case_id,
         "route": route,
         "status": "failed",
-        "provider_calls_total": 1,
+        "provider_calls_total": provider_submissions,
+        "provider_responses_total": provider_responses,
         "failure_code": failure_code,
+        "terminal_class": terminal_class,
         "provider_decision_returned": provider_decision_returned,
-        "canonical_validation_ran": False,
+        "semantic_decision_admitted": semantic_decision_admitted,
+        "product_admitted": product_admitted,
+        "canonical_validation_ran": semantic_decision_admitted,
         "exact_evidence_preserved": True,
         "hashes": {
             "private_evidence_hash": private_failure["private_evidence_hash"],

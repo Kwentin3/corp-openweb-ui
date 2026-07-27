@@ -145,11 +145,28 @@ class Gate2OpenWebUIStructuredModelClient:
         )
         self.budget_session = budget_session
         self._budget_operation_ordinal = 0
+        self._qualification_local_invocations_total = 0
+        self._qualification_provider_submissions_total = 0
+        self._qualification_provider_responses_total = 0
 
     def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
         return self.provider_adapter.execution_contract(model_id)
 
+    def qualification_lifecycle_snapshot(self) -> dict[str, int]:
+        return {
+            "local_invocations_total": (
+                self._qualification_local_invocations_total
+            ),
+            "provider_submissions_total": (
+                self._qualification_provider_submissions_total
+            ),
+            "provider_responses_total": (
+                self._qualification_provider_responses_total
+            ),
+        }
+
     async def extract(self, *, prompt, package, model_id, response_format):
+        self._qualification_local_invocations_total += 1
         user_id = self._validate_request_context()
         form_data = self.request_builder.build(
             prompt=prompt,
@@ -184,10 +201,14 @@ class Gate2OpenWebUIStructuredModelClient:
         form_data = prepared_request.form_data
         started: float | None = None
         response_payload: dict[str, Any] | None = None
+        submission_recorded = False
+        response_recorded = False
         try:
             if not self.provider_adapter.uses_openwebui_completion:
                 self.provider_adapter.validate_transport_configuration()
                 started = time.monotonic()
+                self._qualification_provider_submissions_total += 1
+                submission_recorded = True
                 response = self.provider_adapter.invoke_native_once(form_data)
             else:
                 dependencies = self.completion_resolver(user_id)
@@ -202,6 +223,8 @@ class Gate2OpenWebUIStructuredModelClient:
                         self._user_unavailable_message(),
                     )
                 started = time.monotonic()
+                self._qualification_provider_submissions_total += 1
+                submission_recorded = True
                 response = self._invoke_completion_once(
                     completion_fn=completion_fn,
                     form_data=form_data,
@@ -209,6 +232,8 @@ class Gate2OpenWebUIStructuredModelClient:
                 )
             if inspect.isawaitable(response):
                 response = await response
+            self._qualification_provider_responses_total += 1
+            response_recorded = True
             response_payload = self._response_payload(response)
             duration_ms = self._duration_ms(started)
             if "detail" in response_payload or "error" in response_payload:
@@ -247,6 +272,13 @@ class Gate2OpenWebUIStructuredModelClient:
             content = self.provider_adapter.extract_content(response_payload)
             self._validate_model_content_budget(content)
         except Gate2SourceFactRuntimeError as exc:
+            if (
+                submission_recorded
+                and not response_recorded
+                and exc.failure_class
+                in {"provider_response_invalid", "response_budget"}
+            ):
+                self._qualification_provider_responses_total += 1
             if exc.execution_metadata is None:
                 metadata_payload = (
                     None

@@ -29,13 +29,13 @@ from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # 
     Gate2FinancialSemanticV6QualificationFixtureFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification_run import (  # noqa: E402,E501
+    V6_QUALIFICATION_RUN_SCHEMA_VERSION,
     qualify_financial_semantic_v6,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (  # noqa: E402,E501
     V6_GOAL12_EXACT_MODEL_ID,
     V6_GOAL12_POLICY_VERSION,
     V6_GOAL12_PROVIDER_PROFILE_ID,
-    V6_GOAL12_SCHEMA_VERSION,
     Gate2FinancialSemanticV6StrongerCandidatePreflightFactory,
 )
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
@@ -161,10 +161,12 @@ def main() -> int:
     _write_json_atomically(
         safe_path,
         {
-            "schema_version": V6_GOAL12_SCHEMA_VERSION,
+            "schema_version": V6_QUALIFICATION_RUN_SCHEMA_VERSION,
             "policy_version": V6_GOAL12_POLICY_VERSION,
-            "execution_state": "attempt_committed",
+            "execution_state": "pretransport_authorized",
             "status": "in_progress",
+            "terminal_class": None,
+            "failure_class_counts": {},
             "product_gate": None,
             "candidate": {
                 "exact_model_id": V6_GOAL12_EXACT_MODEL_ID,
@@ -174,19 +176,27 @@ def main() -> int:
                 "architecture": "FROZEN",
                 "one_new_candidate": "EXACT",
                 "model_comparison": "SAME_V6_WORKLOAD",
-                "provider_attempts": "EXACTLY_ONE",
+                "provider_attempts": "ZERO",
                 "hidden_retry": "ZERO",
                 "exact_evidence": "PENDING",
                 "product_gate": None,
             },
             "exact_identity": preflight["exact_identity"],
             "attempt_accounting": {
-                "provider_attempts_total": 1,
+                "provider_attempts_total": 0,
+                "model_attempts_consumed_total": 0,
+                "local_invocations_total": 0,
+                "provider_submissions_total": 0,
+                "provider_responses_total": 0,
+                "semantic_decisions_total": 0,
+                "product_admitted_decisions_total": 0,
                 "provider_calls_total": 0,
                 "hidden_retry_total": 0,
                 "fallback_total": 0,
                 "repair_total": 0,
             },
+            "quality": None,
+            "model_metrics_status": "NOT_PUBLISHED",
             "raw_private_data_in_receipt": False,
             "production_admissions_total": 0,
         },

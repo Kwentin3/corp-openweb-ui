@@ -269,6 +269,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                     self.assertEqual(result.response_format_type, "json_schema")
                     self.assertEqual(result.response_format_schema_mode, "strict_json_schema")
                     self.assertFalse(result.fallback_used)
+                    self.assertEqual(
+                        client.qualification_lifecycle_snapshot(),
+                        {
+                            "local_invocations_total": 1,
+                            "provider_submissions_total": 1,
+                            "provider_responses_total": 1,
+                        },
+                    )
                     if provider_profile_id == "anthropic_claude":
                         self.assertEqual(boundary.resolved_user_ids, [])
                         self.assertEqual(boundary.calls, [])
@@ -314,6 +322,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
         self.assertEqual(blocked.exception.failure_class, "provider_configuration")
         self.assertEqual(native_boundary.calls, [])
+        self.assertEqual(
+            client.qualification_lifecycle_snapshot(),
+            {
+                "local_invocations_total": 1,
+                "provider_submissions_total": 0,
+                "provider_responses_total": 0,
+            },
+        )
 
     def test_anthropic_projects_only_unsupported_constraints_and_preserves_binding_contract(self):
         response_format = self._response_format()
@@ -1152,6 +1168,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             },
         )
         self.assertEqual(len(provider_calls), 1)
+        self.assertEqual(
+            client.qualification_lifecycle_snapshot(),
+            {
+                "local_invocations_total": 1,
+                "provider_submissions_total": 1,
+                "provider_responses_total": 0,
+            },
+        )
 
         unavailable_calls: list[dict[str, Any]] = []
 
@@ -1175,6 +1199,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(unavailable.exception.code, "gate2_model_call_failed")
         self.assertEqual(unavailable.exception.failure_class, "Exception")
         self.assertEqual(len(unavailable_calls), 1)
+        self.assertEqual(
+            client.qualification_lifecycle_snapshot(),
+            {
+                "local_invocations_total": 1,
+                "provider_submissions_total": 1,
+                "provider_responses_total": 0,
+            },
+        )
 
     def test_async_dependencies_user_and_completion_are_supported_once(self):
         calls: list[dict[str, Any]] = []
