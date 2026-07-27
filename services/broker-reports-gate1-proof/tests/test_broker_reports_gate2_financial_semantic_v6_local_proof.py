@@ -26,6 +26,8 @@ from broker_reports_gate1.gate2_financial_semantic_v6_benchmark import (  # noqa
 from broker_reports_gate1.gate2_financial_semantic_v6_local_proof import (  # noqa: E402,E501
     FACTORY_REQUIRED,
     FORBIDDEN,
+    V6_LOCAL_PROOF_POLICY_VERSION,
+    V6_LOCAL_PROOF_RECEIPT_SCHEMA_VERSION,
     Gate2FinancialSemanticV6LocalProofFactory,
 )
 
@@ -85,8 +87,17 @@ def test_v6_local_end_to_end_proof_passes_every_acceptance_gate() -> None:
     receipt = _proof()
 
     assert receipt["status"] == "passed"
+    assert receipt["schema_version"].endswith("_v2")
+    assert receipt["schema_version"] == V6_LOCAL_PROOF_RECEIPT_SCHEMA_VERSION
+    assert receipt["policy_version"] == V6_LOCAL_PROOF_POLICY_VERSION
     assert receipt["acceptance"] == {
         "local_v6_proof": "PASSED",
+        "typed_local_seam": "PASSED",
+        "unclassified_local_seam": "PASSED",
+        "openai_root_object_projection": "PASSED",
+        "expansion": "PASSED",
+        "validation": "PASSED",
+        "materialization": "PASSED",
         "unclassified_value_loss": "ZERO",
         "validated_materialization_failures": "ZERO",
         "adjacent_equal_typed_options": "ZERO",
@@ -99,6 +110,10 @@ def test_v6_local_end_to_end_proof_passes_every_acceptance_gate() -> None:
         "technical_cases_total": 2,
         "semantic_model_cases_total": 10,
         "model_choice_counts": {
+            "typed_input": 4,
+            "unclassified_financial_input": 6,
+        },
+        "local_seam_choice_counts": {
             "typed_input": 4,
             "unclassified_financial_input": 6,
         },
@@ -137,6 +152,11 @@ def test_all_v6_components_and_financial_domain_are_exercised() -> None:
         and item["packet_hash"]
         and item["choice_schema_hash"]
         and item["expansion_integrity_hash"]
+        and item["canonical_request_schema_hash"] == item["choice_schema_hash"]
+        and item["adapted_request_schema_hash"]
+        != item["canonical_request_schema_hash"]
+        and item["schema_transform_count"] == 1
+        and item["inverse_normalization_exact"] is True
         and item["materialized_artifact_hash"]
         for item in semantic
     )
@@ -213,8 +233,11 @@ def test_local_proof_is_deterministic_and_repository_safe() -> None:
     assert "literal_value" not in rendered
     assert first["execution_accounting"] == {
         "provider_calls_total": 0,
+        "provider_responses_total": 0,
         "technical_case_provider_calls_total": 0,
         "semantic_fixture_choices_total": 10,
+        "simulated_provider_shaped_responses_total": 10,
+        "openai_projection_cases_total": 10,
         "fallback_total": 0,
         "repair_attempts_total": 0,
         "hidden_retry_total": 0,
@@ -252,3 +275,6 @@ def test_goal10_modules_have_no_provider_or_persistence_write_route() -> None:
         assert "fallback_used" not in source
         assert "repair_attempt_count" not in source
         assert "repair_decision(" not in source
+    local_proof_source = MODULE_PATHS[1].read_text(encoding="utf-8")
+    assert "Gate2ProviderAdapterFactory(" in local_proof_source
+    assert "Gate2OpenAIResponseFormatAdapter(" not in local_proof_source
