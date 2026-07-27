@@ -1,0 +1,63 @@
+{
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_goal14_proof_v1",
+  "terminal_status": "NOT_CLOSED",
+  "acceptance": {
+    "gate3_domain_only": "PASSED",
+    "full_scope": "NOT_RUN_NO_ACCEPTED_V6_ACTUAL_CORPUS",
+    "query_parity": "SYNTHETIC_EXACT_PRODUCTION_NOT_RUN",
+    "checksum": "LEGACY_THREE_OF_THREE_NOT_V6"
+  },
+  "gate3_consumer_proof": {
+    "factory_entrypoint": "Gate3FinancialDomainContextFactory.create",
+    "query_methods": [
+      "describe_domain",
+      "query_typed_records",
+      "query_unclassified_records",
+      "get_coverage",
+      "get_provenance"
+    ],
+    "direct_artifact_store_access": 0,
+    "direct_source_document_access": 0,
+    "source_llm_calls_total": 0,
+    "domain_llm_calls_total": 0,
+    "catalog_exact": true,
+    "query_parity": "exact_on_deterministic_domain_fixture",
+    "provenance_complete": true,
+    "focused_tests_passed": 24,
+    "architecture_tests_passed": 11
+  },
+  "frozen_accepted_baseline": {
+    "status": "PRESERVED_AS_PRIOR_SHADOW_EVIDENCE_NOT_REQUALIFIED_AS_V6",
+    "selected_refs_total": 455,
+    "accounted_refs_total": 455,
+    "uncovered_refs_total": 0,
+    "duplicate_interpretations_total": 0,
+    "ownership_conflicts_total": 0,
+    "unclassified_value_retention_percent": 100
+  },
+  "v6_authority": {
+    "nano_model_status": "MODEL_NOT_SAFE_FOR_SHADOW",
+    "haiku_model_status": "MODEL_NOT_SAFE_FOR_SHADOW",
+    "accepted_v6_actual_corpus_receipts_total": 0,
+    "goal13_actual_corpus_calls_total": 0,
+    "goal13_stage_mutations_total": 0
+  },
+  "evidence_sha256": {
+    "gate3_consumer_source": "9d295759ea4de3062a72c2cc6c48c59eaeb2b9086e37dd5a9b2bc1f648e600c2",
+    "gate3_domain_query_tests": "4d704c28d5a187d260744485376c5f4ff0921d6d9987a1edc1c49bfac92468da",
+    "gate_architecture_tests": "d0bfdf46737de2f0a404a7562444cd8fc16c17a69be0f985373e6853d8c9ee02",
+    "prior_full_scope_shadow_receipt": "19d325bf1522bdc7b9b5a3b685eccfe323c4dd7ec1dade5dbfb1e2bc5159e6ed",
+    "prior_checksum_receipt": "d99f712301c9d0e9660e8bedf5d69d82127fa759d834b5bc5597e1169f56510b",
+    "v6_nano_qualification_receipt": "835bf49b5534c97c2884aec8e4c17fafcbc347fc7cf28409ce538ac5293177fc",
+    "v6_haiku_qualification_receipt": "b158cf0996d508ec41da2a45f56ee9487a41a7d17fe38af877886d84444fadf6",
+    "goal13_conditional_skip_report": "1fffb16b8991941d759bbd259c8749708b8742d73bcd3de7e6a56231b2c432c5"
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "provider_raw_output_in_git": 0,
+    "private_refs_in_git": 0
+  },
+  "failed_invariant": "No accepted V6 model exists, so no authorized V6 actual-corpus domain snapshot exists for full-scope and production query-parity proof.",
+  "narrowest_corrective_slice": "Authorize a new exact model or policy decision, qualify it as MODEL_SAFE_FOR_SHADOW, then execute Goal 13 once before repeating the full-scope portion of Goal 14.",
+  "integrity_sha256": "8ff96f207a04b2c7725e2764862086edf668ee2eb72c2a7ed2b70a5486ac73ab"
+}

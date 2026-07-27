@@ -63,6 +63,7 @@ GATE2_BUSINESS_RUNTIME_MODULES = {
     "gate2_table_packages",
     "gate3_context_manifest",
 }
+GATE3_FINANCIAL_DOMAIN_SUCCESSOR = "gate3_financial_domain_context"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
@@ -257,7 +258,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertNotIn("_replace_run_record", runtime_sources)
         self.assertIn("_persist_terminal_run_record", runtime_sources)
 
-    def test_gate3_business_runtime_has_not_bypassed_manifest_boundary(self):
+    def test_gate3_business_runtime_uses_declared_context_boundary(self):
         gate3_business_modules = {
             path.stem
             for path in PACKAGE.glob("gate3_*.py")
@@ -266,7 +267,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         violations = []
         for module_name in sorted(gate3_business_modules):
             imports = _local_imports(module_name)
-            if "gate3_context_manifest" not in imports:
+            if module_name == GATE3_FINANCIAL_DOMAIN_SUCCESSOR:
+                if "gate2_financial_domain_query" not in imports:
+                    violations.append(
+                        f"{module_name}:financial_domain_boundary_missing"
+                    )
+                if "gate3_context_manifest" in imports:
+                    violations.append(
+                        f"{module_name}:legacy_manifest_boundary_present"
+                    )
+            elif "gate3_context_manifest" not in imports:
                 violations.append(f"{module_name}:manifest_boundary_missing")
             if imports & GATE1_PRIVATE_IMPLEMENTATIONS:
                 violations.append(f"{module_name}:gate1_private_import")

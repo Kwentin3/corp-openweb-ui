@@ -32,6 +32,11 @@ from broker_reports_gate1.gate2_financial_domain_query import (  # noqa: E402
     Gate2FinancialDomainQuery,
     Gate2FinancialDomainQueryFactory,
 )
+from broker_reports_gate1.gate3_financial_domain_context import (  # noqa: E402
+    Gate3FinancialDomainContextConsumer,
+    Gate3FinancialDomainContextError,
+    Gate3FinancialDomainContextFactory,
+)
 from broker_reports_gate1.gate2_financial_domain_projection import (  # noqa: E402,E501
     snapshot_integrity_material as _snapshot_integrity_material,
 )
@@ -886,3 +891,85 @@ def test_domain_query_boundary_has_zero_artifact_store_access():
         )
     assert not hasattr(Gate2FinancialDomainQuery, "artifact_store")
     assert not hasattr(Gate2FinancialDomainQuery, "artifact_resolver")
+
+
+def test_gate3_consumer_uses_domain_api_with_exact_query_parity():
+    query, snapshot, _, _ = _domain()
+
+    context = (
+        Gate3FinancialDomainContextFactory(
+            query=query,
+            page_limit=1,
+        )
+        .create()
+        .build_context()
+    )
+
+    assert context["domain_snapshot"] == snapshot.identity_payload()
+    assert context["declared_scope"] == snapshot.declared_scope()
+    assert context["typed_records"]
+    assert context["unclassified_records"]
+    assert len(context["coverage_records"]) == 4
+    assert len(context["provenance_records"]) == 4
+    assert context["proof"] == {
+        "gate3_domain_only": "passed",
+        "catalog_exact": True,
+        "query_parity": "exact",
+        "provenance_complete": True,
+        "source_llm_calls_total": 0,
+        "domain_llm_calls_total": 0,
+    }
+    unsigned = dict(context)
+    claimed_hash = unsigned.pop("integrity_sha256")
+    assert claimed_hash == sha256_json(unsigned)
+    assert all(
+        len(receipt["page_integrity_sha256"]) > 1
+        for receipt in context["query_receipts"].values()
+        if receipt["matching_records_total"] > 1
+    )
+
+
+def test_gate3_consumer_is_factory_only_and_domain_api_only():
+    query, _, _, _ = _domain()
+
+    with pytest.raises(
+        Gate3FinancialDomainContextError,
+        match="gate3_financial_domain_consumer_factory_required",
+    ):
+        Gate3FinancialDomainContextConsumer(
+            query=query,
+            page_limit=1,
+        )
+
+    path = ROOT / "broker_reports_gate1" / "gate3_financial_domain_context.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    imported = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    imported.update(
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    )
+    assert not any(
+        module.rsplit(".", 1)[-1]
+        in {
+            "artifact_models",
+            "artifact_resolver",
+            "artifact_store",
+            "gate1_public_contracts",
+            "gate2_domain_runtime",
+        }
+        for module in imported
+    )
+    assert not hasattr(
+        Gate3FinancialDomainContextConsumer,
+        "artifact_store",
+    )
+    assert not hasattr(
+        Gate3FinancialDomainContextConsumer,
+        "artifact_resolver",
+    )
