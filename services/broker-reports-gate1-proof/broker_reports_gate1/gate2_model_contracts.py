@@ -113,6 +113,9 @@ class Gate2StructuredModelClient(Protocol):
     def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
         ...
 
+    def qualification_lifecycle_snapshot(self) -> dict[str, int]:
+        ...
+
     async def extract(
         self,
         *,

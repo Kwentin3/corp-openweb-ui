@@ -28,6 +28,15 @@ from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (
     Gate2FinancialSemanticV6QualificationPreflightFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification_run import (
+    LOCAL_PREFLIGHT_FAILED,
+    MODEL_OUTPUT_SCHEMA_FAILED,
+    MODEL_SEMANTIC_GATE_FAILED,
+    MODEL_SAFE_FOR_SHADOW,
+    PROVIDER_RESPONSE_INVALID,
+    PROVIDER_TRANSPORT_FAILED,
+    PROVIDER_USAGE_METADATA_INCOMPLETE,
+    REQUEST_BUILD_FAILED,
+    V6_QUALIFICATION_TERMINAL_CLASSES,
     qualify_financial_semantic_v6,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (
@@ -108,6 +117,10 @@ class _ExactFakeClient:
         *,
         wrong_type: bool = False,
         provider_failure: bool = False,
+        pretransport_failure: bool = False,
+        usage_metadata_incomplete: bool = False,
+        invalid_output: bool = False,
+        invalid_response: bool = False,
         provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
     ) -> None:
         self.outputs = {
@@ -136,8 +149,21 @@ class _ExactFakeClient:
                 "typed_option_id": wrong.typed_option_id,
             }
         self.calls = 0
+        self.local_invocations = 0
+        self.provider_responses = 0
         self.provider_failure = provider_failure
+        self.pretransport_failure = pretransport_failure
+        self.usage_metadata_incomplete = usage_metadata_incomplete
+        self.invalid_output = invalid_output
+        self.invalid_response = invalid_response
         self.provider_profile_id = provider_profile_id
+
+    def qualification_lifecycle_snapshot(self) -> dict[str, int]:
+        return {
+            "local_invocations_total": self.local_invocations,
+            "provider_submissions_total": self.calls,
+            "provider_responses_total": self.provider_responses,
+        }
 
     async def extract(
         self,
@@ -147,6 +173,12 @@ class _ExactFakeClient:
         model_id,
         response_format,
     ):
+        self.local_invocations += 1
+        if self.pretransport_failure and self.local_invocations == 1:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_financial_semantic_v6_prompt_contract_mismatch",
+                "test request build failure",
+            )
         assert prompt.content == V6_SEMANTIC_SYSTEM_PROMPT
         assert prompt.version == V6_SEMANTIC_PROMPT_VERSION
         assert prompt.hash == sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
@@ -185,21 +217,31 @@ class _ExactFakeClient:
             raise Gate2SourceFactRuntimeError(
                 "financial_semantic_v6_test_provider_failure",
                 "test provider failure",
-                raw_output='{"incomplete":true}',
+                raw_output={"transport_error_type": "SyntheticFailure"},
                 execution_metadata=metadata,
-                failure_class="provider_test_failure",
+                failure_class="provider_transport",
             )
+        self.provider_responses += 1
+        content = self.outputs[sha256_json(package)]
+        if self.invalid_response and self.calls == 1:
+            content = None
+        if self.invalid_output and self.calls == 1:
+            content = {"disposition": "typed_input", "typed_option_id": "unknown"}
         return Gate2StructuredModelResult(
-            content=self.outputs[sha256_json(package)],
+            content=content,
             fallback_used=False,
             repair_attempt_count=0,
             execution_metadata=metadata,
-            economy_budget_receipt={
-                "status": "passed",
-                "input_tokens": 100,
-                "output_tokens": 20,
-                "actual_cost_usd": "0.000045",
-            },
+            economy_budget_receipt=(
+                None
+                if self.usage_metadata_incomplete and self.calls == 1
+                else {
+                    "status": "passed",
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "actual_cost_usd": "0.000045",
+                }
+            ),
         )
 
 
@@ -207,6 +249,10 @@ def _run(
     *,
     wrong_type: bool = False,
     provider_failure: bool = False,
+    pretransport_failure: bool = False,
+    usage_metadata_incomplete: bool = False,
+    invalid_output: bool = False,
+    invalid_response: bool = False,
     exact_model_id: str = V6_EXACT_MODEL_ID,
     provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
 ):
@@ -215,6 +261,10 @@ def _run(
         fixture,
         wrong_type=wrong_type,
         provider_failure=provider_failure,
+        pretransport_failure=pretransport_failure,
+        usage_metadata_incomplete=usage_metadata_incomplete,
+        invalid_output=invalid_output,
+        invalid_response=invalid_response,
         provider_profile_id=provider_profile_id,
     )
     private: dict[str, dict] = {}
@@ -245,12 +295,19 @@ def test_one_attempt_runs_ten_semantic_calls_and_passes_exact_gate() -> None:
     assert len(private) == SEMANTIC_CASES_TOTAL
     assert result["execution_state"] == "terminal"
     assert result["status"] == "passed"
-    assert result["product_gate"] == "MODEL_SAFE_FOR_SHADOW"
+    assert result["terminal_class"] == MODEL_SAFE_FOR_SHADOW
+    assert result["product_gate"] == MODEL_SAFE_FOR_SHADOW
     assert all(value == 0 for value in result["hard_gates"].values())
     assert result["quality"]["typed_precision_basis_points"] == 10_000
     assert result["quality"]["typed_recall_basis_points"] == 10_000
     assert result["attempt_accounting"] == {
         "provider_attempts_total": 1,
+        "model_attempts_consumed_total": 1,
+        "local_invocations_total": 10,
+        "provider_submissions_total": 10,
+        "provider_responses_total": 10,
+        "semantic_decisions_total": 10,
+        "product_admitted_decisions_total": 10,
         "provider_calls_total": 10,
         "semantic_cases_total": 10,
         "technical_cases_total": 2,
@@ -265,6 +322,7 @@ def test_one_attempt_runs_ten_semantic_calls_and_passes_exact_gate() -> None:
         "exact_evidence": "PRESERVED",
         "product_gate": "MODEL_SAFE_FOR_SHADOW",
     }
+    assert result["model_metrics_status"] == "PUBLISHED"
     assert result["cases_total"] == len(fixture.cases) == 12
     assert result["exact_evidence_preserved"] is True
     assert result["raw_private_data_in_receipt"] is False
@@ -278,6 +336,7 @@ def test_valid_but_wrong_type_is_terminal_without_retry_and_fails_gate() -> None
     assert len(private) == SEMANTIC_CASES_TOTAL
     assert result["execution_state"] == "terminal"
     assert result["status"] == "failed"
+    assert result["terminal_class"] == MODEL_SEMANTIC_GATE_FAILED
     assert result["product_gate"] == "MODEL_NOT_SAFE_FOR_SHADOW"
     assert result["hard_gates"]["wrong_type_total"] == 1
     assert result["hard_gates"]["invalid_options_total"] == 0
@@ -305,14 +364,119 @@ def test_provider_failure_preserves_available_evidence_and_does_not_retry() -> N
     assert client.calls == SEMANTIC_CASES_TOTAL
     assert len(private) == SEMANTIC_CASES_TOTAL
     failed = private["syn_successor_v2_unique_cash"]
-    assert failed["exact_model_output"] == '{"incomplete":true}'
-    assert failed["provider_execution_metadata"]["provider_response_id"]
-    assert failed["failure_class"] == "provider_test_failure"
+    assert failed["exact_model_output"] == {
+        "transport_error_type": "SyntheticFailure"
+    }
+    assert failed["failure_class"] == "provider_transport"
+    assert failed["terminal_class"] == PROVIDER_TRANSPORT_FAILED
     assert result["execution_state"] == "terminal"
-    assert result["product_gate"] == "MODEL_NOT_SAFE_FOR_SHADOW"
+    assert result["terminal_class"] == PROVIDER_TRANSPORT_FAILED
+    assert result["product_gate"] is None
+    assert result["quality"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
     assert result["hard_gates"]["canonical_failures_total"] == 1
+    assert result["attempt_accounting"]["provider_submissions_total"] == 10
+    assert result["attempt_accounting"]["provider_responses_total"] == 9
+    assert result["attempt_accounting"]["semantic_decisions_total"] == 9
     assert result["attempt_accounting"]["hidden_retry_total"] == 0
     assert result["exact_evidence_preserved"] is True
+
+
+def test_pretransport_case_has_zero_submission_and_no_model_metrics() -> None:
+    _, client, _, _, result = _run(pretransport_failure=True)
+
+    assert client.local_invocations == SEMANTIC_CASES_TOTAL
+    assert client.calls == SEMANTIC_CASES_TOTAL - 1
+    assert result["terminal_class"] == REQUEST_BUILD_FAILED
+    assert result["product_gate"] is None
+    assert result["quality"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
+    accounting = result["attempt_accounting"]
+    assert accounting["local_invocations_total"] == SEMANTIC_CASES_TOTAL
+    assert accounting["provider_submissions_total"] == (
+        SEMANTIC_CASES_TOTAL - 1
+    )
+    assert accounting["provider_attempts_total"] == 1
+    failed = next(
+        item for item in result["case_receipts"] if item["status"] == "failed"
+    )
+    assert failed["provider_calls_total"] == 0
+    assert failed["terminal_class"] == REQUEST_BUILD_FAILED
+
+
+def test_all_pretransport_failures_consume_zero_model_attempts() -> None:
+    fixture = _fixture()
+    client = _ExactFakeClient(fixture, pretransport_failure=True)
+    client.pretransport_failure = True
+
+    async def always_pretransport(**_kwargs):
+        client.local_invocations += 1
+        raise Gate2SourceFactRuntimeError(
+            "gate2_financial_semantic_v6_prompt_contract_mismatch",
+            "test request build failure",
+        )
+
+    client.extract = always_pretransport
+    result = asyncio.run(
+        qualify_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=_preflight(fixture)["exact_identity"],
+            private_case_checkpoint=lambda _case_id, _payload: None,
+        )
+    )
+
+    accounting = result["attempt_accounting"]
+    assert result["terminal_class"] == REQUEST_BUILD_FAILED
+    assert accounting["local_invocations_total"] == SEMANTIC_CASES_TOTAL
+    assert accounting["provider_submissions_total"] == 0
+    assert accounting["provider_attempts_total"] == 0
+    assert accounting["model_attempts_consumed_total"] == 0
+    assert result["acceptance"]["provider_attempts"] == "ZERO"
+
+
+def test_provider_usage_metadata_defect_has_separate_terminal() -> None:
+    _, _, _, _, result = _run(usage_metadata_incomplete=True)
+
+    assert result["terminal_class"] == PROVIDER_USAGE_METADATA_INCOMPLETE
+    assert result["product_gate"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
+    assert result["attempt_accounting"]["provider_submissions_total"] == 10
+    assert result["attempt_accounting"]["provider_responses_total"] == 10
+    assert result["attempt_accounting"]["semantic_decisions_total"] == 9
+
+
+def test_invalid_model_choice_has_schema_terminal_without_metrics() -> None:
+    _, _, _, _, result = _run(invalid_output=True)
+
+    assert result["terminal_class"] == MODEL_OUTPUT_SCHEMA_FAILED
+    assert result["product_gate"] is None
+    assert result["quality"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
+    assert result["attempt_accounting"]["semantic_decisions_total"] == 9
+
+
+def test_invalid_provider_response_has_non_model_terminal() -> None:
+    _, _, _, _, result = _run(invalid_response=True)
+
+    assert result["terminal_class"] == PROVIDER_RESPONSE_INVALID
+    assert result["product_gate"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
+
+
+def test_terminal_taxonomy_is_exact_and_explicit() -> None:
+    assert V6_QUALIFICATION_TERMINAL_CLASSES == (
+        "LOCAL_PREFLIGHT_FAILED",
+        "REQUEST_BUILD_FAILED",
+        "PROVIDER_TRANSPORT_FAILED",
+        "PROVIDER_RESPONSE_INVALID",
+        "PROVIDER_USAGE_METADATA_INCOMPLETE",
+        "MODEL_OUTPUT_SCHEMA_FAILED",
+        "MODEL_SEMANTIC_GATE_FAILED",
+        "PRODUCT_VALIDATION_FAILED",
+        "PRODUCT_MATERIALIZATION_FAILED",
+        "MODEL_SAFE_FOR_SHADOW",
+    )
 
 
 def test_goal12_preflight_changes_only_one_exact_candidate() -> None:
@@ -416,7 +580,7 @@ def test_goal12_candidate_uses_same_terminal_runner_without_prompt_drift() -> No
     assert replay.provider_calls_total == 0
 
 
-def test_terminal_runner_rejects_unowned_candidate_pair_before_call() -> None:
+def test_terminal_runner_classifies_unowned_pair_as_local_preflight() -> None:
     fixture = _fixture()
     identity = _preflight(fixture)["exact_identity"]
     identity["model_provider"]["exact_model_id"] = "gpt-unowned-candidate"
@@ -429,17 +593,20 @@ def test_terminal_runner_rejects_unowned_candidate_pair_before_call() -> None:
     )
     client = _ExactFakeClient(fixture)
 
-    try:
-        asyncio.run(
-            qualify_financial_semantic_v6(
-                fixture=fixture,
-                model_client=client,
-                exact_identity=identity,
-                private_case_checkpoint=lambda _case_id, _payload: None,
-            )
+    result = asyncio.run(
+        qualify_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=identity,
+            private_case_checkpoint=lambda _case_id, _payload: None,
         )
-    except ValueError as exc:
-        assert str(exc) == "financial_semantic_v6_qualification_identity_invalid"
-    else:  # pragma: no cover
-        raise AssertionError("unowned candidate pair must fail closed")
+    )
+
     assert client.calls == 0
+    assert result["terminal_class"] == LOCAL_PREFLIGHT_FAILED
+    assert result["failure_code"] == (
+        "financial_semantic_v6_qualification_identity_invalid"
+    )
+    assert result["product_gate"] is None
+    assert result["model_metrics_status"] == "NOT_PUBLISHED"
+    assert result["attempt_accounting"]["provider_attempts_total"] == 0
