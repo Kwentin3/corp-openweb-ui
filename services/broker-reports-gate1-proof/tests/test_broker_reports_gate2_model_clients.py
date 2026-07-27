@@ -542,6 +542,131 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             },
         )
 
+    def test_openai_and_anthropic_adapters_derive_missing_usage_total(self):
+        openai_boundary = CompletionBoundary(
+            {
+                "id": "captured-openai-usage",
+                "model": DEFAULT_MODEL_ID,
+                "usage": {
+                    "prompt_tokens": 23,
+                    "completion_tokens": 4,
+                },
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"accepted": True}},
+                    }
+                ],
+            }
+        )
+        openai_result = self._extract(
+            self._factory(
+                request_profile=SOURCE_REQUEST_PROFILE,
+                boundary=openai_boundary,
+            ).create(),
+            prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+            package=self._package(SOURCE_REQUEST_PROFILE),
+        )
+
+        self.assertEqual(openai_result.execution_metadata.input_tokens, 23)
+        self.assertEqual(openai_result.execution_metadata.output_tokens, 4)
+        self.assertEqual(openai_result.execution_metadata.total_tokens, 27)
+        self.assertEqual(
+            openai_result.execution_metadata.provider_response_id,
+            "captured-openai-usage",
+        )
+        self.assertGreaterEqual(openai_result.execution_metadata.duration_ms, 0)
+
+        anthropic_boundary = NativeTransportBoundary(
+            {
+                "id": "captured-anthropic-usage",
+                "model": "claude-haiku-4-5-20251001",
+                "content": [{"type": "text", "text": '{"accepted":true}'}],
+                "stop_reason": "end_turn",
+                "usage": {
+                    "input_tokens": 29,
+                    "output_tokens": 6,
+                },
+            }
+        )
+        anthropic_result = self._extract(
+            self._factory(
+                request_profile=DOMAIN_REQUEST_PROFILE,
+                provider_profile_id="anthropic_claude",
+                capability_probe=True,
+                native_transport_resolver=anthropic_boundary.resolve,
+            ).create(),
+            prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+            package=self._package(DOMAIN_REQUEST_PROFILE),
+            model_id="claude-haiku-4-5-20251001",
+        )
+
+        self.assertEqual(anthropic_result.execution_metadata.input_tokens, 29)
+        self.assertEqual(anthropic_result.execution_metadata.output_tokens, 6)
+        self.assertEqual(anthropic_result.execution_metadata.total_tokens, 35)
+        self.assertEqual(
+            anthropic_result.execution_metadata.provider_response_id,
+            "captured-anthropic-usage",
+        )
+        self.assertGreaterEqual(anthropic_result.execution_metadata.duration_ms, 0)
+
+    def test_usage_total_remains_optional_when_components_are_incomplete(self):
+        boundary = CompletionBoundary(
+            {
+                "id": "captured-openai-partial-usage",
+                "model": DEFAULT_MODEL_ID,
+                "usage": {"prompt_tokens": 11},
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"accepted": True}},
+                    }
+                ],
+            }
+        )
+        result = self._extract(
+            self._factory(
+                request_profile=SOURCE_REQUEST_PROFILE,
+                boundary=boundary,
+            ).create(),
+            prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+            package=self._package(SOURCE_REQUEST_PROFILE),
+        )
+
+        self.assertEqual(result.execution_metadata.input_tokens, 11)
+        self.assertIsNone(result.execution_metadata.output_tokens)
+        self.assertIsNone(result.execution_metadata.total_tokens)
+
+        malformed_boundary = CompletionBoundary(
+            {
+                "id": "captured-openai-malformed-total",
+                "model": DEFAULT_MODEL_ID,
+                "usage": {
+                    "prompt_tokens": 7,
+                    "completion_tokens": 3,
+                    "total_tokens": "not-a-count",
+                },
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": {"accepted": True}},
+                    }
+                ],
+            }
+        )
+        malformed = self._extract(
+            self._factory(
+                request_profile=SOURCE_REQUEST_PROFILE,
+                boundary=malformed_boundary,
+            ).create(),
+            prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+            package=self._package(SOURCE_REQUEST_PROFILE),
+        )
+
+        self.assertEqual(malformed.execution_metadata.input_tokens, 7)
+        self.assertEqual(malformed.execution_metadata.output_tokens, 3)
+        self.assertIsNone(malformed.execution_metadata.total_tokens)
+
     def test_domain_v0_preserves_legacy_and_candidate_binding_semantics(self):
         for candidate_binding, expected_task in (
             (False, "extract_broker_reports_domain_source_facts_v0"),
