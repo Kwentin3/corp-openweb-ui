@@ -1,6 +1,6 @@
 # Broker Reports Architecture Authorities
 
-Status: `GOAL_5_COMPATIBILITY_REFINED`
+Status: `GOAL_8_RESPONSE_FORMAT_DECISION`
 
 This is the compact orientation index for maintained Broker Reports
 implementation authorities. It supplements, and does not replace, the
@@ -45,6 +45,7 @@ that does not permit a second owner for any operation.
 | --- | --- | --- | --- | --- | --- |
 | Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
 | Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
+| Provider response-format projection | [`Gate2ProviderAdapterFactory.create` and adapter `prepare_form_data`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | canonical choice schema projected to the provider-supported subset | structured model client | provider profile selects one adapter | provider-schema rewrites in request, qualification or evidence code |
 | Provider response parsing | [`Gate2ProviderAdapterFactory.create` and adapter `extract_content` / `provider_error_code`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | [`Gate2StructuredModelResult`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_contracts.py) | structured model client | provider profiles select an adapter | provider payload parsing in qualification or product code |
 | Provider usage normalization | [adapter `execution_metadata`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | [`Gate2ProviderExecutionMetadata`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_contracts.py) | model client, budget, evidence | adapter normalizes provider variants | provider token-field reads outside adapters |
 | Budget admission/accounting | [`Gate2EconomyBudgetSessionFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_budget.py) | economy budget v1 code contract | structured model client | none | token or cost policy in callers/adapters |
@@ -106,11 +107,33 @@ that does not permit a second owner for any operation.
 5. Financial Domain persistence owns an envelope, not a storage backend. A
    future storage adapter must delegate serialization and may not mint snapshot
    authority.
-6. The current qualification blocker
-   `gate2_model_schema_response_format_rejected` is classified by the provider
-   adapter. The safe evidence is insufficient at Goal 0 to decide whether the
-   exact defect is canonical schema, provider projection or provider
-   capability.
+6. The current qualification blocker is localized to the OpenAI
+   response-format projection. The existing adapter needs the corrective slice
+   below before any newly authorized provider smoke.
+
+## Current qualification seam decision
+
+- `Gate2FinancialSemanticV6ChoiceContractFactory.create` owns the canonical
+  minimal choice schema. Its top-level `anyOf` remains product-neutral contract
+  meaning and is not a provider projection.
+- `Gate2OpenAIResponseFormatAdapter.prepare_form_data` owns the OpenAI schema
+  projection; `provider_error_code` owns parsing the provider rejection. The
+  current OpenAI adapter applies zero transforms.
+- The [safe two-case smoke](../../reports/2026-07-27/BROKER_REPORTS_V6_QUALIFICATION_GOAL5_TWO_CASE_SMOKE.report.md)
+  records two provider responses rejected before any semantic decision.
+  OpenAI's [Structured Outputs schema rules](https://developers.openai.com/api/docs/guides/structured-outputs#root-objects-must-not-be-anyof-and-must-be-an-object)
+  require a root object rather than root `anyOf`. Both V6 smoke shapes have
+  root `anyOf`, no root `type`, equal canonical/adapted hashes and transform
+  count zero. Therefore the actionable root-cause layer is the existing
+  provider projection, not Prompt, Pack, Choice meaning or qualification.
+- The one corrective slice is a lossless root-object projection, plus inverse
+  content normalization if needed, inside
+  `Gate2OpenAIResponseFormatAdapter`. Adapter tests must prove canonical choice
+  parity and honest adapted hash/transform metadata before transport.
+- No product contract change or new qualification framework is required. The
+  existing two-case smoke path can be used only after the local adapter seam
+  passes and a new explicit authorization is granted; consumed submissions
+  must not be retried or reused.
 
 ## Goal 0 acceptance
 
@@ -139,6 +162,20 @@ STAGE_MUTATIONS: ZERO
 ACTIVE_DUPLICATE_AUTHORITIES: ZERO
 COMPATIBILITY_REIMPLEMENTATION: ZERO
 PRODUCT_BEHAVIOR_CHANGE: ZERO
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
+
+## Goal 8 acceptance
+
+```text
+RESPONSE_FORMAT_OWNER: IDENTIFIED
+ROOT_CAUSE_LAYER: IDENTIFIED
+ROOT_CAUSE: PROVIDER_PROJECTION
+NEXT_CORRECTIVE_SLICE: ONE_EXISTING_AUTHORITY
+CORRECTIVE_AUTHORITY: GATE2_OPENAI_RESPONSE_FORMAT_ADAPTER
+PRODUCT_CONTRACT_CHANGE: ZERO
+NEW_QUALIFICATION_FRAMEWORK: ZERO
 PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 ```
