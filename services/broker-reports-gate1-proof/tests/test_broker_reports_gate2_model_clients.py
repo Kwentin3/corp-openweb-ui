@@ -553,7 +553,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                     "package_ref": package["package_artifact_ref"],
                     "provider_profile_id": "openai_gpt",
                     "provider_adapter_id": "openai_response_format",
-                    "provider_adapter_version": "1.0.0",
+                    "provider_adapter_version": "1.1.0",
                 }
             },
         )
@@ -729,7 +729,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         "vectorization_performed": False,
                         "provider_profile_id": "openai_gpt",
                         "provider_adapter_id": "openai_response_format",
-                        "provider_adapter_version": "1.0.0",
+                        "provider_adapter_version": "1.1.0",
                     },
                 )
 

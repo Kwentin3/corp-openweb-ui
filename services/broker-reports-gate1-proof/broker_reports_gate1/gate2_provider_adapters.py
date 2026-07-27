@@ -426,7 +426,19 @@ class _Gate2OpenWebUIProviderAdapter:
 # MUST NOT:
 # Consumers must not parse or normalize OpenAI provider payloads.
 class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
-    pass
+    def _adapt_schema(self, schema: dict[str, Any]) -> int:
+        return _project_openai_root_object_schema(schema)
+
+    def extract_content(self, payload: dict[str, Any]) -> Any:
+        content = super().extract_content(payload)
+        if isinstance(content, str):
+            try:
+                decoded = json.loads(content)
+            except ValueError:
+                return content
+            normalized = _unwrap_openai_root_object_content(decoded)
+            return content if normalized is decoded else normalized
+        return _unwrap_openai_root_object_content(content)
 
 
 class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
@@ -709,6 +721,7 @@ _PROVIDER_ADAPTER_TYPES = {
 }
 
 
+_OPENAI_ROOT_OBJECT_ENVELOPE_KEY = "broker_reports_gate2_choice"
 _SCHEMA_MAP_KEYWORDS = (
     "$defs",
     "definitions",
@@ -796,6 +809,47 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "withholding_type_candidate",
     "validator_status",
 }
+
+
+def _project_openai_root_object_schema(schema: dict[str, Any]) -> int:
+    if schema.get("type") == "object":
+        return 0
+    variants = schema.get("anyOf")
+    if not isinstance(variants, list) or not variants:
+        return 0
+    canonical = copy.deepcopy(schema)
+    nested = {
+        key: value
+        for key, value in canonical.items()
+        if key not in {"$schema", "title"}
+    }
+    projected = {
+        key: canonical[key]
+        for key in ("$schema", "title")
+        if key in canonical
+    }
+    projected.update(
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                _OPENAI_ROOT_OBJECT_ENVELOPE_KEY: nested,
+            },
+            "required": [_OPENAI_ROOT_OBJECT_ENVELOPE_KEY],
+        }
+    )
+    schema.clear()
+    schema.update(projected)
+    return 1
+
+
+def _unwrap_openai_root_object_content(value: Any) -> Any:
+    if (
+        isinstance(value, dict)
+        and set(value) == {_OPENAI_ROOT_OBJECT_ENVELOPE_KEY}
+    ):
+        return value[_OPENAI_ROOT_OBJECT_ENVELOPE_KEY]
+    return value
 
 
 def _project_gemini_structural_schema(

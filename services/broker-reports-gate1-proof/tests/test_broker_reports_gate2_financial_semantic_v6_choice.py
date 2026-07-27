@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,8 +39,17 @@ from broker_reports_gate1.gate2_financial_semantic_v6_choice import (  # noqa: E
     Gate2FinancialSemanticV6ChoiceError,
     validate_financial_semantic_v6_choice_contract,
 )
+from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import (  # noqa: E402,E501
+    financial_semantic_v6_response_format,
+)
 from broker_reports_gate1.gate2_financial_semantic_v6_packet import (  # noqa: E402,E501
     Gate2FinancialSemanticV6PacketFactory,
+)
+from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
+    gate2_provider_profile,
+)
+from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
+    Gate2ProviderAdapterFactory,
 )
 from broker_reports_gate1.gate2_successor_local_proof import (  # noqa: E402
     _fixture_package,
@@ -179,6 +189,69 @@ def test_adjacent_equal_has_unclassified_only_available_variant():
         "unclassified_financial_input"
     ]
     assert contract.typed_option_ids == ()
+
+
+@pytest.mark.parametrize(
+    ("case_id", "disposition", "as_text"),
+    [
+        ("syn_successor_signed_literal", "typed_input", True),
+        ("syn_successor_adjacent_equal", "unclassified_financial_input", False),
+    ],
+)
+def test_openai_root_object_projection_preserves_exact_v6_choice_meaning(
+    case_id: str,
+    disposition: str,
+    as_text: bool,
+):
+    contract, _, _, _, _, _ = _contract(case_id)
+    response_format = financial_semantic_v6_response_format(contract)
+    canonical = copy.deepcopy(response_format)
+    adapter = Gate2ProviderAdapterFactory(
+        profile=gate2_provider_profile("openai_gpt")
+    ).create()
+
+    prepared = adapter.prepare_form_data(
+        form_data={"model": "local-seam", "messages": []},
+        response_format=response_format,
+    )
+
+    projected = prepared.form_data["response_format"]["json_schema"]["schema"]
+    envelope_key = next(iter(projected["properties"]))
+    projected_choice = projected["properties"][envelope_key]
+    assert response_format == canonical
+    assert projected["$schema"] == canonical["json_schema"]["schema"]["$schema"]
+    assert projected["title"] == canonical["json_schema"]["schema"]["title"]
+    assert projected["type"] == "object"
+    assert projected["additionalProperties"] is False
+    assert projected["required"] == [envelope_key]
+    assert projected_choice == {
+        "anyOf": canonical["json_schema"]["schema"]["anyOf"]
+    }
+    assert prepared.schema_transform_count == 1
+    assert prepared.canonical_schema_hash == contract.choice_schema_hash
+    assert prepared.adapted_schema_hash != prepared.canonical_schema_hash
+
+    if disposition == "typed_input":
+        choice = {
+            "disposition": disposition,
+            "typed_option_id": contract.typed_option_ids[0],
+        }
+    else:
+        choice = {
+            "disposition": disposition,
+            "reason_code": contract.unclassified_reason_codes[0],
+        }
+    provider_content = {envelope_key: choice}
+    Draft202012Validator(contract.choice_schema).validate(choice)
+    Draft202012Validator(projected).validate(provider_content)
+    if as_text:
+        provider_content = json.dumps(provider_content)
+    normalized = adapter.extract_content(
+        {"choices": [{"message": {"content": provider_content}}]}
+    )
+
+    assert normalized == choice
+    assert set(normalized) == set(choice)
 
 
 def test_canonical_four_dispositions_remain_unchanged_and_technical_are_hidden():

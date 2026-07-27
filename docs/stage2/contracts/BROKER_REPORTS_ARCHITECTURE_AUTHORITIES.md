@@ -103,18 +103,20 @@ that does not permit a second owner for any operation.
 3. Financial Domain persistence owns an envelope, not a storage backend. A
    future storage adapter must delegate serialization and may not mint snapshot
    authority.
-4. The current qualification blocker is localized to the OpenAI
-   response-format projection. The existing adapter needs the corrective slice
-   below before any newly authorized provider smoke.
+4. The OpenAI root-object projection is implemented locally in the existing
+   adapter. Provider smoke remains intentionally not run until the V6
+   completion program reaches its separately authorized smoke goal.
 
-## Current qualification seam decision
+## OpenAI projection decision and local completion
 
 - `Gate2FinancialSemanticV6ChoiceContractFactory.create` owns the canonical
   minimal choice schema. Its top-level `anyOf` remains product-neutral contract
   meaning and is not a provider projection.
 - `Gate2OpenAIResponseFormatAdapter.prepare_form_data` owns the OpenAI schema
-  projection; `provider_error_code` owns parsing the provider rejection. The
-  current OpenAI adapter applies zero transforms.
+  projection; `extract_content` owns inverse normalization and
+  `provider_error_code` owns parsing provider rejection. Adapter version
+  `1.1.0` wraps canonical root `anyOf` under one required provider-only root
+  object property and removes that envelope before canonical parsing.
 - The [safe two-case smoke](../../reports/2026-07-27/BROKER_REPORTS_V6_QUALIFICATION_GOAL5_TWO_CASE_SMOKE.report.md)
   records two provider responses rejected before any semantic decision.
   OpenAI's [Structured Outputs schema rules](https://developers.openai.com/api/docs/guides/structured-outputs#root-objects-must-not-be-anyof-and-must-be-an-object)
@@ -122,14 +124,34 @@ that does not permit a second owner for any operation.
   root `anyOf`, no root `type`, equal canonical/adapted hashes and transform
   count zero. Therefore the actionable root-cause layer is the existing
   provider projection, not Prompt, Pack, Choice meaning or qualification.
-- The one corrective slice is a lossless root-object projection, plus inverse
-  content normalization if needed, inside
-  `Gate2OpenAIResponseFormatAdapter`. Adapter tests must prove canonical choice
-  parity and honest adapted hash/transform metadata before transport.
+- OpenAI permits
+  [nested `anyOf` schemas](https://developers.openai.com/api/docs/guides/structured-outputs#for-anyof-the-nested-schemas-must-each-be-a-valid-json-schema-per-this-subset)
+  when every variant follows the supported subset. The provider-only envelope
+  therefore preserves both closed V6 variants instead of flattening or
+  weakening their semantic constraints.
+- The corrective slice is now implemented inside
+  `Gate2OpenAIResponseFormatAdapter`. Tests prove exact typed and unclassified
+  choice parity, unchanged canonical input, a distinct adapted schema hash and
+  exactly one recorded schema transform before transport.
 - No product contract change or new qualification framework is required. The
   existing two-case smoke path can be used only after the local adapter seam
   passes and a new explicit authorization is granted; consumed submissions
   must not be retried or reused.
+
+## V6 completion Goal 0 acceptance
+
+```text
+OPENAI_ROOT_OBJECT_PROJECTION: PASSED
+TYPED_SEMANTIC_PARITY: EXACT
+UNCLASSIFIED_SEMANTIC_PARITY: EXACT
+CANONICAL_CHOICE_CHANGED: NO
+SECOND_AUTHORITY_CREATED: NO
+ADAPTER_VERSION: 1.1.0
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+DOCUMENTATION_IMPACT: AUTHORITY_MAP_UPDATED
+DOCUMENTATION: CURRENT
+```
 
 ## Zero-context orientation proof
 
