@@ -1,6 +1,6 @@
 # Broker Reports Architecture Authorities
 
-Status: `GOAL_8_RESPONSE_FORMAT_DECISION`
+Status: `ARCHITECTURE_MEMORY_REFINED_WITH_EXPLICIT_DEBT`
 
 This is the compact orientation index for maintained Broker Reports
 implementation authorities. It supplements, and does not replace, the
@@ -98,16 +98,12 @@ that does not permit a second owner for any operation.
 
 1. The global gate architecture remains normative but does not index the newer
    V6 compiler, choice, expansion, Managed Financial Domain and query owners.
-2. No service-level `AGENTS.md` currently gives a zero-context agent the
-   existing-owner-first sequence.
-3. Critical modules use `FACTORY_REQUIRED` / `FORBIDDEN` anchors, but the
-   requested `OWNER / REUSE / MUST NOT` comments are not yet uniform.
-4. Generated bundles are deterministically rebuilt and tested, but their file
+2. Generated bundles are deterministically rebuilt and tested, but their file
    headers do not make generated-only status obvious.
-5. Financial Domain persistence owns an envelope, not a storage backend. A
+3. Financial Domain persistence owns an envelope, not a storage backend. A
    future storage adapter must delegate serialization and may not mint snapshot
    authority.
-6. The current qualification blocker is localized to the OpenAI
+4. The current qualification blocker is localized to the OpenAI
    response-format projection. The existing adapter needs the corrective slice
    below before any newly authorized provider smoke.
 
@@ -134,6 +130,26 @@ that does not permit a second owner for any operation.
   existing two-case smoke path can be used only after the local adapter seam
   passes and a new explicit authorization is granted; consumed submissions
   must not be retried or reused.
+
+## Zero-context orientation proof
+
+A fresh read-only agent with no conversation history, Codex memory, report
+archaeology or internet access followed service `AGENTS.md` to this map,
+versioned contracts and maintained code. It correctly identified:
+
+- the current Gate 1 → technical preparation → Typed Options → minimal semantic
+  choice → deterministic expansion → validation/materialization → Financial
+  Domain → Query API → Gate 3 consumer path;
+- the sole request, provider projection/parsing, budget, financial semantics,
+  source-binding, materialization and query authorities;
+- the provider-projection blocker and
+  `Gate2OpenAIResponseFormatAdapter` as the only next corrective component;
+- Prompt, Pack, canonical Choice, request builder, budget, qualification,
+  materialization, domain/query contracts and generated bundles as forbidden
+  direct corrective targets.
+
+No second authority or qualification framework was proposed. The only
+orientation drift found was the stale resolved-debt text removed above.
 
 ## Goal 0 acceptance
 
@@ -178,4 +194,17 @@ PRODUCT_CONTRACT_CHANGE: ZERO
 NEW_QUALIFICATION_FRAMEWORK: ZERO
 PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
+```
+
+## Goal 9 acceptance
+
+```text
+ZERO_CONTEXT_AGENT_ORIENTATION: PASSED
+AUTHORITIES_FOUND_WITHOUT_REPORT_ARCHAEOLOGY: YES
+WRONG_SECOND_PATH_PROPOSED: ZERO
+DOCUMENTATION_DRIFT_FOUND: ONE_STALE_RESOLVED_DEBT_BLOCK
+DOCUMENTATION_DRIFT_CORRECTED: YES
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+FINAL_STATUS: ARCHITECTURE_MEMORY_REFINED_WITH_EXPLICIT_DEBT
 ```
