@@ -52,7 +52,9 @@ from live_gate2_economy_contract_qualification import (  # noqa: E402
 )
 from live_gate2_financial_semantic_v6_one_attempt import (  # noqa: E402
     _fixture,
+    _is_within,
     _pretty_json,
+    _read_json,
     _repository_revision,
     _validate_new_attempt_paths,
     _worktree_clean,
@@ -92,6 +94,11 @@ def main() -> int:
         action="store_true",
         help="Authorize exactly one typed and one unclassified submission.",
     )
+    mode.add_argument(
+        "--resume-two-case-smoke",
+        action="store_true",
+        help="Submit only the case missing from a validated one-case checkpoint.",
+    )
     parser.add_argument(
         "--candidate",
         choices=("nano", "stronger-haiku"),
@@ -100,8 +107,11 @@ def main() -> int:
     parser.add_argument("--safe-receipt-path")
     parser.add_argument("--private-evidence-dir")
     parser.add_argument("--transparent-report-path")
+    parser.add_argument("--interrupted-receipt-path")
     args = parser.parse_args()
-    execute = bool(args.execute_two_case_smoke)
+    fresh_execute = bool(args.execute_two_case_smoke)
+    resume_execute = bool(args.resume_two_case_smoke)
+    execute = fresh_execute or resume_execute
     if execute and (
         not args.safe_receipt_path
         or not args.private_evidence_dir
@@ -111,6 +121,8 @@ def main() -> int:
             "execution requires --safe-receipt-path, "
             "--private-evidence-dir and --transparent-report-path"
         )
+    if resume_execute and not args.interrupted_receipt_path:
+        parser.error("resume requires --interrupted-receipt-path")
     exact_model_id, provider_profile_id = _candidate_identity(args.candidate)
     safe_path = (
         Path(args.safe_receipt_path).resolve()
@@ -127,14 +139,26 @@ def main() -> int:
         if args.transparent_report_path
         else None
     )
-    if execute:
+    interrupted_path = (
+        Path(args.interrupted_receipt_path).resolve()
+        if args.interrupted_receipt_path
+        else None
+    )
+    if fresh_execute:
         _validate_new_attempt_paths(
             safe_path=safe_path,
             private_dir=private_dir,
         )
         _validate_transparent_report_path(report_path)
-        if not _worktree_clean():
-            raise ValueError("financial_semantic_v6_smoke_worktree_not_clean")
+    elif resume_execute:
+        _validate_resume_attempt_paths(
+            safe_path=safe_path,
+            private_dir=private_dir,
+            report_path=report_path,
+            interrupted_path=interrupted_path,
+        )
+    if execute and not _worktree_clean():
+        raise ValueError("financial_semantic_v6_smoke_worktree_not_clean")
 
     env = _read_env(Path(args.env_file))
     base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
@@ -159,14 +183,32 @@ def main() -> int:
     assert safe_path is not None
     assert private_dir is not None
     assert report_path is not None
-    private_dir.mkdir(parents=True, exist_ok=False)
-    _write_json_atomically(
-        safe_path,
-        financial_semantic_v6_provider_smoke_initial_receipt(
-            exact_identity=preflight["exact_identity"],
-        ),
-        require_absent=True,
-    )
+    resume_receipt: dict[str, Any] | None = None
+    resume_private_evidence: dict[str, dict[str, Any]] | None = None
+    run_exact_identity = preflight["exact_identity"]
+    if fresh_execute:
+        private_dir.mkdir(parents=True, exist_ok=False)
+        _write_json_atomically(
+            safe_path,
+            financial_semantic_v6_provider_smoke_initial_receipt(
+                exact_identity=run_exact_identity,
+            ),
+            require_absent=True,
+        )
+    else:
+        assert interrupted_path is not None
+        resume_receipt = _read_json(safe_path)
+        interrupted_receipt = _read_json(interrupted_path)
+        if interrupted_receipt != resume_receipt:
+            raise ValueError(
+                "financial_semantic_v6_smoke_interrupted_receipt_mismatch"
+            )
+        resume_private_evidence = _read_resume_private_evidence(private_dir)
+        _validate_resume_preflight(
+            resume_receipt=resume_receipt,
+            current_exact_identity=preflight["exact_identity"],
+        )
+        run_exact_identity = resume_receipt["exact_identity"]
 
     user = _current_user(session, base_url)
     client = _model_client(
@@ -212,10 +254,12 @@ def main() -> int:
         smoke_financial_semantic_v6(
             fixture=fixture,
             model_client=client,
-            exact_identity=preflight["exact_identity"],
+            exact_identity=run_exact_identity,
             private_case_checkpoint=private_checkpoint,
             safe_checkpoint=safe_checkpoint,
             transparent_case_checkpoint=transparent_case_checkpoint,
+            resume_receipt=resume_receipt,
+            resume_private_evidence=resume_private_evidence,
         )
     )
     report = Gate2FinancialSemanticV6TransparentSmokeReportFactory().render_report(
@@ -223,6 +267,9 @@ def main() -> int:
         safe_receipt_filename=safe_path.name,
         terminal_receipt=receipt,
         case_evidence=list(transparent_cases.values()),
+        interrupted_receipt_filename=(
+            interrupted_path.name if interrupted_path is not None else None
+        ),
     )
     _write_text_atomically(report_path, report, require_absent=True)
     print(_pretty_json(receipt), end="")
@@ -235,6 +282,68 @@ def _candidate_identity(candidate: str) -> tuple[str, str]:
     if candidate == "stronger-haiku":
         return V6_GOAL12_EXACT_MODEL_ID, V6_GOAL12_PROVIDER_PROFILE_ID
     raise ValueError("financial_semantic_v6_smoke_candidate_invalid")
+
+
+def _validate_resume_attempt_paths(
+    *,
+    safe_path: Path | None,
+    private_dir: Path | None,
+    report_path: Path | None,
+    interrupted_path: Path | None,
+) -> None:
+    if (
+        safe_path is None
+        or private_dir is None
+        or interrupted_path is None
+        or not safe_path.is_file()
+        or not safe_path.name.endswith(".safe.json")
+        or not private_dir.is_dir()
+        or _is_within(private_dir, REPO_ROOT)
+        or not interrupted_path.is_file()
+        or interrupted_path.parent != safe_path.parent
+        or not interrupted_path.name.endswith(".safe.json")
+    ):
+        raise ValueError(
+            "financial_semantic_v6_smoke_resume_path_invalid"
+        )
+    _validate_transparent_report_path(report_path)
+
+
+def _read_resume_private_evidence(
+    private_dir: Path,
+) -> dict[str, dict[str, Any]]:
+    paths = list(private_dir.glob("*.private.json"))
+    if len(paths) != 1:
+        raise ValueError(
+            "financial_semantic_v6_smoke_resume_private_evidence_invalid"
+        )
+    evidence = _read_json(paths[0])
+    case_id = str(evidence.get("case_id") or "")
+    if paths[0].name != f"{case_id}.private.json":
+        raise ValueError(
+            "financial_semantic_v6_smoke_resume_private_evidence_invalid"
+        )
+    return {case_id: evidence}
+
+
+def _validate_resume_preflight(
+    *,
+    resume_receipt: dict[str, Any],
+    current_exact_identity: dict[str, Any],
+) -> None:
+    previous = json.loads(json.dumps(resume_receipt.get("exact_identity")))
+    current = json.loads(json.dumps(current_exact_identity))
+    for value in (previous, current):
+        if not isinstance(value, dict):
+            raise ValueError(
+                "financial_semantic_v6_smoke_resume_identity_invalid"
+            )
+        value.pop("identity_hash", None)
+        value.pop("repository_revision", None)
+    if previous != current:
+        raise ValueError(
+            "financial_semantic_v6_smoke_resume_authority_drift"
+        )
 
 
 def _validate_transparent_report_path(report_path: Path | None) -> None:

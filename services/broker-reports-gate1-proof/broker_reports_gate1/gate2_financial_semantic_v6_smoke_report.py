@@ -116,11 +116,7 @@ class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
             comparison=comparison,
             failure_code=failure_code,
         )
-        exact_answer = (
-            copy.deepcopy(exact_model_answer)
-            if isinstance(exact_model_answer, dict)
-            else None
-        )
+        exact_answer = _semantic_json_object(exact_model_answer)
         if technical_pipeline_passed and exact_answer is None:
             _fail(
                 "financial_semantic_v6_transparent_smoke_exact_answer_missing"
@@ -165,6 +161,7 @@ class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
         safe_receipt_filename: str,
         terminal_receipt: dict[str, Any],
         case_evidence: list[dict[str, Any]],
+        interrupted_receipt_filename: str | None = None,
     ) -> str:
         ordered = _ordered_case_evidence(case_evidence)
         accounting = terminal_receipt.get("attempt_accounting") or {}
@@ -195,8 +192,34 @@ class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
             f"(./{safe_receipt_filename})",
             "- Qualification benchmark: not run.",
             "",
-            "## Acceptance",
-            "",
+        ]
+        if interrupted_receipt_filename is not None:
+            lines.extend(
+                [
+                    "## Execution continuity",
+                    "",
+                    "The first execute process checkpointed one successful "
+                    "typed provider response, then stopped locally because the "
+                    "new report projector rejected the adapter-extracted JSON "
+                    "string before rendering it as an object. The provider "
+                    "answer, normalized Choice, materialization and replay had "
+                    "already passed and were preserved.",
+                    "",
+                    f"- Interrupted one-case checkpoint: "
+                    f"[{interrupted_receipt_filename}]"
+                    f"(./{interrupted_receipt_filename})",
+                    "- The continuation validated that checkpoint and current "
+                    "frozen-authority parity, skipped the completed typed case, "
+                    "and submitted only the missing unclassified case.",
+                    "- This was one bounded continuation, not a retry of either "
+                    "provider submission.",
+                    "",
+                ]
+            )
+        lines.extend(
+            [
+                "## Acceptance",
+                "",
             f"- `PROVIDER_SUBMISSIONS`: "
             f"`{'TWO' if provider_submissions == 2 else 'FAILED'}`",
             f"- `TECHNICAL_PIPELINE`: "
@@ -213,7 +236,8 @@ class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
             f"`{_zero_attempt_status(accounting)}`",
             "- `DOCUMENTATION`: `UPDATED_IN_SAME_PR`",
             "",
-        ]
+            ]
+        )
         for item in ordered:
             lines.extend(_render_case(item))
 
@@ -293,6 +317,19 @@ def _mechanical_comparison(
         "all_fields_match": all_fields_match,
         "fields": field_rows,
     }
+
+
+def _semantic_json_object(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return copy.deepcopy(value)
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(decoded, dict):
+            return decoded
+    return None
 
 
 def _diagnosis(

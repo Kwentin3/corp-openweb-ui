@@ -130,6 +130,7 @@ class _ExactFakeClient:
         usage_metadata_incomplete: bool = False,
         invalid_output: bool = False,
         invalid_response: bool = False,
+        string_output: bool = False,
         provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
     ) -> None:
         self.outputs = {
@@ -165,6 +166,7 @@ class _ExactFakeClient:
         self.usage_metadata_incomplete = usage_metadata_incomplete
         self.invalid_output = invalid_output
         self.invalid_response = invalid_response
+        self.string_output = string_output
         self.provider_profile_id = provider_profile_id
 
     def qualification_lifecycle_snapshot(self) -> dict[str, int]:
@@ -244,6 +246,8 @@ class _ExactFakeClient:
             content = None
         if self.invalid_output and self.calls == 1:
             content = {"disposition": "typed_input", "typed_option_id": "unknown"}
+        if self.string_output and isinstance(content, dict):
+            content = json.dumps(content, ensure_ascii=False, sort_keys=True)
         return Gate2StructuredModelResult(
             content=content,
             fallback_used=False,
@@ -460,6 +464,7 @@ def test_two_case_smoke_accepts_only_candidate_change_for_stronger_model() -> No
     fixture = _fixture()
     client = _ExactFakeClient(
         fixture,
+        string_output=True,
         provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
     )
     transparent: dict[str, dict] = {}
@@ -489,6 +494,69 @@ def test_two_case_smoke_accepts_only_candidate_change_for_stronger_model() -> No
         "provider_profile_id"
     ] == V6_GOAL12_PROVIDER_PROFILE_ID
     assert set(transparent) == {item[1] for item in V6_PROVIDER_SMOKE_CASES}
+    assert all(
+        item["exact_model_answer"] == item["normalized_answer"]
+        for item in transparent.values()
+    )
+
+
+def test_two_case_smoke_resumes_only_missing_case_from_exact_checkpoint() -> None:
+    fixture = _fixture()
+    identity = _preflight(
+        fixture,
+        exact_model_id=V6_GOAL12_EXACT_MODEL_ID,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )["exact_identity"]
+    first_client = _ExactFakeClient(
+        fixture,
+        string_output=True,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )
+    private: dict[str, dict] = {}
+    checkpoints: list[dict] = []
+    asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=first_client,
+            exact_identity=identity,
+            private_case_checkpoint=lambda case_id, payload: private.__setitem__(
+                case_id,
+                payload,
+            ),
+            safe_checkpoint=checkpoints.append,
+        )
+    )
+    one_case_receipt = next(
+        item for item in checkpoints if item["cases_executed"] == 1
+    )
+    typed_case_id = V6_PROVIDER_SMOKE_CASES[0][1]
+    resumed_client = _ExactFakeClient(
+        fixture,
+        string_output=True,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )
+    transparent: dict[str, dict] = {}
+
+    result = asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=resumed_client,
+            exact_identity=identity,
+            private_case_checkpoint=lambda _case_id, _payload: None,
+            transparent_case_checkpoint=lambda case_id, payload: (
+                transparent.__setitem__(case_id, payload)
+            ),
+            resume_receipt=one_case_receipt,
+            resume_private_evidence={typed_case_id: private[typed_case_id]},
+        )
+    )
+
+    assert resumed_client.calls == 1
+    assert result["status"] == "passed"
+    assert result["attempt_accounting"]["provider_submissions_total"] == 2
+    assert result["attempt_accounting"]["provider_responses_total"] == 2
+    assert result["attempt_accounting"]["hidden_retry_total"] == 0
+    assert set(transparent) == {item[1] for item in V6_PROVIDER_SMOKE_CASES}
 
 
 def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
@@ -506,6 +574,7 @@ def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
     )
     assert "V6_GOAL12_EXACT_MODEL_ID" in source
     assert "V6_GOAL12_PROVIDER_PROFILE_ID" in source
+    assert "--resume-two-case-smoke" in source
     assert "generate_chat_completion" not in source
     assert "urlopen(" not in source
     assert "OpenAI(" not in source

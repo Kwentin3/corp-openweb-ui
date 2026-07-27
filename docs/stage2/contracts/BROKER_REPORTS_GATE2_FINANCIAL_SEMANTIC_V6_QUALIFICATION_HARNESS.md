@@ -114,3 +114,12 @@ qualification verdict.
 The transparent report is not permitted for actual corpus. Actual-corpus
 source context and raw values remain outside Git; repository evidence remains
 redacted and hash-linked.
+
+A local report-projection failure after a successfully checkpointed case does
+not authorize replaying that provider submission. The same smoke entrypoint
+may continue only from an integrity-valid one-case receipt plus its exact
+private evidence: it must replay that case with zero provider calls, prove
+current frozen-authority parity, reconstruct its synthetic report projection,
+skip it, and submit only the one missing case. Any other partial shape fails
+closed. The original interrupted safe receipt remains immutable beside the
+terminal combined receipt.
