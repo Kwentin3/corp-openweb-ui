@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""Preflight or execute the one Goal 12 stronger-candidate V6 attempt."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import requests
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+SERVICE_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = SERVICE_ROOT.parents[1]
+sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SERVICE_ROOT))
+
+from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E402
+    Gate2FinancialEvidenceRegistryFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
+    Gate2FinancialSemanticV6QualificationFixtureFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_qualification_run import (  # noqa: E402,E501
+    qualify_financial_semantic_v6,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (  # noqa: E402,E501
+    V6_GOAL12_EXACT_MODEL_ID,
+    V6_GOAL12_POLICY_VERSION,
+    V6_GOAL12_PROVIDER_PROFILE_ID,
+    V6_GOAL12_SCHEMA_VERSION,
+    Gate2FinancialSemanticV6StrongerCandidatePreflightFactory,
+)
+from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
+    FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
+)
+from live_gate2_economy_contract_qualification import (  # noqa: E402
+    _completion_boundary,
+    _live_qualification_action,
+    _model_client,
+    _published_model_ids,
+    _request_context,
+)
+from live_gate2_synthetic_extraction_smoke import _current_user  # noqa: E402
+from live_no_rag_source_intake_smoke import (  # noqa: E402
+    _base_url,
+    _read_env,
+    _signin,
+)
+
+
+DEFAULT_V6_MANIFEST = (
+    SERVICE_ROOT / "benchmarks" / "gate2_financial_semantic_v6" / "manifest.json"
+)
+DEFAULT_BASE_MANIFEST = (
+    SERVICE_ROOT / "benchmarks" / "gate2_financial_successor_v2" / "manifest.json"
+)
+DEFAULT_NANO_RECEIPT = (
+    REPO_ROOT
+    / "docs"
+    / "reports"
+    / "2026-07-27"
+    / "BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_NANO_QUALIFICATION.receipt.safe.json"
+)
+SNAPSHOT_AUTHORITY_KEY = b"gate2-v6-qualification-snapshot-authority-key-v1"
+CONTINUATION_KEY = b"gate2-v6-qualification-continuation-key-v1"
+FACTORY_REQUIRED = (
+    "Gate2FinancialSemanticV6StrongerCandidatePreflightFactory.create, the "
+    "configured Gate2 model client factory and qualify_financial_semantic_v6 "
+    "are the only Goal 12 live route"
+)
+FORBIDDEN = (
+    "This CLI must not permit an implicit or second candidate attempt, "
+    "repository-local private evidence, Nano rerun, Prompt/Pack/benchmark "
+    "mutation, fallback, repair, hidden retry or production admission"
+)
+
+
+class V6StrongerCandidateCliError(ValueError):
+    pass
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
+    parser.add_argument("--base-url", default=None)
+    parser.add_argument("--timeout", type=int, default=240)
+    parser.add_argument(
+        "--nano-terminal-receipt",
+        default=str(DEFAULT_NANO_RECEIPT),
+    )
+    parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--execute-exact-attempt", action="store_true")
+    parser.add_argument("--safe-receipt-path")
+    parser.add_argument("--private-evidence-dir")
+    args = parser.parse_args()
+    if args.preflight_only == args.execute_exact_attempt:
+        parser.error("choose exactly one mode")
+    execute = bool(args.execute_exact_attempt)
+    if execute and (
+        not args.safe_receipt_path or not args.private_evidence_dir
+    ):
+        parser.error(
+            "live execution requires --safe-receipt-path and "
+            "--private-evidence-dir"
+        )
+
+    safe_path = (
+        Path(args.safe_receipt_path).resolve()
+        if args.safe_receipt_path
+        else None
+    )
+    private_dir = (
+        Path(args.private_evidence_dir).resolve()
+        if args.private_evidence_dir
+        else None
+    )
+    if execute:
+        _validate_new_attempt_paths(
+            safe_path=safe_path,
+            private_dir=private_dir,
+        )
+        if not _worktree_clean():
+            raise V6StrongerCandidateCliError(
+                "financial_semantic_v6_goal12_live_worktree_not_clean"
+            )
+
+    env = _read_env(Path(args.env_file))
+    base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
+    session = requests.Session()
+    session.headers.update({"Accept": "application/json"})
+    token = _signin(session, base_url, env)
+    session.headers.update({"Authorization": f"Bearer {token}"})
+
+    fixture = _fixture()
+    preflight = (
+        Gate2FinancialSemanticV6StrongerCandidatePreflightFactory().create(
+            fixture=fixture,
+            repository_revision=_repository_revision(),
+            stage_action=_live_qualification_action(session, base_url),
+            published_model_ids=_published_model_ids(session, base_url),
+            nano_terminal_receipt=_read_json(
+                Path(args.nano_terminal_receipt)
+            ),
+        )
+    )
+    if not execute:
+        print(_pretty_json(preflight), end="")
+        return 0
+
+    assert safe_path is not None
+    assert private_dir is not None
+    private_dir.mkdir(parents=True, exist_ok=False)
+    _write_json_atomically(
+        safe_path,
+        {
+            "schema_version": V6_GOAL12_SCHEMA_VERSION,
+            "policy_version": V6_GOAL12_POLICY_VERSION,
+            "execution_state": "attempt_committed",
+            "status": "in_progress",
+            "product_gate": None,
+            "candidate": {
+                "exact_model_id": V6_GOAL12_EXACT_MODEL_ID,
+                "provider_profile_id": V6_GOAL12_PROVIDER_PROFILE_ID,
+            },
+            "acceptance": {
+                "architecture": "FROZEN",
+                "one_new_candidate": "EXACT",
+                "model_comparison": "SAME_V6_WORKLOAD",
+                "provider_attempts": "EXACTLY_ONE",
+                "hidden_retry": "ZERO",
+                "exact_evidence": "PENDING",
+                "product_gate": None,
+            },
+            "exact_identity": preflight["exact_identity"],
+            "attempt_accounting": {
+                "provider_attempts_total": 1,
+                "provider_calls_total": 0,
+                "hidden_retry_total": 0,
+                "fallback_total": 0,
+                "repair_total": 0,
+            },
+            "raw_private_data_in_receipt": False,
+            "production_admissions_total": 0,
+        },
+        require_absent=True,
+    )
+
+    user = _current_user(session, base_url)
+    client = _model_client(
+        request_profile=(
+            FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+        ),
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+        user_id=str(user["id"]),
+        request_context=_request_context(session, base_url),
+        completion=_completion_boundary(
+            session=session,
+            base_url=base_url,
+            timeout=args.timeout,
+        ),
+    )
+
+    def private_checkpoint(
+        case_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        _write_json_atomically(
+            private_dir / f"{case_id}.private.json",
+            payload,
+            require_absent=True,
+        )
+
+    def safe_checkpoint(payload: dict[str, Any]) -> None:
+        _write_json_atomically(safe_path, payload)
+
+    receipt = asyncio.run(
+        qualify_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=preflight["exact_identity"],
+            private_case_checkpoint=private_checkpoint,
+            safe_checkpoint=safe_checkpoint,
+        )
+    )
+    print(_pretty_json(receipt), end="")
+    return 0 if receipt["execution_state"] == "terminal" else 2
+
+
+def _fixture():
+    return Gate2FinancialSemanticV6QualificationFixtureFactory(
+        registry=Gate2FinancialEvidenceRegistryFactory().create(),
+        snapshot_authority_key=SNAPSHOT_AUTHORITY_KEY,
+        continuation_key=CONTINUATION_KEY,
+    ).create(
+        manifest=_read_json(DEFAULT_V6_MANIFEST),
+        base_manifest=_read_json(DEFAULT_BASE_MANIFEST),
+    )
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise V6StrongerCandidateCliError(
+            "financial_semantic_v6_goal12_json_object_required"
+        )
+    return value
+
+
+def _validate_new_attempt_paths(
+    *,
+    safe_path: Path | None,
+    private_dir: Path | None,
+) -> None:
+    if (
+        safe_path is None
+        or private_dir is None
+        or not safe_path.name.endswith(".safe.json")
+        or safe_path.exists()
+        or private_dir.exists()
+        or _is_within(private_dir, REPO_ROOT)
+    ):
+        raise V6StrongerCandidateCliError(
+            "financial_semantic_v6_goal12_attempt_path_invalid_or_consumed"
+        )
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    private_dir.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _repository_revision() -> str:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    revision = completed.stdout.strip()
+    if len(revision) != 40 or any(
+        character not in "0123456789abcdef" for character in revision
+    ):
+        raise V6StrongerCandidateCliError(
+            "financial_semantic_v6_goal12_repository_revision_invalid"
+        )
+    return revision
+
+
+def _worktree_clean() -> bool:
+    completed = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+    )
+    return not completed.stdout.strip()
+
+
+def _write_json_atomically(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    require_absent: bool = False,
+) -> None:
+    if require_absent and path.exists():
+        raise V6StrongerCandidateCliError(
+            "financial_semantic_v6_goal12_attempt_already_consumed"
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(_pretty_json(payload))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def _pretty_json(payload: dict[str, Any]) -> str:
+    return (
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "error_type": type(exc).__name__,
+                    "code": str(exc)[:200],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        raise

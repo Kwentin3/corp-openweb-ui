@@ -24,6 +24,7 @@ from .gate2_financial_semantic_v6_choice import (
 )
 from .gate2_financial_semantic_v6_execution_identity import (
     V6_EXACT_MODEL_ID,
+    V6_PROVIDER_PROFILE_ID,
     V6_QUALIFICATION_REQUEST_PROFILE,
     Gate2FinancialSemanticV6CapturedExecution,
     Gate2FinancialSemanticV6ExecutionIdentity,
@@ -143,8 +144,12 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
         self,
         *,
         registry: Gate2FinancialEvidenceRegistrySnapshot,
+        exact_model_id: str = V6_EXACT_MODEL_ID,
+        provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
     ) -> None:
         self.registry = registry
+        self.exact_model_id = exact_model_id
+        self.provider_profile_id = provider_profile_id
 
     def create(
         self,
@@ -165,7 +170,13 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
             canonical_request=canonical_request,
             packet=packet,
             choice_contract=choice_contract,
+            exact_model_id=self.exact_model_id,
         )
+        if (
+            execution_capture.exact_model_id != self.exact_model_id
+            or execution_capture.provider_profile_id != self.provider_profile_id
+        ):
+            _fail("financial_semantic_v6_evidence_candidate_identity_invalid")
         try:
             validate_financial_semantic_v6_execution_identity(
                 identity=execution_identity,
@@ -212,6 +223,7 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
                 source_package=source_package,
                 compilation=compilation,
                 registry=self.registry,
+                exact_model_id=self.exact_model_id,
             ),
             "exact_choice_preserved": True,
             "raw_provider_transport_preserved": False,
@@ -246,6 +258,7 @@ def financial_semantic_v6_canonical_request(
     *,
     packet: Gate2FinancialSemanticV6Packet,
     choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    exact_model_id: str = V6_EXACT_MODEL_ID,
 ) -> dict[str, Any]:
     if (
         not isinstance(packet, Gate2FinancialSemanticV6Packet)
@@ -260,7 +273,7 @@ def financial_semantic_v6_canonical_request(
     response_format = financial_semantic_v6_response_format(choice_contract)
     prompt_hash = sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
     return {
-        "model": V6_EXACT_MODEL_ID,
+        "model": exact_model_id,
         "messages": [
             {
                 "role": "system",
@@ -312,10 +325,15 @@ def replay_financial_semantic_v6_decision(
         safe_receipt=safe_receipt,
         private_evidence=private_evidence,
     )
+    private_identity = private_evidence["provider_execution_identity"]
+    exact_model_id = private_identity.get("requested_model_id")
+    if not isinstance(exact_model_id, str) or not exact_model_id:
+        _fail("financial_semantic_v6_private_execution_identity_invalid")
     _validate_exact_request(
         canonical_request=private_evidence["exact_canonical_request_object"],
         packet=packet,
         choice_contract=choice_contract,
+        exact_model_id=exact_model_id,
     )
     expected_authorities = _replay_authorities(
         choice_contract=choice_contract,
@@ -324,6 +342,7 @@ def replay_financial_semantic_v6_decision(
         source_package=source_package,
         compilation=compilation,
         registry=registry,
+        exact_model_id=exact_model_id,
     )
     if private_evidence["replay_authorities"] != expected_authorities:
         _fail("financial_semantic_v6_offline_replay_authority_mismatch")
@@ -461,10 +480,12 @@ def _validate_exact_request(
     canonical_request: Any,
     packet: Gate2FinancialSemanticV6Packet,
     choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    exact_model_id: str,
 ) -> dict[str, Any]:
     expected = financial_semantic_v6_canonical_request(
         packet=packet,
         choice_contract=choice_contract,
+        exact_model_id=exact_model_id,
     )
     if not isinstance(canonical_request, dict) or canonical_request != expected:
         _fail("financial_semantic_v6_canonical_request_identity_mismatch")
@@ -507,9 +528,10 @@ def _replay_authorities(
     source_package: Gate2FinancialEvidenceSourcePackage,
     compilation: Gate2FinancialCandidateCompilation,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    exact_model_id: str,
 ) -> dict[str, Any]:
     return {
-        "model_id": V6_EXACT_MODEL_ID,
+        "model_id": exact_model_id,
         "request_profile": V6_QUALIFICATION_REQUEST_PROFILE,
         "registry_hash": registry.registry_hash,
         "source_package_integrity_hash": source_package.integrity_hash,
@@ -558,6 +580,8 @@ def _execution_identity_from_private(
             response_format_hash=identity.response_format_hash,
             execution_metadata=metadata,
             actual_cost_usd=identity.actual_cost_usd,
+            exact_model_id=identity.requested_model_id,
+            provider_profile_id=identity.provider_profile_id,
         )
         expected = Gate2FinancialSemanticV6ExecutionIdentityFactory().create(
             capture=capture,
