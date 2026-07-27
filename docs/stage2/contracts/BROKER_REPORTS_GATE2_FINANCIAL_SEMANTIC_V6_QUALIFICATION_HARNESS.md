@@ -40,3 +40,28 @@ Action and then the candidate.
 The Goal 11A CLI exposes no execute mode and writes no evidence. Provider
 execution, terminal evidence preservation, and product-gate disposition are
 reserved for Goal 11B.
+
+## Goal 11B terminal execution
+
+`qualify_financial_semantic_v6` is the only terminal execution and
+product-gate boundary. The dedicated Goal 11B CLI has no implicit execution
+mode: `--execute-exact-attempt`, a new repository-safe receipt path, and a new
+private evidence directory outside the repository are all required.
+
+The runner makes one call for each of the ten semantic cases and no call for
+either technical-preclose case. A case failure is recorded and does not cause
+a retry, fallback, repair, Prompt mutation, regex routing, or a second
+qualification attempt.
+
+Every provider call is checkpointed immediately. Exact canonical request,
+returned choice, available execution metadata, and failure evidence remain
+private outside Git. The repository-safe receipt contains only synthetic case
+IDs, classifications, aggregate quality/cost/latency metrics, hard-gate
+counts, and cryptographic links to private evidence.
+
+The terminal product gate is exactly one of `MODEL_SAFE_FOR_SHADOW` and
+`MODEL_NOT_SAFE_FOR_SHADOW`. Shadow safety requires all ten hard gates to be
+zero, exact typed precision and recall, ten semantic calls, zero technical
+calls, zero hidden retries/fallbacks/repairs, exact evidence for every call,
+and all canonical product invariants. This qualification does not admit a
+production model.
