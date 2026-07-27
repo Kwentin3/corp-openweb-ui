@@ -1,6 +1,6 @@
 # Broker Reports Architecture Authorities
 
-Status: `GOAL_1_MINIMAL_DOMAIN_BOUNDARIES`
+Status: `GOAL_2_COMPACT_AND_ACTIONABLE`
 
 This is the compact orientation index for maintained Broker Reports
 implementation authorities. It supplements, and does not replace, the
@@ -39,38 +39,28 @@ These domains are code responsibilities, not new product gates or packages.
 One domain may coordinate several distinct operation authorities listed below;
 that does not permit a second owner for any operation.
 
-## Archaeology inventory
+## Operation authority map
 
-| Domain / concern | Normative contract | Actual maintained owner | Current consumers | Finding |
-| --- | --- | --- | --- | --- |
-| Gate 1 evidence and provenance | [Gate 1 document memory](./BROKER_REPORTS_GATE1_DOCUMENT_MEMORY.v1.md), [full normalized payload](./BROKER_REPORTS_GATE1_FULL_SOURCE_NORMALIZED_PAYLOAD.v0.md) | `Gate1BoundedGraphFactory.create` and `ArtifactResolver` in `broker_reports_gate1/bounded_graph.py` and `artifact_resolver.py` | Technical preparation and Gate 2 readiness | Sole source/provenance authority; Gate 2 must not read storage directly. |
-| Technical preparation | [Evidence Bundle](./BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md) | `Gate2DeterministicFinancialScopeFromGate1V2Factory.create` then `Gate2FinancialEvidenceBundleFactory.create` | Candidate Compiler and technical preclose | Technical selectors may prepare evidence but may not assign financial meaning. |
-| Financial Semantic Pack meaning | [Financial Semantic Pack](./BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md) | `Gate2FinancialSemanticContractFactory.create` over the verified managed asset in `gate2_financial_semantic_contract.py` | projection, compiler, validator, materializer, Financial Domain | Sole type/role/ambiguity authority. |
-| Compact Semantic Pack projection | [Semantic Pack model input](./BROKER_REPORTS_GATE2_SEMANTIC_PACK_MODEL_INPUT.v1.md) | `Gate2FinancialSemanticV5ProjectionFactory.create` in `gate2_financial_semantic_v5_projection.py` | V5 decision packets and the V6 packet factory | Maintained cross-version projection; the `V5` name is documentation/naming debt, not a second Pack. |
-| Evidence Bundle | [Evidence Bundle](./BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md) | `Gate2FinancialEvidenceBundleFactory.create` in `gate2_financial_semantic_v6_bundle.py` | Candidate Compiler, packet, expansion and replay | Sole sealed pre-semantic evidence representation. |
-| Typed Option construction | [Typed Option](./BROKER_REPORTS_GATE2_FINANCIAL_TYPED_OPTION.v1.md) | `Gate2FinancialTypedOptionFactory.create` in `gate2_financial_semantic_v6_typed_option.py` | Candidate Compiler and decision expansion | Code owns type, roles, source refs and materializability. |
-| Candidate compilation | [Candidate Compiler](./BROKER_REPORTS_GATE2_FINANCIAL_CANDIDATE_COMPILER.v1.md) | `Gate2FinancialCandidateCompilerFactory.create` in `gate2_financial_semantic_v6_candidate_compiler.py` | V6 packet, qualification and replay | Sole compiler; it must contain no type-specific IDs or financial regex. |
-| Prompt ownership | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) and [qualification harness](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_QUALIFICATION_HARNESS.md) | `financial_semantic_v6_prompt` in `gate2_financial_semantic_v6_prompt.py` | request builder and qualification | Owns only semantic-choice instruction, not request transport or product records. |
-| V6 semantic packet | [V6 packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | `Gate2FinancialSemanticV6PacketFactory.create` in `gate2_financial_semantic_v6_packet.py` | V6 Prompt, request builder and Choice Contract | Sole four-block model-visible packet. |
-| Provider-neutral semantic choice | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | `Gate2FinancialSemanticV6ChoiceContractFactory.create` in `gate2_financial_semantic_v6_choice.py` | request builder, expansion and evidence | Model owns only the minimal disposition/opaque-option selection. |
-| Provider request construction | [V6 qualification harness](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_QUALIFICATION_HARNESS.md) | `Gate2OpenWebUIRequestBuilder.build` in `gate2_model_requests.py` | `Gate2OpenWebUIStructuredModelClient` and delegating evidence helpers | Sole canonical provider request builder. |
-| Provider schema projection and response parsing | Provider-neutral choice/request contracts | `Gate2ProviderAdapterFactory.create`, `_Gate2OpenWebUIProviderAdapter.prepare_form_data`, `extract_content` and provider subclasses in `gate2_provider_adapters.py` | structured model client | Sole owner of provider-specific schema adaptation, response shape and error interpretation. |
-| Provider usage normalization | Provider execution metadata contract in `gate2_model_contracts.py` | `_Gate2OpenWebUIProviderAdapter.execution_metadata` in `gate2_provider_adapters.py` | model client, budget accounting and qualification evidence | Provider-specific token fields must not be parsed by qualification. |
-| Budget admission and accounting | Economy budget v1 code contract | `Gate2EconomyBudgetSessionFactory.create` / `Gate2EconomyBudgetSession` in `gate2_economy_budget.py` | structured model client | Sole pre-transport admission and post-response accounting authority. |
-| Canonical decision expansion | [V6 expansion](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_EXPANSION_V6.md) | `Gate2FinancialSemanticV6DecisionExpansionFactory.create` in `gate2_financial_semantic_v6_expansion.py` | total materializer, qualification and evidence replay | Sole minimal-choice to canonical-decision boundary. |
-| Canonical validation | [Generic materialization](./BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md) | `Gate2FinancialEvidenceValidatedDecisionFactory.create` plus `validate_financial_evidence_inputs` in `gate2_financial_evidence_materialization.py` | materializer, local proofs and qualification | Provider output remains a proposal until this boundary passes. |
-| Canonical materialization | [Generic materialization](./BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md) | `Gate2FinancialEvidenceMaterializerFactory.create().materialize` in `gate2_financial_evidence_materialization.py` | Financial Domain catalog and compatibility projections | Sole owner of canonical IDs, bindings, provenance, retention and terminal coverage. |
-| Financial Domain snapshot | [Managed Financial Domain](./BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.md) | `Gate2FinancialDomainCatalogFactory.create` in `gate2_financial_domain_catalog.py` | query factory and serialization contract | Sole immutable snapshot construction authority. |
-| Financial Domain persistence envelope | [Managed Financial Domain](./BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.md) | `Gate2FinancialDomainPersistenceFactory.serialize/restore` in `gate2_financial_domain_persistence.py` | local proof and future server storage adapter | Owns serialization only; the actual storage writer is intentionally outside this service contract. |
-| Financial Domain query API | [Query API](./BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md) | `Gate2FinancialDomainQueryFactory.create` in `gate2_financial_domain_query.py` | Gate 3 consumer | Sole authorized bounded query entrypoint. |
-| Gate 3 Financial Domain consumer | [Query API](./BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md) | `Gate3FinancialDomainContextFactory.create` in `gate3_financial_domain_context.py` | Gate 3 successor logic | Must consume only the query API; no ArtifactStore or source readers. |
-| Qualification result | [V6 qualification harness](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_QUALIFICATION_HARNESS.md) | `qualify_financial_semantic_v6` in `gate2_financial_semantic_v6_qualification_run.py` | qualification CLIs and safe receipts | Qualification-only terminal classifier; not a product authority. |
-| Exact decision evidence and replay | [V6 exact evidence](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md) | `Gate2FinancialSemanticV6DecisionEvidenceFactory.create` and `replay_financial_semantic_v6_decision` in `gate2_financial_semantic_v6_evidence.py` | qualification and offline replay | Evidence records execution; it cannot change the product decision. |
-| Compatibility reads | Version-pinned legacy and successor schemas | `Gate2FinancialEvidenceCompatibilityFactory.create`, `PinnedLegacySourceFactsValidatorFactory.create`, and `Gate2SuccessorCompatibilityReaderFactory.create` | successor local proofs and migration tooling | Explicit dual-read boundary; no silent rewrite or successor write admission. |
-
-Paths above are relative to
-`services/broker-reports-gate1-proof/broker_reports_gate1` unless a full path is
-shown.
+| Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
+| --- | --- | --- | --- | --- | --- |
+| Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
+| Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
+| Provider response parsing | [`Gate2ProviderAdapterFactory.create` and adapter `extract_content` / `provider_error_code`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | [`Gate2StructuredModelResult`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_contracts.py) | structured model client | provider profiles select an adapter | provider payload parsing in qualification or product code |
+| Provider usage normalization | [adapter `execution_metadata`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | [`Gate2ProviderExecutionMetadata`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_contracts.py) | model client, budget, evidence | adapter normalizes provider variants | provider token-field reads outside adapters |
+| Budget admission/accounting | [`Gate2EconomyBudgetSessionFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_budget.py) | economy budget v1 code contract | structured model client | none | token or cost policy in callers/adapters |
+| Semantic Pack meaning | [`Gate2FinancialSemanticContractFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_contract.py) | [Financial Semantic Pack](./BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md) | projection, compiler, validator, materializer, Financial Domain | V5-named projection is shared by V6 | financial type IDs, roles or ambiguity rules in Python |
+| Evidence Bundle | [`Gate2FinancialEvidenceBundleFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_bundle.py) | [Evidence Bundle](./BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md) | compiler, packet, expansion, replay | none | second sealed source/provenance projection |
+| Typed Option compilation | [`Gate2FinancialCandidateCompilerFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_candidate_compiler.py) using [`Gate2FinancialTypedOptionFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_typed_option.py) | [Candidate Compiler](./BROKER_REPORTS_GATE2_FINANCIAL_CANDIDATE_COMPILER.v1.md), [Typed Option](./BROKER_REPORTS_GATE2_FINANCIAL_TYPED_OPTION.v1.md) | packet, qualification, replay | none | financial regex, known type IDs or provider-built options |
+| Semantic choice | [`Gate2FinancialSemanticV6ChoiceContractFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, expansion, evidence | version-pinned older choices only | alternative choice schema or model-generated records/bindings |
+| Canonical decision expansion | [`Gate2FinancialSemanticV6DecisionExpansionFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_expansion.py) | [V6 Expansion](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_EXPANSION_V6.md) | materializer, qualification, replay | none | choice-to-record expansion in runner/evidence code |
+| Validator | [`Gate2FinancialEvidenceValidatedDecisionFactory.create` and `validate_financial_evidence_inputs`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py) | [Generic Materialization](./BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md) | materializer, qualification, local proofs | legacy validators remain version-pinned | weaker local acceptance or provider output as authority |
+| Materializer | [`Gate2FinancialEvidenceMaterializerFactory.create().materialize`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py) | [Generic Materialization](./BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md) | Financial Domain, explicit compatibility projections | projections read canonical output | ID, binding, provenance or retention minting elsewhere |
+| Persistence | [`Gate2FinancialDomainPersistenceFactory.serialize/restore`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_persistence.py) | [Managed Financial Domain](./BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.md) | local proof, future storage adapter | restore validates the current envelope | a storage adapter reimplementing serialization or minting snapshots |
+| Financial Domain snapshot | [`Gate2FinancialDomainCatalogFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_catalog.py) | [Managed Financial Domain](./BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.md) | query and persistence factories | explicit legacy/successor readers only | direct record catalogs or mutable snapshots |
+| Query API | [`Gate2FinancialDomainQueryFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_domain_query.py) | [Query API](./BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md) | Gate 3 consumer | none | query facades over raw records/sources |
+| Gate 3 consumer | [`Gate3FinancialDomainContextFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_domain_context.py) | [Query API](./BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md) and global gate architecture | Gate 3 successor logic | legacy context manifest remains separate | ArtifactStore, Gate 1 reader or provider access |
+| Qualification result | [`qualify_financial_semantic_v6`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_qualification_run.py) | [V6 Qualification Harness](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_QUALIFICATION_HARNESS.md) | qualification CLI, safe receipt | older runners are replay-only | parallel result classifier or production admission |
+| Evidence storage | [`Gate2FinancialSemanticV6DecisionEvidenceFactory.create` and replay](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py); safe receipt [`write_safe_receipt_atomically`](../../../services/broker-reports-gate1-proof/scripts/live_gate2_financial_semantic_v6_qualification.py) | [V6 Exact Evidence](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md) | qualification, offline audit | private exact evidence stays outside Git; safe receipts are projections | raw private evidence in Git, evidence-driven product mutation or retry |
 
 ## Duplicate, compatibility and history findings
 
@@ -128,6 +118,16 @@ DOMAINS: FULLY_INVENTORIED
 AUTHORITIES: IDENTIFIED_OR_EXPLICITLY_AMBIGUOUS
 DUPLICATES: IDENTIFIED
 DOCUMENTATION_DRIFT: IDENTIFIED
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
+
+## Goal 2 acceptance
+
+```text
+AUTHORITY_MAP: COMPACT_AND_ACTIONABLE
+EXACT_CODE_REFERENCES: PRESENT
+FULL_CONTRACT_DUPLICATION: ZERO
 PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 ```
