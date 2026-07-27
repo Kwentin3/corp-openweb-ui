@@ -5,10 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .gate2_financial_evidence_decision import (
-    FinancialEvidenceDecisionPackage,
-    FinancialEvidenceValueCandidate,
     Gate2FinancialEvidenceDecisionContract,
-    Gate2FinancialEvidenceDecisionContractFactory,
     Gate2FinancialEvidenceDecisionError,
 )
 from .gate2_financial_evidence_materialization import (
@@ -38,6 +35,10 @@ from .gate2_financial_semantic_v6_bundle import (
     Gate2FinancialEvidenceBundle,
     Gate2FinancialEvidenceBundleError,
     validate_financial_evidence_bundle,
+)
+from .gate2_financial_semantic_v6_canonical import (
+    Gate2FinancialSemanticV6CanonicalDecisionContractFactory,
+    Gate2FinancialSemanticV6CanonicalError,
 )
 
 
@@ -513,8 +514,8 @@ def _materializability_receipt(
 ) -> FinancialTypedOptionMaterializabilityReceipt:
     contract = _canonical_decision_contract(
         evidence_bundle=evidence_bundle,
+        source_package=source_package,
         registry=registry,
-        semantic_contract=semantic_contract,
         input_type_id=type_contract.input_type_id,
     )
     binding_map: dict[str, str | None] = {
@@ -603,41 +604,19 @@ def _materializability_receipt(
 def _canonical_decision_contract(
     *,
     evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
-    semantic_contract: Gate2FinancialSemanticContractSnapshot,
     input_type_id: str,
 ) -> Gate2FinancialEvidenceDecisionContract:
-    compatible_roles: dict[str, set[str]] = {}
-    for type_contract in semantic_contract.type_contracts:
-        for role_contract in type_contract.role_contracts:
-            compatible_roles.setdefault(
-                role_contract.value_type,
-                set(),
-            ).add(role_contract.role_id)
-    candidates: list[FinancialEvidenceValueCandidate] = []
-    for value in evidence_bundle.source_values:
-        allowed_roles = tuple(sorted(compatible_roles.get(value.value_type, set())))
-        if not allowed_roles:
-            _fail("financial_typed_option_canonical_adapter_role_missing")
-        candidates.append(
-            FinancialEvidenceValueCandidate(
-                source_value_ref=value.source_value_ref,
-                source_ref=value.source_ref,
-                value_type=value.value_type,
-                allowed_roles=allowed_roles,
-            )
-        )
     try:
-        return Gate2FinancialEvidenceDecisionContractFactory(
+        return Gate2FinancialSemanticV6CanonicalDecisionContractFactory(
             registry=registry,
-            package=FinancialEvidenceDecisionPackage(
-                source_scope_ref=evidence_bundle.source_scope_ref,
-                source_family_id=evidence_bundle.source_family_id,
-                candidates=tuple(candidates),
-                allowed_type_ids=(input_type_id,),
-            ),
-        ).create()
-    except Gate2FinancialEvidenceDecisionError as exc:
+        ).create(
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            allowed_type_ids=(input_type_id,),
+        )
+    except Gate2FinancialSemanticV6CanonicalError as exc:
         raise Gate2FinancialTypedOptionError(
             "financial_typed_option_canonical_adapter_invalid"
         ) from exc
