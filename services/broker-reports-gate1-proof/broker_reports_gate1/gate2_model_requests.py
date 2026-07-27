@@ -630,7 +630,8 @@ class Gate2OpenWebUIRequestBuilder:
         model_id: str,
         response_format: dict[str, Any],
     ) -> dict[str, Any]:
-        from .gate2_financial_semantic_v6_evidence import (
+        from .gate2_financial_semantic_v6_prompt import (
+            V6_SEMANTIC_PROMPT_HASH,
             V6_SEMANTIC_PROMPT_VERSION,
             V6_SEMANTIC_SYSTEM_PROMPT,
         )
@@ -641,13 +642,17 @@ class Gate2OpenWebUIRequestBuilder:
         if (
             getattr(prompt, "content", None) != V6_SEMANTIC_SYSTEM_PROMPT
             or getattr(prompt, "version", None) != V6_SEMANTIC_PROMPT_VERSION
-            or getattr(prompt, "hash", None) != _sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
+            or getattr(prompt, "hash", None) != V6_SEMANTIC_PROMPT_HASH
         ):
             raise Gate2PromptError(
                 "gate2_financial_semantic_v6_prompt_contract_mismatch",
                 "V6 qualification requires the exact canonical Prompt",
             )
-        if not isinstance(package, dict) or tuple(package) != SEMANTIC_PACKET_BLOCKS:
+        if (
+            not isinstance(package, dict)
+            or tuple(package) != SEMANTIC_PACKET_BLOCKS
+            or getattr(prompt, "packet_hash", None) != _sha256_json(package)
+        ):
             raise Gate2PromptError(
                 "gate2_financial_semantic_v6_packet_invalid",
                 "V6 qualification requires the exact four-block packet",
@@ -658,6 +663,8 @@ class Gate2OpenWebUIRequestBuilder:
             or not isinstance(json_schema, dict)
             or json_schema.get("strict") is not True
             or not isinstance(json_schema.get("schema"), dict)
+            or getattr(prompt, "choice_schema_hash", None)
+            != _sha256_json(json_schema.get("schema"))
         ):
             raise Gate2PromptError(
                 "gate2_financial_semantic_v6_response_schema_not_strict",
@@ -666,7 +673,7 @@ class Gate2OpenWebUIRequestBuilder:
         return {
             "model": model_id,
             "messages": [
-                {"role": "system", "content": V6_SEMANTIC_SYSTEM_PROMPT},
+                {"role": "system", "content": prompt.content},
                 {
                     "role": "user",
                     "content": json.dumps(
@@ -684,7 +691,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "request_profile": (
                         FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
                     ),
-                    "prompt_version": V6_SEMANTIC_PROMPT_VERSION,
+                    "prompt_version": prompt.version,
                     "prompt_hash": prompt.hash,
                     "packet_hash": prompt.packet_hash,
                     "choice_schema_hash": prompt.choice_schema_hash,

@@ -60,7 +60,6 @@ from .gate2_financial_semantic_v6_choice import (
     validate_financial_semantic_v6_choice_contract,
 )
 from .gate2_financial_semantic_v6_evidence import (
-    V6_SEMANTIC_PROMPT_VERSION,
     financial_semantic_v6_canonical_request,
 )
 from .gate2_financial_semantic_v6_expansion import (
@@ -73,6 +72,7 @@ from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6PacketFactory,
     validate_financial_semantic_v6_packet,
 )
+from .gate2_financial_semantic_v6_prompt import V6_SEMANTIC_PROMPT_VERSION
 from .gate2_financial_semantic_v6_totality import (
     Gate2FinancialSemanticV6TotalMaterializerFactory,
 )

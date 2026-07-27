@@ -41,12 +41,20 @@ from .gate2_financial_semantic_v6_expansion import (
 from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6Packet,
 )
+from .gate2_financial_semantic_v6_prompt import (
+    Gate2FinancialSemanticV6QualificationPrompt,
+    financial_semantic_v6_prompt,
+)
 from .gate2_financial_semantic_v6_totality import (
     Gate2FinancialSemanticV6TotalMaterialization,
     Gate2FinancialSemanticV6TotalMaterializerFactory,
     Gate2FinancialSemanticV6TotalityError,
 )
 from .gate2_model_contracts import Gate2ProviderExecutionMetadata
+from .gate2_model_requests import (
+    FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
+    Gate2OpenWebUIRequestBuilder,
+)
 
 
 V6_PRIVATE_DECISION_EVIDENCE_SCHEMA_VERSION = (
@@ -58,12 +66,6 @@ V6_SAFE_DECISION_RECEIPT_SCHEMA_VERSION = (
 V6_DECISION_REPLAY_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_replay_v1"
 )
-V6_SEMANTIC_PROMPT_VERSION = "financial_semantic_v6_candidate_choice_v1"
-V6_SEMANTIC_SYSTEM_PROMPT = (
-    "Return exactly one JSON object that conforms to the supplied strict "
-    "response schema. Use only the task and evidence in the user message."
-)
-
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6DecisionEvidenceFactory.create and "
     "replay_financial_semantic_v6_decision are the only V6 exact-decision "
@@ -259,6 +261,7 @@ def financial_semantic_v6_canonical_request(
     packet: Gate2FinancialSemanticV6Packet,
     choice_contract: Gate2FinancialSemanticV6ChoiceContract,
     exact_model_id: str = V6_EXACT_MODEL_ID,
+    prompt: Gate2FinancialSemanticV6QualificationPrompt | None = None,
 ) -> dict[str, Any]:
     if (
         not isinstance(packet, Gate2FinancialSemanticV6Packet)
@@ -271,41 +274,18 @@ def financial_semantic_v6_canonical_request(
     ):
         _fail("financial_semantic_v6_canonical_request_authority_invalid")
     response_format = financial_semantic_v6_response_format(choice_contract)
-    prompt_hash = sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
-    return {
-        "model": exact_model_id,
-        "messages": [
-            {
-                "role": "system",
-                "content": V6_SEMANTIC_SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": json.dumps(
-                    packet.payload,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                ),
-            },
-        ],
-        "stream": False,
-        "response_format": response_format,
-        "metadata": {
-            "broker_reports_gate2": {
-                "financial_semantic_v6": True,
-                "request_profile": V6_QUALIFICATION_REQUEST_PROFILE,
-                "prompt_version": V6_SEMANTIC_PROMPT_VERSION,
-                "prompt_hash": prompt_hash,
-                "packet_hash": packet.packet_hash,
-                "choice_schema_hash": choice_contract.choice_schema_hash,
-                "semantic_selection_owner": "llm",
-                "knowledge_rag_used": False,
-                "vectorization_performed": False,
-            }
-        },
-    }
-
-
+    exact_prompt = prompt or financial_semantic_v6_prompt(
+        packet=packet,
+        choice_contract=choice_contract,
+    )
+    return Gate2OpenWebUIRequestBuilder(
+        request_profile=FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+    ).build(
+        prompt=exact_prompt,
+        package=packet.payload,
+        model_id=exact_model_id,
+        response_format=response_format,
+    )
 def replay_financial_semantic_v6_decision(
     *,
     private_evidence: dict[str, Any],

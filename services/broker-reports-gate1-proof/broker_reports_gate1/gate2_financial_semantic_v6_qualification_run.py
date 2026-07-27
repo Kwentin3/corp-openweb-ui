@@ -36,9 +36,9 @@ from .gate2_financial_semantic_v6_qualification import (
     Gate2FinancialSemanticV6QualificationCase,
     Gate2FinancialSemanticV6QualificationFixture,
     _fail,
-    _prompt,
     _semantic_authorities,
 )
+from .gate2_financial_semantic_v6_prompt import financial_semantic_v6_prompt
 from .gate2_financial_semantic_v6_stronger_candidate import (
     V6_GOAL12_EXACT_MODEL_ID,
     V6_GOAL12_PROVIDER_PROFILE_ID,
@@ -161,10 +161,15 @@ async def qualify_financial_semantic_v6(
                 packet,
                 choice_contract,
             ) = _semantic_authorities(case)
+            prompt = financial_semantic_v6_prompt(
+                packet=packet,
+                choice_contract=choice_contract,
+            )
             canonical_request = financial_semantic_v6_canonical_request(
                 packet=packet,
                 choice_contract=choice_contract,
                 exact_model_id=exact_model_id,
+                prompt=prompt,
             )
             response_format = financial_semantic_v6_response_format(
                 choice_contract
@@ -178,10 +183,7 @@ async def qualify_financial_semantic_v6(
             )
             try:
                 result = await model_client.extract(
-                    prompt=_prompt(
-                        packet=packet,
-                        choice_contract=choice_contract,
-                    ),
+                    prompt=prompt,
                     package=packet.payload,
                     model_id=exact_model_id,
                     response_format=response_format,
