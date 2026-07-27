@@ -340,10 +340,12 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
         repository_revision: str,
         stage_action: dict[str, Any],
         published_model_ids: set[str],
+        exact_model_id: str = V6_EXACT_MODEL_ID,
+        provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
     ) -> dict[str, Any]:
         if _REVISION_RE.fullmatch(repository_revision) is None:
             _fail("financial_semantic_v6_repository_revision_invalid")
-        if V6_EXACT_MODEL_ID not in published_model_ids:
+        if exact_model_id not in published_model_ids:
             _fail("financial_semantic_v6_exact_model_not_published")
         if (
             not isinstance(stage_action, dict)
@@ -354,14 +356,17 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
         ):
             _fail("financial_semantic_v6_stage_action_parity_failed")
 
-        contract_identity = _qualification_contract_identity(fixture)
+        contract_identity = _qualification_contract_identity(
+            fixture,
+            provider_profile_id=provider_profile_id,
+        )
         authorization = (
             Gate2EconomyQualificationPolicyFactory()
             .create()
             .authorize(
                 workload_class=WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
-                exact_model_id=V6_EXACT_MODEL_ID,
-                provider_profile_id=V6_PROVIDER_PROFILE_ID,
+                exact_model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
                 receipt_identity=contract_identity,
             )
         )
@@ -385,26 +390,29 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
             canonical_request = financial_semantic_v6_canonical_request(
                 packet=packet,
                 choice_contract=choice_contract,
+                exact_model_id=exact_model_id,
             )
             built_request = Gate2OpenWebUIRequestBuilder(
                 request_profile=(FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE)
             ).build(
                 prompt=prompt,
                 package=packet.payload,
-                model_id=V6_EXACT_MODEL_ID,
+                model_id=exact_model_id,
                 response_format=response_format,
             )
             if built_request != canonical_request:
                 _fail("financial_semantic_v6_canonical_request_parity_failed")
             budget = budget_session.prepare_call(
                 form_data=canonical_request,
-                model_id=V6_EXACT_MODEL_ID,
-                provider_profile_id=V6_PROVIDER_PROFILE_ID,
+                model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
                 operation_identity=f"v6-qualification:{case.case_id}",
             )
             capture = _synthetic_capture(
                 case_id=case.case_id,
                 choice_contract=choice_contract,
+                exact_model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
             )
             execution_identity = (
                 Gate2FinancialSemanticV6ExecutionIdentityFactory().create(
@@ -413,7 +421,9 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
                 )
             )
             evidence = Gate2FinancialSemanticV6DecisionEvidenceFactory(
-                registry=fixture.registry
+                registry=fixture.registry,
+                exact_model_id=exact_model_id,
+                provider_profile_id=provider_profile_id,
             ).create(
                 case_id=case.case_id,
                 canonical_request=canonical_request,
@@ -469,6 +479,8 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
             source_projection_hashes=source_projection_hashes,
             compact_projection_hashes=compact_projection_hashes,
             response_format_hashes=response_format_hashes,
+            exact_model_id=exact_model_id,
+            provider_profile_id=provider_profile_id,
         )
         receipt: dict[str, Any] = {
             "schema_version": V6_QUALIFICATION_SCHEMA_VERSION,
@@ -528,14 +540,25 @@ class Gate2FinancialSemanticV6QualificationPreflightFactory:
                 "production_admissions_total": 0,
             },
         }
+        if exact_model_id != V6_EXACT_MODEL_ID:
+            receipt["candidate_experiment"] = {
+                "architecture": "FROZEN",
+                "variable_changed": "exact_candidate",
+                "exact_model_id": exact_model_id,
+                "provider_profile_id": provider_profile_id,
+                "same_v6_workload": True,
+                "base_v6_publication_hash": V6_QUALIFICATION_PUBLICATION_HASH,
+            }
         receipt["integrity_sha256"] = sha256_json(receipt)
         return receipt
 
 
 def _qualification_contract_identity(
     fixture: Gate2FinancialSemanticV6QualificationFixture,
+    *,
+    provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
 ) -> Gate2EconomyQualificationContractIdentity:
-    profile = gate2_provider_profile(V6_PROVIDER_PROFILE_ID)
+    profile = gate2_provider_profile(provider_profile_id)
     contracts = [_semantic_authorities(item)[3] for item in fixture.semantic_cases]
     packets = [_semantic_authorities(item)[2] for item in fixture.semantic_cases]
     compact_projection_hashes = [
@@ -585,6 +608,8 @@ def _exact_identity(
     source_projection_hashes: list[str],
     compact_projection_hashes: list[str],
     response_format_hashes: list[str],
+    exact_model_id: str = V6_EXACT_MODEL_ID,
+    provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
 ) -> dict[str, Any]:
     material = {
         "repository_revision": repository_revision,
@@ -630,8 +655,8 @@ def _exact_identity(
             "cases_total": len(fixture.cases),
         },
         "model_provider": {
-            "exact_model_id": V6_EXACT_MODEL_ID,
-            "provider_profile_id": V6_PROVIDER_PROFILE_ID,
+            "exact_model_id": exact_model_id,
+            "provider_profile_id": provider_profile_id,
             "provider_route_revision": authorization["receipt_identity"][
                 "provider_route_revision"
             ],
@@ -662,6 +687,13 @@ def _exact_identity(
             "hidden_retry_total": 0,
         },
     }
+    if exact_model_id != V6_EXACT_MODEL_ID:
+        material["candidate_experiment"] = {
+            "architecture": "FROZEN",
+            "variable_changed": "exact_candidate",
+            "same_v6_workload": True,
+            "base_v6_publication_hash": V6_QUALIFICATION_PUBLICATION_HASH,
+        }
     return {**material, "identity_hash": sha256_json(material)}
 
 
@@ -683,8 +715,10 @@ def _synthetic_capture(
     *,
     case_id: str,
     choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    exact_model_id: str = V6_EXACT_MODEL_ID,
+    provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
 ) -> Gate2FinancialSemanticV6CapturedExecution:
-    profile = gate2_provider_profile(V6_PROVIDER_PROFILE_ID)
+    profile = gate2_provider_profile(provider_profile_id)
     response_format = financial_semantic_v6_response_format(choice_contract)
     metadata = Gate2ProviderExecutionMetadata(
         provider_id=profile.provider_id,
@@ -692,8 +726,8 @@ def _synthetic_capture(
         provider_profile_revision=gate2_provider_profile_revision(profile),
         adapter_id=profile.adapter_id,
         adapter_version=profile.adapter_version,
-        requested_model_id=V6_EXACT_MODEL_ID,
-        resolved_model_id=V6_EXACT_MODEL_ID,
+        requested_model_id=exact_model_id,
+        resolved_model_id=exact_model_id,
         provider_response_id=f"synthetic-preflight:{case_id}",
         structured_output_mode=profile.structured_output_mode,
         response_format_type=profile.response_format_type,
@@ -715,6 +749,8 @@ def _synthetic_capture(
         response_format_hash=sha256_json(response_format),
         execution_metadata=metadata,
         actual_cost_usd="0",
+        exact_model_id=exact_model_id,
+        provider_profile_id=provider_profile_id,
     )
 
 

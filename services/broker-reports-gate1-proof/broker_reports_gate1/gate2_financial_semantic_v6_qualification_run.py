@@ -16,7 +16,6 @@ from .gate2_financial_evidence_materialization import (
 )
 from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_semantic_v6_evidence import (
-    V6_SEMANTIC_SYSTEM_PROMPT,
     Gate2FinancialSemanticV6DecisionEvidenceFactory,
     financial_semantic_v6_canonical_request,
 )
@@ -37,12 +36,20 @@ from .gate2_financial_semantic_v6_qualification import (
     Gate2FinancialSemanticV6QualificationCase,
     Gate2FinancialSemanticV6QualificationFixture,
     _fail,
+    _prompt,
     _semantic_authorities,
+)
+from .gate2_financial_semantic_v6_stronger_candidate import (
+    V6_GOAL12_EXACT_MODEL_ID,
+    V6_GOAL12_PROVIDER_PROFILE_ID,
 )
 from .gate2_model_contracts import (
     Gate2StructuredModelClient,
     Gate2StructuredModelResult,
+    gate2_provider_profile,
 )
+
+
 V6_QUALIFICATION_RUN_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_qualification_run_v1"
 )
@@ -72,7 +79,9 @@ async def qualify_financial_semantic_v6(
     private_case_checkpoint: Callable[[str, dict[str, Any]], None],
     safe_checkpoint: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    _validate_exact_identity(exact_identity)
+    exact_model_id, provider_profile_id = _validate_exact_identity(
+        exact_identity
+    )
 
     case_receipts: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
@@ -155,6 +164,7 @@ async def qualify_financial_semantic_v6(
             canonical_request = financial_semantic_v6_canonical_request(
                 packet=packet,
                 choice_contract=choice_contract,
+                exact_model_id=exact_model_id,
             )
             response_format = financial_semantic_v6_response_format(
                 choice_contract
@@ -168,9 +178,12 @@ async def qualify_financial_semantic_v6(
             )
             try:
                 result = await model_client.extract(
-                    prompt=V6_SEMANTIC_SYSTEM_PROMPT,
+                    prompt=_prompt(
+                        packet=packet,
+                        choice_contract=choice_contract,
+                    ),
                     package=packet.payload,
-                    model_id=V6_EXACT_MODEL_ID,
+                    model_id=exact_model_id,
                     response_format=response_format,
                 )
                 model_output = copy.deepcopy(result.content)
@@ -181,6 +194,8 @@ async def qualify_financial_semantic_v6(
                     response_format_hash=sha256_json(response_format),
                     execution_metadata=result.execution_metadata,
                     actual_cost_usd=str(budget["actual_cost_usd"]),
+                    exact_model_id=exact_model_id,
+                    provider_profile_id=provider_profile_id,
                 )
                 execution_identity = (
                     Gate2FinancialSemanticV6ExecutionIdentityFactory().create(
@@ -189,7 +204,9 @@ async def qualify_financial_semantic_v6(
                     )
                 )
                 evidence = Gate2FinancialSemanticV6DecisionEvidenceFactory(
-                    registry=fixture.registry
+                    registry=fixture.registry,
+                    exact_model_id=exact_model_id,
+                    provider_profile_id=provider_profile_id,
                 ).create(
                     case_id=case.case_id,
                     canonical_request=canonical_request,
@@ -583,16 +600,33 @@ def _v6_product_invariants(
     }
 
 
-def _validate_exact_identity(exact_identity: dict[str, Any]) -> None:
+def _validate_exact_identity(
+    exact_identity: dict[str, Any],
+) -> tuple[str, str]:
     material = {
         key: value for key, value in exact_identity.items() if key != "identity_hash"
     }
     attempt = exact_identity.get("attempt_policy") or {}
     model_provider = exact_identity.get("model_provider") or {}
+    exact_model_id = model_provider.get("exact_model_id")
+    provider_profile_id = model_provider.get("provider_profile_id")
+    try:
+        profile = gate2_provider_profile(provider_profile_id)
+    except ValueError:
+        profile = None
+    allowed_candidate_pairs = {
+        (V6_EXACT_MODEL_ID, V6_PROVIDER_PROFILE_ID),
+        (V6_GOAL12_EXACT_MODEL_ID, V6_GOAL12_PROVIDER_PROFILE_ID),
+    }
     if (
         exact_identity.get("identity_hash") != sha256_json(material)
-        or model_provider.get("exact_model_id") != V6_EXACT_MODEL_ID
-        or model_provider.get("provider_profile_id") != V6_PROVIDER_PROFILE_ID
+        or not isinstance(exact_model_id, str)
+        or not exact_model_id
+        or not isinstance(provider_profile_id, str)
+        or profile is None
+        or not exact_model_id.startswith(profile.model_id_prefixes)
+        or (exact_model_id, provider_profile_id)
+        not in allowed_candidate_pairs
         or model_provider.get("request_profile")
         != V6_QUALIFICATION_REQUEST_PROFILE
         or attempt.get("full_scope_attempts_total") != 1
@@ -603,6 +637,7 @@ def _validate_exact_identity(exact_identity: dict[str, Any]) -> None:
         or attempt.get("hidden_retry_total") != 0
     ):
         _fail("financial_semantic_v6_qualification_identity_invalid")
+    return exact_model_id, provider_profile_id
 
 
 def _validate_provider_result(result: Gate2StructuredModelResult) -> None:

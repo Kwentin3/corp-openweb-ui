@@ -63,6 +63,8 @@ class Gate2FinancialSemanticV6CapturedExecution:
     response_format_hash: str
     execution_metadata: Gate2ProviderExecutionMetadata
     actual_cost_usd: str
+    exact_model_id: str = V6_EXACT_MODEL_ID
+    provider_profile_id: str = V6_PROVIDER_PROFILE_ID
 
 
 @dataclass(frozen=True)
@@ -166,7 +168,7 @@ class Gate2FinancialSemanticV6ExecutionIdentityFactory:
             Gate2FinancialSemanticV6ChoiceContract,
         ):
             _schema_fail("financial_semantic_v6_choice_contract_invalid")
-        profile = gate2_provider_profile(V6_PROVIDER_PROFILE_ID)
+        profile = gate2_provider_profile(capture.provider_profile_id)
         expected_route_revision = gate2_provider_profile_revision(profile)
         expected_response_format = financial_semantic_v6_response_format(
             choice_contract
@@ -200,8 +202,8 @@ class Gate2FinancialSemanticV6ExecutionIdentityFactory:
         ):
             _schema_fail("financial_semantic_v6_provider_schema_identity_mismatch")
         if (
-            metadata.requested_model_id != V6_EXACT_MODEL_ID
-            or metadata.resolved_model_id != V6_EXACT_MODEL_ID
+            metadata.requested_model_id != capture.exact_model_id
+            or metadata.resolved_model_id != capture.exact_model_id
         ):
             _provider_fail("financial_semantic_v6_provider_model_identity_mismatch")
         normalized_usage = _normalized_usage(metadata)
