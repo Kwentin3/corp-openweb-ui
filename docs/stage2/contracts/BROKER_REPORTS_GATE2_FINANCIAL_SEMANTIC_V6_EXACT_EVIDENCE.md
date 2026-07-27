@@ -44,6 +44,12 @@ Replay performs no provider call, repair, fallback or hidden retry. Any
 authority, identity, expansion, validator, artifact or private/safe hash-link
 mismatch fails closed.
 
+Persisted private JSON is restored through
+`restore_financial_semantic_v6_private_evidence` before replay. The restorer
+accepts only the exact private field set, verifies `private_evidence_hash`,
+and reinstates canonical contract order after ordinary JSON writers sort
+object keys. It does not change values or weaken replay validation.
+
 ## Goal 2 provider-smoke evidence
 
 The two-case provider smoke checkpoints every returned response immediately.
@@ -64,3 +70,40 @@ technical/semantic outcomes, counts and cryptographic hashes. It shows exact
 technical replay for both responses but failed typed and unclassified smoke
 expectations. The evidence therefore does not publish precision, recall,
 product admission or a model-safety verdict.
+
+## Transparent synthetic smoke projection
+
+The repository-safe aggregate receipt remains unchanged and continues to
+exclude semantic choices and source values. A separate transparent report is
+allowed only for the two frozen synthetic smoke cases. Its sole projector is
+`Gate2FinancialSemanticV6TransparentSmokeReportFactory`.
+
+For each allowlisted synthetic case the report copies the exact semantic
+decision surface from the already-built canonical packet and Choice:
+
+- task instruction;
+- source context, including synthetic values;
+- all available financial type cards;
+- all Typed Options;
+- the unclassified disposition and reason codes;
+- exact returned semantic JSON;
+- normalized semantic Choice;
+- explicit expected-versus-actual field comparison;
+- technical status and bounded diagnosis.
+
+The projection does not include credentials, provider response IDs, hidden
+reasoning, raw provider envelopes, internal filesystem paths, or execution
+metadata. It neither changes nor substitutes the exact private evidence and
+safe hash link. Actual-corpus values and exact context are never eligible for
+this projection.
+
+The 2026-07-27 strong-model smoke evidence is:
+
+- [terminal safe receipt](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE.receipt.safe.json);
+- [immutable interrupted one-case receipt](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE_INTERRUPTED_AFTER_TYPED.receipt.safe.json);
+- [transparent synthetic report](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_STRONG_MODEL_TWO_CASE_SMOKE.report.md).
+
+The terminal receipt records exactly two submissions/responses, both case
+passes, exact replay, zero hidden retry/fallback/repair and no qualification
+attempt. The interrupted receipt proves the first process stopped with one
+passed typed case before the continuation submitted only the missing case.

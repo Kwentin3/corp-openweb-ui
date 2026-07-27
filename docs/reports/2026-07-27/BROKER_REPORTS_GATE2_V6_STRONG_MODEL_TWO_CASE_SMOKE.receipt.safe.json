@@ -1,0 +1,228 @@
+{
+  "acceptance": {
+    "offline_replay": "EXACT",
+    "provider_submissions": "TWO",
+    "typed_smoke": "PASSED",
+    "unclassified_smoke": "PASSED",
+    "usage_normalization": "PASSED"
+  },
+  "attempt_accounting": {
+    "fallback_total": 0,
+    "hidden_retry_total": 0,
+    "local_invocations_total": 2,
+    "offline_replays_total": 2,
+    "product_admitted_decisions_total": 2,
+    "provider_responses_total": 2,
+    "provider_submissions_total": 2,
+    "qualification_attempts_total": 0,
+    "repair_total": 0,
+    "semantic_decisions_total": 2
+  },
+  "case_receipts": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "disposition_exact": true,
+      "exact_evidence_preserved": true,
+      "expected_choice_exact": true,
+      "offline_replay": "EXACT",
+      "product_admitted": true,
+      "provider_calls_total": 1,
+      "provider_responses_total": 1,
+      "safe_decision_receipt": {
+        "case_id": "syn_successor_v2_unique_cash",
+        "counts": {
+          "input_tokens": 3319,
+          "output_tokens": 46,
+          "provider_calls_total": 1,
+          "retained_source_values_total": 4,
+          "total_tokens": 3365,
+          "typed_options_total": 2
+        },
+        "decision_classification": {
+          "disposition": "typed_input"
+        },
+        "exact_choice_preserved": "YES",
+        "hashes": {
+          "canonical_decision_hash": "c67c44154cb4f4fd10d5cdf942ebbf5fc01d34f06de0b91a2fa8e4030bc3cb99",
+          "canonical_request_hash": "e67bfe7dfd89d41414eae3d1c46c4d5629120f4317378ca94dc5ea209cf17e64",
+          "expansion_integrity_hash": "d43152d6455150b367cab1de8d398a30ad5acab0108fc0bd0e9fa0b6426ad11f",
+          "materialized_artifact_hash": "a1f1b65688e3829c2d803bf74a97027767234cc95b7e2624f3167ca765179301",
+          "materialized_artifact_integrity_hash": "63051363f864b722e6559bffd88751b253094896e11dec42899b38b16b7f19e3",
+          "private_evidence_hash": "c9579ad3678da92a64089de2248105287850f349b7bb613d07014d410baaf028",
+          "provider_execution_identity_hash": "c460280876437bb2ad431d97d6a231f1aaa820edae6924016b6f31132409e92e",
+          "provider_schema_hash": "883381d22afd40c398e1c07040e4de456a4f14d8d4a0f3528e2f78b85664a45b",
+          "response_format_hash": "f044b14979b849e3fd9603d43eeba520af11b40bb73920a2ea196621fb27e480",
+          "semantic_choice_hash": "133a0a670815c267cce50b821230a39681125188ee2345b388fe76a24abcb769"
+        },
+        "materializer_status": "proven_for_expansion",
+        "offline_replay": "EXACT",
+        "private_safe_hash_link": "VERIFIED",
+        "private_safe_hash_link_verified": true,
+        "provider_metrics": {
+          "actual_cost_usd": "0.003549000",
+          "latency_ms": 3282
+        },
+        "raw_private_data_in_git": "ZERO",
+        "raw_private_data_in_receipt": false,
+        "receipt_hash": "c2fb4bdab041b30c8e707d4ad7861639d89cafae03eae81e8bda4101f8546f21",
+        "schema_version": "broker_reports_gate2_financial_semantic_v6_safe_receipt_v1",
+        "validator_status": "passed"
+      },
+      "semantic_decision_admitted": true,
+      "smoke_role": "typed",
+      "status": "passed",
+      "terminal_class": null,
+      "usage_normalized": true
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "disposition_exact": true,
+      "exact_evidence_preserved": true,
+      "expected_choice_exact": true,
+      "offline_replay": "EXACT",
+      "product_admitted": true,
+      "provider_calls_total": 1,
+      "provider_responses_total": 1,
+      "safe_decision_receipt": {
+        "case_id": "syn_successor_v2_no_registry_type",
+        "counts": {
+          "input_tokens": 3359,
+          "output_tokens": 28,
+          "provider_calls_total": 1,
+          "retained_source_values_total": 6,
+          "total_tokens": 3387,
+          "typed_options_total": 2
+        },
+        "decision_classification": {
+          "disposition": "unclassified_financial_input"
+        },
+        "exact_choice_preserved": "YES",
+        "hashes": {
+          "canonical_decision_hash": "c48749dcb60a8f1e0e321e776874aa5856054f4e65f2ceaa5bf41a7a20949371",
+          "canonical_request_hash": "7b3cca84c0e2a065f59d59a71436cfad0d7bedade91c51b19d9ec1148990e28e",
+          "expansion_integrity_hash": "6d7f02a94a8fb41525f25165723fd6c835bbd7766ca6d5fa053d92f364d13117",
+          "materialized_artifact_hash": "7db58598ea14b2875632a771a0fbeb307f0ece54b01ded2d8fca0d242ddd94bd",
+          "materialized_artifact_integrity_hash": "afa6b5925d471f1335ffff456a2ab90f76c04ff4f655cd0a48f574862ce6741a",
+          "private_evidence_hash": "bd036ed0e09a6adc847767aa7be656884d32b343ec5ba5cd91bae7a1d54f49cc",
+          "provider_execution_identity_hash": "f8ba103660baa8eb9c9c2d9ab77eba5766247fd46c557d0ae918680fe4ced164",
+          "provider_schema_hash": "10a54d609f1658982b18b12ed3a4ac1a8c0b39a3e35dcbfdf02af79abe728d7f",
+          "response_format_hash": "50f730c12cc046b32387494e42862c2f0b31e8f7b30aff76362a8349a32f5179",
+          "semantic_choice_hash": "a86b925dd2e401f52eed7934d240ec5d9d9fb42a002db705d752bf3438e1ee20"
+        },
+        "materializer_status": "proven_for_expansion",
+        "offline_replay": "EXACT",
+        "private_safe_hash_link": "VERIFIED",
+        "private_safe_hash_link_verified": true,
+        "provider_metrics": {
+          "actual_cost_usd": "0.003499000",
+          "latency_ms": 3516
+        },
+        "raw_private_data_in_git": "ZERO",
+        "raw_private_data_in_receipt": false,
+        "receipt_hash": "1f3421e09508c97b6e00829074231cba203dbf97cc4b1a59f48cf16e97c0bbce",
+        "schema_version": "broker_reports_gate2_financial_semantic_v6_safe_receipt_v1",
+        "validator_status": "passed"
+      },
+      "semantic_decision_admitted": true,
+      "smoke_role": "unclassified",
+      "status": "passed",
+      "terminal_class": null,
+      "usage_normalized": true
+    }
+  ],
+  "cases_executed": 2,
+  "cases_passed": 2,
+  "cases_total": 2,
+  "exact_evidence_preserved": true,
+  "exact_identity": {
+    "action": {
+      "content_hash": "2efdf1d209ac4e6bcf88d9b579fe20a4259ca219e6d57d10fcf95778a61620fa",
+      "publication_hash": "6fe67e5e7c06012ed161f6ad74b2e4ca7e5aa749b283eaec1eb9f78250113ae9"
+    },
+    "ambiguity_policy": {
+      "hash": "4b5c75f0f57ae63f70d27f2f2e261f28e2a3566848b59b16b75abd1b69f21f34",
+      "rule": "Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified."
+    },
+    "attempt_policy": {
+      "fallback_total": 0,
+      "full_scope_attempts_total": 1,
+      "hidden_retry_total": 0,
+      "repair_total": 0,
+      "semantic_provider_calls_total": 10,
+      "technical_provider_calls_total": 0
+    },
+    "benchmark": {
+      "cases_total": 12,
+      "hash": "3688fe9d47534cc6f810550561460f1508acd095e798ea90c5998b55c63b0d33"
+    },
+    "candidate_compilation_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
+    "candidate_compilation_schema": "broker_reports_gate2_financial_candidate_compilation_v1",
+    "candidate_experiment": {
+      "architecture": "FROZEN",
+      "base_v6_publication_hash": "6fe67e5e7c06012ed161f6ad74b2e4ca7e5aa749b283eaec1eb9f78250113ae9",
+      "same_v6_workload": true,
+      "variable_changed": "exact_candidate"
+    },
+    "compact_pack_projection": {
+      "compact_projection_hashes_sha256": "8a38f12e4629c192c1a76171708dd3dfba55b17f37034044b5ccbac619497307",
+      "projection_version": "1.0.0",
+      "schema_version": "broker_reports_gate2_financial_semantic_projection_v1",
+      "source_authority_hashes_sha256": "53c7e129450f9536c89217d7e3da6eb10f19e52e614fe7d373597f81d41622f4"
+    },
+    "evidence_bundle_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
+    "evidence_bundle_schema": "broker_reports_gate2_financial_evidence_bundle_v1",
+    "evidence_contract": {
+      "private_schema_version": "broker_reports_gate2_financial_semantic_v6_private_evidence_v1",
+      "safe_schema_version": "broker_reports_gate2_financial_semantic_v6_safe_receipt_v1"
+    },
+    "execution_identity": {
+      "policy_version": "broker_reports_gate2_candidate_records_by_construction_v1",
+      "schema_version": "broker_reports_gate2_financial_semantic_v6_execution_identity_v1"
+    },
+    "identity_hash": "68b42e810736a48ecf6fa4c04a775c7241c53bb4026943a554f77972942679ec",
+    "model_provider": {
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "provider_profile_id": "anthropic_claude",
+      "provider_route_revision": "289bf0618825d53f49ebe2fda1272aa284e5c5b23f072a262f990c80111d74e7",
+      "request_profile": "financial_semantic_v6_qualification_v1",
+      "workload_class": "gate2_financial_evidence"
+    },
+    "prompt": {
+      "hash": "59143216c08d6e5069bee757346508906cbaf5575b76bebee440d94dede8642b",
+      "version": "financial_semantic_v6_candidate_choice_v1"
+    },
+    "provider_schema": {
+      "response_format_hashes_sha256": "96419772770b0a8e5a45b1c5374853ae139f84c1f4d631a36b204762e79a3bdb",
+      "schema_hashes_sha256": "7afd6ccd9410aa496f903508b3ee93c65a9cd54fdb271ebefa493c1aac74352a",
+      "schema_version": "broker_reports_gate2_financial_semantic_choice_v6"
+    },
+    "qualification_authorization_hash": "75c2ec8bd024fa48c8d51ed43b4ba99d3d9aa6c0ed8985cdbdc98bb2dc4d8e30",
+    "repository_revision": "335072ae1eea388cf58c432718f4785de4fcbe7f",
+    "semantic_choice_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
+    "semantic_choice_schema": "broker_reports_gate2_financial_semantic_choice_v6",
+    "semantic_packet_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
+    "semantic_packet_schema": "broker_reports_gate2_financial_semantic_packet_v6",
+    "typed_option_policy": "broker_reports_gate2_candidate_records_by_construction_v1",
+    "typed_option_schema": "broker_reports_gate2_financial_typed_option_v1"
+  },
+  "execution_state": "terminal",
+  "integrity_sha256": "cd16fc79047208e0c334c61c2841be7824bfaab46e21476ed2bce6d5da353e3c",
+  "model_qualification_performed": false,
+  "precision_recall_published": false,
+  "private_evidence_cases_total": 2,
+  "product_gate": null,
+  "production_admissions_total": 0,
+  "provider_metrics": {
+    "actual_cost_usd": "0.007048000",
+    "input_tokens_total": 6678,
+    "latency_average_ms": 3399,
+    "latency_max_ms": 3516,
+    "latency_total_ms": 6798,
+    "output_tokens_total": 74
+  },
+  "quality": null,
+  "raw_private_data_in_receipt": false,
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_provider_smoke_v1",
+  "status": "passed",
+  "terminal_class": "SMOKE_PASSED"
+}

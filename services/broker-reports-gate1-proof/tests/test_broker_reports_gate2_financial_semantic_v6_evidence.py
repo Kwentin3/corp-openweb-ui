@@ -41,6 +41,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa:
     financial_semantic_v6_canonical_request,
     financial_semantic_v6_private_evidence_hash,
     replay_financial_semantic_v6_decision,
+    restore_financial_semantic_v6_private_evidence,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import (  # noqa: E402,E501
     V6_EXACT_MODEL_ID,
@@ -331,6 +332,25 @@ def test_offline_replay_reproduces_exact_artifact_without_provider_call(
         == (bundle["evidence"].private_evidence["semantic_choice_hash"])
     )
     assert replay.safe_receipt == bundle["evidence"].safe_receipt
+    assert replay.provider_calls_total == 0
+
+
+def test_private_evidence_restore_canonicalizes_sorted_json_for_replay() -> None:
+    bundle = _evidence("syn_successor_signed_literal", unclassified=False)
+    serialized = json.loads(
+        json.dumps(
+            bundle["evidence"].private_evidence,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+    restored = restore_financial_semantic_v6_private_evidence(serialized)
+    replay = _replay(bundle, private=restored)
+
+    assert restored == bundle["evidence"].private_evidence
+    assert tuple(restored) == tuple(bundle["evidence"].private_evidence)
+    assert replay.status == "EXACT"
     assert replay.provider_calls_total == 0
 
 

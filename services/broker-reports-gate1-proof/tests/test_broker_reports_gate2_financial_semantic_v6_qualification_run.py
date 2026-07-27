@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (
@@ -16,6 +18,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
     replay_financial_semantic_v6_decision,
+    restore_financial_semantic_v6_private_evidence,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_prompt import (
     V6_SEMANTIC_PROMPT_VERSION,
@@ -41,6 +44,9 @@ from broker_reports_gate1.gate2_financial_semantic_v6_qualification_run import (
     financial_semantic_v6_provider_smoke_initial_receipt,
     qualify_financial_semantic_v6,
     smoke_financial_semantic_v6,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_smoke_report import (
+    Gate2FinancialSemanticV6TransparentSmokeReportFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (
     V6_GOAL12_EXACT_MODEL_ID,
@@ -127,6 +133,7 @@ class _ExactFakeClient:
         usage_metadata_incomplete: bool = False,
         invalid_output: bool = False,
         invalid_response: bool = False,
+        string_output: bool = False,
         provider_profile_id: str = V6_PROVIDER_PROFILE_ID,
     ) -> None:
         self.outputs = {
@@ -162,6 +169,7 @@ class _ExactFakeClient:
         self.usage_metadata_incomplete = usage_metadata_incomplete
         self.invalid_output = invalid_output
         self.invalid_response = invalid_response
+        self.string_output = string_output
         self.provider_profile_id = provider_profile_id
 
     def qualification_lifecycle_snapshot(self) -> dict[str, int]:
@@ -241,6 +249,8 @@ class _ExactFakeClient:
             content = None
         if self.invalid_output and self.calls == 1:
             content = {"disposition": "typed_input", "typed_option_id": "unknown"}
+        if self.string_output and isinstance(content, dict):
+            content = json.dumps(content, ensure_ascii=False, sort_keys=True)
         return Gate2StructuredModelResult(
             content=content,
             fallback_used=False,
@@ -348,6 +358,7 @@ def test_two_case_smoke_runs_exact_cases_and_replays_without_metrics() -> None:
     client = _ExactFakeClient(fixture)
     private: dict[str, dict] = {}
     checkpoints: list[dict] = []
+    transparent: dict[str, dict] = {}
 
     result = asyncio.run(
         smoke_financial_semantic_v6(
@@ -359,6 +370,9 @@ def test_two_case_smoke_runs_exact_cases_and_replays_without_metrics() -> None:
                 payload,
             ),
             safe_checkpoint=checkpoints.append,
+            transparent_case_checkpoint=lambda case_id, payload: (
+                transparent.__setitem__(case_id, payload)
+            ),
         )
     )
 
@@ -391,6 +405,37 @@ def test_two_case_smoke_runs_exact_cases_and_replays_without_metrics() -> None:
         "repair_total": 0,
     }
     assert checkpoints[-1] == result
+    assert set(transparent) == expected_case_ids
+    assert all(
+        item["technical_pipeline"]["status"] == "PASSED"
+        for item in transparent.values()
+    )
+    assert all(
+        item["exact_model_answer"] == item["normalized_answer"]
+        for item in transparent.values()
+    )
+    assert all(
+        item["mechanical_comparison"]["all_fields_match"] is True
+        for item in transparent.values()
+    )
+    report = Gate2FinancialSemanticV6TransparentSmokeReportFactory().render_report(
+        exact_model_id=V6_EXACT_MODEL_ID,
+        safe_receipt_filename="smoke.receipt.safe.json",
+        terminal_receipt=result,
+        case_evidence=list(transparent.values()),
+    )
+    assert report.count("### 1. CASE PURPOSE") == 2
+    assert report.count("### 2. WHAT THE MODEL SAW") == 2
+    assert report.count("### 3. EXPECTED ANSWER") == 2
+    assert report.count("### 4. EXACT MODEL ANSWER") == 2
+    assert report.count("### 5. NORMALIZED ANSWER") == 2
+    assert report.count("### 6. MECHANICAL COMPARISON") == 2
+    assert report.count("### 7. DIAGNOSIS") == 2
+    assert "`TECHNICAL_PIPELINE`: `PASSED`" in report
+    assert "`EXACT_MODEL_OUTPUT_VISIBLE`: `YES`" in report
+    assert "provider_response_id" not in report
+    assert "raw_provider_envelope" not in report
+    assert "reasoning_tokens" not in report
 
 
 def test_two_case_smoke_initial_receipt_consumes_nothing() -> None:
@@ -418,6 +463,116 @@ def test_two_case_smoke_initial_receipt_consumes_nothing() -> None:
     }
 
 
+def test_two_case_smoke_accepts_only_candidate_change_for_stronger_model() -> None:
+    fixture = _fixture()
+    client = _ExactFakeClient(
+        fixture,
+        string_output=True,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )
+    transparent: dict[str, dict] = {}
+
+    result = asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=client,
+            exact_identity=_preflight(
+                fixture,
+                exact_model_id=V6_GOAL12_EXACT_MODEL_ID,
+                provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+            )["exact_identity"],
+            private_case_checkpoint=lambda _case_id, _payload: None,
+            transparent_case_checkpoint=lambda case_id, payload: (
+                transparent.__setitem__(case_id, payload)
+            ),
+        )
+    )
+
+    assert client.calls == 2
+    assert result["status"] == "passed"
+    assert result["exact_identity"]["model_provider"][
+        "exact_model_id"
+    ] == V6_GOAL12_EXACT_MODEL_ID
+    assert result["exact_identity"]["model_provider"][
+        "provider_profile_id"
+    ] == V6_GOAL12_PROVIDER_PROFILE_ID
+    assert set(transparent) == {item[1] for item in V6_PROVIDER_SMOKE_CASES}
+    assert all(
+        item["exact_model_answer"] == item["normalized_answer"]
+        for item in transparent.values()
+    )
+
+
+def test_two_case_smoke_resumes_only_missing_case_from_exact_checkpoint() -> None:
+    fixture = _fixture()
+    identity = _preflight(
+        fixture,
+        exact_model_id=V6_GOAL12_EXACT_MODEL_ID,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )["exact_identity"]
+    first_client = _ExactFakeClient(
+        fixture,
+        string_output=True,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )
+    private: dict[str, dict] = {}
+    checkpoints: list[dict] = []
+    asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=first_client,
+            exact_identity=identity,
+            private_case_checkpoint=lambda case_id, payload: private.__setitem__(
+                case_id,
+                payload,
+            ),
+            safe_checkpoint=checkpoints.append,
+        )
+    )
+    one_case_receipt = next(
+        item for item in checkpoints if item["cases_executed"] == 1
+    )
+    typed_case_id = V6_PROVIDER_SMOKE_CASES[0][1]
+    disk_roundtrip_private = restore_financial_semantic_v6_private_evidence(
+        json.loads(
+            json.dumps(
+                private[typed_case_id],
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    )
+    resumed_client = _ExactFakeClient(
+        fixture,
+        string_output=True,
+        provider_profile_id=V6_GOAL12_PROVIDER_PROFILE_ID,
+    )
+    transparent: dict[str, dict] = {}
+
+    result = asyncio.run(
+        smoke_financial_semantic_v6(
+            fixture=fixture,
+            model_client=resumed_client,
+            exact_identity=identity,
+            private_case_checkpoint=lambda _case_id, _payload: None,
+            transparent_case_checkpoint=lambda case_id, payload: (
+                transparent.__setitem__(case_id, payload)
+            ),
+            resume_receipt=one_case_receipt,
+            resume_private_evidence={
+                typed_case_id: disk_roundtrip_private,
+            },
+        )
+    )
+
+    assert resumed_client.calls == 1
+    assert result["status"] == "passed"
+    assert result["attempt_accounting"]["provider_submissions_total"] == 2
+    assert result["attempt_accounting"]["provider_responses_total"] == 2
+    assert result["attempt_accounting"]["hidden_retry_total"] == 0
+    assert set(transparent) == {item[1] for item in V6_PROVIDER_SMOKE_CASES}
+
+
 def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
     source = (
         ROOT
@@ -428,15 +583,46 @@ def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
     assert "_model_client(" in source
     assert "smoke_financial_semantic_v6(" in source
     assert "Gate2FinancialSemanticV6QualificationPreflightFactory" in source
+    assert (
+        "Gate2FinancialSemanticV6TransparentSmokeReportFactory" in source
+    )
+    assert "V6_GOAL12_EXACT_MODEL_ID" in source
+    assert "V6_GOAL12_PROVIDER_PROFILE_ID" in source
+    assert "--resume-two-case-smoke" in source
     assert "generate_chat_completion" not in source
     assert "urlopen(" not in source
     assert "OpenAI(" not in source
     assert "Anthropic(" not in source
 
 
+def test_two_case_live_smoke_cli_imports_and_exposes_resume_help() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(
+                ROOT
+                / "scripts"
+                / "live_gate2_financial_semantic_v6_two_case_smoke.py"
+            ),
+            "--help",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+
+    assert "--preflight-only" in completed.stdout
+    assert "--execute-two-case-smoke" in completed.stdout
+    assert "--resume-two-case-smoke" in completed.stdout
+
+
 def test_two_case_smoke_semantic_miss_is_not_qualification_verdict() -> None:
     fixture = _fixture()
     client = _ExactFakeClient(fixture, wrong_type=True)
+    transparent: dict[str, dict] = {}
 
     result = asyncio.run(
         smoke_financial_semantic_v6(
@@ -444,6 +630,9 @@ def test_two_case_smoke_semantic_miss_is_not_qualification_verdict() -> None:
             model_client=client,
             exact_identity=_preflight(fixture)["exact_identity"],
             private_case_checkpoint=lambda _case_id, _payload: None,
+            transparent_case_checkpoint=lambda case_id, payload: (
+                transparent.__setitem__(case_id, payload)
+            ),
         )
     )
 
@@ -455,6 +644,14 @@ def test_two_case_smoke_semantic_miss_is_not_qualification_verdict() -> None:
     assert result["precision_recall_published"] is False
     assert result["attempt_accounting"]["provider_submissions_total"] == 2
     assert result["attempt_accounting"]["offline_replays_total"] == 2
+    typed = transparent["syn_successor_v2_unique_cash"]
+    assert typed["technical_pipeline"]["status"] == "PASSED"
+    assert typed["mechanical_comparison"]["all_fields_match"] is False
+    assert typed["diagnosis"]["code"] == "MODEL_SEMANTIC_ERROR"
+    assert any(
+        row["field"] == "typed_option_id" and row["exact_match"] is False
+        for row in typed["mechanical_comparison"]["fields"]
+    )
 
 
 def test_valid_but_wrong_type_is_terminal_without_retry_and_fails_gate() -> None:

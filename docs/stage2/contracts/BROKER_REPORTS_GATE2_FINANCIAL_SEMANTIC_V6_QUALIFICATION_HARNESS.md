@@ -1,7 +1,7 @@
 # Broker Reports Gate 2 Financial Semantic V6 Qualification Harness
 
-Status: V6 completion Goal 2 terminal smoke evidence; full qualification is
-blocked.
+Status: canonical V6 qualification and bounded-smoke harness. Full
+qualification always requires separate explicit authorization.
 
 ## Exact workload
 
@@ -92,3 +92,54 @@ passed the full technical path and exact zero-call replay. Both semantic smoke
 expectations failed. The result is not a model qualification or model-safety
 verdict. The smoke is not accepted, may not be retried under this
 authorization, and the full Nano qualification must not run.
+
+## Strong-candidate transparent smoke
+
+A later explicit authorization may select the fixed stronger candidate
+`claude-haiku-4-5-20251001` through `anthropic_claude` while retaining the
+same two cases and every semantic authority above. The CLI requires an
+explicit exact-candidate selector in both zero-call preflight and execute
+modes. Execution additionally requires a new safe receipt, a new private
+directory outside Git, and a new dated `*.report.md` path under
+`docs/reports/`.
+
+`Gate2FinancialSemanticV6TransparentSmokeReportFactory` is a reporting
+projection only. For the two allowlisted synthetic cases it renders, in
+primary-evidence-first order, the readable packet fields actually used for
+the semantic decision, exact returned semantic JSON, normalized Choice,
+field-by-field comparison, and a bounded diagnosis. It cannot select cases,
+call a provider, parse a response, validate, materialize, replay, or publish a
+qualification verdict.
+
+The transparent report is not permitted for actual corpus. Actual-corpus
+source context and raw values remain outside Git; repository evidence remains
+redacted and hash-linked.
+
+A local report-projection failure after a successfully checkpointed case does
+not authorize replaying that provider submission. The same smoke entrypoint
+may continue only from an integrity-valid one-case receipt plus its exact
+private evidence: it must replay that case with zero provider calls, prove
+current frozen-authority parity, reconstruct its synthetic report projection,
+skip it, and submit only the one missing case. Any other partial shape fails
+closed. The original interrupted safe receipt remains immutable beside the
+terminal combined receipt.
+
+## 2026-07-27 strong-model smoke result
+
+The exact `claude-haiku-4-5-20251001` smoke consumed exactly two provider
+submissions and two responses. The typed case selected the expected
+`cash_balance_snapshot_v1` Typed Option; the unclassified case selected
+`unclassified_financial_input` with `no_registry_type`. Both normalized
+Choices matched the frozen expected answers exactly.
+
+Usage normalization, deterministic expansion, validator/materializer and
+zero-call offline replay passed for both cases. Hidden retry, fallback and
+repair remained zero. The initial process stopped after the already-passed
+typed checkpoint because the new report projector did not yet accept the
+Anthropic adapter's JSON-string content shape. The fail-closed continuation
+replayed that checkpoint locally and submitted only the missing unclassified
+case.
+
+The terminal result is `SMOKE_PASSED`, not a qualification or model-safety
+verdict. The exact model is eligible for a separately authorized full V6
+qualification benchmark; that benchmark was not run by this smoke.

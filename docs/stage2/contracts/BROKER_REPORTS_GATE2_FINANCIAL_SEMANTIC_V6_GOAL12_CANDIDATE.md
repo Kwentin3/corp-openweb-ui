@@ -53,3 +53,24 @@ receipt.
 The terminal product gate is either `MODEL_SAFE_FOR_SHADOW` or
 `MODEL_NOT_SAFE_FOR_SHADOW`. Evidence is mergeable independently of product
 status. A failed candidate is not retried under the same identity.
+
+## Later bounded smoke authorization
+
+The terminal Goal 12 full-scope attempt remains immutable and is not rerun.
+A later user authorization may create a new repository-revision identity for
+exactly the two frozen smoke cases using the same fixed model/provider pair.
+That bounded smoke changes no Prompt, Pack, Packet, compiler, Typed Option,
+Choice, expected answer, validator, materializer, or case fixture. It is not
+a second Goal 12 qualification attempt, publishes no model-safety verdict,
+and cannot start the full benchmark.
+
+The new authorization is consumed by exactly two submissions with zero
+fallback, repair, or hidden retry. A transparent full-context repository
+report is allowed only because both cases are synthetic; exact
+actual-corpus context remains private and hash-linked.
+
+The bounded 2026-07-27 smoke passed both frozen cases with exact expected
+Choices and a passed technical/replay path. This does not replace or revise
+the historical terminal Goal 12 qualification result. It only makes the exact
+candidate eligible for a new, separately authorized full V6 qualification
+benchmark under the current frozen architecture.
