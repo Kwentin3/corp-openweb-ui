@@ -22,6 +22,9 @@ from live_deliver_broker_reports_gate2_economy_qualification_action import (  # 
 from broker_reports_gate1.gate2_economy_qualification_policy import (  # noqa: E402
     Gate2EconomyQualificationPolicyFactory,
 )
+from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
+    V6_QUALIFICATION_PUBLICATION_HASH,
+)
 
 
 def test_candidate_payload_binds_exact_repository_policy_and_revision() -> None:
@@ -41,6 +44,7 @@ def test_candidate_payload_binds_exact_repository_policy_and_revision() -> None:
         ),
         "qualification_scope": "qualification_only",
         "qualification_policy_hash": policy["qualification_policy_hash"],
+        "v6_qualification_snapshot_hash": V6_QUALIFICATION_PUBLICATION_HASH,
         "model_policy_hash": policy["model_policy"]["policy_hash"],
         "workload_policy_hash": policy["workload_policy"]["policy_hash"],
         "source_revision": "a" * 40,

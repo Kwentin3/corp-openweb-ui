@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .gate2_financial_evidence_materialization_contracts import (
+    sha256_json as _sha256_json,
+)
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
 
@@ -22,6 +25,9 @@ FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3 = (
     "financial_evidence_successor_qualification_v3"
 )
 FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE = "financial_semantic_v5"
+FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE = (
+    "financial_semantic_v6_qualification_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -35,6 +41,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V2,
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3,
     FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -116,6 +123,16 @@ class Gate2OpenWebUIRequestBuilder:
             )
         if self.request_profile == FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE:
             return self._build_financial_semantic_v5(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+        ):
+            return self._build_financial_semantic_v6_qualification(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -599,6 +616,79 @@ class Gate2OpenWebUIRequestBuilder:
                         "decision_packet",
                         "strict_response_schema",
                     ],
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_semantic_v6_qualification(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        from .gate2_financial_semantic_v6_evidence import (
+            V6_SEMANTIC_PROMPT_VERSION,
+            V6_SEMANTIC_SYSTEM_PROMPT,
+        )
+        from .gate2_financial_semantic_v6_packet import (
+            SEMANTIC_PACKET_BLOCKS,
+        )
+
+        if (
+            getattr(prompt, "content", None) != V6_SEMANTIC_SYSTEM_PROMPT
+            or getattr(prompt, "version", None) != V6_SEMANTIC_PROMPT_VERSION
+            or getattr(prompt, "hash", None) != _sha256_json(V6_SEMANTIC_SYSTEM_PROMPT)
+        ):
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v6_prompt_contract_mismatch",
+                "V6 qualification requires the exact canonical Prompt",
+            )
+        if not isinstance(package, dict) or tuple(package) != SEMANTIC_PACKET_BLOCKS:
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v6_packet_invalid",
+                "V6 qualification requires the exact four-block packet",
+            )
+        json_schema = response_format.get("json_schema")
+        if (
+            response_format.get("type") != "json_schema"
+            or not isinstance(json_schema, dict)
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+        ):
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v6_response_schema_not_strict",
+                "V6 qualification requires one strict JSON response schema",
+            )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": V6_SEMANTIC_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        package,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_semantic_v6": True,
+                    "request_profile": (
+                        FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
+                    ),
+                    "prompt_version": V6_SEMANTIC_PROMPT_VERSION,
+                    "prompt_hash": prompt.hash,
+                    "packet_hash": prompt.packet_hash,
+                    "choice_schema_hash": prompt.choice_schema_hash,
+                    "semantic_selection_owner": "llm",
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
                 }

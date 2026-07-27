@@ -23,6 +23,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from broker_reports_gate1.gate2_economy_qualification_policy import (  # noqa: E402
     Gate2EconomyQualificationPolicyFactory,
 )
+from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
+    V6_QUALIFICATION_PUBLICATION_HASH,
+)
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _read_env,
@@ -55,6 +58,7 @@ SAFE_META_KEYS = (
     "model_policy_hash",
     "workload_policy_hash",
     "source_revision",
+    "v6_qualification_snapshot_hash",
 )
 
 
@@ -212,6 +216,7 @@ def main() -> int:
         "checks": {
             "repository_live_action_hash_exact": True,
             "qualification_policy_live_exact": True,
+            "v6_qualification_publication_live_exact": True,
             "production_model_admission_empty": True,
             "target_models_published": True,
             "maintained_functions_unchanged": True,
@@ -256,6 +261,7 @@ def _candidate_payload(
             ),
             "qualification_scope": "qualification_only",
             "qualification_policy_hash": policy_snapshot["qualification_policy_hash"],
+            "v6_qualification_snapshot_hash": (V6_QUALIFICATION_PUBLICATION_HASH),
             "model_policy_hash": policy_snapshot["model_policy"]["policy_hash"],
             "workload_policy_hash": policy_snapshot["workload_policy"]["policy_hash"],
             "source_revision": source_revision,
@@ -409,6 +415,10 @@ def _assert_candidate(
         "not_global": function.get("is_global") is False,
         "scope": meta.get("qualification_scope") == "qualification_only",
         "policy_hash": meta.get("qualification_policy_hash") == expected_policy_hash,
+        "v6_qualification": (
+            meta.get("v6_qualification_snapshot_hash")
+            == V6_QUALIFICATION_PUBLICATION_HASH
+        ),
     }
     if not all(checks.values()):
         raise QualificationActionDeliveryError(

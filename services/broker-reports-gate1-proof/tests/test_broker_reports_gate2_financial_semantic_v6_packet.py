@@ -31,6 +31,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_packet import (  # noqa: E
     SEMANTIC_PACKET_BLOCKS,
     SEMANTIC_PACKET_FORBIDDEN_FIELDS,
     SEMANTIC_PACKET_SCHEMA_VERSION,
+    SEMANTIC_PACKET_TYPE_CARD_FIELDS,
     Gate2FinancialSemanticV6PacketError,
     Gate2FinancialSemanticV6PacketFactory,
     render_financial_semantic_v6_packet_private_exact,
@@ -87,6 +88,14 @@ def test_packet_has_exactly_four_model_visible_blocks():
         "ambiguity_rule": SEMANTIC_PACKET_AMBIGUITY_RULE,
     }
     assert len(packet.payload["available_type_cards"]) == 2
+    assert all(
+        tuple(card) == SEMANTIC_PACKET_TYPE_CARD_FIELDS
+        for card in packet.payload["available_type_cards"]
+    )
+    assert all(
+        "examples" not in card and "counterexamples" not in card
+        for card in packet.payload["available_type_cards"]
+    )
     assert len(packet.payload["typed_options"]) == 2
     assert len(packet.packet_hash) == 64
     assert "Factory.create" in FACTORY_REQUIRED
