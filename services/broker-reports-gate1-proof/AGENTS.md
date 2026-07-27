@@ -57,9 +57,15 @@ separate bootstrap report.
 
 ## Change and proof
 
+- In the existing PR body, answer only these documentation questions:
+  1. Which authority or contract is touched?
+  2. Is its documentation still exact?
+  3. Was a new authority introduced, and why could the existing owner not be
+     used?
 - Update the authority map and relevant contract documentation in the same PR
   when authority or contract meaning changes. Use `COMMENTS_ONLY` when only
-  local routing guidance changes.
+  local routing guidance changes. If meaning is unchanged, no documentation
+  update or separate approval is required.
 - Add or update executable architecture tests for a boundary change. Assert
   behavior/import structure, not report text or snapshots alone.
 - Run focused tests and the full relevant service suite from this directory
