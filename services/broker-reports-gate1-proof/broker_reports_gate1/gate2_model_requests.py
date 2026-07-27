@@ -1,11 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
-from .gate2_financial_evidence_materialization_contracts import (
-    sha256_json as _sha256_json,
-)
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
 
@@ -44,6 +42,16 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
+
+
+def _sha256_json(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class Gate2OpenWebUIRequestBuilder:

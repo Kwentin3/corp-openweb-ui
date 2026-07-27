@@ -7,8 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 from broker_reports_gate1.gate2_economy_budget import (
+    ACTUAL_COST_OBSERVATION,
     FACTORY_REQUIRED,
     FORBIDDEN,
+    HARD_PROVIDER_LIMIT,
+    QUALIFICATION_TARGET_BUDGET,
     Gate2EconomyBudgetSessionFactory,
     estimate_gate2_request_input_tokens,
 )
@@ -66,6 +69,16 @@ def test_prepare_call_applies_output_reasoning_and_paid_tool_controls() -> None:
     ]["economy_budget"]
     assert budget["paid_tools_allowed"] is False
     assert budget["maximum_output_tokens"] == 640
+    assert budget["precall_admission"] == "authorized"
+    assert budget["hard_provider_limit"] == HARD_PROVIDER_LIMIT
+    assert (
+        budget["qualification_target_budget"]
+        == QUALIFICATION_TARGET_BUDGET
+    )
+    assert budget["qualification_target_input_tokens"] == 3_072
+    assert budget["input_estimate_safety_margin_tokens"] == (
+        3_072 - authorization.estimated_input_tokens
+    )
     assert authorization.estimated_input_tokens == (
         estimate_gate2_request_input_tokens(
             authorization.prepared_form_data
@@ -247,6 +260,22 @@ def test_execution_receipt_accounts_usage_cost_and_no_customer_content() -> None
     assert receipt["call_count"] == 1
     assert receipt["actual_cost_usd"] == "0.000577500"
     assert receipt["budget_status"] == "within_budget"
+    assert receipt["precall_admission"]["status"] == "authorized"
+    assert receipt["hard_provider_limit"] == {
+        "authority": HARD_PROVIDER_LIMIT,
+        "status": "accepted_response",
+    }
+    assert receipt["qualification_target_budget"] == {
+        "authority": QUALIFICATION_TARGET_BUDGET,
+        "target_input_tokens": 3_072,
+        "actual_input_tokens": 1_200,
+        "status": "within_target",
+    }
+    assert receipt["actual_cost_observation"] == {
+        "authority": ACTUAL_COST_OBSERVATION,
+        "status": "recorded",
+        "cost_usd": "0.000577500",
+    }
     assert receipt["paid_tools_used"] == 0
     assert receipt["customer_content_in_receipt"] is False
     assert "private/customer" not in str(receipt)
@@ -318,7 +347,7 @@ def test_resolved_model_identity_is_required_for_budget_receipt() -> None:
     assert exc_info.value.code == "gate2_economy_resolved_model_missing"
 
 
-def test_canonical_model_client_enforces_budget_and_returns_safe_receipt() -> None:
+def test_canonical_model_client_preserves_response_above_input_target() -> None:
     calls: list[dict] = []
 
     def completion(
@@ -334,9 +363,9 @@ def test_canonical_model_client_enforces_budget_and_returns_safe_receipt() -> No
             "id": "economy-call-1",
             "model": GEMINI_MODEL,
             "usage": {
-                "prompt_tokens": 900,
+                "prompt_tokens": 3_200,
                 "completion_tokens": 120,
-                "total_tokens": 1_020,
+                "total_tokens": 3_320,
                 "prompt_tokens_details": {"cached_tokens": 100},
                 "completion_tokens_details": {"reasoning_tokens": 10},
             },
@@ -383,10 +412,23 @@ def test_canonical_model_client_enforces_budget_and_returns_safe_receipt() -> No
     assert calls[0]["max_tokens"] == 640
     assert calls[0]["reasoning_effort"] == "minimal"
     assert "tools" not in calls[0]
-    assert result.economy_budget_receipt["input_tokens"] == 900
+    assert result.content == {"disposition": "no_financial_input"}
+    assert result.economy_budget_receipt["input_tokens"] == 3_200
     assert result.economy_budget_receipt["output_tokens"] == 120
     assert result.economy_budget_receipt["cached_input_tokens"] == 100
     assert result.economy_budget_receipt["reasoning_tokens"] == 10
+    assert result.economy_budget_receipt["qualification_target_budget"] == {
+        "authority": QUALIFICATION_TARGET_BUDGET,
+        "target_input_tokens": 3_072,
+        "actual_input_tokens": 3_200,
+        "status": "actual_input_above_target",
+    }
+    assert result.economy_budget_receipt["hard_provider_limit"]["status"] == (
+        "accepted_response"
+    )
+    assert result.economy_budget_receipt["actual_cost_observation"][
+        "status"
+    ] == "recorded"
     assert result.economy_budget_receipt["customer_content_in_receipt"] is False
 
 

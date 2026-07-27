@@ -50,6 +50,9 @@ FORBIDDEN = (
 
 BUDGET_SCHEMA_VERSION = "broker_reports_gate2_economy_budget_v1"
 TOKEN_ESTIMATOR_ID = "compact_request_utf8_bytes_div_4_plus_64_v1"
+HARD_PROVIDER_LIMIT = "provider_transport_enforced"
+QUALIFICATION_TARGET_BUDGET = "workload_maximum_estimated_input_tokens"
+ACTUAL_COST_OBSERVATION = "post_response_reported_usage"
 _TOKEN_ESTIMATOR_OVERHEAD = 64
 _USD_QUANTUM = Decimal("0.000000001")
 _TOOL_FIELDS = frozenset(
@@ -223,6 +226,24 @@ class Gate2EconomyBudgetSession:
                 observed=estimated_input_tokens,
                 allowed=self.workload.maximum_estimated_input_tokens,
             )
+        qualification_target = self.workload.maximum_estimated_input_tokens
+        budget_metadata = prepared["metadata"]["broker_reports_gate2"][
+            "economy_budget"
+        ]
+        budget_metadata.update(
+            {
+                "precall_admission": "authorized",
+                "hard_provider_limit": HARD_PROVIDER_LIMIT,
+                "qualification_target_budget": (
+                    QUALIFICATION_TARGET_BUDGET
+                ),
+                "qualification_target_input_tokens": qualification_target,
+                "estimated_input_tokens": estimated_input_tokens,
+                "input_estimate_safety_margin_tokens": (
+                    qualification_target - estimated_input_tokens
+                ),
+            }
+        )
         estimated_cost = estimate_model_cost_usd(
             declaration=declaration,
             input_tokens=estimated_input_tokens,
@@ -354,14 +375,6 @@ class Gate2EconomyBudgetSession:
             execution_metadata.reasoning_tokens,
             "reasoning_tokens",
         )
-        if input_tokens > self.workload.maximum_estimated_input_tokens:
-            self._block(
-                "gate2_economy_actual_input_token_budget_exceeded",
-                "Reported economy input exceeds the workload budget",
-                operation_hash=authorization.operation_identity_sha256,
-                observed=input_tokens,
-                allowed=self.workload.maximum_estimated_input_tokens,
-            )
         if output_tokens > self.workload.maximum_output_tokens:
             self._block(
                 "gate2_economy_output_token_budget_exceeded",
@@ -402,6 +415,12 @@ class Gate2EconomyBudgetSession:
             output_tokens=output_tokens,
             cached_input_tokens=cached_input_tokens or 0,
         )
+        qualification_target = self.workload.maximum_estimated_input_tokens
+        qualification_target_status = (
+            "within_target"
+            if input_tokens <= qualification_target
+            else "actual_input_above_target"
+        )
         receipt = {
             "schema_version": BUDGET_SCHEMA_VERSION,
             "status": "passed",
@@ -434,11 +453,37 @@ class Gate2EconomyBudgetSession:
                 authorization.estimated_input_tokens
             ),
             "maximum_input_tokens": (
-                self.workload.maximum_estimated_input_tokens
+                qualification_target
             ),
             "maximum_output_tokens": self.workload.maximum_output_tokens,
             "estimated_cost_usd": authorization.estimated_cost_usd,
             "actual_cost_usd": _usd_text(actual_cost),
+            "precall_admission": {
+                "status": "authorized",
+                "estimated_input_tokens": (
+                    authorization.estimated_input_tokens
+                ),
+                "qualification_target_input_tokens": qualification_target,
+                "input_estimate_safety_margin_tokens": (
+                    qualification_target
+                    - authorization.estimated_input_tokens
+                ),
+            },
+            "hard_provider_limit": {
+                "authority": HARD_PROVIDER_LIMIT,
+                "status": "accepted_response",
+            },
+            "qualification_target_budget": {
+                "authority": QUALIFICATION_TARGET_BUDGET,
+                "target_input_tokens": qualification_target,
+                "actual_input_tokens": input_tokens,
+                "status": qualification_target_status,
+            },
+            "actual_cost_observation": {
+                "authority": ACTUAL_COST_OBSERVATION,
+                "status": "recorded",
+                "cost_usd": _usd_text(actual_cost),
+            },
             "maximum_estimated_cost_usd_per_operation": (
                 self.workload.maximum_estimated_cost_usd_per_operation
             ),
