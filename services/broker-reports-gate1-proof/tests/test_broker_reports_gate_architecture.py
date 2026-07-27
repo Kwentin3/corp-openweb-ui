@@ -24,6 +24,16 @@ from broker_reports_gate1.architecture_policy import (
     VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
+from broker_reports_gate1.gate2_financial_evidence_registry import (
+    Gate2FinancialEvidenceRegistryFactory,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_choice import (
+    SEMANTIC_CHOICE_OUTPUT_FIELDS,
+    _choice_schema,
+)
+from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
+    COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +41,11 @@ PACKAGE = ROOT / "broker_reports_gate1"
 REPOSITORY_ROOT = ROOT.parents[1]
 ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
 OPENWEBUI_ACTIONS = ROOT / "openwebui_actions"
+GENERATED_BUNDLES = (
+    OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe_bundled.py",
+    OPENWEBUI_ACTIONS / "broker_reports_gate2_source_fact_pipe_bundled.py",
+    OPENWEBUI_ACTIONS / "broker_reports_gate2_domain_source_fact_pipe_bundled.py",
+)
 
 GATE2_MODULES = {
     path.stem for path in PACKAGE.glob("gate2_*.py") if path.stem != "gate2_handoff"
@@ -246,6 +261,213 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     violations.append(f"{module_name}->{imported}")
         self.assertEqual(violations, [])
 
+    def test_qualification_and_evidence_reuse_canonical_request_builder(self):
+        qualification = "gate2_financial_semantic_v6_qualification_run"
+        evidence = "gate2_financial_semantic_v6_evidence"
+
+        self.assertNotIn("gate2_model_requests", _local_imports(qualification))
+        self.assertEqual(
+            _call_owners(evidence, "Gate2OpenWebUIRequestBuilder"),
+            {"financial_semantic_v6_canonical_request"},
+        )
+        self.assertEqual(
+            _call_owners(
+                qualification,
+                "financial_semantic_v6_canonical_request",
+            ),
+            {"qualify_financial_semantic_v6"},
+        )
+
+    def test_qualification_does_not_parse_provider_specific_fields(self):
+        module_name = "gate2_financial_semantic_v6_qualification_run"
+        forbidden_payload_fields = {
+            "choices",
+            "prompt_tokens",
+            "completion_tokens",
+            "input_tokens_details",
+            "output_tokens_details",
+        }
+
+        self.assertNotIn(
+            "gate2_provider_adapters",
+            _local_imports(module_name),
+        )
+        self.assertEqual(
+            _string_constants(_tree(module_name)) & forbidden_payload_fields,
+            set(),
+        )
+
+    def test_compatibility_request_entrypoint_delegates_only(self):
+        wrapper = _function_node(
+            _tree("gate2_financial_semantic_v6_evidence"),
+            "financial_semantic_v6_canonical_request",
+        )
+
+        self.assertTrue(COMPATIBILITY_WRAPPER_DELEGATES_ONLY)
+        self.assertEqual(
+            _call_names(wrapper) & {"Gate2OpenWebUIRequestBuilder"},
+            {"Gate2OpenWebUIRequestBuilder"},
+        )
+        self.assertFalse(
+            any(isinstance(node, ast.Dict) for node in ast.walk(wrapper))
+        )
+
+    def test_candidate_compiler_has_no_financial_type_ids_or_regex(self):
+        module_name = "gate2_financial_semantic_v6_candidate_compiler"
+        tree = _tree(module_name)
+        registry = Gate2FinancialEvidenceRegistryFactory().create()
+        known_type_ids = set(registry.provider_type_enum())
+        imported_roots = {
+            name
+            for node in ast.walk(tree)
+            for name in _import_roots(node)
+        }
+
+        self.assertEqual(_string_constants(tree) & known_type_ids, set())
+        self.assertNotIn("re", imported_roots)
+        self.assertEqual(
+            {
+                name
+                for name in _call_names(tree)
+                if name in {"compile", "match", "search", "fullmatch"}
+            },
+            set(),
+        )
+
+    def test_model_choice_schema_contains_only_minimal_choice_fields(self):
+        schema = _choice_schema(("opaque_typed_option",))
+        variants = schema["anyOf"]
+        observed_fields = {
+            field
+            for variant in variants
+            for field in variant["properties"]
+        }
+
+        self.assertEqual(
+            observed_fields,
+            set(SEMANTIC_CHOICE_OUTPUT_FIELDS),
+        )
+        self.assertTrue(
+            all(variant["additionalProperties"] is False for variant in variants)
+        )
+        self.assertTrue(
+            observed_fields.isdisjoint(
+                {
+                    "source_ref",
+                    "source_value_ref",
+                    "role_bindings",
+                    "value_bindings",
+                    "provenance",
+                    "retention",
+                }
+            )
+        )
+
+    def test_generated_bundle_modules_match_maintained_source(self):
+        mismatches = []
+        for bundle_path in GENERATED_BUNDLES:
+            modules = _bundled_modules(bundle_path)
+            for module_name, bundled_source in modules.items():
+                if module_name == "__init__":
+                    continue
+                if bundled_source != _source(module_name):
+                    mismatches.append(f"{bundle_path.name}:{module_name}")
+        self.assertEqual(mismatches, [])
+
+    def test_model_client_uses_one_budget_admission_authority(self):
+        factory_callers = {
+            module_name
+            for path in PACKAGE.glob("*.py")
+            for module_name in (path.stem,)
+            if _call_owners(
+                module_name,
+                "Gate2EconomyBudgetSessionFactory",
+            )
+        }
+        extract = _method_node(
+            _tree("gate2_model_clients"),
+            "Gate2OpenWebUIStructuredModelClient",
+            "extract",
+        )
+        admission_lines = _call_lines(extract, "prepare_call")
+        transport_lines = (
+            _call_lines(extract, "invoke_native_once")
+            + _call_lines(extract, "_invoke_completion_once")
+        )
+
+        self.assertEqual(
+            factory_callers,
+            {
+                "gate2_financial_semantic_v5_qualification",
+                "gate2_financial_semantic_v6_qualification",
+                "gate2_model_clients",
+            },
+        )
+        self.assertTrue(
+            all(
+                "gate2_economy_budget" in _local_imports(module_name)
+                for module_name in factory_callers
+            )
+        )
+        self.assertEqual(
+            _call_owners(
+                "gate2_model_clients",
+                "Gate2EconomyBudgetSessionFactory",
+            ),
+            {"Gate2StructuredModelClientFactory.create"},
+        )
+        self.assertEqual(len(admission_lines), 1)
+        self.assertTrue(transport_lines)
+        self.assertLess(admission_lines[0], min(transport_lines))
+
+    def test_unclassified_retention_is_code_owned(self):
+        tree = _tree("gate2_financial_semantic_v6_expansion")
+        expand = _method_node(
+            tree,
+            "Gate2FinancialSemanticV6DecisionExpansionFactory",
+            "_expand",
+        )
+        unclassified = _function_node(
+            tree,
+            "_unclassified_canonical_choice",
+        )
+
+        self.assertIn(
+            "evidence_bundle.retention_set",
+            _attribute_paths(expand),
+        )
+        self.assertNotIn(
+            "model_output",
+            {arg.arg for arg in unclassified.args.kwonlyargs},
+        )
+        self.assertEqual(
+            set(SEMANTIC_CHOICE_OUTPUT_FIELDS)
+            & {"retention", "source_refs", "value_bindings"},
+            set(),
+        )
+
+    def test_validated_decision_uses_canonical_materialization_totality(self):
+        tree = _tree("gate2_financial_semantic_v6_totality")
+        materialize = _method_node(
+            tree,
+            "Gate2FinancialSemanticV6TotalMaterializerFactory",
+            "_materialize",
+        )
+
+        self.assertIn(
+            "gate2_financial_evidence_materialization",
+            _local_imports("gate2_financial_semantic_v6_totality"),
+        )
+        self.assertIn(
+            "Gate2FinancialEvidenceMaterializerFactory",
+            _call_names(materialize),
+        )
+        self.assertIn("materialize", _call_names(materialize))
+        self.assertIn(
+            "financial_semantic_v6_validated_but_unmaterializable",
+            _string_constants(materialize),
+        )
+
     def test_artifact_store_and_gate2_runs_are_append_only_by_construction(self):
         store_source = _source("artifact_store")
         runtime_sources = "\n".join(
@@ -276,6 +498,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     violations.append(
                         f"{module_name}:legacy_manifest_boundary_present"
                     )
+                forbidden_successor_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "gate1_public_contracts",
+                    "gate2_financial_domain_catalog",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_successor_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
             elif "gate3_context_manifest" not in imports:
                 violations.append(f"{module_name}:manifest_boundary_missing")
             if imports & GATE1_PRIVATE_IMPLEMENTATIONS:
@@ -287,8 +519,12 @@ def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")
 
 
+def _tree(module_name: str) -> ast.Module:
+    return ast.parse(_source(module_name))
+
+
 def _local_imports(module_name: str) -> set[str]:
-    tree = ast.parse(_source(module_name))
+    tree = _tree(module_name)
     imports: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.ImportFrom) or node.level != 1:
@@ -298,6 +534,132 @@ def _local_imports(module_name: str) -> set[str]:
         else:
             imports.update(alias.name.split(".", 1)[0] for alias in node.names)
     return imports
+
+
+def _import_roots(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Import):
+        return {alias.name.split(".", 1)[0] for alias in node.names}
+    if isinstance(node, ast.ImportFrom) and node.module:
+        return {node.module.split(".", 1)[0]}
+    return set()
+
+
+def _call_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _call_names(node: ast.AST) -> set[str]:
+    return {
+        name
+        for item in ast.walk(node)
+        if isinstance(item, ast.Call)
+        for name in (_call_name(item.func),)
+        if name is not None
+    }
+
+
+def _call_lines(node: ast.AST, target: str) -> list[int]:
+    return sorted(
+        item.lineno
+        for item in ast.walk(node)
+        if isinstance(item, ast.Call)
+        and _call_name(item.func) == target
+    )
+
+
+def _call_owners(module_name: str, target: str) -> set[str]:
+    owners = set()
+    for node in _tree(module_name).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if target in _call_names(node):
+                owners.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            for method in node.body:
+                if not isinstance(
+                    method,
+                    (ast.FunctionDef, ast.AsyncFunctionDef),
+                ):
+                    continue
+                if target in _call_names(method):
+                    owners.add(f"{node.name}.{method.name}")
+    return owners
+
+
+def _function_node(tree: ast.Module, name: str) -> ast.FunctionDef:
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"function_missing:{name}")
+
+
+def _method_node(
+    tree: ast.Module,
+    class_name: str,
+    method_name: str,
+) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for method in node.body:
+            if isinstance(
+                method,
+                (ast.FunctionDef, ast.AsyncFunctionDef),
+            ) and method.name == method_name:
+                return method
+    raise AssertionError(f"method_missing:{class_name}.{method_name}")
+
+
+def _string_constants(node: ast.AST) -> set[str]:
+    return {
+        item.value
+        for item in ast.walk(node)
+        if isinstance(item, ast.Constant)
+        and isinstance(item.value, str)
+    }
+
+
+def _attribute_path(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if not isinstance(node, ast.Attribute):
+        return None
+    parent = _attribute_path(node.value)
+    return f"{parent}.{node.attr}" if parent else node.attr
+
+
+def _attribute_paths(node: ast.AST) -> set[str]:
+    return {
+        path
+        for item in ast.walk(node)
+        if isinstance(item, ast.Attribute)
+        for path in (_attribute_path(item),)
+        if path is not None
+    }
+
+
+def _bundled_modules(path: Path) -> dict[str, str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name)
+            and target.id == "_BUNDLED_MODULES"
+            for target in node.targets
+        ):
+            continue
+        value = ast.literal_eval(node.value)
+        if not isinstance(value, dict) or any(
+            not isinstance(key, str) or not isinstance(source, str)
+            for key, source in value.items()
+        ):
+            raise AssertionError(f"bundled_modules_invalid:{path.name}")
+        return value
+    raise AssertionError(f"bundled_modules_missing:{path.name}")
 
 
 if __name__ == "__main__":
