@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (
@@ -579,6 +581,30 @@ def test_two_case_live_smoke_uses_existing_factory_boundaries() -> None:
     assert "urlopen(" not in source
     assert "OpenAI(" not in source
     assert "Anthropic(" not in source
+
+
+def test_two_case_live_smoke_cli_imports_and_exposes_resume_help() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(
+                ROOT
+                / "scripts"
+                / "live_gate2_financial_semantic_v6_two_case_smoke.py"
+            ),
+            "--help",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+
+    assert "--preflight-only" in completed.stdout
+    assert "--execute-two-case-smoke" in completed.stdout
+    assert "--resume-two-case-smoke" in completed.stdout
 
 
 def test_two_case_smoke_semantic_miss_is_not_qualification_verdict() -> None:

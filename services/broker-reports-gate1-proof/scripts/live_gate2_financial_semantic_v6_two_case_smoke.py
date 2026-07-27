@@ -54,7 +54,6 @@ from live_gate2_financial_semantic_v6_one_attempt import (  # noqa: E402
     _fixture,
     _is_within,
     _pretty_json,
-    _read_json,
     _repository_revision,
     _validate_new_attempt_paths,
     _worktree_clean,
@@ -197,8 +196,8 @@ def main() -> int:
         )
     else:
         assert interrupted_path is not None
-        resume_receipt = _read_json(safe_path)
-        interrupted_receipt = _read_json(interrupted_path)
+        resume_receipt = _read_json_object(safe_path)
+        interrupted_receipt = _read_json_object(interrupted_path)
         if interrupted_receipt != resume_receipt:
             raise ValueError(
                 "financial_semantic_v6_smoke_interrupted_receipt_mismatch"
@@ -317,13 +316,20 @@ def _read_resume_private_evidence(
         raise ValueError(
             "financial_semantic_v6_smoke_resume_private_evidence_invalid"
         )
-    evidence = _read_json(paths[0])
+    evidence = _read_json_object(paths[0])
     case_id = str(evidence.get("case_id") or "")
     if paths[0].name != f"{case_id}.private.json":
         raise ValueError(
             "financial_semantic_v6_smoke_resume_private_evidence_invalid"
         )
     return {case_id: evidence}
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("financial_semantic_v6_smoke_json_object_required")
+    return value
 
 
 def _validate_resume_preflight(
