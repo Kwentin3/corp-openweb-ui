@@ -181,6 +181,53 @@ DOCUMENTATION_IMPACT: AUTHORITY_MAP_UPDATED
 DOCUMENTATION: CURRENT
 ```
 
+## V6 completion Goal 2 provider smoke
+
+The bounded smoke reuses `smoke_financial_semantic_v6` in the existing
+qualification runner and `Gate2StructuredModelClientFactory.create`. It owns
+no request builder, provider adapter, validator or materializer. The only
+selected cases are the frozen unambiguous typed case
+`syn_successor_v2_unique_cash` and frozen unambiguous unclassified case
+`syn_successor_v2_no_registry_type`.
+
+The exact Nano smoke consumed two provider submissions and received two
+responses. Both responses first stopped at
+`Gate2FinancialSemanticV6ExecutionIdentityFactory.create` because that owner
+still expected pre-projection metadata (`canonical == adapted`, transform
+count zero). Adapter `1.1.0` correctly supplied distinct canonical/adapted
+hashes and transform count one.
+
+The execution-identity owner now derives its exact expected hashes and
+transform count through `Gate2ProviderAdapterFactory.create`; the synthetic
+preflight and tests use the same factory route. Exact offline processing of
+both preserved responses then passed schema identity, parsing, normalization,
+usage normalization, validation/materialization and evidence replay without a
+provider call. The typed response selected the wrong exact option and the
+unclassified response did not select the required unclassified disposition,
+so both semantic smoke cases remain failed.
+
+The canonical live receipt and supplemental offline diagnostic are
+[repository-safe evidence](../../reports/2026-07-27/BROKER_REPORTS_GATE2_V6_COMPLETION_GOAL2_TWO_CASE_PROVIDER_SMOKE.report.md).
+No precision, recall or model-safety verdict is published. Goal 2 is not
+accepted and Goal 3 must not run.
+
+```text
+PROVIDER_SUBMISSIONS: TWO
+PROVIDER_RESPONSES: TWO
+TECHNICAL_PIPELINE_AFTER_IDENTITY_CORRECTION: PASSED
+TYPED_SMOKE: FAILED
+UNCLASSIFIED_SMOKE: FAILED
+USAGE_NORMALIZATION_AFTER_IDENTITY_CORRECTION: PASSED
+OFFLINE_REPLAY_AFTER_IDENTITY_CORRECTION: EXACT
+FALLBACK_REPAIR_RETRY: ZERO
+MODEL_QUALIFICATION_PERFORMED: FALSE
+MODEL_SAFETY_VERDICT: NONE
+SECOND_AUTHORITY_CREATED: NO
+GOAL3: BLOCKED
+DOCUMENTATION_IMPACT: RUNTIME_EVIDENCE_UPDATED
+DOCUMENTATION: CURRENT
+```
+
 ## Zero-context orientation proof
 
 A fresh read-only agent with no conversation history, Codex memory, report

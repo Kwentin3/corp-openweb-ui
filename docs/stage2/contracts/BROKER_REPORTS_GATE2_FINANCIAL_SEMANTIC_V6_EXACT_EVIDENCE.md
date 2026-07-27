@@ -43,3 +43,24 @@ receipt and the same code-owned authorities. It performs:
 Replay performs no provider call, repair, fallback or hidden retry. Any
 authority, identity, expansion, validator, artifact or private/safe hash-link
 mismatch fails closed.
+
+## Goal 2 provider-smoke evidence
+
+The two-case provider smoke checkpoints every returned response immediately.
+Its first terminal receipt remains immutable and records the execution-identity
+failure seen by the executed revision. Two exact private failure checkpoints
+outside Git preserve the canonical request, normalized provider output,
+execution metadata and hash links; neither their paths nor raw values are
+published.
+
+After the existing execution-identity owner was corrected for adapter `1.1.0`,
+an offline-only diagnostic verified both source private hashes and canonical
+request/response-format identities, then rebuilt decision evidence through the
+same factory and performed exact replay. The diagnostic made zero provider
+submissions and did not repair or alter either provider output.
+
+The repository-safe supplemental receipt records only case IDs, boolean
+technical/semantic outcomes, counts and cryptographic hashes. It shows exact
+technical replay for both responses but failed typed and unclassified smoke
+expectations. The evidence therefore does not publish precision, recall,
+product admission or a model-safety verdict.

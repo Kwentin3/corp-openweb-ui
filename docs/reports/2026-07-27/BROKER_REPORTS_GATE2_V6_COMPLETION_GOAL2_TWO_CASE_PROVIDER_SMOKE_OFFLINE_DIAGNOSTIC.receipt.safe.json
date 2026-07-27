@@ -1,0 +1,76 @@
+{
+  "acceptance": {
+    "offline_replay": "EXACT",
+    "provider_submissions": "TWO_CONSUMED_NO_RETRY",
+    "technical_pipeline_after_identity_correction": "PASSED",
+    "typed_smoke": "FAILED",
+    "unclassified_smoke": "FAILED",
+    "usage_normalization": "PASSED"
+  },
+  "attempt_accounting": {
+    "diagnostic_provider_submissions_total": 0,
+    "fallback_total": 0,
+    "hidden_retry_total": 0,
+    "original_provider_responses_total": 2,
+    "original_provider_submissions_total": 2,
+    "qualification_attempts_total": 0,
+    "repair_total": 0
+  },
+  "case_receipts": [
+    {
+      "canonical_request_exact": true,
+      "case_id": "syn_successor_v2_unique_cash",
+      "derived_private_evidence_hash": "455534940a3428e43cb02cd733863fffc28e0e096f285fb8a234e6cf8ac43752",
+      "disposition_exact": true,
+      "expected_choice_exact": false,
+      "materialization": "PASSED",
+      "model_output_hash": "c6f5ffd041ea9a1c846090176d88c7dde6de8df576f1ed2fb5848c6322df5b75",
+      "offline_provider_calls_total": 0,
+      "offline_replay": "EXACT",
+      "provider_schema_identity": "PASSED",
+      "response_format_hash_exact": true,
+      "smoke_role": "typed",
+      "source_private_evidence_hash": "89b6dbe520fd37a380c2a937968e5ca2c5c90fe731a107b44ac05c88238f80f8",
+      "source_private_hash_exact": true,
+      "status": "failed",
+      "usage_normalized": true
+    },
+    {
+      "canonical_request_exact": true,
+      "case_id": "syn_successor_v2_no_registry_type",
+      "derived_private_evidence_hash": "8718cc02b14e5f9614746f8bcd374d37c8dcaf3b351178eea7a93c4e15e87c10",
+      "disposition_exact": false,
+      "expected_choice_exact": false,
+      "materialization": "PASSED",
+      "model_output_hash": "0c82d7ea2d741c26c55952723970dd37397c0458c297f8701294fffac4e06f39",
+      "offline_provider_calls_total": 0,
+      "offline_replay": "EXACT",
+      "provider_schema_identity": "PASSED",
+      "response_format_hash_exact": true,
+      "smoke_role": "unclassified",
+      "source_private_evidence_hash": "d725cec9460e7090224b32733f41a48ee241127399cdee3bfd5aa11873bf98e7",
+      "source_private_hash_exact": true,
+      "status": "failed",
+      "usage_normalized": true
+    }
+  ],
+  "corrected_implementation_revision": "75d39260bbbea670206ea2909dd88c2fd33600fb",
+  "correction": {
+    "failure_code": "financial_semantic_v6_provider_schema_identity_mismatch",
+    "provider_projection": "openai_response_format:1.1.0",
+    "root_cause": "execution_identity_expected_pre_projection_schema_metadata",
+    "second_authority_created": false
+  },
+  "execution_state": "terminal",
+  "integrity_sha256": "2ee7c9779cd459dfa668b3a98dd88537ca18f855d50443f431a757a8169671d3",
+  "model_qualification_performed": false,
+  "precision_recall_published": false,
+  "product_gate": null,
+  "production_admissions_total": 0,
+  "raw_private_data_in_receipt": false,
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_provider_smoke_offline_diagnostic_v1",
+  "source_execution_revision": "7eac4b65a5f5f3d6d5afb1334a04ff79456736a3",
+  "source_smoke_receipt_integrity_sha256": "e6e56108fd3588c12631f6c8778fbabb813adc803912d5cb0ebedef9abe69f36",
+  "status": "failed",
+  "terminal_class": "SMOKE_SEMANTIC_ACCEPTANCE_FAILED"
+}
