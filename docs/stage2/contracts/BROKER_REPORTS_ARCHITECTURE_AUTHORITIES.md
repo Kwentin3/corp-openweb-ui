@@ -1,6 +1,6 @@
 # Broker Reports Architecture Authorities
 
-Status: `GOAL_0_ARCHAEOLOGY_BASELINE`
+Status: `GOAL_1_MINIMAL_DOMAIN_BOUNDARIES`
 
 This is the compact orientation index for maintained Broker Reports
 implementation authorities. It supplements, and does not replace, the
@@ -15,6 +15,29 @@ Use this order when sources appear to disagree:
 4. a compatibility entrypoint may only adapt and delegate;
 5. generated bundles project maintained source;
 6. dated reports and receipts are historical evidence only.
+
+## Minimal domain responsibility map
+
+| Domain | Owns | Does not own | Public entrypoint | Normative contracts | Allowed consumers | Forbidden duplicate |
+| --- | --- | --- | --- | --- | --- | --- |
+| Gate 1 Evidence | neutral source representation, source refs, provenance and private resolution | financial type/role meaning | `Gate1BoundedGraphFactory.create`, `ArtifactResolver` | Gate 1 document memory and normalized payload | Technical Preparation | direct Gate 2 store/source reads |
+| Technical Preparation | deterministic financial scope, technical preclose and sealed Evidence Bundle | financial classification or provider choice | `Gate2DeterministicFinancialScopeFromGate1V2Factory.create`, `Gate2FinancialEvidenceBundleFactory.create` | Evidence Bundle | Candidate Compiler, Qualification | a second source/provenance projection |
+| Financial Semantic Pack | type/role meaning, ambiguity rules and lifecycle | source binding, provider transport or materialization | `Gate2FinancialSemanticContractFactory.create` | Financial Semantic Pack | projection, compiler, validation, materialization, Financial Domain | type-specific Python or a second registry |
+| Candidate Compiler | complete code-owned Typed Options from Pack plus technical evidence | semantic selection or invented bindings | `Gate2FinancialCandidateCompilerFactory.create` | Candidate Compiler and Typed Option | Semantic Matcher, replay | financial regex, known type IDs or provider-built records |
+| Semantic Matcher | four-block packet, semantic instruction, provider-neutral minimal choice and deterministic choice expansion | source refs/provenance ownership, canonical acceptance or persistence | V6 packet/Prompt/Choice factories and `Gate2FinancialSemanticV6DecisionExpansionFactory.create` | V6 Packet, Choice and Expansion | Qualification, Validation, Evidence | model-generated records, bindings or alternative choice schema |
+| Provider Integration | canonical request construction, provider-specific projection, transport response parsing and usage normalization | financial semantics, budget policy or product validation | `Gate2StructuredModelClientFactory.create` using request builder and adapter factories | provider-neutral request/choice plus execution metadata contracts | maintained runtime and qualification | direct provider request/response parsing outside builder/adapters |
+| Budget | pre-transport admission and post-response usage/cost accounting | request shape, provider parsing or semantic verdict | `Gate2EconomyBudgetSessionFactory.create` | economy budget v1 code contract | structured model client | token/cost policy in callers |
+| Validation | canonical decision parsing, Pack/Registry/source authority checks and accepted-decision validation | provider adaptation, ID minting or persistence | `Gate2FinancialEvidenceValidatedDecisionFactory.create`, `validate_financial_evidence_inputs` | Generic Financial Materialization | Materialization, Qualification | local validators that weaken the canonical contract |
+| Materialization | canonical IDs, bindings, ownership, provenance, retention and terminal coverage | type semantics, provider choice or storage | `Gate2FinancialEvidenceMaterializerFactory.create().materialize` | Generic Financial Materialization | Financial Domain and explicit compatibility projections | materialization in qualification/evidence/consumer code |
+| Financial Domain | immutable snapshot, bounded query semantics and serialization envelope | raw source/provider reads or Gate 3 reconciliation | catalog, query and persistence factories | Managed Financial Domain and Query API | Gate 3 Consumer and future storage adapter | direct record catalogs, query facades or snapshot minting |
+| Gate 3 Consumer | checked consumption of the Financial Domain query API | Gate 1/Gate 2 storage, source parsing or domain snapshot mutation | `Gate3FinancialDomainContextFactory.create` | Query API and global gate architecture | Gate 3 successor logic | ArtifactStore/source-reader access |
+| Qualification | frozen fixture/preflight, terminal classification, metrics and product-gate evaluation | product contracts, provider-specific parsing or production admission | V6 qualification fixture/preflight factories and `qualify_financial_semantic_v6` | V6 qualification harness and execution identity | qualification CLIs and Evidence | a parallel qualification framework |
+| Evidence | exact private execution evidence, safe receipts, integrity and offline replay | product decisions, retries or canonical request construction | `Gate2FinancialSemanticV6DecisionEvidenceFactory.create`, replay entrypoint | V6 Exact Evidence | Qualification and offline audit | evidence-driven product mutation or raw private Git evidence |
+| Compatibility | version-pinned read dispatch and explicit legacy validation | silent rewrite, new writes, semantic policy or current product logic | financial-evidence and successor compatibility factories | pinned legacy/successor schemas | migration/local-proof tooling | reimplemented current authorities behind a legacy facade |
+
+These domains are code responsibilities, not new product gates or packages.
+One domain may coordinate several distinct operation authorities listed below;
+that does not permit a second owner for any operation.
 
 ## Archaeology inventory
 
