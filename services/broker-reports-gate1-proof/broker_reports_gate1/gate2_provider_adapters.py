@@ -417,6 +417,14 @@ class _Gate2OpenWebUIProviderAdapter:
         return json_schema
 
 
+# OWNER:
+# Provider-specific OpenAI schema projection, response and usage interpretation.
+#
+# REUSE:
+# Obtain this adapter through Gate2ProviderAdapterFactory.create(...).
+#
+# MUST NOT:
+# Consumers must not parse or normalize OpenAI provider payloads.
 class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
     pass
 
@@ -426,6 +434,14 @@ class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
         return _project_gemini_structural_schema(schema)
 
 
+# OWNER:
+# Provider-specific Anthropic request, response and usage interpretation.
+#
+# REUSE:
+# Obtain this adapter through Gate2ProviderAdapterFactory.create(...).
+#
+# MUST NOT:
+# Consumers must not build or parse Anthropic native payloads.
 class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
     uses_openwebui_completion = False
 

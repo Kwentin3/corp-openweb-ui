@@ -54,6 +54,14 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+# OWNER:
+# Sole authority for canonical Gate 2 provider request construction.
+#
+# REUSE:
+# Call Gate2OpenWebUIRequestBuilder.build(...).
+#
+# MUST NOT:
+# Consumers must not assemble canonical provider form_data directly.
 class Gate2OpenWebUIRequestBuilder:
     def __init__(self, *, request_profile: str) -> None:
         if request_profile not in _SUPPORTED_REQUEST_PROFILES:

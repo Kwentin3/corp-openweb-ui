@@ -115,6 +115,14 @@ class Gate2FinancialSemanticV6ExpandedDecision:
         }
 
 
+# OWNER:
+# Sole minimal-choice-to-canonical-decision expansion authority.
+#
+# REUSE:
+# Call Gate2FinancialSemanticV6DecisionExpansionFactory.create(...).
+#
+# MUST NOT:
+# Do not trust model-provided refs, bindings, type IDs or retention.
 class Gate2FinancialSemanticV6DecisionExpansionFactory:
     def __init__(
         self,

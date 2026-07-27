@@ -127,6 +127,14 @@ class _BindingAttempt:
     reason_code: str | None
 
 
+# OWNER:
+# Sole Evidence-Bundle-to-Typed-Options compilation authority.
+#
+# REUSE:
+# Call Gate2FinancialCandidateCompilerFactory.create(...).
+#
+# MUST NOT:
+# Do not semantic-match, inspect literals or hardcode financial type IDs.
 class Gate2FinancialCandidateCompilerFactory:
     def __init__(
         self,
