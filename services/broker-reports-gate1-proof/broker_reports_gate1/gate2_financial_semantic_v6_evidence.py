@@ -286,6 +286,8 @@ def financial_semantic_v6_canonical_request(
         model_id=exact_model_id,
         response_format=response_format,
     )
+
+
 def replay_financial_semantic_v6_decision(
     *,
     private_evidence: dict[str, Any],
