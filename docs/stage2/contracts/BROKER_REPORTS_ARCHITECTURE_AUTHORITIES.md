@@ -153,6 +153,34 @@ DOCUMENTATION_IMPACT: AUTHORITY_MAP_UPDATED
 DOCUMENTATION: CURRENT
 ```
 
+## V6 completion Goal 1 local response seam
+
+`Gate2FinancialSemanticV6LocalProofFactory.create` now routes every frozen
+semantic benchmark choice through the existing canonical request builder,
+`Gate2ProviderAdapterFactory.create`, OpenAI root-object projection, simulated
+provider-shaped JSON content and adapter inverse normalization before invoking
+the existing V6 expansion, validator and total materializer.
+
+The local proof receipt/policy revision is `v2`. It separately accounts for
+ten simulated provider-shaped responses while preserving zero provider
+submissions and zero provider responses. Four typed and six unclassified
+semantic cases traverse the seam; the two technical-preclose cases never enter
+the provider branch.
+
+```text
+TYPED_LOCAL_SEAM: PASSED
+UNCLASSIFIED_LOCAL_SEAM: PASSED
+OPENAI_ROOT_OBJECT_PROJECTION: PASSED
+EXPANSION: PASSED
+VALIDATION: PASSED
+MATERIALIZATION: PASSED
+PROVIDER_CALLS: ZERO
+PROVIDER_RESPONSES: ZERO
+SECOND_AUTHORITY_CREATED: NO
+DOCUMENTATION_IMPACT: AUTHORITY_MAP_UPDATED
+DOCUMENTATION: CURRENT
+```
+
 ## Zero-context orientation proof
 
 A fresh read-only agent with no conversation history, Codex memory, report

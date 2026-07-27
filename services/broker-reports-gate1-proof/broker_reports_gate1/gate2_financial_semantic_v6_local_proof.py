@@ -62,6 +62,9 @@ from .gate2_financial_semantic_v6_choice import (
 from .gate2_financial_semantic_v6_evidence import (
     financial_semantic_v6_canonical_request,
 )
+from .gate2_financial_semantic_v6_execution_identity import (
+    V6_PROVIDER_PROFILE_ID,
+)
 from .gate2_financial_semantic_v6_expansion import (
     Gate2FinancialSemanticV6DecisionExpansionFactory,
 )
@@ -76,6 +79,8 @@ from .gate2_financial_semantic_v6_prompt import V6_SEMANTIC_PROMPT_VERSION
 from .gate2_financial_semantic_v6_totality import (
     Gate2FinancialSemanticV6TotalMaterializerFactory,
 )
+from .gate2_model_contracts import gate2_provider_profile
+from .gate2_provider_adapters import Gate2ProviderAdapterFactory
 from .gate2_successor_local_proof import (
     _fixture_package,
     _validate_coverage,
@@ -84,10 +89,10 @@ from .gate2_successor_local_proof import (
 
 
 V6_LOCAL_PROOF_RECEIPT_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_v6_local_proof_receipt_v1"
+    "broker_reports_gate2_financial_semantic_v6_local_proof_receipt_v2"
 )
 V6_LOCAL_PROOF_POLICY_VERSION = (
-    "broker_reports_gate2_candidate_records_by_construction_local_proof_v1"
+    "broker_reports_gate2_candidate_records_by_construction_local_proof_v2"
 )
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6LocalProofFactory.create is the only frozen V6 "
@@ -162,6 +167,10 @@ class Gate2FinancialSemanticV6LocalProofFactory:
         packet_hashes: list[str] = []
         choice_schema_hashes: list[str] = []
         artifact_hashes: list[str] = []
+        canonical_request_schema_hashes: list[str] = []
+        adapted_schema_hashes: list[str] = []
+        schema_transform_counts: list[int] = []
+        local_seam_counts: Counter[str] = Counter()
 
         for benchmark_case in frozen_manifest["cases"]:
             case_id = benchmark_case["case_id"]
@@ -186,6 +195,10 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                 "packet_hash": None,
                 "choice_schema_hash": None,
                 "expansion_integrity_hash": None,
+                "canonical_request_schema_hash": None,
+                "adapted_request_schema_hash": None,
+                "schema_transform_count": None,
+                "inverse_normalization_exact": None,
             }
             typed_options_total = None
             request_context_bytes = 0
@@ -274,9 +287,17 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                     compilation=compilation,
                     registry=self.registry,
                 )
-                model_choice = _fixture_model_choice(
+                canonical_model_choice = _fixture_model_choice(
                     benchmark_case=benchmark_case,
                     compilation=compilation,
+                )
+                request = financial_semantic_v6_canonical_request(
+                    packet=packet,
+                    choice_contract=choice_contract,
+                )
+                model_choice, prepared_request = _simulate_openai_provider_seam(
+                    canonical_request=request,
+                    canonical_choice=canonical_model_choice,
                 )
                 expansion = Gate2FinancialSemanticV6DecisionExpansionFactory(
                     registry=self.registry
@@ -316,15 +337,12 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                     unclassified_value_loss_total += len(expected_refs - terminal_refs)
                     if terminal_refs != expected_refs:
                         _fail("financial_semantic_v6_unclassified_retention_loss")
-                request = financial_semantic_v6_canonical_request(
-                    packet=packet,
-                    choice_contract=choice_contract,
-                )
                 request_context_bytes = len(canonical_json(request).encode("utf-8"))
                 request_estimated_tokens = (request_context_bytes + 3) // 4
                 context_bytes.append(request_context_bytes)
                 estimated_tokens.append(request_estimated_tokens)
                 model_choice_counts[expansion.disposition] += 1
+                local_seam_counts[expansion.disposition] += 1
                 semantic_hashes = {
                     "evidence_bundle_integrity_hash": (evidence_bundle.integrity_hash),
                     "candidate_compilation_integrity_hash": (
@@ -333,11 +351,30 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                     "packet_hash": packet.packet_hash,
                     "choice_schema_hash": (choice_contract.choice_schema_hash),
                     "expansion_integrity_hash": expansion.integrity_hash,
+                    "canonical_request_schema_hash": (
+                        prepared_request.canonical_schema_hash
+                    ),
+                    "adapted_request_schema_hash": (
+                        prepared_request.adapted_schema_hash
+                    ),
+                    "schema_transform_count": (
+                        prepared_request.schema_transform_count
+                    ),
+                    "inverse_normalization_exact": (
+                        model_choice == canonical_model_choice
+                    ),
                 }
                 bundle_hashes.append(evidence_bundle.integrity_hash)
                 compilation_hashes.append(compilation.integrity_hash)
                 packet_hashes.append(packet.packet_hash)
                 choice_schema_hashes.append(choice_contract.choice_schema_hash)
+                canonical_request_schema_hashes.append(
+                    prepared_request.canonical_schema_hash
+                )
+                adapted_schema_hashes.append(prepared_request.adapted_schema_hash)
+                schema_transform_counts.append(
+                    prepared_request.schema_transform_count
+                )
                 semantic_bundles[case_id] = {
                     "registry": self.registry,
                     "scope": scope,
@@ -465,12 +502,37 @@ class Gate2FinancialSemanticV6LocalProofFactory:
             == Counter({"semantic_model": 10, "technical_preclose": 2}),
             "both_model_choices": set(model_choice_counts)
             == {"typed_input", "unclassified_financial_input"},
+            "typed_local_response_seam": (
+                local_seam_counts["typed_input"] == 4
+            ),
+            "unclassified_local_response_seam": (
+                local_seam_counts["unclassified_financial_input"] == 6
+            ),
+            "openai_projection_exact": (
+                len(canonical_request_schema_hashes)
+                == len(adapted_schema_hashes)
+                == len(schema_transform_counts)
+                == 10
+                and canonical_request_schema_hashes == choice_schema_hashes
+                and all(
+                    canonical_hash != adapted_hash
+                    for canonical_hash, adapted_hash in zip(
+                        canonical_request_schema_hashes,
+                        adapted_schema_hashes,
+                        strict=True,
+                    )
+                )
+                and set(schema_transform_counts) == {1}
+            ),
             "canonical_four_dispositions": set(disposition_counts) == set(DISPOSITIONS),
             "all_v6_components_exercised": (
                 len(bundle_hashes)
                 == len(compilation_hashes)
                 == len(packet_hashes)
                 == len(choice_schema_hashes)
+                == len(canonical_request_schema_hashes)
+                == len(adapted_schema_hashes)
+                == len(schema_transform_counts)
                 == 10
             ),
             "adjacent_equal_has_zero_typed_options": adjacent_options == 0,
@@ -489,6 +551,35 @@ class Gate2FinancialSemanticV6LocalProofFactory:
             "status": "passed" if passed else "failed",
             "acceptance": {
                 "local_v6_proof": "PASSED" if passed else "FAILED",
+                "typed_local_seam": (
+                    "PASSED"
+                    if checks["typed_local_response_seam"]
+                    else "FAILED"
+                ),
+                "unclassified_local_seam": (
+                    "PASSED"
+                    if checks["unclassified_local_response_seam"]
+                    else "FAILED"
+                ),
+                "openai_root_object_projection": (
+                    "PASSED" if checks["openai_projection_exact"] else "FAILED"
+                ),
+                "expansion": (
+                    "PASSED"
+                    if checks["all_v6_components_exercised"]
+                    else "FAILED"
+                ),
+                "validation": (
+                    "PASSED"
+                    if checks["canonical_product_invariants"]
+                    and checks["hard_gates_zero"]
+                    else "FAILED"
+                ),
+                "materialization": (
+                    "PASSED"
+                    if hard_gates["validated_materialization_failures_total"] == 0
+                    else "FAILED"
+                ),
                 "unclassified_value_loss": (
                     "ZERO"
                     if hard_gates["unclassified_value_loss_total"] == 0
@@ -520,6 +611,13 @@ class Gate2FinancialSemanticV6LocalProofFactory:
             },
             "exact_contracts": {
                 "prompt_version": V6_SEMANTIC_PROMPT_VERSION,
+                "provider_profile_id": V6_PROVIDER_PROFILE_ID,
+                "provider_adapter_id": gate2_provider_profile(
+                    V6_PROVIDER_PROFILE_ID
+                ).adapter_id,
+                "provider_adapter_version": gate2_provider_profile(
+                    V6_PROVIDER_PROFILE_ID
+                ).adapter_version,
                 "evidence_bundle_schema_versions": sorted(
                     {
                         item["evidence_bundle"].schema_version
@@ -583,6 +681,13 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                         "unclassified_financial_input",
                     )
                 },
+                "local_seam_choice_counts": {
+                    key: local_seam_counts[key]
+                    for key in (
+                        "typed_input",
+                        "unclassified_financial_input",
+                    )
+                },
                 "canonical_disposition_counts": {
                     key: disposition_counts[key] for key in DISPOSITIONS
                 },
@@ -602,14 +707,23 @@ class Gate2FinancialSemanticV6LocalProofFactory:
                 "choice_schema_hashes_sha256": sha256_json(
                     sorted(choice_schema_hashes)
                 ),
+                "canonical_request_schema_hashes_sha256": sha256_json(
+                    sorted(canonical_request_schema_hashes)
+                ),
+                "adapted_request_schema_hashes_sha256": sha256_json(
+                    sorted(adapted_schema_hashes)
+                ),
                 "artifact_hashes_sha256": sha256_json(sorted(artifact_hashes)),
                 "product_receipt_hash": product_receipt["integrity_hash"],
             },
             "negative_checks": negative_checks,
             "execution_accounting": {
                 "provider_calls_total": 0,
+                "provider_responses_total": 0,
                 "technical_case_provider_calls_total": 0,
                 "semantic_fixture_choices_total": 10,
+                "simulated_provider_shaped_responses_total": 10,
+                "openai_projection_cases_total": 10,
                 "fallback_total": 0,
                 "repair_attempts_total": 0,
                 "hidden_retry_total": 0,
@@ -715,6 +829,62 @@ class Gate2FinancialSemanticV6LocalProofFactory:
         if receipt["status"] != "passed":
             _fail("financial_semantic_v6_product_invariants_failed")
         return receipt
+
+
+def _simulate_openai_provider_seam(
+    *,
+    canonical_request: dict[str, Any],
+    canonical_choice: dict[str, Any],
+):
+    frozen_request = copy.deepcopy(canonical_request)
+    response_format = canonical_request.get("response_format")
+    if not isinstance(response_format, dict):
+        _fail("financial_semantic_v6_local_response_format_missing")
+    adapter = Gate2ProviderAdapterFactory(
+        profile=gate2_provider_profile(V6_PROVIDER_PROFILE_ID)
+    ).create()
+    prepared = adapter.prepare_form_data(
+        form_data=canonical_request,
+        response_format=response_format,
+    )
+    schema = (
+        prepared.form_data.get("response_format", {})
+        .get("json_schema", {})
+        .get("schema")
+    )
+    properties = schema.get("properties") if isinstance(schema, dict) else None
+    required = schema.get("required") if isinstance(schema, dict) else None
+    if (
+        canonical_request != frozen_request
+        or not isinstance(properties, dict)
+        or len(properties) != 1
+        or not isinstance(required, list)
+        or len(required) != 1
+        or required[0] not in properties
+        or prepared.schema_transform_count != 1
+        or prepared.canonical_schema_hash == prepared.adapted_schema_hash
+    ):
+        _fail("financial_semantic_v6_local_openai_projection_invalid")
+    envelope_key = required[0]
+    provider_content = json.dumps(
+        {envelope_key: canonical_choice},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    normalized = adapter.extract_content(
+        {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": provider_content},
+                }
+            ]
+        }
+    )
+    if normalized != canonical_choice:
+        _fail("financial_semantic_v6_local_inverse_normalization_invalid")
+    return normalized, prepared
 
 
 def _fixture_model_choice(
