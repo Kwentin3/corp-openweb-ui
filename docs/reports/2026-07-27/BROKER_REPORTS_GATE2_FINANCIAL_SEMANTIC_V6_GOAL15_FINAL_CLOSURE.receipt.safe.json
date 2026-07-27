@@ -1,0 +1,102 @@
+{
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_goal15_final_closure_v1",
+  "terminal_status": "NOT_CLOSED",
+  "repository_base_revision": "f976cc8400e9928b009658d9ef919f16fe4d5da6",
+  "goal_statuses": {
+    "goal_0_authority_baseline": "COMPLETED",
+    "goal_1_evidence_bundle": "COMPLETED",
+    "goal_2_typed_option": "COMPLETED",
+    "goal_3_candidate_compiler": "COMPLETED",
+    "goal_4_model_packet": "COMPLETED",
+    "goal_5_choice_contract": "COMPLETED",
+    "goal_6_deterministic_expansion": "COMPLETED",
+    "goal_7_totality": "COMPLETED",
+    "goal_8_execution_identity": "COMPLETED",
+    "goal_9_local_proof": "COMPLETED",
+    "goal_10_qualification_contract": "COMPLETED",
+    "goal_11a_zero_call_preflight": "COMPLETED",
+    "goal_11b_nano_qualification": "TERMINAL_MODEL_NOT_SAFE_FOR_SHADOW",
+    "goal_12_haiku_qualification": "TERMINAL_MODEL_NOT_SAFE_FOR_SHADOW",
+    "goal_13_actual_corpus": "NOT_RUN_PREREQUISITE_FAILED",
+    "goal_14_gate3_and_full_scope": "PARTIAL_NOT_CLOSED",
+    "goal_15_production_release": "NOT_CLOSED"
+  },
+  "accepted_v6_release_receipts": {
+    "qualification_total": 0,
+    "actual_corpus_total": 0,
+    "full_scope_total": 0,
+    "production_admissions_total": 0
+  },
+  "frozen_unreleased_identity": {
+    "semantic_pack_source_authority_hashes_sha256": "53c7e129450f9536c89217d7e3da6eb10f19e52e614fe7d373597f81d41622f4",
+    "compact_projection_hashes_sha256": "8a38f12e4629c192c1a76171708dd3dfba55b17f37034044b5ccbac619497307",
+    "prompt_version": "financial_semantic_v6_candidate_choice_v1",
+    "prompt_hash": "59143216c08d6e5069bee757346508906cbaf5575b76bebee440d94dede8642b",
+    "execution_schema": "broker_reports_gate2_financial_semantic_v6_execution_identity_v1",
+    "choice_schema": "broker_reports_gate2_financial_semantic_choice_v6",
+    "qualification_publication_hash": "6fe67e5e7c06012ed161f6ad74b2e4ca7e5aa749b283eaec1eb9f78250113ae9",
+    "qualified_model": null
+  },
+  "attempt_accounting": {
+    "goal15_provider_calls_total": 0,
+    "goal15_fallback_total": 0,
+    "goal15_repair_total": 0,
+    "goal15_hidden_retry_total": 0,
+    "goal15_expensive_model_calls_total": 0,
+    "goal15_stage_mutations_total": 0,
+    "goal15_production_release_attempts_total": 0
+  },
+  "release_proof": {
+    "atomic_release": "NOT_RUN_NO_ACCEPTED_V6_RECEIPTS",
+    "repository_live_parity": "NOT_RUN_NO_RELEASE",
+    "rollback_reapply": "NOT_RUN_NO_RELEASE",
+    "independent_readback": "NOT_RUN_NO_RELEASE",
+    "bounded_live_persistence": "NOT_RUN_NO_RELEASE",
+    "bounded_live_query": "NOT_RUN_NO_RELEASE",
+    "observation_window": "NOT_STARTED",
+    "legacy_retirement": "NOT_STARTED"
+  },
+  "runtime_state": {
+    "economy_workload_policy_hash": "08449e2b11951f7c303885d29504b06171d739a5bc85e44037575600fac414a2",
+    "economy_routes_total": 4,
+    "economy_routes_with_production_admissions_total": 0,
+    "successor_gate3_consumer": "IMPLEMENTED_NOT_PRODUCTION_CONNECTED",
+    "successor_single_write": "NOT_ACTIVATED",
+    "legacy_dual_read": "NOT_ACTIVATED",
+    "legacy_manifest_read_path": "UNCHANGED_ACTIVE",
+    "legacy_retirement": "FORBIDDEN_BEFORE_ACCEPTED_RELEASE_PROOF"
+  },
+  "product_invariants": {
+    "llm_only_selects_semantic_option": "IMPLEMENTED_LOCALLY_NOT_PRODUCTION_QUALIFIED",
+    "model_constructs_refs_or_records": false,
+    "unclassified_complete_retention": "IMPLEMENTED_LOCALLY_NOT_ACTUAL_CORPUS_QUALIFIED",
+    "accepted_decisions_materialize": "IMPLEMENTED_BY_CONSTRUCTION_NOT_ACTUAL_CORPUS_QUALIFIED",
+    "terminal_ownership_full_scope": "NOT_PROVEN_FOR_V6",
+    "gate3_queries_typed_and_unclassified": "PROVEN_ON_DETERMINISTIC_FIXTURE_NOT_PRODUCTION",
+    "live_parity_and_rollback": "NOT_PROVEN"
+  },
+  "blocking_evidence": {
+    "nano_product_gate": "MODEL_NOT_SAFE_FOR_SHADOW",
+    "haiku_product_gate": "MODEL_NOT_SAFE_FOR_SHADOW",
+    "goal13_prerequisite": "FAILED",
+    "goal14_full_scope": "NOT_RUN_NO_ACCEPTED_V6_ACTUAL_CORPUS"
+  },
+  "evidence_sha256": {
+    "economy_workload_policy_source": "cd9b5d7bc02fce974e065b13c38de4f640dff7f4206ff437eed0d91053b0ce35",
+    "v6_qualification_source": "5e3f016ac1a345d44f92988e54a5a6d57ea3f5c764a34efecd2b928d28cea842",
+    "gate3_successor_source": "9d295759ea4de3062a72c2cc6c48c59eaeb2b9086e37dd5a9b2bc1f648e600c2",
+    "nano_qualification_receipt": "5fd5bb6e01aaa1cbd136725e2c769f8c0cc5ec951c5711955093181db81ead34",
+    "haiku_qualification_receipt": "8140a0d32eeadfaf1871b4794512c785de92b738a59ddc2aa38ea43316ee7a95",
+    "goal13_skip_report": "150094e224f66d36f16a5e6896cdd29a879e1da5310cc7fb0123a94c3014c5d1",
+    "goal14_receipt": "563fb77a79ba020745a8cc0b7e58c18c6b3f122361ccf4f375d331d959be0e81"
+  },
+  "privacy": {
+    "customer_values_in_git": 0,
+    "provider_raw_output_in_git": 0,
+    "private_refs_in_git": 0
+  },
+  "failed_invariant": "Production release requires accepted exact V6 qualification, actual-corpus and full-scope receipts; all three accepted receipt sets are empty.",
+  "narrowest_corrective_slice": "An explicit new candidate or policy decision must authorize one new exact qualification. Only a MODEL_SAFE_FOR_SHADOW result may unlock Goal 13, Goal 14 full-scope proof and a later Goal 15 release attempt.",
+  "final_allowed_product_claim": "V6_IMPLEMENTATION_READY_FOR_FUTURE_QUALIFICATION_NOT_PRODUCTION_ACTIVE",
+  "integrity_sha256": "ed9bb01bba83f41f3bb3e167f0e577ca92d339a97e5bdee71a27be91dc97eb07"
+}
