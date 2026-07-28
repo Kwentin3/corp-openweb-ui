@@ -260,6 +260,43 @@ This adds one validation operation authority, not another context
 construction authority. It performs no provider call, fallback, repair,
 semantic rewrite, production admission or stage mutation.
 
+### GOAL 4 bounded Slim model diagnostic
+
+`Gate2FinancialSemanticV6SlimDiagnosticFactory.create` is the
+qualification-only orchestration owner for the exact six-cell experiment:
+Nano canonical order, Haiku canonical order and Nano reversed order, each on
+the frozen typed and unclassified smoke cases. It reuses the existing packet,
+Local Choice, Context Linter, structured model client, expansion and total
+materialization authorities. The reversed cells ask the existing
+`Gate2FinancialSemanticV6PacketFactory` for a permutation; the active packet
+payload/hash and canonical Choice schema remain exact.
+
+The one authorized execution is terminal and must not be rerun:
+
+```text
+PROVIDER_SUBMISSIONS: SIX
+PROVIDER_RESPONSES: SIX
+TECHNICAL_PIPELINE: PASSED
+HAIKU_TYPED: PASSED
+HAIKU_UNCLASSIFIED: FAILED_WITH_EXACT_EVIDENCE
+NANO_SLIM_TYPED: FAILED_WITH_EXACT_EVIDENCE
+NANO_SLIM_UNCLASSIFIED: FAILED_WITH_EXACT_EVIDENCE
+NANO_REVERSED_TYPED: FAILED_WITH_EXACT_EVIDENCE
+NANO_REVERSED_UNCLASSIFIED: PASSED
+FALLBACK_REPAIR_HIDDEN_RETRY: ZERO
+FULL_BENCHMARK: NOT_RUN
+RUNTIME_ROUTE_CHANGED: NO
+```
+
+The exact safe receipt and evidence-first
+[report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.report.md)
+are the result authority. The report's post-execution layer audit localizes
+the shared unclassified miss to the readable reason-code boundary:
+`ambiguous_registry_type` and `no_registry_type` were exposed as bare labels
+without an explicit distinction. This evidence owner records facts and
+diagnosis only; it does not become a packet, Choice, provider or admission
+authority.
+
 ## OpenAI projection decision and local completion
 
 - `Gate2FinancialSemanticV6ChoiceContractFactory.create` owns the canonical

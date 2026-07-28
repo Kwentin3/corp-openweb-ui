@@ -1,0 +1,959 @@
+{
+  "acceptance": {
+    "fallback_repair_hidden_retry": "ZERO",
+    "full_benchmark": "NOT_RUN",
+    "haiku_typed": "PASSED",
+    "haiku_unclassified": "FAILED_WITH_EXACT_EVIDENCE",
+    "nano_diagnostic_status": "NANO_MIXED_OR_ORDER_SENSITIVE",
+    "nano_reversed_typed": "FAILED_WITH_EXACT_EVIDENCE",
+    "nano_reversed_unclassified": "PASSED",
+    "nano_slim_typed": "FAILED_WITH_EXACT_EVIDENCE",
+    "nano_slim_unclassified": "FAILED_WITH_EXACT_EVIDENCE",
+    "production_admissions_total": 0,
+    "provider_submissions": "SIX",
+    "technical_pipeline": "PASSED"
+  },
+  "attempt_accounting": {
+    "fallback_total": 0,
+    "hidden_retry_total": 0,
+    "local_invocations_total": 6,
+    "provider_responses_total": 6,
+    "provider_submissions_planned_total": 6,
+    "provider_submissions_total": 6,
+    "repair_total": 0
+  },
+  "case_evidence": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "configuration_id": "nano_slim",
+      "diagnosis": {
+        "basis": "The sealed Slim input parsed and materialized exactly, but the normalized semantic choice differs from the frozen expected answer.",
+        "code": "MODEL_SEMANTIC_ERROR",
+        "failure_code": null
+      },
+      "exact_adapter_output": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "exact_model_answer": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"-120.5000\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"RUB\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"as_of_date\",\"value\":\"2026-03-01\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Cash balance\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "typed_input",
+        "typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f"
+      },
+      "expected_model_output": {
+        "choice": "B"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": false,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "unclassified_financial_input",
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "typed_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": false,
+            "actual_value": null,
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+            "field": "typed_option_id"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "no_registry_type",
+            "exact_match": false,
+            "expected_present": false,
+            "expected_value": null,
+            "field": "reason_code"
+          }
+        ]
+      },
+      "model_visible_request_hash": "02f69b3767139407a8ae0b7d45af24ebeec903e467f08ea838c21d69ded284d8",
+      "model_visible_utf8_bytes": 3427,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": null,
+        "selected_local_alias": null
+      },
+      "normalized_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      "option_order": "canonical",
+      "ordinal": 1,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.000169250",
+        "actual_input_tokens": 690,
+        "actual_output_tokens": 25,
+        "actual_total_tokens": 715,
+        "latency_ms": 16281
+      },
+      "provider_profile_id": "openai_gpt",
+      "repository_estimated_input_tokens": 921,
+      "smoke_role": "typed",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "6c1da2927d1c46cc16e15bcc9e1fb32cfae1395a8286a6720f03286ea47a8603",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "configuration_id": "nano_slim",
+      "diagnosis": {
+        "basis": "The sealed Slim input parsed and materialized exactly, but the normalized semantic choice differs from the frozen expected answer.",
+        "code": "MODEL_SEMANTIC_ERROR",
+        "failure_code": null
+      },
+      "exact_adapter_output": {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type"
+      },
+      "exact_model_answer": {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type"
+      },
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"42.25\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"CHF\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"date\",\"value\":\"2026-03-04\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Broker fee detail\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      "expected_model_output": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": false,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "unclassified_financial_input",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "unclassified_financial_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "ambiguous_registry_type",
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "no_registry_type",
+            "field": "reason_code"
+          }
+        ]
+      },
+      "model_visible_request_hash": "89fbaa2f2291e1d6487d9f5f36a615fb985879df2bc8e1776caf9aa99b4d0c54",
+      "model_visible_utf8_bytes": 3422,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": null,
+        "selected_local_alias": null
+      },
+      "normalized_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type"
+      },
+      "option_order": "canonical",
+      "ordinal": 2,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.000169700",
+        "actual_input_tokens": 686,
+        "actual_output_tokens": 26,
+        "actual_total_tokens": 712,
+        "latency_ms": 1953
+      },
+      "provider_profile_id": "openai_gpt",
+      "repository_estimated_input_tokens": 920,
+      "smoke_role": "unclassified",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "301c7c0a3f3c766087a980fe6bd4149a36aa3f9facca25de4dd8f2f1e190265d",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "configuration_id": "haiku_slim",
+      "diagnosis": {
+        "basis": "The normalized semantic answer exactly matches the frozen expected answer.",
+        "code": "NONE",
+        "failure_code": null
+      },
+      "exact_adapter_output": "{\"choice\":\"B\"}",
+      "exact_model_answer": {
+        "choice": "B"
+      },
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"-120.5000\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"RUB\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"as_of_date\",\"value\":\"2026-03-01\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Cash balance\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "typed_input",
+        "typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f"
+      },
+      "expected_model_output": {
+        "choice": "B"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": true,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "typed_input",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "typed_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+            "field": "typed_option_id"
+          }
+        ]
+      },
+      "model_visible_request_hash": "02f69b3767139407a8ae0b7d45af24ebeec903e467f08ea838c21d69ded284d8",
+      "model_visible_utf8_bytes": 3427,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+        "selected_local_alias": "B"
+      },
+      "normalized_answer": {
+        "disposition": "typed_input",
+        "typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f"
+      },
+      "option_order": "canonical",
+      "ordinal": 3,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.001043000",
+        "actual_input_tokens": 1003,
+        "actual_output_tokens": 8,
+        "actual_total_tokens": 1011,
+        "latency_ms": 3563
+      },
+      "provider_profile_id": "anthropic_claude",
+      "repository_estimated_input_tokens": 921,
+      "smoke_role": "typed",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "a1f1b65688e3829c2d803bf74a97027767234cc95b7e2624f3167ca765179301",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "configuration_id": "haiku_slim",
+      "diagnosis": {
+        "basis": "The sealed Slim input parsed and materialized exactly, but the normalized semantic choice differs from the frozen expected answer.",
+        "code": "MODEL_SEMANTIC_ERROR",
+        "failure_code": null
+      },
+      "exact_adapter_output": "{\"choice\":\"unclassified\",\"reason\":\"ambiguous_registry_type\"}",
+      "exact_model_answer": {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type"
+      },
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"42.25\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"CHF\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"date\",\"value\":\"2026-03-04\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Broker fee detail\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      "expected_model_output": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": false,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "unclassified_financial_input",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "unclassified_financial_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "ambiguous_registry_type",
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "no_registry_type",
+            "field": "reason_code"
+          }
+        ]
+      },
+      "model_visible_request_hash": "89fbaa2f2291e1d6487d9f5f36a615fb985879df2bc8e1776caf9aa99b4d0c54",
+      "model_visible_utf8_bytes": 3422,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": null,
+        "selected_local_alias": null
+      },
+      "normalized_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type"
+      },
+      "option_order": "canonical",
+      "ordinal": 4,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.001098000",
+        "actual_input_tokens": 998,
+        "actual_output_tokens": 20,
+        "actual_total_tokens": 1018,
+        "latency_ms": 2266
+      },
+      "provider_profile_id": "anthropic_claude",
+      "repository_estimated_input_tokens": 920,
+      "smoke_role": "unclassified",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "301c7c0a3f3c766087a980fe6bd4149a36aa3f9facca25de4dd8f2f1e190265d",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "configuration_id": "nano_slim_reversed",
+      "diagnosis": {
+        "basis": "The sealed Slim input parsed and materialized exactly, but the normalized semantic choice differs from the frozen expected answer.",
+        "code": "MODEL_SEMANTIC_ERROR",
+        "failure_code": null
+      },
+      "exact_adapter_output": {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type"
+      },
+      "exact_model_answer": {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type"
+      },
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"-120.5000\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"RUB\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"as_of_date\",\"value\":\"2026-03-01\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Cash balance\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "typed_input",
+        "typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f"
+      },
+      "expected_model_output": {
+        "choice": "A"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": false,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "unclassified_financial_input",
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "typed_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": false,
+            "actual_value": null,
+            "exact_match": false,
+            "expected_present": true,
+            "expected_value": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+            "field": "typed_option_id"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "ambiguous_registry_type",
+            "exact_match": false,
+            "expected_present": false,
+            "expected_value": null,
+            "field": "reason_code"
+          }
+        ]
+      },
+      "model_visible_request_hash": "5a04beb3a7256c9e5102db0979f49c56c2b6442fce6a3ac681d5e4f7e76a3244",
+      "model_visible_utf8_bytes": 3427,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": null,
+        "selected_local_alias": null
+      },
+      "normalized_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type"
+      },
+      "option_order": "reversed",
+      "ordinal": 5,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.000170500",
+        "actual_input_tokens": 690,
+        "actual_output_tokens": 26,
+        "actual_total_tokens": 716,
+        "latency_ms": 2172
+      },
+      "provider_profile_id": "openai_gpt",
+      "repository_estimated_input_tokens": 921,
+      "smoke_role": "typed",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "405ae4829f6e51402e92809a46b0e72930dc1ad537c7629ed8decfa5c4f467f4",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "configuration_id": "nano_slim_reversed",
+      "diagnosis": {
+        "basis": "The normalized semantic answer exactly matches the frozen expected answer.",
+        "code": "NONE",
+        "failure_code": null
+      },
+      "exact_adapter_output": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "exact_model_answer": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "exact_model_visible_input": {
+        "messages": [
+          {
+            "content": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+            "role": "system"
+          },
+          {
+            "content": "{\"task\":\"Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.\",\"source\":{\"document\":{\"children\":[{\"alias\":\"t1\",\"kind\":\"table\",\"children\":[{\"alias\":\"r1\",\"kind\":\"row\",\"values\":[{\"alias\":\"v1\",\"meaning\":\"amount\",\"value\":\"42.25\",\"type\":\"decimal\"},{\"alias\":\"v2\",\"meaning\":\"currency\",\"value\":\"CHF\",\"type\":\"currency\"},{\"alias\":\"v3\",\"meaning\":\"date\",\"value\":\"2026-03-04\",\"type\":\"date\"},{\"alias\":\"v4\",\"meaning\":\"description\",\"value\":\"Broker fee detail\",\"type\":\"text\"}],\"row_role\":\"fact_candidate\"}]}]}},\"type_cards\":[{\"alias\":\"T1\",\"meaning\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"distinctions\":[{\"against\":\"T2\",\"rule\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"},{\"against\":\"cash movement\",\"rule\":\"A movement is an event over time; this type is a state at one reporting date.\"}],\"unclassified_when\":\"Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context.\"},{\"alias\":\"T2\",\"meaning\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"distinctions\":[{\"against\":\"T1\",\"rule\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"},{\"against\":\"gate2 calculated aggregate\",\"rule\":\"This type preserves a total printed by the source; a value calculated by Gate 2 is never this type.\"}],\"unclassified_when\":\"Choose unclassified when the printed label cannot be bound to exact evidence. Choose unclassified when neither a date nor period or the statement scope can be bound. Do not infer that a visually emphasized or last row is a printed total.\"}],\"choices\":[{\"alias\":\"A\",\"type\":\"T1\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"statement_scope=r1\"]},{\"alias\":\"B\",\"type\":\"T2\",\"bindings\":[\"amount=v1\",\"as_of_date=v3\",\"currency=v2\",\"printed_label_evidence_ref=r1\",\"source_label=v4\",\"statement_scope=r1\"]}],\"unclassified\":[\"ambiguous_registry_type\",\"no_registry_type\"]}",
+            "role": "user"
+          }
+        ],
+        "response_format": {
+          "json_schema": {
+            "name": "semantic_choice",
+            "schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "A",
+                        "B"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "ambiguous_registry_type",
+                        "no_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "title": "Semantic choice"
+            },
+            "strict": true
+          },
+          "type": "json_schema"
+        }
+      },
+      "expected_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      "expected_model_output": {
+        "choice": "unclassified",
+        "reason": "no_registry_type"
+      },
+      "mechanical_comparison": {
+        "all_fields_match": true,
+        "fields": [
+          {
+            "actual_present": true,
+            "actual_value": "unclassified_financial_input",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "unclassified_financial_input",
+            "field": "disposition"
+          },
+          {
+            "actual_present": true,
+            "actual_value": "no_registry_type",
+            "exact_match": true,
+            "expected_present": true,
+            "expected_value": "no_registry_type",
+            "field": "reason_code"
+          }
+        ]
+      },
+      "model_visible_request_hash": "1a856ab09a31ac2b1e8097124f6b2bc24a369da83deb9c921a628d561cde546e",
+      "model_visible_utf8_bytes": 3422,
+      "normalization": {
+        "first_visible_choice_alias": "A",
+        "first_visible_choice_selected": false,
+        "post_response_repair_total": 0,
+        "selected_exact_typed_option_id": null,
+        "selected_local_alias": null
+      },
+      "normalized_answer": {
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      "option_order": "reversed",
+      "ordinal": 6,
+      "provider_lifecycle": {
+        "local_invocations": 1,
+        "provider_responses": 1,
+        "provider_submissions": 1
+      },
+      "provider_metrics": {
+        "actual_cost_usd": "0.000168450",
+        "actual_input_tokens": 686,
+        "actual_output_tokens": 25,
+        "actual_total_tokens": 711,
+        "latency_ms": 1860
+      },
+      "provider_profile_id": "openai_gpt",
+      "repository_estimated_input_tokens": 920,
+      "smoke_role": "unclassified",
+      "technical_pipeline": {
+        "canonical_artifact_hash": "7db58598ea14b2875632a771a0fbeb307f0ece54b01ded2d8fca0d242ddd94bd",
+        "canonical_expansion_materialization": "PASSED",
+        "context_lint": "PASSED",
+        "failure_code": null,
+        "local_choice_parser": "PASSED",
+        "status": "PASSED"
+      }
+    }
+  ],
+  "cases_executed": 6,
+  "exact_safe_evidence_preserved": true,
+  "execution_state": "terminal",
+  "integrity_sha256": "e22484cf7a9d8fa702b3716eac65df0d196edbd3332e80787f0d8888dc47b2a1",
+  "model_qualification_performed": false,
+  "plan_hash": "28763bf70aa829379cfb5c60a9a4e143d7427127328a8e13e6e84c8e354bdc79",
+  "policy_version": "broker_reports_gate2_llm_semantic_context_goal4_v1",
+  "production_admissions_total": 0,
+  "provider_metrics": {
+    "actual_cost_usd": "0.002818900",
+    "actual_input_tokens_total": 4753,
+    "actual_output_tokens_total": 130,
+    "calls_with_complete_metrics_total": 6,
+    "latency_average_ms": 4682,
+    "latency_max_ms": 16281,
+    "latency_total_ms": 28095
+  },
+  "raw_provider_envelope_preserved": false,
+  "repository_revision": "3f8ac7f6b4243bd85a1a0abd4e780c8fd80d473e",
+  "request_profile": "financial_semantic_v6_slim_linted_v1",
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_slim_diagnostic_v1",
+  "scope": {
+    "configurations": [
+      "nano_slim",
+      "haiku_slim",
+      "nano_slim_reversed"
+    ],
+    "expected_answers_changed": false,
+    "frozen_cases": [
+      "syn_successor_v2_unique_cash",
+      "syn_successor_v2_no_registry_type"
+    ],
+    "full_benchmark_run": false,
+    "prompt_changed": false,
+    "runtime_route_changed": false,
+    "type_meanings_changed": false
+  },
+  "status": "failed"
+}

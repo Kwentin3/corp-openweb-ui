@@ -205,3 +205,23 @@ unclassified output materializes: 32/32, with zero
 current qualification runner, evidence runtime or product runtime. No provider
 call is authorized by GOAL 3. GOAL 4 is the separate bounded model diagnostic;
 activation remains a later decision after the qualified full benchmark.
+
+## GOAL 4 model diagnostic result
+
+GOAL 4 exercised this exact Local Choice candidate through the sealed Slim
+request profile. The typed alias mapping worked mechanically in canonical and
+reversed order: every schema-valid answer normalized, expanded and
+materialized without repair. Six planned submissions produced six responses.
+
+Semantic acceptance nevertheless failed. Haiku passed the typed cash case but
+selected the wrong unclassified reason. Nano failed both canonical-order
+cases, failed the reversed typed case and passed only the reversed
+unclassified case. The exact
+[evidence report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.report.md)
+shows that the model sees the allowed reason codes only as bare enum labels.
+The post-execution audit therefore identifies a narrow readable
+unclassified-reason boundary gap; the adapter and canonical parser behaved
+correctly and must not rewrite that semantic answer.
+
+The candidate remains non-active. The exact GOAL 4 authorization is consumed,
+the full benchmark was not run, and no production admission follows.

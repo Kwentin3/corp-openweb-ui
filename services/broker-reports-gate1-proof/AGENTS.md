@@ -58,6 +58,12 @@ separate bootstrap report.
   builder rejects the candidate profile without its exact sealed lint receipt.
   The linter validates the complete request but does not own packet, Prompt,
   Choice, provider projection, canonical expansion or materialization.
+- GOAL 4 consumed its one bounded six-submission Slim diagnostic on the two
+  frozen smoke cases. The terminal receipt is failed because Haiku missed the
+  unclassified reason; do not rerun, resume, expand to the full benchmark or
+  start conditional type-card work from that authorization. Preserve the exact
+  receipt/report and require a separately versioned, explicitly authorized
+  corrective GOAL.
 - The model selects only the allowed
   [semantic choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md).
   It never owns source refs, provenance, retention, records or bindings.

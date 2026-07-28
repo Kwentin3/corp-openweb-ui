@@ -445,13 +445,31 @@ Validation receipt:
   receipt before transport;
 - `git diff --check`: passed.
 
-Semantic sufficiency cannot be proven by unit tests. GOAL 4 is the separately
-authorized bounded Nano/Haiku Slim diagnostic; it must preserve exact
-input/output evidence and pass the required two-case Haiku smoke before any
-full benchmark. Runtime activation remains a separate later decision.
+Semantic sufficiency was tested in GOAL 4 with exactly six provider
+submissions. The technical pipeline passed, but the candidate did not meet the
+semantic gate:
+
+- Haiku typed: passed;
+- Haiku unclassified: wrong reason with exact evidence;
+- Nano canonical typed/unclassified: failed;
+- Nano reversed typed: failed;
+- Nano reversed unclassified: passed;
+- fallback, repair and hidden retry: zero;
+- full benchmark: not run.
+
+The joint evidence audit does not support first-option bias: Nano returned
+unclassified for the typed cash case in both orders. It does expose a narrow
+readability gap in the unclassified reason boundary because the model sees
+bare reason labels without their semantic distinction. The candidate remains
+non-active, runtime activation is blocked and the consumed diagnostic must not
+be rerun.
 
 ## Research evidence
 
 See the
 [field-by-field redundancy audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_SEMANTIC_PACKET_REDUNDANCY_AUDIT.report.md)
 for classifications, risk ownership and all 10 per-case size measurements.
+See the terminal
+[GOAL 4 diagnostic](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.report.md)
+for all six exact model-visible inputs, outputs, diffs, actual metrics and the
+post-execution layer audit.
