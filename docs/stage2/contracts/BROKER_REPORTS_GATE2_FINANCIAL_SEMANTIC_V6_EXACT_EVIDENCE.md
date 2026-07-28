@@ -107,3 +107,23 @@ The terminal receipt records exactly two submissions/responses, both case
 passes, exact replay, zero hidden retry/fallback/repair and no qualification
 attempt. The interrupted receipt proves the first process stopped with one
 passed typed case before the continuation submitted only the missing case.
+
+## Nano zero-call forensic
+
+The 2026-07-28
+[Nano zero-call forensic](../../reports/2026-07-28/BROKER_REPORTS_GATE2_NANO_ZERO_CALL_FORENSIC.report.md)
+uses the already-preserved private checkpoints and published exact replay. It
+performs no provider call and changes no execution authority.
+
+For both frozen smoke cases it exposes the repository-safe synthetic semantic
+surface, exact Nano answer, normalized answer, field-level expected diff and
+the exact Haiku answer on the same workload. A field-level comparison proves
+that the Nano and Haiku canonical requests differ only at `$.model`; Prompt,
+Semantic Packet and response format are exact matches. The report diagnoses
+the typed observation as `OPTION_CONFUSION` and the unclassified observation
+as `MODEL_IGNORED_UNCLASSIFIED`, while withholding any general causal or
+packet-refinement claim from the two-case sample.
+
+This is documentation over existing evidence. It does not reconstruct a
+missing answer, activate a slim packet, change Prompt or Pack meaning, add an
+adapter, alter normalization or authorize another provider submission.
