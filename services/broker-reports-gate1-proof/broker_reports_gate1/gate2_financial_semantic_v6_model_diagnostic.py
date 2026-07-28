@@ -1,3 +1,5 @@
+"""Bounded GOAL 4 model diagnostic over the existing V6 Slim candidate."""
+
 from __future__ import annotations
 
 import copy
@@ -807,37 +809,12 @@ def _case_evidence(
         and exact_json.get("choice") != "unclassified"
         else None
     )
-    diagnosis = (
-        {
-            "code": "TECHNICAL_PIPELINE_ERROR",
-            "basis": (
-                "The sealed request, provider response, Local Choice parser "
-                "and canonical expansion/materialization chain did not all "
-                "complete."
-            ),
-            "failure_code": failure_code,
-        }
-        if not technical_pipeline_passed
-        else (
-            {
-                "code": "NONE",
-                "basis": (
-                    "The normalized semantic answer exactly matches the "
-                    "frozen expected answer."
-                ),
-                "failure_code": None,
-            }
-            if comparison["all_fields_match"]
-            else {
-                "code": "MODEL_SEMANTIC_ERROR",
-                "basis": (
-                    "The sealed Slim input parsed and materialized exactly, "
-                    "but the normalized semantic choice differs from the "
-                    "frozen expected answer."
-                ),
-                "failure_code": None,
-            }
-        )
+    diagnosis = _diagnosis(
+        expected=cell.expected_answer,
+        actual=normalized,
+        comparison=comparison,
+        technical_pipeline_passed=technical_pipeline_passed,
+        failure_code=failure_code,
     )
     return {
         "ordinal": cell.ordinal,
@@ -897,6 +874,62 @@ def _case_evidence(
         "provider_lifecycle": copy.deepcopy(lifecycle),
         "provider_metrics": copy.deepcopy(metrics),
         "diagnosis": diagnosis,
+    }
+
+
+def _diagnosis(
+    *,
+    expected: dict[str, Any],
+    actual: dict[str, Any] | None,
+    comparison: dict[str, Any],
+    technical_pipeline_passed: bool,
+    failure_code: str | None,
+) -> dict[str, Any]:
+    if not technical_pipeline_passed:
+        return {
+            "code": "TECHNICAL_PIPELINE_ERROR",
+            "basis": (
+                "The sealed request, provider response, Local Choice parser "
+                "and canonical expansion/materialization chain did not all "
+                "complete."
+            ),
+            "failure_code": failure_code,
+        }
+    if comparison["all_fields_match"]:
+        return {
+            "code": "NONE",
+            "basis": (
+                "The normalized semantic answer exactly matches the frozen "
+                "expected answer."
+            ),
+            "failure_code": None,
+        }
+    if (
+        expected.get("disposition")
+        == "unclassified_financial_input"
+        and actual is not None
+        and actual.get("disposition")
+        == "unclassified_financial_input"
+        and expected.get("reason_code") != actual.get("reason_code")
+    ):
+        return {
+            "code": "UNCLASSIFIED_RULE_UNCLEAR",
+            "basis": (
+                "The model selected the correct unclassified disposition but "
+                "the wrong reason. The exact model input exposes the two "
+                "reason-code labels without a readable rule distinguishing "
+                "no applicable registry type from multiple plausible types."
+            ),
+            "failure_code": None,
+        }
+    return {
+        "code": "MODEL_SEMANTIC_ERROR",
+        "basis": (
+            "The sealed Slim input parsed and materialized exactly, but the "
+            "normalized semantic choice differs from the frozen expected "
+            "answer."
+        ),
+        "failure_code": None,
     }
 
 

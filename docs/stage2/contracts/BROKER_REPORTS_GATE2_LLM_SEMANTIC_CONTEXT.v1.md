@@ -453,7 +453,8 @@ exact-ID Choice.
 | GOAL 1 | implemented an inactive Slim View and receipt inside the existing packet owner; the active payload/hash and current Choice remain unchanged, so full conformance is not yet claimed |
 | GOAL 2 | implemented the separate non-active Local Choice, removed `return_id` from Slim v2 and proved zero opaque IDs plus canonical expansion/materialization parity |
 | GOAL 3 | implemented a pre-transport linter, sealed receipt, exact replay and totality proof for the non-active candidate request profile |
-| GOAL 4+ | records actual provider tokens and semantic evidence only where calls are explicitly authorized |
+| GOAL 4 | consumed the exact six-submission Nano/Haiku diagnostic; technical pipeline passed, but Haiku missed the unclassified reason, so acceptance failed and the benchmark remains blocked |
+| GOAL 5-7 | conditional research/experiments/benchmark remain unstarted and require their exact prerequisites plus separate authorization |
 | GOAL 8 | may activate exactly one qualified conforming context under a separate decision |
 
 No earlier stage may claim the acceptance of a later one.
@@ -543,6 +544,52 @@ LOCAL_TOTALITY_INTEGRITY: 3e41ebc9dbc0a907e7d5ebda5a8de47632eae60ff3019fd39180de
 The private alias receipt and its exact refs remain outside the model-visible
 projection. The lint receipt contains only hashes, counts, booleans and
 measurement identity; it is request metadata, not model context.
+
+## GOAL 4 terminal model evidence
+
+The one bounded diagnostic used the same Prompt, type meanings, two frozen
+cases and expected answers for all cells. Only the exact model candidate
+changes between Nano and Haiku; the separate Nano permutation changes only the
+typed-choice order and deterministic alias mapping. Six submissions and six
+responses completed through the canonical structured client with zero
+fallback, repair or hidden retry.
+
+```text
+TECHNICAL_PIPELINE: PASSED
+HAIKU_TYPED: PASSED
+HAIKU_UNCLASSIFIED: FAILED_WITH_EXACT_EVIDENCE
+NANO_SLIM_TYPED: FAILED_WITH_EXACT_EVIDENCE
+NANO_SLIM_UNCLASSIFIED: FAILED_WITH_EXACT_EVIDENCE
+NANO_REVERSED_TYPED: FAILED_WITH_EXACT_EVIDENCE
+NANO_REVERSED_UNCLASSIFIED: PASSED
+ACTUAL_INPUT_TOKENS_TOTAL: 4753
+ACTUAL_OUTPUT_TOKENS_TOTAL: 130
+ACTUAL_COST_USD: 0.002818900
+LATENCY_TOTAL_MS: 28095
+FULL_BENCHMARK: NOT_RUN
+```
+
+Haiku selected the correct typed alias `B` but returned
+`ambiguous_registry_type` instead of `no_registry_type` for the unsupported
+broker-fee case. Nano returned unclassified for the typed cash case in both
+orders; it did not follow the first typed option. Nano's unclassified reason
+was wrong in canonical order and correct after the order permutation, so its
+result is mixed/order-sensitive rather than an order-independent type-card
+failure.
+
+The exact input shows the narrow contract gap: the response enum exposes both
+unclassified reason labels, but the readable context does not define when
+none of the visible registry types applies versus when multiple types are
+plausible. This is evidence for `UNCLASSIFIED_RULE_UNCLEAR`, not permission to
+change Prompt, Semantic Pack, type meaning or the provider adapter.
+
+The immutable
+[safe receipt](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.receipt.safe.json)
+and
+[detailed report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.report.md)
+preserve all six exact synthetic inputs, adapter-extracted outputs, normalized
+answers, diffs and actual metrics. GOAL 5's published prerequisite is not met,
+and GOAL 7 is blocked.
 
 ## Acceptance
 

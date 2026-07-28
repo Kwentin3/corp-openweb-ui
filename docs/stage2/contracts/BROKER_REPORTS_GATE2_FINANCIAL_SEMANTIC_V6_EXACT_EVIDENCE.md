@@ -127,3 +127,32 @@ packet-refinement claim from the two-case sample.
 This is documentation over existing evidence. It does not reconstruct a
 missing answer, activate a slim packet, change Prompt or Pack meaning, add an
 adapter, alter normalization or authorize another provider submission.
+
+## GOAL 4 Slim diagnostic evidence
+
+The 2026-07-28 GOAL 4 execution uses a dedicated repository-safe synthetic
+receipt because all six model inputs are projections of the two frozen
+non-customer cases. The receipt checkpoints after every call and contains:
+
+- the sealed exact messages plus strict response schema;
+- exact adapter-extracted semantic output;
+- deterministic Local Choice normalization;
+- field-level expected diff;
+- context-lint and canonical materialization status;
+- actual input/output tokens, cost and latency;
+- per-call submission/response accounting.
+
+It excludes credentials, provider response IDs, raw provider envelopes,
+filesystem paths and hidden reasoning. The receipt is immutable execution
+evidence; the report projector may refine a first-pass diagnosis from the same
+exact facts but does not rewrite receipt bytes.
+
+Evidence:
+
+- [terminal safe receipt](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.receipt.safe.json);
+- [transparent analytical report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_SLIM_MODEL_DIAGNOSTIC.report.md).
+
+The terminal receipt records exactly six submissions/responses, a passed
+technical pipeline, failed Haiku unclassified acceptance, zero
+fallback/repair/hidden retry, and no full benchmark, qualification verdict,
+runtime activation or production admission.

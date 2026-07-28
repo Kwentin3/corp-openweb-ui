@@ -23,14 +23,14 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
     Gate2FinancialSemanticV6QualificationFixtureFactory,
 )
-from broker_reports_gate1.gate2_financial_semantic_v6_slim_diagnostic import (  # noqa: E402,E501
+from broker_reports_gate1.gate2_financial_semantic_v6_model_diagnostic import (  # noqa: E402,E501
     V6_SLIM_DIAGNOSTIC_CONFIGURATIONS,
     Gate2FinancialSemanticV6SlimDiagnosticError,
     Gate2FinancialSemanticV6SlimDiagnosticFactory,
     financial_semantic_v6_slim_diagnostic_initial_receipt,
     run_financial_semantic_v6_slim_diagnostic,
 )
-from broker_reports_gate1.gate2_financial_semantic_v6_slim_diagnostic_report import (  # noqa: E402,E501
+from broker_reports_gate1.gate2_financial_semantic_v6_model_diagnostic_report import (  # noqa: E402,E501
     Gate2FinancialSemanticV6SlimDiagnosticReportFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (  # noqa: E402,E501
@@ -321,21 +321,24 @@ def test_nano_first_choice_bias_is_diagnostic_not_acceptance_failure(fixture):
     assert receipt["production_admissions_total"] == 0
 
 
-def test_haiku_semantic_miss_fails_goal4_acceptance_without_retry(fixture):
+def test_haiku_reason_miss_fails_goal4_and_localizes_rule_gap(fixture):
     plan = _plan(fixture)
     outputs = _expected_outputs(plan)
-    haiku_typed = next(
+    haiku_unclassified = next(
         cell
         for cell in plan.cells
         if cell.configuration_id == "haiku_slim"
-        and cell.smoke_role == "typed"
+        and cell.smoke_role == "unclassified"
     )
     outputs[
         (
-            haiku_typed.exact_model_id,
-            haiku_typed.packet.slim_candidate.view_hash,
+            haiku_unclassified.exact_model_id,
+            haiku_unclassified.packet.slim_candidate.view_hash,
         )
-    ] = {"choice": "A"}
+    ] = {
+        "choice": "unclassified",
+        "reason": "ambiguous_registry_type",
+    }
 
     receipt = asyncio.run(
         run_financial_semantic_v6_slim_diagnostic(
@@ -345,9 +348,17 @@ def test_haiku_semantic_miss_fails_goal4_acceptance_without_retry(fixture):
     )
 
     assert receipt["status"] == "failed"
-    assert receipt["acceptance"]["haiku_typed"] == (
+    assert receipt["acceptance"]["haiku_typed"] == "PASSED"
+    assert receipt["acceptance"]["haiku_unclassified"] == (
         "FAILED_WITH_EXACT_EVIDENCE"
     )
+    exact_case = next(
+        item
+        for item in receipt["case_evidence"]
+        if item["configuration_id"] == "haiku_slim"
+        and item["smoke_role"] == "unclassified"
+    )
+    assert exact_case["diagnosis"]["code"] == "UNCLASSIFIED_RULE_UNCLEAR"
     assert receipt["attempt_accounting"]["provider_submissions_total"] == 6
     assert receipt["attempt_accounting"]["hidden_retry_total"] == 0
     assert receipt["scope"]["full_benchmark_run"] is False
@@ -405,3 +416,39 @@ def test_live_script_uses_factories_once_and_exposes_bounded_help():
     )
     assert "--preflight-only" in completed.stdout
     assert "--execute-six-submission-diagnostic" in completed.stdout
+
+
+def test_terminal_safe_receipt_integrity_and_exact_report_parity():
+    receipt_path = (
+        ROOT.parents[1]
+        / "docs"
+        / "reports"
+        / "2026-07-28"
+        / (
+            "BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_"
+            "SLIM_MODEL_DIAGNOSTIC.receipt.safe.json"
+        )
+    )
+    report_path = receipt_path.with_name(
+        "BROKER_REPORTS_GATE2_LLM_CONTEXT_GOAL4_"
+        "SLIM_MODEL_DIAGNOSTIC.report.md"
+    )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+
+    assert receipt["execution_state"] == "terminal"
+    assert receipt["attempt_accounting"][
+        "provider_submissions_total"
+    ] == 6
+    assert receipt["attempt_accounting"]["provider_responses_total"] == 6
+    assert receipt["attempt_accounting"]["hidden_retry_total"] == 0
+    assert receipt["acceptance"]["technical_pipeline"] == "PASSED"
+    assert receipt["acceptance"]["haiku_unclassified"] == (
+        "FAILED_WITH_EXACT_EVIDENCE"
+    )
+    assert (
+        Gate2FinancialSemanticV6SlimDiagnosticReportFactory().render(
+            safe_receipt_filename=receipt_path.name,
+            terminal_receipt=receipt,
+        )
+        == report_path.read_text(encoding="utf-8")
+    )

@@ -23,12 +23,12 @@ from broker_reports_gate1.gate2_financial_semantic_v6_execution_identity import 
     V6_EXACT_MODEL_ID,
     V6_PROVIDER_PROFILE_ID,
 )
-from broker_reports_gate1.gate2_financial_semantic_v6_slim_diagnostic import (  # noqa: E402,E501
+from broker_reports_gate1.gate2_financial_semantic_v6_model_diagnostic import (  # noqa: E402,E501
     Gate2FinancialSemanticV6SlimDiagnosticFactory,
     financial_semantic_v6_slim_diagnostic_initial_receipt,
     run_financial_semantic_v6_slim_diagnostic,
 )
-from broker_reports_gate1.gate2_financial_semantic_v6_slim_diagnostic_report import (  # noqa: E402,E501
+from broker_reports_gate1.gate2_financial_semantic_v6_model_diagnostic_report import (  # noqa: E402,E501
     Gate2FinancialSemanticV6SlimDiagnosticReportFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_stronger_candidate import (  # noqa: E402,E501

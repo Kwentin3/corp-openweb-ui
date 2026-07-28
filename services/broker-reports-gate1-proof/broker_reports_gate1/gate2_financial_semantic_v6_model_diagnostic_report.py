@@ -1,3 +1,5 @@
+"""Repository-safe projector for the bounded V6 model diagnostic."""
+
 from __future__ import annotations
 
 import copy
@@ -5,7 +7,7 @@ import json
 from typing import Any
 
 from .gate2_financial_evidence_materialization_contracts import sha256_json
-from .gate2_financial_semantic_v6_slim_diagnostic import (
+from .gate2_financial_semantic_v6_model_diagnostic import (
     V6_SLIM_DIAGNOSTIC_SCHEMA_VERSION,
     V6_SLIM_DIAGNOSTIC_SUBMISSIONS_TOTAL,
 )
@@ -173,7 +175,7 @@ def _render_call(item: dict[str, Any]) -> list[str]:
         )
     provider_metrics = item["provider_metrics"]
     technical = item["technical_pipeline"]
-    diagnosis = item["diagnosis"]
+    diagnosis = _audited_diagnosis(item)
     return [
         f"### Call {item['ordinal']}: `{item['configuration_id']}` / "
         f"`{item['case_id']}`",
@@ -320,7 +322,128 @@ def _interpretation_lines(receipt: dict[str, Any]) -> list[str]:
             "contract before any full frozen benchmark; this diagnostic did "
             "not run or authorize that benchmark."
         )
+    if (
+        acceptance["haiku_typed"] == "PASSED"
+        and acceptance["haiku_unclassified"]
+        == "FAILED_WITH_EXACT_EVIDENCE"
+        and nano_status == "NANO_MIXED_OR_ORDER_SENSITIVE"
+    ):
+        lines.extend(_failed_goal4_joint_audit())
     return lines
+
+
+def _failed_goal4_joint_audit() -> list[str]:
+    return [
+        "",
+        "### Joint layer audit",
+        "",
+        "The immutable execution receipt retains the runner's first-pass "
+        "mechanical",
+        "classification. The repository-safe report projector refines only "
+        "the two",
+        "reason-only mismatches to `UNCLASSIFIED_RULE_UNCLEAR` after comparing "
+        "the",
+        "exact input, expected disposition and normalized answer; no input, "
+        "output,",
+        "metric or receipt byte was rewritten.",
+        "",
+        "The six exact calls separate the observed failures as follows:",
+        "",
+        "| Evidence | Observation | Most likely layer |",
+        "|---|---|---|",
+        "| Haiku typed, canonical order | Exact `{\"choice\":\"B\"}`; canonical "
+        "cash option selected and fully materialized | Slim source, cash type "
+        "card, typed choices and alias restoration are sufficient for this "
+        "case |",
+        "| Haiku unclassified | Correct `unclassified` disposition, wrong "
+        "`ambiguous_registry_type` reason | `UNCLASSIFIED_RULE_UNCLEAR` |",
+        "| Nano typed, both orders | Returned unclassified in both "
+        "permutations and never selected the first typed option | Nano "
+        "semantic capability/type interpretation; first-option bias is not "
+        "supported |",
+        "| Nano unclassified | Wrong reason in canonical order, correct reason "
+        "in reversed order | Mixed/order-sensitive reason selection; not an "
+        "order-independent type-card failure |",
+        "| All six calls | Strict schema, Local Choice parsing, canonical "
+        "expansion/materialization, usage and lifecycle accounting passed | "
+        "Technical pipeline is not the failure source |",
+        "",
+        "The unclassified source context is adequate to establish the frozen "
+        "expected",
+        "answer: `Broker fee detail` is neither an ordinary cash-class balance "
+        "nor a",
+        "source-printed total/metric under the two visible cards. Therefore",
+        "`no_registry_type` remains the defensible expected reason. The exact "
+        "model",
+        "input, however, exposes only the bare reason labels",
+        "`ambiguous_registry_type` and `no_registry_type`; it does not state "
+        "the",
+        "decision boundary between “more than one visible registry type is "
+        "plausible”",
+        "and “none of the visible registry types applies.” Both Nano canonical "
+        "and",
+        "Haiku chose the former while preserving the correct unclassified "
+        "disposition.",
+        "",
+        "The typed cash evidence does not support a first-choice-bias "
+        "diagnosis. Nano",
+        "returned unclassified when the expected cash option was second and "
+        "again when",
+        "the same exact option was first. Haiku selected the cash option "
+        "correctly from",
+        "the same canonical Slim input, so a general source-context "
+        "insufficiency is",
+        "also not supported.",
+        "",
+        "### Narrow continuation",
+        "",
+        "The published GOAL 5 prerequisite is not met: Nano did not fail the",
+        "unclassified case independently of option order, and the strongest "
+        "shared",
+        "failure is the unclassified reason boundary rather than type-card "
+        "wording",
+        "alone. Do not start GOAL 5, GOAL 6 or the full benchmark from this "
+        "receipt.",
+        "",
+        "The narrow evidence-backed corrective candidate is a separate "
+        "zero-provider",
+        "research slice for human-readable, non-active unclassified reason "
+        "semantics",
+        "while keeping Prompt, Semantic Pack, type meanings, source context, "
+        "typed",
+        "choices, cases and expected answers frozen. Because this would change "
+        "the",
+        "model-facing Local Choice/context contract, it requires an explicit "
+        "new GOAL",
+        "and its own versioned candidate; it must not be smuggled into this "
+        "failed",
+        "diagnostic or implemented in the provider adapter.",
+    ]
+
+
+def _audited_diagnosis(item: dict[str, Any]) -> dict[str, Any]:
+    diagnosis = item["diagnosis"]
+    expected = item.get("expected_answer") or {}
+    actual = item.get("normalized_answer") or {}
+    if (
+        item["technical_pipeline"]["status"] == "PASSED"
+        and expected.get("disposition")
+        == "unclassified_financial_input"
+        and actual.get("disposition")
+        == "unclassified_financial_input"
+        and expected.get("reason_code") != actual.get("reason_code")
+    ):
+        return {
+            "code": "UNCLASSIFIED_RULE_UNCLEAR",
+            "basis": (
+                "The model selected the correct unclassified disposition but "
+                "the wrong reason. The exact input exposes both reason-code "
+                "labels without a readable rule that distinguishes no "
+                "applicable registry type from multiple plausible types."
+            ),
+            "failure_code": None,
+        }
+    return diagnosis
 
 
 def _validate_receipt(receipt: dict[str, Any]) -> None:
