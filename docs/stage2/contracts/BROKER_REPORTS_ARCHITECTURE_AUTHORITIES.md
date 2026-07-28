@@ -127,13 +127,15 @@ today:
   pointer, active toggling and restoration of a selected history version, but
   every update overwrites the current Prompt row content even when
   `is_production=false`; this is not an isolated runtime-safe draft;
-- native Skill records provide managed create/update/read and active toggling,
-  but no version history or restore endpoint;
-- native Tool records provide managed create/update/read, but no version
-  history or active-version selector;
-- the repository atomic stage release can snapshot, replace, independently
-  read back and restore Functions plus Prompts, but it does not publish or
-  restore the Skill/Tool/Pack family and its direct Prompt-row updates do not
+- native Skill records expose content and active state plus API update/toggle
+  operations, but no version history or restore endpoint;
+- native Tool records expose content plus an overwrite update operation, but no
+  version history or active-version selector;
+- the repository atomic stage release snapshots every Function/Prompt field it
+  mutates and proves exact snapshot restoration during rollback rehearsal, but
+  candidate readback is only a contracted projection and automatic failure
+  restoration has a known pre-`modified` loader window; it does not publish or
+  restore the Skill/Tool/Pack family, and direct Prompt-row updates do not
   create native Prompt history.
 
 Primary upstream evidence for the pinned distribution:
@@ -150,14 +152,14 @@ Primary upstream evidence for the pinned distribution:
 - [Tool fields without version or activation state](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L20-L52)
   and [Tool overwrite update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L291-L304).
 
-Therefore isolated draft storage and a complete family-level
-`draft → validated → active → retired → rollback` publisher are explicit
-implementation gaps, not a second authority to invent in GOAL 0. Later work
-must extend the existing manifest/release contour and may reuse the existing
-OpenWebUI Workspace GUI/API only as an authoring/inspection surface behind
-that guarded lifecycle. Until exact readback and rollback exist for the full
-family, the managed assets remain non-active and the current V6 route remains
-unchanged.
+Therefore isolated draft storage, hardened full candidate readback/rollback
+and a complete family-level `draft → validated → active → retired → rollback`
+publisher are explicit implementation gaps, not a second authority to invent
+in GOAL 0. Later work must extend the existing manifest/release contour and may
+reuse the existing OpenWebUI Workspace GUI/API only as an
+authoring/inspection surface behind that guarded lifecycle. Until exact
+readback and rollback exist for the full family, the managed assets remain
+non-active and the current V6 route remains unchanged.
 
 ## Documentation drift and explicit debt
 

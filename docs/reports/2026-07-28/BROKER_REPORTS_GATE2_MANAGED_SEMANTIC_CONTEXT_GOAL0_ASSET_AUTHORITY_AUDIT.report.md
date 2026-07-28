@@ -2,7 +2,7 @@
 
 Date: 2026-07-28
 
-Status: `PASSED_WITH_EXPLICIT_FAMILY_LIFECYCLE_GAP`
+Status: `PASSED_WITH_EXPLICIT_FAMILY_LIFECYCLE_AND_RELEASE_CONTOUR_GAPS`
 
 Base revision: `840464bad7643e1dc9caabbf3c393d555497f487`
 
@@ -32,14 +32,16 @@ The audit also proved that the existing family is not yet a complete managed
 publication lifecycle. Repository storage/versioning and native Workspace
 surfaces exist. Native Prompt history/restore exists, but non-production
 Prompt updates still overwrite current row content and are not isolated safe
-drafts. The repository atomic release proves exact readback and rollback for
-all Function and Prompt fields that it mutates. However safe draft storage and
+drafts. The repository atomic release proves exact snapshot restoration for
+all Function and Prompt fields that it mutates during rollback rehearsal, but
+candidate readback is only a contracted projection and automatic failure
+restoration has a known loader-replacement window. Safe draft storage and
 Skill, Tool, Pack and catalog publication/retirement/rollback are not
 implemented as one family.
 
 The truthful result is therefore:
 
-`EXISTING_GUI_ASSET_PATH_SELECTED_WITH_EXPLICIT_SAFE_DRAFT_AND_PUBLISHING_GAP`
+`EXISTING_ASSET_PATH_SELECTED_WITH_EXPLICIT_DRAFT_PUBLISHING_AND_RELEASE_GAPS`
 
 ## 2. Scope and hard stops
 
@@ -84,7 +86,7 @@ No dated report becomes a runtime or semantic authority.
 | V6 Packet factory | sole current/candidate context assembler | renderer and evidence projection owner, not semantic asset storage or publication |
 | V6 Choice | closed response codes/schema | owns codes and validation shape, not human-readable reason meaning |
 | native OpenWebUI Prompt alone | history, production-version pointer, active toggle, restore | every update overwrites current row content, so it has no isolated safe draft and cannot atomically represent Skill/Tool/Pack composition |
-| atomic stage release alone | guarded Prompt/Function snapshot, update, readback and rollback | currently has no Skill, Tool, Pack or reason-catalog entries and requires pre-existing Prompt rows |
+| atomic stage release alone | guarded Prompt/Function snapshots, update, projected candidate readback and exact rehearsed snapshot restoration | currently has a loader failure-restore window, no full-row candidate equality, no Skill/Tool/Pack/catalog entries, and requires pre-existing Prompt rows |
 | existing Financial Domain asset family | Pack + Skill + Prompt + Tool + schema + manifest + exact hashes | selected reuse mechanism; incomplete family lifecycle is explicit rather than hidden |
 
 ## 5. Selected mechanism and exact evidence
@@ -136,8 +138,8 @@ The manifest pins OpenWebUI `v0.9.6`. Primary upstream source proves:
   [Skill model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L20-L52),
   [Skill update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L253-L320)
   and [Skill toggle](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L376-L410);
-- Tool supports managed create/update, but its model has neither version
-  history nor an active-version selector:
+- Tool exposes managed content and an overwrite update, but its model has
+  neither version history nor an active-version selector:
   [Tool model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L20-L52) and
   [Tool update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L291-L304).
 
@@ -148,7 +150,8 @@ qualification, atomic publication, exact readback and rollback.
 
 ### 5.3 Existing release/rollback contour
 
-The current atomic stage release already provides a valuable control plane:
+The current atomic stage release already provides a valuable but partial
+control plane:
 
 - exact Prompt identity, version, content, metadata and hash in its manifest;
 - validation before mutation;
@@ -156,16 +159,25 @@ The current atomic stage release already provides a valuable control plane:
   loader bytes;
 - stopped-runtime guarded replacement;
 - one SQLite transaction for Function and Prompt rows;
-- exact candidate readback;
-- rollback rehearsal to the previous state and reapplication of the candidate;
+- candidate readback of the contracted Function/Prompt/loader projection;
+- rollback rehearsal with exact equality for all snapshotted release-mutated
+  Function/Prompt fields and prior loader identity, followed by candidate
+  reapplication and projected verification;
 - a safe receipt containing only rollback identity, not rollback content.
 
 But it is bounded:
 
 - only Functions, declared already-existing Prompts and the loader participate;
 - missing Prompt rows fail closed;
+- preflight requires the declared Prompt set and a valid current loader, not
+  candidate Prompt/loader parity;
 - Prompt rows are directly updated and forced active;
 - direct row updates do not create native Prompt history;
+- candidate readback omits Function `updated_at` and undeclared
+  `meta`/`valves`, plus Prompt `updated_at` and undeclared `meta` keys;
+- if loader replacement succeeds but its verification raises before the caller
+  sets `modified=true`, automatic failure handling may restart without
+  restoring the previous loader;
 - Skill, Tool, Pack and reason-catalog resources are absent.
 
 The canonical
@@ -228,7 +240,9 @@ does not implement the transitions.
 | native Prompt history/restore | partial | present, but non-production update still overwrites current row content; no isolated safe draft |
 | native Skill active toggle | present | no Skill history/restore |
 | native Tool managed update | present | no Tool version/active selector |
-| Prompt atomic snapshot/readback/rollback | present | covers all release-mutated Prompt fields and requires pre-existing rows |
+| Prompt/Function snapshots and rollback rehearsal | present | exact equality for all snapshotted release-mutated fields; requires pre-existing Prompt rows |
+| candidate Function/Prompt readback | partial | contracted safe projection, not full mutated-field equality |
+| automatic loader failure restoration | partial | uncovered post-replace/pre-`modified` window |
 | full Skill/Prompt/Tool/Pack/catalog publication | missing | no family release manifest entries |
 | family retirement and rollback | missing | no active family pointer or exact family restore |
 | live managed financial family | absent | manifest and Pack remain non-active |
@@ -310,7 +324,7 @@ Repository-safe machine receipt:
 
 Canonical receipt integrity SHA-256 after omitting only top-level
 `integrity_sha256`:
-`a7c48c6ef392ffc8a4c14c907acc18c9063d700911fa34498474104bafe3a71b`.
+`c964c2f9402426f08d6886e38ad05e709d0508de81fa2e022e357f75a5fc46b4`.
 
 ## 12. Verification boundary
 
@@ -358,7 +372,7 @@ source tree.
 SOLE_AUTHORITY_IDENTIFIED: YES
 SELECTED_MECHANISM: broker_reports_gate2_financial_domain_assets
 EXISTING_GUI_ASSET_PATH: REUSE_SELECTED_WITH_SAFE_DRAFT_GAP
-EXISTING_PUBLICATION_ROLLBACK_CONTOUR: PROMPT_ONLY_REUSE_SELECTED
+EXISTING_PUBLICATION_ROLLBACK_CONTOUR: REUSE_SELECTED_WITH_KNOWN_GAPS
 COMPLETE_FAMILY_LIFECYCLE: EXPLICIT_GAP_PROVEN
 FINANCIAL_TYPE_AUTHORITY: FINANCIAL_SEMANTIC_PACK
 DECISION_REASON_CODE_AUTHORITY: CHOICE_DECISION_CONTRACTS
@@ -370,6 +384,6 @@ RUNTIME_CHANGES: ZERO
 STAGE_MUTATIONS: ZERO
 PROVIDER_CALLS: ZERO
 DOCUMENTATION: UPDATED_IN_SAME_PR
-GOAL0: PASSED_WITH_EXPLICIT_LIFECYCLE_GAP
+GOAL0: PASSED_WITH_EXPLICIT_LIFECYCLE_AND_RELEASE_CONTOUR_GAPS
 NEXT_GOAL: GOAL1_ONLY_AFTER_APPROVED_GREEN_MERGE
 ```

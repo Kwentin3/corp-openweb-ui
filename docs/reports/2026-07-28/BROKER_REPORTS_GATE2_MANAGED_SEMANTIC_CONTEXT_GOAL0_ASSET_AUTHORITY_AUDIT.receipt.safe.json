@@ -1,7 +1,7 @@
 {
   "schema_version": "broker_reports_gate2_managed_semantic_context_goal0_asset_authority_audit_safe_receipt_v1",
   "goal": "GOAL_0_MANAGED_SEMANTIC_ASSET_AUTHORITY_AUDIT",
-  "status": "passed_with_explicit_family_lifecycle_gap",
+  "status": "passed_with_explicit_family_lifecycle_and_release_contour_gaps",
   "source_revision": "840464bad7643e1dc9caabbf3c393d555497f487",
   "selected_mechanism": {
     "family_id": "broker_reports_gate2_financial_domain_assets",
@@ -22,6 +22,8 @@
     "safe_isolated_draft_capability": false,
     "existing_prompt_publication_rollback_contour_reuse_selected": true,
     "complete_family_lifecycle_gap_proven": true,
+    "projected_candidate_readback_gap_proven": true,
+    "loader_failure_restore_window_proven": true,
     "duplicate_registry_count": 0,
     "new_gui_framework_count": 0
   },
@@ -31,7 +33,9 @@
     "isolated_prompt_draft_storage": "missing",
     "native_skill_history_and_restore": "missing",
     "native_tool_history_and_active_version": "missing",
-    "atomic_prompt_readback_and_rollback": "present_for_existing_rows",
+    "atomic_prompt_and_function_snapshot_restore": "present_for_all_release_mutated_fields",
+    "candidate_prompt_and_function_readback": "partial_contracted_projection",
+    "automatic_loader_failure_restore": "partial_pre_modified_window",
     "full_skill_prompt_tool_pack_catalog_publication": "missing",
     "full_family_retirement_and_rollback": "missing"
   },
@@ -60,5 +64,5 @@
     "goal": "GOAL_1_MANAGED_DECISION_REASON_CATALOG",
     "permitted_only_after": "approved_green_merge_of_goal0"
   },
-  "integrity_sha256": "a7c48c6ef392ffc8a4c14c907acc18c9063d700911fa34498474104bafe3a71b"
+  "integrity_sha256": "c964c2f9402426f08d6886e38ad05e709d0508de81fa2e022e357f75a5fc46b4"
 }
