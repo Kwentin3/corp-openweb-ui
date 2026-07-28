@@ -57,6 +57,26 @@ Gate 3 methodology, expected answers, and duplicate instructions.
 
 The repository-safe renderer never emits source literals or source refs.
 
+## Relationship to LLM Semantic Context v1
+
+The
+[LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+defines the closed target boundary for a future complete model-visible
+request. It requires local aliases, readable evidence-derived hierarchy,
+exactly-once authoritative semantic literals, omitted nulls and zero opaque
+global IDs across messages and response schema.
+
+The current active four-block V6 packet remains exact and unchanged. It does
+not claim conformance with that future target because `source_context` and
+`typed_options` intentionally expose exact global source and option IDs under
+the current contract.
+
+A later non-active candidate may be constructed only inside
+`Gate2FinancialSemanticV6PacketFactory.create` and must preserve this active
+payload and hash byte-for-byte. Removing canonical option IDs from the full
+model-visible request additionally requires the separate versioned Choice
+candidate; it is not part of packet-view refactoring.
+
 ## Model-context research
 
 The 2026-07-28

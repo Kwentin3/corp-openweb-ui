@@ -24,7 +24,7 @@ Use this order when sources appear to disagree:
 | Technical Preparation | deterministic financial scope, technical preclose and sealed Evidence Bundle | financial classification or provider choice | `Gate2DeterministicFinancialScopeFromGate1V2Factory.create`, `Gate2FinancialEvidenceBundleFactory.create` | Evidence Bundle | Candidate Compiler, Qualification | a second source/provenance projection |
 | Financial Semantic Pack | type/role meaning, ambiguity rules and lifecycle | source binding, provider transport or materialization | `Gate2FinancialSemanticContractFactory.create` | Financial Semantic Pack | projection, compiler, validation, materialization, Financial Domain | type-specific Python or a second registry |
 | Candidate Compiler | complete code-owned Typed Options from Pack plus technical evidence | semantic selection or invented bindings | `Gate2FinancialCandidateCompilerFactory.create` | Candidate Compiler and Typed Option | Semantic Matcher, replay | financial regex, known type IDs or provider-built records |
-| Semantic Matcher | four-block packet, semantic instruction, provider-neutral minimal choice and deterministic choice expansion | source refs/provenance ownership, canonical acceptance or persistence | V6 packet/Prompt/Choice factories and `Gate2FinancialSemanticV6DecisionExpansionFactory.create` | V6 Packet, Choice and Expansion | Qualification, Validation, Evidence | model-generated records, bindings or alternative choice schema |
+| Semantic Matcher | current four-block packet, versioned model-visible context boundary, semantic instruction, provider-neutral minimal choice and deterministic choice expansion | source refs/provenance ownership, canonical acceptance or persistence | V6 packet/Prompt/Choice factories and `Gate2FinancialSemanticV6DecisionExpansionFactory.create` | V6 Packet, LLM Semantic Context, Choice and Expansion | Qualification, Validation, Evidence | model-generated records, bindings, second packet builder or alternative choice schema |
 | Provider Integration | canonical request construction, provider-specific projection, transport response parsing and usage normalization | financial semantics, budget policy or product validation | `Gate2StructuredModelClientFactory.create` using request builder and adapter factories | provider-neutral request/choice plus execution metadata contracts | maintained runtime and qualification | direct provider request/response parsing outside builder/adapters |
 | Budget | pre-transport admission and post-response usage/cost accounting | request shape, provider parsing or semantic verdict | `Gate2EconomyBudgetSessionFactory.create` | economy budget v1 code contract | structured model client | token/cost policy in callers |
 | Validation | canonical decision parsing, Pack/Registry/source authority checks and accepted-decision validation | provider adaptation, ID minting or persistence | `Gate2FinancialEvidenceValidatedDecisionFactory.create`, `validate_financial_evidence_inputs` | Generic Financial Materialization | Materialization, Qualification | local validators that weaken the canonical contract |
@@ -44,6 +44,7 @@ that does not permit a second owner for any operation.
 | Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- |
 | Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
+| Model-visible semantic context | [`Gate2FinancialSemanticV6PacketFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py) | [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md), [current V6 Packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | request builder and qualification after an explicit version-pinned route exists | current four-block V6 packet remains active until a separately qualified activation | second packet builder, unallowlisted model-visible field or provider-side semantic context rewrite |
 | Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
 | Provider response-format projection | [`Gate2ProviderAdapterFactory.create` and adapter `prepare_form_data`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | canonical choice schema projected to the provider-supported subset | structured model client | provider profile selects one adapter | provider-schema rewrites in request, qualification or evidence code |
 | Provider response parsing | [`Gate2ProviderAdapterFactory.create` and adapter `extract_content` / `provider_error_code`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | [`Gate2StructuredModelResult`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_contracts.py) | structured model client | provider profiles select an adapter | provider payload parsing in qualification or product code |
@@ -106,6 +107,34 @@ that does not permit a second owner for any operation.
 4. The OpenAI root-object projection is implemented locally in the existing
    adapter. Provider smoke remains intentionally not run until the V6
    completion program reaches its separately authorized smoke goal.
+
+## LLM Semantic Context v1 target boundary
+
+The
+[LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+is the closed target contract for the complete future model-visible financial
+semantic request. It requires readable evidence-derived hierarchy, exactly one
+rendered occurrence per authoritative semantic source value, omitted nulls,
+local request-bound aliases and zero opaque global IDs across messages and
+response schema.
+
+The current active V6 four-block packet and V6 Choice do not yet claim this
+conformance: they expose exact source/option identities by their existing
+contracts. GOAL 0 changes documentation only. A non-active Slim candidate
+must remain inside `Gate2FinancialSemanticV6PacketFactory.create`, and local
+Choice aliases require a separate versioned candidate and parity proof. No
+provider adapter may remove IDs or repair semantic meaning to simulate
+conformance.
+
+```text
+CONTEXT_CONTRACT: DEFINED
+CURRENT_PACKET_CHANGED: NO
+CURRENT_CHOICE_CHANGED: NO
+RUNTIME_ROUTE_CHANGED: NO
+SECOND_PACKET_BUILDER: ZERO
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
 
 ## OpenAI projection decision and local completion
 

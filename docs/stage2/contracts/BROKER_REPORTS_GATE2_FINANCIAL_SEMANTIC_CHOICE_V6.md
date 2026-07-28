@@ -54,3 +54,20 @@ outcomes and are never exposed in the provider semantic-choice schema.
 
 Goal 5 defines only the minimal response contract. Independent response
 validation and canonical materialization remain downstream boundaries.
+
+## Relationship to local Choice aliases
+
+The current V6 Choice remains the sole active provider-neutral response
+contract and continues to require the exact opaque `typed_option_id`.
+
+The
+[LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+defines a future full-request target with zero opaque model-visible IDs.
+Meeting that target requires a separate versioned, non-active Choice candidate
+that accepts only request-local option aliases and deterministically expands
+them to this canonical Choice.
+
+That future candidate is not defined, implemented or activated by the context
+contract or Slim View implementation. It must prove exact alias mapping,
+permutation behavior, canonical expansion/materialization parity and unchanged
+unclassified retention before any provider qualification.

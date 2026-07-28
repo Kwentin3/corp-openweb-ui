@@ -42,9 +42,17 @@ separate bootstrap report.
   path.
 - Financial type, role, ambiguity and lifecycle meaning stays in the
   [Financial Semantic Pack](../../docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md).
+- The closed target for every field exposed to the financial semantic model is
+  the versioned
+  [LLM Semantic Context](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
+  Context candidates remain inside the existing V6 packet owner. Global refs,
+  hashes, provenance and storage IDs stay code-only.
 - The model selects only the allowed
   [semantic choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md).
   It never owns source refs, provenance, retention, records or bindings.
+- The active V6 Choice still requires exact option IDs. A local-alias Choice
+  candidate is a separate versioned contract change; never hide it inside a
+  packet refactor or provider adapter.
 - Technical preparation seals the
   [Evidence Bundle](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md);
   the [Candidate Compiler](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_CANDIDATE_COMPILER.v1.md)
