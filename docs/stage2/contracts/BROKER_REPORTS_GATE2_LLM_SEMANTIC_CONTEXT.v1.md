@@ -76,25 +76,26 @@ fixed:
 | source literals, structure, refs and provenance | Evidence Bundle | existing |
 | type and role meaning | Financial Semantic Pack | existing |
 | closed decision-reason codes and response shape | V6 Choice/decision contracts | existing |
-| human-readable decision-reason meaning | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) in the existing managed OpenWebUI Financial Domain asset family | versioned repository draft present; inactive and not model-visible |
+| human-readable decision-reason meaning | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) in the existing managed OpenWebUI Financial Domain asset family | inactive; visible only in the non-active Context V2 packet sidecar |
 | complete canonical options and bindings | Candidate Compiler and Typed Option | existing |
 | canonical current response | V6 Choice | existing |
-| complete candidate request lint and seal | V6 Context Linter | existing |
+| complete candidate request lint and seal | V6 Context Linter | existing for historical v1 candidate; V2 extension not implemented |
 | provider request construction | `Gate2OpenWebUIRequestBuilder.build` | existing |
 | provider projection and parsing | provider adapters | existing |
 | canonical choice expansion | V6 Decision Expansion | existing |
 | acceptance and records | validator and materializer | existing |
 
 The packet owner is a deterministic renderer, not a semantic-content author.
-Context V2 must project type wording from the Pack and reason wording from the
-single managed catalog. It may select the exact V2-allowlisted fields, arrange
-them in contract order and mechanically render identifiers, but may not shorten,
-paraphrase or truncate their semantic wording, or copy independent wording into
-the packet module, Prompt, runner, provider adapter or report projector. The
-current code-owned V6 Prompt and active packet remain unchanged until a
-separately qualified activation.
+The implemented non-active Context V2 sidecar projects type wording from the
+Pack and reason wording from the single managed catalog. It selects only the
+exact V2-allowlisted fields, arranges them in contract order and mechanically
+renders identifiers; it may not shorten, paraphrase or truncate their semantic
+wording, or copy independent wording into the packet module, Prompt, runner,
+provider adapter or report projector. The current code-owned V6 Prompt and
+active packet remain unchanged until a separately qualified activation.
 The catalog draft alone does not prove compatibility with frozen V6 expected
-answers; that audit remains a prerequisite to a model-visible Context V2.
+answers. That compatibility proof remains a prerequisite to a provider-visible
+or active Context V2 request, not to the implemented non-active packet sidecar.
 
 ## Core invariants
 
@@ -701,7 +702,7 @@ type cards and zero choices; removing their 22 unused value aliases and eight
 unused structural aliases does not resolve the managed reason-boundary
 compatibility stop.
 
-## Acceptance
+## Historical acceptance snapshot before Managed Context GOAL 4
 
 ```text
 CONTRACT_IDENTITY: broker_reports_gate2_llm_semantic_context_v1

@@ -1,6 +1,7 @@
 # Broker Reports Gate 2 Financial Semantic V6 Exact Evidence
 
-Status: Goal 9 contract for Candidate Records By Construction.
+Status: active V6 evidence current; non-active Context V2 packet evidence
+implemented; V2 persistence/restore/replay not implemented.
 
 ## Private evidence
 
@@ -50,14 +51,16 @@ accepts only the exact private field set, verifies `private_evidence_hash`,
 and reinstates canonical contract order after ordinary JSON writers sort
 object keys. It does not change values or weaken replay validation.
 
-## Future Context V2 evidence requirement
+## Context V2 packet evidence and future sealed-request requirement
 
 The non-active
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-extends the future private-evidence obligation; it does not claim that the
-extension exists.
+extends the private-evidence obligation. Managed Semantic Decision Context
+GOAL 4 implements the exact packet-owned candidate and mapping receipt locally;
+it does not yet seal or persist a complete request.
 
-A later implementation must preserve the exact system message, Context V2
+The later linter/evidence implementation must preserve the exact system
+message, Context V2
 JSON, complete provider-neutral response format, adapter-extracted local
 answer, packet-owned private mapping receipt and linter-owned private
 sealed-request receipt before normalization. The evidence record owns the
@@ -70,8 +73,21 @@ The current evidence/restorer/replay path is bound to the active exact-ID
 request and historical candidate. Context V2 persistence, restore and replay
 are `NOT_IMPLEMENTED_NOT_RUN`, not inferred from current replay success.
 Private source values, refs, mappings and exact actual-corpus requests remain
-outside Git; future safe receipts contain only statuses, aggregates and
-hashes.
+outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
+only statuses, aggregates, hashes and synthetic-suite accounting.
+
+The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
+deterministic candidate bytes,
+model-view hash, local-key bijections, necessary reference targets,
+field-to-authority pointers, complete exact binding partition and receipt
+integrity. It records zero provider calls and no runtime activation. It does
+not claim the absent V2 Choice profile, sealed-request receipt,
+persistence/restore/replay, provider compatibility or benchmark admission.
+
+Current repository-safe GOAL 4 evidence:
+
+- [analytical report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.report.md);
+- [safe receipt](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.receipt.safe.json).
 
 ## Goal 2 provider-smoke evidence
 
@@ -151,11 +167,12 @@ This is documentation over existing evidence. It does not reconstruct a
 missing answer, activate a slim packet, change Prompt or Pack meaning, add an
 adapter, alter normalization or authorize another provider submission.
 
-## GOAL 4 Slim diagnostic evidence
+## Historical Slim-program GOAL 4 diagnostic evidence
 
-The 2026-07-28 GOAL 4 execution uses a dedicated repository-safe synthetic
-receipt because all six model inputs are projections of the two frozen
-non-customer cases. The receipt checkpoints after every call and contains:
+The 2026-07-28 historical Slim-program GOAL 4 execution uses a dedicated
+repository-safe synthetic receipt because all six model inputs are projections
+of the two frozen non-customer cases. The receipt checkpoints after every call
+and contains:
 
 - the sealed exact messages plus complete strict response format;
 - exact adapter-extracted semantic output;

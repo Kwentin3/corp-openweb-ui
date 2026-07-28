@@ -42,24 +42,29 @@ separate bootstrap report.
   path.
 - Financial type, role, ambiguity and lifecycle meaning stays in the
   [Financial Semantic Pack](../../docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md).
-- The implemented historical candidate boundary remains
-  [LLM Semantic Context v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
-  The closed successor target is the non-active, not-yet-implemented
+- The implemented candidate surfaces are the historical
+  [LLM Semantic Context v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+  and the non-active packet sidecar for
   [LLM Semantic Context V2](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
-  Both context candidates remain inside the existing V6 packet owner. Global
-  refs, hashes, provenance and storage IDs stay code-only.
+  The V2 sidecar and its private mapping receipt are built only by the existing
+  V6 packet owner through the existing model-assets loader/projection owner;
+  they are not request or runtime authorities. Global refs, hashes, provenance
+  and storage IDs stay code-only.
 - The historical Slim View v2, alias receipt and
   [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
-  remain non-active outputs. The new Context V2 is contract-only: no renderer,
-  local Choice profile or linter exists yet. Runtime and the current
-  qualification runner continue to consume only `packet.payload` and exact-ID
-  Choice until a separately qualified activation GOAL changes that authority.
+  remain non-active outputs. Context V2 now has a non-active packet renderer
+  and private mapping receipt, but no V2 local Choice profile/parser, linter,
+  provider request, evidence persistence or replay exists yet. Runtime and the
+  current qualification runner continue to consume only `packet.payload` and
+  exact-ID Choice until a separately qualified activation GOAL changes that
+  authority.
 - Any Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.
   The linter validates the complete request but does not own packet, Prompt,
   Choice, provider projection, canonical expansion or materialization.
-- GOAL 4 consumed its one bounded six-submission Slim diagnostic on the two
+- The historical Slim diagnostic GOAL 4 consumed its one bounded
+  six-submission run on the two
   frozen smoke cases. The terminal receipt is failed because Haiku missed the
   unclassified reason; do not rerun, resume, expand to the full benchmark or
   start conditional type-card work from that authorization. Preserve the exact
@@ -99,8 +104,10 @@ separate bootstrap report.
   before PR review.
 - Rebuild generated bundles deterministically when their maintained inputs
   change, then run bundle parity tests.
-- Keep private/customer inputs, provider payloads and exact evidence outside
-  Git; commit only privacy-scanned safe projections.
+- Keep private/customer inputs, provider payloads and non-allowlisted exact
+  evidence outside Git. Commit only contract-approved, privacy-scanned safe
+  projections; exact readable context is allowed only for explicitly
+  allowlisted frozen synthetic evidence.
 - Do not make a provider call until the local seam smoke passes and the task
   explicitly authorizes the call. Do not mutate stage without explicit scope.
 

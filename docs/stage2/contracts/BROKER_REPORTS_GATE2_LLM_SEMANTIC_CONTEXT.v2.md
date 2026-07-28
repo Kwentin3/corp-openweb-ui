@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2
 
-Status: `VERSIONED_DOCUMENTATION_CANDIDATE_NOT_IMPLEMENTED_NOT_MODEL_VISIBLE`
+Status: `IMPLEMENTED_NON_ACTIVE_PACKET_SIDECAR_CHOICE_LINTER_REQUEST_NOT_IMPLEMENTED`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2`
@@ -28,7 +28,10 @@ names are intentionally distinct:
 
 - **Slim View v2** is an implemented historical candidate conforming to
   Context v1;
-- **Semantic Context V2** is this new contract and is not implemented.
+- **Semantic Context V2** is this contract. Its packet-owned candidate and
+  private mapping receipt are implemented as non-active sidecars; its local
+  Choice profile, complete-request linter, request route and provider use are
+  not implemented.
 
 The target is a short specialist-facing decision card. The model receives
 only source meaning, evidence-derived structure, managed type meaning,
@@ -79,7 +82,7 @@ would become part of this contract and require a new version.
 ## 3. Authority and construction boundary
 
 `Gate2FinancialSemanticV6PacketFactory.create` remains the sole packet and
-context-candidate construction owner. A later implementation may extend that
+context-candidate construction owner. The GOAL 4 implementation extends that
 factory to return:
 
 - the unchanged active V6 packet;
@@ -173,21 +176,100 @@ the text after it is the receipt version. The projection hash is request-
 specific SHA-256 over `context_v2_integrity_json_v1` of that exact private
 projection object.
 
+The existing maintained Pack projection owner is extended in place through
+`Gate2FinancialSemanticV5ProjectionFactory.create_context_v2_candidate`.
+The historical class name does not narrow its authority: the existing
+`create` method remains the V1/V5 projection, while the additive method emits
+both closed private V2 projection objects from the generated closed-world
+candidate asset snapshot. No packet code reads Pack or catalog files.
+
+The exact Pack projection object contains fields in this order:
+
+```text
+identity
+version
+source_family_id
+type_cards
+```
+
+`identity` and `version` are the pinned Pack projection profile values above.
+`source_family_id` is the exact Evidence Bundle value. `type_cards` contains
+only the authority-derived available type set for this request, in section
+7.1 order. Each private card contains fields in this exact order:
+
+```text
+input_type_id
+title
+definition
+semantic_class
+roles
+date_period_requirement
+currency_unit_requirement
+synonyms
+semantic_distinctions
+examples
+counterexamples
+ambiguity_guidance
+model_guidance
+compatible_source_families
+```
+
+`roles` contains exactly `required`, `optional`, `forbidden`. Required and
+optional entries retain the exact Pack fields `role_id`, `value_type`,
+`cardinality`, `source_ref_required`; forbidden entries remain exact role-ID
+strings. All other arrays and nested distinction objects retain their exact
+Pack shapes and order. `compatible_source_families` is private filtering
+evidence, not model-visible administration. A Pack projection pointer
+therefore starts at `/type_cards/<index>/...`.
+
+The exact reason projection object contains fields in this order:
+
+```text
+identity
+version
+reasons
+```
+
+`identity` and `version` are the pinned reason projection profile values.
+`reasons` contains every catalog reason in display order. Each private reason
+contains fields in this exact order:
+
+```text
+code
+display_order
+human_title
+meaning
+use_when
+do_not_use_when
+contrast_with_neighbouring_reasons
+```
+
+Contrast objects retain exact catalog `reason_code`, `distinction` fields and
+order. Positive examples, selection boundaries, lifecycle and GUI
+administration are not part of this consumer projection. A reason projection
+pointer therefore starts at `/reasons/<index>/...`.
+
+Neither projection object contains its own hash field. The corresponding
+projection hash covers the complete object above, including profile identity
+and version, with `context_v2_integrity_json_v1`; nothing is excluded. Object
+field order is normative for deterministic private readback even though the
+integrity serializer sorts keys.
+
 Candidate construction must fail before transport unless the family manifest,
 Registry snapshot, Pack and reason-catalog snapshots validate byte/semantic
 integrity, code-set parity, Pack `source_baseline` parity with the exact
 Registry version/hash, and `runtime_activation=false`. The current
 live/closed-world family pointer remains v1.
 
-The current closed-world type projection drops Pack `title`; V2 must
-version/extend that existing projection authority. Packet code must not read
-the Pack asset directly.
+The active closed-world type projection drops Pack `title`. The implemented
+non-active V2 profile version-extends that same projection authority; packet
+code does not read the Pack asset directly.
 
 The reason-catalog validator currently belongs to the managed-family build
-path. A future runtime-safe candidate implementation must consume a validated,
-closed-world snapshot from the same managed-asset authority. It must not
-import `scripts/`, read repository files at runtime, embed the human wording
-in Python or introduce a second catalog loader.
+path. The implemented non-active candidate consumes its validated closed-world
+snapshot through the same generated model-assets loader. It does not import
+`scripts/`, read repository files at runtime, embed the human wording in packet
+Python or introduce a second catalog loader.
 
 Family v2 and the reason catalog remain inactive repository drafts. Selecting
 their wording for this non-active contract does not publish, activate or
@@ -337,7 +419,8 @@ Typed Option.
 
 ### 6.3 Deterministic hierarchy and local keys
 
-The future renderer uses these closed ordering and assignment rules:
+The implemented non-active packet renderer uses these closed ordering and
+assignment rules:
 
 1. iterate every non-reference Evidence Bundle `source_value` in its validated
    canonical order;
@@ -370,7 +453,13 @@ and `row_ref`; a text segment under its non-null `association_ref` and
 order is node-creation order and duplicate registration of the same node under
 one ref is ignored. `page_ref` and `cell_ref` never register candidates.
 
-For each hidden `source_reference`, in canonical reference-value order:
+The necessary reference set contains exactly hidden `source_reference` values
+consumed by at least one visible relationship under section 8. Unused
+reference values remain only in the Evidence Bundle and in any backend-only
+binding rows; they do not create a node or mapping target.
+
+For each necessary hidden `source_reference`, in canonical reference-value
+order:
 
 1. initialize `candidates` to the ordered nodes registered under its
    `association_ref`, or the empty list;
@@ -910,7 +999,7 @@ Field justification is closed as follows:
 | relationship target | Evidence Bundle + receipt | point to one semantic value or structural location; model/normalizer | exactly one of key/key/location | exact source ref and association/lineage |
 | shared relationship `applies_to` | Candidate Compilation order + receipt | constrain a factored relationship to its exact choice subset; model | omit for all choices, otherwise at least two ordered keys | exact covered-choice/binding rows |
 | `choices` | Candidate Compilation Typed Options | enumerate selectable complete records; model/schema | one array; empty is meaningful | ordered exact option IDs |
-| choice `choice_key` | Choice factory + receipt | strict disposable response identity; model/normalizer | exactly one per choice | bijective exact option mapping |
+| choice `choice_key` | packet renderer + mapping receipt | emit a strict disposable candidate identity; model/future normalizer | exactly one per choice | bijective exact option mapping |
 | choice `label` | Pack title | make the choice readable; model | exactly one, not required unique | exact Pack title pointer/hash |
 | choice `type_key` | Pack projection + receipt | bind choice to visible type meaning; model | exactly one | exact type mapping |
 | choice `relationships` | Typed Option + receipt | show only variant-specific evidence; model | omit when empty | exact variant role/source-ref table |
@@ -919,17 +1008,17 @@ Field justification is closed as follows:
 | reason `title/meaning/use_when/do_not_use_when` | managed reason catalog | explain positive and negative semantic boundary; model | all required | exact catalog field pointers/hash |
 | reason `contrasts` | managed reason catalog | distinguish neighbouring reasons; model | non-empty reciprocal set | exact contrast pointers/hash |
 | reason contrast fields | managed reason catalog | bind contrast to response code and exact distinction; model | code plus distinction required | exact neighbour-code/distinction pointer |
-| response `choice` | existing Choice factory local profile | return one local choice or `unclassified`; parser/normalizer | exactly one | response-schema and request hashes |
-| response `reason` | existing Choice code set | return exact reason only for unclassified; parser/normalizer | required only for unclassified, forbidden for typed | code-set/catalog parity receipt |
-| wrapper `type` | existing request/provider contract | select strict JSON Schema response mode; provider | exactly `json_schema` | request-profile/hash |
-| wrapper `json_schema.name` | existing request/provider contract | stable provider schema label; provider | exactly `semantic_choice` | request-profile/hash |
-| wrapper `json_schema.strict` | existing request/provider contract | prohibit permissive provider output; provider | exactly boolean `true` | request-profile/hash |
-| wrapper `json_schema.schema` | existing Choice factory V2 profile | carry the exact request-bound schema; provider/model | exactly one schema object | response-schema hash |
-| schema `title` | existing Choice factory V2 profile | human schema label; provider/model | exactly `Semantic choice` | response-schema hash |
-| schema `anyOf` | existing Choice factory V2 profile | separate typed and unclassified shapes; parser/model | typed then unclassified when choices exist, otherwise unclassified only | response-schema hash and choice-set receipt |
-| branch `type/additionalProperties` | existing Choice factory V2 profile | require closed objects; parser/model | exactly `object` and boolean `false` | response-schema hash |
-| branch `properties/required` | existing Choice factory V2 profile | close conditional response fields; parser/model | exact fields and order printed in section 12 | response-schema hash |
-| property `type/enum` | existing Choice factory V2 profile | constrain local choice and reason codes; parser/model | exactly `string` plus request-bound enum in section 12 order | response-schema, mapping and catalog parity hashes |
+| response `choice` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | return one local choice or `unclassified`; parser/normalizer | exactly one | response-schema and request hashes |
+| response `reason` | future V2 profile in the existing Choice factory plus existing decision-code set (`NOT_IMPLEMENTED`) | return exact reason only for unclassified; parser/normalizer | required only for unclassified, forbidden for typed | code-set/catalog parity receipt |
+| wrapper `type` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | select strict JSON Schema response mode; provider | exactly `json_schema` | request-profile/hash |
+| wrapper `json_schema.name` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | stable provider schema label; provider | exactly `semantic_choice` | request-profile/hash |
+| wrapper `json_schema.strict` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | prohibit permissive provider output; provider | exactly boolean `true` | request-profile/hash |
+| wrapper `json_schema.schema` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | carry the exact request-bound schema; provider/model | exactly one schema object | response-schema hash |
+| schema `title` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | human schema label; provider/model | exactly `Semantic choice` | response-schema hash |
+| schema `anyOf` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | separate typed and unclassified shapes; parser/model | typed then unclassified when choices exist, otherwise unclassified only | response-schema hash and choice-set receipt |
+| branch `type/additionalProperties` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | require closed objects; parser/model | exactly `object` and boolean `false` | response-schema hash |
+| branch `properties/required` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | close conditional response fields; parser/model | exact fields and order printed in section 12 | response-schema hash |
+| property `type/enum` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | constrain local choice and reason codes; parser/model | exactly `string` plus request-bound enum in section 12 order | response-schema, mapping and catalog parity hashes |
 
 Anything not listed is forbidden until a later contract version provides a
 semantic or structural justification.
@@ -965,12 +1054,13 @@ Allowed field names do not launder forbidden values. A global ref under
 
 ## 15. Private mapping and sealed-request receipts
 
-Two owners emit two separate closed private receipts. The packet factory emits
-the Context-to-authority mapping receipt. It does not import Prompt or Choice.
-The existing Context Linter consumes that mapping receipt together with the
-Prompt-owned system message and Choice-owned response format, then emits the
-sealed-request receipt. It references the mapping receipt by integrity hash and
-does not duplicate its mappings.
+The design assigns two separate closed private receipts to two owners. GOAL 4
+implements only the first: the packet factory emits the Context-to-authority
+mapping receipt and does not import Prompt or Choice. A future V2 extension of
+the existing Context Linter must consume that mapping receipt together with the
+Prompt-owned system message and Choice-owned response format, then emit the
+second, sealed-request receipt. That future receipt references the mapping
+receipt by integrity hash and does not duplicate its mappings.
 
 ### 15.1 Packet-owned mapping receipt
 
@@ -1003,7 +1093,7 @@ The nested groups are also closed:
 | `local_mappings` | exactly arrays `value_keys`, `structure_keys`, `evidence_reference_targets`, `type_keys`, `choice_keys` |
 | each `value_keys` row | exactly `value_key`, `json_pointer`, `source_value_ref` |
 | each `structure_keys` row | exactly `structure_key`, `json_pointer`, `node_identity`; the closed node-identity union is defined below |
-| each `evidence_reference_targets` row | exactly `source_value_ref`, `target_kind`, `target`; `target_kind` is `structure_key` or `location`, `target` is its exact local value, and the full source lineage remains retrievable from the Evidence Bundle by `source_value_ref` |
+| each `evidence_reference_targets` row | exactly `source_value_ref`, `target_kind`, `target`; rows cover exactly necessary reference values consumed by at least one visible relationship, in validated Evidence Bundle reference-value order; `target_kind` is `structure_key` or `location`, `target` is its exact local value, and the full source lineage remains retrievable from the Evidence Bundle by `source_value_ref`; unused reference values have no row |
 | each `type_keys` row | exactly `type_key`, `json_pointer`, `input_type_id` |
 | each `choice_keys` row | exactly `choice_key`, `json_pointer`, `typed_option_id`, `association_ref`, `type_key` |
 | `binding_partition` | exactly arrays `visible_relationships`, `backend_only_bindings` |
@@ -1237,9 +1327,10 @@ preserves the complete existing retention set. Provider adapters perform only
 provider projection/parsing and usage normalization; they never rename keys,
 choose reasons, repair semantics or reconstruct records.
 
-## 17. Determinism and future linter obligations
+## 17. Determinism and successor sequencing
 
-The later GOAL 4 implementation and GOAL 5 linter must prove:
+The GOAL 4 implementation is measured against this Context V2.0 completeness
+and determinism inventory:
 
 - exact active V6 packet, Prompt and Choice byte/hash parity;
 - deterministic Context V2 bytes for identical inputs;
@@ -1258,6 +1349,22 @@ The later GOAL 4 implementation and GOAL 5 linter must prove:
 - total typed and unclassified restoration;
 - collision, order, scope, asset, mapping and receipt tampering rejected;
 - exact minified UTF-8 bytes and repository estimator result recorded.
+
+This V2.0 inventory is historical implementation evidence. It is not the
+model-visible field allowlist and must not be copied wholesale into a linter
+for the current overloaded representation.
+
+The governing successor sequence is:
+
+1. GOAL 5 defines the Minimal Model Surface allowlist, forbidden fields and
+   field-by-field necessity;
+2. GOAL 6 audits outcome taxonomy and benchmark expectations;
+3. GOAL 7 adds the versioned minimal managed projection;
+4. GOAL 8 builds the non-active Context V2.1 candidate;
+5. only GOAL 9 adds the Context Linter V2.1 and budget guard.
+
+The GOAL 9 linter protects the accepted minimal V2.1 surface. It must not
+cement the complete V2.0 field set described by this contract.
 
 All model-view and receipt arrays have a closed order:
 
@@ -1519,18 +1626,22 @@ authority member in exact Pack order as required by sections 7 and 17.
 
 ## 19. Compatibility stops and non-goals
 
-This contract does not prove implementation or benchmark compatibility.
+The implemented non-active packet sidecar proves only the Context V2 candidate
+and private mapping boundary. It does not prove the V2 Choice, complete-request
+linter, provider projection, persistence/replay or benchmark compatibility.
 
 Explicit stops:
 
-1. The four frozen zero-choice ambiguity cases must receive the complete
-   authority-derived available type set under V2, but that projection does
-   not exist yet.
+1. The four frozen zero-choice ambiguity cases receive the complete
+   authority-derived available type set in the implemented non-active V2
+   candidate. This does not make their expected semantic answer correct by
+   construction.
 2. Catalog count `1` remains outside both managed reason boundaries. A single
    plausible type with no safely selectable prebound choice must not be
    silently relabelled.
-3. The reason catalog and family v2 remain inactive drafts; packaged
-   closed-world candidate consumption is not yet implemented.
+3. The reason catalog and family v2 remain inactive drafts. Their validated
+   closed-world candidate projection is packaged through the existing single
+   model-assets loader, without publication or runtime activation.
 4. Context V2 linter, persisted restore/replay and report projection are later
    GOALs.
 5. No frozen expected answer, Prompt, Pack type meaning, reason wording,
@@ -1546,9 +1657,11 @@ Explicit stops:
    provider-projection proof. The existing adapter authorities must be
    versioned/fixed in place if needed; no second semantic adapter is allowed.
 
-The current four frozen zero-choice cases all expose zero cards, zero options
-and two technical Compiler blocks for ambiguous `amount` binding. Their
-expected answers remain frozen, but the semantic audit is not uniform:
+In the unchanged active four-block packet the four frozen zero-choice cases
+still expose zero cards, zero options and two technical Compiler blocks for
+ambiguous `amount` binding. The non-active V2 sidecar now exposes both
+authority-derived type cards and zero choices. Their expected answers remain
+frozen, but the semantic audit is not uniform:
 
 | Case | Contract-level semantic assessment |
 | --- | --- |
@@ -1606,4 +1719,40 @@ PROVIDER_CALLS: ZERO
 RUNTIME_ACTIVATION: FALSE
 BENCHMARK_CONFORMANCE: NOT_CLAIMED
 FOUR_CASE_REASON_COMPATIBILITY: ONE_PLAUSIBLE_THREE_NOT_PROVEN
+```
+
+## 21. GOAL 4 implementation status
+
+The existing packet factory now constructs the non-active Context V2
+candidate and its private mapping receipt after it has constructed and hashed
+the unchanged active payload. The same existing managed-assets loader exposes
+one closed candidate profile, and the same existing Pack projection owner
+emits the versioned Pack and reason projections. There is no second packet
+builder, catalog loader, Prompt/Choice authority or provider route.
+
+The implementation proves deterministic local rendering, exact model JSON
+hashing, semantic-literal occurrence coverage, local-key mappings, necessary
+reference targets, exact binding multiset partition, authority pointers and
+receipt integrity. Its sidecars have `active=false` and
+`provider_calls_total=0`.
+
+GOAL 4 does not implement or claim:
+
+- the local Choice V2 schema/parser profile;
+- Context Linter V2.1 or a sealed complete request;
+- provider projection or compatibility;
+- persisted evidence restore/replay or runtime report projection;
+- a qualification benchmark, model admission or production activation.
+
+```text
+CONTEXT_V2_PACKET_SIDECAR: IMPLEMENTED_NON_ACTIVE
+PACKET_OWNED_MAPPING_RECEIPT: IMPLEMENTED_PRIVATE
+ACTIVE_PACKET_BYTES: FROZEN_BY_EXACT_BASELINES
+HISTORICAL_SLIM: UNCHANGED
+LOCAL_CHOICE_V2: NOT_IMPLEMENTED
+CONTEXT_LINTER_V2_1: NOT_IMPLEMENTED
+REQUEST_PROFILE_V2: NOT_IMPLEMENTED
+PERSISTENCE_REPLAY_V2: NOT_IMPLEMENTED
+PROVIDER_CALLS: ZERO
+RUNTIME_ACTIVATION: FALSE
 ```

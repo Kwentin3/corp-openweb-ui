@@ -20,6 +20,7 @@ Current canonical route:
 - [Gate 2 LLM Semantic Context V2 candidate](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 - [Financial Semantic Packet V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
+- [Financial Semantic V6 Exact Evidence](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md)
 - [Local Choice v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
 
 Historical evidence only:
@@ -28,6 +29,7 @@ Historical evidence only:
 - [Managed decision reason catalog evidence, GOAL 1](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL1_DECISION_REASON_CATALOG.report.md)
 - [Alias necessity and readability audit, GOAL 2](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
 - [Semantic Context V2 contract evidence, GOAL 3](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL3_CONTEXT_V2_CONTRACT.report.md)
+- [Non-active Context V2 implementation evidence, GOAL 4](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.report.md)
 - [Исследование состава и дублирования Gate 2 LLM-контекста, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
 - [Рефакторинг контекста и повтор одного реального PDF, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
 

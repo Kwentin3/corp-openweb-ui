@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Packet V6
 
-Status: Goal 4 contract for Candidate Records By Construction.
+Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_IMPLEMENTED_NON_ACTIVE`
 
 ## Boundary
 
@@ -12,7 +12,9 @@ packet entrypoint. It accepts only:
 - the deterministically validated Candidate Compilation;
 - the exact Pack/Registry authority.
 
-The packet does not create or repair Typed Options.
+The packet does not create or repair Typed Options. The same factory also
+returns the historical non-active Slim sidecars and the non-active Context V2
+candidate/private mapping receipt; none is part of `packet.payload`.
 
 ## Exact model-visible shape
 
@@ -54,6 +56,10 @@ Gate 3 methodology, expected answers, and duplicate instructions.
   four-block payload for private debugging, including literals and refs.
 - `render_financial_semantic_v6_packet_repository_safe` renders only safe
   hashes, counts, type/role IDs, option IDs, and structural summaries.
+- `render_financial_semantic_v6_context_v2_candidate_private_exact` renders
+  the exact non-active V2 model view for private proof.
+- `render_financial_semantic_v6_context_v2_mapping_receipt_private_exact`
+  renders its exact private mapping receipt.
 
 The repository-safe renderer never emits source literals or source refs.
 
@@ -145,21 +151,24 @@ Across the frozen semantic suite it finds:
   role/value relations and 12 unique readable evidence-eligibility
   predicates.
 
-A future Context V2 inside this same factory must render a reference only when
-another visible field consumes it. It must pair deterministic keys with
+The implemented non-active Context V2 inside this same factory renders a
+reference only when another visible field consumes it. It pairs deterministic
+keys with
 evidence-owned value labels, readable evidence-derived structure and
-Pack-owned type titles. The current type-card projection drops the Pack title;
-Context V2 must version/extend that existing projection authority rather than
-bypass it from packet code.
+Pack-owned type titles. The active type-card projection still drops the Pack
+title; Context V2 uses the versioned extension of that same projection
+authority rather than bypassing it from packet code.
 
-The Choice authority must keep a unique local response key and add the mapped
-type's exact Pack title as a separate label; evidence differences stay in
-readable relationships, and `A/B` may not remain the sole presentation. A
-label collision is not a technical mapping failure: cross-type ambiguity can
-use `unclassified`, while same-type indistinguishability hits the explicit
-count-one compatibility stop. Exact refs, the complete 59-binding table,
-canonical IDs, provenance and retention stay outside the future Context V2
-model surface; historical active V6 exposure remains unchanged.
+The implemented packet sidecar emits a unique local response key and the
+mapped type's exact Pack title as a separate label; evidence differences stay
+in readable relationships, and `A/B` is not the sole presentation. A future
+V2 profile in the existing Choice authority must bind its strict enum/parser
+to those keys. A label collision is not a technical mapping failure:
+cross-type ambiguity can use `unclassified`, while same-type
+indistinguishability hits the explicit count-one compatibility stop. Exact
+refs, the complete 59-binding table, canonical IDs, provenance and retention
+stay outside the Context V2 model surface; historical active V6 exposure
+remains unchanged.
 
 The audit does not mutate Slim v2, activate it, change the current four-block
 packet or authorize a second packet builder.
@@ -168,14 +177,15 @@ packet or authorize a second packet builder.
 
 The versioned
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-now defines the exact future successor boundary. It remains contract-only and
-does not replace this packet or the implemented historical Slim View.
+defines the exact successor boundary. Its candidate and packet-owned mapping
+receipt are implemented as non-active sidecars and do not replace this packet
+or the implemented historical Slim View.
 
-The same packet factory must eventually derive its available type set from the
+The same packet factory derives its V2 available type set from the
 validated semantic-contract authority: every active Pack/Registry type
 compatible with the Evidence Bundle source family. The type IDs present in
 `typed_options` and `blocked_bindings` are only a private Compiler parity
-check; blocked status is not semantic plausibility. The factory must use a
+check; blocked status is not semantic plausibility. The factory uses a
 versioned extension of the existing Pack projection for titles and complete
 decision-relevant type meaning, and a validated closed-world snapshot of the
 existing managed reason catalog for reason meaning. It may not read asset
@@ -183,6 +193,7 @@ files or import build scripts at runtime.
 
 The V2 contract also fixes the target key/label split, factored readable
 relationships, strict local response, packet-owned mapping receipt and
-linter-owned sealed-request receipt. No V2
-renderer, response profile, linter extension or route is implemented by this
-documentation change. Active packet bytes and hashes remain unchanged.
+linter-owned sealed-request receipt. GOAL 4 implements only the renderer and
+packet-owned receipt. The V2 response profile, linter extension, sealed
+request, persistence/replay, provider projection and route remain
+`NOT_IMPLEMENTED`. Active packet bytes and hashes remain unchanged.

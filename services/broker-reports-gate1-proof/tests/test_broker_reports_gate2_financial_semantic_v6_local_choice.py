@@ -294,6 +294,14 @@ def test_choice_order_permutation_rebuilds_exact_mapping(v6_fixture):
 
     assert permuted_packet.payload == case.packet.payload
     assert permuted_packet.packet_hash == case.packet.packet_hash
+    assert (
+        permuted_packet.context_v2_candidate
+        == case.packet.context_v2_candidate
+    )
+    assert (
+        permuted_packet.context_v2_mapping_receipt
+        == case.packet.context_v2_mapping_receipt
+    )
     assert tuple(
         case.packet.slim_alias_receipt.choice_aliases.values()
     ) == exact_ids

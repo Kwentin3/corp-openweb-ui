@@ -364,6 +364,100 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             [],
         )
 
+    def test_context_v2_candidate_reuses_existing_loader_and_factories(self):
+        loader_definitions = {
+            f"{path.stem}.{node.name}"
+            for path in PACKAGE.glob("*.py")
+            for node in ast.parse(path.read_text(encoding="utf-8")).body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "load_gate2_financial_semantic_model_assets"
+        }
+        context_v2_factories = {
+            f"{path.stem}.{node.name}"
+            for path in PACKAGE.glob("*.py")
+            for node in ast.parse(path.read_text(encoding="utf-8")).body
+            if isinstance(node, ast.ClassDef)
+            and "ContextV2" in node.name
+            and node.name.endswith("Factory")
+        }
+        public_context_v2_builders = {
+            f"{path.stem}.{node.name}"
+            for path in PACKAGE.glob("*.py")
+            for node in ast.parse(path.read_text(encoding="utf-8")).body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and not node.name.startswith("_")
+            and "context_v2" in node.name
+            and ("build" in node.name or "create" in node.name)
+        }
+
+        self.assertEqual(
+            loader_definitions,
+            {
+                (
+                    "gate2_financial_semantic_model_assets."
+                    "load_gate2_financial_semantic_model_assets"
+                )
+            },
+        )
+        self.assertEqual(
+            list(PACKAGE.glob("*context_v2*.py")),
+            [],
+        )
+        self.assertEqual(context_v2_factories, set())
+        self.assertEqual(public_context_v2_builders, set())
+        self.assertIsNotNone(
+            _method_node(
+                _tree("gate2_financial_semantic_v5_projection"),
+                "Gate2FinancialSemanticV5ProjectionFactory",
+                "create_context_v2_candidate",
+            )
+        )
+        self.assertEqual(
+            _call_owners(
+                "gate2_financial_semantic_v6_packet",
+                "create_context_v2_candidate",
+            ),
+            {"Gate2FinancialSemanticV6PacketFactory._build"},
+        )
+        self.assertEqual(
+            _call_owners(
+                "gate2_financial_semantic_v6_packet",
+                "_context_v2_candidate_and_receipt",
+            ),
+            {"Gate2FinancialSemanticV6PacketFactory._build"},
+        )
+
+    def test_context_v2_sidecars_do_not_enter_active_request_or_evidence(self):
+        sidecar_fields = {
+            "context_v2_candidate",
+            "context_v2_mapping_receipt",
+        }
+        active_packet_consumers = (
+            "gate2_financial_semantic_v6_evidence",
+            "gate2_financial_semantic_v6_qualification_run",
+        )
+        sealed_modules = (
+            *active_packet_consumers,
+            "gate2_model_requests",
+            "gate2_model_clients",
+            "gate2_provider_adapters",
+        )
+
+        for module_name in sealed_modules:
+            tree = _tree(module_name)
+            self.assertEqual(
+                _string_constants(tree) & sidecar_fields,
+                set(),
+            )
+            self.assertTrue(
+                all(
+                    path.rsplit(".", 1)[-1] not in sidecar_fields
+                    for path in _attribute_paths(tree)
+                )
+            )
+        for module_name in active_packet_consumers:
+            self.assertIn("packet.payload", _attribute_paths(_tree(module_name)))
+
     def test_model_choice_schema_contains_only_minimal_choice_fields(self):
         schema = _choice_schema(("opaque_typed_option",))
         variants = schema["anyOf"]

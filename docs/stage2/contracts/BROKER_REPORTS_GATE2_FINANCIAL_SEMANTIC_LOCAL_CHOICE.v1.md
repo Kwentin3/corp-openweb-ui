@@ -259,8 +259,9 @@ requirement, not evidence that `A/B` caused the historical model failures.
 
 The exact successor requirement now lives in
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
-It uses `choice_N` plus the mapped type's exact Pack title as a separate
-label, retains this contract's strict typed-versus-unclassified response
-shape and normalizes to the same canonical V6 Choice. No Local Choice v2
-implementation or active route exists yet; this v1 candidate remains
-unchanged in bytes and behavior.
+Its implemented non-active packet sidecar uses `choice_N` plus the mapped
+type's exact Pack title as a separate label. A future V2 profile in the
+existing Choice factory must retain this contract's strict
+typed-versus-unclassified response shape and normalize to the same canonical
+V6 Choice. No Local Choice v2 schema/parser/normalization or active route
+exists yet; this v1 candidate remains unchanged in bytes and behavior.

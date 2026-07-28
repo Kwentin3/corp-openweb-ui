@@ -25,10 +25,14 @@ from broker_reports_gate1.gate2_financial_evidence_successor import (  # noqa: E
     validate_financial_evidence_successor_model_input_v4,
 )
 from broker_reports_gate1.gate2_financial_semantic_model_assets import (  # noqa: E402,E501
+    CONTEXT_V2_CANDIDATE_FORBIDDEN,
+    CONTEXT_V2_CANDIDATE_REQUIRED,
+    CONTEXT_V2_MODEL_ASSET_SCHEMA_VERSION,
     FACTORY_REQUIRED,
     FORBIDDEN,
     MANAGED_PROMPT_GIT_BLOB_SHA256,
     PACK_INTEGRITY_SHA256,
+    SEMANTIC_MODEL_ASSET_SCHEMA_VERSION,
     load_gate2_financial_semantic_model_assets,
 )
 from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
@@ -61,6 +65,17 @@ PROMPT_PATH = (
     / "managed_assets"
     / "prompts"
     / "broker_reports_gate2_financial_matching_prompt.v1.md"
+)
+MANIFEST_V2_PATH = (
+    ROOT
+    / "managed_assets"
+    / "broker_reports_financial_domain_assets.v2.manifest.json"
+)
+REASON_CATALOG_PATH = (
+    ROOT
+    / "managed_assets"
+    / "decision_reasons"
+    / "broker_reports_gate2_financial_decision_reason_catalog.v1.json"
 )
 RUNTIME_PATH = (
     ROOT
@@ -160,6 +175,86 @@ def test_generated_assets_are_exact_complete_and_path_free():
     serialized = json.dumps(assets["managed_assets"], sort_keys=True)
     assert "repository_relative_path" not in serialized
     assert "managed_assets/" not in serialized
+
+
+def test_context_v2_candidate_assets_are_additive_exact_and_inactive():
+    active_default = load_gate2_financial_semantic_model_assets()
+    active_explicit = load_gate2_financial_semantic_model_assets(
+        profile="active"
+    )
+    candidate = load_gate2_financial_semantic_model_assets(
+        profile="context_v2_candidate"
+    )
+    manifest_v2 = json.loads(MANIFEST_V2_PATH.read_text(encoding="utf-8"))
+    reason_catalog = json.loads(
+        REASON_CATALOG_PATH.read_text(encoding="utf-8")
+    )
+
+    assert active_default == active_explicit
+    assert tuple(active_default) == (
+        "schema_version",
+        "semantic_pack",
+        "managed_assets",
+        "prompt_content",
+        "prompt_ref",
+        "prompt_git_blob_sha256",
+    )
+    assert active_default["schema_version"] == (
+        SEMANTIC_MODEL_ASSET_SCHEMA_VERSION
+    )
+    assert hashlib.sha256(
+        json.dumps(
+            active_default,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest() == (
+        "b80eed8b9a41fa039a9a8d961c972817ae840ce81d7c163de624b7d5a4ec123b"
+    )
+    assert tuple(candidate) == (
+        "schema_version",
+        "managed_asset_family",
+        "semantic_pack",
+        "decision_reason_catalog",
+    )
+    assert candidate["schema_version"] == (
+        CONTEXT_V2_MODEL_ASSET_SCHEMA_VERSION
+    )
+    assert candidate["managed_asset_family"] == {
+        "family_id": manifest_v2["family_id"],
+        "manifest_sha256": manifest_v2["manifest_sha256"],
+        "runtime_activation": False,
+        "semantic_version": "1.1.0",
+    }
+    assert manifest_v2["runtime_activation"] is False
+
+    candidate_pack = copy.deepcopy(candidate["semantic_pack"])
+    source_baseline = candidate_pack.pop("source_baseline")
+    assert candidate_pack == active_default["semantic_pack"]
+    assert source_baseline["accepted_type_ids"] == [
+        item["input_type_id"]
+        for item in active_default["semantic_pack"]["full_compact_snapshot"]
+    ]
+    assert candidate["decision_reason_catalog"] == reason_catalog
+    assert candidate["decision_reason_catalog"]["runtime_activation"] is False
+    assert "only closed-world" in CONTEXT_V2_CANDIDATE_REQUIRED
+    assert "must not read runtime files" in CONTEXT_V2_CANDIDATE_FORBIDDEN
+
+    serialized = json.dumps(candidate, ensure_ascii=False, sort_keys=True)
+    for forbidden in (
+        "repository_relative_path",
+        "managed_assets/",
+        "semantic_packs/",
+    ):
+        assert forbidden not in serialized
+
+    candidate["managed_asset_family"]["runtime_activation"] = True
+    fresh_candidate = load_gate2_financial_semantic_model_assets(
+        profile="context_v2_candidate"
+    )
+    assert fresh_candidate["managed_asset_family"]["runtime_activation"] is False
 
 
 def test_runtime_projection_is_closed_world_and_deterministic():
