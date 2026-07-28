@@ -58,7 +58,7 @@ Current authorities and the one planned ownership slot remain fixed:
 | source literals, structure, refs and provenance | Evidence Bundle | existing |
 | type and role meaning | Financial Semantic Pack | existing |
 | closed decision-reason codes and response shape | V6 Choice/decision contracts | existing |
-| human-readable decision-reason meaning | one versioned reason catalog in the existing managed OpenWebUI Financial Domain asset family | planned; absent until GOAL 1 is accepted |
+| human-readable decision-reason meaning | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) in the existing managed OpenWebUI Financial Domain asset family | versioned repository draft present; inactive and not model-visible |
 | complete canonical options and bindings | Candidate Compiler and Typed Option | existing |
 | canonical current response | V6 Choice | existing |
 | complete candidate request lint and seal | V6 Context Linter | existing |
@@ -73,6 +73,8 @@ single managed catalog. It may shorten or arrange those meanings under this
 contract, but must not copy independent wording into the packet module, Prompt,
 runner, provider adapter or report projector. The current code-owned V6 Prompt
 and active packet remain unchanged until a separately qualified activation.
+The catalog draft alone does not prove compatibility with frozen V6 expected
+answers; that audit remains a prerequisite to a model-visible Context V2.
 
 ## Core invariants
 

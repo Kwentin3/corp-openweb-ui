@@ -14,14 +14,16 @@ Current canonical route:
 
 - [Broker Reports architecture authorities](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
 - [Financial Semantic Pack v1](contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md)
-- [Managed OpenWebUI Financial Domain asset family v1](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md)
+- [Managed OpenWebUI Financial Domain asset family v2](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md)
+- [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Local Choice v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
-- [Managed semantic asset authority audit](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL0_ASSET_AUTHORITY_AUDIT.report.md)
 
 Historical evidence only:
 
+- [Managed semantic asset authority audit, GOAL 0](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL0_ASSET_AUTHORITY_AUDIT.report.md)
+- [Managed decision reason catalog evidence, GOAL 1](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL1_DECISION_REASON_CATALOG.report.md)
 - [Исследование состава и дублирования Gate 2 LLM-контекста, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
 - [Рефакторинг контекста и повтор одного реального PDF, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
 
@@ -589,7 +591,8 @@ Read first:
 - [Canonical Broker Reports global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - [Broker Reports architecture authorities](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
 - [Financial Semantic Pack v1](contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md)
-- [Managed OpenWebUI Financial Domain asset family v1](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md)
+- [Managed OpenWebUI Financial Domain asset family v2](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md)
+- [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)

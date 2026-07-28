@@ -1,0 +1,174 @@
+{
+  "schema_version": "broker_reports_financial_domain_managed_asset_manifest_v2",
+  "family_id": "broker_reports_gate2_financial_domain_assets",
+  "semantic_version": "1.1.0",
+  "authority_status": "target_normative_not_live",
+  "runtime_activation": false,
+  "lifecycle": {
+    "status": "draft",
+    "previous_family_semantic_version": "1.0.0",
+    "draft_rollback": "discard_without_runtime_mutation",
+    "active_rollback": "select_previous_validated_immutable_family_version",
+    "rollback_manifest_schema_version": "broker_reports_financial_domain_managed_asset_manifest_v1",
+    "rollback_manifest_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59",
+    "rollback_manifest_git_blob_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315",
+    "live_publisher_implemented": false
+  },
+  "hash_boundary": "git_blob_bytes",
+  "openwebui": {
+    "distribution": "open-webui",
+    "target_version": "0.9.6",
+    "upstream_tag": "v0.9.6",
+    "skill_api": "/api/v1/skills",
+    "prompt_api": "/api/v1/prompts",
+    "tool_api": "/api/v1/tools"
+  },
+  "assets": [
+    {
+      "asset_id": "broker_reports_financial_domain_skill",
+      "kind": "openwebui_skill",
+      "semantic_version": "1.0.0",
+      "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/skills/broker_reports_financial_domain_skill.v1.md",
+      "media_type": "text/markdown",
+      "git_blob_sha256": "08a405c69b66aac2fcc1ed0be355a59e2df8e2b012fc7d107fdb2243208e02d5",
+      "activation": "repository_managed_not_live",
+      "api_identity": {
+        "id": "broker-reports-financial-domain-matching",
+        "name": "Broker Reports Financial Domain Matching",
+        "description": "Pack-only method for bounded Gate 2 financial matching",
+        "is_active": true,
+        "meta": {
+          "tags": [
+            "broker-reports",
+            "financial-domain",
+            "managed"
+          ]
+        }
+      }
+    },
+    {
+      "asset_id": "broker_reports_gate2_financial_matching_prompt",
+      "kind": "openwebui_prompt",
+      "semantic_version": "1.0.0",
+      "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/prompts/broker_reports_gate2_financial_matching_prompt.v1.md",
+      "media_type": "text/markdown",
+      "git_blob_sha256": "3f169c79a9bf6f0eb1b476853ed1ace50cca9b2f7fd2d2fe3394f2ab3f6d5a2e",
+      "activation": "repository_managed_not_live",
+      "api_identity": {
+        "id": "broker-reports-gate2-financial-matching-v1",
+        "name": "Broker Reports Gate 2 Financial Matching v1",
+        "description": "One bounded Pack-authoritative matching operation",
+        "command": "broker_gate2_financial_match_v1",
+        "version_id": "1.0.0",
+        "is_active": true,
+        "meta": {
+          "structured_output_required": true,
+          "output_schema_version": "broker_reports_gate2_financial_evidence_decision_v1"
+        }
+      }
+    },
+    {
+      "asset_id": "broker_reports_financial_semantic_pack_tool",
+      "kind": "openwebui_workspace_tool",
+      "semantic_version": "1.0.0",
+      "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/tools/broker_reports_financial_semantic_pack_tool.v1.py",
+      "media_type": "text/x-python",
+      "git_blob_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
+      "activation": "repository_managed_not_live",
+      "api_identity": {
+        "id": "broker_reports_financial_semantic_pack",
+        "name": "Broker Reports Financial Semantic Pack",
+        "description": "Returns the complete byte-exact pinned Semantic Pack",
+        "is_active": true,
+        "meta": {
+          "tool_method": "load_financial_semantic_pack",
+          "network_access": false
+        }
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "dependency_id": "broker_reports_financial_semantic_pack",
+      "kind": "semantic_pack",
+      "contract_identity": "broker_reports_managed_financial_semantic_pack@1.0.0",
+      "repository_relative_path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.json",
+      "git_blob_sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+      "semantic_version": "1.0.0",
+      "semantic_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+      "canonical_semantic_bytes": 9404
+    },
+    {
+      "dependency_id": "broker_reports_financial_semantic_pack_schema",
+      "kind": "semantic_pack_schema",
+      "contract_identity": "broker_reports_financial_semantic_pack_v1",
+      "repository_relative_path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.schema.json",
+      "git_blob_sha256": "cea99c199ba6b20905fd988fed481e963a999d1a74464a0af055d38eb0c76b9e"
+    },
+    {
+      "dependency_id": "broker_reports_managed_financial_domain_schema",
+      "kind": "consumer_contract_schema",
+      "contract_identity": "broker_reports_managed_financial_domain_contract_v1",
+      "repository_relative_path": "docs/stage2/contracts/BROKER_REPORTS_MANAGED_FINANCIAL_DOMAIN.v1.schema.json",
+      "git_blob_sha256": "1a522ef75b38fbb6c827fc4de321273ccf3b1ec7c16a6a550c8f3ae35e6113bd"
+    },
+    {
+      "dependency_id": "broker_reports_financial_decision_contract",
+      "kind": "decision_contract_source",
+      "contract_identity": "broker_reports_gate2_financial_evidence_decision_v1",
+      "repository_relative_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_decision.py",
+      "git_blob_sha256": "dc4fd160aeda35b2d0a3d063a871d4cc71f6efcefcc134d0d164722d5176f19f"
+    },
+    {
+      "dependency_id": "broker_reports_gate2_financial_decision_reason_catalog",
+      "kind": "decision_reason_catalog",
+      "contract_identity": "broker_reports_gate2_financial_decision_reason_catalog@1.0.0",
+      "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v1.json",
+      "git_blob_sha256": "e5ca49c436113d5eebec189dae26d5a289287c214292eb32c80b547c29e56a0a",
+      "semantic_version": "1.0.0",
+      "semantic_integrity_sha256": "d7290593410cafd6b35281ed3a6159802f0d7e87b7a085f3ec2cd2b46f4a3e15",
+      "canonical_semantic_bytes": 3603,
+      "lifecycle_status": "draft",
+      "runtime_activation": false
+    },
+    {
+      "dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_schema",
+      "kind": "decision_reason_catalog_schema",
+      "contract_identity": "broker_reports_gate2_financial_decision_reason_catalog_v1",
+      "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v1.schema.json",
+      "git_blob_sha256": "a2285297bc1332778293b24a195dcf0dc5631e3e62076185f7336442e250a68c"
+    },
+    {
+      "dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_contract",
+      "kind": "decision_reason_catalog_contract_source",
+      "contract_identity": "broker_reports_gate2_financial_decision_reason_catalog_contracts_v1",
+      "repository_relative_path": "services/broker-reports-gate1-proof/scripts/broker_reports_financial_decision_reason_catalog_contracts.py",
+      "git_blob_sha256": "999b5d3869a9b08755bc6697c10aa725f92527a65d0d484515651420d5a8d375"
+    }
+  ],
+  "composition": {
+    "method_asset_id": "broker_reports_financial_domain_skill",
+    "operation_asset_id": "broker_reports_gate2_financial_matching_prompt",
+    "pack_loader_asset_id": "broker_reports_financial_semantic_pack_tool",
+    "pack_loader_method": "load_financial_semantic_pack",
+    "semantic_pack_dependency_id": "broker_reports_financial_semantic_pack",
+    "strict_output_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+    "bounded_input_placeholder": "{{financial_semantic_matching_input_json}}",
+    "decision_reason_catalog_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog",
+    "decision_reason_catalog_schema_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_schema",
+    "decision_reason_catalog_contract_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_contract"
+  },
+  "authority": {
+    "financial_semantic_authority_dependency_id": "broker_reports_financial_semantic_pack",
+    "full_pack_required": true,
+    "rag_only_authority_allowed": false,
+    "knowledge_authority_allowed": false,
+    "python_type_meanings_allowed": false,
+    "prompt_type_meanings_allowed": false,
+    "decision_reason_code_authority_dependency_id": "broker_reports_financial_decision_contract",
+    "decision_reason_meaning_authority_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog",
+    "decision_reason_schema_authority_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_contract"
+  },
+  "supporting_knowledge": [],
+  "manifest_sha256": "4e5328554056741ecb783d130a5fd43034a6876484a25c98dfdd5e68bf76499d"
+}

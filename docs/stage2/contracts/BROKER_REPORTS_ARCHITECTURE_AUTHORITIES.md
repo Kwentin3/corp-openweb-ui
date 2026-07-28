@@ -44,7 +44,8 @@ that does not permit a second owner for any operation.
 | Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- |
 | Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
-| Managed model-facing asset-family identity and composition | [`broker_reports_financial_domain_assets.v1.manifest.json`](../../../services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v1.manifest.json) and its deterministic builder | [OpenWebUI Financial Domain Asset Family](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md) | future managed-asset validation/publication and Context V2 projection | repository-only target; current V6 embedded assets and Prompt remain unchanged until separately qualified activation | parallel asset-family/manifest authority, financial-semantic registry, custom asset GUI or adapter-owned semantic text |
+| Managed model-facing asset-family identity and composition | additive [`broker_reports_financial_domain_assets.v2.manifest.json`](../../../services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v2.manifest.json), immutable v1 predecessor and their one deterministic builder | [OpenWebUI Financial Domain Asset Family v2](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md) | future managed-asset validation/publication and Context V2 projection | v2 is a repository-only inactive draft; the current V6 closed-world projection remains pinned to byte-exact v1 until separately qualified activation | parallel asset-family/manifest authority, financial-semantic registry, custom asset GUI or adapter-owned semantic text |
+| Human decision-reason meaning | versioned [`broker_reports_gate2_financial_decision_reason_catalog.v1.json`](../../../services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v1.json); schema/checking only in `Gate2FinancialDecisionReasonCatalogContractFactory` | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) | future Context V2 projection after separate compatibility proof | code set remains in the decision/Choice contracts; catalog v1 is inactive and not model-visible | human wording in Python, Prompt, packet, adapter, report projector, Pack or a second catalog |
 | Model-visible semantic context | [`Gate2FinancialSemanticV6PacketFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py) | [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md), [current V6 Packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | request builder and qualification after an explicit version-pinned route exists | current four-block V6 packet remains active until a separately qualified activation | second packet builder, unallowlisted model-visible field or provider-side semantic context rewrite |
 | Complete model-visible request lint | [`Gate2FinancialSemanticV6ContextLinterFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_context_linter.py) | [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md), [Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md) | version-pinned candidate request profile before provider projection/transport | current active V6 packet/Choice route remains unchanged; exact replay is local | direct candidate transport, a second packet/Choice builder, context repair or an unsealed request |
 | Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
@@ -160,6 +161,31 @@ reuse the existing OpenWebUI Workspace GUI/API only as an
 authoring/inspection surface behind that guarded lifecycle. Until exact
 readback and rollback exist for the full family, the managed assets remain
 non-active and the current V6 route remains unchanged.
+
+## Managed Semantic Decision Context GOAL 1 catalog status
+
+GOAL 1 adds one immutable same-family draft:
+
+- family v2 keeps `family_id=broker_reports_gate2_financial_domain_assets`,
+  advances only the family semantic version to `1.1.0`, and remains
+  `runtime_activation=false`;
+- all v1 Skill, Prompt, Tool, Pack and current closed-world model assets remain
+  byte-exact;
+- the decision contract remains the sole reason-code owner;
+- the
+  [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
+  becomes the sole human-meaning owner;
+- its build-time factory derives the code set from the maintained decision
+  source, generates the strict schema and checks meaning-field completeness,
+  reciprocal contrasts, non-overlapping boundaries and canonical integrity;
+- draft rollback discards v2 without runtime mutation; the exact immutable v1
+  manifest is pinned as the prior baseline.
+
+This establishes a GUI-ready repository asset, not live GUI publication.
+Full-family publishing/readback/rollback remains the lifecycle gap above.
+The catalog is not model-visible and does not claim compatibility with frozen
+V6 expected answers until a separate context/expectation audit resolves cases
+whose current packet exposes no type cards.
 
 ## Documentation drift and explicit debt
 
