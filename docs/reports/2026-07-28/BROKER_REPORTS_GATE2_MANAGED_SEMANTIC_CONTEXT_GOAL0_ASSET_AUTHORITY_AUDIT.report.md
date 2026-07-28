@@ -121,9 +121,10 @@ The manifest pins OpenWebUI `v0.9.6`. Primary upstream source proves:
 - Prompt has `is_active`, a production history `version_id`, commit messages
   and an `is_production` update flag:
   [Prompt model/form](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L23-L93);
-- Prompt updates create history and a selected history entry can restore
-  content, but update always writes current row content; `is_production` only
-  controls whether `version_id` moves:
+- A full-form Prompt update always writes current row fields and creates a
+  history entry only when its `content_changed` predicate is true; a selected
+  history entry can restore content, and `is_production` only controls whether
+  a newly created entry becomes `version_id`:
   [Prompt update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L481-L554)
   and [selected-version restoration](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L585-L622);
 - Prompt exposes history, version-selection and active-toggle endpoints:
