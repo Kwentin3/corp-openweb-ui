@@ -225,3 +225,32 @@ correctly and must not rewrite that semantic answer.
 
 The candidate remains non-active. The exact GOAL 4 authorization is consumed,
 the full benchmark was not run, and no production admission follows.
+
+## Managed Semantic Decision Context GOAL 2 readability status
+
+The later Managed Semantic Decision Context
+[alias necessity audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+does not change this historical v1 candidate. Its `A/B` mapping remains
+mechanically exact, request-bound and non-active.
+
+The audit distinguishes the need for a local response key from the
+readability of the key itself:
+
+- a local selection key is required so code can restore the exact
+  `typed_option_id`;
+- positional `A/B` communicates order, not financial meaning;
+- a future Context V2 must keep a deterministic unique `choice_key` and add a
+  separate `choice_label` from the Pack-owned type title plus exact visible
+  evidence when available;
+- a readable label need not be unique and must not replace response identity;
+- semantically indistinguishable options remain distinct by key and allow the
+  model to choose `unclassified`;
+- duplicate/missing keys, mapping, scope and integrity defects fail closed;
+- the local key remains disposable and maps through the same private receipt,
+  normalizer and canonical expansion authority.
+
+The frozen audit found 12 current choice aliases. All are consumed by the
+response schema, so the key function is necessary. Context V2 must not leave
+the 12 positional letters as the sole presentation; the exact future key
+spelling belongs to that separately versioned contract. This is a readability
+requirement, not evidence that `A/B` caused the historical model failures.

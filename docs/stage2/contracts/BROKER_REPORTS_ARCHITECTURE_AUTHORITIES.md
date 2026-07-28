@@ -187,6 +187,41 @@ The catalog is not model-visible and does not claim compatibility with frozen
 V6 expected answers until a separate context/expectation audit resolves cases
 whose current packet exposes no type cards.
 
+## Managed Semantic Decision Context GOAL 2 alias audit
+
+The
+[alias necessity and readability audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+changes no operation authority. It refines only the requirements for a future
+versioned projection inside the existing packet and Choice owners:
+
+- a local value or structural reference is visible only when another
+  model-visible field consumes it;
+- exact refs and the complete binding table remain Evidence Bundle, Candidate
+  Compiler and Typed Option authority;
+- deterministic local keys are paired with readable evidence-owned labels;
+- readable type and choice labels come from the existing Financial Semantic
+  Pack title, optionally qualified by exact visible evidence;
+- Context V2 must version/extend the existing type-card projection to carry
+  Pack title; packet code may not read the asset through a bypass;
+- positional `A/B` and numeric `TN` are not future semantic label
+  authorities, though unique local response/cross-reference keys remain
+  required;
+- semantically indistinguishable choices remain distinct by key and allow
+  `unclassified`; only mapping/integrity defects fail closed;
+- provider adapters perform no naming, binding filtering or semantic repair.
+
+The 10-case frozen census records 45 value aliases, 20 structural aliases, 12
+type aliases, 12 choice aliases and 59 visible bindings. Twenty-two value
+aliases and 14 structural aliases have no inbound reference. Only five
+`source_label` relations and six printed-label-evidence predicates distinguish
+options. Factoring common eligibility relationships yields 35 readable
+relations and removes 24 duplicate occurrences; all 59 exact bindings remain
+backend-owned and reconstructable.
+
+This is a documentation-only audit. Context V2 is not implemented, the active
+V6 packet/Choice/runtime remain unchanged, provider calls are zero and the
+four zero-option ambiguous cases remain an explicit compatibility stop.
+
 ## Documentation drift and explicit debt
 
 1. The global gate architecture remains normative but does not index the newer

@@ -83,5 +83,16 @@ route changed. Provider calls remain zero.
 The
 [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 defines the complete model-visible boundary. The local candidate satisfies its
-zero-opaque-ID Choice shape locally; GOAL 3 must add the pre-transport Context
-Linter before any provider diagnostic.
+zero-opaque-ID Choice shape locally. The pre-transport Context Linter was
+subsequently implemented for the non-active candidate profile, and the
+bounded GOAL 4 diagnostic is terminal; neither changed the active Choice.
+
+The later Managed Semantic Decision Context
+[alias necessity audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+requires a separately versioned Context V2 candidate to pair each unique local
+choice key with a readable Pack/evidence-owned label. Positional `A/B` may not
+remain the sole presentation, but the readable label must not replace unique
+response identity or turn semantic ambiguity into a technical failure. The
+future key must still normalize to this exact current Choice before canonical
+expansion. This active contract, its exact-ID response and its runtime route
+remain unchanged.

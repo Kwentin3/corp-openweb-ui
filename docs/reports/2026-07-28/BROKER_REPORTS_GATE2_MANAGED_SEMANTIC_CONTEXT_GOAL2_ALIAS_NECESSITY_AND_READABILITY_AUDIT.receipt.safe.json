@@ -1,0 +1,204 @@
+{
+  "schema_version": "broker_reports_gate2_managed_semantic_context_goal2_alias_necessity_and_readability_audit_safe_receipt_v1",
+  "goal": "GOAL_2_ALIAS_NECESSITY_AND_READABILITY_AUDIT",
+  "status": "passed_as_documentation_only_audit_with_context_v2_compatibility_stop",
+  "source_revision": "d470b8a0418fad3fc607e5be186fd24dcac0c795",
+  "branch": "codex/broker-reports-gate2-managed-context-goal2-alias-audit",
+  "runtime_truth": {
+    "active_packet_route": "financial_semantic_v6_exact_four_block_packet",
+    "active_choice_route": "financial_semantic_v6_exact_typed_option_id_choice",
+    "audited_candidate": "financial_semantic_v6_slim_v2_plus_local_choice_v1",
+    "slim_candidate_active": false,
+    "local_choice_active": false,
+    "current_qualification_route_changed": false,
+    "product_runtime_route_changed": false,
+    "product_production_admission": "empty"
+  },
+  "audit_scope": {
+    "frozen_manifest_cases_total": 12,
+    "semantic_cases_audited": 10,
+    "technical_preclose_cases_excluded": 2,
+    "choice_bearing_cases": 6,
+    "zero_choice_cases": 4,
+    "source_values_total": 65,
+    "semantic_source_values": 45,
+    "deterministic_reference_source_values": 20,
+    "contains_customer_data": false,
+    "provider_calls": 0,
+    "provider_responses": 0
+  },
+  "alias_inventory": {
+    "source_value_aliases": {
+      "current_total": 45,
+      "current_with_inbound_reference": 23,
+      "current_without_inbound_reference": 22,
+      "target_unreferenced_keys": 0,
+      "target_reference_keys": 23,
+      "target_readable_labels": 23
+    },
+    "structural_aliases": {
+      "current_total": 20,
+      "current_table_aliases": 10,
+      "current_row_aliases": 10,
+      "current_with_any_inbound_reference": 6,
+      "current_without_inbound_reference": 14,
+      "current_with_semantic_inbound_reference": 0,
+      "target_numeric_aliases_for_frozen_suite": 0
+    },
+    "unobserved_structural_namespaces": {
+      "section_aliases": 0,
+      "text_segment_aliases": 0,
+      "fallback_group_aliases": 0,
+      "current_section_node_producer_exists": false
+    },
+    "type_aliases": {
+      "current_total": 12,
+      "current_with_inbound_reference": 12,
+      "target_local_keys": 12,
+      "target_pack_owned_readable_labels": 12,
+      "existing_type_card_projection_extension_required": true
+    },
+    "choice_aliases": {
+      "current_total": 12,
+      "current_with_response_schema_reference": 12,
+      "target_local_keys": 12,
+      "target_readable_labels": 12,
+      "positional_letter_key_as_sole_presentation_allowed": false,
+      "readable_labels_required_to_be_unique": false
+    }
+  },
+  "binding_inventory": {
+    "current_visible_occurrences": 59,
+    "semantic_value_target_occurrences": 41,
+    "evidence_or_identity_target_occurrences": 18,
+    "option_differentiating_occurrences": 11,
+    "option_differentiating_semantic_occurrences": 5,
+    "option_differentiating_evidence_predicates": 6,
+    "unique_semantic_role_value_relationships": 23,
+    "unique_readable_evidence_eligibility_predicates": 12,
+    "duplicate_occurrences_removed": 24,
+    "target_readable_eligibility_relationships_for_frozen_suite": 35,
+    "exact_backend_occurrences_preserved": 59,
+    "roles": {
+      "amount": {
+        "current_occurrences": 12,
+        "classification": "common_semantic_fact_redundant_as_per_option_binding",
+        "target_shared_readable_occurrences": 6
+      },
+      "as_of_date": {
+        "current_occurrences": 12,
+        "classification": "common_temporal_eligibility_relation",
+        "target_shared_readable_occurrences": 6
+      },
+      "currency": {
+        "current_occurrences": 12,
+        "classification": "common_dimension_eligibility_relation",
+        "target_shared_readable_occurrences": 6
+      },
+      "source_label": {
+        "current_occurrences": 5,
+        "classification": "semantic_option_discriminator",
+        "target_readable_occurrences": 5
+      },
+      "statement_scope": {
+        "current_occurrences": 12,
+        "classification": "exact_target_backend_only_readable_scope_bound_predicate_visible",
+        "target_shared_readable_occurrences": 6
+      },
+      "printed_label_evidence_ref": {
+        "current_occurrences": 6,
+        "classification": "exact_target_backend_only_readable_option_eligibility_predicate_visible",
+        "target_readable_occurrences": 6
+      }
+    }
+  },
+  "zero_choice_cases": {
+    "case_ids": [
+      "syn_successor_v2_multiple_compatible",
+      "syn_successor_v2_detail_vs_subtotal",
+      "syn_successor_v2_adjacent_equal",
+      "syn_successor_v2_adjacent_fx"
+    ],
+    "unreferenced_value_aliases": 22,
+    "unreferenced_structural_aliases": 8,
+    "visible_type_cards": 0,
+    "visible_choices": 0
+  },
+  "readability_policy": {
+    "reference_visibility_rule": "visible_only_with_model_visible_consumer_or_strict_response_return",
+    "key_and_label_are_separate": true,
+    "value_label_authority": "evidence_bundle_column_meaning_or_visible_label",
+    "structural_label_authority": "evidence_derived_visible_label_role_and_readable_kind",
+    "type_label_authority": "financial_semantic_pack_title_via_versioned_existing_projection",
+    "choice_label_authority": "pack_title_plus_optional_evidence_derived_discriminator",
+    "positional_choice_key_as_sole_presentation_allowed": false,
+    "opaque_global_identifiers_allowed": false,
+    "invented_financial_wording_allowed": false,
+    "indistinguishable_choice_policy": "retain_distinct_keys_and_offer_unclassified",
+    "mapping_or_integrity_defect_policy": "fail_closed",
+    "presentation_order_may_change_choice_meaning": false
+  },
+  "evidence_preservation": {
+    "semantic_value_alias_mapping_bijective": true,
+    "type_alias_mapping_bijective": true,
+    "choice_alias_mapping_bijective": true,
+    "evidence_reference_to_structural_node_may_be_many_to_one": true,
+    "exact_role_source_reference_table_required": true,
+    "all_exact_bindings_preserved": true,
+    "all_source_values_accounted": true,
+    "all_lineage_and_retention_preserved": true,
+    "private_receipt_integrity_required": true
+  },
+  "compatibility_stop": {
+    "reason_catalog_runtime_active": false,
+    "zero_choice_ambiguous_cases_resolved": false,
+    "context_v2_implemented": false,
+    "frozen_benchmark_conformance_claimed": false,
+    "full_benchmark_run": false,
+    "expected_answers_changed": false,
+    "automatic_prompt_pack_or_reason_change_allowed": false,
+    "goal3_contract_must_preserve_stop": true
+  },
+  "documentation_corrections": {
+    "choice_linter_status_drift_corrected": true,
+    "row_role_example_key_corrected": true,
+    "section_alias_target_only_status_documented": true,
+    "evidence_mapping_bijection_qualification_documented": true,
+    "separate_key_and_readable_label_requirement_documented": true,
+    "type_card_projection_extension_requirement_documented": true
+  },
+  "scope_counters": {
+    "provider_calls": 0,
+    "provider_responses": 0,
+    "runtime_source_files_changed": 0,
+    "prompt_files_changed": 0,
+    "pack_files_changed": 0,
+    "choice_source_files_changed": 0,
+    "adapter_files_changed": 0,
+    "validator_or_materializer_files_changed": 0,
+    "stage_mutations": 0,
+    "production_mutations": 0,
+    "customer_inputs_read": 0,
+    "credentials_read": 0,
+    "historical_reports_modified": 0,
+    "historical_receipts_modified": 0,
+    "documentation_files_in_goal_package": 9
+  },
+  "verification": {
+    "frozen_alias_inventory": "passed",
+    "binding_role_inventory": "passed",
+    "exact_backend_mapping_review": "passed",
+    "focused_pytest": "24_passed_in_45_52_seconds",
+    "missing_local_documentation_links": 0,
+    "local_documentation_links_checked": 337,
+    "safe_receipt_json_parse": "passed",
+    "privacy_scan": "passed",
+    "git_diff_check": "passed"
+  },
+  "next_goal": {
+    "goal": "GOAL_3_SEMANTIC_CONTEXT_V2_CONTRACT",
+    "permitted_only_after": "approved_green_merge_of_goal2",
+    "implementation_or_activation_authorized": false
+  },
+  "integrity_sha256": "b69e6915c725b3de292af50bab5c6a7bf4826c259e0c3660ffd63447b1528eac"
+}
