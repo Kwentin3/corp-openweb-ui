@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context v1
 
-Status: `NORMATIVE_TARGET_NOT_IMPLEMENTED_NOT_ACTIVE`
+Status: `NORMATIVE_TARGET_GOAL1_VIEW_IMPLEMENTED_NOT_ACTIVE`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v1`
@@ -131,6 +131,7 @@ Permitted namespaces are:
 | table | `t1`, `t2`, ... |
 | row | `r1`, `r2`, ... |
 | text segment | `seg1`, `seg2`, ... |
+| evidence group fallback | `g1`, `g2`, ... |
 | source value | `v1`, `v2`, ... |
 | visible type card | `T1`, `T2`, ... |
 | selectable option | `A`, `B`, ... |
@@ -183,14 +184,16 @@ value.
 | `source.document` | root readable document container, never a document ref |
 | structural node `children[]` | evidence-derived nested section/table/row/segment nodes |
 | structural node `alias` | one permitted request-local structural alias |
-| structural node `kind` | readable `section`, `table`, `row`, or `text segment` |
+| structural node `kind` | readable `section`, `table`, `row`, `text segment`, or evidence-derived fallback `evidence group` |
 | structural node `label` | exact non-null visible label |
-| structural node `role` | exact non-null section or row role |
+| structural node `section_role` | exact non-null section role |
+| structural node `row_role` | exact non-null row role |
 | structural node `values[]` | authoritative value occurrences owned by that node |
 | value `alias` | request-local `vN` alias |
 | value `meaning` | exact non-null column meaning or visible label |
 | value `value` | exact authoritative semantic literal |
 | value `type` | compact technical value type |
+| value `label` | exact non-null visible label when distinct from `meaning` |
 | `type_cards[]` | cards only for types represented by visible choices |
 | type card `alias` | request-local `TN` alias |
 | type card `meaning` | exact Pack-owned short meaning |
@@ -261,16 +264,21 @@ authorities.
 
 ## Measurement contract
 
-Every implemented candidate records:
+The packet-owner candidate records:
 
 - exact minified model-visible UTF-8 bytes;
-- the repository request estimator name and result;
 - exact counts for semantic literals, structural nodes and choices;
 - duplicate authoritative occurrences;
 - null fields;
 - opaque IDs;
 - mapped, unmapped and orphan aliases;
 - candidate-view and receipt hashes.
+
+The request/linter authority records the repository estimator name and result
+only after the candidate view, Prompt and versioned Choice schema are assembled
+into one complete non-active request. The packet factory must not duplicate or
+call downstream Prompt, Choice or request-builder authorities merely to
+estimate them.
 
 When a GOAL explicitly permits provider calls, evidence additionally records:
 
@@ -438,13 +446,46 @@ Choice candidate in GOAL 2.
 | Stage | Contract relationship |
 | --- | --- |
 | GOAL 0 | defines this target; runtime remains unchanged |
-| GOAL 1 | implements an inactive Slim View and receipt inside the existing packet owner; the current Choice remains unchanged, so full conformance is not yet claimed |
+| GOAL 1 | implemented an inactive Slim View and receipt inside the existing packet owner; the active payload/hash and current Choice remain unchanged, so full conformance is not yet claimed |
 | GOAL 2 | separately versions local Choice aliases and proves canonical expansion parity; only then can the full local request reach zero opaque IDs |
 | GOAL 3 | enforces this contract with a pre-transport linter and totality proof |
 | GOAL 4+ | records actual provider tokens and semantic evidence only where calls are explicitly authorized |
 | GOAL 8 | may activate exactly one qualified conforming context under a separate decision |
 
 No earlier stage may claim the acceptance of a later one.
+
+## GOAL 1 implementation status
+
+`Gate2FinancialSemanticV6PacketFactory.create` now returns:
+
+1. the unchanged active V6 packet;
+2. `Gate2FinancialSemanticV6SlimViewCandidate` with `active=False`;
+3. `Gate2FinancialSemanticV6SlimAliasReceipt`, available only as private
+   code-owned evidence.
+
+The candidate uses local value, structural and type aliases. Exact source and
+type IDs, lineage, option bindings and deterministic-reference values remain
+in the receipt and existing authorities. Exact `return_id` is still visible
+because the active V6 Choice requires it; this is the one explicit transition
+exception and keeps full Context v1 conformance blocked until GOAL 2.
+
+Across the 10 frozen semantic cases:
+
+```text
+ACTIVE_PACKET_HASH_PARITY: 10_OF_10_EXACT
+ACTIVE_PACKET_UTF8_BYTES: 73970
+SLIM_VIEW_UTF8_BYTES: 18938
+PROJECTED_VIEW_BYTE_REDUCTION: 74.4_PERCENT
+CURRENT_REQUEST_ESTIMATOR_TOTAL: 22950
+SLIM_WITH_CURRENT_CHOICE_ESTIMATOR_TOTAL: 8163
+PROJECTED_ESTIMATOR_REDUCTION: 64.4_PERCENT
+SLIM_ACTIVE: FALSE
+PROVIDER_CALLS: ZERO
+```
+
+The estimator comparison is analysis-only: it keeps the exact current Prompt,
+model and Choice response format and replaces only the user-message view. It
+does not create a request route or authorize transport.
 
 ## Acceptance
 
@@ -465,4 +506,6 @@ CURRENT_RUNTIME_CHANGED: NO
 CURRENT_CHOICE_CHANGED: NO
 SECOND_PACKET_BUILDER: ZERO
 PROVIDER_CALLS: ZERO
+GOAL1_SLIM_CANDIDATE: IMPLEMENTED_NOT_ACTIVE
+ACTIVE_PACKET_HASH_PARITY: EXACT
 ```

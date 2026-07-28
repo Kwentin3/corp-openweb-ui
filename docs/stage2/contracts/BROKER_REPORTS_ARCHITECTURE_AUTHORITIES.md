@@ -136,6 +136,42 @@ PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 ```
 
+### GOAL 1 non-active Slim View implementation
+
+`Gate2FinancialSemanticV6PacketFactory.create` now constructs the inactive
+Slim View and private alias receipt alongside the unchanged active four-block
+packet. No second module, packet factory, Candidate Compiler, semantic
+projection or Choice schema was introduced.
+
+The maintained request builder, qualification and evidence paths continue to
+consume only `packet.payload`. Candidate renderers are local-proof surfaces;
+they do not create a provider route. Exact source/type identities, lineage,
+bindings and deterministic-reference values stay in the private receipt and
+existing authorities.
+
+Executable architecture and packet tests prove:
+
+- all 10 frozen active packet hashes and UTF-8 byte counts are exact;
+- each semantic value has one local alias and one rendered occurrence;
+- structure and non-null metadata are retained;
+- every displayed binding resolves through the receipt to its exact compiled
+  option binding;
+- candidate/receipt tampering fails closed;
+- the candidate is always inactive and provider-call accounting is zero;
+- no `gate2_financial_semantic_v6*slim*.py` module or Slim factory exists.
+
+```text
+SLIM_VIEW_OWNER: EXISTING_V6_PACKET_FACTORY
+ACTIVE_PACKET_HASH_PARITY: 10_OF_10_EXACT
+SLIM_VIEW_ACTIVE: FALSE
+PRIVATE_ALIAS_RECEIPT: INTEGRITY_BOUND
+CURRENT_REQUEST_ROUTE_CHANGED: NO
+CURRENT_CHOICE_CHANGED: NO
+SECOND_PACKET_BUILDER: ZERO
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
+
 ## OpenAI projection decision and local completion
 
 - `Gate2FinancialSemanticV6ChoiceContractFactory.create` owns the canonical

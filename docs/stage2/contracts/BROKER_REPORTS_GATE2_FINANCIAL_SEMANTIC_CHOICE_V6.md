@@ -67,7 +67,9 @@ Meeting that target requires a separate versioned, non-active Choice candidate
 that accepts only request-local option aliases and deterministically expands
 them to this canonical Choice.
 
-That future candidate is not defined, implemented or activated by the context
-contract or Slim View implementation. It must prove exact alias mapping,
-permutation behavior, canonical expansion/materialization parity and unchanged
-unclassified retention before any provider qualification.
+The GOAL 1 Slim View is implemented but remains non-active and continues to
+show exact `return_id` because this current Choice requires it. The local
+Choice candidate is still not defined, implemented or activated. GOAL 2 must
+prove exact alias mapping, permutation behavior, canonical
+expansion/materialization parity and unchanged unclassified retention before
+any provider qualification.

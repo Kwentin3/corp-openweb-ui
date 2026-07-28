@@ -337,6 +337,31 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             set(),
         )
 
+    def test_v6_slim_candidate_stays_inside_the_existing_packet_owner(self):
+        module_name = "gate2_financial_semantic_v6_packet"
+        tree = _tree(module_name)
+        class_names = {
+            node.name for node in tree.body if isinstance(node, ast.ClassDef)
+        }
+
+        self.assertIn(
+            "Gate2FinancialSemanticV6PacketFactory",
+            class_names,
+        )
+        self.assertEqual(
+            {
+                name
+                for name in class_names
+                if name.endswith("SlimViewFactory")
+                or name.endswith("SlimCandidateFactory")
+            },
+            set(),
+        )
+        self.assertEqual(
+            list(PACKAGE.glob("gate2_financial_semantic_v6*slim*.py")),
+            [],
+        )
+
     def test_model_choice_schema_contains_only_minimal_choice_fields(self):
         schema = _choice_schema(("opaque_typed_option",))
         variants = schema["anyOf"]
