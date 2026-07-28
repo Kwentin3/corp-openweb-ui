@@ -34,6 +34,7 @@ from .gate2_financial_semantic_v6_canonical import (
 from .gate2_financial_semantic_v6_choice import (
     Gate2FinancialSemanticV6ChoiceContract,
     Gate2FinancialSemanticV6ChoiceError,
+    normalize_financial_semantic_v6_local_choice,
     validate_financial_semantic_v6_choice_contract,
 )
 from .gate2_financial_semantic_v6_packet import (
@@ -143,6 +144,35 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
     ) -> Gate2FinancialSemanticV6ExpandedDecision:
         return self._expand(
             model_output=model_output,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+
+    def create_from_local_candidate(
+        self,
+        *,
+        model_output: str | dict[str, Any],
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6ExpandedDecision:
+        try:
+            canonical_choice = normalize_financial_semantic_v6_local_choice(
+                model_output=model_output,
+                choice_contract=choice_contract,
+                packet=packet,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6ExpansionError(
+                "financial_semantic_v6_local_choice_normalization_failed"
+            ) from exc
+        return self._expand(
+            model_output=canonical_choice,
             choice_contract=choice_contract,
             packet=packet,
             evidence_bundle=evidence_bundle,

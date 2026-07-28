@@ -1,25 +1,25 @@
 # Broker Reports Gate 2 Financial Semantic Slim View
 
-Status: `IMPLEMENTED_NOT_ACTIVE_GOAL1`
+Status: `IMPLEMENTED_NOT_ACTIVE_GOAL2`
 
 Date: 2026-07-28
 
 This document originated as the model-context research design and now records
-the GOAL 1 non-active implementation. It changes no runtime contract, Prompt,
-Semantic Pack, Candidate Compiler, Typed Option, canonical Choice, validator,
-materializer, Evidence Bundle, provider adapter or model output.
+the GOAL 1/2 non-active implementation. It changes no active runtime contract,
+Prompt, Semantic Pack, Candidate Compiler, Typed Option, canonical Choice,
+validator, materializer, Evidence Bundle or provider adapter.
 
 ## Contract relationship
 
-The later
+The
 [LLM Semantic Context v1](../contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 defines the closed final boundary for the complete model-visible request.
 
-The transition view is implemented inside the existing V6 packet owner and
-remains non-active. It keeps exact canonical option IDs because the current V6
-Choice requires them, so it does not claim full Context v1 conformance.
-Replacing those IDs with local response aliases is a separate versioned Choice
-boundary and must not be folded into the Slim View implementation.
+Slim View v2 is implemented inside the existing V6 packet owner and remains
+non-active. Canonical option IDs are absent from it. The separate versioned
+[Local Choice v1](../contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+uses request-local response aliases and normalizes them back to the unchanged
+current Choice.
 
 ## Purpose
 
@@ -30,21 +30,21 @@ complexity code-owned.
 The model still performs one operation:
 
 ```text
-select one existing exact option_id, or select unclassified
+select one visible local choice, or select unclassified
 ```
 
 ## Authority
 
 The only permitted construction owner remains
 `Gate2FinancialSemanticV6PacketFactory.create` in the current V6 packet
-module. The GOAL 1 implementation computes the non-active candidate and alias
-receipt inside that owner.
+module. The GOAL 1/2 implementation computes the non-active candidate and
+alias receipt inside that owner.
 
 Forbidden:
 
 - a second packet builder;
 - a second Candidate Compiler;
-- an alternative model-choice schema;
+- a second active/canonical model-choice schema or hidden schema rewrite;
 - provider-adapter semantic rewriting;
 - model-generated refs or bindings;
 - deletion of opaque IDs from the Evidence Bundle;
@@ -98,7 +98,6 @@ Forbidden:
   "choices": [
     {
       "alias": "A",
-      "return_id": "<exact canonical option_id>",
       "type": "T1",
       "bindings": [
         "<role_id>=<value or structural alias>"
@@ -112,9 +111,9 @@ Forbidden:
 }
 ```
 
-`alias` on a choice is display-only. The strict response schema continues to
-require the exact `return_id` as `typed_option_id`; aliases are never accepted
-as canonical Choice values.
+The non-active strict response schema accepts `alias` as local `choice`.
+Backend normalization resolves it through the private receipt before the
+unchanged canonical Choice and expansion authorities run.
 
 Hierarchy levels absent from exact Evidence Bundle lineage are omitted.
 Text-segment and evidence-group nodes use the same recursive structural shape.
@@ -204,7 +203,6 @@ This readable projection is synthetic and repository-safe:
   "choices": [
     {
       "alias": "A",
-      "return_id": "financial-typed-option:744e3c95321e39b5f068c13cb76c72ae",
       "type": "T2",
       "bindings": [
         "amount=v1",
@@ -217,7 +215,6 @@ This readable projection is synthetic and repository-safe:
     },
     {
       "alias": "B",
-      "return_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
       "type": "T1",
       "bindings": [
         "amount=v1",
@@ -234,9 +231,9 @@ This readable projection is synthetic and repository-safe:
 }
 ```
 
-This implemented candidate is 2,653 minified UTF-8 bytes versus 9,638 bytes for
-the current packet. With the unchanged Prompt and response format, the
-repository estimator is 1,047 versus 2,937 tokens.
+This implemented candidate is 2,513 minified UTF-8 bytes versus 9,638 bytes for
+the current packet. With the unchanged Prompt and Local Choice response
+format, the repository estimator is 921 versus 2,937 tokens.
 
 ## Private alias receipt
 
@@ -244,8 +241,8 @@ The alias receipt is never part of the model message:
 
 ```json
 {
-  "schema_version": "broker_reports_gate2_financial_semantic_slim_alias_receipt_v1",
-  "policy_version": "broker_reports_gate2_llm_semantic_context_transition_v1",
+  "schema_version": "broker_reports_gate2_financial_semantic_slim_alias_receipt_v2",
+  "policy_version": "broker_reports_gate2_llm_semantic_context_local_choice_v1",
   "context_contract_identity": "broker_reports_gate2_llm_semantic_context_v1",
   "active_packet_hash": "<exact current packet hash>",
   "slim_view_hash": "<hash of exact model-visible Slim View>",
@@ -300,14 +297,16 @@ The alias receipt is never part of the model message:
 The current synthetic example produces:
 
 - Slim View hash
-  `f4b285a4d9e6f474dd0c4eec25bd8bd86784984d9f4167ae5092e4f201e4ed1c`;
+  `ac9c598bcb5ed94b7af566c7b16e2f07ae22edf6025137fe6c2b7bf1e7541ce8`;
 - alias-receipt integrity
-  `ab0603213864a3395f96958017af0146e39a1abb325eae78d8216f1e9aaf156f`.
+  `997b90920c63c5d79272269f6d24cc5232f2d611855a951d6592b78fd03a9989`.
 
 ## Deterministic construction rules
 
 1. Build and validate the current full packet exactly as today.
-2. Assign aliases in canonical source/card/option order.
+2. Assign source/card aliases in canonical order. Assign choice aliases in
+   canonical option order unless code supplies one exact complete permutation;
+   then the visible records and private mapping move together.
 3. Group values only by existing Evidence Bundle association and lineage.
 4. Never infer a missing hierarchy level or semantic label.
 5. Omit a visible-context key only when the authoritative value is null.
@@ -316,7 +315,8 @@ The current synthetic example produces:
 8. Render deterministic-reference binding targets as the resolved structural
    alias; retain each exact ref in the Typed Option and role-specific receipt.
 9. Preserve exact Pack meanings, distinctions and ambiguity rules.
-10. Preserve each exact option ID and the current unclassified reasons.
+10. Keep each exact option ID only in the private alias receipt; preserve the
+    current unclassified reasons model-visible.
 11. Hash the candidate view and alias receipt.
 12. Fail closed on any non-bijective value/type/choice/structural mapping,
     missing role target, duplicate alias or tampered content.
@@ -337,8 +337,8 @@ code-only deterministic reference
 displayed type alias
   ↔ one exact Pack input_type_id
 
-displayed return_id
-  = one exact compiled typed_option_id
+displayed choice alias
+  ↔ one exact compiled typed_option_id in the private receipt
   → exact original role bindings
   → unchanged expansion/validation/materialization
 
@@ -361,7 +361,7 @@ unclassified reason
 - provider metadata;
 - exact replay artifacts.
 
-## GOAL 1 implementation evidence
+## GOAL 1/2 implementation evidence
 
 The non-active implementation proves:
 
@@ -370,37 +370,43 @@ The non-active implementation proves:
   bijective;
 - every semantic literal and available non-null metadata is preserved once;
 - every displayed binding resolves to the exact compiled option binding;
+- all 10 active Choice schema hashes remain exact;
+- exact messages plus Local Choice response schema contain zero opaque IDs;
+- local typed/unclassified answers have exact canonical
+  expansion/materialization parity and unchanged unclassified retention;
 - candidate and receipt tampering fail closed;
 - repository-safe rendering contains counts and hashes only;
 - active request construction still consumes only `packet.payload`;
 - provider calls and stage mutations are zero;
-- no second builder, Slim module or alternative Choice schema exists.
+- one separate versioned Local Choice candidate exists inside the current
+  Choice factory; it is non-active and introduces no second factory.
 
-| Case | Current bytes | Implemented Slim bytes | Current estimator | Slim estimator |
+| Case | Current bytes | Implemented Slim bytes | Current estimator | Local estimator |
 | --- | ---: | ---: | ---: | ---: |
-| `syn_successor_v2_unique_cash` | 9,638 | 2,653 | 2,937 | 1,047 |
-| `syn_successor_v2_unique_printed_total` | 9,905 | 2,651 | 3,004 | 1,047 |
-| `syn_successor_v2_multiple_compatible` | 4,246 | 816 | 1,393 | 488 |
-| `syn_successor_v2_no_registry_type` | 9,770 | 2,648 | 2,970 | 1,046 |
-| `syn_successor_v2_missing_discriminator` | 9,145 | 2,549 | 2,797 | 1,017 |
-| `syn_successor_v2_detail_vs_subtotal` | 3,822 | 751 | 1,278 | 468 |
-| `syn_successor_v2_adjacent_equal` | 3,724 | 747 | 1,253 | 467 |
-| `syn_successor_v2_adjacent_fx` | 4,066 | 820 | 1,348 | 489 |
-| `syn_successor_v2_optional_missing` | 9,779 | 2,651 | 2,973 | 1,047 |
-| `syn_successor_v2_forbidden_neighbour` | 9,875 | 2,652 | 2,997 | 1,047 |
-| **Total** | **73,970** | **18,938** | **22,950** | **8,163** |
+| `syn_successor_v2_unique_cash` | 9,638 | 2,513 | 2,937 | 921 |
+| `syn_successor_v2_unique_printed_total` | 9,905 | 2,511 | 3,004 | 921 |
+| `syn_successor_v2_multiple_compatible` | 4,246 | 816 | 1,393 | 448 |
+| `syn_successor_v2_no_registry_type` | 9,770 | 2,508 | 2,970 | 920 |
+| `syn_successor_v2_missing_discriminator` | 9,145 | 2,409 | 2,797 | 891 |
+| `syn_successor_v2_detail_vs_subtotal` | 3,822 | 751 | 1,278 | 428 |
+| `syn_successor_v2_adjacent_equal` | 3,724 | 747 | 1,253 | 427 |
+| `syn_successor_v2_adjacent_fx` | 4,066 | 820 | 1,348 | 449 |
+| `syn_successor_v2_optional_missing` | 9,779 | 2,511 | 2,973 | 921 |
+| `syn_successor_v2_forbidden_neighbour` | 9,875 | 2,512 | 2,997 | 921 |
+| **Total** | **73,970** | **18,098** | **22,950** | **7,247** |
 
-The view-byte reduction is 74.4%. The analysis-only repository-estimator
-reduction is 64.4%; Prompt, model and current Choice are exact-equal, and only
-the user-message view changes.
+The complete messages-plus-response-schema projection is 89,220 current bytes
+versus 26,404 candidate bytes, a 70.4% reduction. The analysis-only
+repository-estimator reduction is 68.4%; Prompt and model are exact-equal,
+while the non-active user view and response schema change together.
 
 Validation receipt:
 
-- focused packet, architecture, qualification and evidence tests:
-  `59 passed in 62.02s`;
-- full service suite: `1853 passed, 20 skipped, 5 warnings in 416.77s`;
+- final focused packet and Local Choice tests:
+  `17 passed in 25.46s`;
+- full service suite: `1858 passed, 20 skipped, 5 warnings in 438.84s`;
 - focused Ruff validation: passed;
-- 10 JSON examples parsed, 61 relative documentation links resolved and
+- 13 JSON examples parsed, 67 relative documentation links resolved and
   repository-safe privacy scan returned zero findings;
 - `git diff --check`: passed.
 
@@ -408,9 +414,8 @@ Semantic sufficiency cannot be proven by unit tests. A later separately
 authorized provider qualification must pass two-case smoke before the full
 benchmark, and runtime activation remains a separate decision.
 
-The immediate next GOAL is not provider qualification. GOAL 2 must first
-create and prove the separate non-active local-alias Choice candidate so the
-complete model-visible request can remove exact `return_id`.
+The immediate next GOAL is not provider qualification. GOAL 3 must first make
+the Context Linter and local totality proof a pre-transport invariant.
 
 ## Research evidence
 

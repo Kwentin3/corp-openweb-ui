@@ -47,15 +47,18 @@ separate bootstrap report.
   [LLM Semantic Context](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
   Context candidates remain inside the existing V6 packet owner. Global refs,
   hashes, provenance and storage IDs stay code-only.
-- The GOAL 1 Slim View and alias receipt are non-active local-proof outputs.
-  Runtime/request code continues to consume only the current `packet.payload`
-  until a separately qualified activation GOAL changes that authority.
+- The GOAL 1/2 Slim View, alias receipt and
+  [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+  are non-active local-proof outputs. Runtime/request code continues to consume
+  only the current `packet.payload` and exact-ID Choice until a separately
+  qualified activation GOAL changes that authority.
 - The model selects only the allowed
   [semantic choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md).
   It never owns source refs, provenance, retention, records or bindings.
-- The active V6 Choice still requires exact option IDs. A local-alias Choice
-  candidate is a separate versioned contract change; never hide it inside a
-  packet refactor or provider adapter.
+- The active V6 Choice still requires exact option IDs. Its versioned
+  local-alias candidate normalizes through the existing Choice/expansion
+  authorities and must never be activated through a packet refactor or
+  provider-adapter semantic rewrite.
 - Technical preparation seals the
   [Evidence Bundle](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md);
   the [Candidate Compiler](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_CANDIDATE_COMPILER.v1.md)

@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context v1
 
-Status: `NORMATIVE_TARGET_GOAL1_VIEW_IMPLEMENTED_NOT_ACTIVE`
+Status: `NORMATIVE_TARGET_GOAL2_LOCAL_REQUEST_IMPLEMENTED_NOT_ACTIVE`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v1`
@@ -438,8 +438,9 @@ through `v1`.
 ```
 
 Forbidden by the target contract because the model sees a canonical opaque
-option ID. Replacing this current V6 behavior requires the separate versioned
-Choice candidate in GOAL 2.
+option ID. The GOAL 2 Local Choice candidate removes this ID from the
+non-active request; the current active V6 route still uses its historical
+exact-ID Choice.
 
 ## Relationship to the staged program
 
@@ -447,45 +448,57 @@ Choice candidate in GOAL 2.
 | --- | --- |
 | GOAL 0 | defines this target; runtime remains unchanged |
 | GOAL 1 | implemented an inactive Slim View and receipt inside the existing packet owner; the active payload/hash and current Choice remain unchanged, so full conformance is not yet claimed |
-| GOAL 2 | separately versions local Choice aliases and proves canonical expansion parity; only then can the full local request reach zero opaque IDs |
+| GOAL 2 | implemented the separate non-active Local Choice, removed `return_id` from Slim v2 and proved zero opaque IDs plus canonical expansion/materialization parity |
 | GOAL 3 | enforces this contract with a pre-transport linter and totality proof |
 | GOAL 4+ | records actual provider tokens and semantic evidence only where calls are explicitly authorized |
 | GOAL 8 | may activate exactly one qualified conforming context under a separate decision |
 
 No earlier stage may claim the acceptance of a later one.
 
-## GOAL 1 implementation status
+## GOAL 1/2 implementation status
 
 `Gate2FinancialSemanticV6PacketFactory.create` now returns:
 
 1. the unchanged active V6 packet;
-2. `Gate2FinancialSemanticV6SlimViewCandidate` with `active=False`;
+2. Slim View v2 with `active=False`;
 3. `Gate2FinancialSemanticV6SlimAliasReceipt`, available only as private
    code-owned evidence.
 
-The candidate uses local value, structural and type aliases. Exact source and
-type IDs, lineage, option bindings and deterministic-reference values remain
-in the receipt and existing authorities. Exact `return_id` is still visible
-because the active V6 Choice requires it; this is the one explicit transition
-exception and keeps full Context v1 conformance blocked until GOAL 2.
+`Gate2FinancialSemanticV6ChoiceContractFactory.create` also returns the
+separate versioned
+[Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+candidate with `active=False`.
+
+The complete local projection uses only value, structural, type and choice
+aliases. Exact source/type/option IDs, lineage, bindings and
+deterministic-reference values remain in the receipt and existing authorities.
+Across the frozen suite, opaque IDs in exact messages plus response schema are
+zero. Full runtime conformance remains blocked until GOAL 3 makes the Context
+Linter a pre-transport invariant.
 
 Across the 10 frozen semantic cases:
 
 ```text
 ACTIVE_PACKET_HASH_PARITY: 10_OF_10_EXACT
+ACTIVE_CHOICE_SCHEMA_HASH_PARITY: 10_OF_10_EXACT
 ACTIVE_PACKET_UTF8_BYTES: 73970
-SLIM_VIEW_UTF8_BYTES: 18938
-PROJECTED_VIEW_BYTE_REDUCTION: 74.4_PERCENT
+SLIM_VIEW_UTF8_BYTES: 18098
+CURRENT_COMPLETE_MODEL_VIEW_UTF8_BYTES: 89220
+LOCAL_COMPLETE_MODEL_VIEW_UTF8_BYTES: 26404
+PROJECTED_COMPLETE_VIEW_BYTE_REDUCTION: 70.4_PERCENT
 CURRENT_REQUEST_ESTIMATOR_TOTAL: 22950
-SLIM_WITH_CURRENT_CHOICE_ESTIMATOR_TOTAL: 8163
-PROJECTED_ESTIMATOR_REDUCTION: 64.4_PERCENT
+SLIM_WITH_LOCAL_CHOICE_ESTIMATOR_TOTAL: 7247
+PROJECTED_ESTIMATOR_REDUCTION: 68.4_PERCENT
+FULL_MODEL_VISIBLE_OPAQUE_IDS: ZERO
+CANONICAL_EXPANSION_MATERIALIZATION_PARITY: EXACT
 SLIM_ACTIVE: FALSE
+LOCAL_CHOICE_ACTIVE: FALSE
 PROVIDER_CALLS: ZERO
 ```
 
-The estimator comparison is analysis-only: it keeps the exact current Prompt,
-model and Choice response format and replaces only the user-message view. It
-does not create a request route or authorize transport.
+The comparison is analysis-only: it keeps the exact current Prompt and model,
+then replaces the user-message view and response schema together. It does not
+create a request route or authorize transport.
 
 ## Acceptance
 
@@ -507,5 +520,8 @@ CURRENT_CHOICE_CHANGED: NO
 SECOND_PACKET_BUILDER: ZERO
 PROVIDER_CALLS: ZERO
 GOAL1_SLIM_CANDIDATE: IMPLEMENTED_NOT_ACTIVE
+GOAL2_LOCAL_CHOICE_CANDIDATE: IMPLEMENTED_NOT_ACTIVE
+LOCAL_FULL_REQUEST_OPAQUE_IDS: ZERO
 ACTIVE_PACKET_HASH_PARITY: EXACT
+ACTIVE_CHOICE_SCHEMA_HASH_PARITY: EXACT
 ```

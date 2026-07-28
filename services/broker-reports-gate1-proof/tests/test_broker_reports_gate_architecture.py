@@ -28,8 +28,10 @@ from broker_reports_gate1.gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistryFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_choice import (
+    LOCAL_CHOICE_OUTPUT_FIELDS,
     SEMANTIC_CHOICE_OUTPUT_FIELDS,
     _choice_schema,
+    _local_choice_schema,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
     COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
@@ -390,6 +392,49 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 }
             )
         )
+
+    def test_v6_local_choice_is_non_active_and_has_no_second_factory(self):
+        tree = _tree("gate2_financial_semantic_v6_choice")
+        class_names = {
+            node.name for node in tree.body if isinstance(node, ast.ClassDef)
+        }
+        local_schema = _local_choice_schema(("A", "B"))
+        local_fields = {
+            field
+            for variant in local_schema["anyOf"]
+            for field in variant["properties"]
+        }
+
+        self.assertIn(
+            "Gate2FinancialSemanticV6ChoiceContractFactory",
+            class_names,
+        )
+        self.assertEqual(
+            {
+                name
+                for name in class_names
+                if name.endswith("LocalChoiceFactory")
+                or name.endswith("LocalChoiceCandidateFactory")
+            },
+            set(),
+        )
+        self.assertEqual(local_fields, set(LOCAL_CHOICE_OUTPUT_FIELDS))
+        self.assertNotIn("typed_option_id", str(local_schema))
+        self.assertEqual(
+            list(PACKAGE.glob("gate2_financial_semantic_v6*local_choice*.py")),
+            [],
+        )
+        for module_name in (
+            "gate2_financial_semantic_v6_evidence",
+            "gate2_financial_semantic_v6_qualification_run",
+            "gate2_model_requests",
+        ):
+            source = _source(module_name)
+            self.assertNotIn("create_from_local_candidate", source)
+            self.assertNotIn(
+                "normalize_financial_semantic_v6_local_choice",
+                source,
+            )
 
     def test_generated_bundle_modules_match_maintained_source(self):
         mismatches = []

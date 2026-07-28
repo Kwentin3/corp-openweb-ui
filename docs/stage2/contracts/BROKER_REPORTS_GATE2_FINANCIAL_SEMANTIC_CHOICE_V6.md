@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Choice V6
 
-Status: Goal 5 contract for Candidate Records By Construction.
+Status: `ACTIVE_V6_UNCHANGED_LOCAL_CANDIDATE_NON_ACTIVE`
 
 ## Boundary
 
@@ -60,16 +60,19 @@ validation and canonical materialization remain downstream boundaries.
 The current V6 Choice remains the sole active provider-neutral response
 contract and continues to require the exact opaque `typed_option_id`.
 
+The separate versioned
+[Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+candidate is now implemented but non-active. It accepts only request-local
+aliases and deterministically normalizes them to this exact current Choice
+before the existing expansion authority runs.
+
+The GOAL 2 proof pins all 10 current Choice schema hashes, exact permutation
+mapping, canonical expansion/materialization parity and unchanged
+unclassified retention. Neither the current provider schema nor its request
+route changed. Provider calls remain zero.
+
 The
 [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
-defines a future full-request target with zero opaque model-visible IDs.
-Meeting that target requires a separate versioned, non-active Choice candidate
-that accepts only request-local option aliases and deterministically expands
-them to this canonical Choice.
-
-The GOAL 1 Slim View is implemented but remains non-active and continues to
-show exact `return_id` because this current Choice requires it. The local
-Choice candidate is still not defined, implemented or activated. GOAL 2 must
-prove exact alias mapping, permutation behavior, canonical
-expansion/materialization parity and unchanged unclassified retention before
-any provider qualification.
+defines the complete model-visible boundary. The local candidate satisfies its
+zero-opaque-ID Choice shape locally; GOAL 3 must add the pre-transport Context
+Linter before any provider diagnostic.
