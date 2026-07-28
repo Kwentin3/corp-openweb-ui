@@ -28,7 +28,7 @@ the catalog prose and therefore cannot drift into a second meaning authority.
 | human-readable title, meaning, usage, counter-usage, example and contrast | this versioned catalog JSON |
 | catalog structure, code-set parity, integrity and distinction checks | `Gate2FinancialDecisionReasonCatalogContractFactory` |
 | financial type and role meaning | Financial Semantic Pack |
-| model-visible projection | future versioned Context V2 inside the existing packet owner |
+| model-visible projection | non-active [Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) inside the existing packet owner; implementation pending |
 
 The catalog does not own dispositions, type IDs, type definitions, roles,
 Typed Options, aliases, bindings, provider behavior, validation,
@@ -134,14 +134,19 @@ already exist.
 ## 8. Compatibility stop
 
 This catalog is not yet model-visible and does not claim frozen V6 benchmark
-conformance. Some frozen V6 expected answers use
-`ambiguous_registry_type` while the current packet exposes zero type cards;
-some historical cases describe association ambiguity rather than two
-distinct plausible type meanings.
+conformance. The later
+[Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+requires one readable card for every active Pack/Registry type compatible
+with the Evidence Bundle source family, including types for which no Typed
+Option exists. Candidate Compiler attempted types are a private parity check,
+not the source of the visible type set and not evidence of semantic
+plausibility. That closes the documented shape gap by design, but the
+projection is not implemented or proven.
 
-That mismatch requires a later explicit context/expected-answer compatibility
-audit. GOAL 1 does not change the Pack, Prompt, Packet, Choice, expected
-answers, provider adapters or runtime to hide it.
+Count `1` remains outside both catalog boundaries, and some historical cases
+may still describe association ambiguity rather than two distinct plausible
+type meanings. The Pack, Prompt, active Packet/Choice, expected answers,
+provider adapters and runtime remain unchanged.
 
 ## 9. Acceptance
 
@@ -155,4 +160,5 @@ ROLLBACK_POLICY: DEFINED_NOT_LIVE_PROVEN
 TYPE_MEANINGS_CHANGED: NO
 PROVIDER_CALLS: ZERO
 BENCHMARK_CONFORMANCE: NOT_CLAIMED
+CONTEXT_V2_PROJECTION: CONTRACTED_NOT_IMPLEMENTED
 ```

@@ -50,6 +50,29 @@ accepts only the exact private field set, verifies `private_evidence_hash`,
 and reinstates canonical contract order after ordinary JSON writers sort
 object keys. It does not change values or weaken replay validation.
 
+## Future Context V2 evidence requirement
+
+The non-active
+[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+extends the future private-evidence obligation; it does not claim that the
+extension exists.
+
+A later implementation must preserve the exact system message, Context V2
+JSON, complete provider-neutral response format, adapter-extracted local
+answer, packet-owned private mapping receipt and linter-owned private
+sealed-request receipt before normalization. The evidence record owns the
+answer and output hashes; using that answer plus both verified receipts, replay
+must restore the unchanged canonical V6 Choice, Expansion, validation,
+materialization and report projection without provider access or semantic
+repair.
+
+The current evidence/restorer/replay path is bound to the active exact-ID
+request and historical candidate. Context V2 persistence, restore and replay
+are `NOT_IMPLEMENTED_NOT_RUN`, not inferred from current replay success.
+Private source values, refs, mappings and exact actual-corpus requests remain
+outside Git; future safe receipts contain only statuses, aggregates and
+hashes.
+
 ## Goal 2 provider-smoke evidence
 
 The two-case provider smoke checkpoints every returned response immediately.
@@ -134,7 +157,7 @@ The 2026-07-28 GOAL 4 execution uses a dedicated repository-safe synthetic
 receipt because all six model inputs are projections of the two frozen
 non-customer cases. The receipt checkpoints after every call and contains:
 
-- the sealed exact messages plus strict response schema;
+- the sealed exact messages plus complete strict response format;
 - exact adapter-extracted semantic output;
 - deterministic Local Choice normalization;
 - field-level expected diff;

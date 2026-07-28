@@ -90,9 +90,19 @@ bounded GOAL 4 diagnostic is terminal; neither changed the active Choice.
 The later Managed Semantic Decision Context
 [alias necessity audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
 requires a separately versioned Context V2 candidate to pair each unique local
-choice key with a readable Pack/evidence-owned label. Positional `A/B` may not
-remain the sole presentation, but the readable label must not replace unique
-response identity or turn semantic ambiguity into a technical failure. The
-future key must still normalize to this exact current Choice before canonical
-expansion. This active contract, its exact-ID response and its runtime route
-remain unchanged.
+choice key with the mapped type's exact Pack title as a separate label;
+evidence differences stay in structured relationships. Positional `A/B` may
+not remain the sole presentation, but the label must not replace unique
+response identity or turn semantic ambiguity into a technical failure.
+Cross-type ambiguity can use `unclassified`; same-type indistinguishability
+hits the count-one compatibility stop. The future key must still normalize to
+this exact current Choice before canonical expansion. This active contract,
+its exact-ID response and its runtime route remain unchanged.
+
+The exact successor shape is now fixed by
+[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md):
+`choice_N` is a request-local response key, its adjacent label is presentation
+only, and the strict unclassified branch uses only codes with complete
+catalog-owned visible reason cards. The existing Choice factory remains the
+future local-schema owner and must normalize without semantic repair. This is
+a contract requirement, not an implemented or active Choice profile.

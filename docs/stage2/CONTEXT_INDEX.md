@@ -17,6 +17,7 @@ Current canonical route:
 - [Managed OpenWebUI Financial Domain asset family v2](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md)
 - [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+- [Gate 2 LLM Semantic Context V2 candidate](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 - [Financial Semantic Packet V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Local Choice v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
@@ -26,6 +27,7 @@ Historical evidence only:
 - [Managed semantic asset authority audit, GOAL 0](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL0_ASSET_AUTHORITY_AUDIT.report.md)
 - [Managed decision reason catalog evidence, GOAL 1](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL1_DECISION_REASON_CATALOG.report.md)
 - [Alias necessity and readability audit, GOAL 2](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+- [Semantic Context V2 contract evidence, GOAL 3](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL3_CONTEXT_V2_CONTRACT.report.md)
 - [Исследование состава и дублирования Gate 2 LLM-контекста, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
 - [Рефакторинг контекста и повтор одного реального PDF, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
 
@@ -596,6 +598,7 @@ Read first:
 - [Managed OpenWebUI Financial Domain asset family v2](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md)
 - [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+- [Gate 2 LLM Semantic Context V2 candidate](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)

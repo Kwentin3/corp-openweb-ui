@@ -152,12 +152,37 @@ Pack-owned type titles. The current type-card projection drops the Pack title;
 Context V2 must version/extend that existing projection authority rather than
 bypass it from packet code.
 
-The Choice authority must keep a unique local response key and add a separate
-readable Pack/evidence-owned label; `A/B` may not remain the sole
-presentation. Semantic label collisions permit `unclassified` and are not
-technical mapping failures. Exact refs, the complete 59-binding table,
+The Choice authority must keep a unique local response key and add the mapped
+type's exact Pack title as a separate label; evidence differences stay in
+readable relationships, and `A/B` may not remain the sole presentation. A
+label collision is not a technical mapping failure: cross-type ambiguity can
+use `unclassified`, while same-type indistinguishability hits the explicit
+count-one compatibility stop. Exact refs, the complete 59-binding table,
 canonical IDs, provenance and retention stay outside the future Context V2
 model surface; historical active V6 exposure remains unchanged.
 
 The audit does not mutate Slim v2, activate it, change the current four-block
 packet or authorize a second packet builder.
+
+## Relationship to LLM Semantic Context V2
+
+The versioned
+[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+now defines the exact future successor boundary. It remains contract-only and
+does not replace this packet or the implemented historical Slim View.
+
+The same packet factory must eventually derive its available type set from the
+validated semantic-contract authority: every active Pack/Registry type
+compatible with the Evidence Bundle source family. The type IDs present in
+`typed_options` and `blocked_bindings` are only a private Compiler parity
+check; blocked status is not semantic plausibility. The factory must use a
+versioned extension of the existing Pack projection for titles and complete
+decision-relevant type meaning, and a validated closed-world snapshot of the
+existing managed reason catalog for reason meaning. It may not read asset
+files or import build scripts at runtime.
+
+The V2 contract also fixes the target key/label split, factored readable
+relationships, strict local response, packet-owned mapping receipt and
+linter-owned sealed-request receipt. No V2
+renderer, response profile, linter extension or route is implemented by this
+documentation change. Active packet bytes and hashes remain unchanged.

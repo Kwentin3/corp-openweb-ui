@@ -42,17 +42,18 @@ separate bootstrap report.
   path.
 - Financial type, role, ambiguity and lifecycle meaning stays in the
   [Financial Semantic Pack](../../docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md).
-- The closed target for every field exposed to the financial semantic model is
-  the versioned
-  [LLM Semantic Context](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
-  Context candidates remain inside the existing V6 packet owner. Global refs,
-  hashes, provenance and storage IDs stay code-only.
-- The GOAL 1/2 Slim View, alias receipt and
+- The implemented historical candidate boundary remains
+  [LLM Semantic Context v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
+  The closed successor target is the non-active, not-yet-implemented
+  [LLM Semantic Context V2](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
+  Both context candidates remain inside the existing V6 packet owner. Global
+  refs, hashes, provenance and storage IDs stay code-only.
+- The historical Slim View v2, alias receipt and
   [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
-  remain non-active outputs. GOAL 3 adds one qualification-only linted request
-  profile, but runtime and the current qualification runner continue to
-  consume only `packet.payload` and exact-ID Choice until a separately
-  qualified activation GOAL changes that authority.
+  remain non-active outputs. The new Context V2 is contract-only: no renderer,
+  local Choice profile or linter exists yet. Runtime and the current
+  qualification runner continue to consume only `packet.payload` and exact-ID
+  Choice until a separately qualified activation GOAL changes that authority.
 - Any Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.
