@@ -116,7 +116,7 @@ Concern ownership is fixed as follows:
 | decision reason semantics | the closed code set remains in Choice/decision contracts; human meanings live in one versioned catalog dependency inside the same managed asset family, not a second registry or Pack |
 | model-visible presentation | the managed Skill/Prompt plus the existing V6 packet owner's versioned context projection |
 | exact refs, provenance, aliases, bindings, retention and materialization | existing backend authorities; never managed semantic content |
-| asset-version lifecycle | the asset-family manifest and release receipt select one immutable version; old versions remain historical inputs |
+| future asset-version lifecycle and active pointer | a planned extension of the selected asset-family version manifest and release receipt will select one immutable active version; no family active pointer exists today |
 
 The repository and pinned OpenWebUI `v0.9.6` provide only a partial lifecycle
 today:
@@ -138,13 +138,17 @@ today:
 
 Primary upstream evidence for the pinned distribution:
 
-- [Prompt version/history/production fields](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L20-L85)
-  and [history-backed update/restore](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L434-L559);
-- [Prompt history, version-selection and active endpoints](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L325-L518);
-- [Skill fields and update/toggle behavior](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L17-L46)
-  and [Skill API update/toggle endpoints](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L228-L374);
-- [Tool fields without version or activation state](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L17-L45)
-  and [Tool overwrite update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L266-L278).
+- [Prompt version/history/production fields](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L23-L93),
+  [history-backed update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L481-L554)
+  and [selected-version restoration](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L585-L622);
+- Prompt [version-selection](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L360-L397),
+  [active-toggle](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L454-L492)
+  and [history-read endpoints](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L533-L616);
+- [Skill fields](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L20-L52),
+  [Skill API update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L253-L320)
+  and [toggle endpoint](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L376-L410);
+- [Tool fields without version or activation state](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L20-L52)
+  and [Tool overwrite update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L291-L304).
 
 Therefore isolated draft storage and a complete family-level
 `draft → validated → active → retired → rollback` publisher are explicit

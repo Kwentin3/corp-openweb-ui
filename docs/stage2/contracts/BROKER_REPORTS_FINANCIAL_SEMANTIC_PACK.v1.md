@@ -23,19 +23,6 @@ Type definitions, roles, examples, counterexamples, synonyms, semantic
 distinctions, ambiguity guidance, and lifecycle metadata are data in the Pack,
 not type-specific Python behavior.
 
-This authority is deliberately type-scoped. The closed Choice/decision
-contracts own decision-reason codes and response shape. Human-readable
-cross-decision reason meanings belong in one separately versioned catalog
-dependency of the existing OpenWebUI Financial Domain asset family. That
-catalog may contrast reasons such as "no available type applies" versus
-"multiple available types remain plausible"; it must not copy or redefine a
-financial type.
-
-Per-type `experimental` / `active` / `deprecated` / `retired` state in this
-Pack is not the publication state of the Pack or managed asset family. Complete
-asset-version `draft` / validation / active selection / retirement / rollback
-is an explicit release-layer gap while this Pack remains not live-activated.
-
 The current live/runtime Registry remains a migration source until later
 GOALs. It is not silently replaced or reported as live by GOAL 2:
 

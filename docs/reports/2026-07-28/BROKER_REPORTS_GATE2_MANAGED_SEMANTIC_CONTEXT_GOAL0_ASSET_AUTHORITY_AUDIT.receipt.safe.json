@@ -43,18 +43,16 @@
     "production_mutations": 0,
     "customer_inputs_read": 0,
     "credentials_read": 0,
-    "documentation_files_in_goal_package": 10
+    "documentation_files_in_goal_package": 9
   },
   "verification": {
     "managed_asset_builder": "passed",
     "managed_asset_manifest_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315",
     "generated_tool_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
     "focused_pytest_passed": 62,
-    "focused_pytest_duration_seconds": 14.08,
     "full_service_pytest_passed": 1873,
     "full_service_pytest_skipped": 20,
     "full_service_pytest_warnings": 5,
-    "full_service_pytest_duration_seconds": 519.52,
     "missing_local_documentation_links": 0,
     "git_diff_check": "passed"
   },
@@ -62,5 +60,5 @@
     "goal": "GOAL_1_MANAGED_DECISION_REASON_CATALOG",
     "permitted_only_after": "approved_green_merge_of_goal0"
   },
-  "integrity_sha256": "f90b3a4cb1c1844fbf1d8f0a41006318b413107fb0900702eaf2dec798cb52ec"
+  "integrity_sha256": "a7c48c6ef392ffc8a4c14c907acc18c9063d700911fa34498474104bafe3a71b"
 }

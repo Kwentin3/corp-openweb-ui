@@ -32,9 +32,10 @@ The audit also proved that the existing family is not yet a complete managed
 publication lifecycle. Repository storage/versioning and native Workspace
 surfaces exist. Native Prompt history/restore exists, but non-production
 Prompt updates still overwrite current row content and are not isolated safe
-drafts. The repository atomic release proves exact Prompt/Function readback
-and rollback. However safe draft storage and Skill, Tool, Pack and catalog
-publication/retirement/rollback are not implemented as one family.
+drafts. The repository atomic release proves exact readback and rollback for
+all Function and Prompt fields that it mutates. However safe draft storage and
+Skill, Tool, Pack and catalog publication/retirement/rollback are not
+implemented as one family.
 
 The truthful result is therefore:
 
@@ -119,21 +120,25 @@ The manifest pins OpenWebUI `v0.9.6`. Primary upstream source proves:
 
 - Prompt has `is_active`, a production history `version_id`, commit messages
   and an `is_production` update flag:
-  [Prompt model/form](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L20-L85);
+  [Prompt model/form](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L23-L93);
 - Prompt updates create history and a selected history entry can restore
   content, but update always writes current row content; `is_production` only
   controls whether `version_id` moves:
-  [Prompt update/restore](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L434-L559);
+  [Prompt update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L481-L554)
+  and [selected-version restoration](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L585-L622);
 - Prompt exposes history, version-selection and active-toggle endpoints:
-  [Prompt router](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L325-L518);
+  [version-selection](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L360-L397),
+  [active-toggle](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L454-L492)
+  and [history reads](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L533-L616);
 - Skill supports managed update and active toggling, but its model has no
   version/history identity:
-  [Skill model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L17-L46) and
-  [Skill router](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L228-L374);
+  [Skill model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L20-L52),
+  [Skill update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L253-L320)
+  and [Skill toggle](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L376-L410);
 - Tool supports managed create/update, but its model has neither version
   history nor an active-version selector:
-  [Tool model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L17-L45) and
-  [Tool update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L266-L278).
+  [Tool model](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L20-L52) and
+  [Tool update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L291-L304).
 
 Therefore the existing GUI/API is a selected authoring and inspection surface,
 not a safe draft store or publisher by itself. Direct GUI edits overwrite
@@ -146,7 +151,8 @@ The current atomic stage release already provides a valuable control plane:
 
 - exact Prompt identity, version, content, metadata and hash in its manifest;
 - validation before mutation;
-- private snapshots of previous Function/Prompt rows and loader bytes;
+- private snapshots of all release-mutated Function and Prompt fields plus
+  loader bytes;
 - stopped-runtime guarded replacement;
 - one SQLite transaction for Function and Prompt rows;
 - exact candidate readback;
@@ -177,7 +183,7 @@ state this family gap explicitly.
 | exact refs, provenance and evidence bindings | Evidence Bundle and existing backend authorities | managed semantic assets and model |
 | local aliases and exact reverse mapping | existing packet/Choice candidate and private receipt authorities | provider adapter |
 | retention, validation and materialization | existing backend validators/materializer | model, catalog and GUI |
-| asset-version lifecycle and active pointer | existing family manifest plus release receipt/control plane | direct GUI mutation and runtime Python constants |
+| future asset-version lifecycle and active pointer | planned extension of the selected family version manifest plus release receipt/control plane; absent today | direct GUI mutation and runtime Python constants |
 
 This split keeps semantic content data-driven without allowing the model or GUI
 to own exact backend records.
@@ -221,7 +227,7 @@ does not implement the transitions.
 | native Prompt history/restore | partial | present, but non-production update still overwrites current row content; no isolated safe draft |
 | native Skill active toggle | present | no Skill history/restore |
 | native Tool managed update | present | no Tool version/active selector |
-| Prompt atomic snapshot/readback/rollback | present | current release requires pre-existing rows |
+| Prompt atomic snapshot/readback/rollback | present | covers all release-mutated Prompt fields and requires pre-existing rows |
 | full Skill/Prompt/Tool/Pack/catalog publication | missing | no family release manifest entries |
 | family retirement and rollback | missing | no active family pointer or exact family restore |
 | live managed financial family | absent | manifest and Pack remain non-active |
@@ -289,7 +295,6 @@ This PR updates:
 
 - global Gate architecture component map;
 - Broker Reports architecture authority map;
-- Financial Semantic Pack boundary;
 - OpenWebUI Financial Domain asset-family contract;
 - LLM Semantic Context ownership;
 - V6 Choice reason-meaning boundary;
@@ -304,7 +309,7 @@ Repository-safe machine receipt:
 
 Canonical receipt integrity SHA-256 after omitting only top-level
 `integrity_sha256`:
-`f90b3a4cb1c1844fbf1d8f0a41006318b413107fb0900702eaf2dec798cb52ec`.
+`a7c48c6ef392ffc8a4c14c907acc18c9063d700911fa34498474104bafe3a71b`.
 
 ## 12. Verification boundary
 
@@ -332,9 +337,9 @@ Executed local results:
 - generated Tool SHA-256:
   `e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee`;
 - focused managed-asset, architecture, release and privacy tests:
-  `62 passed in 14.08s`;
+  `62 passed`;
 - full service suite:
-  `1873 passed, 20 skipped, 5 warnings in 519.52s`;
+  `1873 passed, 20 skipped`;
 - missing local documentation links: `0`;
 - `git diff --check`: `PASSED`.
 

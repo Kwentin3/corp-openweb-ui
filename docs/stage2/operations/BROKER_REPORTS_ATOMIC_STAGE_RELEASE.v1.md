@@ -34,8 +34,9 @@ The schema-v3 driver then:
 
 1. stages only the manifest, three bundles, loader and remote release program
    in a restricted temporary directory;
-2. records the exact previous Function rows, managed Prompt rows and loader
-   bytes in a mode-0600 private rollback artifact;
+2. records all release-mutated fields of the declared Function and managed
+   Prompt rows exactly, plus loader bytes, in a mode-0600 private rollback
+   artifact;
 3. stops OpenWebUI;
 4. replaces the loader under an exact before-hash guard;
 5. updates all Function and declared Prompt rows in one `BEGIN IMMEDIATE`
@@ -48,22 +49,26 @@ The schema-v3 driver then:
 
 No request can observe a partially committed Function/Prompt set or loader
 transition: OpenWebUI is stopped while the guarded file replacement and SQLite
-transaction run. Any post-write failure stops the container, restores every
-previous Function and Prompt row plus the previous loader, starts the previous
-runtime and waits for the same health envelope before returning an error.
+transaction run. Any post-write failure stops the container, restores all
+snapshotted release-mutated Function and Prompt fields plus the previous
+loader, starts the previous runtime and waits for the same health envelope
+before returning an error.
 
 ## Rollback proof
 
 Terminal release uses `--apply --prove-rollback`. After the first candidate
-start and readback, the tool restores the exact previous Function rows, Prompt
-rows and loader, proves their exact snapshots and health, then reapplies and
-re-verifies the candidate. The private rollback artifact remains available by
-release identity; only its SHA-256 identity may enter the safe receipt.
+start and readback, the tool restores all snapshotted release-mutated fields of
+the declared Function and Prompt rows plus the loader, proves those snapshots
+and health, then reapplies and re-verifies the candidate. The private rollback
+artifact remains available by release identity; only its SHA-256 identity may
+enter the safe receipt.
 
-The rollback artifact contains Function code/metadata/valves, complete declared
-Prompt-row snapshots and the loader bytes. It is private release evidence and
-must never enter Git. It must not contain customer sources, ArtifactStore
-payloads, credentials, a database backup or environment filesystem paths.
+The rollback artifact contains snapshots of all release-mutated Function
+fields, snapshots of the Prompt fields mutated by the release (`command`,
+`version_id`, `is_active`, `content`, `meta`, and `updated_at`) and the loader
+bytes. It is private release evidence and must never enter Git. It must not
+contain customer sources, ArtifactStore payloads, credentials, a database
+backup or environment filesystem paths.
 
 ## Managed semantic asset scope gap
 
