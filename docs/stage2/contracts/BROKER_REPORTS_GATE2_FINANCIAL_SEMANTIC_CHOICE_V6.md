@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Choice V6
 
-Status: `ACTIVE_V6_UNCHANGED_LOCAL_CANDIDATE_NON_ACTIVE`
+Status: `ACTIVE_V6_UNCHANGED_LOCAL_V1_NON_ACTIVE_CONTEXT_V2_CHOICE_NOT_IMPLEMENTED`
 
 ## Boundary
 
@@ -85,7 +85,8 @@ The
 defines the complete model-visible boundary. The local candidate satisfies its
 zero-opaque-ID Choice shape locally. The pre-transport Context Linter was
 subsequently implemented for the non-active candidate profile, and the
-bounded GOAL 4 diagnostic is terminal; neither changed the active Choice.
+historical Slim-program GOAL 4 diagnostic is terminal; neither changed the
+active Choice.
 
 The later Managed Semantic Decision Context
 [alias necessity audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
@@ -99,10 +100,14 @@ hits the count-one compatibility stop. The future key must still normalize to
 this exact current Choice before canonical expansion. This active contract,
 its exact-ID response and its runtime route remain unchanged.
 
-The exact successor shape is now fixed by
+The exact successor shape is fixed by
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md):
 `choice_N` is a request-local response key, its adjacent label is presentation
 only, and the strict unclassified branch uses only codes with complete
-catalog-owned visible reason cards. The existing Choice factory remains the
-future local-schema owner and must normalize without semantic repair. This is
-a contract requirement, not an implemented or active Choice profile.
+catalog-owned visible reason cards. Managed Semantic Decision Context GOAL 4
+implements those keys/cards only in the packet-owned non-active Context V2
+candidate and private mapping receipt.
+The existing Choice factory remains the future local-schema owner and must
+normalize without semantic repair. The Context V2 response schema/parser is
+still `NOT_IMPLEMENTED`; the active exact-ID Choice and historical Local
+Choice v1 are unchanged.

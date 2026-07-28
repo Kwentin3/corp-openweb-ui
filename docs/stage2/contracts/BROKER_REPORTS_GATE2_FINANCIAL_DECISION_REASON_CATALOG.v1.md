@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Decision Reason Catalog v1
 
-Status: `VERSIONED_REPOSITORY_DRAFT_NOT_MODEL_VISIBLE`
+Status: `VERSIONED_INACTIVE_DRAFT_PROJECTED_ONLY_IN_NON_ACTIVE_CONTEXT_V2`
 
 Catalog ID:
 `broker_reports_gate2_financial_decision_reason_catalog`
@@ -28,7 +28,7 @@ the catalog prose and therefore cannot drift into a second meaning authority.
 | human-readable title, meaning, usage, counter-usage, example and contrast | this versioned catalog JSON |
 | catalog structure, code-set parity, integrity and distinction checks | `Gate2FinancialDecisionReasonCatalogContractFactory` |
 | financial type and role meaning | Financial Semantic Pack |
-| model-visible projection | non-active [Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) inside the existing packet owner; implementation pending |
+| model-visible projection | implemented only in the non-active [Context V2 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), through the existing single managed-assets loader and existing Pack projection owner |
 
 The catalog does not own dispositions, type IDs, type definitions, roles,
 Typed Options, aliases, bindings, provider behavior, validation,
@@ -133,20 +133,21 @@ already exist.
 
 ## 8. Compatibility stop
 
-This catalog is not yet model-visible and does not claim frozen V6 benchmark
-conformance. The later
+This catalog is model-visible only inside the non-active Context V2 sidecar
+and does not claim frozen V6 benchmark conformance. The
 [Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 requires one readable card for every active Pack/Registry type compatible
 with the Evidence Bundle source family, including types for which no Typed
 Option exists. Candidate Compiler attempted types are a private parity check,
 not the source of the visible type set and not evidence of semantic
-plausibility. That closes the documented shape gap by design, but the
-projection is not implemented or proven.
+plausibility. GOAL 4 implements and locally validates that closed projection;
+it does not implement a response schema, request route or provider transport.
 
 Count `1` remains outside both catalog boundaries, and some historical cases
 may still describe association ambiguity rather than two distinct plausible
-type meanings. The Pack, Prompt, active Packet/Choice, expected answers,
-provider adapters and runtime remain unchanged.
+type meanings. The Pack wording, Prompt, active packet payload/Choice, expected
+answers and request/provider route remain unchanged; the packet runtime changes
+only by adding the non-active sidecar.
 
 ## 9. Acceptance
 
@@ -160,5 +161,6 @@ ROLLBACK_POLICY: DEFINED_NOT_LIVE_PROVEN
 TYPE_MEANINGS_CHANGED: NO
 PROVIDER_CALLS: ZERO
 BENCHMARK_CONFORMANCE: NOT_CLAIMED
-CONTEXT_V2_PROJECTION: CONTRACTED_NOT_IMPLEMENTED
+CONTEXT_V2_PROJECTION: IMPLEMENTED_NON_ACTIVE
+ACTIVE_MODEL_ROUTE: UNCHANGED
 ```

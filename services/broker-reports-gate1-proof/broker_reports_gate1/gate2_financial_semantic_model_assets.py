@@ -107,13 +107,254 @@ _IDENTITIES_PAYLOAD_B85 = (
 )
 
 
-def load_gate2_financial_semantic_model_assets() -> dict[str, Any]:
-    """Return exact managed identities, Prompt, and complete compact Pack."""
+CONTEXT_V2_MODEL_ASSET_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_context_v2_assets_v1"
+)
+MANAGED_ASSET_FAMILY_ID = "broker_reports_gate2_financial_domain_assets"
+MANAGED_ASSET_FAMILY_VERSION = "1.1.0"
+MANAGED_ASSET_FAMILY_MANIFEST_SHA256 = (
+    "4e5328554056741ecb783d130a5fd43034a6876484a25c98dfdd5e68bf76499d"
+)
+DECISION_REASON_CATALOG_ID = (
+    "broker_reports_gate2_financial_decision_reason_catalog"
+)
+DECISION_REASON_CATALOG_VERSION = "1.0.0"
+DECISION_REASON_CATALOG_INTEGRITY_SHA256 = (
+    "d7290593410cafd6b35281ed3a6159802f0d7e87b7a085f3ec2cd2b46f4a3e15"
+)
+DECISION_REASON_CATALOG_CANONICAL_SEMANTIC_BYTES = 3603
+DECISION_CODE_CONTRACT_VERSION = (
+    "broker_reports_gate2_financial_evidence_decision_v1"
+)
+CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256 = (
+    "99be5272ebab4e69e2533391f381bd27682496148f760e1e4a171f9e7162cdad"
+)
+CONTEXT_V2_CANDIDATE_REQUIRED = (
+    "load_gate2_financial_semantic_model_assets remains the only "
+    "closed-world managed financial model-asset projection entrypoint"
+)
+CONTEXT_V2_CANDIDATE_FORBIDDEN = (
+    "The non-active candidate asset projection must not read runtime files, "
+    "use network or RAG, duplicate Pack meaning, activate family v2, expose "
+    "repository paths, or reinterpret reason semantics"
+)
+
+_CONTEXT_V2_CANDIDATE_PAYLOAD_B85 = (
+    b"c-pmC%Z}qV7X1}MYqufEmS4Tf1IcV=FhFKjK_F1%l})rnDkSA<O{4yO4k_7Ixm=w}Po_3yOT4dh&pjmlC6OeQQ%0"
+    b"ATxWhleJ#Wl0IebZY*ENb<=}jq>>x@$#3zI|AYteA$RINyswbEP*#hX&;uJ_3z;k`c@tNc(p&wcM;;kiAMFSW5P_"
+    b"v%de<jV#huzZSGDv5=aHJ`{Lna)`6$|Lub&qBPFExZ^>r7+rCE_`_=>&9IFz#*NLBrWLX`JBPqu~z{BVVZ_SsJis"
+    b"ZHw1tGp4HB-e%QsFjfpw<AgMgB8bUN`BvAM@IrS~SxLPDFajkSnzIRkUok-)OG!dKGlM#4eMxS}xMa!{H=gTMMPo"
+    b"*YxJXNN*a8_R8|F%d}+xGVv1eoB!(WNffY02#n4Lr5wCmK-Zv@Skrcts7Kz0BTN30$LRybA<r_)x~D$ulgqr{hS1"
+    b"6VHoHShLOdX|Z3evsCa}ZmLz0?=q4rzR8OHF3syyZfUozwmjVx^@>C;WL~W|^_s6JD-g6%HHkrlPJo{x!eY^+ii="
+    b"N(FqTzz7Hu`XE6==95*?T23=7_>X1Fp0h+AI!xfj$TxRnuH)8kdIy=tip9{gx?C3Z9p^)^QENRZew0L7083#NefQ"
+    b"^<D_+_YTj(Jqka($2%LU&fvs5^Z38RL<L>^h5VfJ_H9S%quOXDdugZj(vdXg*!0#_g-0YjC<C=+B5%T7`od#1pwK"
+    b"_3*%?5nt&+_cJ3p)&+O*vKV;`F?ktzrLd&VfH*!m!!P1vhJ7lkC=8*hokc?+|!orhSfw8PLc9wsPjT{5wx8xS1h0"
+    b"$YjOgYwT^?Ogvz+B&jwvn6`K?uounEQdD2l%2LEU^;I>){+RE2SkG;aKR6x;b8imt%4#L<!o-p15P4#7QfV30`JW"
+    b"gExTpPHcmVUSG2cIL?Rkko?2kVa=ew;zVvHKZoQOa7ECEK<XEwHWk4E8b->I_6t@astz@nIwpQ|f3u5$B;i5aG2A"
+    b"6+Fi@7A)yRS=fhGGF{7kXh9(<cxGT&yFkA(1$e8=3N;ngd_ta)Ow1joLQL&j<fX`nyNg8lHfpV&HI=EZ_>Em@xCn"
+    b"-A&gL%ROR2wE`Q;}jHNHVR-(U6Ta_vpS~&7R&+Wrn#qe1kUyiFoldPAImOutmU6o+qY<`Xuv^iiiZ^K0ebgOpJ!V"
+    b"Iwj!`QlI_Z(r;|bO3%)M4m7PGHim*bMwnIuXGVv=_2Ykl2(=!eGTOq6(nDXvc{Y+Ne;)0oE4qeotF_%3yGG3r?4<"
+    b"N@Dx+VL?+g|wIM#3LSlZ`A4p%JdT5D3HP6)>jHh_-~{UiI)Tt@uV+{8kbB$o^_UeJzWxr2l~)=I_x%{Yn>Vv~*H6"
+    b"^hS6z<Nqpwyg_Ml_z<Y!M~S<tVheu2K}CXxjFIe|4N)ZnmsRsf^8Vg8UUjeg^GfKyQ3B(5Jls#-C587{Fq|JCRY5"
+    b"*3b9<SWfIA>{_+|s%E;NxjBzzm!IGUrZgpuPlfcvWib<&T{nvjrVKY#yEwojK?x(Ip*phhVby@f7{VcHs4JT3-w4"
+    b"E)#tkFW}A#=Ws0BXSQ!=MgaQjhT&3-YE3XNGfhEaRtfbp}6K>6W14$`^LOZb&N8FaT<wodZot=PML8loI``A-ukY"
+    b"IWS9rTs2N{VBuD@lv$Kq2e>s)LQ}B2$J=DB$1Wd5mw*38<pf_$+<5lPea7*4Q0e9CPl@}<=D-<)g0hBW8eRMPK2D"
+    b"7ZPWx7nm+4<3FIdt)VI5)#3t_qO;>+NGr#VX$w#X2oE+jT~w+U`~|Tcy0H<$9H_)_k+uZq~as48(pXYbgub?5Y|M"
+    b"_xr$_uR;E(ylgD*`mRIg%Te%rEbzf4iC1Y=aQv->+-0j3ukwxDN<lj+(rmj;MJ}^-or|oJd7c)c;&N5<Tx=+%ZM_"
+    b"R)J%)J=+6CtuY%fy#gD$-+V<dA~aqvUw={_c?3zx0fcr{%(xjSK1!^0)pY2LXLwx-Ce&W8Hu>5L2uZ^OPuIB-GuK"
+    b"u2sJL2s@;ZMa*Pjd8BTT$rcmyftTPf$ix0@tT(jgnb#<Kh7@9JC%*%m1<&#9=z@N5F>_xlQ<uh@xDA;U~%N|rK#g"
+    b"yJkt9P13tv5d7OhKL15a~799H~UT{a}k5@T@Mu!@dJ|kUYAJ_a_$oj~|P<8`uzWVm_%_#A+o3J|C$o~rs!f|8zjp"
+    b"zF7&zRnLSh><W#T~oYb1w5@U+pQ&c#*EQRkdAJ>3*}$Mb3BI8n=Ef_-a$_Xf3O)C@_h;BIjZ^clzgl<hhw<$@BAn"
+    b"0qkb^fB"
+)
+
+
+def _context_v2_candidate_assets(
+    *,
+    active_pack: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the verified non-active V2 family, Pack baseline, and reasons."""
+
+    active_pack = copy.deepcopy(active_pack)
+    candidate = _verified_candidate_payload()
+    expected_pack_identity = candidate["semantic_pack_identity"]
+    if (
+        not isinstance(active_pack, dict)
+        or active_pack.get("pack_id") != PACK_ID
+        or active_pack.get("semantic_version") != PACK_SEMANTIC_VERSION
+        or active_pack.get("integrity_sha256") != PACK_INTEGRITY_SHA256
+        or expected_pack_identity
+        != {
+            "pack_id": PACK_ID,
+            "semantic_version": PACK_SEMANTIC_VERSION,
+            "integrity_sha256": PACK_INTEGRITY_SHA256,
+        }
+        or not isinstance(active_pack.get("full_compact_snapshot"), list)
+        or not active_pack["full_compact_snapshot"]
+    ):
+        raise RuntimeError("financial_semantic_context_v2_pack_identity_mismatch")
+    baseline = candidate["semantic_pack_source_baseline"]
+    type_ids = [
+        item.get("input_type_id")
+        for item in active_pack["full_compact_snapshot"]
+        if isinstance(item, dict)
+    ]
+    if (
+        len(type_ids) != len(active_pack["full_compact_snapshot"])
+        or len(type_ids) != len(set(type_ids))
+        or type_ids != baseline.get("accepted_type_ids")
+    ):
+        raise RuntimeError("financial_semantic_context_v2_pack_baseline_mismatch")
+    semantic_pack = {
+        "schema_version": active_pack["schema_version"],
+        "pack_id": active_pack["pack_id"],
+        "semantic_version": active_pack["semantic_version"],
+        "managed_asset_ref": active_pack["managed_asset_ref"],
+        "consumer_contract_version": active_pack[
+            "consumer_contract_version"
+        ],
+        "integrity_sha256": active_pack["integrity_sha256"],
+        "source_baseline": copy.deepcopy(baseline),
+        "full_compact_snapshot": copy.deepcopy(
+            active_pack["full_compact_snapshot"]
+        ),
+    }
+    return {
+        "schema_version": CONTEXT_V2_MODEL_ASSET_SCHEMA_VERSION,
+        "managed_asset_family": copy.deepcopy(
+            candidate["managed_asset_family"]
+        ),
+        "semantic_pack": semantic_pack,
+        "decision_reason_catalog": copy.deepcopy(
+            candidate["decision_reason_catalog"]
+        ),
+    }
+
+
+def _verified_candidate_payload() -> dict[str, Any]:
+    raw = _decompress(
+        _CONTEXT_V2_CANDIDATE_PAYLOAD_B85,
+        "financial_semantic_context_v2_candidate_assets",
+    )
+    if hashlib.sha256(raw).hexdigest() != (
+        CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_candidate_assets_hash_mismatch"
+        )
+    try:
+        payload: Any = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            "financial_semantic_context_v2_candidate_assets_json_invalid"
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or set(payload)
+        != {
+            "managed_asset_family",
+            "semantic_pack_identity",
+            "semantic_pack_source_baseline",
+            "decision_reason_catalog",
+        }
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_candidate_assets_shape_invalid"
+        )
+    family = payload["managed_asset_family"]
+    if (
+        not isinstance(family, dict)
+        or family
+        != {
+            "family_id": MANAGED_ASSET_FAMILY_ID,
+            "semantic_version": MANAGED_ASSET_FAMILY_VERSION,
+            "manifest_sha256": MANAGED_ASSET_FAMILY_MANIFEST_SHA256,
+            "runtime_activation": False,
+        }
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_family_identity_mismatch"
+        )
+    baseline = payload["semantic_pack_source_baseline"]
+    if (
+        not isinstance(baseline, dict)
+        or set(baseline)
+        != {
+            "registry_version",
+            "registry_sha256",
+            "accepted_type_ids",
+            "deferred_candidate_ids",
+            "legacy_python_status",
+        }
+        or not isinstance(baseline.get("accepted_type_ids"), list)
+        or not baseline["accepted_type_ids"]
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_pack_baseline_invalid"
+        )
+    _validate_reason_catalog(payload["decision_reason_catalog"])
+    return payload
+
+
+def _validate_reason_catalog(catalog: Any) -> None:
+    if (
+        not isinstance(catalog, dict)
+        or catalog.get("catalog_id") != DECISION_REASON_CATALOG_ID
+        or catalog.get("semantic_version")
+        != DECISION_REASON_CATALOG_VERSION
+        or catalog.get("managed_asset_family_id")
+        != MANAGED_ASSET_FAMILY_ID
+        or catalog.get("code_contract_version")
+        != DECISION_CODE_CONTRACT_VERSION
+        or catalog.get("runtime_activation") is not False
+        or not isinstance(catalog.get("reasons"), list)
+        or not catalog["reasons"]
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_reason_catalog_identity_mismatch"
+        )
+    material = copy.deepcopy(catalog)
+    supplied_integrity = material.pop("integrity_sha256", None)
+    canonical = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    reason_codes = [
+        item.get("code")
+        for item in catalog["reasons"]
+        if isinstance(item, dict)
+    ]
+    if (
+        len(canonical)
+        != DECISION_REASON_CATALOG_CANONICAL_SEMANTIC_BYTES
+        or hashlib.sha256(canonical).hexdigest()
+        != DECISION_REASON_CATALOG_INTEGRITY_SHA256
+        or supplied_integrity
+        != DECISION_REASON_CATALOG_INTEGRITY_SHA256
+        or len(reason_codes) != len(catalog["reasons"])
+        or len(reason_codes) != len(set(reason_codes))
+        or set(reason_codes)
+        != {"ambiguous_registry_type", "no_registry_type"}
+    ):
+        raise RuntimeError(
+            "financial_semantic_context_v2_reason_catalog_integrity_mismatch"
+        )
+
+
+
+def load_gate2_financial_semantic_model_assets(
+    *,
+    profile: str = "active",
+) -> dict[str, Any]:
+    """Return one exact closed-world managed-asset projection profile."""
 
     pack = _verified_pack()
     prompt_content = _verified_prompt()
     managed_assets = _verified_identities()
-    return {
+    active_assets = {
         "schema_version": SEMANTIC_MODEL_ASSET_SCHEMA_VERSION,
         "semantic_pack": {
             "schema_version": pack["schema_version"],
@@ -138,6 +379,13 @@ def load_gate2_financial_semantic_model_assets() -> dict[str, Any]:
         ),
         "prompt_git_blob_sha256": MANAGED_PROMPT_GIT_BLOB_SHA256,
     }
+    if profile == "active":
+        return active_assets
+    if profile == "context_v2_candidate":
+        return _context_v2_candidate_assets(
+            active_pack=active_assets["semantic_pack"],
+        )
+    raise RuntimeError("financial_semantic_model_asset_profile_unknown")
 
 
 def _verified_pack() -> dict[str, Any]:

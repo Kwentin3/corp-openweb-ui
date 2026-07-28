@@ -17,8 +17,9 @@ It remains the same family and uses the same deterministic builder. It is not
 a second registry, asset family, packet builder, GUI or release mechanism.
 
 The immutable v1 repository manifest remains byte-exact and continues to be
-the version consumed by the current closed-world model-assets projection.
-Family v2 is a separate repository draft and does not repoint that projection.
+the default active profile consumed by current callers. Family v2 remains a
+repository draft, now packaged only as a separately selected non-active
+candidate profile through the same closed-world model-assets loader.
 
 ## 2. Exact delta from v1
 
@@ -116,9 +117,10 @@ v2 path:
 6. appends the three catalog dependencies;
 7. renders the v2 manifest and schema deterministically.
 
-No second builder was introduced. The active
-`build_gate2_financial_semantic_model_assets.py` path remains pinned to v1 and
-also passes its unchanged `--check`.
+No second builder or runtime loader was introduced. The existing
+`build_gate2_financial_semantic_model_assets.py` now validates and embeds the
+inactive v2 family/reason snapshot alongside the unchanged default v1 return
+profile, and its single generated module passes `--check`.
 
 ## 6. Runtime and model boundary
 
@@ -126,7 +128,7 @@ Family v2 does not:
 
 - install, update or activate an OpenWebUI record;
 - change the current V6 Packet, Prompt, Choice or request route;
-- expose the catalog to a model;
+- expose the catalog through the active model request route;
 - change provider adapters, validators or materializers;
 - change the Pack or any financial type meaning;
 - call a provider;
@@ -135,9 +137,10 @@ Family v2 does not:
 
 The non-active
 [Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-now selects this catalog as its sole reason-meaning authority. Consumption
-still requires a packaged closed-world candidate snapshot, implementation,
-local linter/replay proof and a separately authorized activation path.
+selects this catalog as its sole reason-meaning authority. The packaged
+closed-world snapshot and non-active packet projection are implemented.
+Local Choice V2, complete-request lint, persistence/replay, provider proof and
+a separately authorized activation path remain required before transport.
 
 ## 7. Acceptance
 
@@ -152,5 +155,7 @@ LIVE_PUBLISHER: NOT_IMPLEMENTED
 ROLLBACK_BASELINE: EXACT_V1_PIN
 SECOND_AUTHORITY: ZERO
 PROVIDER_CALLS: ZERO
-CONTEXT_V2_CONTRACT: SELECTED_NOT_IMPLEMENTED
+CONTEXT_V2_CANDIDATE_ASSET_PROFILE: PACKAGED_INACTIVE
+CONTEXT_V2_PACKET_PROJECTION: IMPLEMENTED_NON_ACTIVE
+ACTIVE_PROFILE_CHANGED: NO
 ```

@@ -74,7 +74,10 @@ EXPECTED_PACK_INTEGRITY_SHA256 = (
     "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
 )
 EXPECTED_RUNTIME_MODEL_ASSETS_GIT_BLOB_SHA256 = (
-    "e6fcaab0c323dcc88959bcccbb16a6d4b40986f9308e2ecbd65dd1a09a85dd75"
+    "b8e3f5855eed9850d8f46356ff5eb4bf6623694d4a600aec89e09e92ba713e19"
+)
+EXPECTED_CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256 = (
+    "99be5272ebab4e69e2533391f381bd27682496148f760e1e4a171f9e7162cdad"
 )
 
 
@@ -601,6 +604,9 @@ def test_existing_builder_checks_v1_and_new_draft_outputs() -> None:
     assert runtime.returncode == 0, runtime.stderr
     runtime_result = json.loads(runtime.stdout)
     assert runtime_result == {
+        "context_v2_candidate_payload_sha256": (
+            EXPECTED_CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256
+        ),
         "mode": "check",
         "runtime_projection_git_blob_sha256": (
             EXPECTED_RUNTIME_MODEL_ASSETS_GIT_BLOB_SHA256

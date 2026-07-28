@@ -44,9 +44,9 @@ that does not permit a second owner for any operation.
 | Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- |
 | Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
-| Managed model-facing asset-family identity and composition | additive [`broker_reports_financial_domain_assets.v2.manifest.json`](../../../services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v2.manifest.json), immutable v1 predecessor and their one deterministic builder | [OpenWebUI Financial Domain Asset Family v2](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md) | future managed-asset validation/publication and Context V2 projection | v2 is a repository-only inactive draft; the current V6 closed-world projection remains pinned to byte-exact v1 until separately qualified activation | parallel asset-family/manifest authority, financial-semantic registry, custom asset GUI or adapter-owned semantic text |
-| Human decision-reason meaning | versioned [`broker_reports_gate2_financial_decision_reason_catalog.v1.json`](../../../services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v1.json); schema/checking only in `Gate2FinancialDecisionReasonCatalogContractFactory` | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) | selected by the non-active [Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), but not yet packaged or projected | code set remains in the decision/Choice contracts; catalog v1 is an inactive repository draft | human wording in Python, Prompt, packet, adapter, report projector, Pack or a second catalog |
-| Model-visible semantic context | [`Gate2FinancialSemanticV6PacketFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py) | implemented historical [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md) candidate, contract-only [Context V2 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), [current V6 Packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | request builder and qualification only after an explicit version-pinned implemented route exists | Context V1/V2 candidates are non-active; current four-block V6 packet remains active until separately qualified activation | second packet builder, unallowlisted model-visible field or provider-side semantic context rewrite |
+| Managed model-facing asset-family identity and composition | additive [`broker_reports_financial_domain_assets.v2.manifest.json`](../../../services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v2.manifest.json), immutable v1 predecessor, their one deterministic builder and single closed-world `load_gate2_financial_semantic_model_assets` entrypoint | [OpenWebUI Financial Domain Asset Family v2](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md) | active v1 consumers plus the non-active Context V2 asset projection; future publication remains separate | v2 remains an inactive repository draft; selecting its closed candidate profile does not publish or activate it | parallel asset-family/manifest authority, second catalog loader, financial-semantic registry, custom asset GUI or adapter-owned semantic text |
+| Human decision-reason meaning | versioned [`broker_reports_gate2_financial_decision_reason_catalog.v1.json`](../../../services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v1.json), validated by `Gate2FinancialDecisionReasonCatalogContractFactory` and packaged by the existing single managed-assets loader | [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) | the implemented non-active [Context V2 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) through the existing Pack projection owner | code set remains in the decision/Choice contracts; catalog v1 and projection stay inactive | human wording in Python, Prompt, packet, adapter, report projector, Pack or a second catalog/loader |
+| Model-visible semantic context | [`Gate2FinancialSemanticV6PacketFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py) | implemented historical [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md) candidate, implemented non-active [Context V2 candidate plus packet-owned private mapping receipt](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), [current V6 Packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | current request builder still consumes only the active packet payload; a V2 request route requires later Choice/linter work | Context V1/V2 candidates are non-active; the mapping receipt is never model input; current four-block V6 packet remains active and byte-frozen | second packet/context builder, unallowlisted model-visible field or provider-side semantic context rewrite |
 | Complete model-visible request lint | [`Gate2FinancialSemanticV6ContextLinterFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_context_linter.py) | implemented [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)/[Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md); future [Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) extension | version-pinned candidate request profile before provider projection/transport | V2 linter is not implemented; current active V6 packet/Choice route remains unchanged | direct candidate transport, a second packet/Choice builder, context repair or an unsealed request |
 | Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
 | Provider response-format projection | [`Gate2ProviderAdapterFactory.create` and adapter `prepare_form_data`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py) | canonical choice schema projected to the provider-supported subset | structured model client | provider profile selects one adapter | provider-schema rewrites in request, qualification or evidence code |
@@ -169,8 +169,10 @@ GOAL 1 adds one immutable same-family draft:
 - family v2 keeps `family_id=broker_reports_gate2_financial_domain_assets`,
   advances only the family semantic version to `1.1.0`, and remains
   `runtime_activation=false`;
-- all v1 Skill, Prompt, Tool, Pack and current closed-world model assets remain
-  byte-exact;
+- all v1 Skill, Prompt, Tool and Pack assets remain byte-exact; GOAL 4 later
+  changes only the generated container bytes additively to package the inactive
+  snapshot, while the default active semantic/default loader payload remains
+  exact;
 - the decision contract remains the sole reason-code owner;
 - the
   [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
@@ -183,9 +185,10 @@ GOAL 1 adds one immutable same-family draft:
 
 This establishes a GUI-ready repository asset, not live GUI publication.
 Full-family publishing/readback/rollback remains the lifecycle gap above.
-The catalog is not model-visible and does not claim compatibility with frozen
-V6 expected answers until a separate context/expectation audit resolves cases
-whose current packet exposes no type cards.
+The catalog is not visible on the active model route. Managed Semantic
+Decision Context GOAL 4 projects it only into the non-active Context V2 packet
+sidecar; this does not claim compatibility with frozen V6 expected answers,
+especially for cases whose current active packet exposes no type cards.
 
 ## Managed Semantic Decision Context GOAL 2 alias audit
 
@@ -221,15 +224,17 @@ options. Factoring common eligibility relationships yields 35 readable
 relations and removes 24 duplicate occurrences; all 59 exact bindings remain
 backend-owned and reconstructable.
 
-This is a documentation-only audit. Context V2 is not implemented, the active
-V6 packet/Choice/runtime remain unchanged, provider calls are zero and the
-four zero-option ambiguous cases remain an explicit compatibility stop.
+The GOAL 2 census above was documentation-only. Managed Semantic Decision
+Context GOAL 4 now implements its factoring and mapping rules as a non-active
+packet sidecar. The active V6 payload, Choice and request/provider route remain
+unchanged; V2 runtime activation and provider calls are zero, and the four
+zero-option expected-answer concerns remain an explicit compatibility stop.
 
 ## Managed Semantic Decision Context GOAL 3 contract
 
 The versioned
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-now closes the candidate model-visible boundary without implementing it:
+closed the candidate model-visible boundary in GOAL 3:
 
 - the current system Prompt, generic task, option order, Pack wording and
   reason wording are unchanged;
@@ -248,14 +253,25 @@ now closes the candidate model-visible boundary without implementing it:
 - the packet-owned private mapping receipt binds every visible
   key/relationship and every hidden exact binding to existing Registry,
   Evidence Bundle, Compilation and Typed Option authorities without importing
-  Prompt or Choice; the existing Context Linter separately seals the complete
-  Prompt + Context + response-format request.
+  Prompt or Choice; a future V2 extension of the existing Context Linter must
+  separately seal the complete Prompt + Context + response-format request.
 
-Context V2 remains contract-only. The current closed-world reason catalog is
-not packaged for candidate runtime consumption, the V2 renderer/Choice/linter
-do not exist, count `1` remains outside the two reason boundaries and
-benchmark compatibility is not claimed. Provider calls and runtime changes
-remain zero.
+## Managed Semantic Decision Context GOAL 4 non-active implementation
+
+Managed Semantic Decision Context GOAL 4 consumes that contract only inside
+the existing packet authority. The single managed-assets loader packages an
+inactive candidate snapshot; the existing projection owner produces
+Pack/reason projections; and the packet factory returns the deterministic V2
+candidate plus private mapping receipt. The V2 Choice profile,
+complete-request linter, request route, provider compatibility,
+persistence/replay and benchmark compatibility remain unimplemented or
+unproven. Count `1` remains outside the two reason boundaries. Provider calls
+and runtime activation remain zero.
+
+Repository-safe implementation evidence:
+
+- [analytical report](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.report.md);
+- [safe receipt](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.receipt.safe.json).
 
 ## Documentation drift and explicit debt
 
@@ -279,7 +295,9 @@ readable evidence-derived hierarchy, exactly one rendered occurrence per
 authoritative semantic source value, omitted nulls, local request-bound aliases
 and zero opaque global IDs across messages and response schema. The
 [LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-is the additive contract-only successor target for a future complete request.
+is the additive successor. Its packet-owned candidate and private mapping
+receipt are implemented but non-active; its complete Prompt + Context +
+response-format request remains future work.
 
 The current active V6 four-block packet and V6 Choice do not claim this
 conformance: they expose exact source/option identities by their historical
@@ -423,7 +441,7 @@ This adds one validation operation authority, not another context
 construction authority. It performs no provider call, fallback, repair,
 semantic rewrite, production admission or stage mutation.
 
-### GOAL 4 bounded Slim model diagnostic
+### Historical Slim-program GOAL 4 bounded model diagnostic
 
 `Gate2FinancialSemanticV6SlimDiagnosticFactory.create` is the
 qualification-only orchestration owner for the exact six-cell experiment:
