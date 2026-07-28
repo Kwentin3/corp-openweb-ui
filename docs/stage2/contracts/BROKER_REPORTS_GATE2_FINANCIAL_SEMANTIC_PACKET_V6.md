@@ -127,3 +127,37 @@ Slim View v2 bytes are 18,098. The complete current model-visible projection
 is 89,220 bytes versus 26,404 with Slim v2 and Local Choice. The corresponding
 repository estimator is 22,950 versus 7,247. These are deterministic local
 measurements, not provider tokens or semantic-quality evidence.
+
+## Managed Semantic Decision Context GOAL 2 alias audit
+
+The later
+[alias necessity and readability audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+inspects the non-active candidate without changing this packet owner or either
+payload.
+
+Across the frozen semantic suite it finds:
+
+- 45 value aliases, of which 22 have no inbound reference;
+- 20 structural aliases, of which 14 have no inbound reference;
+- 12 numeric type aliases and 12 positional choice aliases whose
+  cross-reference function is necessary but whose spelling is not readable;
+- 59 binding strings: 24 duplicate occurrences, 23 unique semantic
+  role/value relations and 12 unique readable evidence-eligibility
+  predicates.
+
+A future Context V2 inside this same factory must render a reference only when
+another visible field consumes it. It must pair deterministic keys with
+evidence-owned value labels, readable evidence-derived structure and
+Pack-owned type titles. The current type-card projection drops the Pack title;
+Context V2 must version/extend that existing projection authority rather than
+bypass it from packet code.
+
+The Choice authority must keep a unique local response key and add a separate
+readable Pack/evidence-owned label; `A/B` may not remain the sole
+presentation. Semantic label collisions permit `unclassified` and are not
+technical mapping failures. Exact refs, the complete 59-binding table,
+canonical IDs, provenance and retention stay outside the future Context V2
+model surface; historical active V6 exposure remains unchanged.
+
+The audit does not mutate Slim v2, activate it, change the current four-block
+packet or authorize a second packet builder.

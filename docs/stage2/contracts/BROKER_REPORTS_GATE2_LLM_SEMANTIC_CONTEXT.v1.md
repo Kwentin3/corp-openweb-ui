@@ -21,6 +21,11 @@ without changing the current V6 packet, Prompt text, active Choice, provider
 adapter, expansion, validator, materializer or runtime route. Provider calls
 are zero.
 
+The 2026-07-28 Managed Semantic Decision Context GOAL 2 audit now classifies
+alias and binding necessity for that candidate. It does not revise this v1
+shape or activate a route; it supplies closed requirements for a separate
+Context V2 contract.
+
 ## Conformance boundary
 
 For this contract, the **complete model-visible request** includes:
@@ -131,11 +136,17 @@ Aliases:
 
 - are deterministic within one exact request;
 - are unique within their namespace;
-- resolve bijectively to exact code-owned identities in the private receipt;
+- resolve bijectively to exact code-owned identities for semantic values,
+  types and choices in the private receipt;
 - do not become financial, persistence or provenance identifiers;
 - are never reused across requests as stable identity;
 - are never accepted without the exact request-bound mapping;
 - are not stored in canonical materialized records.
+
+Structural aliases identify evidence-derived nodes. Multiple exact
+deterministic-reference values may legitimately resolve to the same structural
+node; the exact role-to-source-ref table in the private receipt preserves
+their separate identities and bindings.
 
 Permitted namespaces are:
 
@@ -149,6 +160,11 @@ Permitted namespaces are:
 | source value | `v1`, `v2`, ... |
 | visible type card | `T1`, `T2`, ... |
 | selectable option | `A`, `B`, ... |
+
+This namespace table defines the v1 target allowance, not positive current
+candidate coverage. The current renderer constructs table, row, text-segment
+and fallback-group nodes. It does not construct a section node or `sN`; a
+non-null `section_role` remains metadata on an evidence-derived node.
 
 ### 6. Semantic metadata is preserved
 
@@ -222,6 +238,10 @@ value.
 | `unclassified[]` | closed semantic reason-code set |
 | response `choice` | local choice alias or `unclassified` |
 | response `reason` | required allowed reason only for unclassified |
+
+The structural `label` and section-node entries are target allowances. The
+current frozen candidate has no positive structural-label or section-node
+observation and must not claim that coverage.
 
 Empty `choices` is allowed. Empty structural containers must be omitted.
 Field order and alias assignment order are deterministic and version-pinned by
@@ -323,7 +343,7 @@ active request and does not define the separate Choice candidate schema:
             {
               "alias": "r1",
               "kind": "row",
-              "role": "fact_candidate",
+              "row_role": "fact_candidate",
               "values": [
                 {
                   "alias": "v1",
@@ -602,6 +622,65 @@ preserve all six exact synthetic inputs, adapter-extracted outputs, normalized
 answers, diffs and actual metrics. GOAL 5's published prerequisite is not met,
 and GOAL 7 is blocked.
 
+## Managed Semantic Decision Context GOAL 2 alias audit
+
+This section belongs to the later Managed Semantic Decision Context program;
+its GOAL numbers are independent of the historical staged-program table
+above.
+
+The exact
+[alias necessity and readability audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
+inspected all 10 frozen semantic cases without changing the candidate:
+
+```text
+VALUE_ALIASES: 45
+VALUE_ALIASES_WITH_CURRENT_INBOUND_REFERENCE: 23
+VALUE_ALIASES_WITHOUT_CURRENT_INBOUND_REFERENCE: 22
+STRUCTURAL_ALIASES: 20
+STRUCTURAL_ALIASES_WITH_CURRENT_INBOUND_REFERENCE: 6
+STRUCTURAL_ALIASES_WITHOUT_CURRENT_INBOUND_REFERENCE: 14
+TYPE_ALIASES: 12
+CHOICE_ALIASES: 12
+VISIBLE_BINDINGS: 59
+OPTION_DIFFERENTIATING_SEMANTIC_BINDINGS: 5
+OPTION_DIFFERENTIATING_EVIDENCE_PREDICATES: 6
+UNIQUE_READABLE_ELIGIBILITY_RELATIONSHIPS: 35
+DUPLICATED_BINDING_OCCURRENCES: 24
+```
+
+Context V2 must apply the following stricter boundary:
+
+- emit a local reference only when another visible field must point to it or
+  the strict response must return it;
+- retain readable hierarchy, semantic literal, meaning and type even when the
+  local alias is omitted;
+- pair a required deterministic value key with exact evidence-owned meaning
+  or label;
+- omit structural handles when nesting is sufficient;
+- pair deterministic type keys with Pack-owned readable type titles through a
+  versioned extension of the existing type-card projection authority;
+- pair deterministic choice keys with readable Pack/evidence-owned labels;
+  the label does not replace unique response identity;
+- factor common role/value and evidence-eligibility relationships once, while
+  preserving variant-specific relationships;
+- keep every exact option binding, including hidden technical bindings, in
+  the Candidate Compiler/Typed Option and private receipt;
+- allow semantically indistinguishable choices to reach `unclassified`, and
+  fail closed only on key, mapping, scope or integrity defects.
+
+For the frozen suite, 59 current bindings factor to 35 unique readable
+eligibility relationships: 23 semantic role/value relations plus 12 readable
+scope or printed-label-evidence predicates. The exact targets of
+`statement_scope` and `printed_label_evidence_ref` remain code-owned, but
+their bound status stays model-visible because current Pack guidance depends
+on it. The complete 59-binding exact table remains backend authority.
+
+This audit does not change this v1 contract in place, implement Context V2 or
+claim benchmark compatibility. Four frozen ambiguous cases still expose zero
+type cards and zero choices; removing their 22 unused value aliases and eight
+unused structural aliases does not resolve the managed reason-boundary
+compatibility stop.
+
 ## Acceptance
 
 ```text
@@ -612,7 +691,8 @@ OPAQUE_MACHINE_IDS_TARGET: ZERO
 AUTHORITATIVE_SEMANTIC_LITERAL_OCCURRENCES: EXACTLY_ONCE
 NULL_FIELDS_TARGET: ZERO
 HIERARCHY: EVIDENCE_DERIVED_AND_READABLE
-ALIASES: LOCAL_BIJECTIVE_AND_DISPOSABLE
+VALUE_TYPE_CHOICE_ALIASES: LOCAL_BIJECTIVE_AND_DISPOSABLE
+STRUCTURAL_REFERENCE_RESOLUTION: EXACT_MANY_TO_ONE_ALLOWED
 SEMANTIC_METADATA: PRESERVED
 CODE_ONLY_COMPLEXITY: EXPLICIT
 SIZE_MEASUREMENT: REQUIRED
@@ -630,4 +710,12 @@ LOCAL_FULL_REQUEST_OPAQUE_IDS: ZERO
 ACTIVE_PACKET_HASH_PARITY: EXACT
 ACTIVE_CHOICE_SCHEMA_HASH_PARITY: EXACT
 ACTIVE_RUNTIME_ROUTE_CHANGED: NO
+MANAGED_CONTEXT_GOAL2_ALIAS_AUDIT: PASSED_DOCUMENTATION_ONLY
+CONTEXT_V2_READABLE_REFERENCE_RULE: DEFINED
+UNUSED_VALUE_ALIASES_IDENTIFIED: 22
+UNUSED_STRUCTURAL_ALIASES_IDENTIFIED: 14
+EXACT_BACKEND_BINDINGS_PRESERVED: 59_OF_59
+UNIQUE_READABLE_ELIGIBILITY_RELATIONSHIPS: 35
+DUPLICATED_BINDING_OCCURRENCES_REMOVED: 24
+CONTEXT_V2_IMPLEMENTED: NO
 ```
