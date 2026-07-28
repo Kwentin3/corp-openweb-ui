@@ -6,55 +6,78 @@ Status: `MAINTAINED_RELEASE_CONTRACT`
 
 This contract releases the accepted Broker Reports candidate to the single
 qualified stage OpenWebUI instance. It reuses the pinned server-authoritative
-private-intake image and atomically aligns the three maintained Broker Reports
-Functions. The protected private-intake Action, managed prompts, static loader,
-image and runtime dependencies are immutable release inputs and must pass exact
-readback before and after the Function transaction.
+private-intake image and aligns the three maintained Broker Reports Functions,
+the declared already-existing managed Prompt rows and the static loader while
+OpenWebUI is stopped. The protected private-intake Action, image and runtime
+dependencies are immutable release inputs and must pass exact readback before
+and after the release transaction.
 
 The release does not deploy a new OpenWebUI image when the accepted pinned image
 already satisfies the runtime dependency and private-intake contracts.
 
 ## Atomic boundary
 
-The three Function records are one release unit:
+The release unit contains:
 
-- `broker_reports_gate1_pipe`;
-- `broker_reports_gate2_source_fact_pipe`;
-- `broker_reports_gate2_domain_source_fact_pipe`.
+- three Function records:
+  `broker_reports_gate1_pipe`,
+  `broker_reports_gate2_source_fact_pipe`, and
+  `broker_reports_gate2_domain_source_fact_pipe`;
+- every managed Prompt row declared by the exact release manifest;
+- the pinned static loader file.
 
 Before mutation, the release driver requires a clean repository at the declared
 40-character Git revision, exact pinned image/Action/prompt/loader parity, and
 zero non-terminal Broker Reports workloads or owned workload temp entries.
 
-The driver then:
+The schema-v3 driver then:
 
-1. stages only the manifest, three bundles and the remote release program in a
-   restricted temporary directory;
-2. records the exact previous Function rows in a mode-0600 private rollback
-   artifact;
+1. stages only the manifest, three bundles, loader and remote release program
+   in a restricted temporary directory;
+2. records the exact previous Function rows, managed Prompt rows and loader
+   bytes in a mode-0600 private rollback artifact;
 3. stops OpenWebUI;
-4. updates all three Function rows in one `BEGIN IMMEDIATE` SQLite transaction;
-5. starts OpenWebUI and waits for internal health, the auth API and external
+4. replaces the loader under an exact before-hash guard;
+5. updates all Function and declared Prompt rows in one `BEGIN IMMEDIATE`
+   SQLite transaction;
+6. starts OpenWebUI and waits for internal health, the auth API and external
    ingress;
-6. verifies exact content hashes, release metadata and release valves;
-7. removes the staging directory.
+7. verifies exact Function, Prompt and loader hashes, release metadata and
+   release valves;
+8. removes the staging directory.
 
-No request can observe a partially committed Function set: OpenWebUI is stopped
-while SQLite commits all three rows together. Any post-write failure stops the
-container, restores every previous Function row, starts the previous runtime and
-waits for the same health envelope before returning an error.
+No request can observe a partially committed Function/Prompt set or loader
+transition: OpenWebUI is stopped while the guarded file replacement and SQLite
+transaction run. Any post-write failure stops the container, restores every
+previous Function and Prompt row plus the previous loader, starts the previous
+runtime and waits for the same health envelope before returning an error.
 
 ## Rollback proof
 
 Terminal release uses `--apply --prove-rollback`. After the first candidate
-start and readback, the tool restores the exact previous Function rows, proves
-their hashes and health, then reapplies and re-verifies the candidate. The
-private rollback artifact remains available by release identity; only its
-SHA-256 identity may enter the safe receipt.
+start and readback, the tool restores the exact previous Function rows, Prompt
+rows and loader, proves their exact snapshots and health, then reapplies and
+re-verifies the candidate. The private rollback artifact remains available by
+release identity; only its SHA-256 identity may enter the safe receipt.
 
-The rollback artifact contains Function code, metadata and valves only. It must
-not contain customer sources, ArtifactStore payloads, credentials, prompt
-content, database backups or private paths.
+The rollback artifact contains Function code/metadata/valves, complete declared
+Prompt-row snapshots and the loader bytes. It is private release evidence and
+must never enter Git. It must not contain customer sources, ArtifactStore
+payloads, credentials, a database backup or environment filesystem paths.
+
+## Managed semantic asset scope gap
+
+This release contour currently owns Functions, already-existing managed Prompt
+rows and the loader only. It does not create, publish, activate, retire or
+restore OpenWebUI Skill or Tool records, and it does not publish a Financial
+Semantic Pack family. Direct Prompt-row replacement also does not create native
+OpenWebUI Prompt history.
+
+The Managed Semantic Decision Context program must extend this existing
+manifest/snapshot/readback/rollback contour for the complete managed financial
+asset family. It must not create a parallel release engine or GUI framework.
+Until Skill, Tool, Pack and catalog publication plus rollback are implemented
+and proven, the repository-managed financial asset family remains non-active.
 
 ## Release valves
 

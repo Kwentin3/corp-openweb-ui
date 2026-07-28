@@ -44,6 +44,7 @@ that does not permit a second owner for any operation.
 | Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- |
 | Prompt ownership | [`financial_semantic_v6_prompt`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py) | [V6 Choice](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md) | request builder, qualification | version-pinned older prompts only | semantic instruction in request, adapter or runner |
+| Managed model-facing asset-family identity and composition | [`broker_reports_financial_domain_assets.v1.manifest.json`](../../../services/broker-reports-gate1-proof/managed_assets/broker_reports_financial_domain_assets.v1.manifest.json) and its deterministic builder | [OpenWebUI Financial Domain Asset Family](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md) | future managed-asset validation/publication and Context V2 projection | repository-only target; current V6 embedded assets and Prompt remain unchanged until separately qualified activation | parallel asset-family/manifest authority, financial-semantic registry, custom asset GUI or adapter-owned semantic text |
 | Model-visible semantic context | [`Gate2FinancialSemanticV6PacketFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py) | [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md), [current V6 Packet](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md) | request builder and qualification after an explicit version-pinned route exists | current four-block V6 packet remains active until a separately qualified activation | second packet builder, unallowlisted model-visible field or provider-side semantic context rewrite |
 | Complete model-visible request lint | [`Gate2FinancialSemanticV6ContextLinterFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_context_linter.py) | [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md), [Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md) | version-pinned candidate request profile before provider projection/transport | current active V6 packet/Choice route remains unchanged; exact replay is local | direct candidate transport, a second packet/Choice builder, context repair or an unsealed request |
 | Provider request construction | [`Gate2OpenWebUIRequestBuilder.build`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py) | provider-neutral Prompt/package/choice contracts | structured model client; delegating evidence helper | wrappers validate then delegate | direct `form_data` assembly in evidence or qualification |
@@ -95,6 +96,64 @@ that does not permit a second owner for any operation.
 - V5 and earlier qualification runners remain readable for historical replay
   and version-pinned tests. New V6 work must not extend them as current
   qualification authority.
+
+## Managed Semantic Decision Context GOAL 0 authority audit
+
+The existing
+[OpenWebUI Financial Domain Asset Family](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v1.md)
+is the sole reusable managed-asset mechanism for the next context program.
+It already pins one Skill, one Prompt, one exact Semantic Pack Tool, the Pack
+dependency and their composition in one manifest. The program must extend this
+family; it must not create another registry, packet builder, parallel
+asset-family/manifest authority or GUI framework. New immutable version
+manifests inside the selected family remain allowed and required.
+
+Concern ownership is fixed as follows:
+
+| Concern | Owner and required placement |
+| --- | --- |
+| financial type semantics | the existing Financial Semantic Pack; no Prompt, adapter or runner copy |
+| decision reason semantics | the closed code set remains in Choice/decision contracts; human meanings live in one versioned catalog dependency inside the same managed asset family, not a second registry or Pack |
+| model-visible presentation | the managed Skill/Prompt plus the existing V6 packet owner's versioned context projection |
+| exact refs, provenance, aliases, bindings, retention and materialization | existing backend authorities; never managed semantic content |
+| asset-version lifecycle | the asset-family manifest and release receipt select one immutable version; old versions remain historical inputs |
+
+The repository and pinned OpenWebUI `v0.9.6` provide only a partial lifecycle
+today:
+
+- the asset-family manifest provides semantic versions, exact Git-blob hashes,
+  deterministic composition and inactive target status;
+- native OpenWebUI Prompt records provide history entries, a production-version
+  pointer, active toggling and restoration of a selected history version, but
+  every update overwrites the current Prompt row content even when
+  `is_production=false`; this is not an isolated runtime-safe draft;
+- native Skill records provide managed create/update/read and active toggling,
+  but no version history or restore endpoint;
+- native Tool records provide managed create/update/read, but no version
+  history or active-version selector;
+- the repository atomic stage release can snapshot, replace, independently
+  read back and restore Functions plus Prompts, but it does not publish or
+  restore the Skill/Tool/Pack family and its direct Prompt-row updates do not
+  create native Prompt history.
+
+Primary upstream evidence for the pinned distribution:
+
+- [Prompt version/history/production fields](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L20-L85)
+  and [history-backed update/restore](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/prompts.py#L434-L559);
+- [Prompt history, version-selection and active endpoints](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/prompts.py#L325-L518);
+- [Skill fields and update/toggle behavior](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/skills.py#L17-L46)
+  and [Skill API update/toggle endpoints](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/routers/skills.py#L228-L374);
+- [Tool fields without version or activation state](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L17-L45)
+  and [Tool overwrite update](https://github.com/open-webui/open-webui/blob/v0.9.6/backend/open_webui/models/tools.py#L266-L278).
+
+Therefore isolated draft storage and a complete family-level
+`draft → validated → active → retired → rollback` publisher are explicit
+implementation gaps, not a second authority to invent in GOAL 0. Later work
+must extend the existing manifest/release contour and may reuse the existing
+OpenWebUI Workspace GUI/API only as an authoring/inspection surface behind
+that guarded lifecycle. Until exact readback and rollback exist for the full
+family, the managed assets remain non-active and the current V6 route remains
+unchanged.
 
 ## Documentation drift and explicit debt
 

@@ -51,19 +51,28 @@ The owner may later construct, inside the existing V6 packet module:
 It must not create or delegate to a second packet builder, Candidate Compiler,
 financial-semantic registry or provider-side semantic rewrite.
 
-Other authorities remain unchanged:
+Current authorities and the one planned ownership slot remain fixed:
 
-| Concern | Existing authority |
-| --- | --- |
-| source literals, structure, refs and provenance | Evidence Bundle |
-| type and role meaning | Financial Semantic Pack |
-| complete canonical options and bindings | Candidate Compiler and Typed Option |
-| canonical current response | V6 Choice |
-| complete candidate request lint and seal | V6 Context Linter |
-| provider request construction | `Gate2OpenWebUIRequestBuilder.build` |
-| provider projection and parsing | provider adapters |
-| canonical choice expansion | V6 Decision Expansion |
-| acceptance and records | validator and materializer |
+| Concern | Authority/placement | Current status |
+| --- | --- | --- |
+| source literals, structure, refs and provenance | Evidence Bundle | existing |
+| type and role meaning | Financial Semantic Pack | existing |
+| closed decision-reason codes and response shape | V6 Choice/decision contracts | existing |
+| human-readable decision-reason meaning | one versioned reason catalog in the existing managed OpenWebUI Financial Domain asset family | planned; absent until GOAL 1 is accepted |
+| complete canonical options and bindings | Candidate Compiler and Typed Option | existing |
+| canonical current response | V6 Choice | existing |
+| complete candidate request lint and seal | V6 Context Linter | existing |
+| provider request construction | `Gate2OpenWebUIRequestBuilder.build` | existing |
+| provider projection and parsing | provider adapters | existing |
+| canonical choice expansion | V6 Decision Expansion | existing |
+| acceptance and records | validator and materializer | existing |
+
+The packet owner is a deterministic renderer, not a semantic-content author.
+Context V2 must project type wording from the Pack and reason wording from the
+single managed catalog. It may shorten or arrange those meanings under this
+contract, but must not copy independent wording into the packet module, Prompt,
+runner, provider adapter or report projector. The current code-owned V6 Prompt
+and active packet remain unchanged until a separately qualified activation.
 
 ## Core invariants
 
