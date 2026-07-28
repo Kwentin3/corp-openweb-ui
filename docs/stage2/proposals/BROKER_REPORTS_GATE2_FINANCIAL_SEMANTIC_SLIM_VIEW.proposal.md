@@ -8,6 +8,18 @@ This proposal is the GOAL 2 design output. It changes no runtime contract,
 Prompt, Semantic Pack, Candidate Compiler, Typed Option, canonical Choice,
 validator, materializer, Evidence Bundle, provider adapter or model output.
 
+## Contract relationship
+
+The later
+[LLM Semantic Context v1](../contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
+defines the closed final boundary for the complete model-visible request.
+
+This proposal remains the transition design for a first non-active view. It
+keeps exact canonical option IDs because the current V6 Choice requires them,
+so it does not claim full Context v1 conformance. Replacing those IDs with
+local response aliases is a separate versioned Choice boundary and must not be
+folded into the Slim View implementation.
+
 ## Purpose
 
 Present the existing V6 semantic decision surface in a shorter human-readable
