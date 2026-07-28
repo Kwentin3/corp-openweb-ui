@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:broker-reports:managed-assets:financial-domain:v2",
+  "title": "Broker Reports Financial Domain managed asset family v2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_financial_domain_managed_asset_manifest_v2"
+    },
+    "family_id": {
+      "const": "broker_reports_gate2_financial_domain_assets"
+    },
+    "semantic_version": {
+      "const": "1.1.0"
+    },
+    "authority_status": {
+      "const": "target_normative_not_live"
+    },
+    "runtime_activation": {
+      "const": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "draft"
+        },
+        "previous_family_semantic_version": {
+          "const": "1.0.0"
+        },
+        "draft_rollback": {
+          "const": "discard_without_runtime_mutation"
+        },
+        "active_rollback": {
+          "const": "select_previous_validated_immutable_family_version"
+        },
+        "rollback_manifest_schema_version": {
+          "const": "broker_reports_financial_domain_managed_asset_manifest_v1"
+        },
+        "rollback_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rollback_manifest_git_blob_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "live_publisher_implemented": {
+          "const": false
+        }
+      },
+      "required": [
+        "status",
+        "previous_family_semantic_version",
+        "draft_rollback",
+        "active_rollback",
+        "rollback_manifest_schema_version",
+        "rollback_manifest_sha256",
+        "rollback_manifest_git_blob_sha256",
+        "live_publisher_implemented"
+      ]
+    },
+    "hash_boundary": {
+      "const": "git_blob_bytes"
+    },
+    "openwebui": {
+      "const": {
+        "distribution": "open-webui",
+        "target_version": "0.9.6",
+        "upstream_tag": "v0.9.6",
+        "skill_api": "/api/v1/skills",
+        "prompt_api": "/api/v1/prompts",
+        "tool_api": "/api/v1/tools"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.:-]{2,127}$"
+          },
+          "kind": {
+            "enum": [
+              "openwebui_skill",
+              "openwebui_prompt",
+              "openwebui_workspace_tool"
+            ]
+          },
+          "semantic_version": {
+            "const": "1.0.0"
+          },
+          "repository_relative_path": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 260,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.\\-/]+$"
+          },
+          "media_type": {
+            "enum": [
+              "text/markdown",
+              "text/x-python"
+            ]
+          },
+          "git_blob_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "activation": {
+            "const": "repository_managed_not_live"
+          },
+          "api_identity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "name": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 160
+              },
+              "description": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "command": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{2,127}$"
+              },
+              "version_id": {
+                "const": "1.0.0"
+              },
+              "is_active": {
+                "const": true
+              },
+              "meta": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "required": [
+          "asset_id",
+          "kind",
+          "semantic_version",
+          "repository_relative_path",
+          "media_type",
+          "git_blob_sha256",
+          "activation",
+          "api_identity"
+        ]
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dependency_id",
+          "kind",
+          "contract_identity",
+          "repository_relative_path",
+          "git_blob_sha256"
+        ],
+        "properties": {
+          "dependency_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.:-]{2,127}$"
+          },
+          "kind": {
+            "enum": [
+              "semantic_pack",
+              "semantic_pack_schema",
+              "consumer_contract_schema",
+              "decision_contract_source",
+              "decision_reason_catalog",
+              "decision_reason_catalog_schema",
+              "decision_reason_catalog_contract_source"
+            ]
+          },
+          "contract_identity": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 180
+          },
+          "repository_relative_path": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 260,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9_.\\-/]+$"
+          },
+          "git_blob_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "semantic_version": {
+            "const": "1.0.0"
+          },
+          "semantic_integrity_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "canonical_semantic_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "lifecycle_status": {
+            "const": "draft"
+          },
+          "runtime_activation": {
+            "const": false
+          }
+        }
+      }
+    },
+    "composition": {
+      "const": {
+        "method_asset_id": "broker_reports_financial_domain_skill",
+        "operation_asset_id": "broker_reports_gate2_financial_matching_prompt",
+        "pack_loader_asset_id": "broker_reports_financial_semantic_pack_tool",
+        "pack_loader_method": "load_financial_semantic_pack",
+        "semantic_pack_dependency_id": "broker_reports_financial_semantic_pack",
+        "strict_output_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+        "bounded_input_placeholder": "{{financial_semantic_matching_input_json}}",
+        "decision_reason_catalog_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog",
+        "decision_reason_catalog_schema_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_schema",
+        "decision_reason_catalog_contract_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_contract"
+      }
+    },
+    "authority": {
+      "const": {
+        "financial_semantic_authority_dependency_id": "broker_reports_financial_semantic_pack",
+        "full_pack_required": true,
+        "rag_only_authority_allowed": false,
+        "knowledge_authority_allowed": false,
+        "python_type_meanings_allowed": false,
+        "prompt_type_meanings_allowed": false,
+        "decision_reason_code_authority_dependency_id": "broker_reports_financial_decision_contract",
+        "decision_reason_meaning_authority_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog",
+        "decision_reason_schema_authority_dependency_id": "broker_reports_gate2_financial_decision_reason_catalog_contract"
+      }
+    },
+    "supporting_knowledge": {
+      "const": []
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "family_id",
+    "semantic_version",
+    "authority_status",
+    "runtime_activation",
+    "lifecycle",
+    "hash_boundary",
+    "openwebui",
+    "assets",
+    "dependencies",
+    "composition",
+    "authority",
+    "supporting_knowledge",
+    "manifest_sha256"
+  ]
+}

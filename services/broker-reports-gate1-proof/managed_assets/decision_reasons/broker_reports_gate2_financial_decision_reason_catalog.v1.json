@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_gate2_financial_decision_reason_catalog_v1",
+  "catalog_id": "broker_reports_gate2_financial_decision_reason_catalog",
+  "semantic_version": "1.0.0",
+  "managed_asset_family_id": "broker_reports_gate2_financial_domain_assets",
+  "code_contract_version": "broker_reports_gate2_financial_evidence_decision_v1",
+  "authority_status": "target_normative_not_live",
+  "runtime_activation": false,
+  "lifecycle": {
+    "status": "draft",
+    "draft_rollback": "discard_without_runtime_mutation",
+    "active_rollback": "select_previous_validated_immutable_family_version"
+  },
+  "locale": "en",
+  "applies_to_disposition": "unclassified_financial_input",
+  "selection_metric": "plausible_distinct_available_financial_type_count",
+  "gui": {
+    "collection_title": "Unclassified financial decision reasons",
+    "item_key": "code",
+    "item_label": "human_title",
+    "order_field": "display_order",
+    "editable_fields": [
+      "human_title",
+      "meaning",
+      "use_when",
+      "do_not_use_when",
+      "positive_example",
+      "contrast_with_neighbouring_reasons"
+    ],
+    "immutable_fields": [
+      "code",
+      "selection_boundary"
+    ]
+  },
+  "reasons": [
+    {
+      "code": "no_registry_type",
+      "display_order": 1,
+      "human_title": "No available type matches",
+      "meaning": "Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning. The values must remain unclassified.",
+      "use_when": "Use only when the whole visible source has been compared with every available type card and every type can be ruled out by its meaning, distinctions, required semantic evidence, or counterexamples. Structurally generated typed options may still exist.",
+      "do_not_use_when": "Do not use when two or more distinct types remain plausible, when one type is uniquely supported, when uncertainty concerns only values or bindings within one type, or when the input was technically classified as no_financial_input or unsupported.",
+      "positive_example": "A synthetic row states Broker fee detail, CHF 42.25, and 2026-03-04; every available type card requires a different financial meaning, so all available types are ruled out.",
+      "contrast_with_neighbouring_reasons": [
+        {
+          "reason_code": "ambiguous_registry_type",
+          "distinction": "ambiguous_registry_type requires at least two plausible distinct available types; no_registry_type requires zero plausible available types."
+        }
+      ],
+      "selection_boundary": {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      }
+    },
+    {
+      "code": "ambiguous_registry_type",
+      "display_order": 2,
+      "human_title": "Multiple available types remain plausible",
+      "meaning": "Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely. The values must remain unclassified.",
+      "use_when": "Use only when at least two distinct available type cards still fit and the visible source lacks the discriminating evidence needed to eliminate all but one.",
+      "do_not_use_when": "Do not use when no available type fits, when exactly one type is uniquely supported, when uncertainty concerns only values or bindings within one already-identified type, or merely because no typed option was compiled.",
+      "positive_example": "A synthetic source provides GBP 90.10, a date, and currency but no label or other discriminator; two available type cards remain plausible and neither can be selected safely.",
+      "contrast_with_neighbouring_reasons": [
+        {
+          "reason_code": "no_registry_type",
+          "distinction": "no_registry_type requires zero plausible available types; ambiguous_registry_type requires at least two plausible distinct available types."
+        }
+      ],
+      "selection_boundary": {
+        "minimum_inclusive": 2,
+        "maximum_inclusive": "unbounded"
+      }
+    }
+  ],
+  "integrity_sha256": "d7290593410cafd6b35281ed3a6159802f0d7e87b7a085f3ec2cd2b46f4a3e15"
+}

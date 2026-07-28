@@ -1,0 +1,111 @@
+{
+  "schema_version": "broker_reports_gate2_managed_semantic_context_goal1_decision_reason_catalog_safe_receipt_v1",
+  "goal": "GOAL_1_MANAGED_DECISION_REASON_CATALOG",
+  "status": "passed_as_inactive_draft_with_explicit_benchmark_compatibility_stop",
+  "source_revision": "cdde0965e946f39e00bb4cbb6a8225d2dc2816eb",
+  "catalog": {
+    "catalog_id": "broker_reports_gate2_financial_decision_reason_catalog",
+    "semantic_version": "1.0.0",
+    "schema_version": "broker_reports_gate2_financial_decision_reason_catalog_v1",
+    "authority_status": "target_normative_not_live",
+    "lifecycle_status": "draft",
+    "runtime_activation": false,
+    "git_blob_sha256": "e5ca49c436113d5eebec189dae26d5a289287c214292eb32c80b547c29e56a0a",
+    "semantic_integrity_sha256": "d7290593410cafd6b35281ed3a6159802f0d7e87b7a085f3ec2cd2b46f4a3e15",
+    "canonical_semantic_bytes": 3603,
+    "generated_schema_git_blob_sha256": "a2285297bc1332778293b24a195dcf0dc5631e3e62076185f7336442e250a68c",
+    "contract_source_git_blob_sha256": "999b5d3869a9b08755bc6697c10aa725f92527a65d0d484515651420d5a8d375"
+  },
+  "reason_contract": {
+    "code_authority": "broker_reports_gate2_financial_evidence_decision_v1",
+    "codes": [
+      "ambiguous_registry_type",
+      "no_registry_type"
+    ],
+    "exact_code_set_match": true,
+    "selection_metric": "plausible_distinct_available_financial_type_count",
+    "collective_selection_boundaries": [
+      {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      },
+      {
+        "minimum_inclusive": 2,
+        "maximum_inclusive": "unbounded"
+      }
+    ],
+    "all_human_fields_present": true,
+    "reciprocal_contrasts_complete": true,
+    "python_human_wording_count": 0
+  },
+  "managed_family": {
+    "family_id": "broker_reports_gate2_financial_domain_assets",
+    "semantic_version": "1.1.0",
+    "manifest_schema_version": "broker_reports_financial_domain_managed_asset_manifest_v2",
+    "authority_status": "target_normative_not_live",
+    "lifecycle_status": "draft",
+    "runtime_activation": false,
+    "assets_total": 3,
+    "dependencies_total": 7,
+    "v1_api_identity_contract_preserved": true,
+    "manifest_sha256": "4e5328554056741ecb783d130a5fd43034a6876484a25c98dfdd5e68bf76499d",
+    "manifest_git_blob_sha256": "4ef70eba07bea24332a0909e4c9cb68c82854197a11fb2e78f47c3d88cf3d586",
+    "manifest_schema_git_blob_sha256": "dde15c7d523141b0301dfe8721b2eb2746d043e19768db14d40206545f4dbfd7"
+  },
+  "rollback": {
+    "draft_strategy": "discard_without_runtime_mutation",
+    "future_active_strategy": "select_previous_validated_immutable_family_version",
+    "prior_family_semantic_version": "1.0.0",
+    "prior_manifest_schema_version": "broker_reports_financial_domain_managed_asset_manifest_v1",
+    "prior_manifest_sha256": "b2d1d51f5894012871d9603b59b2a4dd597c9b83ac4d1b7714bf100468728b59",
+    "prior_manifest_git_blob_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315",
+    "live_publisher_implemented": false,
+    "live_rollback_claimed": false
+  },
+  "unchanged_authorities": {
+    "pack_git_blob_sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+    "pack_semantic_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "managed_tool_git_blob_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
+    "runtime_model_assets_git_blob_sha256": "e6fcaab0c323dcc88959bcccbb16a6d4b40986f9308e2ecbd65dd1a09a85dd75",
+    "type_meanings_changed": false,
+    "active_prompt_changed": false,
+    "active_packet_changed": false,
+    "active_choice_changed": false,
+    "provider_adapter_changed": false,
+    "validator_or_materializer_changed": false
+  },
+  "compatibility_stop": {
+    "frozen_benchmark_conformance_claimed": false,
+    "full_benchmark_run": false,
+    "current_zero_typed_option_ambiguous_cases_total": 4,
+    "context_expected_answer_audit_required": true,
+    "automatic_prompt_or_pack_change_allowed": false
+  },
+  "scope_counters": {
+    "provider_calls": 0,
+    "provider_responses": 0,
+    "runtime_source_files_changed": 0,
+    "stage_mutations": 0,
+    "production_mutations": 0,
+    "customer_inputs_read": 0,
+    "credentials_read": 0,
+    "historical_reports_modified": 0,
+    "historical_receipts_modified": 0,
+    "documentation_files_in_goal_package": 10
+  },
+  "verification": {
+    "managed_asset_builder": "passed",
+    "active_model_assets_builder": "passed",
+    "focused_pytest_passed": 84,
+    "full_service_pytest_passed": 1887,
+    "full_service_pytest_skipped": 20,
+    "full_service_pytest_warnings": 5,
+    "missing_local_documentation_links": 0,
+    "git_diff_check": "passed"
+  },
+  "next_goal": {
+    "goal": "GOAL_2_ALIAS_NECESSITY_AND_READABILITY_AUDIT",
+    "permitted_only_after": "approved_green_merge_of_goal1"
+  },
+  "integrity_sha256": "dbd4c393b3079aa78852e66a79448127e63ae2028545ca9cfa0444d61e7c5a59"
+}

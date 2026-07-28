@@ -227,7 +227,20 @@ authoring and inspection only behind that guarded lifecycle: direct GUI edits
 overwrite managed rows and are not publication or safe drafts. Until that
 boundary exists, this family remains repository-managed and non-active.
 
-## 10. Acceptance
+## 10. Additive v2 successor
+
+The
+[same-family v2 contract](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v2.md)
+now defines semantic family version `1.1.0` as an inactive repository draft.
+It preserves this v1 manifest and all v1 managed/model assets byte-exact and
+adds the single versioned Financial Decision Reason Catalog plus its generated
+schema and build-time validator dependencies.
+
+The active closed-world model-assets projection remains pinned to this exact
+v1 manifest. The v2 draft neither activates the catalog nor closes the
+full-family publication/readback/rollback gaps documented above.
+
+## 11. Acceptance
 
 ```text
 MANAGED_SKILL: VERSIONED
