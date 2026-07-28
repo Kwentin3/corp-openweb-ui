@@ -71,11 +71,25 @@ not claim conformance with that future target because `source_context` and
 `typed_options` intentionally expose exact global source and option IDs under
 the current contract.
 
-A later non-active candidate may be constructed only inside
-`Gate2FinancialSemanticV6PacketFactory.create` and must preserve this active
-payload and hash byte-for-byte. Removing canonical option IDs from the full
-model-visible request additionally requires the separate versioned Choice
-candidate; it is not part of packet-view refactoring.
+The GOAL 1 non-active candidate is constructed inside
+`Gate2FinancialSemanticV6PacketFactory.create`. Tests pin all 10 frozen active
+payload hashes and UTF-8 byte counts, proving the active payload and hash
+remain byte-identical.
+
+The factory additionally returns:
+
+- `Gate2FinancialSemanticV6SlimViewCandidate`, always `active=False`;
+- `Gate2FinancialSemanticV6SlimAliasReceipt`, private and integrity-bound to
+  both the active packet hash and Slim View hash.
+
+Current request construction continues to read only `packet.payload`. The
+private exact active renderer is unchanged; separate private renderers expose
+the candidate and receipt for local proof. The repository-safe renderer emits
+only their hashes, counts, byte size, inactive status and zero-call accounting.
+
+Removing canonical option IDs from the complete model-visible request still
+requires the separate versioned Choice candidate; it is not part of this
+packet-view implementation.
 
 ## Model-context research
 
@@ -87,14 +101,20 @@ conservative Human-readable Slim View across all 10 frozen semantic cases.
 
 The corresponding
 [Slim View proposal](../proposals/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_SLIM_VIEW.proposal.md)
-is research-only. It keeps exact literals once, projects local readable
-structure and aliases, preserves Pack-owned meanings, keeps exact canonical
-option IDs and leaves the Choice schema unchanged. Opaque refs, bindings,
-provenance, retention and replay remain in existing code-owned authorities.
+is the design-and-evidence companion for the non-active implementation. It
+keeps exact literals once, projects local readable structure and aliases,
+preserves Pack-owned meanings, keeps exact canonical option IDs and leaves the
+Choice schema unchanged. Opaque refs, bindings, provenance, retention and
+replay remain in existing code-owned authorities.
 
-The proposal is not implemented or active. The current four-block payload,
-Prompt, provider request path, Choice, validator/materializer and runtime
-behavior remain unchanged. Any implementation must stay inside the existing
-packet owner, first produce a non-active zero-call candidate with exact parity
-proof, and must not create a second packet builder or alternative Choice
-schema.
+The proposal is implemented as a non-active zero-call transition candidate.
+The current four-block payload, Prompt, provider request path, Choice,
+validator/materializer and runtime behavior remain unchanged. The
+implementation stays inside the existing packet owner and creates no second
+packet builder or alternative Choice schema.
+
+Across the 10 frozen semantic cases, current payload bytes remain 73,970 and
+implemented Slim View bytes are 18,938. With the exact current Prompt and
+Choice retained for analysis-only measurement, the repository estimator is
+22,950 versus 8,163. These are deterministic local measurements, not provider
+tokens or semantic-quality evidence.

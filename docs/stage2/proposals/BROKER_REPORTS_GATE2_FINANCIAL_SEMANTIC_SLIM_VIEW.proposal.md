@@ -1,12 +1,13 @@
 # Broker Reports Gate 2 Financial Semantic Slim View
 
-Status: `PROPOSED_NOT_IMPLEMENTED_NOT_ACTIVE`
+Status: `IMPLEMENTED_NOT_ACTIVE_GOAL1`
 
 Date: 2026-07-28
 
-This proposal is the GOAL 2 design output. It changes no runtime contract,
-Prompt, Semantic Pack, Candidate Compiler, Typed Option, canonical Choice,
-validator, materializer, Evidence Bundle, provider adapter or model output.
+This document originated as the model-context research design and now records
+the GOAL 1 non-active implementation. It changes no runtime contract, Prompt,
+Semantic Pack, Candidate Compiler, Typed Option, canonical Choice, validator,
+materializer, Evidence Bundle, provider adapter or model output.
 
 ## Contract relationship
 
@@ -14,11 +15,11 @@ The later
 [LLM Semantic Context v1](../contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 defines the closed final boundary for the complete model-visible request.
 
-This proposal remains the transition design for a first non-active view. It
-keeps exact canonical option IDs because the current V6 Choice requires them,
-so it does not claim full Context v1 conformance. Replacing those IDs with
-local response aliases is a separate versioned Choice boundary and must not be
-folded into the Slim View implementation.
+The transition view is implemented inside the existing V6 packet owner and
+remains non-active. It keeps exact canonical option IDs because the current V6
+Choice requires them, so it does not claim full Context v1 conformance.
+Replacing those IDs with local response aliases is a separate versioned Choice
+boundary and must not be folded into the Slim View implementation.
 
 ## Purpose
 
@@ -36,7 +37,7 @@ select one existing exact option_id, or select unclassified
 
 The only permitted construction owner remains
 `Gate2FinancialSemanticV6PacketFactory.create` in the current V6 packet
-module. A future implementation may compute a non-active candidate and alias
+module. The GOAL 1 implementation computes the non-active candidate and alias
 receipt inside that owner.
 
 Forbidden:
@@ -49,45 +50,45 @@ Forbidden:
 - deletion of opaque IDs from the Evidence Bundle;
 - runtime activation in the implementation PR.
 
-## Proposed model-visible contract
+## Implemented model-visible candidate
 
 ```json
 {
   "task": "<one concise selection instruction>",
   "source": {
-    "document": "current document",
-    "groups": [
-      {
-        "alias": "g1",
-        "kind": "table row | text segment | other readable existing kind",
-        "location": {
-          "page": "<local alias, only when present>",
-          "table": "<local alias, only when present>",
-          "row": "<local alias, only when present>",
-          "text_segment": "<local alias, only when present>"
-        },
-        "section_role": "<present only when non-null>",
-        "row_role": "<present only when non-null>",
-        "values": [
-          {
-            "alias": "v1",
-            "meaning": "<column meaning or visible label or compact value type>",
-            "value": "<exact authoritative literal>",
-            "type": "<compact readable value type>",
-            "label": "<present only when non-null>"
-          }
-        ]
-      }
-    ]
+    "document": {
+      "children": [
+        {
+          "alias": "t1",
+          "kind": "table",
+          "children": [
+            {
+              "alias": "r1",
+              "kind": "row",
+              "section_role": "<present only when non-null>",
+              "row_role": "<present only when non-null>",
+              "values": [
+                {
+                  "alias": "v1",
+                  "meaning": "<column meaning or visible label or compact value type>",
+                  "value": "<exact authoritative literal>",
+                  "type": "<compact readable value type>",
+                  "label": "<present only when non-null and distinct from meaning>"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
   },
   "type_cards": [
     {
-      "alias": "type1",
-      "name": "<exact input_type_id>",
+      "alias": "T1",
       "meaning": "<exact Pack-owned short_meaning>",
       "distinctions": [
         {
-          "against": "<local visible type alias or exact external type name>",
+          "against": "<local visible type alias or readable external concept>",
           "rule": "<exact Pack-owned rule>"
         }
       ],
@@ -98,9 +99,9 @@ Forbidden:
     {
       "alias": "A",
       "return_id": "<exact canonical option_id>",
-      "type": "type1",
+      "type": "T1",
       "bindings": [
-        "<role_id>=<value or group alias>"
+        "<role_id>=<value or structural alias>"
       ]
     }
   ],
@@ -115,6 +116,9 @@ Forbidden:
 require the exact `return_id` as `typed_option_id`; aliases are never accepted
 as canonical Choice values.
 
+Hierarchy levels absent from exact Evidence Bundle lineage are omitted.
+Text-segment and evidence-group nodes use the same recursive structural shape.
+
 ## Representative frozen typed case
 
 This readable projection is synthetic and repository-safe:
@@ -123,73 +127,74 @@ This readable projection is synthetic and repository-safe:
 {
   "task": "Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.",
   "source": {
-    "document": "current document",
-    "groups": [
-      {
-        "alias": "g1",
-        "kind": "table row",
-        "location": {
-          "table": "table1",
-          "row": "row1"
-        },
-        "row_role": "fact_candidate",
-        "values": [
-          {
-            "alias": "v1",
-            "meaning": "amount",
-            "value": "-120.5000",
-            "type": "decimal"
-          },
-          {
-            "alias": "v2",
-            "meaning": "currency",
-            "value": "RUB",
-            "type": "currency"
-          },
-          {
-            "alias": "v3",
-            "meaning": "as_of_date",
-            "value": "2026-03-01",
-            "type": "date"
-          },
-          {
-            "alias": "v4",
-            "meaning": "description",
-            "value": "Cash balance",
-            "type": "text"
-          }
-        ]
-      }
-    ]
+    "document": {
+      "children": [
+        {
+          "alias": "t1",
+          "kind": "table",
+          "children": [
+            {
+              "alias": "r1",
+              "kind": "row",
+              "values": [
+                {
+                  "alias": "v1",
+                  "meaning": "amount",
+                  "value": "-120.5000",
+                  "type": "decimal"
+                },
+                {
+                  "alias": "v2",
+                  "meaning": "currency",
+                  "value": "RUB",
+                  "type": "currency"
+                },
+                {
+                  "alias": "v3",
+                  "meaning": "as_of_date",
+                  "value": "2026-03-01",
+                  "type": "date"
+                },
+                {
+                  "alias": "v4",
+                  "meaning": "description",
+                  "value": "Cash balance",
+                  "type": "text"
+                }
+              ],
+              "row_role": "fact_candidate"
+            }
+          ]
+        }
+      ]
+    }
   },
   "type_cards": [
     {
-      "alias": "type1",
-      "name": "cash_balance_snapshot_v1",
+      "alias": "T1",
       "meaning": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
       "distinctions": [
         {
-          "against": "type2",
+          "against": "T2",
           "rule": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
         },
         {
-          "against": "cash_movement",
+          "against": "cash movement",
           "rule": "A movement is an event over time; this type is a state at one reporting date."
         }
       ],
       "unclassified_when": "Choose unclassified when ordinary versus restricted or segregated status is unclear. Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs. A cash-like label alone is insufficient without a source-stated amount and state context."
     },
     {
-      "alias": "type2",
-      "name": "printed_financial_metric_v1",
+      "alias": "T2",
       "meaning": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
       "distinctions": [
         {
-          "against": "type1",
+          "against": "T1",
           "rule": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
         },
         {
-          "against": "gate2_calculated_aggregate",
+          "against": "gate2 calculated aggregate",
           "rule": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
         }
       ],
@@ -200,25 +205,25 @@ This readable projection is synthetic and repository-safe:
     {
       "alias": "A",
       "return_id": "financial-typed-option:744e3c95321e39b5f068c13cb76c72ae",
-      "type": "type2",
+      "type": "T2",
       "bindings": [
         "amount=v1",
         "as_of_date=v3",
         "currency=v2",
-        "printed_label_evidence_ref=g1",
+        "printed_label_evidence_ref=r1",
         "source_label=v4",
-        "statement_scope=g1"
+        "statement_scope=r1"
       ]
     },
     {
       "alias": "B",
       "return_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
-      "type": "type1",
+      "type": "T1",
       "bindings": [
         "amount=v1",
         "as_of_date=v3",
         "currency=v2",
-        "statement_scope=g1"
+        "statement_scope=r1"
       ]
     }
   ],
@@ -229,9 +234,9 @@ This readable projection is synthetic and repository-safe:
 }
 ```
 
-This measured candidate is 2,763 minified UTF-8 bytes versus 9,638 bytes for
+This implemented candidate is 2,653 minified UTF-8 bytes versus 9,638 bytes for
 the current packet. With the unchanged Prompt and response format, the
-repository estimator is 1,077 versus 2,937 tokens.
+repository estimator is 1,047 versus 2,937 tokens.
 
 ## Private alias receipt
 
@@ -239,20 +244,36 @@ The alias receipt is never part of the model message:
 
 ```json
 {
-  "source_packet_hash": "<exact current packet hash>",
+  "schema_version": "broker_reports_gate2_financial_semantic_slim_alias_receipt_v1",
+  "policy_version": "broker_reports_gate2_llm_semantic_context_transition_v1",
+  "context_contract_identity": "broker_reports_gate2_llm_semantic_context_v1",
+  "active_packet_hash": "<exact current packet hash>",
   "slim_view_hash": "<hash of exact model-visible Slim View>",
   "value_aliases": {
     "v1": "<exact source_value_ref>"
   },
-  "group_aliases": {
-    "g1": "<exact association or lineage ref>"
-  },
-  "lineage_aliases": {
-    "table1": "<exact table_ref>",
-    "row1": "<exact row_ref>"
+  "structural_aliases": {
+    "t1": {
+      "kind": "table",
+      "association_ref": null,
+      "page_ref": null,
+      "table_ref": "<exact table_ref>",
+      "row_ref": null,
+      "cell_ref": null,
+      "text_segment_ref": null
+    },
+    "r1": {
+      "kind": "row",
+      "association_ref": "<exact association_ref>",
+      "page_ref": null,
+      "table_ref": "<exact table_ref>",
+      "row_ref": "<exact row_ref>",
+      "cell_ref": null,
+      "text_segment_ref": null
+    }
   },
   "type_aliases": {
-    "type1": "<exact input_type_id>"
+    "T1": "<exact input_type_id>"
   },
   "choice_aliases": {
     "A": "<exact option_id>"
@@ -260,16 +281,28 @@ The alias receipt is never part of the model message:
   "evidence_only_source_refs": [
     "<omitted deterministic reference refs>"
   ],
-  "integrity_sha256": "<hash of all preceding fields>"
+  "evidence_only_aliases": {
+    "<exact deterministic reference ref>": "r1"
+  },
+  "choice_role_bindings": {
+    "A": [
+      {
+        "role_id": "<exact role_id>",
+        "source_value_ref": "<exact source_value_ref>"
+      }
+    ]
+  },
+  "provider_calls_total": 0,
+  "integrity_hash": "<hash of all preceding fields>"
 }
 ```
 
 The current synthetic example produces:
 
 - Slim View hash
-  `534478dd5679044dd241366a9d1ea44c28d5d09949594873792c691567d92ae7`;
+  `f4b285a4d9e6f474dd0c4eec25bd8bd86784984d9f4167ae5092e4f201e4ed1c`;
 - alias-receipt integrity
-  `f13df561b0933db9751d53c65d68eb8cf6beaaca7e217fe04ac03151037cf43a`.
+  `ab0603213864a3395f96958017af0146e39a1abb325eae78d8216f1e9aaf156f`.
 
 ## Deterministic construction rules
 
@@ -280,12 +313,13 @@ The current synthetic example produces:
 5. Omit a visible-context key only when the authoritative value is null.
 6. Display each non-deterministic authoritative literal exactly once.
 7. Keep a compact readable value type beside each literal.
-8. Render deterministic-reference binding targets as the resolved group alias;
-   retain exact refs in the Typed Option and receipt.
+8. Render deterministic-reference binding targets as the resolved structural
+   alias; retain each exact ref in the Typed Option and role-specific receipt.
 9. Preserve exact Pack meanings, distinctions and ambiguity rules.
 10. Preserve each exact option ID and the current unclassified reasons.
 11. Hash the candidate view and alias receipt.
-12. Fail closed on any non-bijective, missing, duplicate or tampered mapping.
+12. Fail closed on any non-bijective value/type/choice/structural mapping,
+    missing role target, duplicate alias or tampered content.
 
 ## Mapping invariants
 
@@ -293,11 +327,12 @@ The current synthetic example produces:
 displayed value alias
   ↔ one exact Evidence Bundle source value
 
-displayed group alias
+displayed structural alias
   ↔ one exact association/lineage group
 
-displayed location alias
-  ↔ one exact existing page/table/row/text-segment ref
+code-only deterministic reference
+  → one displayed structural alias
+  + exact role/source-ref binding in the private receipt
 
 displayed type alias
   ↔ one exact Pack input_type_id
@@ -326,23 +361,56 @@ unclassified reason
 - provider metadata;
 - exact replay artifacts.
 
-## Implementation gate
+## GOAL 1 implementation evidence
 
-The next implementation PR is non-active and zero-call. It must prove:
+The non-active implementation proves:
 
-- current packet payload/hash byte parity;
-- alias bijection and stable ordering;
-- exact literal and hierarchy coverage;
-- binding/type/option parity;
-- unchanged Choice schema hash;
-- unchanged unclassified retention;
-- exact replay/materialization;
-- privacy-safe rendering;
-- no second builder or alternative choice schema.
+- all 10 frozen current packet hashes and byte counts remain exact;
+- aliases are deterministic and value/type/choice/structural mappings are
+  bijective;
+- every semantic literal and available non-null metadata is preserved once;
+- every displayed binding resolves to the exact compiled option binding;
+- candidate and receipt tampering fail closed;
+- repository-safe rendering contains counts and hashes only;
+- active request construction still consumes only `packet.payload`;
+- provider calls and stage mutations are zero;
+- no second builder, Slim module or alternative Choice schema exists.
+
+| Case | Current bytes | Implemented Slim bytes | Current estimator | Slim estimator |
+| --- | ---: | ---: | ---: | ---: |
+| `syn_successor_v2_unique_cash` | 9,638 | 2,653 | 2,937 | 1,047 |
+| `syn_successor_v2_unique_printed_total` | 9,905 | 2,651 | 3,004 | 1,047 |
+| `syn_successor_v2_multiple_compatible` | 4,246 | 816 | 1,393 | 488 |
+| `syn_successor_v2_no_registry_type` | 9,770 | 2,648 | 2,970 | 1,046 |
+| `syn_successor_v2_missing_discriminator` | 9,145 | 2,549 | 2,797 | 1,017 |
+| `syn_successor_v2_detail_vs_subtotal` | 3,822 | 751 | 1,278 | 468 |
+| `syn_successor_v2_adjacent_equal` | 3,724 | 747 | 1,253 | 467 |
+| `syn_successor_v2_adjacent_fx` | 4,066 | 820 | 1,348 | 489 |
+| `syn_successor_v2_optional_missing` | 9,779 | 2,651 | 2,973 | 1,047 |
+| `syn_successor_v2_forbidden_neighbour` | 9,875 | 2,652 | 2,997 | 1,047 |
+| **Total** | **73,970** | **18,938** | **22,950** | **8,163** |
+
+The view-byte reduction is 74.4%. The analysis-only repository-estimator
+reduction is 64.4%; Prompt, model and current Choice are exact-equal, and only
+the user-message view changes.
+
+Validation receipt:
+
+- focused packet, architecture, qualification and evidence tests:
+  `59 passed in 62.02s`;
+- full service suite: `1853 passed, 20 skipped, 5 warnings in 416.77s`;
+- focused Ruff validation: passed;
+- 10 JSON examples parsed, 61 relative documentation links resolved and
+  repository-safe privacy scan returned zero findings;
+- `git diff --check`: passed.
 
 Semantic sufficiency cannot be proven by unit tests. A later separately
 authorized provider qualification must pass two-case smoke before the full
 benchmark, and runtime activation remains a separate decision.
+
+The immediate next GOAL is not provider qualification. GOAL 2 must first
+create and prove the separate non-active local-alias Choice candidate so the
+complete model-visible request can remove exact `return_id`.
 
 ## Research evidence
 

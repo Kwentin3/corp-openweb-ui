@@ -47,6 +47,9 @@ separate bootstrap report.
   [LLM Semantic Context](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md).
   Context candidates remain inside the existing V6 packet owner. Global refs,
   hashes, provenance and storage IDs stay code-only.
+- The GOAL 1 Slim View and alias receipt are non-active local-proof outputs.
+  Runtime/request code continues to consume only the current `packet.payload`
+  until a separately qualified activation GOAL changes that authority.
 - The model selects only the allowed
   [semantic choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md).
   It never owns source refs, provenance, retention, records or bindings.
