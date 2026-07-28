@@ -181,7 +181,53 @@ Later GOALs may update pinned dependency hashes or issue a new asset semantic
 version. They must not silently edit a live asset or treat a stale manifest as
 current authority.
 
-## 9. Acceptance
+## 9. Managed Semantic Decision Context lifecycle audit
+
+The Managed Semantic Decision Context GOAL 0 audit selects this existing asset
+family as the sole reuse path. No second semantic registry, Semantic Pack,
+packet builder, parallel asset-family/manifest authority or GUI framework is
+permitted. Additional immutable version manifests inside this selected family
+are allowed.
+
+The ownership split is:
+
+- financial type meaning remains in the Financial Semantic Pack;
+- the closed decision-reason code set and response shape remain in the current
+  Choice/decision contracts;
+- human-readable decision-reason meaning belongs in one separately versioned
+  catalog dependency inside this same asset family;
+- authorable model-visible presentation belongs in the managed Skill/Prompt,
+  while the existing V6 packet factory remains the sole context assembler;
+- exact refs, provenance, aliases, bindings, retention and materialization
+  remain backend-only.
+
+The existing family proves repository storage, semantic versioning, immutable
+hash identity, deterministic composition and an OpenWebUI Workspace GUI/API
+surface. It does not yet prove a complete family-level publish lifecycle.
+OpenWebUI `v0.9.6` has native Prompt history, a production-version pointer,
+active toggling and restore. However every Prompt update overwrites current row
+content even when `is_production=false`; the flag only controls whether the
+production-version pointer moves. This is not isolated runtime-safe draft
+storage. Skill has update plus active toggling but no version history. Tool has
+overwrite update but no history or active-version selector.
+
+The repository atomic stage release snapshots every Function/Prompt field it
+mutates and proves exact restoration of those snapshots during rollback
+rehearsal. Candidate readback is a narrower contracted projection, not full-row
+equality, and automatic failure restoration has a documented loader-replacement
+window before its `modified` marker is set. The release does not publish or
+restore this Skill/Tool/Pack family, and its direct Prompt-row update does not
+create native Prompt history.
+
+Therefore isolated `draft` storage, validation, active selection, retirement,
+full candidate readback and rollback for the complete family are explicit
+later implementation gaps. They must be added by extending and hardening this
+manifest/release contour. The OpenWebUI Workspace surface may be reused for
+authoring and inspection only behind that guarded lifecycle: direct GUI edits
+overwrite managed rows and are not publication or safe drafts. Until that
+boundary exists, this family remains repository-managed and non-active.
+
+## 10. Acceptance
 
 ```text
 MANAGED_SKILL: VERSIONED
@@ -190,4 +236,6 @@ SEMANTIC_PACK_FUNCTION: EXACT
 ASSET_MANIFEST: PINNED
 RAG_ONLY_AUTHORITY: FORBIDDEN
 RUNTIME_ACTIVATION: FALSE
+MANAGED_CONTEXT_REUSE_PATH: THIS_ASSET_FAMILY
+COMPLETE_FAMILY_LIFECYCLE: EXPLICIT_GAP
 ```

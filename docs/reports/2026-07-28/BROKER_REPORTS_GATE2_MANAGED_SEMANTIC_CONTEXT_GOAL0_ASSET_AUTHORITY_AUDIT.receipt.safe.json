@@ -1,0 +1,68 @@
+{
+  "schema_version": "broker_reports_gate2_managed_semantic_context_goal0_asset_authority_audit_safe_receipt_v1",
+  "goal": "GOAL_0_MANAGED_SEMANTIC_ASSET_AUTHORITY_AUDIT",
+  "status": "passed_with_explicit_family_lifecycle_and_release_contour_gaps",
+  "source_revision": "840464bad7643e1dc9caabbf3c393d555497f487",
+  "selected_mechanism": {
+    "family_id": "broker_reports_gate2_financial_domain_assets",
+    "manifest_schema_version": "broker_reports_financial_domain_managed_asset_manifest_v1",
+    "authority_status": "target_normative_not_live",
+    "runtime_activation": false
+  },
+  "authority_allocation": {
+    "financial_type_semantics": "broker_reports_managed_financial_semantic_pack",
+    "decision_reason_codes_and_schema": "existing_choice_and_decision_contracts",
+    "decision_reason_human_meanings": "one_versioned_catalog_dependency_in_existing_asset_family",
+    "model_visible_context_assembly": "Gate2FinancialSemanticV6PacketFactory.create",
+    "asset_publication_and_rollback": "extend_existing_manifest_and_atomic_release_contour"
+  },
+  "audit": {
+    "sole_authority_identified": true,
+    "existing_gui_asset_path_reuse_selected": true,
+    "safe_isolated_draft_capability": false,
+    "existing_prompt_publication_rollback_contour_reuse_selected": true,
+    "complete_family_lifecycle_gap_proven": true,
+    "projected_candidate_readback_gap_proven": true,
+    "loader_failure_restore_window_proven": true,
+    "duplicate_registry_count": 0,
+    "new_gui_framework_count": 0
+  },
+  "lifecycle_coverage": {
+    "repository_storage_and_versioning": "present",
+    "native_prompt_history_and_restore": "partial_current_row_content_is_overwritten",
+    "isolated_prompt_draft_storage": "missing",
+    "native_skill_history_and_restore": "missing",
+    "native_tool_history_and_active_version": "missing",
+    "atomic_prompt_and_function_snapshot_restore": "present_for_all_release_mutated_fields",
+    "candidate_prompt_and_function_readback": "partial_contracted_projection",
+    "automatic_loader_failure_restore": "partial_pre_modified_window",
+    "full_skill_prompt_tool_pack_catalog_publication": "missing",
+    "full_family_retirement_and_rollback": "missing"
+  },
+  "scope_counters": {
+    "provider_calls": 0,
+    "provider_responses": 0,
+    "runtime_source_files_changed": 0,
+    "stage_mutations": 0,
+    "production_mutations": 0,
+    "customer_inputs_read": 0,
+    "credentials_read": 0,
+    "documentation_files_in_goal_package": 9
+  },
+  "verification": {
+    "managed_asset_builder": "passed",
+    "managed_asset_manifest_sha256": "2399bfdb3734e18814ce6380d70b5a865a5cc9fca2bb3a8e03068ca5ddb8e315",
+    "generated_tool_sha256": "e7c1a49cc8988e88a16a0696c03ec7469c961a838fd22dd315257e50815ffaee",
+    "focused_pytest_passed": 62,
+    "full_service_pytest_passed": 1873,
+    "full_service_pytest_skipped": 20,
+    "full_service_pytest_warnings": 5,
+    "missing_local_documentation_links": 0,
+    "git_diff_check": "passed"
+  },
+  "next_goal": {
+    "goal": "GOAL_1_MANAGED_DECISION_REASON_CATALOG",
+    "permitted_only_after": "approved_green_merge_of_goal0"
+  },
+  "integrity_sha256": "c964c2f9402426f08d6886e38ad05e709d0508de81fa2e022e357f75a5fc46b4"
+}

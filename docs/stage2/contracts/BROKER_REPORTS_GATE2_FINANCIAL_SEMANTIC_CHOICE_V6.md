@@ -36,6 +36,12 @@ Each variant is a closed object. The typed option enum is copied exactly from
 the validated packet. If no Typed Option exists, the typed variant is absent
 for that packet; this does not create another provider disposition.
 
+This contract owns the closed reason codes and JSON shape only. It does not own
+their human-readable semantic distinction. Context V2 must obtain that wording
+from the single versioned decision-reason catalog in the existing managed
+Financial Domain asset family. Choice parsing and normalization continue to
+validate codes; they must not reinterpret or repair a model decision.
+
 ## Prohibitions
 
 The model response contains no separate type ID, source ref, role binding,
