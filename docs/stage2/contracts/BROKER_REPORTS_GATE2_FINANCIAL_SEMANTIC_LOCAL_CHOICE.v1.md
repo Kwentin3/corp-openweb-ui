@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Local Choice v1
 
-Status: `IMPLEMENTED_NOT_ACTIVE_LOCAL_PROOF`
+Status: `GOAL3_LINTED_NOT_ACTIVE`
 
 Contract identity:
 `broker_reports_gate2_financial_semantic_local_choice_candidate_v1`
@@ -191,11 +191,17 @@ LOCAL_CHOICE_SCHEMA_HASH: adf7dbf67b563db7d82292fbacae541e204fbe1cb34cf1fca77d2f
 LOCAL_CHOICE_CANDIDATE_INTEGRITY: 3df5c7c5c7901f29e1324d7bb2ad15f4d6f14d21c90c9b120cd0b9950e8318db
 ```
 
-## Activation boundary
+## Pre-transport lint boundary
 
-This contract is not used by the current request builder, qualification run or
-evidence runtime. No provider call is authorized by this implementation.
+The Local Choice is accepted by the non-active
+`financial_semantic_v6_slim_linted_v1` request profile only after
+`Gate2FinancialSemanticV6ContextLinterFactory.create` verifies and seals the
+complete Prompt + Slim View + response-schema projection. The existing request
+builder rejects missing or tampered lint receipts before transport.
 
-GOAL 3 must add the pre-transport Context Linter and totality proof before any
-model diagnostic. Activation remains a later separate decision after the
-qualified full benchmark.
+Across the frozen suite, exact replay passes 10/10 and every local typed or
+unclassified output materializes: 32/32, with zero
+`validated_but_unmaterializable` results. This route is not called by the
+current qualification runner, evidence runtime or product runtime. No provider
+call is authorized by GOAL 3. GOAL 4 is the separate bounded model diagnostic;
+activation remains a later decision after the qualified full benchmark.

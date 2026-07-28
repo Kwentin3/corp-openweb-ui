@@ -436,6 +436,52 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 source,
             )
 
+    def test_v6_context_linter_seals_the_existing_request_builder(self):
+        linter_module = "gate2_financial_semantic_v6_context_linter"
+        tree = _tree(linter_module)
+        class_names = {
+            node.name for node in tree.body if isinstance(node, ast.ClassDef)
+        }
+        builder = _method_node(
+            _tree("gate2_model_requests"),
+            "Gate2OpenWebUIRequestBuilder",
+            "_build_financial_semantic_v6_slim_linted",
+        )
+
+        self.assertEqual(
+            {
+                name
+                for name in class_names
+                if name.endswith("ContextLinterFactory")
+            },
+            {"Gate2FinancialSemanticV6ContextLinterFactory"},
+        )
+        self.assertEqual(
+            _call_owners(linter_module, "Gate2OpenWebUIRequestBuilder"),
+            {"Gate2FinancialSemanticV6ContextLinterFactory.create"},
+        )
+        self.assertNotIn(
+            linter_module,
+            _local_imports("gate2_model_requests"),
+        )
+        self.assertIn(
+            "Gate2FinancialSemanticV6ContextLintReceipt",
+            {
+                node.id
+                for node in ast.walk(builder)
+                if isinstance(node, ast.Name)
+            },
+        )
+        self.assertIn(
+            "gate2_financial_semantic_v6_context_lint_required",
+            _string_constants(builder),
+        )
+        for bundle_path in GENERATED_BUNDLES:
+            self.assertNotIn(
+                linter_module,
+                _bundled_modules(bundle_path),
+            )
+
     def test_generated_bundle_modules_match_maintained_source(self):
         mismatches = []
         for bundle_path in GENERATED_BUNDLES:

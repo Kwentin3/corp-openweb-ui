@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context v1
 
-Status: `NORMATIVE_TARGET_GOAL2_LOCAL_REQUEST_IMPLEMENTED_NOT_ACTIVE`
+Status: `GOAL3_PRETRANSPORT_LINTER_IMPLEMENTED_NOT_ACTIVE`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v1`
@@ -15,9 +15,11 @@ Options, exact refs, bindings, provenance and integrity evidence. The model
 receives only the readable evidence and semantic distinctions needed to choose
 one local option alias or the explicit unclassified outcome.
 
-This GOAL defines the contract only. It does not change the current V6 packet,
-Prompt, Choice, request builder, provider adapter, expansion, validator,
-materializer or runtime route. Provider calls are zero.
+GOAL 3 implements this boundary for one non-active Slim request profile. It
+adds a fail-closed pre-transport Context Linter and sealed request receipt
+without changing the current V6 packet, Prompt text, active Choice, provider
+adapter, expansion, validator, materializer or runtime route. Provider calls
+are zero.
 
 ## Conformance boundary
 
@@ -57,6 +59,7 @@ Other authorities remain unchanged:
 | type and role meaning | Financial Semantic Pack |
 | complete canonical options and bindings | Candidate Compiler and Typed Option |
 | canonical current response | V6 Choice |
+| complete candidate request lint and seal | V6 Context Linter |
 | provider request construction | `Gate2OpenWebUIRequestBuilder.build` |
 | provider projection and parsing | provider adapters |
 | canonical choice expansion | V6 Decision Expansion |
@@ -449,13 +452,13 @@ exact-ID Choice.
 | GOAL 0 | defines this target; runtime remains unchanged |
 | GOAL 1 | implemented an inactive Slim View and receipt inside the existing packet owner; the active payload/hash and current Choice remain unchanged, so full conformance is not yet claimed |
 | GOAL 2 | implemented the separate non-active Local Choice, removed `return_id` from Slim v2 and proved zero opaque IDs plus canonical expansion/materialization parity |
-| GOAL 3 | enforces this contract with a pre-transport linter and totality proof |
+| GOAL 3 | implemented a pre-transport linter, sealed receipt, exact replay and totality proof for the non-active candidate request profile |
 | GOAL 4+ | records actual provider tokens and semantic evidence only where calls are explicitly authorized |
 | GOAL 8 | may activate exactly one qualified conforming context under a separate decision |
 
 No earlier stage may claim the acceptance of a later one.
 
-## GOAL 1/2 implementation status
+## GOAL 1-3 implementation status
 
 `Gate2FinancialSemanticV6PacketFactory.create` now returns:
 
@@ -473,8 +476,22 @@ The complete local projection uses only value, structural, type and choice
 aliases. Exact source/type/option IDs, lineage, bindings and
 deterministic-reference values remain in the receipt and existing authorities.
 Across the frozen suite, opaque IDs in exact messages plus response schema are
-zero. Full runtime conformance remains blocked until GOAL 3 makes the Context
-Linter a pre-transport invariant.
+zero. The candidate request now has a pre-transport invariant; active runtime
+conformance remains blocked until a later qualified activation replaces the
+historical exact-ID route.
+
+`Gate2FinancialSemanticV6ContextLinterFactory.create` now assembles the exact
+Prompt + Slim View + Local Choice projection, verifies the complete
+model-visible surface, measures it, seals one request-bound receipt and then
+delegates request construction to the existing
+`Gate2OpenWebUIRequestBuilder.build`. The builder's versioned
+`financial_semantic_v6_slim_linted_v1` profile rejects a missing, stale or
+tampered receipt before provider projection or transport.
+
+The linter is a downstream validation authority because the packet owner
+cannot inspect the complete Prompt and Choice schema without violating their
+separate authorities. It does not build another packet, compile options,
+rewrite financial meaning or assemble provider `form_data`.
 
 Across the 10 frozen semantic cases:
 
@@ -490,15 +507,42 @@ CURRENT_REQUEST_ESTIMATOR_TOTAL: 22950
 SLIM_WITH_LOCAL_CHOICE_ESTIMATOR_TOTAL: 7247
 PROJECTED_ESTIMATOR_REDUCTION: 68.4_PERCENT
 FULL_MODEL_VISIBLE_OPAQUE_IDS: ZERO
+SEMANTIC_LITERAL_COVERAGE: 100_PERCENT
+DUPLICATE_LITERALS: ZERO
+NULL_FIELDS: ZERO
+UNMAPPED_ALIASES: ZERO
+ORPHAN_ALIASES: ZERO
+ALIAS_COLLISIONS: ZERO
+STRUCTURAL_HIERARCHY: VALID
+EXACT_OPTION_COVERAGE: COMPLETE
+ALIAS_RECEIPT_INTEGRITY: VALID
+EXACT_REQUEST_REPLAY: 10_OF_10
+LOCAL_OUTPUTS_MATERIALIZED: 32_OF_32
 CANONICAL_EXPANSION_MATERIALIZATION_PARITY: EXACT
 SLIM_ACTIVE: FALSE
 LOCAL_CHOICE_ACTIVE: FALSE
+LINTED_REQUEST_PROFILE_ACTIVE_IN_PRODUCT_RUNTIME: FALSE
 PROVIDER_CALLS: ZERO
 ```
 
-The comparison is analysis-only: it keeps the exact current Prompt and model,
-then replaces the user-message view and response schema together. It does not
-create a request route or authorize transport.
+The measurement keeps the exact current Prompt text and replaces the user
+view plus response schema together. GOAL 3 creates a sealed qualification-only
+request profile, but does not call a provider, authorize a model, switch the
+current qualification runner or activate a product runtime route.
+
+The representative typed case produces:
+
+```text
+MODEL_VISIBLE_REQUEST_HASH: 02f69b3767139407a8ae0b7d45af24ebeec903e467f08ea838c21d69ded284d8
+MODEL_VISIBLE_UTF8_BYTES: 3427
+REPOSITORY_ESTIMATED_INPUT_TOKENS: 921
+LINT_RECEIPT_INTEGRITY: 45c5d63f0fe6f5a72a4a7b62439b2099eb9b663a56a6c2fb5203d9cca69c9668
+LOCAL_TOTALITY_INTEGRITY: 3e41ebc9dbc0a907e7d5ebda5a8de47632eae60ff3019fd39180de7b21c6b64f
+```
+
+The private alias receipt and its exact refs remain outside the model-visible
+projection. The lint receipt contains only hashes, counts, booleans and
+measurement identity; it is request metadata, not model context.
 
 ## Acceptance
 
@@ -521,7 +565,11 @@ SECOND_PACKET_BUILDER: ZERO
 PROVIDER_CALLS: ZERO
 GOAL1_SLIM_CANDIDATE: IMPLEMENTED_NOT_ACTIVE
 GOAL2_LOCAL_CHOICE_CANDIDATE: IMPLEMENTED_NOT_ACTIVE
+GOAL3_CONTEXT_LINTER: IMPLEMENTED_PRETRANSPORT
+GOAL3_EXACT_REPLAY: PASSED
+GOAL3_LOCAL_TOTALITY: 32_OF_32
 LOCAL_FULL_REQUEST_OPAQUE_IDS: ZERO
 ACTIVE_PACKET_HASH_PARITY: EXACT
 ACTIVE_CHOICE_SCHEMA_HASH_PARITY: EXACT
+ACTIVE_RUNTIME_ROUTE_CHANGED: NO
 ```
