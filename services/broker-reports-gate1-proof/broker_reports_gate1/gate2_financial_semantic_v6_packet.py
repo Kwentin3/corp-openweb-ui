@@ -43,13 +43,13 @@ SEMANTIC_PACKET_AMBIGUITY_RULE = (
     "its complete prebound record; otherwise select unclassified."
 )
 SLIM_VIEW_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_slim_view_candidate_v1"
+    "broker_reports_gate2_financial_semantic_slim_view_candidate_v2"
 )
 SLIM_VIEW_POLICY_VERSION = (
-    "broker_reports_gate2_llm_semantic_context_transition_v1"
+    "broker_reports_gate2_llm_semantic_context_local_choice_v1"
 )
 SLIM_ALIAS_RECEIPT_SCHEMA_VERSION = (
-    "broker_reports_gate2_financial_semantic_slim_alias_receipt_v1"
+    "broker_reports_gate2_financial_semantic_slim_alias_receipt_v2"
 )
 LLM_SEMANTIC_CONTEXT_CONTRACT_IDENTITY = (
     "broker_reports_gate2_llm_semantic_context_v1"
@@ -211,11 +211,13 @@ class Gate2FinancialSemanticV6PacketFactory:
         evidence_bundle: Gate2FinancialEvidenceBundle,
         source_package: Gate2FinancialEvidenceSourcePackage,
         compilation: Gate2FinancialCandidateCompilation,
+        slim_choice_order: tuple[str, ...] | None = None,
     ) -> Gate2FinancialSemanticV6Packet:
         return self._build(
             evidence_bundle=evidence_bundle,
             source_package=source_package,
             compilation=compilation,
+            slim_choice_order=slim_choice_order,
         )
 
     def _build(
@@ -224,6 +226,7 @@ class Gate2FinancialSemanticV6PacketFactory:
         evidence_bundle: Gate2FinancialEvidenceBundle,
         source_package: Gate2FinancialEvidenceSourcePackage,
         compilation: Gate2FinancialCandidateCompilation,
+        slim_choice_order: tuple[str, ...] | None = None,
     ) -> Gate2FinancialSemanticV6Packet:
         _validate_compilation(
             compilation=compilation,
@@ -280,6 +283,7 @@ class Gate2FinancialSemanticV6PacketFactory:
             compilation=compilation,
             active_payload=payload,
             active_packet_hash=packet_hash,
+            slim_choice_order=slim_choice_order,
         )
         return Gate2FinancialSemanticV6Packet(
             schema_version=SEMANTIC_PACKET_SCHEMA_VERSION,
@@ -304,10 +308,17 @@ def validate_financial_semantic_v6_packet(
 ) -> None:
     if not isinstance(packet, Gate2FinancialSemanticV6Packet):
         _fail("financial_semantic_v6_packet_invalid")
+    try:
+        slim_choice_order = tuple(
+            packet.slim_alias_receipt.choice_aliases.values()
+        )
+    except AttributeError:
+        _fail("financial_semantic_v6_packet_integrity_invalid")
     expected = Gate2FinancialSemanticV6PacketFactory(registry=registry)._build(
         evidence_bundle=evidence_bundle,
         source_package=source_package,
         compilation=compilation,
+        slim_choice_order=slim_choice_order,
     )
     if packet != expected:
         _fail("financial_semantic_v6_packet_integrity_invalid")
@@ -430,6 +441,7 @@ def _slim_candidate_and_receipt(
     compilation: Gate2FinancialCandidateCompilation,
     active_payload: dict[str, Any],
     active_packet_hash: str,
+    slim_choice_order: tuple[str, ...] | None,
 ) -> tuple[
     Gate2FinancialSemanticV6SlimViewCandidate,
     Gate2FinancialSemanticV6SlimAliasReceipt,
@@ -475,7 +487,28 @@ def _slim_candidate_and_receipt(
             for source_value_ref, alias in evidence_only_aliases.items()
         },
     }
-    for index, option in enumerate(compilation.typed_options):
+    options_by_id = {
+        option.typed_option_id: option
+        for option in compilation.typed_options
+    }
+    canonical_choice_order = tuple(options_by_id)
+    exact_choice_order = (
+        canonical_choice_order
+        if slim_choice_order is None
+        else slim_choice_order
+    )
+    if (
+        not isinstance(exact_choice_order, tuple)
+        or len(exact_choice_order) != len(canonical_choice_order)
+        or len(exact_choice_order) != len(set(exact_choice_order))
+        or set(exact_choice_order) != set(canonical_choice_order)
+    ):
+        _fail("financial_semantic_v6_slim_choice_order_invalid")
+    ordered_options = tuple(
+        options_by_id[typed_option_id]
+        for typed_option_id in exact_choice_order
+    )
+    for index, option in enumerate(ordered_options):
         choice_alias = _choice_alias(index)
         choice_aliases[choice_alias] = option.typed_option_id
         exact_bindings = [
@@ -502,7 +535,6 @@ def _slim_candidate_and_receipt(
         choices.append(
             {
                 "alias": choice_alias,
-                "return_id": option.typed_option_id,
                 "type": type_alias,
                 "bindings": rendered_bindings,
             }
@@ -937,6 +969,7 @@ def _validate_slim_candidate_material(
         "association_ref",
         "input_type_id",
         "option_id",
+        "return_id",
         "source_value_ref",
         "typed_option_id",
     }
@@ -1021,11 +1054,17 @@ def _validate_slim_candidate_material(
     if (
         [item["alias"] for item in choices]
         != list(receipt.choice_aliases)
-        or list(receipt.choice_aliases.values())
-        != [option.typed_option_id for option in compilation.typed_options]
+        or set(receipt.choice_aliases.values())
+        != {option.typed_option_id for option in compilation.typed_options}
+        or len(receipt.choice_aliases)
+        != len(compilation.typed_options)
         or len(choices) != len(compilation.typed_options)
     ):
         _fail("financial_semantic_v6_slim_choice_alias_invalid")
+    options_by_id = {
+        option.typed_option_id: option
+        for option in compilation.typed_options
+    }
     binding_alias_by_ref = {
         **{
             source_value_ref: alias
@@ -1037,19 +1076,15 @@ def _validate_slim_candidate_material(
         input_type_id: alias
         for alias, input_type_id in receipt.type_aliases.items()
     }
-    for rendered, option in zip(
-        choices,
-        compilation.typed_options,
-        strict=True,
-    ):
+    for rendered in choices:
         choice_alias = rendered["alias"]
+        option = options_by_id[receipt.choice_aliases[choice_alias]]
         expected_bindings = [
             f"{binding.role_id}={binding_alias_by_ref[binding.source_value_ref]}"
             for binding in option.role_bindings
         ]
         if (
-            rendered["return_id"] != option.typed_option_id
-            or rendered["type"] != type_alias_by_id[option.input_type_id]
+            rendered["type"] != type_alias_by_id[option.input_type_id]
             or rendered["bindings"] != expected_bindings
             or receipt.choice_role_bindings[choice_alias]
             != [
@@ -1082,6 +1117,7 @@ def _validate_slim_candidate_material(
             for value in evidence_bundle.source_values
         ),
         *(receipt.type_aliases.values()),
+        *(receipt.choice_aliases.values()),
     }
     if any(value and value in serialized for value in forbidden_exact_values):
         _fail("financial_semantic_v6_slim_opaque_identity_visible")

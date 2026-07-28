@@ -118,13 +118,14 @@ rendered occurrence per authoritative semantic source value, omitted nulls,
 local request-bound aliases and zero opaque global IDs across messages and
 response schema.
 
-The current active V6 four-block packet and V6 Choice do not yet claim this
-conformance: they expose exact source/option identities by their existing
-contracts. GOAL 0 changes documentation only. A non-active Slim candidate
-must remain inside `Gate2FinancialSemanticV6PacketFactory.create`, and local
-Choice aliases require a separate versioned candidate and parity proof. No
-provider adapter may remove IDs or repair semantic meaning to simulate
-conformance.
+The current active V6 four-block packet and V6 Choice do not claim this
+conformance: they expose exact source/option identities by their historical
+contracts. GOAL 0 defined the boundary; GOAL 1/2 implement a non-active local
+projection. Slim construction remains inside
+`Gate2FinancialSemanticV6PacketFactory.create`, and the separate
+[Local Choice v1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+remains inside the current Choice authority. No provider adapter may remove
+IDs or repair semantic meaning to simulate conformance.
 
 ```text
 CONTEXT_CONTRACT: DEFINED
@@ -168,6 +169,44 @@ PRIVATE_ALIAS_RECEIPT: INTEGRITY_BOUND
 CURRENT_REQUEST_ROUTE_CHANGED: NO
 CURRENT_CHOICE_CHANGED: NO
 SECOND_PACKET_BUILDER: ZERO
+PROVIDER_CALLS: ZERO
+STAGE_MUTATIONS: ZERO
+```
+
+### GOAL 2 non-active Local Choice implementation
+
+`Gate2FinancialSemanticV6ChoiceContractFactory.create` now returns the
+unchanged active exact-ID Choice plus one inactive versioned local candidate.
+Slim View v2 removes canonical `return_id`; the packet private receipt retains
+the exact A/B-to-option mapping.
+
+`Gate2FinancialSemanticV6DecisionExpansionFactory.create_from_local_candidate`
+normalizes the local closed answer and delegates to the same canonical
+expansion used by `create`. It is not called by the request builder,
+qualification run or evidence runtime.
+
+Executable tests prove:
+
+- all 10 active Choice schema hashes remain exact;
+- exact messages plus local response schema contain zero opaque IDs;
+- option permutation moves the visible record and private mapping together
+  while active packet payload/hash remain exact;
+- every local typed and unclassified answer expands and materializes
+  identically to the current path;
+- unclassified retention remains the complete Evidence Bundle retention set;
+- unknown/extra/duplicate/tampered choices fail closed;
+- no second Choice factory or local-choice module exists;
+- provider calls, fallback, repair, retry and runtime-route changes are zero.
+
+```text
+LOCAL_CHOICE_OWNER: EXISTING_V6_CHOICE_FACTORY
+LOCAL_EXPANSION_OWNER: EXISTING_V6_DECISION_EXPANSION_FACTORY
+ACTIVE_CHOICE_SCHEMA_HASH_PARITY: 10_OF_10_EXACT
+FULL_MODEL_VISIBLE_OPAQUE_IDS: ZERO
+CANONICAL_EXPANSION_MATERIALIZATION_PARITY: EXACT
+LOCAL_CHOICE_ACTIVE: FALSE
+CURRENT_REQUEST_ROUTE_CHANGED: NO
+SECOND_CHOICE_FACTORY: ZERO
 PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 ```

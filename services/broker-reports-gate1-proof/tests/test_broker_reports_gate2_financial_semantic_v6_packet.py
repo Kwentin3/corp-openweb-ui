@@ -449,11 +449,14 @@ def test_slim_candidate_has_exact_literal_and_alias_totality(v6_fixture):
             *(item.input_type_id for item in compilation.typed_options),
         }
         assert all(item not in serialized for item in forbidden_exact)
-        assert [item["return_id"] for item in candidate.payload["choices"]] == [
+        assert [item["alias"] for item in candidate.payload["choices"]] == list(
+            receipt.choice_aliases
+        )
+        assert set(receipt.choice_aliases.values()) == {
             item.typed_option_id for item in compilation.typed_options
-        ]
+        }
         assert all(
-            serialized.count(item.typed_option_id) == 1
+            item.typed_option_id not in serialized
             for item in compilation.typed_options
         )
 
@@ -538,7 +541,7 @@ def test_slim_candidate_is_deterministic_and_non_active(v6_fixture):
     assert sum(
         case.packet.slim_candidate.model_visible_utf8_bytes
         for case in v6_fixture.semantic_cases
-    ) == 18_938
+    ) == 18_098
     assert sum(
         ACTIVE_PACKET_BASELINES[case.case_id][1]
         for case in v6_fixture.semantic_cases
@@ -588,7 +591,7 @@ def test_slim_size_projection_changes_only_the_non_active_user_view(v6_fixture):
         "compact_request_utf8_bytes_div_4_plus_64_v1"
     )
     assert sum(current_estimates) == 22_950
-    assert sum(slim_estimates) == 8_163
+    assert sum(slim_estimates) == 7_941
 
 
 def test_slim_private_renderers_and_tampering_fail_closed():
@@ -663,4 +666,24 @@ def test_slim_private_renderers_and_tampering_fail_closed():
     ):
         render_financial_semantic_v6_slim_alias_receipt_private_exact(
             packet=tampered_packet
+        )
+
+    malformed_receipt = replace(
+        packet.slim_alias_receipt,
+        choice_aliases=[],
+    )
+    malformed_packet = replace(
+        packet,
+        slim_alias_receipt=malformed_receipt,
+    )
+    with pytest.raises(
+        Gate2FinancialSemanticV6PacketError,
+        match="financial_semantic_v6_packet_integrity_invalid",
+    ):
+        validate_financial_semantic_v6_packet(
+            packet=malformed_packet,
+            evidence_bundle=bundle,
+            source_package=scope.source_package,
+            compilation=compilation,
+            registry=registry,
         )
