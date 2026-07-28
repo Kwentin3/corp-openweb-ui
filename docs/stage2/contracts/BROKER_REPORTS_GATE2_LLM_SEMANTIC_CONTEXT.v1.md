@@ -26,6 +26,11 @@ alias and binding necessity for that candidate. It does not revise this v1
 shape or activate a route; it supplies closed requirements for a separate
 Context V2 contract.
 
+Those requirements are now frozen in the non-active
+[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
+This v1 contract remains the implemented historical candidate boundary and is
+not silently upgraded in place.
+
 ## Conformance boundary
 
 For this contract, the **complete model-visible request** includes:
@@ -47,16 +52,24 @@ the response schema.
 owner for the current packet and any non-active context candidate derived from
 the same validated inputs.
 
-The owner may later construct, inside the existing V6 packet module:
+For the historical v1/Slim profile, the owner may construct inside the
+existing V6 packet module:
 
 - the unchanged active V6 packet;
 - one non-active context candidate;
 - one private alias receipt.
 
+That cardinality is scoped to the v1/Slim profile, not to all future contract
+versions. The additive
+[Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+defines one separate non-active candidate and packet-owned mapping receipt in
+the same sole factory; it does not authorize another builder.
+
 It must not create or delegate to a second packet builder, Candidate Compiler,
 financial-semantic registry or provider-side semantic rewrite.
 
-Current authorities and the one planned ownership slot remain fixed:
+Current authorities and their versioned slots inside the one owner remain
+fixed:
 
 | Concern | Authority/placement | Current status |
 | --- | --- | --- |
@@ -74,10 +87,12 @@ Current authorities and the one planned ownership slot remain fixed:
 
 The packet owner is a deterministic renderer, not a semantic-content author.
 Context V2 must project type wording from the Pack and reason wording from the
-single managed catalog. It may shorten or arrange those meanings under this
-contract, but must not copy independent wording into the packet module, Prompt,
-runner, provider adapter or report projector. The current code-owned V6 Prompt
-and active packet remain unchanged until a separately qualified activation.
+single managed catalog. It may select the exact V2-allowlisted fields, arrange
+them in contract order and mechanically render identifiers, but may not shorten,
+paraphrase or truncate their semantic wording, or copy independent wording into
+the packet module, Prompt, runner, provider adapter or report projector. The
+current code-owned V6 Prompt and active packet remain unchanged until a
+separately qualified activation.
 The catalog draft alone does not prove compatibility with frozen V6 expected
 answers; that audit remains a prerequisite to a model-visible Context V2.
 
@@ -654,19 +669,24 @@ Context V2 must apply the following stricter boundary:
   the strict response must return it;
 - retain readable hierarchy, semantic literal, meaning and type even when the
   local alias is omitted;
-- pair a required deterministic value key with exact evidence-owned meaning
-  or label;
+- pair a required deterministic value key with readable evidence-owned
+  meaning or an exact human label, retaining the exact source mapping
+  privately;
 - omit structural handles when nesting is sufficient;
 - pair deterministic type keys with Pack-owned readable type titles through a
   versioned extension of the existing type-card projection authority;
-- pair deterministic choice keys with readable Pack/evidence-owned labels;
-  the label does not replace unique response identity;
-- factor common role/value and evidence-eligibility relationships once, while
-  preserving variant-specific relationships;
+- pair deterministic choice keys with the mapped type's exact Pack title;
+  evidence differences remain structured relationships and the label does not
+  replace unique response identity;
+- factor common role/value and evidence-eligibility relationships once with an
+  explicit local-choice subset where necessary, while preserving
+  single-choice relationships;
 - keep every exact option binding, including hidden technical bindings, in
-  the Candidate Compiler/Typed Option and private receipt;
-- allow semantically indistinguishable choices to reach `unclassified`, and
-  fail closed only on key, mapping, scope or integrity defects.
+  the Candidate Compiler/Typed Option and future packet-owned mapping receipt;
+- use `unclassified` for indistinguishable choices only when two or more
+  distinct type meanings remain plausible; same-type indistinguishability is
+  the count-one compatibility stop; key, mapping, scope or integrity defects
+  fail closed as technical errors.
 
 For the frozen suite, 59 current bindings factor to 35 unique readable
 eligibility relationships: 23 semantic role/value relations plus 12 readable

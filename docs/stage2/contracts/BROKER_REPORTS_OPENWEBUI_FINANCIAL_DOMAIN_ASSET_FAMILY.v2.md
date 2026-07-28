@@ -133,8 +133,11 @@ Family v2 does not:
 - mutate stage or production;
 - claim frozen benchmark compatibility.
 
-Context V2 may consume this catalog only after its own versioned contract,
-local linter/replay proof and separately authorized activation path.
+The non-active
+[Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+now selects this catalog as its sole reason-meaning authority. Consumption
+still requires a packaged closed-world candidate snapshot, implementation,
+local linter/replay proof and a separately authorized activation path.
 
 ## 7. Acceptance
 
@@ -149,4 +152,5 @@ LIVE_PUBLISHER: NOT_IMPLEMENTED
 ROLLBACK_BASELINE: EXACT_V1_PIN
 SECOND_AUTHORITY: ZERO
 PROVIDER_CALLS: ZERO
+CONTEXT_V2_CONTRACT: SELECTED_NOT_IMPLEMENTED
 ```

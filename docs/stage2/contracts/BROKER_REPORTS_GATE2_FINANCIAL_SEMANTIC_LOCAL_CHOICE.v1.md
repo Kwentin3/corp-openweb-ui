@@ -240,17 +240,27 @@ readability of the key itself:
   `typed_option_id`;
 - positional `A/B` communicates order, not financial meaning;
 - a future Context V2 must keep a deterministic unique `choice_key` and add a
-  separate `choice_label` from the Pack-owned type title plus exact visible
-  evidence when available;
+  separate `label` equal to the mapped Pack-owned type title; exact
+  visible evidence remains in structured relationships;
 - a readable label need not be unique and must not replace response identity;
-- semantically indistinguishable options remain distinct by key and allow the
-  model to choose `unclassified`;
+- semantically indistinguishable options remain distinct by key;
+  `unclassified` is truthful for two or more plausible distinct types, while
+  same-type indistinguishability hits the count-one compatibility stop;
 - duplicate/missing keys, mapping, scope and integrity defects fail closed;
-- the local key remains disposable and maps through the same private receipt,
-  normalizer and canonical expansion authority.
+- the local key remains disposable and maps through its exact Context-bound
+  packet-owned mapping receipt, then the existing normalizer and canonical
+  expansion authority.
 
 The frozen audit found 12 current choice aliases. All are consumed by the
 response schema, so the key function is necessary. Context V2 must not leave
 the 12 positional letters as the sole presentation; the exact future key
 spelling belongs to that separately versioned contract. This is a readability
 requirement, not evidence that `A/B` caused the historical model failures.
+
+The exact successor requirement now lives in
+[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
+It uses `choice_N` plus the mapped type's exact Pack title as a separate
+label, retains this contract's strict typed-versus-unclassified response
+shape and normalizes to the same canonical V6 Choice. No Local Choice v2
+implementation or active route exists yet; this v1 candidate remains
+unchanged in bytes and behavior.
