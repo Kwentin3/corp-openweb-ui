@@ -56,3 +56,25 @@ Gate 3 methodology, expected answers, and duplicate instructions.
   hashes, counts, type/role IDs, option IDs, and structural summaries.
 
 The repository-safe renderer never emits source literals or source refs.
+
+## Model-context research
+
+The 2026-07-28
+[field-by-field redundancy audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_SEMANTIC_PACKET_REDUNDANCY_AUDIT.report.md)
+inventories every current model-visible field, distinguishes semantic and
+structural metadata from code/evidence-only identity, and measures a
+conservative Human-readable Slim View across all 10 frozen semantic cases.
+
+The corresponding
+[Slim View proposal](../proposals/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_SLIM_VIEW.proposal.md)
+is research-only. It keeps exact literals once, projects local readable
+structure and aliases, preserves Pack-owned meanings, keeps exact canonical
+option IDs and leaves the Choice schema unchanged. Opaque refs, bindings,
+provenance, retention and replay remain in existing code-owned authorities.
+
+The proposal is not implemented or active. The current four-block payload,
+Prompt, provider request path, Choice, validator/materializer and runtime
+behavior remain unchanged. Any implementation must stay inside the existing
+packet owner, first produce a non-active zero-call candidate with exact parity
+proof, and must not create a second packet builder or alternative Choice
+schema.
