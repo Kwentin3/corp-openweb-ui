@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
@@ -26,9 +27,23 @@ FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE = "financial_semantic_v5"
 FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE = (
     "financial_semantic_v6_qualification_v1"
 )
+FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE = (
+    "financial_semantic_v6_slim_linted_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
+FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
+)
+FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_POLICY_VERSION = (
+    "broker_reports_gate2_llm_semantic_context_linter_v1"
+)
+FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_PASSED = "passed"
+FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_ID = (
+    "compact_request_utf8_bytes_div_4_plus_64_v1"
+)
+_FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_OVERHEAD = 64
 GATE2_REQUEST_PROFILES = (SOURCE_REQUEST_PROFILE, DOMAIN_REQUEST_PROFILE)
 _SUPPORTED_REQUEST_PROFILES = (
     *GATE2_REQUEST_PROFILES,
@@ -40,6 +55,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_EVIDENCE_SUCCESSOR_QUALIFICATION_REQUEST_PROFILE_V3,
     FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -52,6 +68,134 @@ def _sha256_json(value: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextLintReceipt:
+    schema_version: str
+    policy_version: str
+    status: str
+    request_profile: str
+    prompt_version: str
+    prompt_hash: str
+    slim_view_hash: str
+    local_choice_schema_hash: str
+    alias_receipt_integrity_hash: str
+    model_visible_request_hash: str
+    model_visible_utf8_bytes: int
+    token_estimator_id: str
+    estimated_input_tokens: int
+    semantic_literals_total: int
+    semantic_literals_covered_total: int
+    duplicate_literals_total: int
+    null_fields_total: int
+    opaque_ids_total: int
+    unmapped_aliases_total: int
+    orphan_aliases_total: int
+    alias_collisions_total: int
+    structural_nodes_total: int
+    choices_total: int
+    semantic_literal_coverage_complete: bool
+    structural_hierarchy_valid: bool
+    exact_option_coverage: bool
+    alias_receipt_integrity_valid: bool
+    provider_calls_total: int
+    integrity_hash: str
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "status": self.status,
+            "request_profile": self.request_profile,
+            "prompt_version": self.prompt_version,
+            "prompt_hash": self.prompt_hash,
+            "slim_view_hash": self.slim_view_hash,
+            "local_choice_schema_hash": self.local_choice_schema_hash,
+            "alias_receipt_integrity_hash": (
+                self.alias_receipt_integrity_hash
+            ),
+            "model_visible_request_hash": self.model_visible_request_hash,
+            "model_visible_utf8_bytes": self.model_visible_utf8_bytes,
+            "token_estimator_id": self.token_estimator_id,
+            "estimated_input_tokens": self.estimated_input_tokens,
+            "semantic_literals_total": self.semantic_literals_total,
+            "semantic_literals_covered_total": (
+                self.semantic_literals_covered_total
+            ),
+            "duplicate_literals_total": self.duplicate_literals_total,
+            "null_fields_total": self.null_fields_total,
+            "opaque_ids_total": self.opaque_ids_total,
+            "unmapped_aliases_total": self.unmapped_aliases_total,
+            "orphan_aliases_total": self.orphan_aliases_total,
+            "alias_collisions_total": self.alias_collisions_total,
+            "structural_nodes_total": self.structural_nodes_total,
+            "choices_total": self.choices_total,
+            "semantic_literal_coverage_complete": (
+                self.semantic_literal_coverage_complete
+            ),
+            "structural_hierarchy_valid": self.structural_hierarchy_valid,
+            "exact_option_coverage": self.exact_option_coverage,
+            "alias_receipt_integrity_valid": (
+                self.alias_receipt_integrity_valid
+            ),
+            "provider_calls_total": self.provider_calls_total,
+        }
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            **self.integrity_payload(),
+            "integrity_hash": self.integrity_hash,
+        }
+
+
+def financial_semantic_v6_slim_model_visible_projection(
+    *,
+    prompt,
+    package: dict[str, Any],
+    response_format: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "messages": [
+            {"role": "system", "content": prompt.content},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    package,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+            },
+        ],
+        "response_format": response_format,
+    }
+
+
+def financial_semantic_v6_model_visible_utf8_bytes(
+    projection: dict[str, Any],
+) -> int:
+    return len(
+        json.dumps(
+            projection,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    )
+
+
+def financial_semantic_v6_estimated_input_tokens(
+    projection: dict[str, Any],
+) -> int:
+    return max(
+        1,
+        (
+            financial_semantic_v6_model_visible_utf8_bytes(projection)
+            + 3
+        )
+        // 4
+        + _FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_OVERHEAD,
+    )
 
 
 # OWNER:
@@ -149,6 +293,16 @@ class Gate2OpenWebUIRequestBuilder:
             == FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
         ):
             return self._build_financial_semantic_v6_qualification(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE
+        ):
+            return self._build_financial_semantic_v6_slim_linted(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -711,6 +865,112 @@ class Gate2OpenWebUIRequestBuilder:
                     "prompt_hash": prompt.hash,
                     "packet_hash": prompt.packet_hash,
                     "choice_schema_hash": prompt.choice_schema_hash,
+                    "semantic_selection_owner": "llm",
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_financial_semantic_v6_slim_linted(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        projection = financial_semantic_v6_slim_model_visible_projection(
+            prompt=prompt,
+            package=package,
+            response_format=response_format,
+        )
+        receipt = getattr(prompt, "context_lint_receipt", None)
+        json_schema = (
+            response_format.get("json_schema")
+            if isinstance(response_format, dict)
+            else None
+        )
+        choices = package.get("choices") if isinstance(package, dict) else None
+        if (
+            not isinstance(
+                receipt,
+                Gate2FinancialSemanticV6ContextLintReceipt,
+            )
+            or receipt.schema_version
+            != FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION
+            or receipt.policy_version
+            != FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_POLICY_VERSION
+            or receipt.status != FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_PASSED
+            or receipt.request_profile
+            != FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE
+            or not isinstance(getattr(prompt, "content", None), str)
+            or receipt.prompt_version != getattr(prompt, "version", None)
+            or receipt.prompt_hash != getattr(prompt, "hash", None)
+            or receipt.prompt_hash != _sha256_json(prompt.content)
+            or receipt.slim_view_hash
+            != getattr(prompt, "packet_hash", None)
+            or receipt.slim_view_hash != _sha256_json(package)
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(json_schema, dict)
+            or set(json_schema) != {"name", "strict", "schema"}
+            or json_schema.get("name") != "semantic_choice"
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+            or receipt.local_choice_schema_hash
+            != getattr(prompt, "choice_schema_hash", None)
+            or receipt.local_choice_schema_hash
+            != _sha256_json(json_schema["schema"])
+            or receipt.model_visible_request_hash != _sha256_json(projection)
+            or receipt.model_visible_utf8_bytes
+            != financial_semantic_v6_model_visible_utf8_bytes(projection)
+            or receipt.token_estimator_id
+            != FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_ID
+            or receipt.estimated_input_tokens
+            != financial_semantic_v6_estimated_input_tokens(projection)
+            or receipt.semantic_literals_total < 1
+            or receipt.semantic_literals_covered_total
+            != receipt.semantic_literals_total
+            or receipt.duplicate_literals_total != 0
+            or receipt.null_fields_total != 0
+            or receipt.opaque_ids_total != 0
+            or receipt.unmapped_aliases_total != 0
+            or receipt.orphan_aliases_total != 0
+            or receipt.alias_collisions_total != 0
+            or receipt.structural_nodes_total < 1
+            or not isinstance(choices, list)
+            or receipt.choices_total != len(choices)
+            or receipt.semantic_literal_coverage_complete is not True
+            or receipt.structural_hierarchy_valid is not True
+            or receipt.exact_option_coverage is not True
+            or receipt.alias_receipt_integrity_valid is not True
+            or receipt.provider_calls_total != 0
+            or receipt.integrity_hash
+            != _sha256_json(receipt.integrity_payload())
+        ):
+            raise Gate2PromptError(
+                "gate2_financial_semantic_v6_context_lint_required",
+                "V6 Slim transport requires one exact passed context-lint receipt",
+            )
+        return {
+            "model": model_id,
+            "messages": projection["messages"],
+            "stream": False,
+            "response_format": projection["response_format"],
+            "metadata": {
+                "broker_reports_gate2": {
+                    "financial_semantic_v6_slim_candidate": True,
+                    "request_profile": (
+                        FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE
+                    ),
+                    "prompt_version": prompt.version,
+                    "prompt_hash": prompt.hash,
+                    "slim_view_hash": prompt.packet_hash,
+                    "local_choice_schema_hash": prompt.choice_schema_hash,
+                    "context_lint_receipt_integrity_hash": (
+                        receipt.integrity_hash
+                    ),
                     "semantic_selection_owner": "llm",
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,

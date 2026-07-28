@@ -49,9 +49,15 @@ separate bootstrap report.
   hashes, provenance and storage IDs stay code-only.
 - The GOAL 1/2 Slim View, alias receipt and
   [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
-  are non-active local-proof outputs. Runtime/request code continues to consume
-  only the current `packet.payload` and exact-ID Choice until a separately
+  remain non-active outputs. GOAL 3 adds one qualification-only linted request
+  profile, but runtime and the current qualification runner continue to
+  consume only `packet.payload` and exact-ID Choice until a separately
   qualified activation GOAL changes that authority.
+- Any Slim + Local Choice transport must first use
+  `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
+  builder rejects the candidate profile without its exact sealed lint receipt.
+  The linter validates the complete request but does not own packet, Prompt,
+  Choice, provider projection, canonical expansion or materialization.
 - The model selects only the allowed
   [semantic choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md).
   It never owns source refs, provenance, retention, records or bindings.

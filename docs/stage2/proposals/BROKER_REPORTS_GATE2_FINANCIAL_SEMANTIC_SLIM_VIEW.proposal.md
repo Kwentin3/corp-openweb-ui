@@ -1,11 +1,11 @@
 # Broker Reports Gate 2 Financial Semantic Slim View
 
-Status: `IMPLEMENTED_NOT_ACTIVE_GOAL2`
+Status: `GOAL3_LINTED_NOT_ACTIVE`
 
 Date: 2026-07-28
 
 This document originated as the model-context research design and now records
-the GOAL 1/2 non-active implementation. It changes no active runtime contract,
+the GOAL 1-3 non-active implementation. It changes no active runtime contract,
 Prompt, Semantic Pack, Candidate Compiler, Typed Option, canonical Choice,
 validator, materializer, Evidence Bundle or provider adapter.
 
@@ -361,7 +361,7 @@ unclassified reason
 - provider metadata;
 - exact replay artifacts.
 
-## GOAL 1/2 implementation evidence
+## GOAL 1-3 implementation evidence
 
 The non-active implementation proves:
 
@@ -376,7 +376,8 @@ The non-active implementation proves:
   expansion/materialization parity and unchanged unclassified retention;
 - candidate and receipt tampering fail closed;
 - repository-safe rendering contains counts and hashes only;
-- active request construction still consumes only `packet.payload`;
+- active request construction still consumes only `packet.payload`; the
+  separate candidate profile requires a passed lint receipt;
 - provider calls and stage mutations are zero;
 - one separate versioned Local Choice candidate exists inside the current
   Choice factory; it is non-active and introduces no second factory.
@@ -396,26 +397,58 @@ The non-active implementation proves:
 | **Total** | **73,970** | **18,098** | **22,950** | **7,247** |
 
 The complete messages-plus-response-schema projection is 89,220 current bytes
-versus 26,404 candidate bytes, a 70.4% reduction. The analysis-only
-repository-estimator reduction is 68.4%; Prompt and model are exact-equal,
-while the non-active user view and response schema change together.
+versus 26,404 candidate bytes, a 70.4% reduction. The deterministic local
+repository-estimator reduction is 68.4%; Prompt text is unchanged, while the
+non-active user view and response schema change together.
+
+GOAL 3 adds
+`Gate2FinancialSemanticV6ContextLinterFactory.create` after packet, Prompt and
+Choice construction. It checks the complete candidate request and seals a
+receipt before the existing request builder may construct the version-pinned
+candidate request:
+
+```text
+OPAQUE_IDS: ZERO
+DUPLICATE_LITERALS: ZERO
+NULL_FIELDS: ZERO
+UNMAPPED_ALIASES: ZERO
+ORPHAN_ALIASES: ZERO
+ALIAS_COLLISIONS: ZERO
+SEMANTIC_LITERAL_COVERAGE: 100_PERCENT
+STRUCTURAL_HIERARCHY: VALID
+EXACT_OPTION_COVERAGE: COMPLETE
+ALIAS_RECEIPT_INTEGRITY: VALID
+EXACT_REPLAY: 10_OF_10
+LOCAL_TOTAL_MATERIALIZATION: 32_OF_32
+PROVIDER_CALLS: ZERO
+```
+
+The linter does not repair input, create a second packet, compile options or
+assemble provider form data. `Gate2OpenWebUIRequestBuilder.build` remains the
+sole request constructor and its candidate profile rejects a missing or
+tampered receipt before transport. The profile is present in the rebuilt
+closed-world bundles without importing the qualification-only linter module.
 
 Validation receipt:
 
-- final focused packet and Local Choice tests:
-  `17 passed in 25.46s`;
-- full service suite: `1858 passed, 20 skipped, 5 warnings in 438.84s`;
+- focused linter, architecture and budget tests:
+  `47 passed in 27.22s`;
+- extended V6 regression contour:
+  `147 passed in 290.63s`;
+- full service suite:
+  `1866 passed, 20 skipped, 5 warnings in 449.17s`;
 - focused Ruff validation: passed;
-- 13 JSON examples parsed, 67 relative documentation links resolved and
+- 11 JSON examples parsed, 71 relative documentation links resolved and
   repository-safe privacy scan returned zero findings;
+- all three generated bundles were rebuilt from maintained source; the Gate 2
+  domain bundle loaded in an isolated process and rejected a missing lint
+  receipt before transport;
 - `git diff --check`: passed.
 
-Semantic sufficiency cannot be proven by unit tests. A later separately
-authorized provider qualification must pass two-case smoke before the full
-benchmark, and runtime activation remains a separate decision.
-
-The immediate next GOAL is not provider qualification. GOAL 3 must first make
-the Context Linter and local totality proof a pre-transport invariant.
+Semantic sufficiency cannot be proven by unit tests. GOAL 4 is the separately
+authorized bounded Nano/Haiku Slim diagnostic; it must preserve exact
+input/output evidence and pass the required two-case Haiku smoke before any
+full benchmark. Runtime activation remains a separate later decision.
 
 ## Research evidence
 

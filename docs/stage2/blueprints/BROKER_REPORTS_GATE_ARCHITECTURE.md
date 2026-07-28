@@ -287,6 +287,7 @@ manifest.
 | `domain_context_packet_v0` | Gate 1 | Safe handoff root and stage readiness | Normative safe-internal refs | Gate 2 | Implemented |
 | `gate1_issue_ledger_v0` | Gate 1 | Source/intake issue authority | Normative safe-internal; carried forward by ref | Gates 2-4 | Implemented |
 | Candidate sets, relations and binding validation | Gate 2 | Reproducible source-local semantic selection | Versioned; private candidates/safe validation | Source-fact materializer | Implemented |
+| V6 financial semantic Context Linter | Gate 2 | Validate and seal the complete version-pinned Prompt + candidate context + Local Choice before request construction | Qualification-only candidate boundary; packet/Choice remain separate authorities and current runtime remains unchanged | Existing request builder candidate profile | GOAL 3 implemented and locally total; non-active, provider calls zero |
 | Source-fact runs, packages, facts and contracts | Gate 2 | Source-local financial interpretation | Versioned; facts private, runs/summaries safe | Gate 3 | Implemented; bounded scopes proven |
 | Source-fact validation and stitching | Gate 2 | Terminal acceptance and coverage ownership | Deterministic normative runtime; safe validation/private fact refs | Gate 3 manifest factory | Implemented |
 | `broker_reports_gate3_context_manifest_v0` | Gate 2 exit boundary | Checked index of a declared Gate 2 scope | Normative safe-internal root; no copied values | Gate 3 | Implemented and CSV-bounded stage-proven |
