@@ -244,12 +244,18 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
     }
     assert dynamic_calls.isdisjoint({"__import__", "eval", "exec"})
 
+    inactive_model_assets_path = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate2_financial_semantic_model_assets.py"
+    )
     for path in (SERVICE_ROOT / "broker_reports_gate1").glob("*.py"):
         if path == MODULE_PATH:
             continue
         active_source = path.read_text(encoding="utf-8")
         assert MODULE_PATH.stem not in active_source
-        assert NEW_REASON_CODE not in active_source
+        if path != inactive_model_assets_path:
+            assert NEW_REASON_CODE not in active_source
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,13 @@ Contract version: `1.0.0`
 
 Target context revision: `2.1`
 
+Implementation status (2026-07-29): GOAL 7 now implements only the exact
+managed Pack/reason mappings from section 6 as the inactive profile documented
+by
+[Financial Domain Asset Family v3](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v3.md).
+The Context V2.1 Packet, private mapping receipt, Choice response profile,
+request route and activation remain unimplemented.
+
 ## 1. Purpose and scope
 
 This contract defines the smallest Gate 2 semantic decision surface that a
@@ -358,6 +365,7 @@ For the current catalog, the exact projected sentences are:
 | Code | Exact minimal `use_when` |
 | --- | --- |
 | `no_registry_type` | `Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning.` |
+| `single_registry_type_no_safe_record` | `Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type.` |
 | `ambiguous_registry_type` | `Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely.` |
 
 These sentences already exist byte-for-byte in the managed catalog and align
@@ -370,10 +378,12 @@ and transformation identity, but may not embed replacement wording. Any
 agent-authored phrase, Packet/Prompt/adapter hardcode or different positional
 selection is forbidden.
 
-The uncovered “one plausible type but no safe record” outcome remains a GOAL
-6 compatibility stop. GOAL 5 adds no reason and changes no expected answer.
-If GOAL 6 changes the retained reason set or managed wording, it must update
-this mapping before GOAL 7.
+GOAL 6 resolved the former “one plausible type but no safe record” stop by
+adding the inactive managed catalog-v2 reason above. It did not change the
+historical active decision/Choice code set. GOAL 7 projects all three
+catalog-v2 reasons only in its transport-ineligible managed profile; a future
+response route remains blocked until the existing Choice authority receives
+a separately authorized versioned V2.1 profile.
 
 ## 7. V2.0 field disposition
 

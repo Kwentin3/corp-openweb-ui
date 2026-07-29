@@ -62,10 +62,11 @@ separate bootstrap report.
   three historical reasons are corrected only in the versioned audit
   successor, and catalog v2 adds inactive candidate reason
   `single_registry_type_no_safe_record`. Historical manifests/catalog v1,
-  active V6 Choice, Prompt and Pack stay immutable. GOAL 7 implements the
-  selected catalog-v2 minimal projection through existing owners; GOAL 8
-  builds only one non-active V2.1 candidate plus private mapping receipt in
-  the existing Packet factory.
+  active V6 Choice, Prompt and Pack stay immutable. GOAL 7 is implemented as
+  inactive same-family v3 plus one exact minimal profile in the existing
+  loader and shared V5-named projection owner. It has no Packet/request
+  consumer. GOAL 8 builds only one non-active V2.1 candidate plus private
+  mapping receipt in the existing Packet factory.
 - **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
   profile must first be implemented in the existing Choice authority, or the
   program must be amended. GOAL 9 is linter-only: it consumes the complete
@@ -76,9 +77,10 @@ separate bootstrap report.
   `counterexamples[0]`, nearest distinction is the unique direct rule against
   the only other current visible type, and reason `use_when` is the exact first
   sentence of catalog `meaning` under the contract's closed sentence rule.
-  GOAL 7 only implements those mappings; Packet/Python/Prompt code may not
-  embed replacement wording. The future V2.1 task is the new contract-owned
-  instruction, not the historical V2.0 complete-prebound task.
+  GOAL 7 implements only those mappings; its Python reads managed snapshots
+  and does not embed replacement wording. Packet/Prompt/adapter code may not
+  copy them. The future V2.1 task is the new contract-owned instruction, not
+  the historical V2.0 complete-prebound task.
 - The historical Slim View v2, alias receipt and
   [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
   remain non-active outputs. Context V2.0 has a non-active packet renderer and

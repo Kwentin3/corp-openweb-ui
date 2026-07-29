@@ -427,6 +427,80 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             {"Gate2FinancialSemanticV6PacketFactory._build"},
         )
 
+    def test_minimal_managed_projection_reuses_owner_and_stays_inactive(self):
+        projection_tree = _tree(
+            "gate2_financial_semantic_v5_projection"
+        )
+        minimal_factories = {
+            f"{path.stem}.{node.name}"
+            for path in PACKAGE.glob("*.py")
+            for node in ast.parse(
+                path.read_text(encoding="utf-8")
+            ).body
+            if isinstance(node, ast.ClassDef)
+            and "Minimal" in node.name
+            and node.name.endswith("Factory")
+        }
+
+        self.assertIsNotNone(
+            _method_node(
+                projection_tree,
+                "Gate2FinancialSemanticV5ProjectionFactory",
+                "create_minimal_managed_projection",
+            )
+        )
+        projection_factory = next(
+            node
+            for node in projection_tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "Gate2FinancialSemanticV5ProjectionFactory"
+        )
+        self.assertEqual(
+            {
+                node.name
+                for node in projection_factory.body
+                if isinstance(
+                    node,
+                    (ast.FunctionDef, ast.AsyncFunctionDef),
+                )
+                and not node.name.startswith("_")
+            },
+            {
+                "create",
+                "create_context_v2_candidate",
+                "create_minimal_managed_projection",
+            },
+        )
+        self.assertEqual(minimal_factories, set())
+        self.assertEqual(
+            list(PACKAGE.glob("*minimal*projection*.py")),
+            [],
+        )
+        self.assertEqual(
+            {
+                owner
+                for path in PACKAGE.glob("*.py")
+                for owner in _call_owners(
+                    path.stem,
+                    "create_minimal_managed_projection",
+                )
+            },
+            set(),
+        )
+        inactive_profile = "minimal_model_surface_v1_candidate"
+        for module_name in (
+            "gate2_financial_semantic_v6_packet",
+            "gate2_financial_semantic_v6_choice",
+            "gate2_financial_semantic_v6_qualification_run",
+            "gate2_model_requests",
+            "gate2_model_clients",
+            "gate2_provider_adapters",
+        ):
+            self.assertNotIn(
+                inactive_profile,
+                _string_constants(_tree(module_name)),
+            )
+
     def test_context_v2_sidecars_do_not_enter_active_request_or_evidence(self):
         sidecar_fields = {
             "context_v2_candidate",

@@ -344,6 +344,248 @@ def _validate_reason_catalog(catalog: Any) -> None:
         )
 
 
+MINIMAL_MANAGED_MODEL_ASSET_SCHEMA_VERSION = (
+    "broker_reports_gate2_minimal_managed_model_assets_v1"
+)
+MINIMAL_MANAGED_ASSET_FAMILY_VERSION = "1.2.0"
+MINIMAL_MANAGED_ASSET_FAMILY_MANIFEST_SHA256 = (
+    "8d48e23a876844376443eeb357bb381fe0443c2bf1525657b6f81979408c630c"
+)
+MINIMAL_MANAGED_PROJECTION_PROFILE_ID = (
+    "broker_reports_gate2_minimal_managed_projection_v1_candidate"
+)
+MINIMAL_MANAGED_PROJECTION_PROFILE_VERSION = "1.0.0"
+MINIMAL_MANAGED_DECISION_REASON_CATALOG_VERSION = "2.0.0"
+MINIMAL_MANAGED_DECISION_REASON_CATALOG_INTEGRITY_SHA256 = (
+    "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9"
+)
+MINIMAL_MANAGED_DECISION_REASON_CATALOG_CANONICAL_SEMANTIC_BYTES = (
+    6393
+)
+MINIMAL_MANAGED_CANDIDATE_PAYLOAD_SHA256 = (
+    "6211a7668deb14191cb2a215d726d4e7782e43e4834477cb0fe49e86510c62ca"
+)
+MINIMAL_MANAGED_CANDIDATE_REQUIRED = (
+    "load_gate2_financial_semantic_model_assets and "
+    "Gate2FinancialSemanticV5ProjectionFactory remain the only managed "
+    "asset-loader and shared Pack/reason projection owners"
+)
+MINIMAL_MANAGED_CANDIDATE_FORBIDDEN = (
+    "The inactive minimal profile must not alter active assets, read runtime "
+    "files, use network or RAG, embed replacement wording, build a Packet or "
+    "Choice, or activate provider transport"
+)
+
+_MINIMAL_MANAGED_CANDIDATE_PAYLOAD_B85 = (
+    b"c-qZb%aYqR7X1|z*J>3>iF&kGlbJZ#WRfapW|K;>Kme2wlY~Nm>Tq2B?{h9lO4Q44w`I?G(e4I$-{;-~fFA;>gtp"
+    b"pLX|1@$e}X$+m`(8bA>g}Rp_NUYNu{<sW3|JJ!DG-=qTtr*Tq~L8y5g14yhwGmYg{l1c;mLF)~-#h<F2ug$Q#$xD"
+    b"&5Cv1Phhak~@`F#-)YcE6DU_Q!Vj!R-5;#hDSS7JDYCsZalJc%jHRs^HLXWy5r(K-{@*{bbw5C%W%1=oG#Lh;l&a"
+    b"{n?_T#!W4xP6k+PLD-?wOHHwoR?6bi>>+D<TP*OXd6$)OeLc-v0!L}*+plTA7idS$5zcp5+Pg_;tS803-Mk`&C_b"
+    b"OF?@p9)Sg{fT4txKP@+oqM$n{8&AnxY%*|2_$HSvKb$2qQ^>RYP2mt0b>mFW^*}zE>^6?BDY%1<zE0wNvj+Em04z"
+    b"8P5m|1#eTo8azX?a%$5Re9Plxfp_903bSOHCDC%e=FvP~F0%D%DWv3lrWB9Xd6Z@AWy04>u@K>Eoh*_#nMpBA)-$"
+    b"z+(L(1+w1O%DEDE2N8b!)bMp)>=N_Vx|Ytz_t&kK(#nT~SN;bE_8suyLv=D8bdK`esT(kIt6ctqGJRZ1FMCv(7%7"
+    b"p8a%Be(~MuNe~MQ3a$ZH<)}8j!nsR)yWZv5DK8BtTi=-Y{gcU{NVg++aldZ9t3dHX^~#3m0ZT_5Lur`q2Re(WV0k"
+    b"*MM}>2B1+b)FwR4{RI6pS<l!pGXG+9E#@T$4&r!=L8LK~f8%@J$NZA@t`uN+24r<hmaB`!qtJ~DIyBETo6rf&CSE"
+    b"3(87LQTp6J2Pj)bgBG1rUlR{j<@vvJ5RHT+uR9DF*yDRs$l8@3}4rER2L%);Lxf)>Qh>M&V`B#Dt+<bc%H<->`H4"
+    b"k4FBZYI9S&od!cX(moR}hyXb}kDHg7-ZX^z8*XsN3fOVXJ&oNNw4D2O&xmgL7Cd9<oKB9%=yC);2LCW{#xblgTJa"
+    b"H>nw6#=`R{GRM{1y>bCXVj3hZOhc2vk_M{T2I{}MP%)ehpWMSbay%0d!vVvsaY4x5<<Q&k(w2$TA#ctQ_5=eDpyw"
+    b"8x&fWlo80r7;_zWyBnKg7lv8B&lesgIAQt@yvY;{%Ov!S#pPwU`K577`#J|2=zcS>V%{EAUKkSv0_!_COx(hgUP+"
+    b")NA*WJZ%8UEc(S*HQ4-KK+v^Smy#rJBEA;fX$_9ArOETUeOt10UWAHa-+X`ASHCSz)m=D3S@BENsxgs}EpJKxP{^"
+    b"MIVkEd}mVc0sbIE)t$;p`!tzhMgVrajLS4fIhf05y58YNTKkXCJ_XS){or&SC8nS2qQ63Rak2XHm@P1N71Xn(0B)"
+    b"sN%k>1>_tFmHaPVHYIQ%3P@xB^BAJ0Ncs6Hrsn|QZX%$T-h3*yMvK?!d>-vVu*X54dDtKD{IoSl!%%7K0milfai;"
+    b"JF%|awc`kwem{;5*k(|)aj{4u30YngWTSclPovy-8Ek`2THU0N!%sqZ}>HcHxo$xhijS2qG%Oy7DNRjJzd1DS@o-"
+    b"2i2b0qpz=Pywt>{b2o!Is8hJdhKX^!|p(D-XPWDQ>1n|$S+9xTkz05LmrQK4{;18!rUh#{|pL?UqWHk#VF6=$K<v"
+    b"AHV*qN7NR^#)sdn4{_Tkd^G+Bduo8zm-*<=opcetUD@!l39R5-V9VzXSqJFM=Qi7(Q7!j&R*P&&ORQ3JH?VHrog>"
+    b"1($6K&C4I-5w+DBGp^jN(u8GEB@NK{-Xa<z0&J#b1Kk?L)>3M4~*I(V*~gaMo?tDMNHR@xT;K4LTBS7aHnM`wXf)"
+    b"j-uF=`&m%Zh=Z_aE*uIxQ;{7iF{Q&J`dXta%qCS|L&nJf`1+(4T_vFC|A*9wjjU&*j;V}K+-a*$SgQzQm^Y@_qa!"
+    b"?8uoJ;C4QZg{O-6gg15Xj~_SkdS>+MRD=D|EwQ247Ssh>SbvAi}Vh>|pQ#UTzvlBoSgbaiV&eRGPsHv_zihW=N_z"
+    b"^@<ti;jnvtTg*#RvKsNtDU8IfoNs>Kpo?{v(n*sRbuWzL8b&JkKyciGv|+6R1YGlOJe$|DV*M2;`M@2UwM}DgZ3("
+    b"MzvxVL?gityqrron=`f)VV?<M&mBn8*<=Yxhu^tvDJL~glaVKW$C*`g-<d9`QeD@1mhtnvW(7_6cnp`p(9Q4<Sl$"
+    b"~y*(k)x9F}S%i^&6kLD`$pli5U~x^+3Nmje)JaTIIJhm*f+Fb3!{AD>sHopV98TgU0S4d%2A&xOm@fC`Ls(A+ky-"
+    b"Nu6n!D!RwYLzPO6E}r@Ugud7TrWCu$(Uhk*@0yTRqH%l<hdWk(r`z4KKIXizYI46j&-eru66Pv;&)<uGJ}_QZ;NP"
+    b"#_gT})>=(T%d0>u~H7(=Db70CW@m%Eblm5OJ4wOp*`^VxENA4+AjWSM2NRg|j`3nI?)D1iW07x^k$FW2*MB^I+#e"
+    b"4;$pu6g4wJQV(qKHWVAD7ae%>b5D!yi_|?5zyK%`Sx?rM|b=;Ub&B@j~M8|d#8vxZB%4z1&Y)*b<RE1`owjl>DpT"
+    b"s{8WMdQ*r+>VCd1??j3}C%#Mn?AAP|KPRdT(**b++b-Oc~CSLFZX?r`w`mTr1zms1MQg0E9soSYQ_)dMqaB#mNGo"
+    b"YA02!5(u$3mTmee9dZ=#vqIyAN06lpPM)DF*7sZ$moQp3i+d*7(D<k8C^(vxMW{T*y^4oAE4O$fXo&rIIjOE<+K^"
+    b"Xr9L+%48geiO9H|<vbP(6{=;vqVjcSF5?~w@QV1KpZ^QY#zh?"
+)
+
+
+def _minimal_managed_projection_assets(
+    *,
+    full_pack: dict[str, Any],
+) -> dict[str, Any]:
+    """Return exact non-active family-v3 Pack and reason authorities."""
+
+    full_pack = copy.deepcopy(full_pack)
+    candidate = _verified_minimal_managed_candidate_payload()
+    if (
+        not isinstance(full_pack, dict)
+        or candidate["semantic_pack_identity"]
+        != {
+            "pack_id": full_pack.get("pack_id"),
+            "semantic_version": full_pack.get("semantic_version"),
+            "integrity_sha256": full_pack.get("integrity_sha256"),
+        }
+        or full_pack.get("pack_id") != PACK_ID
+        or full_pack.get("semantic_version") != PACK_SEMANTIC_VERSION
+        or full_pack.get("integrity_sha256") != PACK_INTEGRITY_SHA256
+        or full_pack.get("runtime_activation") is not False
+        or not isinstance(full_pack.get("full_compact_snapshot"), list)
+        or len(full_pack["full_compact_snapshot"]) != 2
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_pack_identity_mismatch"
+        )
+    return {
+        "schema_version": MINIMAL_MANAGED_MODEL_ASSET_SCHEMA_VERSION,
+        "managed_asset_family": copy.deepcopy(
+            candidate["managed_asset_family"]
+        ),
+        "projection_profile": copy.deepcopy(
+            candidate["projection_profile"]
+        ),
+        "semantic_pack": full_pack,
+        "decision_reason_catalog": copy.deepcopy(
+            candidate["decision_reason_catalog"]
+        ),
+    }
+
+
+def _verified_minimal_managed_candidate_payload() -> dict[str, Any]:
+    raw = _decompress(
+        _MINIMAL_MANAGED_CANDIDATE_PAYLOAD_B85,
+        "financial_semantic_minimal_managed_candidate_assets",
+    )
+    if hashlib.sha256(raw).hexdigest() != (
+        MINIMAL_MANAGED_CANDIDATE_PAYLOAD_SHA256
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_candidate_assets_hash_mismatch"
+        )
+    try:
+        payload: Any = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_candidate_assets_json_invalid"
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or set(payload)
+        != {
+            "managed_asset_family",
+            "projection_profile",
+            "semantic_pack_identity",
+            "decision_reason_catalog",
+        }
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_candidate_assets_shape_invalid"
+        )
+    if payload["managed_asset_family"] != {
+        "family_id": MANAGED_ASSET_FAMILY_ID,
+        "semantic_version": MINIMAL_MANAGED_ASSET_FAMILY_VERSION,
+        "manifest_sha256": (
+            MINIMAL_MANAGED_ASSET_FAMILY_MANIFEST_SHA256
+        ),
+        "runtime_activation": False,
+    }:
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_family_identity_mismatch"
+        )
+    profile = payload["projection_profile"]
+    if (
+        not isinstance(profile, dict)
+        or set(profile)
+        != {
+            "profile_id",
+            "semantic_version",
+            "status",
+            "runtime_activation",
+            "response_profile_status",
+            "transport_eligible",
+            "semantic_pack_dependency_id",
+            "decision_reason_catalog_dependency_id",
+            "decision_reason_catalog_schema_dependency_id",
+            "decision_reason_catalog_contract_dependency_id",
+            "model_surface_contract_identity",
+            "projection_owner_entrypoint",
+        }
+        or profile.get("profile_id")
+        != MINIMAL_MANAGED_PROJECTION_PROFILE_ID
+        or profile.get("semantic_version")
+        != MINIMAL_MANAGED_PROJECTION_PROFILE_VERSION
+        or profile.get("status") != "inactive_candidate"
+        or profile.get("runtime_activation") is not False
+        or profile.get("response_profile_status") != "not_implemented"
+        or profile.get("transport_eligible") is not False
+        or profile.get("semantic_pack_dependency_id")
+        != "broker_reports_financial_semantic_pack"
+        or profile.get("decision_reason_catalog_dependency_id")
+        != "broker_reports_gate2_financial_decision_reason_catalog"
+        or profile.get("decision_reason_catalog_schema_dependency_id")
+        != "broker_reports_gate2_financial_decision_reason_catalog_schema"
+        or profile.get("decision_reason_catalog_contract_dependency_id")
+        != "broker_reports_gate2_financial_decision_reason_catalog_contract"
+        or profile.get("model_surface_contract_identity")
+        != "broker_reports_gate2_minimal_model_surface_v1"
+        or profile.get("projection_owner_entrypoint")
+        != (
+            "Gate2FinancialSemanticV5ProjectionFactory."
+            "create_minimal_managed_projection"
+        )
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_profile_identity_mismatch"
+        )
+    catalog = payload["decision_reason_catalog"]
+    if (
+        not isinstance(catalog, dict)
+        or catalog.get("catalog_id") != DECISION_REASON_CATALOG_ID
+        or catalog.get("semantic_version")
+        != MINIMAL_MANAGED_DECISION_REASON_CATALOG_VERSION
+        or catalog.get("managed_asset_family_id")
+        != MANAGED_ASSET_FAMILY_ID
+        or catalog.get("runtime_activation") is not False
+        or not isinstance(catalog.get("reasons"), list)
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_reason_catalog_identity_mismatch"
+        )
+    material = copy.deepcopy(catalog)
+    supplied_integrity = material.pop("integrity_sha256", None)
+    canonical = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    reason_codes = [
+        item.get("code")
+        for item in catalog["reasons"]
+        if isinstance(item, dict)
+    ]
+    if (
+        len(canonical)
+        != MINIMAL_MANAGED_DECISION_REASON_CATALOG_CANONICAL_SEMANTIC_BYTES
+        or hashlib.sha256(canonical).hexdigest()
+        != MINIMAL_MANAGED_DECISION_REASON_CATALOG_INTEGRITY_SHA256
+        or supplied_integrity
+        != MINIMAL_MANAGED_DECISION_REASON_CATALOG_INTEGRITY_SHA256
+        or reason_codes
+        != [
+            "no_registry_type",
+            "single_registry_type_no_safe_record",
+            "ambiguous_registry_type",
+        ]
+    ):
+        raise RuntimeError(
+            "financial_semantic_minimal_managed_reason_catalog_integrity_mismatch"
+        )
+    return payload
+
+
 
 def load_gate2_financial_semantic_model_assets(
     *,
@@ -384,6 +626,10 @@ def load_gate2_financial_semantic_model_assets(
     if profile == "context_v2_candidate":
         return _context_v2_candidate_assets(
             active_pack=active_assets["semantic_pack"],
+        )
+    if profile == "minimal_model_surface_v1_candidate":
+        return _minimal_managed_projection_assets(
+            full_pack=pack,
         )
     raise RuntimeError("financial_semantic_model_asset_profile_unknown")
 

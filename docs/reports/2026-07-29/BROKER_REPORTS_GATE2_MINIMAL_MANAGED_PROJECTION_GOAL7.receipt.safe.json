@@ -1,0 +1,143 @@
+{
+  "schema_version": "broker_reports_gate2_minimal_managed_projection_goal7_safe_receipt_v1",
+  "goal": "GOAL_7_MINIMAL_MANAGED_PROJECTION",
+  "date": "2026-07-29",
+  "base": {
+    "ref": "origin/main",
+    "commit": "251df02530005d227413e3c1188b8717061c929f"
+  },
+  "branch": "agent/broker-reports-gate2-minimal-managed-projection-goal7",
+  "authority": {
+    "managed_asset_family_id": "broker_reports_gate2_financial_domain_assets",
+    "closed_world_loader": "load_gate2_financial_semantic_model_assets",
+    "projection_owner": "Gate2FinancialSemanticV5ProjectionFactory",
+    "projection_entrypoint": "Gate2FinancialSemanticV5ProjectionFactory.create_minimal_managed_projection",
+    "new_projection_owner_count": 0,
+    "new_packet_owner_count": 0,
+    "new_choice_owner_count": 0
+  },
+  "family_v3": {
+    "schema_version": "broker_reports_financial_domain_managed_asset_manifest_v3",
+    "semantic_version": "1.2.0",
+    "runtime_activation": false,
+    "asset_count": 3,
+    "dependency_count": 7,
+    "manifest_sha256": "8d48e23a876844376443eeb357bb381fe0443c2bf1525657b6f81979408c630c",
+    "git_blob_sha256": "34c7c0528d1d4954681e36353f9b82c89e324955ce5916cb5c6b0588e75e85f3",
+    "schema_git_blob_sha256": "5f63f716c53440c88851de63d54c9c14ba708ff64ecc3599af6c7bed93d28020",
+    "predecessor": {
+      "schema_version": "broker_reports_financial_domain_managed_asset_manifest_v2",
+      "semantic_version": "1.1.0",
+      "manifest_sha256": "4e5328554056741ecb783d130a5fd43034a6876484a25c98dfdd5e68bf76499d",
+      "git_blob_sha256": "4ef70eba07bea24332a0909e4c9cb68c82854197a11fb2e78f47c3d88cf3d586"
+    },
+    "top_level_composition": "exact_family_v1",
+    "active_strict_output_contract": "broker_reports_gate2_financial_evidence_decision_v1",
+    "catalog_v2_scope": "inactive_minimal_projection_profile_only"
+  },
+  "managed_sources": {
+    "semantic_pack": {
+      "identity": "broker_reports_managed_financial_semantic_pack@1.0.0",
+      "git_blob_sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+      "integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+      "canonical_semantic_bytes": 9404,
+      "modified": false
+    },
+    "decision_reason_catalog_v2": {
+      "identity": "broker_reports_gate2_financial_decision_reason_catalog@2.0.0",
+      "git_blob_sha256": "cb784fe262c08297b9cd71c84e2bf36195d214f7aec82f3cc74f5707a24dde24",
+      "integrity_sha256": "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9",
+      "canonical_semantic_bytes": 6393,
+      "schema_git_blob_sha256": "d576e9368272f8bf6dd46250e9d798e7bf40c1dd56f98216262d770a12c2aa24",
+      "modified": false
+    }
+  },
+  "profile": {
+    "loader_profile": "minimal_model_surface_v1_candidate",
+    "profile_id": "broker_reports_gate2_minimal_managed_projection_v1_candidate",
+    "semantic_version": "1.0.0",
+    "status": "inactive_candidate",
+    "runtime_activation": false,
+    "response_profile_status": "not_implemented",
+    "transport_eligible": false,
+    "candidate_payload_sha256": "6211a7668deb14191cb2a215d726d4e7782e43e4834477cb0fe49e86510c62ca"
+  },
+  "projection": {
+    "model_payload_fields": [
+      "type_cards",
+      "unclassified_reasons"
+    ],
+    "type_card_count": 2,
+    "reason_card_count": 3,
+    "canonical_utf8_bytes": 2102,
+    "sha256": "fae235725094d45d82dfe0eee3fefd4268cf1cd6a2c0aa8a5a7392a4b75acca5",
+    "authority_audit_sha256": "fc3379890c73628c891f8b48fef25874f8bfb8551d93bcd682e78b6e9f374657",
+    "canonical_type_ids_model_visible": false,
+    "source_hashes_model_visible": false,
+    "managed_wording_copied_into_python": false
+  },
+  "unchanged_paths": {
+    "active_loader_payload_sha256": "b80eed8b9a41fa039a9a8d961c972817ae840ce81d7c163de624b7d5a4ec123b",
+    "active_projection_sha256": "6d17d46089b91cfb197dcad12f89635c5879173b6f2175d3810e6dd968361256",
+    "active_projection_canonical_bytes": 3591,
+    "context_v2_candidate_payload_sha256": "99be5272ebab4e69e2533391f381bd27682496148f760e1e4a171f9e7162cdad",
+    "active_decision_choice_reason_count": 2,
+    "packet_source_modified": false,
+    "prompt_modified": false,
+    "provider_adapter_modified": false
+  },
+  "verification": {
+    "generated_managed_asset_checks": "passed_2",
+    "generated_function_bundle_parity": "passed_3",
+    "ruff_baseline_correctness": "passed",
+    "focused_ci_suite": {
+      "status": "passed",
+      "tests_passed": 135,
+      "warnings": 5,
+      "seconds": 34.20
+    },
+    "dedicated_goal7_tests": {
+      "status": "passed",
+      "tests_passed": 12
+    },
+    "additional_v5_v2_model_input_regression": {
+      "status": "passed",
+      "tests_passed": 21,
+      "seconds": 2.09
+    },
+    "git_diff_check": "passed",
+    "fresh_local_diff_review": "passed_after_three_findings_resolved",
+    "fresh_github_diff_review": "required_on_actual_github_diff_before_merge",
+    "github_actions_check": "required_on_actual_pr_head_before_merge",
+    "full_service_suite": {
+      "status": "not_run_by_goal7_contract",
+      "reason": "would_cross_the_historical_full_benchmark_execution_boundary"
+    }
+  },
+  "scope_counters": {
+    "changed_files_total": 22,
+    "runtime_route_changes": 0,
+    "provider_calls": 0,
+    "full_benchmark_runs": 0,
+    "packet_v2_1_implementations": 0,
+    "choice_v2_1_implementations": 0,
+    "activation_changes": 0
+  },
+  "privacy": {
+    "customer_literals_in_git": false,
+    "customer_refs_in_git": false,
+    "credentials_in_git": false,
+    "provider_payloads_in_git": false,
+    "hidden_reasoning_traces_in_git": false
+  },
+  "continuation": {
+    "next_goal": "GOAL_8_CONTEXT_V2_1_PACKET_CANDIDATE",
+    "allowed_only_after_reviewed_green_goal7_merge": true,
+    "goal_8_allowed_now": false,
+    "goal_9_allowed_now": false,
+    "post_goal_8_choice_profile_stop": true,
+    "provider_calls_allowed_now": false
+  },
+  "report": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_MINIMAL_MANAGED_PROJECTION_GOAL7.report.md",
+  "integrity_sha256": "b738f93950e23908c4769017863a7c7bf1107d5fe581c7b9de801ebc23e43ff5"
+}
