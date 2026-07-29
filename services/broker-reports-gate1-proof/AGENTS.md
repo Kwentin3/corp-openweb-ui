@@ -62,8 +62,9 @@ separate bootstrap report.
   GOAL 8 implements one inactive Packet candidate/private receipt. The later
   governing program authorizes GOAL 9 to implement the inactive
   [Local Choice V2.1 response profile](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
-  in the existing Choice owner. Complete-request linter, request, provider
-  route and activation remain absent. The additive
+  in the existing Choice owner. GOAL 10 adds the inactive provider-neutral
+  sealed request; GOAL 11 adds only a zero-call three-provider local proof.
+  Provider transport, model qualification and activation remain absent. The additive
   [Outcome Taxonomy v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
   completes GOAL 6: the four zero-choice plausible-type counts are `2,1,1,1`,
   three historical reasons are corrected only in the versioned audit
@@ -89,10 +90,30 @@ separate bootstrap report.
   `broker_reports_gate2_llm_semantic_context_v2_1_sealed_request_receipt_v1`.
   The provider-neutral response wrapper has exactly `type` and `json_schema`,
   with nested `strict` and `schema`; `json_schema.name` is forbidden.
-- **STOP before GOAL 11:** do not add provider-specific projection, simulated
-  provider response, persistence/replay or adapter consumption until GOAL 10
-  is fresh-reviewed on its immutable PR head, the real `broker-reports-ci`
-  check is green and the PR is merged.
+- GOAL 11 composes the existing linter, request builder, provider adapters,
+  V2.1 Choice parser, Expansion/validator/materializer, Financial Domain
+  persistence and transparent report projector. The proof is synthetic,
+  non-active and transport-ineligible. Candidate-only extraction requires
+  exactly one terminal simulated provider envelope. The complete prepared
+  request must be rebuilt through the canonical request builder and repository
+  adapter and compared as one exact contract. The proof must never call
+  transport, repair semantics, retry or fall back.
+  Provider-specific `choice`/`reason` schema projection is bound to the
+  non-active identity
+  `broker_reports_gate2_context_v2_1_local_schema_projection_v1`; canonical
+  adapter versions remain unchanged. Exact replay must serialize and restore
+  `Gate2FinancialSemanticV6DecisionEvidenceFactory.create_context_v2_1_candidate`
+  output, then compare the validated sealed request, trusted profile, projection
+  policy, exact prepared request and provider-visible schema before
+  reconstructing materialization and snapshot. Public
+  `Gate2FinancialSemanticV6TransparentSmokeReportFactory.create_context_v2_1_provider_case`
+  returns only a raw closed projection and must not mint report evidence.
+  `Gate2FinancialSemanticV6ContextV21ProviderProofFactory.create_case` must
+  create an unissued full proof, independently recompute it, require exact
+  equality, and only then invoke the private authority that issues the opaque
+  immutable case-evidence token. Independent full-proof validation follows.
+  The aggregate accepts only the issued token; raw or resealed proof
+  dictionaries must fail closed.
 - GOAL 5 selects existing managed strings rather than authoring markers:
   `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
   `counterexamples[0]`, nearest distinction is the unique direct rule against
@@ -109,8 +130,11 @@ separate bootstrap report.
   provider request, evidence persistence or replay exists. Context V2.1 has
   one non-active candidate, private exact receipt and Choice-owned inactive
   response profile/parser plus one linter-owned inactive provider-neutral
-  sealed request and private sealed-request receipt. It still has no
-  provider-specific projection, provider transport, persistence or replay.
+  sealed request and private sealed-request receipt. GOAL 11 proves local
+  OpenAI/Anthropic/Google projection, extraction, candidate-only Expansion,
+  private-evidence serialize/restore/replay, materialization and Financial
+  Domain persistence/restore/reconstruction. It still has no live provider
+  transport or runtime consumer.
   Runtime and the current qualification runner continue to consume only
   `packet.payload` and exact-ID Choice until a separately qualified activation
   GOAL changes that authority.
@@ -124,7 +148,11 @@ separate bootstrap report.
   request bytes must be at most `4 500`; the current governed maximum is
   `3 522`. Mapping coverage is `156/156`: 45 source occurrences, 20
   structures, 20 type mappings, 12 choice restorations and 59 binding rows.
-  Provider calls and runtime activation remain zero.
+  GOAL 11 uses
+  `Gate2OpenWebUIRequestBuilder.build_from_sealed_context_v2_1` and
+  `Gate2FinancialSemanticV6ContextV21ProviderProofFactory.create_case` only
+  after the sealed request validates. Provider calls and runtime activation
+  remain zero.
 - The historical Slim diagnostic GOAL 4 consumed its one bounded
   six-submission run on the two
   frozen smoke cases. The terminal receipt is failed because Haiku missed the

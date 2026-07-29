@@ -21,6 +21,11 @@ from .gate2_financial_semantic_v6_candidate_compiler import (
 )
 from .gate2_financial_semantic_v6_choice import (
     Gate2FinancialSemanticV6ChoiceContract,
+    Gate2FinancialSemanticV6ChoiceError,
+)
+from .gate2_financial_semantic_v6_context_linter import (
+    Gate2FinancialSemanticV6ContextV21SealedRequest,
+    validate_financial_semantic_v6_context_v2_1_sealed_request,
 )
 from .gate2_financial_semantic_v6_execution_identity import (
     V6_EXACT_MODEL_ID,
@@ -42,6 +47,7 @@ from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6Packet,
 )
 from .gate2_financial_semantic_v6_prompt import (
+    V6_SEMANTIC_SYSTEM_PROMPT,
     Gate2FinancialSemanticV6QualificationPrompt,
     financial_semantic_v6_prompt,
 )
@@ -50,11 +56,17 @@ from .gate2_financial_semantic_v6_totality import (
     Gate2FinancialSemanticV6TotalMaterializerFactory,
     Gate2FinancialSemanticV6TotalityError,
 )
-from .gate2_model_contracts import Gate2ProviderExecutionMetadata
+from .gate2_model_contracts import (
+    Gate2ProviderExecutionMetadata,
+    Gate2SourceFactRuntimeError,
+    gate2_provider_profile,
+)
 from .gate2_model_requests import (
+    FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
 )
+from .gate2_provider_adapters import Gate2PreparedProviderRequest
 
 
 V6_PRIVATE_DECISION_EVIDENCE_SCHEMA_VERSION = (
@@ -66,11 +78,19 @@ V6_SAFE_DECISION_RECEIPT_SCHEMA_VERSION = (
 V6_DECISION_REPLAY_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_replay_v1"
 )
+V6_CONTEXT_V2_1_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_context_v2_1_"
+    "private_evidence_v1"
+)
+V6_CONTEXT_V2_1_REPLAY_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_context_v2_1_replay_v1"
+)
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6DecisionEvidenceFactory.create, "
+    "its additive create_context_v2_1_candidate method, "
     "restore_financial_semantic_v6_private_evidence and "
-    "replay_financial_semantic_v6_decision are the only V6 exact-decision "
-    "evidence entrypoints"
+    "the additive Context V2.1 serialize/restore/replay functions are the "
+    "only V6 exact-decision evidence entrypoints"
 )
 FORBIDDEN = (
     "Repository-safe receipts and Git must not contain canonical requests, "
@@ -80,6 +100,7 @@ FORBIDDEN = (
 COMPATIBILITY_WRAPPER_DELEGATES_ONLY = True
 
 _CASE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PRIVATE_FIELDS = (
     "schema_version",
     "case_id",
@@ -116,6 +137,41 @@ _SAFE_FIELDS = {
     "raw_private_data_in_git",
     "receipt_hash",
 }
+_CONTEXT_V2_1_PRIVATE_FIELDS = (
+    "schema_version",
+    "case_id",
+    "provider_profile_id",
+    "provider_adapter_id",
+    "provider_adapter_version",
+    "local_projection_model_id",
+    "schema_projection_policy_version",
+    "request_profile",
+    "exact_final_provider_request",
+    "final_provider_request_hash",
+    "provider_visible_schema",
+    "provider_visible_schema_hash",
+    "adapter_canonical_schema_hash",
+    "adapter_adapted_schema_hash",
+    "response_profile_hash",
+    "mapping_receipt_hash",
+    "adapter_extracted_output",
+    "adapter_extracted_output_hash",
+    "normalized_semantic_choice",
+    "semantic_choice_hash",
+    "expanded_canonical_decision",
+    "validation_result",
+    "materialized_artifact_hash",
+    "materialized_artifact_integrity_hash",
+    "total_materialization_integrity_hash",
+    "replay_authorities",
+    "execution_accounting",
+)
+_ZERO_CALL_ACCOUNTING = {
+    "provider_calls_total": 0,
+    "semantic_repair_total": 0,
+    "fallback_total": 0,
+    "retry_total": 0,
+}
 
 
 class Gate2FinancialSemanticV6DecisionEvidenceError(ValueError):
@@ -140,6 +196,28 @@ class Gate2FinancialSemanticV6ReplayResult:
     materialized_artifact_hash: str
     materialized_artifact: dict[str, Any]
     safe_receipt: dict[str, Any]
+    provider_calls_total: int
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextV21EvidenceBundle:
+    private_evidence: dict[str, Any]
+    normalized_semantic_choice: dict[str, Any]
+    expansion: Gate2FinancialSemanticV6ExpandedDecision
+    total_materialization: Gate2FinancialSemanticV6TotalMaterialization
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextV21ReplayResult:
+    schema_version: str
+    status: str
+    private_evidence_hash: str
+    semantic_choice_hash: str
+    expansion_integrity_hash: str
+    materialized_artifact_hash: str
+    normalized_semantic_choice: dict[str, Any]
+    expansion: Gate2FinancialSemanticV6ExpandedDecision
+    total_materialization: Gate2FinancialSemanticV6TotalMaterialization
     provider_calls_total: int
 
 
@@ -255,6 +333,181 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
             private_evidence=copy.deepcopy(private_evidence),
             safe_receipt=copy.deepcopy(safe_receipt),
             materialized_artifact=copy.deepcopy(total.canonical_artifact),
+        )
+
+    def create_context_v2_1_candidate(
+        self,
+        *,
+        case_id: str,
+        provider_profile_id: str,
+        provider_adapter_id: str,
+        provider_adapter_version: str,
+        local_projection_model_id: str,
+        sealed_request: (
+            Gate2FinancialSemanticV6ContextV21SealedRequest
+        ),
+        prepared_request: Gate2PreparedProviderRequest,
+        adapter_extracted_output: Any,
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6ContextV21EvidenceBundle:
+        _case_id(case_id)
+        for value in (
+            provider_profile_id,
+            provider_adapter_id,
+            provider_adapter_version,
+            local_projection_model_id,
+        ):
+            _bounded_context_v2_1_identity(value)
+        if not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "private_evidence_request_invalid"
+            )
+        prepared_request.validate_schema_binding()
+        schema_projection_policy_version = (
+            prepared_request.projection_policy_version
+        )
+        _bounded_context_v2_1_identity(
+            schema_projection_policy_version
+        )
+        response_profile = choice_contract.context_v2_1_response_profile
+        if (
+            not isinstance(prepared_request.form_data, dict)
+            or prepared_request.form_data.get("model")
+            != local_projection_model_id
+            or prepared_request.provider_adapter_id
+            != provider_adapter_id
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "private_evidence_request_invalid"
+            )
+        if not _context_v2_1_prepared_authority_is_valid(
+            sealed_request=sealed_request,
+            prepared_request=prepared_request,
+            provider_profile_id=provider_profile_id,
+            provider_adapter_id=provider_adapter_id,
+            provider_adapter_version=provider_adapter_version,
+            local_projection_model_id=local_projection_model_id,
+            canonical_schema=response_profile.canonical_schema(),
+            packet=packet,
+            choice_contract=choice_contract,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "private_evidence_canonical_schema_mismatch"
+            )
+        exact_request = _json_roundtrip(prepared_request.form_data)
+        exact_schema = _json_roundtrip(
+            prepared_request.provider_visible_schema
+        )
+        exact_output = _json_roundtrip(adapter_extracted_output)
+        expansion, normalized_choice, total = (
+            _execute_context_v2_1_chain(
+                model_output=exact_output,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            )
+        )
+        private_material = {
+            "schema_version": (
+                V6_CONTEXT_V2_1_PRIVATE_EVIDENCE_SCHEMA_VERSION
+            ),
+            "case_id": case_id,
+            "provider_profile_id": provider_profile_id,
+            "provider_adapter_id": provider_adapter_id,
+            "provider_adapter_version": provider_adapter_version,
+            "local_projection_model_id": local_projection_model_id,
+            "schema_projection_policy_version": (
+                schema_projection_policy_version
+            ),
+            "request_profile": (
+                FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+            ),
+            "exact_final_provider_request": exact_request,
+            "final_provider_request_hash": sha256_json(exact_request),
+            "provider_visible_schema": exact_schema,
+            "provider_visible_schema_hash": sha256_json(exact_schema),
+            "adapter_canonical_schema_hash": (
+                prepared_request.canonical_schema_hash
+            ),
+            "adapter_adapted_schema_hash": (
+                prepared_request.adapted_schema_hash
+            ),
+            "response_profile_hash": response_profile.response_schema_hash,
+            "mapping_receipt_hash": (
+                packet.context_v2_mapping_receipt.integrity_hash
+            ),
+            "adapter_extracted_output": exact_output,
+            "adapter_extracted_output_hash": sha256_json(exact_output),
+            "normalized_semantic_choice": copy.deepcopy(
+                normalized_choice
+            ),
+            "semantic_choice_hash": sha256_json(normalized_choice),
+            "expanded_canonical_decision": _json_roundtrip(
+                expansion.to_private_dict()
+            ),
+            "validation_result": _validation_result(
+                expansion=expansion,
+                total=total,
+            ),
+            "materialized_artifact_hash": total.canonical_artifact_hash,
+            "materialized_artifact_integrity_hash": (
+                total.canonical_artifact["integrity_hash"]
+            ),
+            "total_materialization_integrity_hash": total.integrity_hash,
+            "replay_authorities": _context_v2_1_replay_authorities(
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+                provider_profile_id=provider_profile_id,
+                provider_adapter_id=provider_adapter_id,
+                provider_adapter_version=provider_adapter_version,
+                local_projection_model_id=local_projection_model_id,
+                schema_projection_policy_version=(
+                    schema_projection_policy_version
+                ),
+                final_provider_request_hash=sha256_json(exact_request),
+                provider_visible_schema_hash=sha256_json(exact_schema),
+                adapter_canonical_schema_hash=(
+                    prepared_request.canonical_schema_hash
+                ),
+                adapter_adapted_schema_hash=(
+                    prepared_request.adapted_schema_hash
+                ),
+            ),
+            "execution_accounting": copy.deepcopy(
+                _ZERO_CALL_ACCOUNTING
+            ),
+        }
+        private_evidence = {
+            **copy.deepcopy(private_material),
+            "private_evidence_hash": sha256_json(private_material),
+        }
+        _validate_context_v2_1_private_evidence(private_evidence)
+        return Gate2FinancialSemanticV6ContextV21EvidenceBundle(
+            private_evidence=copy.deepcopy(private_evidence),
+            normalized_semantic_choice=copy.deepcopy(normalized_choice),
+            expansion=expansion,
+            total_materialization=total,
         )
 
 
@@ -382,6 +635,285 @@ def replay_financial_semantic_v6_decision(
     )
 
 
+def serialize_financial_semantic_v6_context_v2_1_private_evidence(
+    *,
+    private_evidence: dict[str, Any],
+) -> str:
+    _validate_context_v2_1_private_evidence(private_evidence)
+    return json.dumps(
+        private_evidence,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def restore_financial_semantic_v6_context_v2_1_private_evidence(
+    *,
+    serialized: str,
+) -> dict[str, Any]:
+    if not isinstance(serialized, str) or not serialized:
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_serialization_invalid"
+        )
+    try:
+        restored = json.loads(
+            serialized,
+            object_pairs_hook=_unique_context_v2_1_evidence_object,
+            parse_constant=_reject_context_v2_1_non_finite_number,
+        )
+    except (
+        TypeError,
+        ValueError,
+        Gate2FinancialSemanticV6DecisionEvidenceError,
+    ) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_serialization_invalid"
+        ) from exc
+    _validate_context_v2_1_private_evidence(restored)
+    return copy.deepcopy(restored)
+
+
+def _context_v2_1_prepared_authority_is_valid(
+    *,
+    sealed_request: Gate2FinancialSemanticV6ContextV21SealedRequest,
+    prepared_request: Gate2PreparedProviderRequest,
+    provider_profile_id: str,
+    provider_adapter_id: str,
+    provider_adapter_version: str,
+    local_projection_model_id: str,
+    canonical_schema: dict[str, Any],
+    packet: Gate2FinancialSemanticV6Packet,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> bool:
+    if (
+        not isinstance(
+            sealed_request,
+            Gate2FinancialSemanticV6ContextV21SealedRequest,
+        )
+        or not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        )
+    ):
+        return False
+    try:
+        validate_financial_semantic_v6_context_v2_1_sealed_request(
+            sealed_request=sealed_request,
+            packet=packet,
+            choice_contract=choice_contract,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+            system_message=V6_SEMANTIC_SYSTEM_PROMPT,
+            mapping_receipt=packet.context_v2_mapping_receipt,
+        )
+        provider_profile = gate2_provider_profile(provider_profile_id)
+    except (
+        AttributeError,
+        TypeError,
+        ValueError,
+        Gate2SourceFactRuntimeError,
+    ):
+        return False
+    if (
+        provider_profile.profile_id != provider_profile_id
+        or provider_profile.adapter_id != provider_adapter_id
+        or provider_profile.adapter_version
+        != provider_adapter_version
+    ):
+        return False
+    return prepared_request.context_v2_1_contract_is_bound(
+        canonical_schema=canonical_schema,
+        provider_profile=provider_profile,
+        model_visible_request=sealed_request.model_visible_request,
+        local_projection_model_id=local_projection_model_id,
+    )
+
+
+def replay_financial_semantic_v6_context_v2_1_decision(
+    *,
+    private_evidence: dict[str, Any],
+    expected_provider_profile_id: str,
+    expected_provider_adapter_id: str,
+    expected_provider_adapter_version: str,
+    expected_local_projection_model_id: str,
+    expected_sealed_request: (
+        Gate2FinancialSemanticV6ContextV21SealedRequest
+    ),
+    expected_prepared_request: Gate2PreparedProviderRequest,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> Gate2FinancialSemanticV6ContextV21ReplayResult:
+    _validate_context_v2_1_private_evidence(private_evidence)
+    if not isinstance(
+        expected_prepared_request,
+        Gate2PreparedProviderRequest,
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "offline_replay_projection_mismatch"
+        )
+    expected_prepared_request.validate_schema_binding()
+    expected_request = _json_roundtrip(
+        expected_prepared_request.form_data
+    )
+    expected_schema = _json_roundtrip(
+        expected_prepared_request.provider_visible_schema
+    )
+    expected_schema_projection_policy_version = (
+        expected_prepared_request.projection_policy_version
+    )
+    response_profile = choice_contract.context_v2_1_response_profile
+    for value in (
+        expected_provider_profile_id,
+        expected_provider_adapter_id,
+        expected_provider_adapter_version,
+        expected_local_projection_model_id,
+        expected_schema_projection_policy_version,
+    ):
+        _bounded_context_v2_1_identity(value)
+    if (
+        expected_request.get("model")
+        != expected_local_projection_model_id
+        or expected_prepared_request.provider_adapter_id
+        != expected_provider_adapter_id
+        or not _context_v2_1_prepared_authority_is_valid(
+            sealed_request=expected_sealed_request,
+            prepared_request=expected_prepared_request,
+            provider_profile_id=expected_provider_profile_id,
+            provider_adapter_id=expected_provider_adapter_id,
+            provider_adapter_version=(
+                expected_provider_adapter_version
+            ),
+            local_projection_model_id=(
+                expected_local_projection_model_id
+            ),
+            canonical_schema=response_profile.canonical_schema(),
+            packet=packet,
+            choice_contract=choice_contract,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+        )
+        or private_evidence["provider_profile_id"]
+        != expected_provider_profile_id
+        or private_evidence["provider_adapter_id"]
+        != expected_provider_adapter_id
+        or private_evidence["provider_adapter_version"]
+        != expected_provider_adapter_version
+        or private_evidence["local_projection_model_id"]
+        != expected_local_projection_model_id
+        or private_evidence["schema_projection_policy_version"]
+        != expected_schema_projection_policy_version
+        or private_evidence["exact_final_provider_request"]
+        != expected_request
+        or private_evidence["provider_visible_schema"]
+        != expected_schema
+        or private_evidence["adapter_adapted_schema_hash"]
+        != expected_prepared_request.adapted_schema_hash
+        or private_evidence["adapter_canonical_schema_hash"]
+        != expected_prepared_request.canonical_schema_hash
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "offline_replay_projection_mismatch"
+        )
+    expected_authorities = _context_v2_1_replay_authorities(
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+        provider_profile_id=expected_provider_profile_id,
+        provider_adapter_id=expected_provider_adapter_id,
+        provider_adapter_version=expected_provider_adapter_version,
+        local_projection_model_id=expected_local_projection_model_id,
+        schema_projection_policy_version=(
+            expected_schema_projection_policy_version
+        ),
+        final_provider_request_hash=sha256_json(expected_request),
+        provider_visible_schema_hash=sha256_json(expected_schema),
+        adapter_canonical_schema_hash=(
+            expected_prepared_request.canonical_schema_hash
+        ),
+        adapter_adapted_schema_hash=(
+            expected_prepared_request.adapted_schema_hash
+        ),
+    )
+    if (
+        private_evidence["replay_authorities"] != expected_authorities
+        or private_evidence["response_profile_hash"]
+        != response_profile.response_schema_hash
+        or private_evidence["mapping_receipt_hash"]
+        != packet.context_v2_mapping_receipt.integrity_hash
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "offline_replay_authority_mismatch"
+        )
+    expansion, normalized_choice, total = _execute_context_v2_1_chain(
+        model_output=private_evidence["adapter_extracted_output"],
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+    )
+    expected_validation = _validation_result(
+        expansion=expansion,
+        total=total,
+    )
+    if (
+        private_evidence["normalized_semantic_choice"]
+        != normalized_choice
+        or private_evidence["semantic_choice_hash"]
+        != sha256_json(normalized_choice)
+        or private_evidence["expanded_canonical_decision"]
+        != _json_roundtrip(expansion.to_private_dict())
+        or private_evidence["validation_result"] != expected_validation
+        or private_evidence["materialized_artifact_hash"]
+        != total.canonical_artifact_hash
+        or private_evidence["materialized_artifact_integrity_hash"]
+        != total.canonical_artifact["integrity_hash"]
+        or private_evidence["total_materialization_integrity_hash"]
+        != total.integrity_hash
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "offline_replay_mismatch"
+        )
+    return Gate2FinancialSemanticV6ContextV21ReplayResult(
+        schema_version=V6_CONTEXT_V2_1_REPLAY_SCHEMA_VERSION,
+        status="EXACT",
+        private_evidence_hash=private_evidence[
+            "private_evidence_hash"
+        ],
+        semantic_choice_hash=private_evidence["semantic_choice_hash"],
+        expansion_integrity_hash=expansion.integrity_hash,
+        materialized_artifact_hash=total.canonical_artifact_hash,
+        normalized_semantic_choice=copy.deepcopy(normalized_choice),
+        expansion=expansion,
+        total_materialization=total,
+        provider_calls_total=0,
+    )
+
+
 def financial_semantic_v6_private_evidence_hash(
     private_evidence_without_hash: dict[str, Any],
 ) -> str:
@@ -493,6 +1025,67 @@ def _execute_chain(
     return expansion, normalized_choice, total
 
 
+def _execute_context_v2_1_chain(
+    *,
+    model_output: str | dict[str, Any],
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> tuple[
+    Gate2FinancialSemanticV6ExpandedDecision,
+    dict[str, Any],
+    Gate2FinancialSemanticV6TotalMaterialization,
+]:
+    try:
+        expansion = Gate2FinancialSemanticV6DecisionExpansionFactory(
+            registry=registry
+        ).create_from_context_v2_1_candidate(
+            model_output=model_output,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+    except Gate2FinancialSemanticV6ExpansionError as exc:
+        cause = exc.__cause__
+        if isinstance(cause, Gate2FinancialSemanticV6ChoiceError):
+            raise Gate2FinancialSemanticV6DecisionEvidenceError(
+                cause.code
+            ) from exc
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_context_v2_1_"
+            "evidence_expansion_failed"
+        ) from exc
+    normalized_choice = _normalized_choice(expansion)
+    if sha256_json(normalized_choice) != expansion.model_choice_hash:
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "exact_choice_not_preserved"
+        )
+    try:
+        total = Gate2FinancialSemanticV6TotalMaterializerFactory(
+            registry=registry
+        ).create_context_v2_1_candidate(
+            expansion=expansion,
+            model_output=model_output,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+    except Gate2FinancialSemanticV6TotalityError as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_context_v2_1_"
+            "evidence_materialization_failed"
+        ) from exc
+    return expansion, normalized_choice, total
+
+
 def _normalized_choice(
     expansion: Gate2FinancialSemanticV6ExpandedDecision,
 ) -> dict[str, Any]:
@@ -573,6 +1166,247 @@ def _replay_authorities(
         "packet_hash": packet.packet_hash,
         "choice_schema_hash": choice_contract.choice_schema_hash,
     }
+
+
+def _context_v2_1_replay_authorities(
+    *,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    provider_profile_id: str,
+    provider_adapter_id: str,
+    provider_adapter_version: str,
+    local_projection_model_id: str,
+    schema_projection_policy_version: str,
+    final_provider_request_hash: str,
+    provider_visible_schema_hash: str,
+    adapter_canonical_schema_hash: str,
+    adapter_adapted_schema_hash: str,
+) -> dict[str, Any]:
+    return {
+        "request_profile": (
+            FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+        ),
+        "registry_hash": registry.registry_hash,
+        "source_package_integrity_hash": source_package.integrity_hash,
+        "evidence_bundle_integrity_hash": evidence_bundle.integrity_hash,
+        "candidate_compilation_integrity_hash": compilation.integrity_hash,
+        "packet_hash": packet.packet_hash,
+        "context_v2_1_view_hash": packet.context_v2_candidate.view_hash,
+        "mapping_receipt_hash": (
+            packet.context_v2_mapping_receipt.integrity_hash
+        ),
+        "response_schema_hash": (
+            choice_contract.context_v2_1_response_profile
+            .response_schema_hash
+        ),
+        "canonical_choice_schema_hash": (
+            choice_contract.choice_schema_hash
+        ),
+        "provider_profile_id": provider_profile_id,
+        "provider_adapter_id": provider_adapter_id,
+        "provider_adapter_version": provider_adapter_version,
+        "local_projection_model_id": local_projection_model_id,
+        "schema_projection_policy_version": (
+            schema_projection_policy_version
+        ),
+        "final_provider_request_hash": final_provider_request_hash,
+        "provider_visible_schema_hash": provider_visible_schema_hash,
+        "adapter_canonical_schema_hash": adapter_canonical_schema_hash,
+        "adapter_adapted_schema_hash": adapter_adapted_schema_hash,
+    }
+
+
+def _validate_context_v2_1_private_evidence(
+    private_evidence: Any,
+) -> None:
+    expected_fields = {
+        *_CONTEXT_V2_1_PRIVATE_FIELDS,
+        "private_evidence_hash",
+    }
+    if (
+        not isinstance(private_evidence, dict)
+        or set(private_evidence) != expected_fields
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_shape_invalid"
+        )
+    try:
+        json_safe = _json_roundtrip(private_evidence)
+    except Gate2FinancialSemanticV6DecisionEvidenceError as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_json_types_invalid"
+        ) from exc
+    if json_safe != private_evidence:
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_json_types_invalid"
+        )
+    material = {
+        field: copy.deepcopy(private_evidence[field])
+        for field in _CONTEXT_V2_1_PRIVATE_FIELDS
+    }
+    hash_fields = (
+        "private_evidence_hash",
+        "final_provider_request_hash",
+        "provider_visible_schema_hash",
+        "adapter_canonical_schema_hash",
+        "adapter_adapted_schema_hash",
+        "response_profile_hash",
+        "mapping_receipt_hash",
+        "adapter_extracted_output_hash",
+        "semantic_choice_hash",
+        "materialized_artifact_hash",
+        "materialized_artifact_integrity_hash",
+        "total_materialization_integrity_hash",
+    )
+    for field in hash_fields:
+        if _SHA256_RE.fullmatch(private_evidence[field]) is None:
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "private_evidence_identity_invalid"
+            )
+    for field in (
+        "provider_profile_id",
+        "provider_adapter_id",
+        "provider_adapter_version",
+        "local_projection_model_id",
+        "schema_projection_policy_version",
+    ):
+        _bounded_context_v2_1_identity(private_evidence[field])
+    exact_request = private_evidence["exact_final_provider_request"]
+    exact_schema = private_evidence["provider_visible_schema"]
+    if (
+        private_evidence["schema_version"]
+        != V6_CONTEXT_V2_1_PRIVATE_EVIDENCE_SCHEMA_VERSION
+        or private_evidence["private_evidence_hash"]
+        != sha256_json(material)
+        or private_evidence["request_profile"]
+        != FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+        or not isinstance(exact_request, dict)
+        or exact_request.get("model")
+        != private_evidence["local_projection_model_id"]
+        or private_evidence["final_provider_request_hash"]
+        != sha256_json(exact_request)
+        or not isinstance(exact_schema, dict)
+        or private_evidence["provider_visible_schema_hash"]
+        != sha256_json(exact_schema)
+        or private_evidence["adapter_extracted_output_hash"]
+        != sha256_json(private_evidence["adapter_extracted_output"])
+        or not isinstance(
+            private_evidence["normalized_semantic_choice"],
+            dict,
+        )
+        or private_evidence["semantic_choice_hash"]
+        != sha256_json(private_evidence["normalized_semantic_choice"])
+        or not isinstance(
+            private_evidence["expanded_canonical_decision"],
+            dict,
+        )
+        or not isinstance(private_evidence["validation_result"], dict)
+        or not isinstance(private_evidence["replay_authorities"], dict)
+        or private_evidence["execution_accounting"]
+        != _ZERO_CALL_ACCOUNTING
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_identity_invalid"
+        )
+    authorities = private_evidence["replay_authorities"]
+    if (
+        authorities.get("request_profile")
+        != private_evidence["request_profile"]
+        or authorities.get("provider_profile_id")
+        != private_evidence["provider_profile_id"]
+        or authorities.get("provider_adapter_id")
+        != private_evidence["provider_adapter_id"]
+        or authorities.get("provider_adapter_version")
+        != private_evidence["provider_adapter_version"]
+        or authorities.get("local_projection_model_id")
+        != private_evidence["local_projection_model_id"]
+        or authorities.get("schema_projection_policy_version")
+        != private_evidence["schema_projection_policy_version"]
+        or authorities.get("final_provider_request_hash")
+        != private_evidence["final_provider_request_hash"]
+        or authorities.get("provider_visible_schema_hash")
+        != private_evidence["provider_visible_schema_hash"]
+        or authorities.get("adapter_adapted_schema_hash")
+        != private_evidence["adapter_adapted_schema_hash"]
+        or authorities.get("adapter_canonical_schema_hash")
+        != private_evidence["adapter_canonical_schema_hash"]
+        or authorities.get("mapping_receipt_hash")
+        != private_evidence["mapping_receipt_hash"]
+        or authorities.get("response_schema_hash")
+        != private_evidence["response_profile_hash"]
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_authority_invalid"
+        )
+
+
+def _json_roundtrip(value: Any) -> Any:
+    try:
+        return json.loads(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ),
+            object_pairs_hook=_unique_context_v2_1_evidence_object,
+            parse_constant=_reject_context_v2_1_non_finite_number,
+        )
+    except (
+        TypeError,
+        ValueError,
+        Gate2FinancialSemanticV6DecisionEvidenceError,
+    ) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_context_v2_1_json_invalid"
+        ) from exc
+
+
+def _bounded_context_v2_1_identity(value: Any) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 512
+        or value != value.strip()
+        or not value.isprintable()
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "private_evidence_identity_invalid"
+        )
+
+
+def _unique_context_v2_1_evidence_object(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "private_evidence_duplicate_key"
+            )
+        result[key] = value
+    return result
+
+
+def _reject_context_v2_1_non_finite_number(value: str) -> Any:
+    del value
+    _fail(
+        "financial_semantic_v6_context_v2_1_"
+        "private_evidence_non_finite_number"
+    )
 
 
 def _execution_identity_from_private(

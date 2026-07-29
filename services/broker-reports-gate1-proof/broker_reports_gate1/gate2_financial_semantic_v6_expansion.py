@@ -34,6 +34,7 @@ from .gate2_financial_semantic_v6_canonical import (
 from .gate2_financial_semantic_v6_choice import (
     Gate2FinancialSemanticV6ChoiceContract,
     Gate2FinancialSemanticV6ChoiceError,
+    normalize_financial_semantic_v6_context_v2_1_choice,
     normalize_financial_semantic_v6_local_choice,
     validate_financial_semantic_v6_choice_contract,
 )
@@ -149,6 +150,7 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
             evidence_bundle=evidence_bundle,
             source_package=source_package,
             compilation=compilation,
+            context_v2_1_candidate=False,
         )
 
     def create_from_local_candidate(
@@ -178,6 +180,40 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
             evidence_bundle=evidence_bundle,
             source_package=source_package,
             compilation=compilation,
+            context_v2_1_candidate=False,
+        )
+
+    def create_from_context_v2_1_candidate(
+        self,
+        *,
+        model_output: str | dict[str, Any],
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6ExpandedDecision:
+        try:
+            canonical_choice = (
+                normalize_financial_semantic_v6_context_v2_1_choice(
+                    model_output=model_output,
+                    choice_contract=choice_contract,
+                    packet=packet,
+                )
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6ExpansionError(
+                "financial_semantic_v6_context_v2_1_choice_"
+                "normalization_failed"
+            ) from exc
+        return self._expand(
+            model_output=canonical_choice,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            context_v2_1_candidate=True,
         )
 
     def _expand(
@@ -189,6 +225,7 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
         evidence_bundle: Gate2FinancialEvidenceBundle,
         source_package: Gate2FinancialEvidenceSourcePackage,
         compilation: Gate2FinancialCandidateCompilation,
+        context_v2_1_candidate: bool = False,
     ) -> Gate2FinancialSemanticV6ExpandedDecision:
         _validate_choice_contract(
             choice_contract=choice_contract,
@@ -201,15 +238,30 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
         choice = _parse_minimal_choice(
             model_output=model_output,
             contract=choice_contract,
+            unclassified_reason_codes=(
+                choice_contract.context_v2_1_response_profile
+                .unclassified_reason_codes
+                if context_v2_1_candidate
+                else choice_contract.unclassified_reason_codes
+            ),
         )
         allowed_type_ids = tuple(
             sorted({option.input_type_id for option in compilation.typed_options})
         )
         try:
-            canonical_contract = (
+            canonical_factory = (
                 Gate2FinancialSemanticV6CanonicalDecisionContractFactory(
                     registry=self.registry
-                ).create(
+                )
+            )
+            canonical_contract = (
+                canonical_factory.create_context_v2_1_candidate(
+                    evidence_bundle=evidence_bundle,
+                    source_package=source_package,
+                    allowed_type_ids=allowed_type_ids,
+                )
+                if context_v2_1_candidate
+                else canonical_factory.create(
                     evidence_bundle=evidence_bundle,
                     source_package=source_package,
                     allowed_type_ids=allowed_type_ids,
@@ -313,15 +365,49 @@ def validate_financial_semantic_v6_expanded_decision(
         evidence_bundle=evidence_bundle,
         source_package=source_package,
         compilation=compilation,
+        context_v2_1_candidate=False,
     )
     if expansion != expected:
         _fail("financial_semantic_v6_expansion_integrity_invalid")
+
+
+def validate_financial_semantic_v6_context_v2_1_expanded_decision(
+    *,
+    expansion: Gate2FinancialSemanticV6ExpandedDecision,
+    model_output: str | dict[str, Any],
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> None:
+    if not isinstance(
+        expansion,
+        Gate2FinancialSemanticV6ExpandedDecision,
+    ):
+        _fail("financial_semantic_v6_context_v2_1_expansion_invalid")
+    expected = Gate2FinancialSemanticV6DecisionExpansionFactory(
+        registry=registry
+    ).create_from_context_v2_1_candidate(
+        model_output=model_output,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+    )
+    if expansion != expected:
+        _fail(
+            "financial_semantic_v6_context_v2_1_expansion_integrity_invalid"
+        )
 
 
 def _parse_minimal_choice(
     *,
     model_output: str | dict[str, Any],
     contract: Gate2FinancialSemanticV6ChoiceContract,
+    unclassified_reason_codes: tuple[str, ...] | None = None,
 ) -> dict[str, str]:
     if isinstance(model_output, str):
         if (
@@ -362,7 +448,12 @@ def _parse_minimal_choice(
         reason_code = parsed["reason_code"]
         if (
             not isinstance(reason_code, str)
-            or reason_code not in contract.unclassified_reason_codes
+            or reason_code
+            not in (
+                unclassified_reason_codes
+                if unclassified_reason_codes is not None
+                else contract.unclassified_reason_codes
+            )
         ):
             _fail("financial_semantic_v6_expansion_reason_invalid")
         return {

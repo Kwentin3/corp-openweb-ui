@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_V2_1_SEALED_REQUEST_PROFILE`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_THREE_PROVIDER_LOCAL_PROOF`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -19,7 +19,10 @@ GOAL 8 implements the sole current non-active
   [Local Choice V2.1 response profile](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
   in the existing Choice factory. GOAL 10 implements the provider-neutral
   complete-request linter and sealed request receipt in the existing Context
-  Linter factory. Provider request routing and activation remain unimplemented.
+  Linter factory. GOAL 11 proves the additive request projection, adapter
+  extraction, canonical materialization, persistence/restore and replay for
+  OpenAI, Anthropic and Google profiles without provider calls. Live provider
+  transport, model qualification and activation remain unimplemented.
 
 ## 1. Purpose and scope
 
@@ -60,7 +63,7 @@ GOAL 5 does not:
 | context construction and private mapping | existing `Gate2FinancialSemanticV6PacketFactory.create` | GOAL 8 implements one non-active V2.1 candidate plus one private exact receipt in this owner only |
 | response schema and normalization | existing V6 Choice authority | GOAL 9 implements one inactive versioned V2.1 profile without changing active V6 |
 | complete-request lint | existing Context Linter authority | additive `create_context_v2_1` seals the inactive provider-neutral V2.1 request; historical `create` remains unchanged |
-| provider projection and parsing | existing provider adapters | transport-only; unchanged by GOAL 5 |
+| provider projection and parsing | existing request builder and provider adapters | GOAL 11 additive local proof path projects and parses the sealed V2.1 request without transport; active routing remains unchanged |
 
 The existing V5-named shared Pack projection owner remains the only projection
 owner. GOAL 7 added one versioned profile there; it did not add another
@@ -69,8 +72,10 @@ loader, Pack, catalog, packet builder or adapter-owned semantic dictionary.
 The governing GOAL 8 slice authorized only the Packet candidate and private
 mapping receipt. The later Context V2.1 Qualification And Admission program
 separately authorizes GOAL 9 to add the versioned inactive response profile in
-the existing Choice authority and GOAL 10 to add the provider-neutral sealed
-request through the same linter authority. Neither changes the active route.
+the existing Choice authority, GOAL 10 to add the provider-neutral sealed
+request through the same linter authority, and GOAL 11 to prove the existing
+request-builder/adapter and downstream authorities locally. None changes the
+active route.
 
 ## 3. Closed V2.1 semantic payload shape
 
@@ -201,13 +206,24 @@ Schema `name`, `title`, `description`, examples and provider-added explanatory
 fields are absent from the canonical model-visible surface.
 
 `P01`–`P18` describe the provider-neutral logical request, not an OpenAI- or
-Anthropic-native transport envelope. GOAL 11 must prove that each exact
-provider projection preserves this logical surface and adds no model-visible
-semantic content. A provider-required transport name or structural wrapper is
-allowed only when that proof establishes it is not model-visible. If the
-provider exposes an additional field or prose to the model, the projection
-remains non-conforming until a versioned contract amendment justifies it.
-GOAL 5 and GOAL 10 claim no provider-profile compatibility.
+Anthropic-native transport envelope. GOAL 11 proves locally that the exact
+OpenAI, Anthropic and Google projections preserve this logical surface and add
+no semantic content. The OpenAI structural root wrapper and provider-required
+transport fields are adapter-owned; the transparent report records the exact
+provider-visible request and schema. All additive `choice`/`reason` projection
+behavior is versioned separately as the non-active policy
+`broker_reports_gate2_context_v2_1_local_schema_projection_v1`; the proof
+binds that policy into prepared request evidence and offline replay without
+relabeling canonical adapter versions. The complete prepared request is
+exact-rebuilt through the canonical request builder and repository adapter, and
+candidate-only extraction requires one terminal provider envelope. Before
+transparent aggregation, the public case projector returns only a raw
+projection and cannot mint evidence. ProviderProofFactory creates an unissued
+full proof, independently recomputes it and requires exact equality before its
+private authority issues an opaque immutable case-evidence token. Independent
+full-proof validation follows; the aggregate accepts only that token, not a raw
+or resealed proof dictionary. This is local profile compatibility only, not
+model qualification or live transport evidence.
 
 ### 4.2 Closed semantic user content
 
@@ -735,7 +751,7 @@ FULL_BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
-Current GOAL 10 acceptance adds:
+Recorded GOAL 10 acceptance before GOAL 11:
 
 ```text
 CONTEXT_LINTER_V2_1: IMPLEMENTED_NON_ACTIVE
@@ -753,6 +769,21 @@ FULL_BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
+Current GOAL 11 acceptance adds:
+
+```text
+PROVIDER_PROFILES_PROVEN_LOCALLY: OPENAI_ANTHROPIC_GOOGLE
+LOCAL_SCHEMA_PROJECTION_POLICY: broker_reports_gate2_context_v2_1_local_schema_projection_v1
+SEMANTIC_FIXTURES: 4
+PROVIDER_CASE_PATHS: 12
+CHOICE_REASON_ENUMS_PRESERVED: YES
+PRIVATE_EVIDENCE_SERIALIZE_RESTORE_REPLAY: EXACT
+MATERIALIZATION_PERSISTENCE_RESTORE_RECONSTRUCTION: EXACT
+SEMANTIC_REPAIR_FALLBACK_RETRY: 0_0_0
+PROVIDER_CALLS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
 The program state is:
 
 1. GOAL 6 outcome taxonomy audit is complete;
@@ -762,6 +793,7 @@ The program state is:
    non-active;
 5. GOAL 10 inactive provider-neutral linter/sealed request is implemented
    through the existing linter authority;
-6. **STOP before GOAL 11:** provider-specific local proof may start only after
-   GOAL 10 is fresh-reviewed on its immutable PR head, the real GitHub Actions
-   check is green and the PR is merged.
+6. GOAL 11 proves the three provider adapter projections and the full local
+   materialization/persistence/replay path without provider calls;
+7. **STOP before GOAL 12:** live smoke requires a fresh-reviewed immutable
+   GOAL 11 head, green real GitHub Actions check and merged PR.

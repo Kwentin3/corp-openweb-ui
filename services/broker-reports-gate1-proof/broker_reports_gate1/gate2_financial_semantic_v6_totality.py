@@ -26,6 +26,7 @@ from .gate2_financial_semantic_v6_choice import (
 from .gate2_financial_semantic_v6_expansion import (
     Gate2FinancialSemanticV6ExpandedDecision,
     Gate2FinancialSemanticV6ExpansionError,
+    validate_financial_semantic_v6_context_v2_1_expanded_decision,
     validate_financial_semantic_v6_expanded_decision,
 )
 from .gate2_financial_semantic_v6_packet import (
@@ -141,6 +142,29 @@ class Gate2FinancialSemanticV6TotalMaterializerFactory:
             evidence_bundle=evidence_bundle,
             source_package=source_package,
             compilation=compilation,
+            context_v2_1_candidate=False,
+        )
+
+    def create_context_v2_1_candidate(
+        self,
+        *,
+        expansion: Gate2FinancialSemanticV6ExpandedDecision,
+        model_output: str | dict[str, Any],
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6TotalMaterialization:
+        return self._materialize(
+            expansion=expansion,
+            model_output=model_output,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            context_v2_1_candidate=True,
         )
 
     def _materialize(
@@ -153,6 +177,7 @@ class Gate2FinancialSemanticV6TotalMaterializerFactory:
         evidence_bundle: Gate2FinancialEvidenceBundle,
         source_package: Gate2FinancialEvidenceSourcePackage,
         compilation: Gate2FinancialCandidateCompilation,
+        context_v2_1_candidate: bool,
     ) -> Gate2FinancialSemanticV6TotalMaterialization:
         _validate_expansion(
             expansion=expansion,
@@ -163,6 +188,7 @@ class Gate2FinancialSemanticV6TotalMaterializerFactory:
             source_package=source_package,
             compilation=compilation,
             registry=self.registry,
+            context_v2_1_candidate=context_v2_1_candidate,
         )
         proof_seed = expansion.integrity_hash[:24]
         execution = FinancialEvidenceExecutionMetadata(
@@ -254,6 +280,7 @@ def validate_financial_semantic_v6_total_materialization(
         evidence_bundle=evidence_bundle,
         source_package=source_package,
         compilation=compilation,
+        context_v2_1_candidate=False,
     )
     if result != expected:
         _fail("financial_semantic_v6_total_materialization_integrity_invalid")
@@ -364,9 +391,15 @@ def _validate_expansion(
     source_package: Gate2FinancialEvidenceSourcePackage,
     compilation: Gate2FinancialCandidateCompilation,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    context_v2_1_candidate: bool,
 ) -> None:
     try:
-        validate_financial_semantic_v6_expanded_decision(
+        validator = (
+            validate_financial_semantic_v6_context_v2_1_expanded_decision
+            if context_v2_1_candidate
+            else validate_financial_semantic_v6_expanded_decision
+        )
+        validator(
             expansion=expansion,
             model_output=model_output,
             choice_contract=choice_contract,

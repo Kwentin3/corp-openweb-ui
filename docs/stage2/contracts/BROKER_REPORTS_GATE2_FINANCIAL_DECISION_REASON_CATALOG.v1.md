@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Decision Reason Catalog v1
 
-Status: `VERSIONED_INACTIVE_DRAFT_PROJECTED_ONLY_IN_NON_ACTIVE_CONTEXT_V2_0`
+Status: `VERSIONED_INACTIVE_V2_1_PROJECTION_PROVEN_LOCALLY`
 
 Catalog ID:
 `broker_reports_gate2_financial_decision_reason_catalog`
@@ -28,7 +28,7 @@ the catalog prose and therefore cannot drift into a second meaning authority.
 | human-readable title, meaning, usage, counter-usage, example and contrast | this versioned catalog JSON |
 | catalog structure, code-set parity, integrity and distinction checks | `Gate2FinancialDecisionReasonCatalogContractFactory` |
 | financial type and role meaning | Financial Semantic Pack |
-| model-visible projection | exact completeness projection implemented only in the non-active [Context V2.0 baseline](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), through the existing single managed-assets loader and existing Pack projection owner; future minimal projection not implemented |
+| model-visible projection | exact completeness projection remains pinned in the non-active [Context V2.0 baseline](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md); the additive catalog v2 minimal projection is implemented for inactive [Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md) through the same managed-assets loader and Pack projection owner |
 
 The catalog does not own dispositions, type IDs, type definitions, roles,
 Typed Options, aliases, bindings, provider behavior, validation,
@@ -60,8 +60,8 @@ active runtime.
 
 The
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
-does not change this full catalog or author new human wording. It selects a
-future reason card containing only exact catalog `code`, exact `human_title`
+does not change this full catalog or author new human wording. Its implemented
+inactive reason card contains only exact catalog `code`, exact `human_title`
 as `title`, and the exact first sentence of catalog `meaning` as `use_when`.
 “First sentence” is the exact prefix through the first U+002E FULL STOP
 followed by one ASCII space or end of string, with no trim, normalization,
@@ -202,5 +202,7 @@ ACTIVE_MODEL_ROUTE: UNCHANGED
 Current routing records GOAL 7 projection and GOAL 8 Context V2.1
 candidate/private receipt as complete. GOAL 9 adds only the inactive
 Choice-owned response profile; GOAL 10 adds the inactive provider-neutral
-linter and sealed request through the existing linter authority. Provider
-projection remains stopped before GOAL 11.
+linter and sealed request through the existing linter authority. GOAL 11 proves
+the three exact reason enums through all three local adapter projections and
+the candidate-only materialization/replay path. Active catalog v1 and runtime
+remain unchanged.

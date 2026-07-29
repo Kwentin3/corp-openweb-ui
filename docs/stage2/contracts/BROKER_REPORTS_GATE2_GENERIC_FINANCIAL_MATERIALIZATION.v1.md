@@ -125,6 +125,10 @@ financial type ID. An unsupported semantic class fails closed.
 - historical v1 qualification hashes may be reconstructed only by the
   value-free audit replay helper; that helper does not persist a v1 record.
 - no stage or production migration is performed by this contract.
+- GOAL 11 reuses this validator/materializer unchanged after an additive
+  Context V2.1 candidate decision contract admits the third inactive
+  unclassified reason. The materializer receives the same validated-decision
+  shape and does not branch on that reason.
 - live stage verifiers continue to report the actually deployed version until
   a later atomic activation goal supplies a terminal receipt and rollback
   proof.
