@@ -92,6 +92,42 @@ contracts. OpenWebUI остается upstream product shell, а frontend не �
 security, provider keys, data policy, retention, manager visibility or usage
 accounting.
 
+## Broker Reports CI
+
+Каждый pull request в `main` запускает
+[`.github/workflows/broker-reports-ci.yml`](.github/workflows/broker-reports-ci.yml).
+Стабильное имя GitHub check/job: `broker-reports-ci`. Workflow использует Python
+3.11 на `ubuntu-24.04`, read-only `GITHUB_TOKEN` и рабочий каталог
+`services/broker-reports-gate1-proof`.
+
+Локальное воспроизведение обязательного check из корня репозитория:
+
+```powershell
+cd services/broker-reports-gate1-proof
+python -m pip install -r requirements-ci.txt
+python scripts/build_openwebui_managed_financial_assets.py --check
+python scripts/build_gate2_financial_semantic_model_assets.py --check
+python scripts/build_gate2_financial_semantic_v5_execution.py --check
+python scripts/build_openwebui_pipe_bundle.py --target all
+git diff --exit-code -- openwebui_actions/broker_reports_gate1_pipe_bundled.py openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py
+python -m ruff check --no-cache --select E9,F63,F7,F82 .
+python -m pytest -q tests/test_broker_reports_gate_architecture.py tests/test_broker_reports_gate1_pipe_bundle.py tests/test_broker_reports_gate2_pipe_bundle.py tests/test_broker_reports_managed_decision_reason_catalog.py tests/test_broker_reports_financial_semantic_pack.py tests/test_broker_reports_openwebui_managed_asset_family.py tests/test_broker_reports_gate2_financial_semantic_v6_packet.py tests/test_repository_privacy_guard.py --tb=short
+```
+
+Generated-asset builders и bundle parity падают при расхождении с tracked
+артефактами. Architecture/managed-asset tests покрывают поддерживаемые
+documentation/JSON contracts; отдельного maintained repository-wide
+documentation linter сейчас нет. Ruff ограничен фатальными correctness rules
+`E9,F63,F7,F82`, потому что полный default Ruff на принятом `main` содержит
+legacy diagnostics; этот check не является заявлением о полном lint-clean
+сервисе.
+
+Полный service suite находится вне минимального bootstrap gate; его
+стабильность на GitHub-hosted runner ещё не проверена. Каноническая ручная
+команда из того же каталога — `python -m pytest tests -ra`; считать suite
+зелёным можно только по фактически завершённому прогону. CI-команды не выполняют
+provider calls и не читают stage/customer data.
+
 Future OpenWebUI-facing Stage 2 features should follow the
 [extension-first implementation pattern](docs/stage2/EXTENSION_FIRST_IMPLEMENTATION_PATTERN.md):
 native mechanisms first, then Functions/Actions/Tools, thin static loader or UI
