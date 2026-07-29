@@ -134,7 +134,10 @@ Its inactive profile adds the exact Context V2.1 reason set, including
 `single_registry_type_no_safe_record`, and normalizes it to the unchanged V6
 minimal Choice field shape. Active Expansion/materialization of that third
 reason is not claimed. Context Linter V2.1 and the sealed request belong to
-GOAL 10 after the reviewed, green GOAL 9 PR is merged.
+GOAL 10 and are now implemented non-active through additive
+`Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1`. That
+consumer uses this exact schema without changing or rebuilding it. Provider
+projection and adapter proof remain stopped before GOAL 11.
 
 The selection rules use existing managed strings: Pack
 `examples[0]`, `counterexamples[0]`, the unique direct rule against the only

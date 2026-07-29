@@ -222,11 +222,12 @@ titles, so zero differentiators and zero consumerless value/structure keys are
 visible.
 
 The candidate is always `active=false`, `transport_eligible=false` and records
-zero provider calls. The existing Choice authority is its sole inactive
-consumer and adds the GOAL 9 response profile without changing Packet bytes or
-ownership. It still has no request or runtime consumer. **STOP before GOAL
-10:** the linter/sealed request may start only after reviewed, green, merged
-GOAL 9.
+zero provider calls. The existing Choice authority adds the GOAL 9 response
+profile without changing Packet bytes or ownership. The same existing Context
+Linter authority now consumes the exact candidate and private mapping receipt
+through additive `create_context_v2_1`, producing only an inactive
+provider-neutral sealed request. No provider adapter or runtime consumer
+exists; provider projection remains stopped before GOAL 11.
 
 The selected sources already exist:
 `positive_signal` maps to Pack `examples[0]`, `negative_signal` maps to

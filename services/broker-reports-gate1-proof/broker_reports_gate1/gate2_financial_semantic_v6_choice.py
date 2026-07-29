@@ -458,7 +458,15 @@ def validate_financial_semantic_v6_choice_contract(
         source_package=source_package,
         compilation=compilation,
     )
-    if contract != expected:
+    if (
+        contract != expected
+        or _model_json_bytes(
+            contract.context_v2_1_response_profile.response_schema
+        )
+        != _model_json_bytes(
+            expected.context_v2_1_response_profile.response_schema
+        )
+    ):
         _fail("financial_semantic_v6_choice_contract_integrity_invalid")
 
 
@@ -1079,6 +1087,22 @@ def _validate_context_v2_1_response_profile_binding(
         choice_keys=profile.choice_keys,
         reason_codes=profile.unclassified_reason_codes,
     )
+
+
+def _model_json_bytes(value: Any) -> bytes:
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6ChoiceError(
+            "financial_semantic_v6_context_v2_1_choice_"
+            "schema_serialization_invalid"
+        ) from exc
 
 
 def _unique_local_object(

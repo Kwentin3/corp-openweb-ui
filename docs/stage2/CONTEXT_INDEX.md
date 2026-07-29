@@ -19,14 +19,19 @@ Current canonical route:
 - [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Gate 2 LLM Semantic Context V2.0 implemented non-active completeness baseline](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-- [Gate 2 LLM Semantic Context V2.1 current non-active minimal candidate](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
-- [Gate 2 Minimal Model Surface v1 implemented projection/candidate boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+- [Gate 2 LLM Semantic Context V2.1 current non-active candidate, Choice and sealed-request boundary](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
+- [Gate 2 Minimal Model Surface v1 implemented projection/candidate/Choice/linter boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 - [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
 - [Financial Semantic Packet V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Financial Semantic V6 Exact Evidence](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md)
 - [Local Choice v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
 - [Context V2.1 Local Choice response profile](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+
+Current local implementation evidence:
+
+- [Context V2.1 linter and provider-neutral sealed request, GOAL 10](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.report.md)
+- [GOAL 10 privacy-safe receipt](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.receipt.safe.json)
 
 Historical evidence only:
 
@@ -611,11 +616,12 @@ Read first:
 - [Financial Decision Reason Catalog v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Gate 2 LLM Semantic Context V2.0 implemented non-active completeness baseline](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-- [Gate 2 LLM Semantic Context V2.1 current non-active minimal candidate](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
-- [Gate 2 Minimal Model Surface v1 implemented projection/candidate boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+- [Gate 2 LLM Semantic Context V2.1 current non-active candidate, Choice and sealed-request boundary](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
+- [Gate 2 Minimal Model Surface v1 implemented projection/candidate/Choice/linter boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 - [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Context V2.1 Local Choice response profile](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+- [Context V2.1 linter and provider-neutral sealed-request GOAL 10 report](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.report.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)

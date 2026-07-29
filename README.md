@@ -92,6 +92,17 @@ contracts. OpenWebUI остается upstream product shell, а frontend не �
 security, provider keys, data policy, retention, manager visibility or usage
 accounting.
 
+Текущий Broker Reports Gate 2 Context V2.1 slice добавляет только неактивный
+provider-neutral sealed request через новый метод
+`Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` той же
+существующей linter authority; исторический `create` не меняется. Метод
+соединяет точный Prompt, minified Context V2.1 и Choice-owned response schema без
+`json_schema.name`, выпускает private sealed-request receipt и fail-closed
+проверяет лимит `4 500` UTF-8 bytes. Это не provider projection, не transport и
+не runtime activation; adapters не меняются, provider calls равны нулю.
+Текущий локальный proof и его delivery-gate status зафиксированы в
+[GOAL 10 report](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.report.md).
+
 ## Broker Reports CI
 
 Каждый pull request в `main` запускает
@@ -114,6 +125,8 @@ python -m ruff check --no-cache --select E9,F63,F7,F82 .
 python -m pytest -q `
   tests/test_broker_reports_gate2_financial_semantic_context_v2_1.py `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_choice.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_linter.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_linter.py `
   --tb=short
 python -m pytest -q `
   tests/test_broker_reports_gate_architecture.py `

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 from collections import Counter
@@ -33,10 +34,12 @@ from .gate2_financial_semantic_v6_expansion import (
     Gate2FinancialSemanticV6DecisionExpansionFactory,
 )
 from .gate2_financial_semantic_v6_packet import (
+    CONTEXT_V2_1_POLICY_VERSION,
     SEMANTIC_PACKET_AMBIGUITY_RULE,
     SLIM_VIEW_BLOCKS,
     SLIM_VIEW_UNCLASSIFIED_REASONS,
     Gate2FinancialSemanticV6Packet,
+    Gate2FinancialSemanticV6ContextV21MappingReceipt,
     Gate2FinancialSemanticV6SlimAliasReceipt,
     validate_financial_semantic_v6_packet,
 )
@@ -67,14 +70,25 @@ CONTEXT_LINT_TOTALITY_SCHEMA_VERSION = (
 CONTEXT_LINT_TOTALITY_POLICY_VERSION = (
     "broker_reports_gate2_llm_semantic_context_linter_v1"
 )
+CONTEXT_V2_1_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_llm_semantic_context_v2_1_"
+    "sealed_request_receipt_v1"
+)
+CONTEXT_V2_1_SEALED_REQUEST_PROFILE = (
+    "broker_reports_gate2_financial_semantic_v6_request_v2_1_candidate"
+)
+CONTEXT_V2_1_SEALED_REQUEST_MAX_UTF8_BYTES = 4_500
+CONTEXT_V2_1_SEALED_REQUEST_STATUS_PASSED = "passed"
 FACTORY_REQUIRED = (
-    "Gate2FinancialSemanticV6ContextLinterFactory.create is the only V6 "
-    "Slim request lint-and-seal entrypoint"
+    "Gate2FinancialSemanticV6ContextLinterFactory is the only V6 complete "
+    "request lint-and-seal authority for the historical Slim request and "
+    "the non-active Context V2.1 provider-neutral request"
 )
 FORBIDDEN = (
     "No V6 Slim request may reach the transport builder without one exact "
-    "passed request-bound lint receipt; the linter must not repair context, "
-    "aliases, model choices, canonical bindings or materialized records"
+    "passed request-bound lint receipt; Context V2.1 must remain non-active "
+    "and provider-neutral; the linter must not repair context, aliases, "
+    "model choices, canonical bindings or materialized records"
 )
 
 _FORBIDDEN_MODEL_FIELDS = frozenset(
@@ -191,6 +205,97 @@ class Gate2FinancialSemanticV6LintedRequest:
                 self.lint_receipt.estimated_input_tokens
             ),
             "context_lint_receipt": self.lint_receipt.to_safe_dict(),
+            "provider_calls_total": 0,
+            "contains_source_literals": False,
+            "contains_exact_refs": False,
+        }
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextV21SealedRequestReceipt:
+    schema_version: str
+    policy_version: str
+    request_profile: str
+    mapping_receipt_integrity_hash: str
+    context_view_hash: str
+    system_prompt_version: str
+    system_prompt_hash: str
+    local_response_profile_identity: str
+    response_schema_hash: str
+    response_format_hash: str
+    model_visible_request_hash: str
+    model_visible_utf8_bytes: int
+    token_estimator_id: str
+    estimated_input_tokens: int
+    invariant_counters: dict[str, int]
+    status: str
+    provider_calls_total: int
+    integrity_hash: str
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "request_profile": self.request_profile,
+            "mapping_receipt_integrity_hash": (
+                self.mapping_receipt_integrity_hash
+            ),
+            "context_view_hash": self.context_view_hash,
+            "system_prompt_version": self.system_prompt_version,
+            "system_prompt_hash": self.system_prompt_hash,
+            "local_response_profile_identity": (
+                self.local_response_profile_identity
+            ),
+            "response_schema_hash": self.response_schema_hash,
+            "response_format_hash": self.response_format_hash,
+            "model_visible_request_hash": (
+                self.model_visible_request_hash
+            ),
+            "model_visible_utf8_bytes": self.model_visible_utf8_bytes,
+            "token_estimator_id": self.token_estimator_id,
+            "estimated_input_tokens": self.estimated_input_tokens,
+            "invariant_counters": copy.deepcopy(
+                self.invariant_counters
+            ),
+            "status": self.status,
+            "provider_calls_total": self.provider_calls_total,
+        }
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            **self.integrity_payload(),
+            "integrity_hash": self.integrity_hash,
+        }
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextV21SealedRequest:
+    active: bool
+    transport_eligible: bool
+    serialized_context: str
+    response_format: dict[str, Any]
+    model_visible_request: dict[str, Any]
+    sealed_request_receipt: (
+        Gate2FinancialSemanticV6ContextV21SealedRequestReceipt
+    )
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "request_profile": CONTEXT_V2_1_SEALED_REQUEST_PROFILE,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "model_visible_request_hash": (
+                self.sealed_request_receipt.model_visible_request_hash
+            ),
+            "model_visible_utf8_bytes": (
+                self.sealed_request_receipt.model_visible_utf8_bytes
+            ),
+            "estimated_input_tokens": (
+                self.sealed_request_receipt.estimated_input_tokens
+            ),
+            "sealed_request_receipt": (
+                self.sealed_request_receipt.to_safe_dict()
+            ),
             "provider_calls_total": 0,
             "contains_source_literals": False,
             "contains_exact_refs": False,
@@ -488,6 +593,292 @@ class Gate2FinancialSemanticV6ContextLinterFactory:
             lint_receipt=receipt,
         )
 
+    def create_context_v2_1(
+        self,
+        *,
+        packet: Gate2FinancialSemanticV6Packet,
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+        system_message: str,
+        serialized_context: str,
+        response_format: dict[str, Any],
+        mapping_receipt: (
+            Gate2FinancialSemanticV6ContextV21MappingReceipt
+        ),
+    ) -> Gate2FinancialSemanticV6ContextV21SealedRequest:
+        validate_financial_semantic_v6_packet(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        )
+        validate_financial_semantic_v6_choice_contract(
+            contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        )
+        candidate = packet.context_v2_candidate
+        response_profile = (
+            choice_contract.context_v2_1_response_profile
+        )
+        if (
+            not isinstance(
+                mapping_receipt,
+                Gate2FinancialSemanticV6ContextV21MappingReceipt,
+            )
+            or mapping_receipt != packet.context_v2_mapping_receipt
+            or mapping_receipt.provider_calls_total != 0
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "mapping_receipt_invalid"
+            )
+        if (
+            candidate.active is not False
+            or candidate.transport_eligible is not False
+            or candidate.provider_calls_total != 0
+            or response_profile.active is not False
+            or response_profile.transport_eligible is not False
+            or response_profile.provider_calls_total != 0
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "non_active_boundary_invalid"
+            )
+        expected_context = _model_json_text(candidate.payload)
+        if (
+            not isinstance(system_message, str)
+            or system_message != V6_SEMANTIC_SYSTEM_PROMPT
+            or sha256_json(system_message) != V6_SEMANTIC_PROMPT_HASH
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "system_message_invalid"
+            )
+        if (
+            not isinstance(serialized_context, str)
+            or serialized_context != expected_context
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "serialized_context_invalid"
+            )
+        exact_schema = copy.deepcopy(response_profile.response_schema)
+        expected_response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "strict": True,
+                "schema": copy.deepcopy(exact_schema),
+            },
+        }
+        if (
+            not isinstance(response_format, dict)
+            or response_format != expected_response_format
+            or _model_json_bytes(response_format)
+            != _model_json_bytes(expected_response_format)
+            or response_profile.response_schema_hash
+            != sha256_json(exact_schema)
+            or response_profile.mapping_receipt_integrity_hash
+            != mapping_receipt.integrity_hash
+            or response_profile.context_view_hash != candidate.view_hash
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "response_format_invalid"
+            )
+
+        exact_response_format = copy.deepcopy(response_format)
+        projection_prompt = _ProjectionPrompt(
+            version=V6_SEMANTIC_PROMPT_VERSION,
+            content=system_message,
+            hash=V6_SEMANTIC_PROMPT_HASH,
+            packet_hash=candidate.view_hash,
+            choice_schema_hash=response_profile.response_schema_hash,
+        )
+        model_visible_request = (
+            financial_semantic_v6_slim_model_visible_projection(
+                prompt=projection_prompt,
+                package=copy.deepcopy(candidate.payload),
+                response_format=copy.deepcopy(exact_response_format),
+            )
+        )
+        if (
+            model_visible_request["messages"][1]["content"]
+            != serialized_context
+            or model_visible_request["response_format"]
+            != exact_response_format
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "request_projection_drift"
+            )
+        model_visible_utf8_bytes = (
+            validate_financial_semantic_v6_context_v2_1_request_budget(
+                model_visible_request
+            )
+        )
+        opaque_global_ids = _context_v2_1_opaque_global_ids_total(
+            model_visible_request=model_visible_request,
+            packet=packet,
+            choice_contract=choice_contract,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            mapping_receipt=mapping_receipt,
+            registry=self.registry,
+        )
+        backend_hashes = _context_v2_1_backend_hashes_total(
+            model_visible_request=model_visible_request,
+            packet=packet,
+            choice_contract=choice_contract,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            mapping_receipt=mapping_receipt,
+            registry=self.registry,
+        )
+        (
+            semantic_literals_total,
+            semantic_literals_covered_total,
+            duplicate_literals,
+        ) = _context_v2_1_semantic_literal_metrics(
+            system_message=system_message,
+            payload=candidate.payload,
+            response_format=exact_response_format,
+            evidence_bundle=evidence_bundle,
+            mapping_receipt=mapping_receipt,
+        )
+        null_fields = _count_nulls(
+            {
+                "system_message": system_message,
+                "payload": candidate.payload,
+                "response_format": exact_response_format,
+            }
+        )
+        unused_or_orphan_keys = (
+            _context_v2_1_unused_or_orphan_keys_total(
+                payload=candidate.payload,
+                response_schema=exact_schema,
+            )
+        )
+        unexplained_reason_codes = (
+            _context_v2_1_unexplained_reason_codes_total(
+                payload=candidate.payload,
+                response_schema=exact_schema,
+                expected_reason_codes=(
+                    response_profile.unclassified_reason_codes
+                ),
+            )
+        )
+        (
+            mapping_rows_total,
+            mapping_rows_covered_total,
+        ) = _context_v2_1_mapping_coverage_metrics(
+            payload=candidate.payload,
+            mapping_receipt=mapping_receipt,
+            evidence_bundle=evidence_bundle,
+            compilation=compilation,
+        )
+        invariant_counters = {
+            "opaque_global_ids": opaque_global_ids,
+            "backend_hashes": backend_hashes,
+            "duplicate_literals": duplicate_literals,
+            "null_fields": null_fields,
+            "unused_or_orphan_keys": unused_or_orphan_keys,
+            "unexplained_reason_codes": unexplained_reason_codes,
+            "semantic_literals_total": semantic_literals_total,
+            "semantic_literals_covered_total": (
+                semantic_literals_covered_total
+            ),
+            "mapping_rows_total": mapping_rows_total,
+            "mapping_rows_covered_total": (
+                mapping_rows_covered_total
+            ),
+        }
+        if opaque_global_ids:
+            _fail(
+                "financial_semantic_v6_context_v2_1_opaque_global_id"
+            )
+        if backend_hashes:
+            _fail("financial_semantic_v6_context_v2_1_backend_hash")
+        if duplicate_literals:
+            _fail("financial_semantic_v6_context_v2_1_literal_duplicate")
+        if null_fields:
+            _fail("financial_semantic_v6_context_v2_1_null_field")
+        if unused_or_orphan_keys:
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "unused_or_orphan_key"
+            )
+        if unexplained_reason_codes:
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "unexplained_reason_code"
+            )
+        if semantic_literals_covered_total != semantic_literals_total:
+            _fail("financial_semantic_v6_context_v2_1_literal_missing")
+        if mapping_rows_covered_total != mapping_rows_total:
+            _fail("financial_semantic_v6_context_v2_1_mapping_incomplete")
+
+        draft_receipt = (
+            Gate2FinancialSemanticV6ContextV21SealedRequestReceipt(
+                schema_version=(
+                    CONTEXT_V2_1_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION
+                ),
+                policy_version=CONTEXT_V2_1_POLICY_VERSION,
+                request_profile=CONTEXT_V2_1_SEALED_REQUEST_PROFILE,
+                mapping_receipt_integrity_hash=(
+                    mapping_receipt.integrity_hash
+                ),
+                context_view_hash=candidate.view_hash,
+                system_prompt_version=V6_SEMANTIC_PROMPT_VERSION,
+                system_prompt_hash=V6_SEMANTIC_PROMPT_HASH,
+                local_response_profile_identity=(
+                    response_profile.schema_version
+                ),
+                response_schema_hash=(
+                    response_profile.response_schema_hash
+                ),
+                response_format_hash=_model_hash(
+                    exact_response_format
+                ),
+                model_visible_request_hash=_model_hash(
+                    model_visible_request
+                ),
+                model_visible_utf8_bytes=model_visible_utf8_bytes,
+                token_estimator_id=TOKEN_ESTIMATOR_ID,
+                estimated_input_tokens=(
+                    estimate_gate2_request_input_tokens(
+                        model_visible_request
+                    )
+                ),
+                invariant_counters=copy.deepcopy(invariant_counters),
+                status=CONTEXT_V2_1_SEALED_REQUEST_STATUS_PASSED,
+                provider_calls_total=0,
+                integrity_hash="",
+            )
+        )
+        receipt = replace(
+            draft_receipt,
+            integrity_hash=sha256_json(
+                draft_receipt.integrity_payload()
+            ),
+        )
+        return Gate2FinancialSemanticV6ContextV21SealedRequest(
+            active=False,
+            transport_eligible=False,
+            serialized_context=serialized_context,
+            response_format=copy.deepcopy(exact_response_format),
+            model_visible_request=copy.deepcopy(model_visible_request),
+            sealed_request_receipt=receipt,
+        )
+
     def prove_local_totality(
         self,
         *,
@@ -651,6 +1042,73 @@ def validate_financial_semantic_v6_linted_request(
     )
     if replayed != linted_request:
         _fail("financial_semantic_v6_context_lint_replay_mismatch")
+
+
+def validate_financial_semantic_v6_context_v2_1_request_budget(
+    model_visible_request: dict[str, Any],
+) -> int:
+    if not isinstance(model_visible_request, dict):
+        _fail(
+            "financial_semantic_v6_context_v2_1_request_budget_invalid"
+        )
+    model_visible_utf8_bytes = len(
+        _model_json_bytes(model_visible_request)
+    )
+    if (
+        model_visible_utf8_bytes
+        > CONTEXT_V2_1_SEALED_REQUEST_MAX_UTF8_BYTES
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_request_budget_exceeded"
+        )
+    return model_visible_utf8_bytes
+
+
+def validate_financial_semantic_v6_context_v2_1_sealed_request(
+    *,
+    sealed_request: (
+        Gate2FinancialSemanticV6ContextV21SealedRequest
+    ),
+    packet: Gate2FinancialSemanticV6Packet,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    system_message: str,
+    mapping_receipt: Gate2FinancialSemanticV6ContextV21MappingReceipt,
+) -> None:
+    if not isinstance(
+        sealed_request,
+        Gate2FinancialSemanticV6ContextV21SealedRequest,
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_sealed_replay_invalid"
+        )
+    validate_financial_semantic_v6_context_v2_1_request_budget(
+        sealed_request.model_visible_request
+    )
+    replayed = Gate2FinancialSemanticV6ContextLinterFactory(
+        registry=registry
+    ).create_context_v2_1(
+        packet=packet,
+        choice_contract=choice_contract,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        system_message=system_message,
+        serialized_context=sealed_request.serialized_context,
+        response_format=sealed_request.response_format,
+        mapping_receipt=mapping_receipt,
+    )
+    if (
+        _model_json_bytes(replayed.model_visible_request)
+        != _model_json_bytes(sealed_request.model_visible_request)
+        or replayed != sealed_request
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_sealed_replay_mismatch"
+        )
 
 
 def _validate_visible_context(payload: Any) -> _VisibleContext:
@@ -1088,6 +1546,635 @@ def _opaque_ids_total(
         for value in opaque_values
         if isinstance(value, str) and value and value in serialized
     )
+
+
+def _context_v2_1_opaque_global_ids_total(
+    *,
+    model_visible_request: dict[str, Any],
+    packet: Gate2FinancialSemanticV6Packet,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    mapping_receipt: Gate2FinancialSemanticV6ContextV21MappingReceipt,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> int:
+    serialized = _model_json_text(model_visible_request)
+    opaque_values = {
+        evidence_bundle.bundle_id,
+        evidence_bundle.source_package_ref,
+        evidence_bundle.normalization_run_ref,
+        evidence_bundle.document_ref,
+        evidence_bundle.source_scope_ref,
+        evidence_bundle.source_family_id,
+        source_package.package_ref,
+        source_package.normalization_run_ref,
+        source_package.document_ref,
+        source_package.source_scope_ref,
+        source_package.source_family_id,
+        compilation.evidence_bundle_id,
+        compilation.semantic_pack_id,
+        compilation.semantic_pack_version,
+        registry.registry_id,
+        registry.registry_version,
+        *evidence_bundle.issue_refs,
+        *evidence_bundle.provenance_refs,
+        *source_package.issue_refs,
+        *source_package.source_evidence_refs,
+        *choice_contract.typed_option_ids,
+    }
+    for value in evidence_bundle.source_values:
+        opaque_values.update(
+            {
+                value.source_value_ref,
+                value.source_ref,
+                value.association_ref,
+                value.lineage.document_ref,
+                value.lineage.page_ref,
+                value.lineage.table_ref,
+                value.lineage.row_ref,
+                value.lineage.cell_ref,
+                value.lineage.text_segment_ref,
+                *value.source_evidence_refs,
+            }
+        )
+    for value in source_package.source_values:
+        opaque_values.update(
+            {
+                value.source_value_ref,
+                value.source_ref,
+                value.lineage.document_ref,
+                value.lineage.page_ref,
+                value.lineage.table_ref,
+                value.lineage.row_ref,
+                value.lineage.cell_ref,
+                value.lineage.text_segment_ref,
+                *value.source_evidence_refs,
+            }
+        )
+    for association in evidence_bundle.source_associations:
+        opaque_values.update(
+            {
+                association.association_ref,
+                *association.source_value_refs,
+            }
+        )
+    for option in compilation.typed_options:
+        opaque_values.update(
+            {
+                option.typed_option_id,
+                option.input_type_id,
+                *(
+                    binding.source_value_ref
+                    for binding in option.role_bindings
+                ),
+            }
+        )
+    for blocked in compilation.blocked_bindings:
+        opaque_values.update(
+            {
+                blocked.association_ref,
+                blocked.input_type_id,
+            }
+        )
+    opaque_values.update(
+        item.get("input_type_id")
+        for item in mapping_receipt.type_mappings
+    )
+    opaque_values.update(
+        item.get("typed_option_id")
+        for item in mapping_receipt.choice_restoration
+    )
+    field_names = (
+        _FORBIDDEN_MODEL_FIELDS
+        - {
+            "active_packet_hash",
+            "candidate_compilation_integrity_hash",
+            "choice_schema_hash",
+            "content_hash",
+            "integrity_hash",
+            "packet_hash",
+            "prompt_hash",
+            "receipt_hash",
+            "schema_hash",
+            "view_hash",
+        }
+    )
+    field_violations = _count_named_fields(
+        model_visible_request,
+        field_names,
+    )
+    return field_violations + sum(
+        1
+        for value in opaque_values
+        if isinstance(value, str) and value and value in serialized
+    )
+
+
+def _context_v2_1_backend_hashes_total(
+    *,
+    model_visible_request: dict[str, Any],
+    packet: Gate2FinancialSemanticV6Packet,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    mapping_receipt: Gate2FinancialSemanticV6ContextV21MappingReceipt,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> int:
+    serialized = _model_json_text(model_visible_request)
+    known_hashes = {
+        packet.packet_hash,
+        packet.evidence_bundle_integrity_hash,
+        packet.candidate_compilation_integrity_hash,
+        packet.semantic_projection_hash,
+        packet.context_v2_candidate.view_hash,
+        mapping_receipt.integrity_hash,
+        choice_contract.choice_schema_hash,
+        choice_contract.local_candidate.response_schema_hash,
+        choice_contract.local_candidate.integrity_hash,
+        choice_contract.context_v2_1_response_profile.response_schema_hash,
+        choice_contract.context_v2_1_response_profile.integrity_hash,
+        evidence_bundle.integrity_hash,
+        evidence_bundle.source_package_integrity_hash,
+        source_package.integrity_hash,
+        compilation.integrity_hash,
+        compilation.evidence_bundle_integrity_hash,
+        compilation.semantic_pack_integrity_sha256,
+        registry.registry_hash,
+    }
+    hash_fields = {
+        "active_packet_hash",
+        "candidate_compilation_integrity_hash",
+        "choice_schema_hash",
+        "content_hash",
+        "integrity_hash",
+        "packet_hash",
+        "prompt_hash",
+        "receipt_hash",
+        "schema_hash",
+        "view_hash",
+    }
+    field_violations = _count_named_fields(
+        model_visible_request,
+        hash_fields,
+    )
+    observed_hashes = {
+        item
+        for item in re.findall(
+            r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])",
+            serialized,
+        )
+    }
+    observed_hashes.update(
+        value
+        for value in known_hashes
+        if isinstance(value, str) and value and value in serialized
+    )
+    return field_violations + len(observed_hashes)
+
+
+def _context_v2_1_semantic_literal_metrics(
+    *,
+    system_message: str,
+    payload: dict[str, Any],
+    response_format: dict[str, Any],
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    mapping_receipt: Gate2FinancialSemanticV6ContextV21MappingReceipt,
+) -> tuple[int, int, int]:
+    semantic_values = tuple(
+        value
+        for value in evidence_bundle.source_values
+        if value.value_type != "source_reference"
+    )
+    if not semantic_values:
+        _fail(
+            "financial_semantic_v6_context_v2_1_literal_set_empty"
+        )
+    expected_by_ref = {
+        value.source_value_ref: value for value in semantic_values
+    }
+    for mapping in mapping_receipt.source_mappings.get(
+        "occurrences",
+        (),
+    ):
+        source = expected_by_ref.get(mapping.get("source_value_ref"))
+        rendered = _json_pointer_get_optional(
+            payload,
+            mapping.get("json_pointer"),
+        )
+        if (
+            source is None
+            or not isinstance(rendered, dict)
+            or rendered.get("literal") != source.literal_value
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "literal_mapping_invalid"
+            )
+    expected = Counter(
+        value.literal_value for value in semantic_values
+    )
+    observed = Counter(
+        value
+        for value in _walk_strings(
+            {
+                "system_message": system_message,
+                "payload": payload,
+                "response_format": response_format,
+            }
+        )
+        if value in expected
+    )
+    covered = sum(
+        min(observed[literal], count)
+        for literal, count in expected.items()
+    )
+    duplicates = sum(
+        max(0, observed[literal] - count)
+        for literal, count in expected.items()
+    )
+    return sum(expected.values()), covered, duplicates
+
+
+def _context_v2_1_unused_or_orphan_keys_total(
+    *,
+    payload: dict[str, Any],
+    response_schema: dict[str, Any],
+) -> int:
+    source_definitions = Counter(
+        (key, value)
+        for item in _walk_dicts_local(payload.get("source"))
+        for key, value in item.items()
+        if key in {"value_key", "structure_key"}
+        and isinstance(value, str)
+    )
+    source_consumers = Counter(
+        (key, value)
+        for choice in payload.get("choices", ())
+        if isinstance(choice, dict)
+        for differentiator in choice.get("differentiators", ())
+        if isinstance(differentiator, dict)
+        for key, value in differentiator.items()
+        if key in {"value_key", "structure_key"}
+        and isinstance(value, str)
+    )
+    type_definitions = Counter(
+        card.get("type_key")
+        for card in payload.get("type_cards", ())
+        if isinstance(card, dict)
+        and isinstance(card.get("type_key"), str)
+    )
+    type_consumers = Counter(
+        competitor.get("type_key")
+        for card in payload.get("type_cards", ())
+        if isinstance(card, dict)
+        and isinstance(card.get("nearest_competitor"), dict)
+        for competitor in (card["nearest_competitor"],)
+        if isinstance(competitor.get("type_key"), str)
+    )
+    choice_definitions = Counter(
+        choice.get("choice_key")
+        for choice in payload.get("choices", ())
+        if isinstance(choice, dict)
+        and isinstance(choice.get("choice_key"), str)
+    )
+    choice_consumers = Counter(
+        item
+        for variant in response_schema.get("anyOf", ())
+        if isinstance(variant, dict)
+        for properties in (variant.get("properties"),)
+        if isinstance(properties, dict)
+        for choice_property in (properties.get("choice"),)
+        if isinstance(choice_property, dict)
+        for values in (choice_property.get("enum"),)
+        if isinstance(values, list)
+        for item in values
+        if isinstance(item, str) and item != "unclassified"
+    )
+    return sum(
+        (
+            _counter_bijection_defects(
+                source_definitions,
+                source_consumers,
+            ),
+            _counter_bijection_defects(
+                type_definitions,
+                type_consumers,
+            ),
+            _counter_bijection_defects(
+                choice_definitions,
+                choice_consumers,
+            ),
+        )
+    )
+
+
+def _context_v2_1_unexplained_reason_codes_total(
+    *,
+    payload: dict[str, Any],
+    response_schema: dict[str, Any],
+    expected_reason_codes: tuple[str, ...],
+) -> int:
+    reason_rows = payload.get("unclassified_reasons")
+    if not isinstance(reason_rows, list):
+        return 1
+    shape_defects = sum(
+        not isinstance(row, dict)
+        or set(row) != {"code", "title", "use_when"}
+        or any(
+            not isinstance(row.get(field), str) or not row.get(field)
+            for field in ("code", "title", "use_when")
+        )
+        for row in reason_rows
+    )
+    defined = tuple(
+        row.get("code")
+        for row in reason_rows
+        if isinstance(row, dict)
+        and isinstance(row.get("code"), str)
+    )
+    schema_codes = tuple(
+        item
+        for variant in response_schema.get("anyOf", ())
+        if isinstance(variant, dict)
+        for properties in (variant.get("properties"),)
+        if isinstance(properties, dict)
+        and "reason" in properties
+        for reason_property in (properties.get("reason"),)
+        if isinstance(reason_property, dict)
+        for values in (reason_property.get("enum"),)
+        if isinstance(values, list)
+        for item in values
+        if isinstance(item, str)
+    )
+    return sum(
+        (
+            shape_defects,
+            int(defined != expected_reason_codes),
+            int(schema_codes != expected_reason_codes),
+            _counter_bijection_defects(
+                Counter(defined),
+                Counter(expected_reason_codes),
+            ),
+            _counter_bijection_defects(
+                Counter(schema_codes),
+                Counter(expected_reason_codes),
+            ),
+        )
+    )
+
+
+def _context_v2_1_mapping_coverage_metrics(
+    *,
+    payload: dict[str, Any],
+    mapping_receipt: Gate2FinancialSemanticV6ContextV21MappingReceipt,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> tuple[int, int]:
+    semantic_values = tuple(
+        value
+        for value in evidence_bundle.source_values
+        if value.value_type != "source_reference"
+    )
+    expected_by_ref = {
+        value.source_value_ref: value for value in semantic_values
+    }
+    source_structures_total = sum(
+        isinstance(item.get("kind"), str)
+        for item in _walk_dicts_local(payload.get("source"))
+    )
+    type_mappings_total = len(payload.get("type_cards", ()))
+    choice_mappings_total = len(payload.get("choices", ()))
+
+    source_occurrences_covered = 0
+    seen_source_pointers: set[str] = set()
+    for row in mapping_receipt.source_mappings.get(
+        "occurrences",
+        (),
+    ):
+        pointer = row.get("json_pointer")
+        target = _json_pointer_get_optional(payload, pointer)
+        source = expected_by_ref.get(row.get("source_value_ref"))
+        if (
+            isinstance(pointer, str)
+            and pointer not in seen_source_pointers
+            and isinstance(target, dict)
+            and source is not None
+            and target.get("literal") == source.literal_value
+        ):
+            seen_source_pointers.add(pointer)
+            source_occurrences_covered += 1
+
+    source_structures_covered = 0
+    seen_structure_pointers: set[str] = set()
+    model_kind_by_private_kind = {
+        "table": "table",
+        "row": "row",
+        "text_segment": "text segment",
+    }
+    for row in mapping_receipt.source_mappings.get(
+        "structures",
+        (),
+    ):
+        pointer = row.get("json_pointer")
+        target = _json_pointer_get_optional(payload, pointer)
+        node_identity = row.get("node_identity")
+        private_kind = (
+            node_identity.get("kind")
+            if isinstance(node_identity, dict)
+            else None
+        )
+        if (
+            isinstance(pointer, str)
+            and pointer not in seen_structure_pointers
+            and isinstance(target, dict)
+            and target.get("kind")
+            == model_kind_by_private_kind.get(private_kind)
+        ):
+            seen_structure_pointers.add(pointer)
+            source_structures_covered += 1
+
+    type_mappings_covered = 0
+    seen_type_pointers: set[str] = set()
+    for row in mapping_receipt.type_mappings:
+        pointer = row.get("json_pointer")
+        target = _json_pointer_get_optional(payload, pointer)
+        if (
+            isinstance(pointer, str)
+            and pointer not in seen_type_pointers
+            and isinstance(target, dict)
+            and target.get("type_key") == row.get("type_key")
+            and isinstance(row.get("input_type_id"), str)
+        ):
+            seen_type_pointers.add(pointer)
+            type_mappings_covered += 1
+
+    options_by_id = {
+        option.typed_option_id: option
+        for option in compilation.typed_options
+    }
+    choice_mappings_covered = 0
+    seen_choice_pointers: set[str] = set()
+    choice_key_by_option_id: dict[str, str] = {}
+    for row in mapping_receipt.choice_restoration:
+        pointer = row.get("json_pointer")
+        target = _json_pointer_get_optional(payload, pointer)
+        option = options_by_id.get(row.get("typed_option_id"))
+        expected_role_bindings = (
+            [
+                {
+                    "role_id": binding.role_id,
+                    "source_value_ref": binding.source_value_ref,
+                }
+                for binding in option.role_bindings
+            ]
+            if option is not None
+            else None
+        )
+        if (
+            isinstance(pointer, str)
+            and pointer not in seen_choice_pointers
+            and isinstance(target, dict)
+            and target.get("choice_key") == row.get("choice_key")
+            and option is not None
+            and row.get("input_type_id") == option.input_type_id
+            and row.get("role_bindings") == expected_role_bindings
+        ):
+            seen_choice_pointers.add(pointer)
+            choice_mappings_covered += 1
+            choice_key_by_option_id[option.typed_option_id] = row[
+                "choice_key"
+            ]
+
+    expected_bindings = Counter(
+        (
+            choice_key_by_option_id.get(option.typed_option_id),
+            binding.role_id,
+            binding.source_value_ref,
+        )
+        for option in compilation.typed_options
+        for binding in option.role_bindings
+    )
+    observed_bindings = Counter(
+        (
+            row.get("choice_key"),
+            row.get("role_id"),
+            row.get("source_value_ref"),
+        )
+        for partition_name in (
+            "visible_differentiators",
+            "backend_only_bindings",
+        )
+        for row in mapping_receipt.binding_partition.get(
+            partition_name,
+            (),
+        )
+        if isinstance(row, dict)
+    )
+    binding_rows_total = sum(expected_bindings.values())
+    binding_rows_covered = sum(
+        (expected_bindings & observed_bindings).values()
+    )
+    mapping_rows_total = sum(
+        (
+            len(semantic_values),
+            source_structures_total,
+            type_mappings_total,
+            choice_mappings_total,
+            binding_rows_total,
+        )
+    )
+    mapping_rows_covered_total = sum(
+        (
+            source_occurrences_covered,
+            source_structures_covered,
+            type_mappings_covered,
+            choice_mappings_covered,
+            binding_rows_covered,
+        )
+    )
+    return mapping_rows_total, mapping_rows_covered_total
+
+
+def _counter_bijection_defects(
+    definitions: Counter,
+    consumers: Counter,
+) -> int:
+    keys = set(definitions) | set(consumers)
+    return (
+        sum(
+            abs(definitions[key] - consumers[key])
+            for key in keys
+        )
+        + sum(max(0, count - 1) for count in definitions.values())
+        + sum(max(0, count - 1) for count in consumers.values())
+    )
+
+
+def _json_pointer_get_optional(value: Any, pointer: Any) -> Any:
+    if not isinstance(pointer, str) or not pointer.startswith("/"):
+        return None
+    current = value
+    try:
+        for raw_part in pointer[1:].split("/"):
+            part = raw_part.replace("~1", "/").replace("~0", "~")
+            if isinstance(current, list):
+                current = current[int(part)]
+            elif isinstance(current, dict):
+                current = current[part]
+            else:
+                return None
+    except (IndexError, KeyError, TypeError, ValueError):
+        return None
+    return current
+
+
+def _walk_dicts_local(value: Any):
+    if isinstance(value, dict):
+        yield value
+        for item in value.values():
+            yield from _walk_dicts_local(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _walk_dicts_local(item)
+
+
+def _count_named_fields(value: Any, field_names: set[str]) -> int:
+    if isinstance(value, dict):
+        return sum(
+            int(key in field_names)
+            + _count_named_fields(item, field_names)
+            for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return sum(
+            _count_named_fields(item, field_names) for item in value
+        )
+    return 0
+
+
+def _model_json_bytes(value: Any) -> bytes:
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6ContextLintError(
+            "financial_semantic_v6_context_v2_1_serialization_invalid"
+        ) from exc
+
+
+def _model_json_text(value: Any) -> str:
+    return _model_json_bytes(value).decode("utf-8")
+
+
+def _model_hash(value: Any) -> str:
+    return hashlib.sha256(_model_json_bytes(value)).hexdigest()
 
 
 def _count_nulls(value: Any) -> int:

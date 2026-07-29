@@ -197,8 +197,9 @@ The following are explicit stops:
 4. The later governing program authorizes GOAL 9; the inactive versioned V2.1
    response profile now accepts and preserves the new reason in the existing
    Choice authority.
-5. No provider smoke may include a count-one case until GOAL 10 seals the
-   request and the later smoke goal is explicitly reached.
+5. GOAL 10 seals the count-one-capable provider-neutral request without
+   transport; no provider smoke may include such a case until the later smoke
+   goal is explicitly reached.
 6. Prompt and Pack changes are not authorized by this audit.
 7. The full benchmark is not authorized or executed by GOAL 6.
 

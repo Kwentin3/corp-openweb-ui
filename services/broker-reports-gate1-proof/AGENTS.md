@@ -78,11 +78,21 @@ separate bootstrap report.
 - GOAL 9 adds only the versioned inactive V2.1 response schema/parser through
   `Gate2FinancialSemanticV6ChoiceContractFactory.create`. `choice_N` restores
   only through `context_v2_mapping_receipt.choice_restoration`. Active V6
-  Choice, historical Local Choice v1, Expansion, linter/request builder,
-  adapters and provider route remain unchanged.
-- **STOP before GOAL 10:** do not begin the V2.1 linter/sealed request until
-  GOAL 9 is fresh-reviewed on its immutable PR head, the real
-  `broker-reports-ci` check is green and the PR is merged.
+  Choice, historical Local Choice v1 and Expansion remain unchanged.
+- GOAL 10 adds only
+  `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` under the
+  existing linter authority; historical `create` remains byte/behavior exact.
+  The new method uses the inactive request profile
+  `broker_reports_gate2_financial_semantic_v6_request_v2_1_candidate`. It
+  consumes the exact Prompt, Context V2.1 candidate, Choice-owned schema and
+  packet-owned private mapping receipt; it emits
+  `broker_reports_gate2_llm_semantic_context_v2_1_sealed_request_receipt_v1`.
+  The provider-neutral response wrapper has exactly `type` and `json_schema`,
+  with nested `strict` and `schema`; `json_schema.name` is forbidden.
+- **STOP before GOAL 11:** do not add provider-specific projection, simulated
+  provider response, persistence/replay or adapter consumption until GOAL 10
+  is fresh-reviewed on its immutable PR head, the real `broker-reports-ci`
+  check is green and the PR is merged.
 - GOAL 5 selects existing managed strings rather than authoring markers:
   `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
   `counterexamples[0]`, nearest distinction is the unique direct rule against
@@ -98,15 +108,23 @@ separate bootstrap report.
   private mapping receipt, but no V2.0 local Choice profile/parser, linter,
   provider request, evidence persistence or replay exists. Context V2.1 has
   one non-active candidate, private exact receipt and Choice-owned inactive
-  response profile/parser. It still has no V2.1 linter, sealed provider
-  request, persistence or replay. Runtime and the current qualification runner
-  continue to consume only `packet.payload` and exact-ID Choice until a
-  separately qualified activation GOAL changes that authority.
-- Any Slim + Local Choice transport must first use
+  response profile/parser plus one linter-owned inactive provider-neutral
+  sealed request and private sealed-request receipt. It still has no
+  provider-specific projection, provider transport, persistence or replay.
+  Runtime and the current qualification runner continue to consume only
+  `packet.payload` and exact-ID Choice until a separately qualified activation
+  GOAL changes that authority.
+- Any historical Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.
   The linter validates the complete request but does not own packet, Prompt,
   Choice, provider projection, canonical expansion or materialization.
+- Context V2.1 construction must use the same authority's additive
+  `create_context_v2_1` method and its exact V2.1 request profile. Complete
+  request bytes must be at most `4 500`; the current governed maximum is
+  `3 522`. Mapping coverage is `156/156`: 45 source occurrences, 20
+  structures, 20 type mappings, 12 choice restorations and 59 binding rows.
+  Provider calls and runtime activation remain zero.
 - The historical Slim diagnostic GOAL 4 consumed its one bounded
   six-submission run on the two
   frozen smoke cases. The terminal receipt is failed because Haiku missed the

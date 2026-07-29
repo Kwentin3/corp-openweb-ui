@@ -488,3 +488,44 @@ def test_context_v2_1_profile_tampering_fails_full_choice_authority(
             compilation=case.compilation,
             registry=v6_fixture.registry,
         )
+
+    exact_profile = contract.context_v2_1_response_profile
+    reordered_schema = copy.deepcopy(exact_profile.response_schema)
+    first_variant = reordered_schema["anyOf"][0]
+    reordered_schema["anyOf"][0] = {
+        "additionalProperties": first_variant["additionalProperties"],
+        "type": first_variant["type"],
+        "properties": first_variant["properties"],
+        "required": first_variant["required"],
+    }
+    assert reordered_schema == exact_profile.response_schema
+    assert json.dumps(
+        reordered_schema,
+        ensure_ascii=False,
+        sort_keys=False,
+        separators=(",", ":"),
+    ) != json.dumps(
+        exact_profile.response_schema,
+        ensure_ascii=False,
+        sort_keys=False,
+        separators=(",", ":"),
+    )
+    reordered_contract = replace(
+        contract,
+        context_v2_1_response_profile=replace(
+            exact_profile,
+            response_schema=reordered_schema,
+        ),
+    )
+    with pytest.raises(
+        Gate2FinancialSemanticV6ChoiceError,
+        match="financial_semantic_v6_choice_contract_integrity_invalid",
+    ):
+        validate_financial_semantic_v6_choice_contract(
+            contract=reordered_contract,
+            packet=packet,
+            evidence_bundle=case.evidence_bundle,
+            source_package=case.scope.source_package,
+            compilation=case.compilation,
+            registry=v6_fixture.registry,
+        )

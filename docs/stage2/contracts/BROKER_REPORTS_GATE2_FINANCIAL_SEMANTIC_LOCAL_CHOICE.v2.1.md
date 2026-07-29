@@ -179,13 +179,16 @@ Unchanged:
 - provider adapters and execution identity;
 - managed assets, benchmark expectations and runtime admission.
 
-Not implemented by this contract:
+Not owned or implemented by this Choice contract:
 
-- Context Linter V2.1;
-- a sealed complete request;
 - provider-specific schema projection;
 - provider calls or qualification;
 - persistence, replay, benchmark execution or runtime activation.
 
-GOAL 10 may consume this profile only after the GOAL 9 PR is reviewed, its real
-GitHub Actions check is green and the PR is merged.
+GOAL 10 consumes this profile only through additive
+`Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` and emits an
+inactive provider-neutral sealed request. It neither changes nor reconstructs
+the Choice schema. Choice-owned public validation binds the schema's exact
+model-order bytes, so reordered fields cannot retain acceptance merely because
+the canonical integrity serializer sorts keys. Provider-specific projection
+remains stopped before GOAL 11.

@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2
 
-Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt and inactive Choice profile implemented; V2.1 complete-request linter, request route and provider use not implemented.
+Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt, inactive Choice profile and inactive provider-neutral sealed request implemented; provider projection/use, persistence and replay not implemented.
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2`
@@ -31,8 +31,8 @@ names are intentionally distinct:
 - **Semantic Context V2** is this contract. Its packet-owned candidate and
   private mapping receipt are implemented as non-active sidecars. The later
   V2.1 program also implements a separately versioned inactive local Choice
-  profile; its complete-request linter, request route and provider use are not
-  implemented.
+  profile and inactive provider-neutral complete-request linter; its provider
+  projection/use, persistence and replay are not implemented.
 
 The V2.0 design target was a specialist-facing completeness card. The model
 view receives source meaning, evidence-derived structure, managed type
@@ -115,13 +115,12 @@ authorizing GOAL 9
 inside the existing Choice authority.
 
 The existing Context Linter remains the sole complete-request sealer. Its
-future V2.1 extension belongs only to GOAL 10 after reviewed, green, merged
-GOAL 9. It
-consumes the packet-owned candidate/mapping receipt plus the Prompt and
-Choice-owned schema, then emits a separate private sealed-request receipt.
-The linter must not invent or build the Choice schema. The packet factory must
-not import or reconstruct Prompt or Choice outputs, and the linter receipt
-must not duplicate the packet mapping.
+additive `create_context_v2_1` method implements GOAL 10 while historical
+`create` remains unchanged. It consumes the packet-owned candidate/mapping
+receipt plus the Prompt and Choice-owned schema, then emits a separate private
+sealed-request receipt. The linter does not invent or build the Choice schema.
+The packet factory does not import or reconstruct Prompt or Choice outputs,
+and the linter receipt does not duplicate the packet mapping.
 
 No second packet builder, Semantic Pack, decision-reason catalog, Choice
 authority, binding resolver, provider semantic adapter or materializer is
@@ -1094,13 +1093,12 @@ emitted the Context-to-authority mapping receipt and did not import Prompt or
 Choice. This V2.0 design never implemented the second receipt. The later
 program amendment assigns the separately authorized/versioned inactive V2.1
 response profile to GOAL 9 and the V2.1 Context Linter plus sealed-request
-receipt to GOAL 10. The current GOAL 9 slice implements the Choice-owned
-profile but not the linter or sealed receipt. Only after reviewed, green,
-merged GOAL 9 may the V2.1 Context Linter consume its corresponding mapping
-receipt together with the Prompt-owned system message and Choice-owned
-response format, then emit a sealed-request receipt. The linter never invents
-or builds the Choice schema. That future receipt references the mapping
-receipt by integrity hash and does not duplicate its mappings.
+receipt to GOAL 10. Both later slices are implemented non-active. The V2.1
+Context Linter consumes its corresponding mapping receipt together with the
+Prompt-owned system message and Choice-owned response format, then emits a
+sealed-request receipt. The linter never invents or builds the Choice schema.
+That receipt references the mapping receipt by integrity hash and does not
+duplicate its mappings.
 
 ### 15.1 Packet-owned mapping receipt
 
@@ -1413,12 +1411,14 @@ The governing successor sequence is:
    private mapping receipt;
 5. the later program separately authorizes GOAL 9 to add one inactive
    versioned V2.1 response profile/parser in the existing Choice authority;
-6. **STOP before GOAL 10:** only after reviewed, green, merged GOAL 9 may the
-   existing Context Linter add its V2.1 profile and sealed-request budget
-   guard, consuming P01-P18 without inventing a Choice schema.
+6. GOAL 10 adds the inactive V2.1 sealed-request budget guard through
+   `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1`,
+   consuming P01-P18 without inventing a Choice schema;
+7. **STOP before GOAL 11:** provider-specific projection and local end-to-end
+   proof require reviewed, green, merged GOAL 10.
 
-The GOAL 10 linter protects the contracted full P01-P18 V2.1 surface only
-after GOAL 9 merge. It must not cement the complete V2.0 field set
+The GOAL 10 linter protects the contracted full P01-P18 V2.1 surface. It does
+not cement the complete V2.0 field set
 described by this contract.
 The selected strings already exist in the Pack/catalog; GOAL 7 implements only
 their deterministic projection and may not author replacements. GOAL 6 owns
@@ -1704,9 +1704,9 @@ Explicit stops:
    a separately authorized/versioned V2.1 response profile in the Choice
    authority or a program amendment. The later program amendment assigns that
    inactive profile to GOAL 9 and P01-P18 lint plus sealed-request construction
-   to GOAL 10. The current GOAL 9 slice implements the Choice-owned profile but
-   does not lint or seal the request. Persisted restore/replay and report
-   projection remain later explicitly authorized work.
+   to GOAL 10. Both slices are now implemented non-active. Persisted
+   restore/replay and report projection remain later explicitly authorized
+   work.
 5. No frozen expected answer, Prompt, Pack type meaning, reason wording,
    option order or provider/model selection changes in GOAL 3.
 6. A valid all-`source_reference` bundle with no necessary inbound
