@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_V2_1_CHOICE_PROFILE`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_V2_1_SEALED_REQUEST_PROFILE`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -17,8 +17,9 @@ GOAL 8 implements the sole current non-active
   Packet candidate and its private exact mapping receipt in the existing Packet
   factory. GOAL 9 implements the separately versioned inactive
   [Local Choice V2.1 response profile](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
-  in the existing Choice factory. Complete-request linter, request route and
-  activation remain unimplemented.
+  in the existing Choice factory. GOAL 10 implements the provider-neutral
+  complete-request linter and sealed request receipt in the existing Context
+  Linter factory. Provider request routing and activation remain unimplemented.
 
 ## 1. Purpose and scope
 
@@ -58,7 +59,7 @@ GOAL 5 does not:
 | exact Typed Options and bindings | Candidate Compilation and Typed Option authorities | stay private; only choice differences may be rendered |
 | context construction and private mapping | existing `Gate2FinancialSemanticV6PacketFactory.create` | GOAL 8 implements one non-active V2.1 candidate plus one private exact receipt in this owner only |
 | response schema and normalization | existing V6 Choice authority | GOAL 9 implements one inactive versioned V2.1 profile without changing active V6 |
-| complete-request lint | existing Context Linter authority | GOAL 10 may extend it only after the reviewed, green GOAL 9 PR is merged |
+| complete-request lint | existing Context Linter authority | additive `create_context_v2_1` seals the inactive provider-neutral V2.1 request; historical `create` remains unchanged |
 | provider projection and parsing | existing provider adapters | transport-only; unchanged by GOAL 5 |
 
 The existing V5-named shared Pack projection owner remains the only projection
@@ -68,8 +69,8 @@ loader, Pack, catalog, packet builder or adapter-owned semantic dictionary.
 The governing GOAL 8 slice authorized only the Packet candidate and private
 mapping receipt. The later Context V2.1 Qualification And Admission program
 separately authorizes GOAL 9 to add the versioned inactive response profile in
-the existing Choice authority. It moves the linter and sealed request to GOAL
-10; neither exists in GOAL 9.
+the existing Choice authority and GOAL 10 to add the provider-neutral sealed
+request through the same linter authority. Neither changes the active route.
 
 ## 3. Closed V2.1 semantic payload shape
 
@@ -147,8 +148,9 @@ update this contract before GOAL 7. Packet code may not silently reword it.
 The exact current system Prompt and strict response-schema protocol stay in
 their existing owners. GOAL 5 added no model-visible Prompt/schema prose and
 no response field. GOAL 9 now implements the closed request-bound response
-schema in the Choice owner; Prompt integration, complete-request lint and a
-sealed request remain unimplemented until GOAL 10.
+schema in the Choice owner. GOAL 10 integrates the unchanged Prompt and that
+exact schema with Context V2.1 through additive `create_context_v2_1`, without
+provider projection or transport.
 
 ## 4. Complete field allowlist and necessity
 
@@ -417,7 +419,7 @@ or private receipts but is forbidden from model view.
 | reason card | `MINIMIZE`; code, title and exact mapped one-sentence use rule only |
 | reason contrast | `BACKEND_ONLY` |
 | response object | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 parser implemented in the Choice owner |
-| response-format wrapper | `MINIMIZE_PROTOCOL`; GOAL 10 must build and lint it; schema `name` is not model-visible |
+| response-format wrapper | `MINIMIZE_PROTOCOL`; GOAL 10 builds and lints exact `type` + `json_schema(strict,schema)`; schema `name` is absent |
 | response-schema root | `MINIMIZE_PROTOCOL`; implemented with `anyOf` only and no `title` |
 | response-schema branch | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 profile implemented |
 | response-schema property | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 profile implemented |
@@ -540,6 +542,44 @@ RUNTIME_ACTIVATION: FALSE
 The third V2.1 reason is normalized without alteration but remains outside the
 unchanged active V6 Choice/Expansion reason set. GOAL 9 therefore does not
 claim active materialization for that reason.
+
+### 8.3 GOAL 10 implementation
+
+The same `Gate2FinancialSemanticV6ContextLinterFactory` authority now exposes
+additive `create_context_v2_1`; historical `create` remains unchanged. The new
+method consumes the exact Prompt, minified Context V2.1, Choice-owned schema
+and packet-owned private mapping receipt, then emits one inactive,
+transport-ineligible provider-neutral request and one private sealed-request
+receipt.
+
+The exact wrapper contains only `type: json_schema` and nested
+`json_schema.strict` plus `json_schema.schema`; it contains no `name`, title,
+description, examples or provider prose. Choice-owned public validation also
+pins exact model-order schema bytes before the Linter consumes them.
+Executable frozen baselines are:
+
+```text
+SEALED_REQUESTS: 10_EXACT
+SEALED_REQUEST_MAX_UTF8_BYTES: 3522
+SEALED_REQUEST_LIMIT_UTF8_BYTES: 4500
+SEALED_REQUESTS_WITHIN_LIMIT: 10_OF_10
+SEALED_REQUEST_UTF8_BYTES_TOTAL: 34389
+ESTIMATED_INPUT_TOKENS_TOTAL: 9241
+ZERO_TARGET_INVARIANTS: 6_OF_6_ZERO
+SEMANTIC_LITERAL_COVERAGE: 45_OF_45
+MAPPING_ROW_COVERAGE: 156_OF_156
+INCLUDED_BINDING_ROWS: 59_OF_59
+PROVIDER_ADAPTER_CHANGES: ZERO
+PROVIDER_CALLS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
+The private receipt identity is
+`broker_reports_gate2_llm_semantic_context_v2_1_sealed_request_receipt_v1`;
+the request profile is
+`broker_reports_gate2_financial_semantic_v6_request_v2_1_candidate`.
+`compact_request_utf8_bytes_div_4_plus_64_v1` is a deterministic planning
+estimate, not provider-tokenizer evidence.
 
 ## 9. Representative human-readable examples
 
@@ -679,7 +719,7 @@ FULL_BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
-Current GOAL 9 acceptance adds:
+Historical GOAL 9 acceptance recorded:
 
 ```text
 CHOICE_V2_1_RESPONSE_PROFILE: IMPLEMENTED_NON_ACTIVE
@@ -695,14 +735,33 @@ FULL_BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
+Current GOAL 10 acceptance adds:
+
+```text
+CONTEXT_LINTER_V2_1: IMPLEMENTED_NON_ACTIVE
+SEALED_V2_1_REQUEST: IMPLEMENTED_NON_ACTIVE
+HISTORICAL_CONTEXT_LINTER_CREATE_CHANGED: NO
+RESPONSE_FORMAT_NAME_PRESENT: NO
+SEALED_REQUESTS_WITHIN_4500_BYTES: 10_OF_10
+SEALED_REQUEST_UTF8_BYTES_TOTAL: 34389
+ESTIMATED_INPUT_TOKENS_TOTAL: 9241
+SEMANTIC_LITERAL_COVERAGE: 45_OF_45
+MAPPING_ROW_COVERAGE: 156_OF_156
+PROVIDER_ADAPTER_CHANGES: ZERO
+PROVIDER_CALLS: ZERO
+FULL_BENCHMARK_RUNS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
 The program state is:
 
 1. GOAL 6 outcome taxonomy audit is complete;
 2. GOAL 7 exact minimal managed projection is complete;
 3. GOAL 8 non-active Context V2.1 candidate/private receipt is complete;
-4. GOAL 9 inactive V2.1 Choice response profile/parser is complete in the
-   working branch and remains non-active;
-5. **STOP before GOAL 10:** the GOAL 9 PR must be fresh-reviewed on its
-   immutable head, pass the real GitHub Actions check and merge;
-6. only GOAL 10 may add the Context V2.1 linter and sealed complete request
-   before any provider transport.
+4. GOAL 9 inactive V2.1 Choice response profile/parser is complete and remains
+   non-active;
+5. GOAL 10 inactive provider-neutral linter/sealed request is implemented
+   through the existing linter authority;
+6. **STOP before GOAL 11:** provider-specific local proof may start only after
+   GOAL 10 is fresh-reviewed on its immutable PR head, the real GitHub Actions
+   check is green and the PR is merged.

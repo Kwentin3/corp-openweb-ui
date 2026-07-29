@@ -175,8 +175,9 @@ reason wording. GOAL 8 implements only one non-active
 The later explicit program authorizes GOAL 9 to add the inactive
 [Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 profile through the existing Choice authority. It does not add a Pack
-authority, request, provider or runtime activation. **STOP before GOAL 10:**
-the linter/sealed request must wait for reviewed, green, merged GOAL 9.
+authority, provider or runtime activation. GOAL 10 adds only the inactive
+provider-neutral linter/sealed request through the existing linter authority;
+provider projection remains stopped before GOAL 11.
 
 ## 10. Explicit non-goals
 

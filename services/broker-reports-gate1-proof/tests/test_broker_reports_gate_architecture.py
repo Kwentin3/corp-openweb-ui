@@ -550,7 +550,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 _string_constants(_tree(module_name)),
             )
 
-    def test_context_v2_1_sidecars_enter_only_inactive_choice_authority(
+    def test_context_v2_1_sidecars_enter_only_choice_and_linter_authorities(
         self,
     ):
         sidecar_fields = {
@@ -593,16 +593,25 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 _string_constants(tree) & sidecar_markers,
                 set(),
             )
-        choice_paths = _attribute_paths(
-            _tree("gate2_financial_semantic_v6_choice")
+        for authority_module in (
+            "gate2_financial_semantic_v6_choice",
+            "gate2_financial_semantic_v6_context_linter",
+        ):
+            authority_paths = _attribute_paths(_tree(authority_module))
+            self.assertEqual(
+                {
+                    path.rsplit(".", 1)[-1]
+                    for path in authority_paths
+                    if path.rsplit(".", 1)[-1] in sidecar_fields
+                },
+                sidecar_fields,
+            )
+        linter_paths = _attribute_paths(
+            _tree("gate2_financial_semantic_v6_context_linter")
         )
-        self.assertEqual(
-            {
-                path.rsplit(".", 1)[-1]
-                for path in choice_paths
-                if path.rsplit(".", 1)[-1] in sidecar_fields
-            },
-            sidecar_fields,
+        self.assertIn(
+            "choice_contract.context_v2_1_response_profile",
+            linter_paths,
         )
         for module_name in active_packet_consumers:
             self.assertIn("packet.payload", _attribute_paths(_tree(module_name)))

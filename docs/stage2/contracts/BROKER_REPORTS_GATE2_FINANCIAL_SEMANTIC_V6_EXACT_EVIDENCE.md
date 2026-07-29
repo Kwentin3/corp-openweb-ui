@@ -3,8 +3,9 @@
 Status: active V6 evidence current; exact non-active Context V2.0 completeness
 packet evidence historical; non-active Context V2.1 candidate/private receipt
 and inactive local Choice response profile with exact in-memory receipt
-restoration implemented; V2.1 sealed request, persistence and persisted
-restore/replay not implemented.
+restoration implemented; inactive provider-neutral V2.1 sealed request and
+private lint receipt implemented; persistence and persisted restore/replay not
+implemented.
 
 ## Private evidence
 
@@ -71,15 +72,16 @@ exact GOAL 5-selected managed projection; GOAL 8 implements only the
 non-active PacketFactory V2.1 candidate plus private exact receipt. The later
 GOAL 9 adds the separately versioned inactive
 [Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
-profile through the existing Choice authority. It adds no complete request
-evidence, persistence, replay, provider call or runtime activation. **STOP
-before GOAL 10:** the linter/sealed request must wait for reviewed, green,
-merged GOAL 9. The selected Pack `examples[0]`,
+profile through the existing Choice authority. GOAL 10 then adds the inactive
+provider-neutral request and private sealed-request receipt through additive
+`Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1`, leaving
+historical `create` unchanged. It adds no provider projection, persistence,
+replay, provider call or runtime activation. The selected Pack `examples[0]`,
 `counterexamples[0]`, unique direct rule against the only other current
 visible type, and exact first sentence of catalog `meaning` already exist.
 GOAL 7 does not author markers or reason wording. The V2.1 Packet candidate,
-private mapping receipt and inactive Choice profile exist;
-complete-request/execution evidence does not.
+private mapping receipt, inactive Choice profile and private sealed-request
+receipt exist; provider execution evidence does not.
 
 Only after those steps, a separately authorized V2.1 evidence implementation
 may preserve the exact V2.1 system message, context JSON, complete
@@ -92,9 +94,10 @@ projection without provider access or semantic repair.
 
 The current evidence/restorer/replay path is bound to the active exact-ID
 request and historical candidate. Context V2.0 persistence, restore and replay
-are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 response sealing, persistence,
-restore and replay are also `NOT_IMPLEMENTED_NOT_RUN`. Neither status is
-inferred from candidate construction or current replay success.
+are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 provider-neutral response sealing
+is implemented non-active, while persistence, restore and replay remain
+`NOT_IMPLEMENTED_NOT_RUN`. Neither later status is inferred from request
+sealing or current replay success.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.

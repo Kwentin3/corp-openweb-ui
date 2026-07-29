@@ -1,0 +1,204 @@
+{
+  "acceptance": {
+    "governed_cases_total": 10,
+    "aggregate_invariant_counters": {
+      "backend_hashes": 0,
+      "duplicate_literals": 0,
+      "mapping_rows_covered_total": 156,
+      "mapping_rows_total": 156,
+      "null_fields": 0,
+      "opaque_global_ids": 0,
+      "semantic_literals_covered_total": 45,
+      "semantic_literals_total": 45,
+      "unexplained_reason_codes": 0,
+      "unused_or_orphan_keys": 0
+    },
+    "mapping_row_accounting": {
+      "binding_rows_total": 59,
+      "choice_restoration_rows_total": 12,
+      "source_occurrence_rows_total": 45,
+      "source_structure_rows_total": 20,
+      "type_mapping_rows_total": 20
+    },
+    "response_schema_baselines": {
+      "choices_0": {
+        "minified_utf8_bytes": 274,
+        "sha256": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90"
+      },
+      "choices_2": {
+        "minified_utf8_bytes": 416,
+        "sha256": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4"
+      },
+      "pinned_receipts_total": 10
+    },
+    "request_baselines": {
+      "syn_successor_v2_adjacent_equal": {
+        "estimated_input_tokens": 891,
+        "model_visible_request_sha256": "e26f568b74bfe25a1fd3a542b4a34bc2fde5e53b9a8cbf76546ba15fbf444c09",
+        "model_visible_utf8_bytes": 3307
+      },
+      "syn_successor_v2_adjacent_fx": {
+        "estimated_input_tokens": 904,
+        "model_visible_request_sha256": "1dd8bf625bf08beb2ca673e75d4b64018735f78bf793f19fb47031e000a3045f",
+        "model_visible_utf8_bytes": 3359
+      },
+      "syn_successor_v2_detail_vs_subtotal": {
+        "estimated_input_tokens": 892,
+        "model_visible_request_sha256": "c6f53bdf45df0ccbc26b67c71f48cc9b638d70132ed0f4f156b6e994c6a72116",
+        "model_visible_utf8_bytes": 3311
+      },
+      "syn_successor_v2_forbidden_neighbour": {
+        "estimated_input_tokens": 945,
+        "model_visible_request_sha256": "72e71a5382f90bedeb9baa8c0c6280481ca46bc54f8ee49ddda68dc494b56159",
+        "model_visible_utf8_bytes": 3521
+      },
+      "syn_successor_v2_missing_discriminator": {
+        "estimated_input_tokens": 928,
+        "model_visible_request_sha256": "9e7ec60708e70e786f4b2495585de34cfc77ff7b98d35eb6c3ce4654774856a8",
+        "model_visible_utf8_bytes": 3453
+      },
+      "syn_successor_v2_multiple_compatible": {
+        "estimated_input_tokens": 904,
+        "model_visible_request_sha256": "303681e6f94e012ba6891950fde6128dd533e23c5783f25a33b4e14efa54a161",
+        "model_visible_utf8_bytes": 3359
+      },
+      "syn_successor_v2_no_registry_type": {
+        "estimated_input_tokens": 944,
+        "model_visible_request_sha256": "b2edde39e5ae1b9f1a871db49bdfb619dc5f7c719169ccd42231187cc0963a6a",
+        "model_visible_utf8_bytes": 3517
+      },
+      "syn_successor_v2_optional_missing": {
+        "estimated_input_tokens": 944,
+        "model_visible_request_sha256": "86df255e64744dac204addba9f34170bf2593f0051fba35d627ca34df5f5dfe6",
+        "model_visible_utf8_bytes": 3520
+      },
+      "syn_successor_v2_unique_cash": {
+        "estimated_input_tokens": 945,
+        "model_visible_request_sha256": "68b9ca4e89e39a2ebca45867761d54bc1ed1afbe9d1994ddedd04e55b0982c3e",
+        "model_visible_utf8_bytes": 3522
+      },
+      "syn_successor_v2_unique_printed_total": {
+        "estimated_input_tokens": 944,
+        "model_visible_request_sha256": "3f4ab178e4a7d66fb991ef579274a6cdf421fd1b8827d972a7f20865c37a1fcc",
+        "model_visible_utf8_bytes": 3520
+      }
+    },
+    "request_budget": {
+      "estimated_input_tokens_total": 9241,
+      "max_model_visible_utf8_bytes": 3522,
+      "model_visible_utf8_bytes_limit": 4500,
+      "model_visible_utf8_bytes_total": 34389,
+      "requests_within_budget_total": 10,
+      "token_estimator_id": "compact_request_utf8_bytes_div_4_plus_64_v1"
+    }
+  },
+  "authority": {
+    "choice_schema_order_validator": "validate_financial_semantic_v6_choice_contract",
+    "factory": "Gate2FinancialSemanticV6ContextLinterFactory",
+    "historical_entrypoint": "create",
+    "historical_entrypoint_changed": false,
+    "policy_version": "broker_reports_gate2_minimal_model_surface_v1",
+    "provider_neutral_entrypoint": "create_context_v2_1",
+    "request_profile": "broker_reports_gate2_financial_semantic_v6_request_v2_1_candidate",
+    "sealed_request_receipt_schema_version": "broker_reports_gate2_llm_semantic_context_v2_1_sealed_request_receipt_v1"
+  },
+  "base_commit": "4078cd033b3df3616441bc40d7d588b5967eeebb",
+  "branch": "agent/broker-reports-gate2-context-v2-1-linter-goal10",
+  "continuation": {
+    "goal_11_allowed_by_this_local_receipt": false,
+    "required_before_goal_11": [
+      "local verification complete",
+      "immutable PR head pushed",
+      "real broker-reports-ci GitHub Actions check green",
+      "fresh review of exact immutable head",
+      "formal GitHub review submitted when required",
+      "GOAL 10 PR merged"
+    ]
+  },
+  "date": "2026-07-29",
+  "goal": "GOAL_10_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST",
+  "integrity_sha256": "541baaf60e078019aefaaeed562312118b1fe5f544f091613399f761ab1ee2f0",
+  "local_verification": {
+    "architecture_packet_context_v2_1": {
+      "deselected": 38,
+      "passed": 9,
+      "status": "PASSED"
+    },
+    "combined_linter_context_architecture_compatibility": {
+      "passed": 62,
+      "status": "PASSED"
+    },
+    "documentation_and_safe_receipt": {
+      "canonical_integrity": "PASSED",
+      "diff_whitespace": "PASSED",
+      "json_parse": "PASSED",
+      "required_paths": "PASSED"
+    },
+    "focused_broker_reports": {
+      "existing_swig_deprecation_warnings": 5,
+      "passed": 169,
+      "status": "PASSED"
+    },
+    "full_service_suite": "NOT_RUN_NOT_CLAIMED",
+    "generated_assets": {
+      "managed_financial_assets": "PASSED",
+      "semantic_model_assets": "PASSED",
+      "v5_execution_assets": "PASSED"
+    },
+    "generated_function_bundles": {
+      "target_all": "PASSED",
+      "tracked_diff": "CLEAN"
+    },
+    "ruff_e9_f63_f7_f82": "PASSED",
+    "repository_privacy_guard": {
+      "passed": 3,
+      "status": "PASSED"
+    },
+    "v2_1_anti_drift": {
+      "passed": 36,
+      "status": "PASSED"
+    }
+  },
+  "privacy": {
+    "contains_customer_data": false,
+    "contains_exact_refs": false,
+    "contains_model_visible_source_literals": false,
+    "contains_private_mapping_rows": false
+  },
+  "repository_change_accounting": {
+    "active_choice_schema_or_runtime_behavior_changed": false,
+    "active_packet_changed": false,
+    "benchmark_files_changed": 0,
+    "ci_workflow_context_test_command_changed": true,
+    "contributor_ci_documentation_changed": true,
+    "context_v2_1_choice_order_validation_hardened": true,
+    "historical_context_linter_create_changed": false,
+    "historical_local_choice_v1_changed": false,
+    "managed_asset_files_changed": 0,
+    "new_context_linter_authorities_total": 0,
+    "prompt_changed": false,
+    "provider_adapter_files_changed": 0,
+    "provider_calls_total": 0,
+    "runtime_activation_changes_total": 0,
+    "runtime_active": false
+  },
+  "request_surface": {
+    "active": false,
+    "json_schema_name_present": false,
+    "model_visible_root_fields": [
+      "messages",
+      "response_format"
+    ],
+    "response_format_root_fields": [
+      "type",
+      "json_schema"
+    ],
+    "response_json_schema_fields": [
+      "strict",
+      "schema"
+    ],
+    "transport_eligible": false
+  },
+  "schema_version": "broker_reports_gate2_context_v2_1_linter_goal10_safe_receipt_v1",
+  "status": "LOCAL_IMPLEMENTATION_ACCEPTED_DELIVERY_GATES_PENDING"
+}

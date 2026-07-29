@@ -76,8 +76,9 @@ plus private receipt. The later explicit program authorizes GOAL 9 to add the
 inactive
 [Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 profile in the existing Choice authority. Catalog JSON and projection bytes
-remain unchanged; active Choice/runtime also remain unchanged. GOAL 10 owns
-the later linter/sealed request after reviewed, green, merged GOAL 9.
+remain unchanged; active Choice/runtime also remain unchanged. GOAL 10 adds the
+inactive provider-neutral linter/sealed request through the existing linter
+authority without changing this catalog.
 
 ## 4. Mechanical distinction
 
@@ -199,6 +200,7 @@ ACTIVE_MODEL_ROUTE: UNCHANGED
 ```
 
 Current routing records GOAL 7 projection and GOAL 8 Context V2.1
-candidate/private receipt as complete. The current GOAL 9 slice adds only the
-inactive Choice-owned response profile; GOAL 10 owns the later linter and
-sealed request after reviewed, green, merged GOAL 9.
+candidate/private receipt as complete. GOAL 9 adds only the inactive
+Choice-owned response profile; GOAL 10 adds the inactive provider-neutral
+linter and sealed request through the existing linter authority. Provider
+projection remains stopped before GOAL 11.

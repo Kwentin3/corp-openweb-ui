@@ -143,7 +143,9 @@ GOAL 7 does not:
 GOAL 8 consumes this profile only through the existing Packet factory to
 build the separately reviewed inactive
 [Context V2.1 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
-No request, Choice, transport or runtime consumer is added.
+This family contract adds no request, Choice, transport or runtime consumer;
+the separately owned inactive GOAL 9 Choice and GOAL 10 Context Linter consume
+the exact projection without changing family assets.
 
 ## 7. Deterministic checks
 

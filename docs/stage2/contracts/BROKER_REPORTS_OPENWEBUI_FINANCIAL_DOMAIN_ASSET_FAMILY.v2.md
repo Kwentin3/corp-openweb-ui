@@ -164,10 +164,14 @@ receipt through the existing Packet authority. The later explicit program
 authorizes GOAL 9 to add the inactive
 [Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 profile through the existing Choice authority. This historical family v2 is
-not changed. Linter/sealed request, persistence/replay, provider proof and
+not changed. GOAL 10 adds the inactive provider-neutral linter/sealed request
+outside this family authority; persistence/replay, provider proof and
 activation remain later, separately gated requirements before transport.
 
 ## 7. Acceptance
+
+The following is the frozen family-v2 acceptance snapshot; its successor GOAL
+labels are historical and do not describe current continuation routing:
 
 ```text
 SAME_FAMILY: YES
