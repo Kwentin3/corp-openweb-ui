@@ -1,0 +1,414 @@
+{
+  "schema_version": "broker_reports_gate2_financial_semantic_v6_outcome_audit_v1",
+  "benchmark_id": "gate2_financial_semantic_v6_outcome_audit",
+  "status": "frozen_corrected_expectations_not_executed",
+  "contains_customer_data": false,
+  "frozen": true,
+  "case_count": 12,
+  "historical_benchmark": {
+    "schema_version": "broker_reports_gate2_financial_semantic_v6_benchmark_v1",
+    "benchmark_id": "gate2_financial_semantic_v6",
+    "canonical_sha256": "3688fe9d47534cc6f810550561460f1508acd095e798ea90c5998b55c63b0d33"
+  },
+  "base_manifest": {
+    "schema_version": "broker_reports_gate2_financial_successor_fixture_manifest_v2",
+    "benchmark_id": "gate2_financial_successor_v2",
+    "canonical_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "case_count": 12
+  },
+  "semantic_pack": {
+    "schema_version": "broker_reports_financial_semantic_pack_v1",
+    "pack_id": "broker_reports_managed_financial_semantic_pack",
+    "semantic_version": "1.0.0",
+    "semantic_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
+  },
+  "reason_catalog": {
+    "schema_version": "broker_reports_gate2_financial_decision_reason_catalog_v2",
+    "catalog_id": "broker_reports_gate2_financial_decision_reason_catalog",
+    "semantic_version": "2.0.0",
+    "semantic_integrity_sha256": "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9",
+    "added_reason_code": "single_registry_type_no_safe_record",
+    "runtime_activation": false,
+    "response_profile_status": "not_implemented"
+  },
+  "execution_policy": {
+    "provider_calls": 0,
+    "full_benchmark_run": false,
+    "hidden_retry": false,
+    "repair": false,
+    "fallback": false,
+    "fixture_decisions_are_provider_outputs": false,
+    "runtime_activation": false,
+    "active_v6_consumer": false
+  },
+  "truth_table": [
+    {
+      "state": "typed_safe_1",
+      "plausible_type_count": {
+        "minimum_inclusive": 1,
+        "maximum_inclusive": 1
+      },
+      "uniquely_safe_choice_count": {
+        "minimum_inclusive": 1,
+        "maximum_inclusive": 1
+      },
+      "route": "semantic_model",
+      "semantic_disposition": "typed_input",
+      "semantic_reason_code": "typed_supported",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "no_type_0",
+      "plausible_type_count": {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      },
+      "uniquely_safe_choice_count": {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      },
+      "route": "semantic_model",
+      "semantic_disposition": "unclassified_financial_input",
+      "semantic_reason_code": "no_registry_type",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "ambiguous_type_2plus",
+      "plausible_type_count": {
+        "minimum_inclusive": 2,
+        "maximum_inclusive": "unbounded"
+      },
+      "uniquely_safe_choice_count": {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      },
+      "route": "semantic_model",
+      "semantic_disposition": "unclassified_financial_input",
+      "semantic_reason_code": "ambiguous_registry_type",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "single_type_no_safe_record",
+      "plausible_type_count": {
+        "minimum_inclusive": 1,
+        "maximum_inclusive": 1
+      },
+      "uniquely_safe_choice_count": {
+        "minimum_inclusive": 0,
+        "maximum_inclusive": 0
+      },
+      "route": "semantic_model",
+      "semantic_disposition": "unclassified_financial_input",
+      "semantic_reason_code": "single_registry_type_no_safe_record",
+      "terminal_policy": "future_v2_1_choice_profile_required"
+    },
+    {
+      "state": "insufficient_source_context",
+      "plausible_type_count": null,
+      "uniquely_safe_choice_count": null,
+      "route": "technical_preclose",
+      "semantic_disposition": null,
+      "semantic_reason_code": null,
+      "terminal_policy": "code_owned_source_or_layout_outcome"
+    },
+    {
+      "state": "technical_failure",
+      "plausible_type_count": null,
+      "uniquely_safe_choice_count": null,
+      "route": "technical_preclose",
+      "semantic_disposition": null,
+      "semantic_reason_code": null,
+      "terminal_policy": "fail_closed_technical_contract"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "feature_families": [
+        "uniquely_typed",
+        "sufficient_discriminating_evidence"
+      ],
+      "taxonomy_state": "typed_safe_1",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_reason_code": "typed_supported",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "feature_families": [
+        "uniquely_typed",
+        "sufficient_discriminating_evidence"
+      ],
+      "taxonomy_state": "typed_safe_1",
+      "plausible_type_ids": [
+        "printed_financial_metric_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "printed_financial_metric_v1",
+      "expected_reason_code": "typed_supported",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "feature_families": [
+        "multiple_compatible_types"
+      ],
+      "taxonomy_state": "ambiguous_type_2plus",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "ambiguous_registry_type",
+      "expected_typed_options": 0
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "feature_families": [
+        "explicit_no_registry_type"
+      ],
+      "taxonomy_state": "no_type_0",
+      "plausible_type_ids": [],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "no_registry_type",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "feature_families": [
+        "missing_discriminating_evidence"
+      ],
+      "taxonomy_state": "ambiguous_type_2plus",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "ambiguous_registry_type",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_repeated_header",
+      "feature_families": [
+        "repeated_header"
+      ],
+      "taxonomy_state": "insufficient_source_context",
+      "plausible_type_ids": null,
+      "expected_route": "technical_preclose",
+      "expected_disposition": "no_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "header_or_layout",
+      "expected_typed_options": null,
+      "technical_evidence": {
+        "source_support": "supported",
+        "authoritative_layout_only": true,
+        "source_value_candidates_total": 0,
+        "scope_valid": true
+      }
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "feature_families": [
+        "detail_vs_subtotal"
+      ],
+      "taxonomy_state": "single_type_no_safe_record",
+      "plausible_type_ids": [
+        "printed_financial_metric_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "single_registry_type_no_safe_record",
+      "expected_typed_options": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "feature_families": [
+        "adjacent_equal_values"
+      ],
+      "taxonomy_state": "single_type_no_safe_record",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "single_registry_type_no_safe_record",
+      "expected_typed_options": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "feature_families": [
+        "adjacent_fx_values"
+      ],
+      "taxonomy_state": "single_type_no_safe_record",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "unclassified_financial_input",
+      "expected_input_type_id": null,
+      "expected_reason_code": "single_registry_type_no_safe_record",
+      "expected_typed_options": 0
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "feature_families": [
+        "optional_missing_dimensions"
+      ],
+      "taxonomy_state": "typed_safe_1",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_reason_code": "typed_supported",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "feature_families": [
+        "forbidden_neighbouring_refs"
+      ],
+      "taxonomy_state": "typed_safe_1",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "expected_route": "semantic_model",
+      "expected_disposition": "typed_input",
+      "expected_input_type_id": "cash_balance_snapshot_v1",
+      "expected_reason_code": "typed_supported",
+      "expected_typed_options": 2
+    },
+    {
+      "case_id": "syn_successor_v2_unsupported_shape",
+      "feature_families": [
+        "unsupported_shape"
+      ],
+      "taxonomy_state": "technical_failure",
+      "plausible_type_ids": null,
+      "expected_route": "technical_preclose",
+      "expected_disposition": "unsupported",
+      "expected_input_type_id": null,
+      "expected_reason_code": "source_shape_unsupported",
+      "expected_typed_options": null,
+      "technical_evidence": {
+        "source_support": "source_shape_unsupported",
+        "authoritative_layout_only": false,
+        "source_value_candidates_total": 0,
+        "scope_valid": true
+      }
+    }
+  ],
+  "zero_choice_audit": [
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "primary_evidence": {
+        "source_manifest_pointers": [
+          "/cases/2/cells/0",
+          "/cases/2/cells/1",
+          "/cases/2/cells/2",
+          "/cases/2/cells/3",
+          "/cases/2/cells/4",
+          "/cases/2/cells/5"
+        ],
+        "semantic_pack_pointers": [
+          "/full_compact_snapshot/0",
+          "/full_compact_snapshot/1"
+        ]
+      },
+      "assessment": "Separate possible-cash and possible-total source meanings leave both current managed type definitions plausible.",
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "ambiguous_registry_type",
+      "expected_answer_changed": false
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "plausible_type_ids": [
+        "printed_financial_metric_v1"
+      ],
+      "primary_evidence": {
+        "source_manifest_pointers": [
+          "/cases/6/cells/0",
+          "/cases/6/cells/1",
+          "/cases/6/cells/2",
+          "/cases/6/cells/3",
+          "/cases/6/cells/4"
+        ],
+        "semantic_pack_pointers": [
+          "/full_compact_snapshot/0",
+          "/full_compact_snapshot/1"
+        ]
+      },
+      "assessment": "The source states a detail and subtotal boundary, supporting only printed-metric meaning while two amount refs prevent one safe complete record.",
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "primary_evidence": {
+        "source_manifest_pointers": [
+          "/cases/7/cells/0",
+          "/cases/7/cells/1",
+          "/cases/7/cells/2",
+          "/cases/7/cells/3",
+          "/cases/7/cells/4"
+        ],
+        "semantic_pack_pointers": [
+          "/full_compact_snapshot/0",
+          "/full_compact_snapshot/1"
+        ]
+      },
+      "assessment": "The source states cash-balance meaning, while two distinct equal-valued amount refs prevent one safe complete cash record.",
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "primary_evidence": {
+        "source_manifest_pointers": [
+          "/cases/8/cells/0",
+          "/cases/8/cells/1",
+          "/cases/8/cells/2",
+          "/cases/8/cells/3",
+          "/cases/8/cells/4",
+          "/cases/8/cells/5"
+        ],
+        "semantic_pack_pointers": [
+          "/full_compact_snapshot/0",
+          "/full_compact_snapshot/1"
+        ]
+      },
+      "assessment": "The source states cash-balance meaning, while two amount/currency candidates prevent one safe complete cash record.",
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    }
+  ],
+  "integrity_sha256": "774acd03c95ddc2d898112b6b62e3bed54613cfeaac7f98689e7c05224d271ae"
+}

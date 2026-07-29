@@ -1,0 +1,256 @@
+{
+  "schema_version": "broker_reports_gate2_outcome_taxonomy_and_benchmark_audit_goal6_safe_receipt_v1",
+  "goal": "GOAL_6_OUTCOME_TAXONOMY_AND_COUNT_ONE_AUDIT",
+  "status": "passed_local_acceptance_pending_reviewed_green_pr",
+  "date": "2026-07-29",
+  "base_revision": "d6957865a97450136e2a5b9cabcf6e7e73aef0f3",
+  "branch": "codex/broker-reports-gate2-outcome-taxonomy-goal6",
+  "contract": {
+    "identity": "broker_reports_gate2_outcome_taxonomy_v1",
+    "status": "versioned_inactive_goal6_audit_accepted_not_runtime_active",
+    "canonical_path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md",
+    "canonical_file_sha256": "a3743157d2adab51160dac1faa1dde7b41c2e0347f67ffa171162f6b1f32cbba",
+    "total_semantic_context_states": 4,
+    "non_semantic_or_failure_states": 2,
+    "provider_calls_total": 0,
+    "full_benchmark_run": false
+  },
+  "truth_table": [
+    {
+      "state": "typed_safe_1",
+      "plausible_type_count": "1",
+      "uniquely_safe_choice_count": "1",
+      "route": "semantic_model",
+      "disposition": "typed_input",
+      "reason_code": "typed_supported",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "no_type_0",
+      "plausible_type_count": "0",
+      "uniquely_safe_choice_count": "0",
+      "route": "semantic_model",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "no_registry_type",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "ambiguous_type_2plus",
+      "plausible_type_count": "2+",
+      "uniquely_safe_choice_count": "0",
+      "route": "semantic_model",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "ambiguous_registry_type",
+      "terminal_policy": "canonical_choice"
+    },
+    {
+      "state": "single_type_no_safe_record",
+      "plausible_type_count": "1",
+      "uniquely_safe_choice_count": "0",
+      "route": "semantic_model",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "single_registry_type_no_safe_record",
+      "terminal_policy": "future_v2_1_choice_profile_required"
+    },
+    {
+      "state": "insufficient_source_context",
+      "plausible_type_count": "not_assessed",
+      "uniquely_safe_choice_count": "not_assessed",
+      "route": "technical_preclose",
+      "disposition": "applicable_code_owned_terminal_disposition",
+      "reason_code": "applicable_code_owned_source_or_layout_reason",
+      "terminal_policy": "code_owned_source_or_layout_outcome"
+    },
+    {
+      "state": "technical_failure",
+      "plausible_type_count": "not_assessed",
+      "uniquely_safe_choice_count": "not_assessed",
+      "route": "technical_preclose",
+      "disposition": null,
+      "reason_code": null,
+      "terminal_policy": "fail_closed_technical_contract"
+    }
+  ],
+  "count_one_decision": {
+    "selected_program_option": "new_managed_reason",
+    "code": "single_registry_type_no_safe_record",
+    "semantic_disposition": "unclassified_financial_input",
+    "plausible_distinct_available_financial_type_count": "1",
+    "uniquely_safe_prebound_choice_count": "0",
+    "active_choice_accepts_code": false,
+    "response_profile_status": "not_implemented",
+    "separate_response_profile_authorization_required": true,
+    "provider_transport_eligible": false
+  },
+  "reason_catalog_v2": {
+    "schema_version": "broker_reports_gate2_financial_decision_reason_catalog_v2",
+    "catalog_id": "broker_reports_gate2_financial_decision_reason_catalog",
+    "semantic_version": "2.0.0",
+    "status": "versioned_inactive_candidate",
+    "canonical_path": "services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v2.json",
+    "canonical_file_sha256": "cb784fe262c08297b9cd71c84e2bf36195d214f7aec82f3cc74f5707a24dde24",
+    "canonical_semantic_utf8_bytes": 6393,
+    "semantic_integrity_sha256": "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9",
+    "predecessor_reason_count": 2,
+    "candidate_reason_count": 3,
+    "added_reason_count": 1,
+    "predecessor_meanings_preserved_exactly": true,
+    "active_family_packaged": false,
+    "runtime_activation": false
+  },
+  "benchmark_outcome_audit": {
+    "schema_version": "broker_reports_gate2_financial_semantic_v6_outcome_audit_v1",
+    "benchmark_id": "gate2_financial_semantic_v6_outcome_audit",
+    "status": "frozen_corrected_expectations_not_executed",
+    "canonical_path": "services/broker-reports-gate1-proof/benchmarks/gate2_financial_semantic_v6_outcome_audit_v1/manifest.json",
+    "canonical_file_sha256": "9d99e32d80a38a3621821d0e1918584a82615cca1cf1212e481f5e52811b8249",
+    "canonical_semantic_utf8_bytes": 10866,
+    "integrity_sha256": "774acd03c95ddc2d898112b6b62e3bed54613cfeaac7f98689e7c05224d271ae",
+    "case_count": 12,
+    "truth_states_count": 6,
+    "expected_answers_changed": 3,
+    "historical_manifest_modified": false,
+    "active_v6_consumer": false,
+    "provider_calls_total": 0,
+    "full_benchmark_run": false,
+    "fixture_decisions_are_provider_outputs": false
+  },
+  "zero_choice_audit": [
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "plausible_type_count": 2,
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "ambiguous_registry_type",
+      "expected_answer_changed": false
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "plausible_type_ids": [
+        "printed_financial_metric_v1"
+      ],
+      "plausible_type_count": 1,
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "plausible_type_count": 1,
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1"
+      ],
+      "plausible_type_count": 1,
+      "historical_reason_code": "ambiguous_registry_type",
+      "corrected_reason_code": "single_registry_type_no_safe_record",
+      "expected_answer_changed": true
+    }
+  ],
+  "immutable_inputs": {
+    "historical_v6_canonical_sha256": "3688fe9d47534cc6f810550561460f1508acd095e798ea90c5998b55c63b0d33",
+    "successor_v2_canonical_sha256": "430bea21d0a36e993bc50184d971f36dfc75a1d2be12bcf5e43fba7436797d66",
+    "git_blob_sha256": {
+      "decision_source": "dc4fd160aeda35b2d0a3d063a871d4cc71f6efcefcc134d0d164722d5176f19f",
+      "active_v6_choice": "dfd3dc7e6110fdc3549d024711c60fd4450fb73acce6807f7b9a203e5a271877",
+      "active_v6_prompt": "a6334ae2dd7e0f417e8ad629dbec9423ccc297b8fe20acac119d6b2caadfb8fc",
+      "semantic_pack_v1": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+      "historical_v6_manifest": "d69de0c4868c5561cacb0a31222cdaa2ac09400a7e2803d48d635aa981e0906c",
+      "successor_v2_manifest": "448a3ea8622a6421c292e5daccef4c5ae65c38a7720a83e1cb8151daa4d2e1aa",
+      "reason_catalog_v1": "e5ca49c436113d5eebec189dae26d5a289287c214292eb32c80b547c29e56a0a",
+      "managed_assets_family_v2": "4ef70eba07bea24332a0909e4c9cb68c82854197a11fb2e78f47c3d88cf3d586"
+    },
+    "historical_inputs_modified": 0,
+    "prompt_changed": false,
+    "pack_changed": false,
+    "active_choice_changed": false
+  },
+  "scope": {
+    "changed_files_total": 15,
+    "normative_contracts_added": 1,
+    "managed_catalog_successors_added": 1,
+    "frozen_outcome_audits_added": 1,
+    "offline_validator_files_added": 2,
+    "test_files_added": 2,
+    "canonical_routing_or_ci_docs_updated": 6,
+    "dated_report_or_receipt_files_added": 2,
+    "active_runtime_route_files_changed": 0,
+    "offline_package_validator_files_added": 1,
+    "historical_manifest_files_changed": 0,
+    "generated_bundle_files_changed": 0,
+    "provider_adapter_files_changed": 0,
+    "production_admission_files_changed": 0,
+    "provider_calls_total": 0,
+    "full_benchmark_runs_total": 0
+  },
+  "verification": {
+    "generated_managed_asset_checks": "passed_3",
+    "generated_function_bundle_parity": "passed_3",
+    "ruff_baseline_correctness": "passed",
+    "focused_ci_suite": {
+      "status": "passed",
+      "tests_passed": 121,
+      "warnings": 5,
+      "seconds": 32.41
+    },
+    "new_goal6_tests": {
+      "status": "passed",
+      "tests_passed": 28,
+      "seconds": 1.11
+    },
+    "targeted_historical_identity_and_tamper_tests": {
+      "status": "passed",
+      "tests_passed": 3,
+      "seconds": 0.72,
+      "benchmark_executed": false
+    },
+    "full_service_suite": {
+      "status": "not_run_by_goal6_contract",
+      "reason": "would_cross_the_historical_full_benchmark_execution_boundary"
+    },
+    "safe_receipt_json_parse": "passed",
+    "safe_receipt_integrity": "passed",
+    "git_diff_check": "passed",
+    "documentation_relative_links": "passed_450_checked_0_missing",
+    "documentation_fenced_json": "passed_0_blocks_0_errors",
+    "changed_json_files": "passed_3_parsed_0_errors",
+    "privacy_scan": "passed_15_changed_files_0_findings",
+    "fresh_local_diff_review": "passed_after_fail_closed_and_canonical_vocabulary_findings_resolved",
+    "fresh_github_diff_review": "required_on_actual_github_diff_before_merge",
+    "github_actions_check": "required_on_actual_pr_head_before_merge"
+  },
+  "privacy": {
+    "synthetic_case_ids_only": true,
+    "customer_literals_in_git": false,
+    "customer_refs_in_git": false,
+    "credentials_in_git": false,
+    "provider_response_ids_in_git": false,
+    "raw_provider_envelopes_in_git": false,
+    "internal_filesystem_paths_in_git": false,
+    "hidden_reasoning_traces_in_git": false
+  },
+  "continuation": {
+    "next_goal": "GOAL_7_MINIMAL_MANAGED_PROJECTION",
+    "allowed_only_after_reviewed_green_goal6_merge": true,
+    "goal_7_allowed_now": false,
+    "goal_8_allowed_now": false,
+    "goal_9_allowed_now": false,
+    "post_goal_8_choice_profile_stop": true,
+    "post_goal_8_stop_resolution": "separately_authorize_versioned_v2_1_response_profile_in_existing_choice_authority_or_amend_program",
+    "provider_calls_allowed_now": false,
+    "active_response_schema_changes_allowed_now": false
+  },
+  "report": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY_AND_BENCHMARK_AUDIT.report.md",
+  "integrity_sha256": "2013facfdf8da810b0d3b117f8c6750f781ebedffa720ef8027325e9ae4d1650"
+}

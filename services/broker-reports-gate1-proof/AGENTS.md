@@ -56,10 +56,16 @@ separate bootstrap report.
   is a documentation-only GOAL 5 field-eligibility contract inside the
   existing Semantic Matcher boundary. It does not implement a managed
   projection, Packet/Choice profile, linter, request, provider route or
-  activation. GOAL 6 audits outcome taxonomy and the count-one stop; GOAL 7
-  implements the exact GOAL 5-selected managed projection through existing
-  owners; GOAL 8 builds only one non-active V2.1 candidate plus private mapping
-  receipt in the existing Packet factory.
+  activation. The additive
+  [Outcome Taxonomy v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
+  completes GOAL 6: the four zero-choice plausible-type counts are `2,1,1,1`,
+  three historical reasons are corrected only in the versioned audit
+  successor, and catalog v2 adds inactive candidate reason
+  `single_registry_type_no_safe_record`. Historical manifests/catalog v1,
+  active V6 Choice, Prompt and Pack stay immutable. GOAL 7 implements the
+  selected catalog-v2 minimal projection through existing owners; GOAL 8
+  builds only one non-active V2.1 candidate plus private mapping receipt in
+  the existing Packet factory.
 - **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
   profile must first be implemented in the existing Choice authority, or the
   program must be amended. GOAL 9 is linter-only: it consumes the complete

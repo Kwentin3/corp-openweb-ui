@@ -19,6 +19,7 @@ Current canonical route:
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Gate 2 LLM Semantic Context V2.0 implemented non-active completeness baseline](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 - [Gate 2 Minimal Model Surface v1 future V2.1 field-eligibility contract](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+- [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
 - [Financial Semantic Packet V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Financial Semantic V6 Exact Evidence](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md)
@@ -31,6 +32,7 @@ Historical evidence only:
 - [Alias necessity and readability audit, GOAL 2](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
 - [Semantic Context V2 contract evidence, GOAL 3](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL3_CONTEXT_V2_CONTRACT.report.md)
 - [Non-active Context V2 implementation evidence, GOAL 4](../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL4_NON_ACTIVE_CONTEXT_V2.report.md)
+- [Outcome taxonomy and frozen benchmark audit, GOAL 6](../reports/2026-07-29/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY_AND_BENCHMARK_AUDIT.report.md)
 - [Исследование состава и дублирования Gate 2 LLM-контекста, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
 - [Рефакторинг контекста и повтор одного реального PDF, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
 
@@ -603,6 +605,7 @@ Read first:
 - [Gate 2 LLM Semantic Context v1](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 - [Gate 2 LLM Semantic Context V2.0 implemented non-active completeness baseline](contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 - [Gate 2 Minimal Model Surface v1 future V2.1 field-eligibility contract](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+- [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
