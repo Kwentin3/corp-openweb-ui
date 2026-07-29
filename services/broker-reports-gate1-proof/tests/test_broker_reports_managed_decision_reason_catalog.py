@@ -17,6 +17,9 @@ import pytest
 from broker_reports_gate1.gate2_financial_evidence_decision import (
     UNCLASSIFIED_REASON_CODES,
 )
+from broker_reports_gate1.gate2_financial_semantic_model_assets import (
+    load_gate2_financial_semantic_model_assets,
+)
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +33,12 @@ CATALOG_PATH = (
 )
 CATALOG_SCHEMA_PATH = CATALOG_PATH.with_name(
     "broker_reports_gate2_financial_decision_reason_catalog.v1.schema.json"
+)
+CATALOG_V2_PATH = CATALOG_PATH.with_name(
+    "broker_reports_gate2_financial_decision_reason_catalog.v2.json"
+)
+CATALOG_V2_SCHEMA_PATH = CATALOG_PATH.with_name(
+    "broker_reports_gate2_financial_decision_reason_catalog.v2.schema.json"
 )
 CATALOG_CONTRACT_PATH = (
     SCRIPT_ROOT / "broker_reports_financial_decision_reason_catalog_contracts.py"
@@ -45,6 +54,12 @@ MANIFEST_V2_PATH = (
 )
 MANIFEST_V2_SCHEMA_PATH = MANIFEST_V2_PATH.with_name(
     "broker_reports_financial_domain_assets.v2.manifest.schema.json"
+)
+MANIFEST_V3_PATH = (
+    ASSET_ROOT / "broker_reports_financial_domain_assets.v3.manifest.json"
+)
+MANIFEST_V3_SCHEMA_PATH = MANIFEST_V3_PATH.with_name(
+    "broker_reports_financial_domain_assets.v3.manifest.schema.json"
 )
 TOOL_V1_PATH = (
     ASSET_ROOT / "tools" / "broker_reports_financial_semantic_pack_tool.v1.py"
@@ -73,11 +88,29 @@ EXPECTED_PACK_GIT_BLOB_SHA256 = (
 EXPECTED_PACK_INTEGRITY_SHA256 = (
     "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
 )
-EXPECTED_RUNTIME_MODEL_ASSETS_GIT_BLOB_SHA256 = (
-    "b8e3f5855eed9850d8f46356ff5eb4bf6623694d4a600aec89e09e92ba713e19"
-)
 EXPECTED_CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256 = (
     "99be5272ebab4e69e2533391f381bd27682496148f760e1e4a171f9e7162cdad"
+)
+EXPECTED_ACTIVE_ASSET_PAYLOAD_SHA256 = (
+    "b80eed8b9a41fa039a9a8d961c972817ae840ce81d7c163de624b7d5a4ec123b"
+)
+EXPECTED_V2_MANIFEST_GIT_BLOB_SHA256 = (
+    "4ef70eba07bea24332a0909e4c9cb68c82854197a11fb2e78f47c3d88cf3d586"
+)
+EXPECTED_CATALOG_V2_GIT_BLOB_SHA256 = (
+    "cb784fe262c08297b9cd71c84e2bf36195d214f7aec82f3cc74f5707a24dde24"
+)
+EXPECTED_CATALOG_V2_SCHEMA_GIT_BLOB_SHA256 = (
+    "d576e9368272f8bf6dd46250e9d798e7bf40c1dd56f98216262d770a12c2aa24"
+)
+EXPECTED_V3_MANIFEST_GIT_BLOB_SHA256 = (
+    "34c7c0528d1d4954681e36353f9b82c89e324955ce5916cb5c6b0588e75e85f3"
+)
+EXPECTED_V3_MANIFEST_SHA256 = (
+    "8d48e23a876844376443eeb357bb381fe0443c2bf1525657b6f81979408c630c"
+)
+EXPECTED_V3_MANIFEST_SCHEMA_GIT_BLOB_SHA256 = (
+    "5f63f716c53440c88851de63d54c9c14ba708ff64ecc3599af6c7bed93d28020"
 )
 
 
@@ -94,6 +127,18 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _sha256_json(value: Any) -> str:
+    return _sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    )
 
 
 def _canonical_integrity(
@@ -508,7 +553,133 @@ def test_family_v2_pins_exact_catalog_schema_and_validator_blobs() -> None:
     assert catalog_dependency["runtime_activation"] is False
 
 
-def test_v1_type_assets_and_active_projection_remain_byte_exact() -> None:
+def test_family_v3_packages_only_catalog_v2_and_minimal_profile() -> None:
+    manifest_v1 = _read_json(MANIFEST_V1_PATH)
+    manifest_v2 = _read_json(MANIFEST_V2_PATH)
+    manifest_v3 = _read_json(MANIFEST_V3_PATH)
+    schema_v3 = _read_json(MANIFEST_V3_SCHEMA_PATH)
+    catalog_v2 = _read_json(CATALOG_V2_PATH)
+
+    jsonschema.Draft202012Validator.check_schema(schema_v3)
+    jsonschema.Draft202012Validator(schema_v3).validate(manifest_v3)
+    assert _sha256(_portable_bytes(MANIFEST_V2_PATH)) == (
+        EXPECTED_V2_MANIFEST_GIT_BLOB_SHA256
+    )
+    assert _sha256(_portable_bytes(CATALOG_V2_PATH)) == (
+        EXPECTED_CATALOG_V2_GIT_BLOB_SHA256
+    )
+    assert _sha256(_portable_bytes(CATALOG_V2_SCHEMA_PATH)) == (
+        EXPECTED_CATALOG_V2_SCHEMA_GIT_BLOB_SHA256
+    )
+    assert _sha256(_portable_bytes(MANIFEST_V3_PATH)) == (
+        EXPECTED_V3_MANIFEST_GIT_BLOB_SHA256
+    )
+    assert _sha256(_portable_bytes(MANIFEST_V3_SCHEMA_PATH)) == (
+        EXPECTED_V3_MANIFEST_SCHEMA_GIT_BLOB_SHA256
+    )
+    assert manifest_v3["manifest_sha256"] == (
+        EXPECTED_V3_MANIFEST_SHA256
+    )
+    assert manifest_v3["manifest_sha256"] == _canonical_integrity(
+        manifest_v3,
+        field="manifest_sha256",
+    )
+    assert manifest_v3["family_id"] == manifest_v2["family_id"]
+    assert manifest_v3["semantic_version"] == "1.2.0"
+    assert manifest_v3["runtime_activation"] is False
+    assert manifest_v3["assets"] == manifest_v1["assets"]
+    assert manifest_v3["dependencies"][:4] == manifest_v1["dependencies"]
+    assert [
+        item["dependency_id"] for item in manifest_v3["dependencies"]
+    ] == [
+        *[
+            item["dependency_id"]
+            for item in manifest_v1["dependencies"]
+        ],
+        "broker_reports_gate2_financial_decision_reason_catalog",
+        "broker_reports_gate2_financial_decision_reason_catalog_schema",
+        "broker_reports_gate2_financial_decision_reason_catalog_contract",
+    ]
+    catalog_dependency = manifest_v3["dependencies"][4]
+    assert catalog_dependency["contract_identity"] == (
+        "broker_reports_gate2_financial_decision_reason_catalog@2.0.0"
+    )
+    assert catalog_dependency["git_blob_sha256"] == (
+        EXPECTED_CATALOG_V2_GIT_BLOB_SHA256
+    )
+    assert catalog_dependency["semantic_integrity_sha256"] == (
+        catalog_v2["integrity_sha256"]
+    )
+    assert catalog_dependency["canonical_semantic_bytes"] == 6393
+    assert catalog_dependency["family_packaging_status"] == (
+        "packaged_in_inactive_family_v3"
+    )
+    assert manifest_v3["lifecycle"] == {
+        "status": "draft",
+        "previous_family_semantic_version": "1.1.0",
+        "draft_rollback": "discard_without_runtime_mutation",
+        "active_rollback": (
+            "select_previous_validated_immutable_family_version"
+        ),
+        "rollback_manifest_schema_version": manifest_v2[
+            "schema_version"
+        ],
+        "rollback_manifest_sha256": manifest_v2["manifest_sha256"],
+        "rollback_manifest_git_blob_sha256": (
+            EXPECTED_V2_MANIFEST_GIT_BLOB_SHA256
+        ),
+        "live_publisher_implemented": False,
+    }
+    profile = manifest_v3["composition"]["minimal_projection_profile"]
+    assert {
+        key: value
+        for key, value in manifest_v3["composition"].items()
+        if key != "minimal_projection_profile"
+    } == manifest_v1["composition"]
+    assert profile == {
+        "profile_id": (
+            "broker_reports_gate2_minimal_managed_projection_v1_candidate"
+        ),
+        "semantic_version": "1.0.0",
+        "status": "inactive_candidate",
+        "runtime_activation": False,
+        "response_profile_status": "not_implemented",
+        "transport_eligible": False,
+        "semantic_pack_dependency_id": (
+            "broker_reports_financial_semantic_pack"
+        ),
+        "decision_reason_catalog_dependency_id": (
+            "broker_reports_gate2_financial_decision_reason_catalog"
+        ),
+        "decision_reason_catalog_schema_dependency_id": (
+            "broker_reports_gate2_financial_decision_reason_catalog_schema"
+        ),
+        "decision_reason_catalog_contract_dependency_id": (
+            "broker_reports_gate2_financial_decision_reason_catalog_contract"
+        ),
+        "model_surface_contract_identity": (
+            "broker_reports_gate2_minimal_model_surface_v1"
+        ),
+        "projection_owner_entrypoint": (
+            "Gate2FinancialSemanticV5ProjectionFactory."
+            "create_minimal_managed_projection"
+        ),
+    }
+    assert manifest_v3["authority"][
+        "minimal_pack_projection_owner_entrypoint"
+    ] == manifest_v3["authority"][
+        "minimal_reason_projection_owner_entrypoint"
+    ]
+    assert manifest_v3["authority"][
+        "active_decision_reason_code_authority_dependency_id"
+    ] == "broker_reports_financial_decision_contract"
+    assert (
+        "minimal_projection_reason_code_authority_dependency_id"
+        not in manifest_v3["authority"]
+    )
+
+
+def test_historical_assets_and_active_loader_output_remain_exact() -> None:
     assert _sha256(_portable_bytes(MANIFEST_V1_PATH)) == (
         EXPECTED_V1_MANIFEST_GIT_BLOB_SHA256
     )
@@ -520,8 +691,10 @@ def test_v1_type_assets_and_active_projection_remain_byte_exact() -> None:
     assert _read_json(PACK_V1_PATH)["integrity_sha256"] == (
         EXPECTED_PACK_INTEGRITY_SHA256
     )
-    assert _sha256(_portable_bytes(RUNTIME_MODEL_ASSETS_PATH)) == (
-        EXPECTED_RUNTIME_MODEL_ASSETS_GIT_BLOB_SHA256
+    assert _sha256_json(
+        load_gate2_financial_semantic_model_assets()
+    ) == (
+        EXPECTED_ACTIVE_ASSET_PAYLOAD_SHA256
     )
 
 
@@ -592,6 +765,15 @@ def test_existing_builder_checks_v1_and_new_draft_outputs() -> None:
     assert result["manifest_v2_schema_git_blob_sha256"] == _sha256(
         _portable_bytes(MANIFEST_V2_SCHEMA_PATH)
     )
+    assert result[
+        "decision_reason_catalog_v2_schema_git_blob_sha256"
+    ] == EXPECTED_CATALOG_V2_SCHEMA_GIT_BLOB_SHA256
+    assert result["manifest_v3_git_blob_sha256"] == (
+        EXPECTED_V3_MANIFEST_GIT_BLOB_SHA256
+    )
+    assert result["manifest_v3_schema_git_blob_sha256"] == (
+        EXPECTED_V3_MANIFEST_SCHEMA_GIT_BLOB_SHA256
+    )
 
     runtime = subprocess.run(
         [sys.executable, str(RUNTIME_BUILD_SCRIPT), "--check"],
@@ -603,13 +785,14 @@ def test_existing_builder_checks_v1_and_new_draft_outputs() -> None:
     )
     assert runtime.returncode == 0, runtime.stderr
     runtime_result = json.loads(runtime.stdout)
-    assert runtime_result == {
-        "context_v2_candidate_payload_sha256": (
-            EXPECTED_CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256
-        ),
-        "mode": "check",
-        "runtime_projection_git_blob_sha256": (
-            EXPECTED_RUNTIME_MODEL_ASSETS_GIT_BLOB_SHA256
-        ),
-        "status": "passed",
-    }
+    assert runtime_result["context_v2_candidate_payload_sha256"] == (
+        EXPECTED_CONTEXT_V2_CANDIDATE_PAYLOAD_SHA256
+    )
+    assert runtime_result["minimal_managed_candidate_payload_sha256"] == (
+        "6211a7668deb14191cb2a215d726d4e7782e43e4834477cb0fe49e86510c62ca"
+    )
+    assert runtime_result["runtime_projection_git_blob_sha256"] == _sha256(
+        _portable_bytes(RUNTIME_MODEL_ASSETS_PATH)
+    )
+    assert runtime_result["mode"] == "check"
+    assert runtime_result["status"] == "passed"

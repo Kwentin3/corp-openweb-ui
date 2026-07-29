@@ -84,7 +84,7 @@ def test_v5_projection_is_exact_deterministic_and_under_limit():
     assert first.canonical_bytes == len(_canonical_bytes(first.payload))
     assert first.canonical_bytes < V5_SEMANTIC_PROJECTION_MAX_BYTES
     assert len(first.type_cards) == 2
-    assert "Factory.create" in FACTORY_REQUIRED
+    assert "sole maintained" in FACTORY_REQUIRED
     assert "must not invent or reinterpret" in FORBIDDEN
 
 

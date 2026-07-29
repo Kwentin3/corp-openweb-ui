@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:broker-reports:gate2:financial-decision-reason-catalog:v2",
+  "title": "Broker Reports Gate 2 financial decision reason catalog v2",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_gate2_financial_decision_reason_catalog_v2"
+    },
+    "catalog_id": {
+      "const": "broker_reports_gate2_financial_decision_reason_catalog"
+    },
+    "semantic_version": {
+      "const": "2.0.0"
+    },
+    "predecessor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_gate2_financial_decision_reason_catalog_v1"
+        },
+        "semantic_version": {
+          "const": "1.0.0"
+        },
+        "semantic_integrity_sha256": {
+          "const": "d7290593410cafd6b35281ed3a6159802f0d7e87b7a085f3ec2cd2b46f4a3e15"
+        }
+      },
+      "required": [
+        "schema_version",
+        "semantic_version",
+        "semantic_integrity_sha256"
+      ]
+    },
+    "managed_asset_family_id": {
+      "const": "broker_reports_gate2_financial_domain_assets"
+    },
+    "authority_status": {
+      "const": "future_v2_1_candidate_not_live"
+    },
+    "runtime_activation": {
+      "const": false
+    },
+    "response_profile_status": {
+      "const": "not_implemented"
+    },
+    "family_packaging_status": {
+      "const": "not_packaged_until_goal7"
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "draft"
+        },
+        "draft_rollback": {
+          "const": "discard_without_runtime_mutation"
+        },
+        "active_rollback": {
+          "const": "select_previous_validated_immutable_family_version"
+        }
+      },
+      "required": [
+        "status",
+        "draft_rollback",
+        "active_rollback"
+      ]
+    },
+    "locale": {
+      "const": "en"
+    },
+    "applies_to_disposition": {
+      "const": "unclassified_financial_input"
+    },
+    "selection_dimensions": {
+      "const": [
+        "plausible_distinct_available_financial_type_count",
+        "uniquely_safe_prebound_choice_count"
+      ]
+    },
+    "gui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collection_title": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 120,
+          "pattern": "^(?:\\S+ ){1,}\\S+$"
+        },
+        "item_key": {
+          "const": "code"
+        },
+        "item_label": {
+          "const": "human_title"
+        },
+        "order_field": {
+          "const": "display_order"
+        },
+        "editable_fields": {
+          "const": [
+            "human_title",
+            "meaning",
+            "use_when",
+            "do_not_use_when",
+            "positive_example",
+            "contrast_with_neighbouring_reasons"
+          ]
+        },
+        "immutable_fields": {
+          "const": [
+            "code",
+            "selection_boundary"
+          ]
+        }
+      },
+      "required": [
+        "collection_title",
+        "item_key",
+        "item_label",
+        "order_field",
+        "editable_fields",
+        "immutable_fields"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "no_registry_type",
+              "single_registry_type_no_safe_record",
+              "ambiguous_registry_type"
+            ]
+          },
+          "display_order": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "human_title": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 120,
+            "pattern": "^(?:\\S+ ){1,}\\S+$"
+          },
+          "meaning": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 800,
+            "pattern": "^(?:\\S+ ){5,}\\S+$"
+          },
+          "use_when": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 800,
+            "pattern": "^(?:\\S+ ){5,}\\S+$"
+          },
+          "do_not_use_when": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 800,
+            "pattern": "^(?:\\S+ ){5,}\\S+$"
+          },
+          "positive_example": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 800,
+            "pattern": "^(?:\\S+ ){5,}\\S+$"
+          },
+          "contrast_with_neighbouring_reasons": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "reason_code": {
+                  "type": "string",
+                  "enum": [
+                    "no_registry_type",
+                    "single_registry_type_no_safe_record",
+                    "ambiguous_registry_type"
+                  ]
+                },
+                "distinction": {
+                  "type": "string",
+                  "minLength": 12,
+                  "maxLength": 800,
+                  "pattern": "^(?:\\S+ ){5,}\\S+$"
+                }
+              },
+              "required": [
+                "reason_code",
+                "distinction"
+              ]
+            }
+          },
+          "selection_boundary": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "plausible_distinct_available_financial_type_count": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "minimum_inclusive": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "maximum_inclusive": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "const": "unbounded"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "minimum_inclusive",
+                  "maximum_inclusive"
+                ]
+              },
+              "uniquely_safe_prebound_choice_count": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "minimum_inclusive": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "maximum_inclusive": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "const": "unbounded"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "minimum_inclusive",
+                  "maximum_inclusive"
+                ]
+              }
+            },
+            "required": [
+              "plausible_distinct_available_financial_type_count",
+              "uniquely_safe_prebound_choice_count"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "display_order",
+          "human_title",
+          "meaning",
+          "use_when",
+          "do_not_use_when",
+          "positive_example",
+          "contrast_with_neighbouring_reasons",
+          "selection_boundary"
+        ]
+      }
+    },
+    "integrity_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "catalog_id",
+    "semantic_version",
+    "predecessor",
+    "managed_asset_family_id",
+    "authority_status",
+    "runtime_activation",
+    "response_profile_status",
+    "family_packaging_status",
+    "lifecycle",
+    "locale",
+    "applies_to_disposition",
+    "selection_dimensions",
+    "gui",
+    "reasons",
+    "integrity_sha256"
+  ]
+}

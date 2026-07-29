@@ -16,6 +16,9 @@ from typing import Any
 from broker_reports_financial_decision_reason_catalog_contracts import (
     Gate2FinancialDecisionReasonCatalogContractFactory,
 )
+from broker_reports_financial_decision_reason_catalog_v2_contracts import (
+    Gate2FinancialDecisionReasonCatalogV2ContractFactory,
+)
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -35,6 +38,12 @@ MANIFEST_V2_PATH = (
 MANIFEST_V2_SCHEMA_PATH = (
     ASSET_ROOT / "broker_reports_financial_domain_assets.v2.manifest.schema.json"
 )
+MANIFEST_V3_PATH = (
+    ASSET_ROOT / "broker_reports_financial_domain_assets.v3.manifest.json"
+)
+MANIFEST_V3_SCHEMA_PATH = (
+    ASSET_ROOT / "broker_reports_financial_domain_assets.v3.manifest.schema.json"
+)
 DECISION_REASON_ROOT = ASSET_ROOT / "decision_reasons"
 DECISION_REASON_CATALOG_PATH = (
     DECISION_REASON_ROOT
@@ -46,6 +55,18 @@ DECISION_REASON_CATALOG_SCHEMA_PATH = (
 )
 DECISION_REASON_CATALOG_CONTRACT_PATH = (
     SCRIPT_DIR / "broker_reports_financial_decision_reason_catalog_contracts.py"
+)
+DECISION_REASON_CATALOG_V2_PATH = (
+    DECISION_REASON_ROOT
+    / "broker_reports_gate2_financial_decision_reason_catalog.v2.json"
+)
+DECISION_REASON_CATALOG_V2_SCHEMA_PATH = (
+    DECISION_REASON_ROOT
+    / "broker_reports_gate2_financial_decision_reason_catalog.v2.schema.json"
+)
+DECISION_REASON_CATALOG_V2_CONTRACT_PATH = (
+    SCRIPT_DIR
+    / "broker_reports_financial_decision_reason_catalog_v2_contracts.py"
 )
 PACK_PATH = (
     SERVICE_ROOT / "semantic_packs" / "broker_reports_financial_semantic_pack.v1.json"
@@ -65,13 +86,16 @@ CONSUMER_SCHEMA_PATH = (
 DECISION_CONTRACT_PATH = (
     SERVICE_ROOT / "broker_reports_gate1" / "gate2_financial_evidence_decision.py"
 )
-
 PACK_ID = "broker_reports_managed_financial_semantic_pack"
 PACK_VERSION = "1.0.0"
 PACK_INTEGRITY_SHA256 = (
     "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
 )
 PACK_CANONICAL_SEMANTIC_BYTES = 9404
+MINIMAL_MANAGED_PROJECTION_PROFILE_ID = (
+    "broker_reports_gate2_minimal_managed_projection_v1_candidate"
+)
+MINIMAL_MANAGED_PROJECTION_PROFILE_VERSION = "1.0.0"
 
 TOOL_TEMPLATE = '''"""
 title: Broker Reports Financial Semantic Pack
@@ -797,6 +821,213 @@ def _render_manifest_v2_schema() -> bytes:
     ).encode("utf-8")
 
 
+def _render_manifest_v3(
+    *,
+    manifest_v1_bytes: bytes,
+    manifest_v2_bytes: bytes,
+    catalog_bytes: bytes,
+    catalog_schema_bytes: bytes,
+    catalog_contract_bytes: bytes,
+    catalog_snapshot: Any,
+) -> bytes:
+    manifest_v1 = json.loads(manifest_v1_bytes)
+    manifest_v2 = json.loads(manifest_v2_bytes)
+    if (
+        not isinstance(manifest_v1, dict)
+        or not isinstance(manifest_v2, dict)
+        or manifest_v1.get("schema_version")
+        != "broker_reports_financial_domain_managed_asset_manifest_v1"
+        or manifest_v2.get("schema_version")
+        != "broker_reports_financial_domain_managed_asset_manifest_v2"
+        or manifest_v2.get("family_id") != manifest_v1.get("family_id")
+        or manifest_v2.get("semantic_version") != "1.1.0"
+        or manifest_v2.get("runtime_activation") is not False
+    ):
+        raise ValueError("managed_asset_v2_rollback_identity_invalid")
+    catalog_dependency_id = (
+        "broker_reports_gate2_financial_decision_reason_catalog"
+    )
+    catalog_schema_dependency_id = (
+        "broker_reports_gate2_financial_decision_reason_catalog_schema"
+    )
+    catalog_contract_dependency_id = (
+        "broker_reports_gate2_financial_decision_reason_catalog_contract"
+    )
+    manifest = {
+        "schema_version": (
+            "broker_reports_financial_domain_managed_asset_manifest_v3"
+        ),
+        "family_id": manifest_v1["family_id"],
+        "semantic_version": "1.2.0",
+        "authority_status": "target_normative_not_live",
+        "runtime_activation": False,
+        "lifecycle": {
+            "status": "draft",
+            "previous_family_semantic_version": "1.1.0",
+            "draft_rollback": "discard_without_runtime_mutation",
+            "active_rollback": (
+                "select_previous_validated_immutable_family_version"
+            ),
+            "rollback_manifest_schema_version": manifest_v2[
+                "schema_version"
+            ],
+            "rollback_manifest_sha256": manifest_v2["manifest_sha256"],
+            "rollback_manifest_git_blob_sha256": _sha256(
+                manifest_v2_bytes
+            ),
+            "live_publisher_implemented": False,
+        },
+        "hash_boundary": "git_blob_bytes",
+        "openwebui": copy.deepcopy(manifest_v1["openwebui"]),
+        "assets": copy.deepcopy(manifest_v1["assets"]),
+        "dependencies": [
+            *copy.deepcopy(manifest_v1["dependencies"]),
+            _dependency(
+                dependency_id=catalog_dependency_id,
+                kind="decision_reason_catalog",
+                identity=(
+                    "broker_reports_gate2_financial_decision_reason_catalog"
+                    "@2.0.0"
+                ),
+                path=DECISION_REASON_CATALOG_V2_PATH,
+                content=catalog_bytes,
+                extra={
+                    "semantic_version": catalog_snapshot.semantic_version,
+                    "semantic_integrity_sha256": (
+                        catalog_snapshot.integrity_sha256
+                    ),
+                    "canonical_semantic_bytes": (
+                        catalog_snapshot.canonical_semantic_bytes
+                    ),
+                    "lifecycle_status": (
+                        catalog_snapshot.lifecycle_status
+                    ),
+                    "runtime_activation": (
+                        catalog_snapshot.runtime_activation
+                    ),
+                    "family_packaging_status": (
+                        "packaged_in_inactive_family_v3"
+                    ),
+                },
+            ),
+            _dependency(
+                dependency_id=catalog_schema_dependency_id,
+                kind="decision_reason_catalog_schema",
+                identity=(
+                    "broker_reports_gate2_financial_decision_reason_catalog_v2"
+                ),
+                path=DECISION_REASON_CATALOG_V2_SCHEMA_PATH,
+                content=catalog_schema_bytes,
+            ),
+            _dependency(
+                dependency_id=catalog_contract_dependency_id,
+                kind="decision_reason_catalog_contract_source",
+                identity=(
+                    "broker_reports_gate2_financial_decision_reason_"
+                    "catalog_v2_contracts_v1"
+                ),
+                path=DECISION_REASON_CATALOG_V2_CONTRACT_PATH,
+                content=catalog_contract_bytes,
+            ),
+        ],
+        "composition": {
+            **copy.deepcopy(manifest_v1["composition"]),
+            "minimal_projection_profile": {
+                "profile_id": MINIMAL_MANAGED_PROJECTION_PROFILE_ID,
+                "semantic_version": (
+                    MINIMAL_MANAGED_PROJECTION_PROFILE_VERSION
+                ),
+                "status": "inactive_candidate",
+                "runtime_activation": False,
+                "response_profile_status": "not_implemented",
+                "transport_eligible": False,
+                "semantic_pack_dependency_id": (
+                    "broker_reports_financial_semantic_pack"
+                ),
+                "decision_reason_catalog_dependency_id": (
+                    catalog_dependency_id
+                ),
+                "decision_reason_catalog_schema_dependency_id": (
+                    catalog_schema_dependency_id
+                ),
+                "decision_reason_catalog_contract_dependency_id": (
+                    catalog_contract_dependency_id
+                ),
+                "model_surface_contract_identity": (
+                    "broker_reports_gate2_minimal_model_surface_v1"
+                ),
+                "projection_owner_entrypoint": (
+                    "Gate2FinancialSemanticV5ProjectionFactory."
+                    "create_minimal_managed_projection"
+                ),
+            },
+        },
+        "authority": {
+            **copy.deepcopy(manifest_v1["authority"]),
+            "active_decision_reason_code_authority_dependency_id": (
+                "broker_reports_financial_decision_contract"
+            ),
+            "minimal_projection_reason_card_source_dependency_id": (
+                catalog_dependency_id
+            ),
+            "minimal_projection_reason_catalog_contract_dependency_id": (
+                catalog_contract_dependency_id
+            ),
+            "minimal_pack_projection_owner_entrypoint": (
+                "Gate2FinancialSemanticV5ProjectionFactory."
+                "create_minimal_managed_projection"
+            ),
+            "minimal_reason_projection_owner_entrypoint": (
+                "Gate2FinancialSemanticV5ProjectionFactory."
+                "create_minimal_managed_projection"
+            ),
+            "python_reason_meanings_allowed": False,
+        },
+        "supporting_knowledge": [],
+    }
+    manifest["manifest_sha256"] = _sha256(_canonical_json(manifest))
+    return (
+        json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _render_manifest_v3_schema(manifest_bytes: bytes) -> bytes:
+    manifest = json.loads(manifest_bytes)
+    material = copy.deepcopy(manifest)
+    material.pop("manifest_sha256")
+    properties = {
+        key: {"const": value}
+        for key, value in material.items()
+    }
+    properties["manifest_sha256"] = {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+    }
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:broker-reports:managed-assets:financial-domain:v3",
+        "title": (
+            "Broker Reports Financial Domain managed asset family v3"
+        ),
+        **_strict_schema_object(properties),
+    }
+    return (
+        json.dumps(
+            schema,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def build() -> tuple[bytes, bytes]:
     skill_bytes = _portable_text_blob(SKILL_PATH)
     prompt_bytes = _portable_text_blob(PROMPT_PATH)
@@ -851,6 +1082,56 @@ def build_decision_reason_catalog_family_v2() -> tuple[bytes, bytes, bytes]:
     )
 
 
+def build_minimal_projection_family_v3() -> tuple[bytes, bytes, bytes]:
+    predecessor_catalog = json.loads(
+        _portable_text_blob(DECISION_REASON_CATALOG_PATH)
+    )
+    candidate_catalog_bytes = _portable_text_blob(
+        DECISION_REASON_CATALOG_V2_PATH
+    )
+    try:
+        candidate_catalog = json.loads(candidate_catalog_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            "managed_decision_reason_catalog_v2_json_invalid"
+        ) from exc
+    factory = Gate2FinancialDecisionReasonCatalogV2ContractFactory(
+        predecessor_catalog=predecessor_catalog,
+        candidate_catalog=candidate_catalog,
+    )
+    catalog_snapshot = factory.create(catalog=candidate_catalog)
+    catalog_schema_bytes = (
+        json.dumps(
+            factory.schema(),
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    catalog_contract_bytes = _portable_text_blob(
+        DECISION_REASON_CATALOG_V2_CONTRACT_PATH
+    )
+    _, manifest_v1_bytes = build()
+    _, manifest_v2_bytes, _ = build_decision_reason_catalog_family_v2()
+    manifest_v3_bytes = _render_manifest_v3(
+        manifest_v1_bytes=manifest_v1_bytes,
+        manifest_v2_bytes=manifest_v2_bytes,
+        catalog_bytes=candidate_catalog_bytes,
+        catalog_schema_bytes=catalog_schema_bytes,
+        catalog_contract_bytes=catalog_contract_bytes,
+        catalog_snapshot=catalog_snapshot,
+    )
+    manifest_v3_schema_bytes = _render_manifest_v3_schema(
+        manifest_v3_bytes
+    )
+    return (
+        catalog_schema_bytes,
+        manifest_v3_bytes,
+        manifest_v3_schema_bytes,
+    )
+
+
 def _write_or_check(path: Path, expected: bytes, *, check: bool) -> None:
     if check:
         if not path.is_file() or _portable_text_blob(path) != expected:
@@ -879,6 +1160,11 @@ def main() -> int:
         manifest_v2_bytes,
         manifest_v2_schema_bytes,
     ) = build_decision_reason_catalog_family_v2()
+    (
+        catalog_v2_schema_bytes,
+        manifest_v3_bytes,
+        manifest_v3_schema_bytes,
+    ) = build_minimal_projection_family_v3()
     _write_or_check(TOOL_PATH, tool_bytes, check=args.check)
     _write_or_check(MANIFEST_PATH, manifest_bytes, check=args.check)
     _write_or_check(
@@ -896,6 +1182,21 @@ def main() -> int:
         manifest_v2_schema_bytes,
         check=args.check,
     )
+    _write_or_check(
+        DECISION_REASON_CATALOG_V2_SCHEMA_PATH,
+        catalog_v2_schema_bytes,
+        check=args.check,
+    )
+    _write_or_check(
+        MANIFEST_V3_PATH,
+        manifest_v3_bytes,
+        check=args.check,
+    )
+    _write_or_check(
+        MANIFEST_V3_SCHEMA_PATH,
+        manifest_v3_schema_bytes,
+        check=args.check,
+    )
     print(
         json.dumps(
             {
@@ -909,6 +1210,13 @@ def main() -> int:
                 ),
                 "manifest_v2_git_blob_sha256": _sha256(manifest_v2_bytes),
                 "manifest_v2_schema_git_blob_sha256": _sha256(manifest_v2_schema_bytes),
+                "decision_reason_catalog_v2_schema_git_blob_sha256": (
+                    _sha256(catalog_v2_schema_bytes)
+                ),
+                "manifest_v3_git_blob_sha256": _sha256(manifest_v3_bytes),
+                "manifest_v3_schema_git_blob_sha256": _sha256(
+                    manifest_v3_schema_bytes
+                ),
             },
             sort_keys=True,
         )
