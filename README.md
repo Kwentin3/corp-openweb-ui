@@ -111,7 +111,7 @@ python scripts/build_gate2_financial_semantic_v5_execution.py --check
 python scripts/build_openwebui_pipe_bundle.py --target all
 git diff --exit-code -- openwebui_actions/broker_reports_gate1_pipe_bundled.py openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py
 python -m ruff check --no-cache --select E9,F63,F7,F82 .
-python -m pytest -q tests/test_broker_reports_gate_architecture.py tests/test_broker_reports_gate1_pipe_bundle.py tests/test_broker_reports_gate2_pipe_bundle.py tests/test_broker_reports_managed_decision_reason_catalog.py tests/test_broker_reports_financial_semantic_pack.py tests/test_broker_reports_openwebui_managed_asset_family.py tests/test_broker_reports_gate2_financial_semantic_v6_packet.py tests/test_repository_privacy_guard.py --tb=short
+python -m pytest -q tests/test_broker_reports_gate_architecture.py tests/test_broker_reports_gate1_pipe_bundle.py tests/test_broker_reports_gate2_pipe_bundle.py tests/test_broker_reports_managed_decision_reason_catalog.py tests/test_broker_reports_gate2_outcome_taxonomy_catalog_v2.py tests/test_broker_reports_gate2_financial_semantic_v6_outcome_audit.py tests/test_broker_reports_financial_semantic_pack.py tests/test_broker_reports_openwebui_managed_asset_family.py tests/test_broker_reports_gate2_financial_semantic_v6_packet.py tests/test_repository_privacy_guard.py --tb=short
 ```
 
 Generated-asset builders и bundle parity падают при расхождении с tracked
