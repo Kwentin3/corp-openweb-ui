@@ -119,8 +119,10 @@ v2 path:
 
 No second builder or runtime loader was introduced. The existing
 `build_gate2_financial_semantic_model_assets.py` now validates and embeds the
-inactive v2 family/reason snapshot alongside the unchanged default v1 return
-profile, and its single generated module passes `--check`.
+inactive v2 family/reason snapshot used by the historical Context V2.0
+completeness projection alongside the unchanged default v1 return profile, and
+its single generated module passes `--check`. This is not a managed minimal
+projection.
 
 ## 6. Runtime and model boundary
 
@@ -136,11 +138,34 @@ Family v2 does not:
 - claim frozen benchmark compatibility.
 
 The non-active
-[Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-selects this catalog as its sole reason-meaning authority. The packaged
-closed-world snapshot and non-active packet projection are implemented.
-Local Choice V2, complete-request lint, persistence/replay, provider proof and
-a separately authorized activation path remain required before transport.
+[Context V2.0 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+selects this catalog as its sole reason-meaning authority. Its exact packaged
+closed-world snapshot and non-active completeness packet projection are
+implemented and remain version-pinned historical evidence.
+
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes V2.0 only as the field-eligibility target for future Context V2.1.
+GOAL 5 is documentation-only and changes no managed asset, generated module,
+loader, packet or runtime bytes. GOAL 6 audits the outcome taxonomy and
+count-one stop. GOAL 7 may then implement one versioned minimal Pack/reason
+projection through the existing builder, family and closed-world loader; it
+must not add a second asset family or projection authority.
+
+The GOAL 5-selected strings already exist: `positive_signal` is exact Pack
+`examples[0]`, `negative_signal` is exact `counterexamples[0]`, nearest
+distinction is the unique direct rule against the only other current visible
+type, and reason `use_when` is the exact first sentence of catalog `meaning`
+under the closed sentence rule. GOAL 7 implements only these mappings and may
+not author or embed replacement marker/reason wording.
+
+GOAL 8 may implement only one non-active Context V2.1 candidate plus private
+receipt through the existing Packet authority. **STOP before GOAL 9:** a
+separately authorized/versioned V2.1 response profile must first exist in the
+Choice authority, or the program must be amended. GOAL 9 is linter-only and
+consumes that Choice schema while checking P01-P18; it cannot invent or build
+it. Persistence/replay, provider proof and activation remain later,
+separately authorized requirements before transport.
 
 ## 7. Acceptance
 
@@ -155,7 +180,11 @@ LIVE_PUBLISHER: NOT_IMPLEMENTED
 ROLLBACK_BASELINE: EXACT_V1_PIN
 SECOND_AUTHORITY: ZERO
 PROVIDER_CALLS: ZERO
-CONTEXT_V2_CANDIDATE_ASSET_PROFILE: PACKAGED_INACTIVE
-CONTEXT_V2_PACKET_PROJECTION: IMPLEMENTED_NON_ACTIVE
+CONTEXT_V2_0_COMPLETENESS_ASSET_PROFILE: PACKAGED_INACTIVE
+CONTEXT_V2_0_PACKET_PROJECTION: IMPLEMENTED_NON_ACTIVE
+MINIMAL_MODEL_PROJECTION: NOT_IMPLEMENTED_GOAL_7
+CONTEXT_V2_1: NOT_IMPLEMENTED_GOAL_8
+CONTEXT_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED_SEPARATE_AUTHORIZATION_REQUIRED
+CONTEXT_V2_1_LINTER: BLOCKED_BY_RESPONSE_PROFILE_STOP_GOAL_9
 ACTIVE_PROFILE_CHANGED: NO
 ```

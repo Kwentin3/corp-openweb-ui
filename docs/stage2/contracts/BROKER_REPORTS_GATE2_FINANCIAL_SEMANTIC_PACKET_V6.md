@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Packet V6
 
-Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_IMPLEMENTED_NON_ACTIVE`
+Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_0_COMPLETENESS_BASELINE_NON_ACTIVE`
 
 ## Boundary
 
@@ -13,8 +13,9 @@ packet entrypoint. It accepts only:
 - the exact Pack/Registry authority.
 
 The packet does not create or repair Typed Options. The same factory also
-returns the historical non-active Slim sidecars and the non-active Context V2
-candidate/private mapping receipt; none is part of `packet.payload`.
+returns the historical non-active Slim sidecars and the exact non-active
+Context V2.0 completeness candidate/private mapping receipt; none is part of
+`packet.payload`.
 
 ## Exact model-visible shape
 
@@ -151,37 +152,45 @@ Across the frozen semantic suite it finds:
   role/value relations and 12 unique readable evidence-eligibility
   predicates.
 
-The implemented non-active Context V2 inside this same factory renders a
-reference only when another visible field consumes it. It pairs deterministic
-keys with
+The implemented non-active Context V2.0 completeness baseline inside this
+same factory renders a reference only when another visible field consumes it.
+It pairs deterministic keys with
 evidence-owned value labels, readable evidence-derived structure and
 Pack-owned type titles. The active type-card projection still drops the Pack
-title; Context V2 uses the versioned extension of that same projection
+title; Context V2.0 uses the versioned extension of that same projection
 authority rather than bypassing it from packet code.
 
 The implemented packet sidecar emits a unique local response key and the
 mapped type's exact Pack title as a separate label; evidence differences stay
-in readable relationships, and `A/B` is not the sole presentation. A future
-V2 profile in the existing Choice authority must bind its strict enum/parser
-to those keys. A label collision is not a technical mapping failure:
+in readable relationships, and `A/B` is not the sole presentation. This is
+exact historical V2.0 evidence, not an implemented future V2.1 response
+profile. A separately versioned future Choice profile must bind its strict
+enum/parser to its own request-local keys. A label collision is not a
+technical mapping failure:
 cross-type ambiguity can use `unclassified`, while same-type
 indistinguishability hits the explicit count-one compatibility stop. Exact
 refs, the complete 59-binding table, canonical IDs, provenance and retention
-stay outside the Context V2 model surface; historical active V6 exposure
+stay outside the Context V2.0 model surface; historical active V6 exposure
 remains unchanged.
 
 The audit does not mutate Slim v2, activate it, change the current four-block
 packet or authorize a second packet builder.
 
-## Relationship to LLM Semantic Context V2
+## Context V2.0 completeness baseline and future minimal target
 
 The versioned
-[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-defines the exact successor boundary. Its candidate and packet-owned mapping
-receipt are implemented as non-active sidecars and do not replace this packet
-or the implemented historical Slim View.
+[LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+defines the exact implemented non-active completeness baseline. Its candidate
+and packet-owned mapping receipt remain version-pinned historical sidecars and
+do not replace this packet or the implemented historical Slim View.
 
-The same packet factory derives its V2 available type set from the
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes V2.0 only as the field-eligibility target for a future V2.1
+candidate. GOAL 5 is documentation-only and changes no packet, projection,
+Choice, receipt, request, asset or runtime bytes.
+
+The same packet factory derives its V2.0 available type set from the
 validated semantic-contract authority: every active Pack/Registry type
 compatible with the Evidence Bundle source family. The type IDs present in
 `typed_options` and `blocked_bindings` are only a private Compiler parity
@@ -191,9 +200,24 @@ decision-relevant type meaning, and a validated closed-world snapshot of the
 existing managed reason catalog for reason meaning. It may not read asset
 files or import build scripts at runtime.
 
-The V2 contract also fixes the target key/label split, factored readable
-relationships, strict local response, packet-owned mapping receipt and
-linter-owned sealed-request receipt. GOAL 4 implements only the renderer and
-packet-owned receipt. The V2 response profile, linter extension, sealed
+The V2.0 contract also fixes its historical key/label split, factored readable
+relationships, strict local-response design, packet-owned mapping receipt and
+linter-owned sealed-request design. GOAL 4 implements only the renderer and
+packet-owned receipt. The V2.0 response profile, linter extension, sealed
 request, persistence/replay, provider projection and route remain
 `NOT_IMPLEMENTED`. Active packet bytes and hashes remain unchanged.
+
+Future work is ordered: GOAL 6 audits outcome taxonomy and the count-one stop;
+GOAL 7 implements the exact GOAL 5-selected managed projection; GOAL 8 may
+implement only one non-active V2.1 candidate plus private mapping receipt in
+this existing Packet factory. **STOP before GOAL 9:** a separately
+authorized/versioned V2.1 response profile must first exist in the Choice
+authority, or the program must be amended. GOAL 9 is linter-only and consumes
+that Choice schema while checking P01-P18; it cannot invent or build it.
+
+The selected sources already exist:
+`positive_signal` maps to Pack `examples[0]`, `negative_signal` maps to
+`counterexamples[0]`, nearest distinction maps to the unique direct rule
+against the only other current visible type, and reason `use_when` maps to the
+exact first sentence of catalog `meaning`. GOAL 7 may implement only those
+mappings; packet code may not invent or embed replacement wording.

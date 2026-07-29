@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Choice V6
 
-Status: `ACTIVE_V6_UNCHANGED_LOCAL_V1_NON_ACTIVE_CONTEXT_V2_CHOICE_NOT_IMPLEMENTED`
+Status: `ACTIVE_V6_UNCHANGED_LOCAL_V1_NON_ACTIVE_CONTEXT_V2_0_CHOICE_NOT_IMPLEMENTED`
 
 ## Boundary
 
@@ -37,8 +37,8 @@ the validated packet. If no Typed Option exists, the typed variant is absent
 for that packet; this does not create another provider disposition.
 
 This contract owns the closed reason codes and JSON shape only. It does not own
-their human-readable semantic distinction. Context V2 must obtain that wording
-from the single versioned
+their human-readable semantic distinction. The implemented non-active Context
+V2.0 completeness baseline obtains that wording from the single versioned
 [Financial Decision Reason Catalog v1](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md)
 in the existing managed Financial Domain asset family. That catalog is
 currently an inactive repository draft and is not exposed by this active
@@ -61,8 +61,10 @@ outcomes and are never exposed in the provider semantic-choice schema.
   at least one Typed Option exists;
 - canonical Gate 2 dispositions: the existing four, unchanged.
 
-Goal 5 defines only the minimal response contract. Independent response
-validation and canonical materialization remain downstream boundaries.
+Historical Financial Semantic V6 GOAL 5 defined only this minimal response
+contract. That completed program goal is distinct from current Minimal Model
+Surface GOAL 5. Independent response validation and canonical materialization
+remain downstream boundaries.
 
 ## Relationship to local Choice aliases
 
@@ -90,24 +92,42 @@ active Choice.
 
 The later Managed Semantic Decision Context
 [alias necessity audit](../../reports/2026-07-28/BROKER_REPORTS_GATE2_MANAGED_SEMANTIC_CONTEXT_GOAL2_ALIAS_NECESSITY_AND_READABILITY_AUDIT.report.md)
-requires a separately versioned Context V2 candidate to pair each unique local
-choice key with the mapped type's exact Pack title as a separate label;
+required the separately versioned Context V2.0 completeness candidate to pair
+each unique local choice key with the mapped type's exact Pack title as a
+separate label;
 evidence differences stay in structured relationships. Positional `A/B` may
 not remain the sole presentation, but the label must not replace unique
 response identity or turn semantic ambiguity into a technical failure.
 Cross-type ambiguity can use `unclassified`; same-type indistinguishability
-hits the count-one compatibility stop. The future key must still normalize to
-this exact current Choice before canonical expansion. This active contract,
+hits the count-one compatibility stop. Those V2.0 keys are implemented only in
+the non-active packet sidecar and its private receipt. This active contract,
 its exact-ID response and its runtime route remain unchanged.
 
-The exact successor shape is fixed by
-[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md):
+The exact historical completeness shape is fixed by
+[LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md):
 `choice_N` is a request-local response key, its adjacent label is presentation
 only, and the strict unclassified branch uses only codes with complete
 catalog-owned visible reason cards. Managed Semantic Decision Context GOAL 4
-implements those keys/cards only in the packet-owned non-active Context V2
+implements those keys/cards only in the packet-owned non-active Context V2.0
 candidate and private mapping receipt.
-The existing Choice factory remains the future local-schema owner and must
-normalize without semantic repair. The Context V2 response schema/parser is
-still `NOT_IMPLEMENTED`; the active exact-ID Choice and historical Local
-Choice v1 are unchanged.
+The V2.0 response schema/parser is still `NOT_IMPLEMENTED`; the active exact-ID
+Choice and historical Local Choice v1 are unchanged.
+
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes V2.0 only as the target field set for a future V2.1 candidate.
+GOAL 5 is documentation-only and adds no Choice schema, parser or normalizer.
+The next immediate step remains GOAL 6 outcome-taxonomy/count-one audit;
+GOAL 7 implements the exact GOAL 5-selected managed projection; GOAL 8 builds
+only the PacketFactory V2.1 candidate plus private receipt.
+
+**STOP before GOAL 9:** a separately authorized/versioned V2.1 response
+profile must be implemented in this existing Choice authority, or the program
+must be amended. Neither GOAL 8 nor GOAL 9 owns that missing profile. GOAL 9
+is linter-only: it consumes the Choice-owned schema while checking P01-P18 and
+must not invent or build it.
+
+The selection rules use existing managed strings: Pack
+`examples[0]`, `counterexamples[0]`, the unique direct rule against the only
+other current visible type, and the exact first sentence of catalog `meaning`.
+GOAL 7 may not author replacement markers or reason wording.

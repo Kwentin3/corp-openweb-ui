@@ -239,9 +239,10 @@ readability of the key itself:
 - a local selection key is required so code can restore the exact
   `typed_option_id`;
 - positional `A/B` communicates order, not financial meaning;
-- a future Context V2 must keep a deterministic unique `choice_key` and add a
-  separate `label` equal to the mapped Pack-owned type title; exact
-  visible evidence remains in structured relationships;
+- the implemented non-active Context V2.0 completeness baseline keeps a
+  deterministic unique `choice_key` and adds a separate `label` equal to the
+  mapped Pack-owned type title; exact visible evidence remains in structured
+  relationships;
 - a readable label need not be unique and must not replace response identity;
 - semantically indistinguishable options remain distinct by key;
   `unclassified` is truthful for two or more plausible distinct types, while
@@ -252,16 +253,32 @@ readability of the key itself:
   expansion authority.
 
 The frozen audit found 12 current choice aliases. All are consumed by the
-response schema, so the key function is necessary. Context V2 must not leave
-the 12 positional letters as the sole presentation; the exact future key
-spelling belongs to that separately versioned contract. This is a readability
-requirement, not evidence that `A/B` caused the historical model failures.
+response schema, so the key function is necessary. Context V2.0 does not leave
+the 12 positional letters as the sole presentation in its implemented
+non-active packet sidecar. This is historical completeness evidence, not
+evidence that `A/B` caused the model failures or that a V2.1 response profile
+exists.
 
-The exact successor requirement now lives in
-[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
-Its implemented non-active packet sidecar uses `choice_N` plus the mapped
-type's exact Pack title as a separate label. A future V2 profile in the
-existing Choice factory must retain this contract's strict
-typed-versus-unclassified response shape and normalize to the same canonical
-V6 Choice. No Local Choice v2 schema/parser/normalization or active route
-exists yet; this v1 candidate remains unchanged in bytes and behavior.
+The exact implemented non-active completeness baseline lives in
+[LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
+Its packet sidecar uses `choice_N` plus the mapped type's exact Pack title as a
+separate label.
+
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes V2.0 only as the future V2.1 field-eligibility target. GOAL 5 is
+documentation-only and adds no Choice schema, parser or normalization. GOAL 6
+audits taxonomy and the count-one stop; GOAL 7 implements the exact managed
+projection selected by GOAL 5 from existing Pack/catalog strings; GOAL 8 may
+build only one non-active V2.1 context candidate plus private receipt in the
+existing Packet authority. **STOP before GOAL 9:** a separately
+authorized/versioned V2.1 response profile must first be implemented in the
+existing Choice factory, or the program must be amended. GOAL 9 is linter-only
+and consumes that Choice schema while checking P01-P18; it cannot invent or
+build it. GOAL 7 does not author positive/negative markers or reason wording:
+it maps Pack `examples[0]`, `counterexamples[0]`, the unique
+direct rule against the only other current visible type, and the exact first
+sentence of catalog `meaning`. The exact V2.1 key/schema shape belongs to those
+later authorities and must normalize without semantic repair to the same
+canonical V6 Choice. No V2.1 Choice profile or active route exists; this v1
+candidate remains unchanged in bytes and behavior.

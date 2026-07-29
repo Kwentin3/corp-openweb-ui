@@ -45,19 +45,42 @@ separate bootstrap report.
 - The implemented candidate surfaces are the historical
   [LLM Semantic Context v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
   and the non-active packet sidecar for
-  [LLM Semantic Context V2](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
-  The V2 sidecar and its private mapping receipt are built only by the existing
-  V6 packet owner through the existing model-assets loader/projection owner;
-  they are not request or runtime authorities. Global refs, hashes, provenance
-  and storage IDs stay code-only.
+  [LLM Semantic Context V2.0](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
+  V2.0 is the exact implemented non-active completeness baseline, not the
+  future minimal model-surface target. Its sidecar and private mapping receipt
+  are built only by the existing V6 packet owner through the existing
+  model-assets loader/projection owner; they are not request or runtime
+  authorities. Global refs, hashes, provenance and storage IDs stay code-only.
+- The
+  [Minimal Model Surface v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+  is a documentation-only GOAL 5 field-eligibility contract inside the
+  existing Semantic Matcher boundary. It does not implement a managed
+  projection, Packet/Choice profile, linter, request, provider route or
+  activation. GOAL 6 audits outcome taxonomy and the count-one stop; GOAL 7
+  implements the exact GOAL 5-selected managed projection through existing
+  owners; GOAL 8 builds only one non-active V2.1 candidate plus private mapping
+  receipt in the existing Packet factory.
+- **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
+  profile must first be implemented in the existing Choice authority, or the
+  program must be amended. GOAL 9 is linter-only: it consumes the complete
+  P01-P18 Prompt + Packet candidate + Choice-owned schema and must never invent
+  or build that schema.
+- GOAL 5 selects existing managed strings rather than authoring markers:
+  `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
+  `counterexamples[0]`, nearest distinction is the unique direct rule against
+  the only other current visible type, and reason `use_when` is the exact first
+  sentence of catalog `meaning` under the contract's closed sentence rule.
+  GOAL 7 only implements those mappings; Packet/Python/Prompt code may not
+  embed replacement wording. The future V2.1 task is the new contract-owned
+  instruction, not the historical V2.0 complete-prebound task.
 - The historical Slim View v2, alias receipt and
   [Local Choice](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
-  remain non-active outputs. Context V2 now has a non-active packet renderer
-  and private mapping receipt, but no V2 local Choice profile/parser, linter,
-  provider request, evidence persistence or replay exists yet. Runtime and the
-  current qualification runner continue to consume only `packet.payload` and
-  exact-ID Choice until a separately qualified activation GOAL changes that
-  authority.
+  remain non-active outputs. Context V2.0 has a non-active packet renderer and
+  private mapping receipt, but no V2.0 local Choice profile/parser, linter,
+  provider request, evidence persistence or replay exists. Context V2.1 is not
+  implemented. Runtime and the current qualification runner continue to
+  consume only `packet.payload` and exact-ID Choice until a separately
+  qualified activation GOAL changes that authority.
 - Any Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.

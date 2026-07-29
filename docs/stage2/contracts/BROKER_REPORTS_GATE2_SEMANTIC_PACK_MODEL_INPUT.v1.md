@@ -1,12 +1,14 @@
 # Broker Reports Gate 2 Semantic Pack Model Input v1
 
-Status: target normative, repository-managed, not live-activated.
+Status: historical version-pinned full-Pack candidate; repository-managed;
+not live-activated; not the future Minimal Model Surface.
 
 ## 1. Purpose
 
-This contract defines the bounded model input that joins a deterministic
-financial scope, visible Gate 1 source context, the complete compact Financial
-Semantic Pack, and exact managed OpenWebUI asset identities.
+This contract defines the bounded historical V4 model-input candidate that
+joins a deterministic financial scope, visible Gate 1 source context, the
+complete compact Financial Semantic Pack, and exact managed OpenWebUI asset
+identities.
 
 The Pack alone owns financial meaning. Deterministic code owns only structural
 eligibility, package membership, bounded projection, and validation.
@@ -145,17 +147,43 @@ bypass.
 ## 9. Economy and activation boundary
 
 The full V4 request is larger than the historical 3,072-token financial
-evidence cap. GOAL 5 does not widen that cap, call a provider, qualify a model,
-or activate a production route. The existing budget guard therefore continues
-to reject such calls before provider authorization until the later
-qualification/admission goals establish a new measured policy.
+evidence cap. Historical Semantic Pack Model Input GOAL 5 did not widen that
+cap, call a provider, qualify a model, or activate a production route. That
+completed historical program goal is distinct from current Minimal Model
+Surface GOAL 5. The existing budget guard therefore continues to reject such
+calls before provider authorization until a separately authorized
+qualification/admission goal establishes a new measured policy.
+
+## 9.1 Current minimal-surface routing
+
+The complete `full_compact_snapshot` and every identity above remain exact
+historical V4 contract data. They are not evidence that every full-Pack field
+is eligible for a future model view and are not rewritten by the
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md).
+The separate implemented non-active
+[Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) likewise
+remains exact version-pinned historical completeness evidence.
+
+Current GOAL 5 is documentation-only. GOAL 6 audits the outcome taxonomy and
+count-one stop. GOAL 7 may implement one versioned minimal projection through
+the existing managed projection owner using only the exact GOAL 5 selections:
+Pack `examples[0]`, `counterexamples[0]`, the unique direct rule against the
+only other current visible type, and the exact first sentence of catalog
+`meaning`. Those strings already exist; GOAL 7 does not author markers or
+reason wording. GOAL 8 may implement only one non-active PacketFactory V2.1
+candidate plus private receipt. **STOP before GOAL 9:** a separately
+authorized/versioned V2.1 response profile must first exist in the Choice
+authority, or the program must be amended. GOAL 9 only consumes that schema
+while linting P01-P18; it cannot invent or build it. This contract adds no
+projection, asset, request, provider or runtime change for that sequence.
 
 ## 10. Explicit non-goals
 
 This contract does not:
 
 - change Pack contents or managed Skill/Prompt bytes;
-- make validator/materializer type-independent (GOAL 6);
+- make validator/materializer type-independent (historical Semantic Pack
+  program GOAL 6);
 - add persistence or Gate 3 query interfaces;
 - perform a customer, provider, or model call;
 - mutate OpenWebUI stage or production;
