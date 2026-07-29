@@ -26,6 +26,7 @@ Current canonical route:
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Financial Semantic V6 Exact Evidence](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md)
 - [Local Choice v1](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v1.md)
+- [Context V2.1 Local Choice response profile](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 
 Historical evidence only:
 
@@ -37,6 +38,7 @@ Historical evidence only:
 - [Outcome taxonomy and frozen benchmark audit, GOAL 6](../reports/2026-07-29/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY_AND_BENCHMARK_AUDIT.report.md)
 - [Minimal managed Pack/reason projection, GOAL 7](../reports/2026-07-29/BROKER_REPORTS_GATE2_MINIMAL_MANAGED_PROJECTION_GOAL7.report.md)
 - [Non-active minimal Context V2.1 Packet candidate, GOAL 8](../reports/2026-07-29/BROKER_REPORTS_GATE2_NON_ACTIVE_CONTEXT_V2_1_GOAL8.report.md)
+- [Context V2.1 Local Choice response profile, GOAL 9](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LOCAL_CHOICE_RESPONSE_PROFILE_GOAL9.report.md)
 - [Исследование состава и дублирования Gate 2 LLM-контекста, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_RESEARCH.report.md)
 - [Рефакторинг контекста и повтор одного реального PDF, 2026-07-12](../reports/2026-07-12/OPENWEBUI_BROKER_REPORTS_GATE2_LLM_CONTEXT_REFACTOR_AND_SINGLE_PDF_RECOVERY.report.md)
 
@@ -613,6 +615,7 @@ Read first:
 - [Gate 2 Minimal Model Surface v1 implemented projection/candidate boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 - [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
+- [Context V2.1 Local Choice response profile](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)

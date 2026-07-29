@@ -166,9 +166,12 @@ authority rather than bypassing it from packet code.
 The implemented packet sidecar emits a unique local response key and the
 mapped type's exact Pack title as a separate label; evidence differences stay
 in readable relationships, and `A/B` is not the sole presentation. This is
-exact historical V2.0 evidence, not an implemented future V2.1 response
-profile. A separately versioned future Choice profile must bind its strict
-enum/parser to its own request-local keys. A label collision is not a
+exact historical V2.0 evidence, not the current V2.1 response profile. The
+separately versioned
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+binds its strict enum/parser to its own request-local keys in the existing
+Choice authority; Packet remains only the candidate/receipt owner. A label
+collision is not a
 technical mapping failure:
 cross-type ambiguity can use `unclassified`, while same-type
 indistinguishability hits the explicit count-one compatibility stop. Exact
@@ -219,11 +222,11 @@ titles, so zero differentiators and zero consumerless value/structure keys are
 visible.
 
 The candidate is always `active=false`, `transport_eligible=false` and records
-zero provider calls. It has no current request or runtime consumer.
-**STOP before GOAL 9:** a separately authorized/versioned V2.1 response
-profile must first exist in the Choice authority, or the program must be
-amended. GOAL 9 is linter-only and consumes that Choice schema while checking
-P01-P18; it cannot invent or build it.
+zero provider calls. The existing Choice authority is its sole inactive
+consumer and adds the GOAL 9 response profile without changing Packet bytes or
+ownership. It still has no request or runtime consumer. **STOP before GOAL
+10:** the linter/sealed request may start only after reviewed, green, merged
+GOAL 9.
 
 The selected sources already exist:
 `positive_signal` maps to Pack `examples[0]`, `negative_signal` maps to

@@ -1,7 +1,9 @@
 # Broker Reports Gate 2 Financial Semantic V6 Qualification Harness
 
-Status: canonical V6 qualification and bounded-smoke harness. Full
-qualification always requires separate explicit authorization.
+Status: canonical V6 qualification and bounded-smoke harness for the prior V6
+qualification program. Its Goal 11A/11B labels are historical and do not
+govern current Context V2.1 GOAL 11. Full qualification always requires
+separate explicit authorization.
 
 ## Exact workload
 
@@ -19,11 +21,11 @@ The 12-case benchmark has ten semantic provider-call slots. Repeated-header
 and unsupported-source cases terminate in technical preclose and have zero
 provider-call slots.
 
-## Goal 11A boundary
+## Historical Goal 11A boundary
 
 `Gate2FinancialSemanticV6QualificationFixtureFactory.create` and
 `Gate2FinancialSemanticV6QualificationPreflightFactory.create` are the only
-Goal 11A harness routes.
+prior-program Goal 11A harness routes.
 
 The preflight rebuilds every semantic authority through canonical factories,
 proves request-builder/canonical-request parity, obtains bounded in-memory
@@ -38,14 +40,14 @@ Action and then the candidate.
 
 ## Safety
 
-The Goal 11A CLI exposes no execute mode and writes no evidence. Provider
+The historical Goal 11A CLI exposes no execute mode and writes no evidence. Provider
 execution, terminal evidence preservation, and product-gate disposition are
-reserved for Goal 11B.
+reserved for historical Goal 11B.
 
-## Goal 11B terminal execution
+## Historical Goal 11B terminal execution
 
 `qualify_financial_semantic_v6` is the only terminal execution and
-product-gate boundary. The dedicated Goal 11B CLI has no implicit execution
+product-gate boundary. The dedicated prior-program Goal 11B CLI has no implicit execution
 mode: `--execute-exact-attempt`, a new repository-safe receipt path, and a new
 private evidence directory outside the repository are all required.
 

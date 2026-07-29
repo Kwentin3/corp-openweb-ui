@@ -1,6 +1,8 @@
 # Broker Reports Gate 2 Local Managed Financial Domain Proof v1
 
-Status: normative proof contract for GOAL 9.
+Status: historical normative proof contract for prior managed-domain-program
+GOAL 9. All GOAL numbers in this file are historical and do not govern the
+current Context V2.1 Qualification And Admission program.
 
 ## 1. Purpose
 

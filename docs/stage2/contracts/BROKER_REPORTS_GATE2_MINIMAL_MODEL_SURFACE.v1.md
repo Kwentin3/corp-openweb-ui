@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_GOAL8_PACKET_CANDIDATE`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_V2_1_CHOICE_PROFILE`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -13,10 +13,12 @@ Implementation status (2026-07-29): GOAL 7 implements the exact managed
 Pack/reason mappings from section 6 as the inactive profile documented by
 [Financial Domain Asset Family v3](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v3.md).
 GOAL 8 implements the sole current non-active
-[Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
-Packet candidate and its private exact mapping receipt in the existing Packet
-factory. The Choice response profile, complete-request linter, request route
-and activation remain unimplemented.
+  [Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
+  Packet candidate and its private exact mapping receipt in the existing Packet
+  factory. GOAL 9 implements the separately versioned inactive
+  [Local Choice V2.1 response profile](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+  in the existing Choice factory. Complete-request linter, request route and
+  activation remain unimplemented.
 
 ## 1. Purpose and scope
 
@@ -55,21 +57,19 @@ GOAL 5 does not:
 | human reason meaning | [Financial Decision Reason Catalog](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) | GOAL 7 must expose one versioned minimal managed projection after the GOAL 6 taxonomy decision |
 | exact Typed Options and bindings | Candidate Compilation and Typed Option authorities | stay private; only choice differences may be rendered |
 | context construction and private mapping | existing `Gate2FinancialSemanticV6PacketFactory.create` | GOAL 8 implements one non-active V2.1 candidate plus one private exact receipt in this owner only |
-| response schema and normalization | existing V6 Choice authority | unchanged by GOAL 5; a separately authorized versioned V2.1 response profile is required before GOAL 9 |
-| complete-request lint | existing Context Linter authority | GOAL 9 may extend it only after both the V2.1 Packet candidate and Choice-owned response profile exist |
+| response schema and normalization | existing V6 Choice authority | GOAL 9 implements one inactive versioned V2.1 profile without changing active V6 |
+| complete-request lint | existing Context Linter authority | GOAL 10 may extend it only after the reviewed, green GOAL 9 PR is merged |
 | provider projection and parsing | existing provider adapters | transport-only; unchanged by GOAL 5 |
 
 The existing V5-named shared Pack projection owner remains the only projection
 owner. GOAL 7 added one versioned profile there; it did not add another
 loader, Pack, catalog, packet builder or adapter-owned semantic dictionary.
 
-The governing GOAL 8 slice authorizes only the Packet candidate and private
-mapping receipt. It does not authorize a V2.1 Choice response profile. GOAL 9
-is linter-only and may consume but never construct or invent the Choice-owned
-schema. Therefore the current program has an explicit STOP after GOAL 8:
-before GOAL 9, the program owner must separately authorize the versioned V2.1
-response profile in the existing Choice authority or amend the governing
-sequence.
+The governing GOAL 8 slice authorized only the Packet candidate and private
+mapping receipt. The later Context V2.1 Qualification And Admission program
+separately authorizes GOAL 9 to add the versioned inactive response profile in
+the existing Choice authority. It moves the linter and sealed request to GOAL
+10; neither exists in GOAL 9.
 
 ## 3. Closed V2.1 semantic payload shape
 
@@ -145,9 +145,10 @@ the outcome taxonomy in a way that makes the instruction inexact, it must
 update this contract before GOAL 7. Packet code may not silently reword it.
 
 The exact current system Prompt and strict response-schema protocol stay in
-their existing owners. GOAL 5 adds no model-visible Prompt/schema prose and no
-response field. Their later V2.1 integration must remain closed and
-request-bound, but is not implemented or claimed here.
+their existing owners. GOAL 5 added no model-visible Prompt/schema prose and
+no response field. GOAL 9 now implements the closed request-bound response
+schema in the Choice owner; Prompt integration, complete-request lint and a
+sealed request remain unimplemented until GOAL 10.
 
 ## 4. Complete field allowlist and necessity
 
@@ -198,13 +199,13 @@ Schema `name`, `title`, `description`, examples and provider-added explanatory
 fields are absent from the canonical model-visible surface.
 
 `P01`–`P18` describe the provider-neutral logical request, not an OpenAI- or
-Anthropic-native transport envelope. GOAL 10 must prove that each exact
+Anthropic-native transport envelope. GOAL 11 must prove that each exact
 provider projection preserves this logical surface and adds no model-visible
 semantic content. A provider-required transport name or structural wrapper is
 allowed only when that proof establishes it is not model-visible. If the
 provider exposes an additional field or prose to the model, the projection
 remains non-conforming until a versioned contract amendment justifies it.
-GOAL 5 claims no provider-profile compatibility.
+GOAL 5 and GOAL 10 claim no provider-profile compatibility.
 
 ### 4.2 Closed semantic user content
 
@@ -384,9 +385,9 @@ selection is forbidden.
 GOAL 6 resolved the former “one plausible type but no safe record” stop by
 adding the inactive managed catalog-v2 reason above. It did not change the
 historical active decision/Choice code set. GOAL 7 projects all three
-catalog-v2 reasons only in its transport-ineligible managed profile; a future
-response route remains blocked until the existing Choice authority receives
-a separately authorized versioned V2.1 profile.
+catalog-v2 reasons only in its transport-ineligible managed profile. GOAL 9
+adds the separately authorized inactive V2.1 Choice profile and preserves all
+three exact codes; it does not change the active V6 reason set.
 
 ## 7. V2.0 field disposition
 
@@ -415,11 +416,11 @@ or private receipts but is forbidden from model view.
 | choice | `MINIMIZE_AND_RENAME`; key, title and differentiators only |
 | reason card | `MINIMIZE`; code, title and exact mapped one-sentence use rule only |
 | reason contrast | `BACKEND_ONLY` |
-| response object | `RETAIN_PROTOCOL_FIELDS`; V2.1 profile remains unimplemented |
-| response-format wrapper | `MINIMIZE_PROTOCOL`; schema `name` is not model-visible, V2.1 route remains unimplemented |
-| response-schema root | `MINIMIZE_PROTOCOL`; remove `title`, retain `anyOf` |
-| response-schema branch | `RETAIN_PROTOCOL_FIELDS`; V2.1 profile remains unimplemented |
-| response-schema property | `RETAIN_PROTOCOL_FIELDS`; V2.1 profile remains unimplemented |
+| response object | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 parser implemented in the Choice owner |
+| response-format wrapper | `MINIMIZE_PROTOCOL`; GOAL 10 must build and lint it; schema `name` is not model-visible |
+| response-schema root | `MINIMIZE_PROTOCOL`; implemented with `anyOf` only and no `title` |
+| response-schema branch | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 profile implemented |
+| response-schema property | `RETAIN_PROTOCOL_FIELDS`; inactive V2.1 profile implemented |
 
 ## 8. Complete model-view forbidden list
 
@@ -504,11 +505,41 @@ FULL_BENCHMARK: NOT_RUN
 RUNTIME_ACTIVATION: FALSE
 ```
 
-The maximum contract-derived logical Prompt + candidate + response-schema
-envelope is 3,522 bytes. That number is feasibility evidence, not a sealed
-request result: the separately owned V2.1 Choice response profile is still
-unimplemented and no transport path was executed. This contract therefore
-does not claim that the executable sealed-request target has passed.
+At the GOAL 8 boundary, the maximum contract-derived logical Prompt + candidate
++ response-schema envelope was 3,522 bytes. That number remains historical
+feasibility evidence, not a sealed-request result: the separately owned V2.1
+Choice response profile was then unimplemented and no transport path ran. The
+later GOAL 9 profile does not retroactively turn that estimate into a sealed
+request pass.
+
+### 8.2 GOAL 9 implementation
+
+The existing `Gate2FinancialSemanticV6ChoiceContractFactory.create` now adds
+one inactive Context V2.1 response profile to each validated current Choice
+contract. It reads local keys and reason codes from the validated Context
+candidate, pins the private receipt, and restores typed output only through
+the receipt's exact `choice_restoration` row.
+
+Executable proof across the same ten cases records:
+
+```text
+CHOICE_V2_1_RESPONSE_PROFILES: 10
+TYPED_CHOICE_RESTORATIONS: 12_EXACT
+ZERO_CHOICE_UNCLASSIFIED_ONLY_SCHEMAS: 4_EXACT
+V2_1_REASON_CODES: 3_EXACT
+ACTIVE_CHOICE_SCHEMA_HASH_PARITY: 10_OF_10_EXACT
+HISTORICAL_LOCAL_CHOICE_V1_HASH_PARITY: EXACT
+UNKNOWN_DUPLICATE_ORPHAN_CHOICE_REJECTION: PASSED
+POST_RESPONSE_REPAIR: FORBIDDEN
+CONTEXT_LINTER_V2_1: NOT_IMPLEMENTED
+SEALED_REQUEST_LE_4500: NOT_PROVEN
+PROVIDER_CALLS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
+The third V2.1 reason is normalized without alteration but remains outside the
+unchanged active V6 Choice/Expansion reason set. GOAL 9 therefore does not
+claim active materialization for that reason.
 
 ## 9. Representative human-readable examples
 
@@ -632,7 +663,7 @@ BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
-Current GOAL 8 acceptance adds:
+Historical GOAL 8 acceptance recorded:
 
 ```text
 MINIMAL_MANAGED_PROJECTION: IMPLEMENTED_NON_ACTIVE
@@ -648,15 +679,30 @@ FULL_BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
+Current GOAL 9 acceptance adds:
+
+```text
+CHOICE_V2_1_RESPONSE_PROFILE: IMPLEMENTED_NON_ACTIVE
+CHOICE_V2_1_PARSER: IMPLEMENTED_NON_ACTIVE
+ACTIVE_CHOICE_BYTES_CHANGED: NO
+HISTORICAL_LOCAL_CHOICE_V1_CHANGED: NO
+CONTEXT_V2_1_PACKET_BYTES_CHANGED: NO
+CONTEXT_LINTER_V2_1: NOT_IMPLEMENTED
+SEALED_V2_1_REQUEST: NOT_RUN
+PROVIDER_ADAPTER_CHANGES: ZERO
+PROVIDER_CALLS: ZERO
+FULL_BENCHMARK_RUNS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
 The program state is:
 
 1. GOAL 6 outcome taxonomy audit is complete;
 2. GOAL 7 exact minimal managed projection is complete;
 3. GOAL 8 non-active Context V2.1 candidate/private receipt is complete;
-4. **STOP:** a separately authorized versioned V2.1 response profile must be
-   implemented in the existing Choice authority, or the governing program
-   must be amended;
-5. only then may GOAL 9 lint the complete accepted V2.1 request before any
-   provider transport.
-
-Neither GOAL 5 nor GOAL 8 clears the post-GOAL-8 response-profile STOP.
+4. GOAL 9 inactive V2.1 Choice response profile/parser is complete in the
+   working branch and remains non-active;
+5. **STOP before GOAL 10:** the GOAL 9 PR must be fresh-reviewed on its
+   immutable head, pass the real GitHub Actions check and merge;
+6. only GOAL 10 may add the Context V2.1 linter and sealed complete request
+   before any provider transport.

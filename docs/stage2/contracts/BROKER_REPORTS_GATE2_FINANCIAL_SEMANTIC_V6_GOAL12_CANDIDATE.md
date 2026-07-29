@@ -1,6 +1,8 @@
 # Broker Reports Gate 2 Financial Semantic V6 Goal 12 Candidate
 
-Status: Goal 12 qualification-only contract.
+Status: historical qualification-only contract for prior V6-program Goal 12.
+Its GOAL labels do not select a candidate or govern the current Context V2.1
+Qualification And Admission program.
 
 ## Prerequisite
 
@@ -40,7 +42,7 @@ The following remain byte- or hash-identical to the Nano V6 workload:
 - zero fallback, repair, hidden retry, and production admission.
 
 The terminal runner passes the existing canonical Prompt object to the request
-builder. This corrects the Goal 11B object seam without changing Prompt
+builder. This corrects the historical Goal 11B object seam without changing Prompt
 content or any semantic authority.
 
 ## Execution boundary

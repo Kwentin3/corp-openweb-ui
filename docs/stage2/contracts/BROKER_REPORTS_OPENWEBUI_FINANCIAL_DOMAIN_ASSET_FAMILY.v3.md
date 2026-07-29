@@ -22,6 +22,14 @@ historical Context V2.0 records. Family v3 has
 `runtime_activation=false`, `response_profile_status=not_implemented` and
 `transport_eligible=false`.
 
+`response_profile_status=not_implemented` is the immutable family-v3 manifest
+field recorded before GOAL 9; it means no response profile is embedded in or
+owned by the managed asset family. GOAL 9 does not rewrite that snapshot. The
+separate inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+profile is now owned by the existing Choice factory and pins this managed
+projection through the validated Context candidate/private receipt.
+
 ## 2. Exact predecessor and rollback
 
 Family v3 pins family v2 as its only predecessor:
@@ -83,6 +91,10 @@ runtime_activation = false
 response_profile_status = not_implemented
 transport_eligible = false
 ```
+
+These exact manifest fields remain unchanged after the separately owned GOAL 9
+Choice profile; they are not a current statement that the Choice authority
+lacks such a profile.
 
 The single closed-world loader entrypoint is
 `load_gate2_financial_semantic_model_assets(profile="minimal_model_surface_v1_candidate")`.

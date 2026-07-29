@@ -159,13 +159,13 @@ type, and reason `use_when` is the exact first sentence of catalog `meaning`
 under the closed sentence rule. GOAL 7 implements only these mappings and may
 not author or embed replacement marker/reason wording.
 
-GOAL 8 may implement only one non-active Context V2.1 candidate plus private
-receipt through the existing Packet authority. **STOP before GOAL 9:** a
-separately authorized/versioned V2.1 response profile must first exist in the
-Choice authority, or the program must be amended. GOAL 9 is linter-only and
-consumes that Choice schema while checking P01-P18; it cannot invent or build
-it. Persistence/replay, provider proof and activation remain later,
-separately authorized requirements before transport.
+GOAL 8 implemented only one non-active Context V2.1 candidate plus private
+receipt through the existing Packet authority. The later explicit program
+authorizes GOAL 9 to add the inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+profile through the existing Choice authority. This historical family v2 is
+not changed. Linter/sealed request, persistence/replay, provider proof and
+activation remain later, separately gated requirements before transport.
 
 ## 7. Acceptance
 

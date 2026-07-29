@@ -1,0 +1,114 @@
+{
+  "acceptance": {
+    "active_choice_schema_hash_parity": {
+      "syn_successor_v2_adjacent_equal": "36858a919a149f4b76ec61391ac68cce997cded103394d7966c079185b6cf88a",
+      "syn_successor_v2_adjacent_fx": "36858a919a149f4b76ec61391ac68cce997cded103394d7966c079185b6cf88a",
+      "syn_successor_v2_detail_vs_subtotal": "36858a919a149f4b76ec61391ac68cce997cded103394d7966c079185b6cf88a",
+      "syn_successor_v2_forbidden_neighbour": "ce787dff712b365c451082640038e6b353e3fae67f585557a026e1c26b65d226",
+      "syn_successor_v2_missing_discriminator": "042d2cae2f9bb6113081654523b1aaec93fef359dd1cddadbe9d106919ef38ea",
+      "syn_successor_v2_multiple_compatible": "36858a919a149f4b76ec61391ac68cce997cded103394d7966c079185b6cf88a",
+      "syn_successor_v2_no_registry_type": "10a54d609f1658982b18b12ed3a4ac1a8c0b39a3e35dcbfdf02af79abe728d7f",
+      "syn_successor_v2_optional_missing": "767a7d33ff91f7cbc215bc30621571d2148fe28eadddd5eb4e7a81a2df915d9a",
+      "syn_successor_v2_unique_cash": "883381d22afd40c398e1c07040e4de456a4f14d8d4a0f3528e2f78b85664a45b",
+      "syn_successor_v2_unique_printed_total": "f86bb582b6289e9a80752c8e2a3b0a861a92cec438fd8becefda84fcd0ac1b32"
+    },
+    "active_choice_schema_hashes_exact_total": 10,
+    "context_v2_1_reason_codes": [
+      "no_registry_type",
+      "single_registry_type_no_safe_record",
+      "ambiguous_registry_type"
+    ],
+    "context_v2_1_reason_codes_exact_total": 3,
+    "fail_closed_checks": {
+      "coordinated_option_id_tamper": "PASSED",
+      "duplicate_json_key": "PASSED",
+      "extra_or_free_text_field": "PASSED",
+      "full_contract_tamper": "PASSED",
+      "missing_or_unknown_reason": "PASSED",
+      "orphan_receipt_mapping": "PASSED",
+      "profile_or_schema_hash_tamper": "PASSED",
+      "unknown_choice_key": "PASSED",
+      "zero_choice_typed_answer": "PASSED"
+    },
+    "governed_cases_total": 10,
+    "historical_local_choice_v1_schema_hashes": [
+      "85282d67c857893808c1e6882037e710aa75bc3fb6a10e7bafdcf8e90fe4939a",
+      "adf7dbf67b563db7d82292fbacae541e204fbe1cb34cf1fca77d2fee8279eff4"
+    ],
+    "response_schema_baselines": {
+      "choices_0": {
+        "minified_utf8_bytes": 274,
+        "sha256": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
+        "typed_branch_present": false
+      },
+      "choices_2": {
+        "minified_utf8_bytes": 416,
+        "sha256": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
+        "typed_branch_present": true
+      }
+    },
+    "response_schema_utf8_bytes_total": 3592,
+    "typed_choice_restorations_exact_total": 12,
+    "zero_choice_unclassified_only_schemas_total": 4
+  },
+  "authority": {
+    "factory_entrypoint": "Gate2FinancialSemanticV6ChoiceContractFactory.create",
+    "normalizer_entrypoint": "normalize_financial_semantic_v6_context_v2_1_choice",
+    "policy_version": "broker_reports_gate2_llm_semantic_context_v2_1_local_choice_v1",
+    "schema_version": "broker_reports_gate2_financial_semantic_context_v2_1_choice_response_profile_v1"
+  },
+  "base_commit": "359679faf4542c5c8b8659af84a0388fdcb378eb",
+  "branch": "agent/broker-reports-gate2-context-v2-1-choice-goal9",
+  "continuation": {
+    "goal_10_allowed_by_this_local_receipt": false,
+    "required_before_goal_10": [
+      "immutable PR head pushed",
+      "real broker-reports-ci GitHub Actions check green",
+      "fresh review of exact immutable head",
+      "formal GitHub review submitted",
+      "GOAL 9 PR merged"
+    ]
+  },
+  "date": "2026-07-29",
+  "goal": "GOAL_9_V2_1_LOCAL_CHOICE_RESPONSE_PROFILE",
+  "integrity_sha256": "cbf5986cf65e1a046fa62e9824aee50bf2aeeb4d38227465f708fc3279f7d8f5",
+  "local_verification": {
+    "architecture_packet_context_v2_1": {
+      "deselected": 38,
+      "passed": 9,
+      "status": "PASSED"
+    },
+    "context_v2_1_anti_drift": {
+      "passed": 21,
+      "status": "PASSED"
+    },
+    "focused_broker_reports": {
+      "dependency_warnings": 5,
+      "passed": 169,
+      "status": "PASSED"
+    },
+    "generated_function_bundle_parity": "PASSED",
+    "generated_managed_assets": "PASSED",
+    "ruff_e9_f63_f7_f82": "PASSED"
+  },
+  "profile_state": {
+    "active": false,
+    "post_response_repair_allowed": false,
+    "provider_calls_total": 0,
+    "transport_eligible": false
+  },
+  "repository_change_accounting": {
+    "active_packet_source_changed": false,
+    "benchmark_files_changed": 0,
+    "context_linter_files_changed": 0,
+    "context_v2_1_packet_source_changed": false,
+    "expansion_files_changed": 0,
+    "historical_local_choice_v1_behavior_changed": false,
+    "managed_asset_files_changed": 0,
+    "new_choice_factories_total": 0,
+    "provider_adapter_files_changed": 0,
+    "request_builder_files_changed": 0,
+    "runtime_activation_changes_total": 0
+  },
+  "schema_version": "broker_reports_gate2_context_v2_1_local_choice_goal9_safe_receipt_v1"
+}

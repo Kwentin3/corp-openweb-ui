@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2.1
 
-Status: `IMPLEMENTED_NON_ACTIVE_PACKET_CANDIDATE_PRIVATE_RECEIPT`
+Status: `IMPLEMENTED_NON_ACTIVE_CONTEXT_AND_CHOICE_RESPONSE_PROFILE`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2_1`
@@ -13,7 +13,8 @@ Runtime activation: `false`
 
 Transport eligible: `false`
 
-Response profile: `NOT_IMPLEMENTED`
+Response profile:
+`broker_reports_gate2_financial_semantic_context_v2_1_choice_response_profile_v1`
 
 ## 1. Purpose and boundary
 
@@ -29,9 +30,10 @@ For every validated semantic operation, that owner constructs:
 2. one non-active Context V2.1 candidate; and
 3. one private exact mapping receipt.
 
-The candidate is not part of `packet.payload`. No request builder, Choice,
-Prompt, provider adapter, runtime route, persistence path, replay path or
-qualification runner consumes it.
+The candidate is not part of `packet.payload`. The existing Choice authority is
+its only consumer and builds one separately versioned inactive response
+profile. No request builder, Prompt, provider adapter, runtime route,
+persistence path, replay path or qualification runner consumes it.
 
 The implemented
 [Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
@@ -47,7 +49,7 @@ current packet path does not build V2.0 per request.
 | unclassified reason meaning | decision-reason catalog v2 in inactive family v3 | exact minimal managed projection |
 | exact options and bindings | Candidate Compilation and Typed Option owners | private; only necessary same-title differences may be visible |
 | candidate and receipt construction | `Gate2FinancialSemanticV6PacketFactory.create` | one current candidate and one receipt |
-| response schema and parsing | existing V6 Choice owner | no V2.1 profile exists |
+| response schema and parsing | existing V6 Choice owner | one inactive V2.1 profile restores only through the private receipt |
 | complete-request lint | existing Context Linter owner | no V2.1 lint profile exists |
 
 No V2.1 Packet factory, projection owner, Choice factory or semantic wording
@@ -219,36 +221,38 @@ PER_CASE_SMALLER_THAN_ACTIVE: 10_OF_10
 AGGREGATE_TARGET_BYTES: PASSED_LE_30000
 CONTEXT_CANDIDATE_PER_CASE_TARGET_BYTES: 10_OF_10_LE_4500
 LOGICAL_REQUEST_FEASIBILITY_TARGET_BYTES: FEASIBILITY_ONLY_LE_4500
-SEALED_REQUEST_TARGET_BYTES: NOT_PROVEN_CHOICE_PROFILE_NOT_AUTHORIZED
+SEALED_REQUEST_TARGET_BYTES: NOT_PROVEN_GOAL10_NOT_IMPLEMENTED
 PROVIDER_CALLS: ZERO
 FULL_BENCHMARK: NOT_RUN
 RUNTIME_ACTIVATION: FALSE
 ```
 
-The contract-derived maximum complete logical request envelope is 3,522 UTF-8
-bytes for the current cases, within the 4,500-byte target. This is a local
-feasibility calculation only. It is not an executable sealed V2.1 request and
-was not sent to a provider because the required Choice-owned V2.1 response
-profile does not exist. No sealed-request budget pass is claimed.
+The earlier contract-derived maximum complete logical request envelope was
+3,522 UTF-8 bytes for the current cases, within the 4,500-byte target. That
+remains a historical local feasibility calculation only. GOAL 9 now provides
+the required inactive Choice-owned V2.1 response profile, but no executable
+sealed V2.1 request or linter profile exists and nothing was sent to a
+provider. No sealed-request budget pass is claimed.
 
 The two size comparisons are acceptance oracles for the governed current
 two-type suite, not constructor rejection policy for unrelated historical or
-future inputs. GOAL 9 owns the complete-request budget guard after the
-Choice-owned V2.1 response profile exists.
+future inputs. GOAL 10 owns the complete-request linter and budget guard after
+the reviewed, green GOAL 9 PR is merged.
 
-## 9. Explicit stop
+## 9. Current stop
 
-GOAL 8 implements only the candidate and private receipt. It does not
-authorize or implement:
+GOAL 8 implemented only the candidate and private receipt. The later
+separately authorized GOAL 9 adds the inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+response profile and parser through the existing Choice owner. GOAL 9 does not
+implement:
 
-- a V2.1 Choice response profile or parser;
 - a V2.1 Context Linter profile;
 - a sealed request-builder profile;
 - provider projection or transport;
 - persistence, replay, qualification or activation;
 - a full benchmark run.
 
-**STOP before GOAL 9:** a separately authorized and versioned V2.1 response
-profile must first be implemented in the existing Choice authority, or the
-governing program must be amended. GOAL 9 may consume that schema; it may not
-invent or build it.
+**STOP before GOAL 10:** do not start the linter/sealed-request goal until the
+GOAL 9 PR has a fresh review on its immutable head, a real green GitHub Actions
+check and is merged.
