@@ -134,8 +134,10 @@ owner-bound repository tag
 `broker-reports-goal12-execution-lock-<plan_hash>`. The external private state
 is outside every Git worktree and HMAC-sealed. A permanent per-slot `O_EXCL`
 claim is flushed before transport, so concurrent resume or a new state
-directory cannot reset or duplicate the 12-slot budget. These claims are never
-deleted.
+directory cannot reset or duplicate the 12-slot budget. A nonblocking
+OS-backed lease serializes the entire execute/resume section before auth,
+recovery or transport; descriptor close or process death releases only this
+transient lease. Persistent owner, tag and per-slot claims are never deleted.
 
 ## Broker Reports CI
 

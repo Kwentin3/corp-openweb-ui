@@ -141,8 +141,11 @@ separate bootstrap report.
   byte response cap and retry `0`.
 - The HMAC-sealed external private ledger consumes each slot before network,
   after a permanent per-slot `O_EXCL` claim has been flushed. Resume never
-  resubmits a claimed or consumed slot. One exclusive safe execution claim in
-  git-common metadata binds the plan/head and hashed external state directory;
+  resubmits a claimed or consumed slot. A nonblocking OS-backed lease under
+  git-common metadata serializes the complete execute/resume section before
+  auth, state recovery or transport and is released by descriptor close or
+  process death. One persistent safe execution-owner claim binds the plan/head
+  and hashed external state directory;
   an atomic annotated-tag ref
   `broker-reports-goal12-execution-lock-<plan_hash>` binds the same owner across
   clones and must never be deleted. A second `--execute` cannot reset the

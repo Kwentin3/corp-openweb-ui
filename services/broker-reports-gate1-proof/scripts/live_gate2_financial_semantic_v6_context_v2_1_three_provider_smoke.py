@@ -144,8 +144,97 @@ FORBIDDEN = (
 )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+class _Goal12ExecutionProcessLease:
+    def __init__(self, path: Path, *, plan_hash: str) -> None:
+        if not _is_sha256(plan_hash):
+            raise RuntimeError(
+                "goal12_execution_process_lease_plan_invalid"
+            )
+        self.path = path
+        self.plan_hash = plan_hash
+        self._stream: Any = None
+        self._locked = False
+
+    def __enter__(self) -> "_Goal12ExecutionProcessLease":
+        if self._stream is not None or self._locked:
+            raise RuntimeError("goal12_execution_process_lease_invalid")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            stream = self.path.open("a+b", buffering=0)
+            stream.seek(0, os.SEEK_END)
+            if stream.tell() == 0:
+                stream.write(b"\0")
+                os.fsync(stream.fileno())
+            stream.seek(0)
+            _lock_execution_process_lease(stream)
+        except OSError as exc:
+            if "stream" in locals():
+                stream.close()
+            raise RuntimeError(
+                "goal12_execution_process_lease_unavailable"
+            ) from exc
+        self._stream = stream
+        self._locked = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        del exc_type, exc_value, traceback
+        stream = self._stream
+        self._locked = False
+        self._stream = None
+        if stream is not None:
+            stream.close()
+        return False
+
+    def is_held_for(self, plan_hash: str) -> bool:
+        stream = self._stream
+        return (
+            self._locked is True
+            and self.plan_hash == plan_hash
+            and self.path.resolve()
+            == _execution_process_lease_path(plan_hash).resolve()
+            and stream is not None
+            and stream.closed is False
+        )
+
+
+def _lock_execution_process_lease(stream: Any) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+        return
+    import fcntl
+
+    fcntl.flock(
+        stream.fileno(),
+        fcntl.LOCK_EX | fcntl.LOCK_NB,
+    )
+
+
+def _execution_process_lease_path(plan_hash: str) -> Path:
+    owner_lock_path = _execution_lock_path(plan_hash)
+    return owner_lock_path.with_name(
+        f"{plan_hash}.execution-process-lease.lock"
+    )
+
+
+def _execution_process_lease(
+    plan_hash: str,
+) -> _Goal12ExecutionProcessLease:
+    if not _is_sha256(plan_hash):
+        raise RuntimeError("goal12_execution_process_lease_plan_invalid")
+    return _Goal12ExecutionProcessLease(
+        _execution_process_lease_path(plan_hash),
+        plan_hash=plan_hash,
+    )
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        allow_abbrev=False,
+    )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--preflight-only", action="store_true")
     mode.add_argument("--execute", action="store_true")
@@ -160,8 +249,30 @@ def main() -> int:
             parser.error("--preflight-only does not accept a state directory")
     elif not args.private_state_dir:
         parser.error("--execute/--resume require --private-state-dir")
+    return args
 
-    registry, fixture, audit_manifest, plan = _authorities()
+
+def _main_unleased(
+    *,
+    args: argparse.Namespace,
+    resolved_authorities: Any = None,
+    execution_process_lease: _Goal12ExecutionProcessLease | None = None,
+) -> int:
+    registry, fixture, audit_manifest, plan = (
+        resolved_authorities
+        if resolved_authorities is not None
+        else _authorities()
+    )
+    if not args.preflight_only and (
+        not isinstance(
+            execution_process_lease,
+            _Goal12ExecutionProcessLease,
+        )
+        or not execution_process_lease.is_held_for(
+            plan.integrity_hash
+        )
+    ):
+        raise RuntimeError("goal12_execution_process_lease_required")
     _require_precall_artifacts(plan.integrity_hash)
     if args.preflight_only:
         output = _preflight_summary(plan=plan)
@@ -432,6 +543,20 @@ def main() -> int:
     )
     print(_pretty_json(safe_receipt))
     return 0
+
+
+def main() -> int:
+    args = _parse_args()
+    if args.preflight_only:
+        return _main_unleased(args=args)
+    authorities = _authorities()
+    plan = authorities[3]
+    with _execution_process_lease(plan.integrity_hash) as lease:
+        return _main_unleased(
+            args=args,
+            resolved_authorities=authorities,
+            execution_process_lease=lease,
+        )
 
 
 async def _record_consumed_failure(

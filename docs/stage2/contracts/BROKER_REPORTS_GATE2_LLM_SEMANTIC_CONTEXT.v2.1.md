@@ -456,13 +456,16 @@ base URL equality, the provider-specific transport snapshot/hash, `POST`, a
 
 Every allowed live slot uses a permanent per-slot `O_EXCL` claim followed by
 write-ahead consumption in an HMAC-sealed private external ledger. Resume never
-repeats a claimed or consumed slot. A git-common owner claim and atomic
-repository-scoped annotated-tag ref bind the plan, immutable head and external
-state-directory hash across processes and clones; the tag must never be
-deleted. Exact raw response evidence stays outside Git; the final transparent
-synthetic report contains the exact request, schema, adapter output, normalized
-and expected answers, mechanical diff, tokens, cost and latency. Context V2.1
-remains `active=false`, and production admissions remain empty.
+repeats a claimed or consumed slot. A nonblocking OS-backed lease serializes
+the whole execute/resume section before auth, recovery or transport and is
+released on descriptor close or process death. A persistent git-common owner
+claim and atomic repository-scoped annotated-tag ref bind the plan, immutable
+head and external state-directory hash across processes and clones; the tag
+must never be deleted. Exact raw response evidence stays outside Git; the final
+transparent synthetic report contains the exact request, schema, adapter
+output, normalized and expected answers, mechanical diff, tokens, cost and
+latency. Context V2.1 remains `active=false`, and production admissions remain
+empty.
 
 **PRE-CALL STOP:** no GOAL 12 submission is authorized until the plan/harness
 commit has a real green `broker-reports-ci` GitHub Actions check on its exact

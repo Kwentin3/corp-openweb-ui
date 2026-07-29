@@ -1042,8 +1042,24 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             GOAL12_LIVE_RUNNER.read_text(encoding="utf-8")
         )
         main = _function_node(runner_tree, "main")
-        clean_head_lines = _call_lines(main, "_clean_repository_head")
-        actions_gate_lines = _call_lines(main, "_require_green_actions")
+        execute_delegate = _function_node(runner_tree, "_main_unleased")
+        lease_lines = _call_lines(main, "_execution_process_lease")
+        delegate_lines = _call_lines(main, "_main_unleased")
+        self.assertEqual(len(lease_lines), 1)
+        self.assertEqual(len(delegate_lines), 2)
+        self.assertLess(lease_lines[0], delegate_lines[-1])
+        self.assertIn(
+            "goal12_execution_process_lease_required",
+            _string_constants(execute_delegate),
+        )
+        clean_head_lines = _call_lines(
+            execute_delegate,
+            "_clean_repository_head",
+        )
+        actions_gate_lines = _call_lines(
+            execute_delegate,
+            "_require_green_actions",
+        )
         self.assertEqual(len(clean_head_lines), 1)
         self.assertEqual(len(actions_gate_lines), 1)
         self.assertLess(clean_head_lines[0], actions_gate_lines[0])

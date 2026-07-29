@@ -582,6 +582,222 @@ def test_private_state_create_restore_tamper_and_repo_boundary(
         )
 
 
+def test_process_lease_rejects_concurrent_resume_before_delegate(
+    authorities,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    plan = authorities["plan"]
+    lease_path = tmp_path / "execution-process-lease.lock"
+    state_path = tmp_path / "state.private.json"
+    delegated: list[Any] = []
+
+    monkeypatch.setattr(
+        CLI,
+        "_execution_process_lease_path",
+        lambda _plan_hash: lease_path,
+    )
+    monkeypatch.setattr(
+        CLI,
+        "_authorities",
+        lambda: (
+            authorities["registry"],
+            authorities["fixture"],
+            authorities["audit_manifest"],
+            plan,
+        ),
+    )
+
+    def fake_main_unleased(
+        *,
+        args,
+        resolved_authorities=None,
+        execution_process_lease=None,
+    ):
+        delegated.append((args, resolved_authorities))
+        assert execution_process_lease._stream is not None
+        return 17
+
+    monkeypatch.setattr(CLI, "_main_unleased", fake_main_unleased)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(CLI_PATH),
+            "--resume",
+            "--private-state-dir",
+            str(tmp_path / "private"),
+        ],
+    )
+
+    with CLI._execution_process_lease(plan.integrity_hash):
+        with pytest.raises(
+            RuntimeError,
+            match="goal12_execution_process_lease_unavailable",
+        ):
+            CLI.main()
+        assert delegated == []
+        assert not state_path.exists()
+
+    with pytest.raises(RuntimeError, match="synthetic holder failure"):
+        with CLI._execution_process_lease(plan.integrity_hash):
+            raise RuntimeError("synthetic holder failure")
+
+    assert CLI.main() == 17
+    assert len(delegated) == 1
+    assert delegated[0][0].resume is True
+    assert delegated[0][1][3] == plan
+
+
+def test_execute_resume_delegate_requires_a_held_process_lease() -> None:
+    with pytest.raises(
+        RuntimeError,
+        match="goal12_execution_process_lease_required",
+    ):
+        CLI._main_unleased(
+            args=SimpleNamespace(preflight_only=False),
+        )
+
+
+def test_execute_resume_delegate_rejects_wrong_plan_or_closed_lease(
+    authorities,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    plan = authorities["plan"]
+    resolved_authorities = (
+        authorities["registry"],
+        authorities["fixture"],
+        authorities["audit_manifest"],
+        plan,
+    )
+    wrong_plan_hash = "0" * 64
+    lease_paths = {
+        plan.integrity_hash: tmp_path / "right-plan.lock",
+        wrong_plan_hash: tmp_path / "wrong-plan.lock",
+    }
+    monkeypatch.setattr(
+        CLI,
+        "_execution_process_lease_path",
+        lambda plan_hash: lease_paths[plan_hash],
+    )
+    args = SimpleNamespace(preflight_only=False)
+
+    with CLI._execution_process_lease(wrong_plan_hash) as wrong_lease:
+        with pytest.raises(
+            RuntimeError,
+            match="goal12_execution_process_lease_required",
+        ):
+            CLI._main_unleased(
+                args=args,
+                resolved_authorities=resolved_authorities,
+                execution_process_lease=wrong_lease,
+            )
+
+    closed_lease = CLI._execution_process_lease(plan.integrity_hash)
+    closed_lease.__enter__()
+    assert closed_lease._stream is not None
+    closed_lease._stream.close()
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="goal12_execution_process_lease_required",
+        ):
+            CLI._main_unleased(
+                args=args,
+                resolved_authorities=resolved_authorities,
+                execution_process_lease=closed_lease,
+            )
+    finally:
+        closed_lease.__exit__(None, None, None)
+
+
+def test_process_lease_cannot_be_bypassed_with_abbreviated_resume(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(CLI_PATH),
+            "--res",
+            "--private-state-dir",
+            "unused",
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="2"):
+        CLI.main()
+
+
+def test_process_lease_is_released_when_holder_process_dies(
+    tmp_path,
+) -> None:
+    lease_path = tmp_path / "process-death-lease.lock"
+    holder_source = "\n".join(
+        (
+            "import importlib.util",
+            "import sys",
+            "import time",
+            "from pathlib import Path",
+            (
+                "spec = importlib.util.spec_from_file_location("
+                "'goal12_process_lease_holder', sys.argv[1])"
+            ),
+            "module = importlib.util.module_from_spec(spec)",
+            "sys.modules[spec.name] = module",
+            "spec.loader.exec_module(module)",
+            (
+                "lease = module._Goal12ExecutionProcessLease("
+                "Path(sys.argv[2]), plan_hash=sys.argv[3])"
+            ),
+            "lease.__enter__()",
+            "print('LEASED', flush=True)",
+            "time.sleep(60)",
+        )
+    )
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            holder_source,
+            str(CLI_PATH),
+            str(lease_path),
+            "a" * 64,
+        ],
+        cwd=REPO_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stderr is not None
+        ready = holder.stdout.readline().strip()
+        assert ready == "LEASED", holder.stderr.read()
+        with pytest.raises(
+            RuntimeError,
+            match="goal12_execution_process_lease_unavailable",
+        ):
+            with CLI._Goal12ExecutionProcessLease(
+                lease_path,
+                plan_hash="a" * 64,
+            ):
+                raise AssertionError("concurrent lease unexpectedly acquired")
+        holder.kill()
+        holder.wait(timeout=10)
+        with CLI._Goal12ExecutionProcessLease(
+            lease_path,
+            plan_hash="a" * 64,
+        ):
+            pass
+    finally:
+        if holder.poll() is None:
+            holder.kill()
+            holder.wait(timeout=10)
+
+
 def test_remote_execution_lock_is_atomic_owned_and_resume_safe(
     authorities,
     monkeypatch,

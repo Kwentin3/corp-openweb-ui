@@ -120,9 +120,12 @@ The one-shot runner stores private state outside every Git repository and
 worktree, HMAC-seals it, and flushes one permanent per-slot `O_EXCL` submission
 claim before marking the slot consumed. A git-common execution-owner claim plus
 an atomic repository-scoped annotated-tag ref bind the same plan, immutable PR
-head and external-directory hash across processes and clones. Resume restores
-or byte-validates terminal checkpoints; it never resubmits a claimed or
-consumed slot.
+head and external-directory hash across processes and clones. A separate
+nonblocking OS-backed lease serializes the whole execute/resume critical
+section before auth, recovery and transport; it is released by descriptor
+close or process death and never replaces the persistent claims. Resume
+restores or byte-validates terminal checkpoints; it never resubmits a claimed
+or consumed slot.
 
 `serialize_financial_semantic_v6_context_v2_1_budget_smoke_private_evidence`
 and

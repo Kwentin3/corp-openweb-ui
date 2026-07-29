@@ -115,8 +115,16 @@ is issued. Whitespace, multiple trailing slashes, case changes, explicit ports
 and alternate paths fail closed. The prepared request, transport snapshot and
 both hashes are rechecked before a submission.
 
-Before each allowed transport boundary, the runner creates a permanent
-per-slot `O_EXCL` submission claim outside Git, flushes it to disk, and only
+Before any execute/resume auth, state recovery or transport, the runner holds
+one nonblocking OS-backed process lease under repository git-common metadata.
+A concurrent process fails closed without touching private state or
+checkpoints. Descriptor close releases the transient lease on normal or
+exception exit; the operating system releases it on process death, so a later
+crash recovery can resume the persistent owner.
+
+Before each allowed transport boundary, the lease-holding runner creates a
+permanent per-slot `O_EXCL` submission claim outside Git, flushes it to disk,
+and only
 then marks the HMAC-sealed private state `consumed_pending_response`. Two
 concurrent `--resume` processes therefore cannot submit the same slot. Resume
 never resubmits a claimed or consumed slot. A claim without recoverable
