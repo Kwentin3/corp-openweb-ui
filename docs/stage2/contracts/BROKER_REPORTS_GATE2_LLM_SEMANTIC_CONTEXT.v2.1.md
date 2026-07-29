@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2.1
 
-Status: `IMPLEMENTED_NON_ACTIVE_THREE_PROVIDER_LOCAL_PROOF`
+Status: `IMPLEMENTED_NON_ACTIVE_GOAL12_FROZEN_PRECALL`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2_1`
@@ -43,10 +43,11 @@ The candidate is not part of `packet.payload`. The existing Choice authority
 builds one separately versioned inactive response profile. The existing Context
 Linter combines that exact candidate and schema with the unchanged Prompt,
 validates the private mapping receipt, and seals one provider-neutral request.
-The GOAL 11 zero-call coordinator then delegates provider projection/extraction,
+The GOAL 11 zero-call coordinator delegates provider projection/extraction,
 canonical materialization, Financial Domain persistence/restore and replay to
-their existing authorities. No live runtime route, provider transport or model
-qualification runner consumes it.
+their existing authorities. GOAL 12 adds a qualification-only live client and
+evidence path under those same owners. No product runtime route consumes
+Context V2.1, and the candidate remains inactive.
 
 The implemented
 [Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
@@ -66,6 +67,10 @@ current packet path does not build V2.0 per request.
 | complete-request lint and seal | additive `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` method under the existing linter owner; historical `create` unchanged | one inactive V2.1 request profile and private sealed-request receipt |
 | provider projection binding | adapter-owned `Gate2PreparedProviderRequest.validate_schema_binding`, `canonical_schema_is_bound` and additive `context_v2_1_contract_is_bound` | the adapter deterministically rebuilds the complete prepared request from the validated sealed request and repository profile, then compares the whole contract: messages, model, top-level shape, provider metadata, full projected schema, wrapper/name/strictness, transform count, hashes and `broker_reports_gate2_context_v2_1_local_schema_projection_v1` |
 | exact local evidence/replay | additive `Gate2FinancialSemanticV6DecisionEvidenceFactory.create_context_v2_1_candidate` and Context V2.1 serialize/restore/replay functions under the existing evidence owner | the sealed request is replay-validated against Packet/Choice authorities; restored adapter output and the exact rebuilt prepared request are compared before replay; no coordinator rerun or provider call |
+| GOAL 12 immutable plan | `Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory.create` | fixes provider-major 12-slot maximum, exact candidate identities, four audited cases, request parameters and full prepared-request hashes before transport |
+| qualification transport | `Gate2StructuredModelClientFactory.create` plus additive `extract_context_v2_1_once` | exact sealed request, economy budget and adapter binding are rechecked before one transport; no retry, repair or fallback |
+| live exact evidence/replay | additive `create_context_v2_1_budget_smoke_candidate` / `create_context_v2_1_budget_smoke_failure` and versioned restore/replay under the existing evidence owner | raw responses remain private outside Git; successful replay performs provider calls zero |
+| transparent qualification report | additive GOAL 12 case/report methods under `Gate2FinancialSemanticV6TransparentSmokeReportFactory` | exact synthetic request/output evidence, issued case tokens and separate technical/semantic benchmark-eligibility verdicts; no product admission |
 
 No V2.1 Packet factory, projection owner, Choice factory or semantic wording
 authority is introduced.
@@ -422,6 +427,43 @@ published in the [GOAL 11 transparent report](../../reports/2026-07-29/BROKER_RE
 the [safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json)
 contains only hashes and aggregate accounting.
 
-**STOP before GOAL 12:** no live provider smoke is authorized until the GOAL 11
-PR is fresh-reviewed on its immutable head, the real `broker-reports-ci` check
-is green and the PR is merged.
+## 12. GOAL 12 budget-model smoke
+
+GOAL 11 is merged. The separately versioned
+[GOAL 12 contract](./BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
+now governs qualification-only provider transport.
+
+The committed pre-call plan freezes OpenAI
+`gpt-5.4-nano-2026-03-17`, Anthropic
+`claude-haiku-4-5-20251001`, Google
+`models/gemini-3.1-flash-lite` and the same four synthetic semantic cases for
+each profile. The ceiling remains 12 submissions with exactly zero retry,
+repair and fallback.
+
+OpenAI and Anthropic have dated immutable IDs. The published Google value is a
+stable selector without a proven dated immutable identity. It is recorded
+honestly and must fail before transport unless that identity is proven before
+its first submission; failure does not block the other providers.
+
+The frozen transport policy is
+`direct_exact_provider_http_via_openwebui_connection_v1`. OpenWebUI resolves
+only the enabled Admin connection and credential; qualification does not use
+OpenWebUI `/api/chat/completions` or its filter/model middleware. The existing
+request builder and adapter own the exact direct provider request. Canonical
+base URL equality, the provider-specific transport snapshot/hash, `POST`, a
+`180` second timeout, redirects denied, ambient proxies disabled, a
+`1,048,576` byte response cap and retry `0` are rechecked before submission.
+
+Every allowed live slot uses a permanent per-slot `O_EXCL` claim followed by
+write-ahead consumption in an HMAC-sealed private external ledger. Resume never
+repeats a claimed or consumed slot. A git-common owner claim and atomic
+repository-scoped annotated-tag ref bind the plan, immutable head and external
+state-directory hash across processes and clones; the tag must never be
+deleted. Exact raw response evidence stays outside Git; the final transparent
+synthetic report contains the exact request, schema, adapter output, normalized
+and expected answers, mechanical diff, tokens, cost and latency. Context V2.1
+remains `active=false`, and production admissions remain empty.
+
+**PRE-CALL STOP:** no GOAL 12 submission is authorized until the plan/harness
+commit has a real green `broker-reports-ci` GitHub Actions check on its exact
+open, non-draft PR head, with exact workflow, run and job provenance.

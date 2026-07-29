@@ -116,6 +116,27 @@ private issuer opaque immutable case-evidence token. Отдельная proof va
 field-level diffs опубликованы в
 [GOAL 11 report](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md).
 
+GOAL 12 adds only a qualification-time, one-attempt Context V2.1 smoke path.
+Its [contract](docs/stage2/contracts/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
+and [immutable pre-call plan](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json)
+freeze 12 provider/case slots, exact requests and zero retry/repair/fallback.
+The plan is not execution evidence: provider submissions remain zero until the
+exact committed PR head has a green `broker-reports-ci` check. Context V2.1
+remains inactive and production admissions stay empty.
+The frozen transport policy is
+`direct_exact_provider_http_via_openwebui_connection_v1`: OpenWebUI supplies
+only the exact enabled Admin connection/credential; the runner never calls
+OpenWebUI `/api/chat/completions`. Direct provider requests use the three
+contract endpoints with a 180-second timeout, redirects denied, ambient
+proxies disabled, a 1 MiB response cap and retry `0`.
+The live runner binds one local git-common owner claim to an atomic,
+owner-bound repository tag
+`broker-reports-goal12-execution-lock-<plan_hash>`. The external private state
+is outside every Git worktree and HMAC-sealed. A permanent per-slot `O_EXCL`
+claim is flushed before transport, so concurrent resume or a new state
+directory cannot reset or duplicate the 12-slot budget. These claims are never
+deleted.
+
 ## Broker Reports CI
 
 Каждый pull request в `main` запускает
@@ -123,6 +144,10 @@ field-level diffs опубликованы в
 Стабильное имя GitHub check/job: `broker-reports-ci`. Workflow использует Python
 3.11 на `ubuntu-24.04`, read-only `GITHUB_TOKEN` и рабочий каталог
 `services/broker-reports-gate1-proof`.
+GOAL 12 additionally verifies that the PR is open and non-draft for the exact
+head, the check is owned by `github-actions` and linked to that PR, and the
+completed-success run is a `pull_request` run of exact workflow
+`Broker Reports CI` at `.github/workflows/broker-reports-ci.yml`.
 
 Локальное воспроизведение обязательного check из корня репозитория:
 
@@ -133,6 +158,7 @@ python scripts/build_openwebui_managed_financial_assets.py --check
 python scripts/build_gate2_financial_semantic_model_assets.py --check
 python scripts/build_gate2_financial_semantic_v5_execution.py --check
 python scripts/build_context_v2_1_three_provider_local_proof.py --check
+python scripts/build_context_v2_1_budget_smoke_plan.py --check
 python scripts/build_openwebui_pipe_bundle.py --target all
 git diff --exit-code -- openwebui_actions/broker_reports_gate1_pipe_bundled.py openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py
 python -m ruff check --no-cache --select E9,F63,F7,F82 .
@@ -142,6 +168,17 @@ python -m pytest -q `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_linter.py `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_linter.py `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_provider_proof.py `
+  tests/test_broker_reports_gate2_context_v2_1_budget_smoke_client.py `
+  tests/test_broker_reports_gate2_context_v2_1_budget_smoke_direct_transport.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_evidence.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_report.py `
+  tests/test_live_gate2_financial_semantic_v6_context_v2_1_three_provider_smoke.py `
+  tests/test_build_context_v2_1_budget_smoke_plan.py `
+  tests/test_broker_reports_gate2_model_clients.py `
+  tests/test_broker_reports_gate2_provider_execution.py `
+  tests/test_broker_reports_gate2_economy_budget.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_evidence.py `
   --tb=short
 python -m pytest -q `
   tests/test_broker_reports_gate_architecture.py `

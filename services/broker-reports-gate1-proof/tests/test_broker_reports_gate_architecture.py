@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import unittest
 from pathlib import Path
 
@@ -43,6 +44,34 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "broker_reports_gate1"
 REPOSITORY_ROOT = ROOT.parents[1]
 ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
+GOAL12_CONTRACT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md"
+)
+GOAL12_PRECALL_PLAN = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "reports"
+    / "2026-07-29"
+    / (
+        "BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_"
+        "GOAL12.precall.plan.safe.json"
+    )
+)
+GOAL12_LIVE_RUNNER = (
+    ROOT
+    / "scripts"
+    / (
+        "live_gate2_financial_semantic_v6_context_v2_1_"
+        "three_provider_smoke.py"
+    )
+)
+BROKER_REPORTS_CI_WORKFLOW = (
+    REPOSITORY_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
+)
 OPENWEBUI_ACTIONS = ROOT / "openwebui_actions"
 GENERATED_BUNDLES = (
     OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe_bundled.py",
@@ -410,6 +439,14 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             {
                 (
                     "gate2_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke.py"
+                ),
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke_plan.py"
+                ),
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
                     "provider_proof.py"
                 )
             },
@@ -419,12 +456,27 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             {
                 (
                     "gate2_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke_plan."
+                    "Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory"
+                ),
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
                     "provider_proof."
                     "Gate2FinancialSemanticV6ContextV21ProviderProofFactory"
                 )
             },
         )
-        self.assertEqual(public_context_v2_builders, set())
+        self.assertEqual(
+            public_context_v2_builders,
+            {
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke."
+                    "build_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke_plan"
+                )
+            },
+        )
         self.assertEqual(
             {
                 node.name
@@ -662,6 +714,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "replay_financial_semantic_v6_context_v2_1_decision",
                 "_context_v2_1_prepared_authority_is_valid",
                 "_context_v2_1_replay_authorities",
+                "_budget_smoke_request_authority",
+                "_budget_smoke_replay_authorities",
             },
         )
         for active_evidence_node in (
@@ -708,6 +762,319 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         for module_name in active_packet_consumers:
             self.assertIn("packet.payload", _attribute_paths(_tree(module_name)))
+
+    def test_goal12_precall_plan_is_frozen_non_active_and_bounded(self):
+        contract = GOAL12_CONTRACT.read_text(encoding="utf-8")
+        plan = json.loads(GOAL12_PRECALL_PLAN.read_text(encoding="utf-8"))
+        accounting = plan["execution_accounting"]
+        providers = plan["provider_model_parameter_ledger"]
+        slots = plan["slots"]
+
+        self.assertEqual(
+            plan["integrity_hash"],
+            "9191197bdc947d6ba86db3169ba0d8c911ef88423d611e2c4424a9379167cbab",
+        )
+        self.assertEqual(plan["status"], "frozen_preflight_not_executed")
+        self.assertTrue(plan["frozen"])
+        self.assertFalse(plan["active"])
+        self.assertFalse(plan["transport_executed"])
+        self.assertEqual(plan["production_admissions"], [])
+        self.assertEqual(
+            plan["provider_order"],
+            ["openai_gpt", "anthropic_claude", "google_gemini"],
+        )
+        self.assertEqual(len(slots), 12)
+        self.assertEqual(
+            accounting,
+            {
+                "fallback_total": 0,
+                "maximum_provider_submissions_total": 12,
+                "planned_slots_total": 12,
+                "provider_responses_total": 0,
+                "provider_submissions_total": 0,
+                "repair_total": 0,
+                "retry_total": 0,
+            },
+        )
+        self.assertTrue(
+            all(slot["maximum_provider_submissions"] == 1 for slot in slots)
+        )
+        self.assertTrue(
+            all(
+                slot[counter] == 0
+                for slot in slots
+                for counter in (
+                    "retry_total",
+                    "repair_total",
+                    "fallback_total",
+                )
+            )
+        )
+        self.assertTrue(
+            all(
+                provider["parameters"][flag] is False
+                for provider in providers
+                for flag in (
+                    "model_aliases_allowed",
+                    "runtime_model_override_allowed",
+                    "runtime_parameter_override_allowed",
+                    "retry_allowed",
+                    "repair_allowed",
+                    "fallback_allowed",
+                )
+            )
+        )
+
+        google = next(
+            provider
+            for provider in providers
+            if provider["provider_profile_id"] == "google_gemini"
+        )
+        self.assertEqual(
+            google["exact_model_id"],
+            "models/gemini-3.1-flash-lite",
+        )
+        self.assertFalse(google["immutable_model_id_proven"])
+        self.assertEqual(
+            google["model_identity_kind"],
+            "stable_selector_not_immutable",
+        )
+        self.assertEqual(
+            google["model_identity_caveat"],
+            "provider_inventory_has_no_dated_immutable_google_model_id",
+        )
+        self.assertTrue(
+            all(
+                slot["immutable_model_id_proven"] is False
+                for slot in slots
+                if slot["provider_profile_id"] == "google_gemini"
+            )
+        )
+
+        required_contract_markers = {
+            "# Broker Reports Gate 2 Context V2.1 Budget Model Smoke v1",
+            plan["integrity_hash"],
+            "`3 × 4 = 12` provider submissions",
+            "`active=false`",
+            "`production_admissions=[]`",
+            "real `broker-reports-ci` GitHub Actions check",
+            "fail closed\nbefore transport",
+        }
+        self.assertEqual(
+            sorted(
+                marker
+                for marker in required_contract_markers
+                if marker not in contract
+            ),
+            [],
+        )
+
+    def test_goal12_reuses_plan_client_evidence_and_report_authorities(self):
+        plan_module = (
+            "gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan"
+        )
+        coordinator_module = (
+            "gate2_financial_semantic_v6_context_v2_1_budget_smoke"
+        )
+        evidence_module = "gate2_financial_semantic_v6_evidence"
+        report_module = "gate2_financial_semantic_v6_smoke_report"
+        plan_tree = _tree(plan_module)
+        coordinator_tree = _tree(coordinator_module)
+        evidence_tree = _tree(evidence_module)
+        report_tree = _tree(report_module)
+
+        goal12_plan_factories = {
+            f"{path.stem}.{node.name}"
+            for path in PACKAGE.glob("*.py")
+            for node in ast.parse(
+                path.read_text(encoding="utf-8")
+            ).body
+            if isinstance(node, ast.ClassDef)
+            and "BudgetSmokePlanFactory" in node.name
+        }
+        self.assertEqual(
+            goal12_plan_factories,
+            {
+                (
+                    f"{plan_module}."
+                    "Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory"
+                )
+            },
+        )
+        self.assertIsNotNone(
+            _method_node(
+                plan_tree,
+                "Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory",
+                "create",
+            )
+        )
+        self.assertIsNotNone(
+            _method_node(
+                coordinator_tree,
+                "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator",
+                "execute_slot",
+            )
+        )
+        self.assertEqual(
+            _call_owners(
+                coordinator_module,
+                "extract_context_v2_1_once",
+            ),
+            {
+                (
+                    "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator."
+                    "execute_slot"
+                )
+            },
+        )
+        self.assertEqual(
+            _call_owners(
+                coordinator_module,
+                "create_context_v2_1_budget_smoke_candidate",
+            ),
+            {
+                (
+                    "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator."
+                    "execute_slot"
+                )
+            },
+        )
+        self.assertEqual(
+            _call_owners(
+                coordinator_module,
+                "create_context_v2_1_budget_smoke_failure",
+            ),
+            {
+                (
+                    "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator."
+                    "_failure_outcome"
+                )
+            },
+        )
+
+        for method_name in (
+            "create_context_v2_1_budget_smoke_candidate",
+            "create_context_v2_1_budget_smoke_failure",
+        ):
+            self.assertIsNotNone(
+                _method_node(
+                    evidence_tree,
+                    "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+                    method_name,
+                )
+            )
+        for function_name in (
+            (
+                "serialize_financial_semantic_v6_context_v2_1_"
+                "budget_smoke_private_evidence"
+            ),
+            (
+                "restore_financial_semantic_v6_context_v2_1_"
+                "budget_smoke_private_evidence"
+            ),
+            (
+                "validate_financial_semantic_v6_context_v2_1_"
+                "budget_smoke_evidence_bundle"
+            ),
+            (
+                "replay_financial_semantic_v6_context_v2_1_"
+                "budget_smoke_decision"
+            ),
+        ):
+            self.assertIsNotNone(_function_node(evidence_tree, function_name))
+        for method_name in (
+            "create_context_v2_1_budget_smoke_case",
+            "create_context_v2_1_budget_smoke_report",
+        ):
+            self.assertIsNotNone(
+                _method_node(
+                    report_tree,
+                    "Gate2FinancialSemanticV6TransparentSmokeReportFactory",
+                    method_name,
+                )
+            )
+
+        self.assertNotIn(evidence_module, _local_imports("gate2_model_clients"))
+        self.assertNotIn(report_module, _local_imports("gate2_model_clients"))
+        self.assertNotIn(
+            coordinator_module,
+            _local_imports("gate2_provider_adapters"),
+        )
+        self.assertNotIn(
+            coordinator_module,
+            _local_imports("gate2_model_requests"),
+        )
+
+    def test_goal12_google_and_ci_gates_precede_provider_transport(self):
+        coordinator_tree = _tree(
+            "gate2_financial_semantic_v6_context_v2_1_budget_smoke"
+        )
+        execute = _method_node(
+            coordinator_tree,
+            "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator",
+            "execute_slot",
+        )
+        identity_gate = next(
+            node
+            for node in ast.walk(execute)
+            if isinstance(node, ast.If)
+            and "slot.immutable_model_id_proven"
+            in _attribute_paths(node.test)
+        )
+        self.assertIn("_preflight_failure", _call_names(identity_gate))
+        self.assertTrue(
+            any(isinstance(node, ast.Return) for node in identity_gate.body)
+        )
+        self.assertTrue(
+            {
+                "consume_slot",
+                "extract_context_v2_1_once",
+            }.isdisjoint(_call_names(identity_gate))
+        )
+        consume_lines = _call_lines(execute, "consume_slot")
+        transport_lines = _call_lines(execute, "extract_context_v2_1_once")
+        self.assertEqual(len(consume_lines), 1)
+        self.assertEqual(len(transport_lines), 1)
+        self.assertLess(identity_gate.lineno, consume_lines[0])
+        self.assertLess(consume_lines[0], transport_lines[0])
+
+        runner_tree = ast.parse(
+            GOAL12_LIVE_RUNNER.read_text(encoding="utf-8")
+        )
+        main = _function_node(runner_tree, "main")
+        clean_head_lines = _call_lines(main, "_clean_repository_head")
+        actions_gate_lines = _call_lines(main, "_require_green_actions")
+        self.assertEqual(len(clean_head_lines), 1)
+        self.assertEqual(len(actions_gate_lines), 1)
+        self.assertLess(clean_head_lines[0], actions_gate_lines[0])
+        actions_gate = _function_node(runner_tree, "_require_green_actions")
+        self.assertTrue(
+            {
+                "success",
+                "goal12_actions_not_green_for_head",
+            }.issubset(_string_constants(actions_gate))
+        )
+        self.assertIn(
+            "BROKER_REPORTS_ACTIONS_JOB_NAME",
+            {
+                node.id
+                for node in ast.walk(actions_gate)
+                if isinstance(node, ast.Name)
+            },
+        )
+        self.assertIn("broker-reports-ci", _string_constants(runner_tree))
+        self.assertIn(
+            ".github/workflows/broker-reports-ci.yml",
+            _string_constants(runner_tree),
+        )
+
+        workflow = BROKER_REPORTS_CI_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("on:\n  pull_request:", workflow)
+        self.assertEqual(workflow.count("name: broker-reports-ci"), 1)
+        self.assertIn(
+            "python scripts/build_context_v2_1_budget_smoke_plan.py --check",
+            workflow,
+        )
 
     def test_model_choice_schema_contains_only_minimal_choice_fields(self):
         schema = _choice_schema(("opaque_typed_option",))
@@ -870,10 +1237,15 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "Gate2OpenWebUIStructuredModelClient",
             "extract",
         )
-        admission_lines = _call_lines(extract, "prepare_call")
-        transport_lines = (
-            _call_lines(extract, "invoke_native_once")
-            + _call_lines(extract, "_invoke_completion_once")
+        context_v2_1_extract = _method_node(
+            _tree("gate2_model_clients"),
+            "Gate2OpenWebUIStructuredModelClient",
+            "extract_context_v2_1_once",
+        )
+        execute_prepared = _method_node(
+            _tree("gate2_model_clients"),
+            "Gate2OpenWebUIStructuredModelClient",
+            "_execute_prepared_once",
         )
 
         self.assertEqual(
@@ -881,7 +1253,12 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             {
                 "gate2_financial_semantic_v5_qualification",
                 "gate2_financial_semantic_v6_qualification",
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
+                    "budget_smoke"
+                ),
                 "gate2_model_clients",
+                "gate2_provider_adapters",
             },
         )
         self.assertTrue(
@@ -897,9 +1274,51 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             ),
             {"Gate2StructuredModelClientFactory.create"},
         )
-        self.assertEqual(len(admission_lines), 1)
-        self.assertTrue(transport_lines)
-        self.assertLess(admission_lines[0], min(transport_lines))
+        for extraction_method in (extract, context_v2_1_extract):
+            admission_lines = _call_lines(
+                extraction_method,
+                "prepare_call",
+            )
+            execution_lines = _call_lines(
+                extraction_method,
+                "_execute_prepared_once",
+            )
+            self.assertEqual(len(admission_lines), 1)
+            self.assertEqual(len(execution_lines), 1)
+            self.assertLess(admission_lines[0], execution_lines[0])
+        transport_lines = (
+            _call_lines(execute_prepared, "invoke_native_once")
+            + _call_lines(execute_prepared, "_invoke_completion_once")
+            + _call_lines(
+                execute_prepared,
+                "invoke_context_v2_1_budget_smoke_once",
+            )
+        )
+        self.assertEqual(len(transport_lines), 3)
+        direct_transport_callers = {
+            path.stem
+            for path in PACKAGE.glob("*.py")
+            if _call_owners(
+                path.stem,
+                "invoke_context_v2_1_budget_smoke_once",
+            )
+        }
+        self.assertEqual(
+            direct_transport_callers,
+            {"gate2_model_clients"},
+        )
+        self.assertEqual(
+            _call_owners(
+                "gate2_model_clients",
+                "invoke_context_v2_1_budget_smoke_once",
+            ),
+            {
+                (
+                    "Gate2OpenWebUIStructuredModelClient."
+                    "_execute_prepared_once"
+                )
+            },
+        )
 
     def test_unclassified_retention_is_code_owned(self):
         tree = _tree("gate2_financial_semantic_v6_expansion")

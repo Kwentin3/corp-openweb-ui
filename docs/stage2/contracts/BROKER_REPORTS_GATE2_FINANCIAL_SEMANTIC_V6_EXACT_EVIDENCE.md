@@ -5,15 +5,20 @@ packet evidence historical; non-active Context V2.1 candidate/private receipt,
 inactive local Choice response profile and provider-neutral sealed request
 implemented; GOAL 11 three-provider local projection, materialization,
 Financial Domain persistence/restore and exact replay implemented with zero
-provider calls; live Context V2.1 model qualification not implemented.
+provider calls; GOAL 12 live Context V2.1 budget-smoke evidence,
+failure checkpoint, persistence/restore and exact offline replay implemented
+against the frozen pre-call plan, but no GOAL 12 provider submission has run.
 
 ## Private evidence
 
 `Gate2FinancialSemanticV6DecisionEvidenceFactory.create` is the active V6
 semantic-call evidence boundary. Its additive
 `create_context_v2_1_candidate` method is the only GOAL 11 zero-call candidate
-evidence boundary. The two paths share the same owner rather than introducing
-a parallel evidence factory. For each active call the owner preserves
+evidence boundary. Its additive
+`create_context_v2_1_budget_smoke_candidate` and
+`create_context_v2_1_budget_smoke_failure` methods are the only GOAL 12
+terminal evidence boundaries. The paths share the same owner rather than
+introducing a parallel evidence factory. For each active call the owner preserves
 privately:
 
 - the exact canonical request and full response-format identity;
@@ -86,6 +91,64 @@ sealed-request/projection path. A caller cannot change those private fields,
 update their internal authority hashes, reseal the document and pass replay:
 the external trusted comparison fails first.
 
+## GOAL 12 live budget-smoke evidence
+
+The GOAL 12 evidence owner is bound to the immutable pre-call plan, exact plan
+slot and operation identity. A successful terminal response preserves
+privately:
+
+- the exact sealed request, model-visible request, prepared request and final
+  provider request;
+- the frozen `direct_exact_provider_http_via_openwebui_connection_v1` policy,
+  canonical endpoint, exact transport-contract snapshot and its hash;
+- the provider-visible schema and all adapter/schema authority hashes;
+- the complete raw provider response and independently re-extracted adapter
+  output;
+- the normalized Choice, frozen expected answer and full mechanical
+  field-level diff;
+- Expansion, validation and materialized Financial Domain evidence;
+- provider execution metadata, budget receipt, token/cost/latency metrics and
+  exact one-submission accounting.
+
+An infrastructure, provider or invalid-response failure receives a separate
+terminal private checkpoint. It preserves the raw available output, request
+authority, exact failure code/class/category and lifecycle accounting. A slot
+whose model identity was not proven immutable may only produce
+`infrastructure_provider_failure` with zero submissions and zero responses.
+
+The one-shot runner stores private state outside every Git repository and
+worktree, HMAC-seals it, and flushes one permanent per-slot `O_EXCL` submission
+claim before marking the slot consumed. A git-common execution-owner claim plus
+an atomic repository-scoped annotated-tag ref bind the same plan, immutable PR
+head and external-directory hash across processes and clones. Resume restores
+or byte-validates terminal checkpoints; it never resubmits a claimed or
+consumed slot.
+
+`serialize_financial_semantic_v6_context_v2_1_budget_smoke_private_evidence`
+and
+`restore_financial_semantic_v6_context_v2_1_budget_smoke_private_evidence`
+preserve exact ordered private evidence and reject duplicate keys, non-finite
+numbers, shape drift and hash-link tampering. The success-only
+`replay_financial_semantic_v6_context_v2_1_budget_smoke_decision` rebuilds the
+trusted request and adapter authorities, independently extracts the stored raw
+response, reruns Choice/Expansion/validation/materialization and requires
+exact equality with both private evidence and the safe receipt. Replay records
+zero new provider submissions, responses, retries, repairs and fallbacks.
+Failure checkpoints are terminal evidence and are deliberately not replayed
+as successful semantic decisions.
+
+The repository-safe receipt contains only bounded identity, verdicts, counts,
+metrics and hashes. Exact prompts, source values, normalized answers, provider
+response IDs and raw transport envelopes remain outside Git. The pre-call
+plan is repository-safe; it is not execution evidence and makes no green-suite
+or provider-quality claim.
+
+No transport is evidence-eligible until the runner proves the exact head has
+an open, non-draft PR and completed-success `broker-reports-ci` check owned by
+GitHub Actions, associated with the same pull-request workflow run and exact
+job. This provenance is stored in the private execution evidence and reduced
+to bounded hashes/identities in repository-safe output.
+
 ## Context V2.0 historical packet evidence and current V2.1 boundary
 
 The non-active
@@ -136,11 +199,12 @@ only those issued tokens; it never accepts raw or resealed proof dictionaries.
 Token projection revalidates its integrity hash, closed field sets, frozen
 synthetic cases, governed answers and exact request/output comparison.
 
-The live evidence/restorer/replay path remains bound to the active exact-ID
-request and historical candidate. Context V2.0 persistence, restore and replay
-are `NOT_IMPLEMENTED_NOT_RUN`. Context V2.1 now has a separate non-active,
-zero-call, synthetic local proof; this does not change live execution identity
-or imply model qualification.
+The historical live evidence/restorer/replay path remains bound to its active
+exact-ID request. Context V2.0 persistence, restore and replay are
+`NOT_IMPLEMENTED_NOT_RUN`. Context V2.1 has the separate non-active, zero-call,
+synthetic GOAL 11 proof and the frozen but unexecuted GOAL 12 live evidence
+path. Neither changes runtime activation nor implies model qualification
+before actual terminal GOAL 12 evidence exists.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.
@@ -150,6 +214,15 @@ Current repository-safe GOAL 11 evidence:
 - [analytical report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md);
 - [exact synthetic transparent report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.transparent.json);
 - [privacy-safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json).
+
+Current repository-safe GOAL 12 pre-call evidence:
+
+- [frozen transparent plan](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.transparent.json);
+- [privacy-safe plan](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json).
+
+These files record zero provider submissions. Terminal GOAL 12 result links
+must be added only after the exact pre-call commit passes GitHub Actions and
+the one-shot runner actually completes.
 
 The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
 deterministic candidate bytes,

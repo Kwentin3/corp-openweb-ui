@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
@@ -17,6 +18,31 @@ CONTEXT_V2_1_PROVIDER_PROOF_CASE_SCHEMA_VERSION = (
 )
 CONTEXT_V2_1_PROVIDER_PROOF_REPORT_SCHEMA_VERSION = (
     "broker_reports_gate2_context_v2_1_three_provider_local_proof_v1"
+)
+CONTEXT_V2_1_BUDGET_SMOKE_CASE_SCHEMA_VERSION = (
+    "broker_reports_gate2_context_v2_1_budget_smoke_case_v1"
+)
+CONTEXT_V2_1_BUDGET_SMOKE_REPORT_SCHEMA_VERSION = (
+    "broker_reports_gate2_context_v2_1_three_provider_budget_smoke_report_v1"
+)
+TECHNICAL_SMOKE_PASSED = "TECHNICAL_SMOKE_PASSED"
+TECHNICAL_SMOKE_FAILED = "TECHNICAL_SMOKE_FAILED"
+SEMANTIC_SMOKE_PASSED = "SEMANTIC_SMOKE_PASSED"
+SEMANTIC_SMOKE_FAILED = "SEMANTIC_SMOKE_FAILED"
+_CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE = "direct_provider_http"
+CONTEXT_V2_1_BUDGET_SMOKE_ERROR_CATEGORIES = (
+    "wrong_typed_type",
+    "unsafe_typed",
+    "safe_under_typing",
+    "wrong_unclassified_reason",
+    "invalid_response",
+    "infrastructure_provider_failure",
+)
+BUDGET_SMOKE_FACTORY_REQUIRED = (
+    "Gate2FinancialSemanticV6TransparentSmokeReportFactory."
+    "create_context_v2_1_budget_smoke_case and "
+    "create_context_v2_1_budget_smoke_report are the only GOAL 12 "
+    "transparent report projection entrypoints"
 )
 CONTEXT_V2_1_PROVIDER_PROOF_CASES = {
     "syn_successor_v2_unique_cash": "typed_safe_1",
@@ -173,6 +199,7 @@ _PACKET_FIELDS = (
     "typed_options",
 )
 _CONTEXT_V2_1_REPORT_CASE_AUTHORITY = object()
+_CONTEXT_V2_1_BUDGET_SMOKE_REPORT_CASE_AUTHORITY = object()
 
 
 class Gate2FinancialSemanticV6TransparentSmokeReportError(ValueError):
@@ -224,6 +251,49 @@ class Gate2FinancialSemanticV6ContextV21ReportCaseEvidence:
         return copy.deepcopy(projection)
 
 
+class Gate2FinancialSemanticV6ContextV21BudgetSmokeReportCaseEvidence:
+    __slots__ = ("__serialized_projection",)
+
+    def __init__(
+        self,
+        *,
+        serialized_projection: str,
+        authority: object,
+    ) -> None:
+        if authority is not _CONTEXT_V2_1_BUDGET_SMOKE_REPORT_CASE_AUTHORITY:
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "budget_smoke_report_case_evidence_invalid"
+            )
+        object.__setattr__(
+            self,
+            "_Gate2FinancialSemanticV6ContextV21BudgetSmoke"
+            "ReportCaseEvidence__serialized_projection",
+            serialized_projection,
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError(
+            "Gate2FinancialSemanticV6ContextV21BudgetSmoke"
+            "ReportCaseEvidence is immutable"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        try:
+            projection = json.loads(self.__serialized_projection)
+        except (TypeError, ValueError) as exc:
+            raise Gate2FinancialSemanticV6TransparentSmokeReportError(
+                "financial_semantic_v6_context_v2_1_"
+                "budget_smoke_report_case_evidence_invalid"
+            ) from exc
+        if not _context_v2_1_budget_smoke_case_projection_is_valid(projection):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "budget_smoke_report_case_evidence_invalid"
+            )
+        return copy.deepcopy(projection)
+
+
 def _issue_context_v2_1_provider_case_evidence(
     *,
     validated_projection: dict[str, Any],
@@ -245,7 +315,239 @@ def _issue_context_v2_1_provider_case_evidence(
     )
 
 
+def _issue_context_v2_1_budget_smoke_report_case_evidence(
+    *,
+    validated_projection: dict[str, Any],
+) -> Gate2FinancialSemanticV6ContextV21BudgetSmokeReportCaseEvidence:
+    if not _context_v2_1_budget_smoke_case_projection_is_valid(validated_projection):
+        _fail(
+            "financial_semantic_v6_context_v2_1_"
+            "budget_smoke_report_case_evidence_invalid"
+        )
+    return Gate2FinancialSemanticV6ContextV21BudgetSmokeReportCaseEvidence(
+        serialized_projection=json.dumps(
+            validated_projection,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ),
+        authority=(_CONTEXT_V2_1_BUDGET_SMOKE_REPORT_CASE_AUTHORITY),
+    )
+
+
 class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
+    def create_context_v2_1_budget_smoke_case(
+        self,
+        *,
+        plan: Any,
+        plan_slot: Any,
+        evidence_bundle: Any,
+    ) -> Gate2FinancialSemanticV6ContextV21BudgetSmokeReportCaseEvidence:
+        private_evidence, safe_receipt = (
+            _validated_context_v2_1_budget_smoke_evidence_bundle(
+                plan=plan,
+                plan_slot=plan_slot,
+                evidence_bundle=evidence_bundle,
+            )
+        )
+        model_visible_request = private_evidence["exact_model_visible_request"]
+        messages = model_visible_request.get("messages")
+        exact_prepared_request = private_evidence["exact_prepared_request"]
+        execution_accounting = private_evidence["execution_accounting"]
+        provider_metrics = private_evidence["provider_metrics"]
+        normalized_answer = private_evidence["normalized_semantic_choice"]
+        expected_answer = private_evidence["expected_answer"]
+        comparison = copy.deepcopy(private_evidence["field_level_diff"])
+        provider = {
+            "provider_id": plan_slot.provider_id,
+            "provider_profile_id": plan_slot.provider_profile_id,
+            "provider_profile_revision": (plan_slot.provider_profile_revision),
+            "adapter_id": plan_slot.provider_adapter_id,
+            "adapter_version": plan_slot.provider_adapter_version,
+            "exact_model_id": plan_slot.exact_model_id,
+            "model_identity_kind": plan_slot.model_identity_kind,
+            "immutable_model_id_proven": (plan_slot.immutable_model_id_proven),
+            "model_identity_caveat": (plan_slot.model_identity_caveat),
+            "request_profile": plan_slot.request_profile,
+            "transport_policy": private_evidence["transport_policy"],
+            "transport_contract": copy.deepcopy(private_evidence["transport_contract"]),
+            "transport_contract_hash": private_evidence["transport_contract_hash"],
+            "schema_projection_policy_version": (
+                private_evidence["schema_projection_policy_version"]
+            ),
+            "canonical_schema_hash": exact_prepared_request["canonical_schema_hash"],
+            "adapted_schema_hash": exact_prepared_request["adapted_schema_hash"],
+            "schema_transform_count": exact_prepared_request["schema_transform_count"],
+        }
+        draft = {
+            "schema_version": (CONTEXT_V2_1_BUDGET_SMOKE_CASE_SCHEMA_VERSION),
+            "plan_integrity_hash": plan.integrity_hash,
+            "slot_integrity_hash": plan_slot.integrity_hash,
+            "ordinal": plan_slot.ordinal,
+            "slot_id": plan_slot.slot_id,
+            "case_id": plan_slot.case_id,
+            "taxonomy_state": plan_slot.taxonomy_state,
+            "provider": provider,
+            "exact_synthetic_final_provider_request": copy.deepcopy(
+                private_evidence["exact_final_provider_request"]
+            ),
+            "exact_system_message": messages[0]["content"],
+            "exact_user_content": messages[1]["content"],
+            "exact_provider_visible_response_schema": copy.deepcopy(
+                private_evidence["provider_visible_schema"]
+            ),
+            "exact_adapter_extracted_output": copy.deepcopy(
+                private_evidence["adapter_extracted_output"]
+            ),
+            "normalized_canonical_answer": copy.deepcopy(normalized_answer),
+            "audited_expected_answer": copy.deepcopy(expected_answer),
+            "mechanical_diff": comparison,
+            "execution_accounting": {
+                "local_invocations_total": execution_accounting[
+                    "local_invocations_total"
+                ],
+                "provider_submissions_total": execution_accounting[
+                    "provider_submissions_total"
+                ],
+                "provider_responses_total": execution_accounting[
+                    "provider_responses_total"
+                ],
+                "semantic_repair_total": execution_accounting["semantic_repair_total"],
+                "retry_total": execution_accounting["retry_total"],
+                "repair_total": execution_accounting["repair_total"],
+                "fallback_total": execution_accounting["fallback_total"],
+            },
+            "actual_metrics": {
+                "input_tokens": provider_metrics["input_tokens"],
+                "output_tokens": provider_metrics["output_tokens"],
+                "cost_usd": provider_metrics["actual_cost_usd"],
+                "latency_ms": provider_metrics["latency_ms"],
+            },
+            "technical_smoke_verdict": private_evidence["technical_verdict"],
+            "semantic_smoke_verdict": private_evidence["semantic_verdict"],
+            "error_category": private_evidence["error_category"],
+            "evidence_hashes": {
+                "private_evidence_hash": private_evidence["private_evidence_hash"],
+                "safe_receipt_hash": safe_receipt["receipt_hash"],
+            },
+        }
+        projection = {
+            **draft,
+            "integrity_hash": _sha256_json(draft),
+        }
+        if not _context_v2_1_budget_smoke_case_projection_is_valid(projection):
+            _fail(
+                "financial_semantic_v6_context_v2_1_"
+                "budget_smoke_report_projection_invalid"
+            )
+        return _issue_context_v2_1_budget_smoke_report_case_evidence(
+            validated_projection=projection
+        )
+
+    def create_context_v2_1_budget_smoke_report(
+        self,
+        *,
+        plan: Any,
+        case_evidence: list[Any],
+    ) -> dict[str, Any]:
+        try:
+            from .gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan import (
+                BUDGET_SMOKE_PROVIDER_MODELS,
+                validate_financial_semantic_v6_context_v2_1_budget_smoke_plan,
+            )
+
+            validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(plan)
+        except (ImportError, ValueError) as exc:
+            raise Gate2FinancialSemanticV6TransparentSmokeReportError(
+                "financial_semantic_v6_context_v2_1_budget_smoke_report_plan_invalid"
+            ) from exc
+        if not isinstance(case_evidence, list):
+            _fail(
+                "financial_semantic_v6_context_v2_1_budget_smoke_report_cases_invalid"
+            )
+        if any(
+            type(item)
+            is not (Gate2FinancialSemanticV6ContextV21BudgetSmokeReportCaseEvidence)
+            for item in case_evidence
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_budget_smoke_report_cases_invalid"
+            )
+        try:
+            projections = [item.to_dict() for item in case_evidence]
+        except Gate2FinancialSemanticV6TransparentSmokeReportError:
+            _fail(
+                "financial_semantic_v6_context_v2_1_budget_smoke_report_cases_invalid"
+            )
+        by_slot_hash = {item["slot_integrity_hash"]: item for item in projections}
+        if len(projections) != len(plan.slots) or len(by_slot_hash) != len(plan.slots):
+            _fail(
+                "financial_semantic_v6_context_v2_1_budget_smoke_report_cases_invalid"
+            )
+        ordered = []
+        for slot in plan.slots:
+            item = by_slot_hash.get(slot.integrity_hash)
+            if item is None or not _context_v2_1_budget_smoke_case_matches_slot(
+                projection=item,
+                plan=plan,
+                slot=slot,
+            ):
+                _fail(
+                    "financial_semantic_v6_context_v2_1_"
+                    "budget_smoke_report_cases_invalid"
+                )
+            ordered.append(copy.deepcopy(item))
+
+        provider_verdicts = []
+        for provider_profile_id, exact_model_id in BUDGET_SMOKE_PROVIDER_MODELS:
+            provider_cases = [
+                item
+                for item in ordered
+                if item["provider"]["provider_profile_id"] == provider_profile_id
+            ]
+            if len(provider_cases) != 4:
+                _fail(
+                    "financial_semantic_v6_context_v2_1_"
+                    "budget_smoke_report_cases_invalid"
+                )
+            provider_verdicts.append(
+                _context_v2_1_budget_smoke_provider_verdict(
+                    provider_profile_id=provider_profile_id,
+                    exact_model_id=exact_model_id,
+                    cases=provider_cases,
+                )
+            )
+
+        execution_accounting = {
+            field: sum(item["execution_accounting"][field] for item in ordered)
+            for field in (
+                "local_invocations_total",
+                "provider_submissions_total",
+                "provider_responses_total",
+                "semantic_repair_total",
+                "retry_total",
+                "repair_total",
+                "fallback_total",
+            )
+        }
+        draft = {
+            "schema_version": (CONTEXT_V2_1_BUDGET_SMOKE_REPORT_SCHEMA_VERSION),
+            "status": "completed",
+            "plan_integrity_hash": plan.integrity_hash,
+            "active": False,
+            "production_admissions": [],
+            "provider_profiles_total": 3,
+            "frozen_plan_slots_total": 12,
+            "cases": ordered,
+            "provider_verdicts": provider_verdicts,
+            "execution_accounting": execution_accounting,
+        }
+        return {
+            **draft,
+            "integrity_hash": _sha256_json(draft),
+        }
+
     def create_context_v2_1_provider_case(
         self,
         *,
@@ -754,6 +1056,656 @@ class Gate2FinancialSemanticV6TransparentSmokeReportFactory:
             ]
         )
         return "\n".join(lines)
+
+
+def _validated_context_v2_1_budget_smoke_evidence_bundle(
+    *,
+    plan: Any,
+    plan_slot: Any,
+    evidence_bundle: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    try:
+        from .gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan import (
+            Gate2FinancialSemanticV6ContextV21BudgetSmokePlanSlot,
+            financial_semantic_v6_context_v2_1_budget_smoke_operation_identity,
+            validate_financial_semantic_v6_context_v2_1_budget_smoke_plan,
+        )
+        from . import (
+            gate2_financial_semantic_v6_evidence as evidence_module,
+        )
+
+        validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(plan)
+        if (
+            type(plan_slot)
+            is not (Gate2FinancialSemanticV6ContextV21BudgetSmokePlanSlot)
+            or plan_slot not in plan.slots
+        ):
+            raise ValueError("budget_smoke_report_authority_invalid")
+        valid_bundle_types = {
+            (
+                evidence_module.Gate2FinancialSemanticV6ContextV21BudgetSmokeEvidenceBundle
+            ),
+            (
+                evidence_module.Gate2FinancialSemanticV6ContextV21BudgetSmokeFailureEvidenceBundle
+            ),
+        }
+        if type(evidence_bundle) not in valid_bundle_types:
+            raise ValueError("budget_smoke_report_authority_invalid")
+        (
+            evidence_module.validate_financial_semantic_v6_context_v2_1_budget_smoke_evidence_bundle(
+                evidence_bundle=evidence_bundle,
+                plan=plan,
+                plan_slot=plan_slot,
+            )
+        )
+        operation_identity = (
+            financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
+                plan=plan,
+                slot=plan_slot,
+            )
+        )
+        private_evidence = copy.deepcopy(evidence_bundle.private_evidence)
+        safe_receipt = copy.deepcopy(evidence_bundle.safe_receipt)
+    except (ImportError, KeyError, TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6TransparentSmokeReportError(
+            "financial_semantic_v6_context_v2_1_budget_smoke_report_authority_invalid"
+        ) from exc
+    required_private_fields = {
+        "case_id",
+        "plan_integrity_hash",
+        "plan_slot_id",
+        "plan_slot_ordinal",
+        "plan_slot_integrity_hash",
+        "provider_profile_id",
+        "provider_profile_revision",
+        "provider_id",
+        "provider_adapter_id",
+        "provider_adapter_version",
+        "exact_model_id",
+        "model_identity_kind",
+        "immutable_model_id_proven",
+        "model_identity_caveat",
+        "operation_identity",
+        "request_profile",
+        "transport_policy",
+        "transport_contract",
+        "transport_contract_hash",
+        "exact_model_visible_request",
+        "exact_prepared_request",
+        "exact_final_provider_request",
+        "provider_visible_schema",
+        "schema_projection_policy_version",
+        "adapter_extracted_output",
+        "normalized_semantic_choice",
+        "expected_answer",
+        "field_level_diff",
+        "technical_verdict",
+        "semantic_verdict",
+        "error_category",
+        "provider_metrics",
+        "execution_accounting",
+        "private_evidence_hash",
+    }
+    if (
+        not isinstance(private_evidence, dict)
+        or not required_private_fields <= set(private_evidence)
+        or not isinstance(safe_receipt, dict)
+        or not _sha256_text(safe_receipt.get("receipt_hash"))
+        or private_evidence["plan_integrity_hash"] != plan.integrity_hash
+        or private_evidence["plan_slot_id"] != plan_slot.slot_id
+        or private_evidence["plan_slot_ordinal"] != plan_slot.ordinal
+        or private_evidence["plan_slot_integrity_hash"] != plan_slot.integrity_hash
+        or private_evidence["case_id"] != plan_slot.case_id
+        or private_evidence["provider_profile_id"] != plan_slot.provider_profile_id
+        or private_evidence["provider_profile_revision"]
+        != plan_slot.provider_profile_revision
+        or private_evidence["provider_id"] != plan_slot.provider_id
+        or private_evidence["provider_adapter_id"] != plan_slot.provider_adapter_id
+        or private_evidence["provider_adapter_version"]
+        != plan_slot.provider_adapter_version
+        or private_evidence["exact_model_id"] != plan_slot.exact_model_id
+        or private_evidence["model_identity_kind"] != plan_slot.model_identity_kind
+        or private_evidence["immutable_model_id_proven"]
+        is not plan_slot.immutable_model_id_proven
+        or private_evidence["model_identity_caveat"] != plan_slot.model_identity_caveat
+        or private_evidence["operation_identity"] != operation_identity
+        or private_evidence["request_profile"] != plan_slot.request_profile
+        or private_evidence["transport_policy"] != plan_slot.transport_policy
+        or private_evidence["transport_contract"] != plan_slot.transport_contract
+        or private_evidence["transport_contract_hash"]
+        != plan_slot.transport_contract_hash
+        or _sha256_json(private_evidence["transport_contract"])
+        != plan_slot.transport_contract_hash
+        or private_evidence["prepared_request_hash"] != plan_slot.prepared_request_hash
+        or private_evidence["provider_visible_schema_hash"]
+        != plan_slot.provider_visible_schema_hash
+        or private_evidence["expected_answer_hash"] != plan_slot.expected_answer_hash
+        or _sha256_json(private_evidence["exact_prepared_request"])
+        != plan_slot.prepared_request_hash
+        or _sha256_json(private_evidence["expected_answer"])
+        != plan_slot.expected_answer_hash
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_budget_smoke_report_authority_invalid"
+        )
+    messages = private_evidence["exact_model_visible_request"].get("messages")
+    if (
+        not isinstance(messages, list)
+        or len(messages) != 2
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"role", "content"}
+            or not isinstance(item.get("content"), str)
+            for item in messages
+        )
+        or messages[0]["role"] != "system"
+        or messages[1]["role"] != "user"
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_budget_smoke_report_authority_invalid"
+        )
+    return private_evidence, safe_receipt
+
+
+def _context_v2_1_budget_smoke_case_projection_is_valid(
+    projection: Any,
+) -> bool:
+    if not isinstance(projection, dict):
+        return False
+    material = copy.deepcopy(projection)
+    integrity_hash = material.pop("integrity_hash", None)
+    if (
+        not _sha256_text(integrity_hash)
+        or _sha256_json(material) != integrity_hash
+        or set(projection)
+        != {
+            "schema_version",
+            "plan_integrity_hash",
+            "slot_integrity_hash",
+            "ordinal",
+            "slot_id",
+            "case_id",
+            "taxonomy_state",
+            "provider",
+            "exact_synthetic_final_provider_request",
+            "exact_system_message",
+            "exact_user_content",
+            "exact_provider_visible_response_schema",
+            "exact_adapter_extracted_output",
+            "normalized_canonical_answer",
+            "audited_expected_answer",
+            "mechanical_diff",
+            "execution_accounting",
+            "actual_metrics",
+            "technical_smoke_verdict",
+            "semantic_smoke_verdict",
+            "error_category",
+            "evidence_hashes",
+            "integrity_hash",
+        }
+        or projection.get("schema_version")
+        != CONTEXT_V2_1_BUDGET_SMOKE_CASE_SCHEMA_VERSION
+        or not _sha256_text(projection.get("plan_integrity_hash"))
+        or not _sha256_text(projection.get("slot_integrity_hash"))
+        or not isinstance(projection.get("ordinal"), int)
+        or projection["ordinal"] < 1
+        or not isinstance(projection.get("slot_id"), str)
+        or not projection["slot_id"]
+        or not isinstance(projection.get("case_id"), str)
+        or not projection["case_id"]
+        or not isinstance(projection.get("taxonomy_state"), str)
+        or not projection["taxonomy_state"]
+        or not isinstance(
+            projection.get("exact_synthetic_final_provider_request"),
+            dict,
+        )
+        or not isinstance(
+            projection.get("exact_provider_visible_response_schema"),
+            dict,
+        )
+        or not isinstance(projection.get("exact_system_message"), str)
+        or not isinstance(projection.get("exact_user_content"), str)
+        or not _context_v2_1_answer_is_valid(projection.get("audited_expected_answer"))
+    ):
+        return False
+    provider = projection.get("provider")
+    if (
+        not isinstance(provider, dict)
+        or set(provider)
+        != {
+            "provider_id",
+            "provider_profile_id",
+            "provider_profile_revision",
+            "adapter_id",
+            "adapter_version",
+            "exact_model_id",
+            "model_identity_kind",
+            "immutable_model_id_proven",
+            "model_identity_caveat",
+            "request_profile",
+            "transport_policy",
+            "transport_contract",
+            "transport_contract_hash",
+            "schema_projection_policy_version",
+            "canonical_schema_hash",
+            "adapted_schema_hash",
+            "schema_transform_count",
+        }
+        or any(
+            not isinstance(provider.get(field), str) or not provider[field]
+            for field in (
+                "provider_id",
+                "provider_profile_id",
+                "adapter_id",
+                "adapter_version",
+                "exact_model_id",
+                "model_identity_kind",
+                "request_profile",
+                "transport_policy",
+                "schema_projection_policy_version",
+            )
+        )
+        or not _sha256_text(provider.get("provider_profile_revision"))
+        or not _sha256_text(provider.get("canonical_schema_hash"))
+        or not _sha256_text(provider.get("adapted_schema_hash"))
+        or not isinstance(provider.get("transport_contract"), dict)
+        or not _sha256_text(provider.get("transport_contract_hash"))
+        or _sha256_json(provider["transport_contract"])
+        != provider["transport_contract_hash"]
+        or provider["transport_contract"].get("transport_policy")
+        != provider["transport_policy"]
+        or provider["transport_contract"].get("actual_transport_type")
+        != _CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE
+        or type(provider.get("immutable_model_id_proven")) is not bool
+        or (
+            provider.get("model_identity_caveat") is not None
+            and not isinstance(
+                provider.get("model_identity_caveat"),
+                str,
+            )
+        )
+        or not isinstance(provider.get("schema_transform_count"), int)
+        or provider["schema_transform_count"] < 0
+    ):
+        return False
+    expected = projection["audited_expected_answer"]
+    actual = projection.get("normalized_canonical_answer")
+    if actual is not None and not _context_v2_1_answer_is_valid(actual):
+        return False
+    expected_diff = _context_v2_1_budget_smoke_mechanical_diff(
+        expected=expected,
+        actual=actual,
+    )
+    if projection.get("mechanical_diff") != expected_diff:
+        return False
+    accounting = projection.get("execution_accounting")
+    if (
+        not isinstance(accounting, dict)
+        or set(accounting)
+        != {
+            "local_invocations_total",
+            "provider_submissions_total",
+            "provider_responses_total",
+            "semantic_repair_total",
+            "retry_total",
+            "repair_total",
+            "fallback_total",
+        }
+        or any(
+            type(accounting.get(field)) is not int or accounting[field] < 0
+            for field in accounting
+        )
+        or accounting["local_invocations_total"] > 1
+        or accounting["provider_submissions_total"] > 1
+        or accounting["provider_responses_total"]
+        > accounting["provider_submissions_total"]
+        or any(
+            accounting[field] != 0
+            for field in (
+                "retry_total",
+                "semantic_repair_total",
+                "repair_total",
+                "fallback_total",
+            )
+        )
+    ):
+        return False
+    metrics = projection.get("actual_metrics")
+    if (
+        not isinstance(metrics, dict)
+        or set(metrics)
+        != {
+            "input_tokens",
+            "output_tokens",
+            "cost_usd",
+            "latency_ms",
+        }
+        or not _optional_non_negative_integer(metrics["input_tokens"])
+        or not _optional_non_negative_integer(metrics["output_tokens"])
+        or not _optional_non_negative_integer(metrics["latency_ms"])
+        or not _optional_non_negative_decimal_text(metrics["cost_usd"])
+    ):
+        return False
+    category = projection.get("error_category")
+    technical = projection.get("technical_smoke_verdict")
+    semantic = projection.get("semantic_smoke_verdict")
+    expected_category = _context_v2_1_budget_smoke_semantic_category(
+        expected=expected,
+        actual=actual,
+    )
+    if technical == TECHNICAL_SMOKE_PASSED:
+        if (
+            accounting["local_invocations_total"] != 1
+            or accounting["provider_submissions_total"] != 1
+            or accounting["provider_responses_total"] != 1
+            or any(value is None for value in metrics.values())
+            or category != expected_category
+            or semantic
+            != (
+                SEMANTIC_SMOKE_PASSED
+                if expected_category is None
+                else SEMANTIC_SMOKE_FAILED
+            )
+        ):
+            return False
+    elif technical == TECHNICAL_SMOKE_FAILED:
+        if (
+            semantic != SEMANTIC_SMOKE_FAILED
+            or category
+            not in {
+                "invalid_response",
+                "infrastructure_provider_failure",
+            }
+            or actual is not None
+            or expected_diff["all_fields_match"]
+        ):
+            return False
+    else:
+        return False
+    if (
+        category is not None
+        and category not in CONTEXT_V2_1_BUDGET_SMOKE_ERROR_CATEGORIES
+    ):
+        return False
+    evidence_hashes = projection.get("evidence_hashes")
+    if (
+        not isinstance(evidence_hashes, dict)
+        or set(evidence_hashes) != {"private_evidence_hash", "safe_receipt_hash"}
+        or any(
+            not _sha256_text(evidence_hashes.get(field)) for field in evidence_hashes
+        )
+    ):
+        return False
+    return not _contains_forbidden_budget_smoke_report_key(projection)
+
+
+def _context_v2_1_budget_smoke_case_matches_slot(
+    *,
+    projection: dict[str, Any],
+    plan: Any,
+    slot: Any,
+) -> bool:
+    provider = projection.get("provider")
+    if not isinstance(provider, dict):
+        return False
+    exact_prepared_request = {
+        "form_data": projection.get("exact_synthetic_final_provider_request"),
+        "provider_visible_schema": projection.get(
+            "exact_provider_visible_response_schema"
+        ),
+        "provider_adapter_id": provider.get("adapter_id"),
+        "canonical_schema_hash": provider.get("canonical_schema_hash"),
+        "adapted_schema_hash": provider.get("adapted_schema_hash"),
+        "schema_transform_count": provider.get("schema_transform_count"),
+        "projection_policy_version": provider.get("schema_projection_policy_version"),
+    }
+    return (
+        projection.get("plan_integrity_hash") == plan.integrity_hash
+        and projection.get("slot_integrity_hash") == slot.integrity_hash
+        and projection.get("ordinal") == slot.ordinal
+        and projection.get("slot_id") == slot.slot_id
+        and projection.get("case_id") == slot.case_id
+        and projection.get("taxonomy_state") == slot.taxonomy_state
+        and provider.get("provider_id") == slot.provider_id
+        and provider.get("provider_profile_id") == slot.provider_profile_id
+        and provider.get("provider_profile_revision") == slot.provider_profile_revision
+        and provider.get("adapter_id") == slot.provider_adapter_id
+        and provider.get("adapter_version") == slot.provider_adapter_version
+        and provider.get("exact_model_id") == slot.exact_model_id
+        and provider.get("model_identity_kind") == slot.model_identity_kind
+        and provider.get("immutable_model_id_proven") is slot.immutable_model_id_proven
+        and provider.get("model_identity_caveat") == slot.model_identity_caveat
+        and provider.get("request_profile") == slot.request_profile
+        and provider.get("transport_policy") == slot.transport_policy
+        and provider.get("transport_contract") == slot.transport_contract
+        and provider.get("transport_contract_hash") == slot.transport_contract_hash
+        and _sha256_json(provider.get("transport_contract"))
+        == slot.transport_contract_hash
+        and _sha256_json(exact_prepared_request) == slot.prepared_request_hash
+        and _sha256_json(projection.get("exact_provider_visible_response_schema"))
+        == slot.provider_visible_schema_hash
+        and _sha256_json(projection.get("audited_expected_answer"))
+        == slot.expected_answer_hash
+        and (
+            slot.immutable_model_id_proven
+            or (
+                projection.get("error_category") == "infrastructure_provider_failure"
+                and projection["execution_accounting"]["provider_submissions_total"]
+                == 0
+                and projection["execution_accounting"]["provider_responses_total"] == 0
+            )
+        )
+    )
+
+
+def _context_v2_1_budget_smoke_provider_verdict(
+    *,
+    provider_profile_id: str,
+    exact_model_id: str,
+    cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    accounting = {
+        field: sum(item["execution_accounting"][field] for item in cases)
+        for field in (
+            "local_invocations_total",
+            "provider_submissions_total",
+            "provider_responses_total",
+            "semantic_repair_total",
+            "retry_total",
+            "repair_total",
+            "fallback_total",
+        )
+    }
+    category_counts = {
+        category: sum(item["error_category"] == category for item in cases)
+        for category in CONTEXT_V2_1_BUDGET_SMOKE_ERROR_CATEGORIES
+    }
+    technical_exact = (
+        all(item["technical_smoke_verdict"] == TECHNICAL_SMOKE_PASSED for item in cases)
+        and accounting["provider_submissions_total"] == 4
+        and accounting["provider_responses_total"] == 4
+    )
+    four_answers_exact = all(
+        item["semantic_smoke_verdict"] == SEMANTIC_SMOKE_PASSED
+        and item["mechanical_diff"]["all_fields_match"] is True
+        for item in cases
+    )
+    zero_retry_repair_fallback = all(
+        accounting[field] == 0
+        for field in (
+            "semantic_repair_total",
+            "retry_total",
+            "repair_total",
+            "fallback_total",
+        )
+    )
+    admission_eligible = (
+        technical_exact
+        and four_answers_exact
+        and category_counts["unsafe_typed"] == 0
+        and category_counts["invalid_response"] == 0
+        and zero_retry_repair_fallback
+        and all(item["provider"]["immutable_model_id_proven"] is True for item in cases)
+    )
+    input_values = [item["actual_metrics"]["input_tokens"] for item in cases]
+    output_values = [item["actual_metrics"]["output_tokens"] for item in cases]
+    cost_values = [item["actual_metrics"]["cost_usd"] for item in cases]
+    latency_values = [item["actual_metrics"]["latency_ms"] for item in cases]
+    return {
+        "provider_id": cases[0]["provider"]["provider_id"],
+        "provider_profile_id": provider_profile_id,
+        "provider_profile_revision": cases[0]["provider"]["provider_profile_revision"],
+        "adapter_id": cases[0]["provider"]["adapter_id"],
+        "adapter_version": cases[0]["provider"]["adapter_version"],
+        "exact_model_id": exact_model_id,
+        "model_identity_kind": cases[0]["provider"]["model_identity_kind"],
+        "immutable_model_id_proven": cases[0]["provider"]["immutable_model_id_proven"],
+        "model_identity_caveat": cases[0]["provider"]["model_identity_caveat"],
+        "transport_policy": cases[0]["provider"]["transport_policy"],
+        "transport_contract": copy.deepcopy(cases[0]["provider"]["transport_contract"]),
+        "transport_contract_hash": cases[0]["provider"]["transport_contract_hash"],
+        "technical_smoke_verdict": (
+            TECHNICAL_SMOKE_PASSED if technical_exact else TECHNICAL_SMOKE_FAILED
+        ),
+        "semantic_smoke_verdict": (
+            SEMANTIC_SMOKE_PASSED if four_answers_exact else SEMANTIC_SMOKE_FAILED
+        ),
+        "cases_total": len(cases),
+        "answers_exact_total": sum(
+            item["mechanical_diff"]["all_fields_match"] is True for item in cases
+        ),
+        "error_category_counts": category_counts,
+        "execution_accounting": accounting,
+        "actual_metrics": {
+            "input_tokens_total": (
+                sum(input_values)
+                if all(value is not None for value in input_values)
+                else None
+            ),
+            "output_tokens_total": (
+                sum(output_values)
+                if all(value is not None for value in output_values)
+                else None
+            ),
+            "cost_usd_total": (
+                _decimal_total(cost_values)
+                if all(value is not None for value in cost_values)
+                else None
+            ),
+            "latency_ms_total": (
+                sum(latency_values)
+                if all(value is not None for value in latency_values)
+                else None
+            ),
+        },
+        "acceptance": {
+            "technical_pipeline_exact": technical_exact,
+            "four_answers_exact": four_answers_exact,
+            "unsafe_typed_total": category_counts["unsafe_typed"],
+            "invalid_response_total": category_counts["invalid_response"],
+            "retry_repair_fallback_total": sum(
+                accounting[field]
+                for field in (
+                    "semantic_repair_total",
+                    "retry_total",
+                    "repair_total",
+                    "fallback_total",
+                )
+            ),
+        },
+        "admission_eligible": admission_eligible,
+    }
+
+
+def _context_v2_1_budget_smoke_mechanical_diff(
+    *,
+    expected: dict[str, Any],
+    actual: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return _mechanical_comparison(
+        expected=expected,
+        actual=actual,
+    )
+
+
+def _context_v2_1_budget_smoke_semantic_category(
+    *,
+    expected: dict[str, Any],
+    actual: dict[str, Any] | None,
+) -> str | None:
+    if actual is None:
+        return None
+    if actual == expected:
+        return None
+    expected_typed = expected.get("disposition") == "typed_input"
+    actual_typed = actual.get("disposition") == "typed_input"
+    if expected_typed and actual_typed:
+        return "wrong_typed_type"
+    if not expected_typed and actual_typed:
+        return "unsafe_typed"
+    if expected_typed and not actual_typed:
+        return "safe_under_typing"
+    return "wrong_unclassified_reason"
+
+
+def _optional_non_negative_integer(value: Any) -> bool:
+    return value is None or (type(value) is int and value >= 0)
+
+
+def _optional_non_negative_decimal_text(value: Any) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation:
+        return False
+    return parsed.is_finite() and parsed >= 0
+
+
+def _decimal_total(values: list[str]) -> str:
+    total = sum((Decimal(value) for value in values), Decimal("0"))
+    return format(total, "f")
+
+
+def _contains_forbidden_budget_smoke_report_key(value: Any) -> bool:
+    forbidden = {
+        "api_key",
+        "authorization",
+        "credential",
+        "credentials",
+        "failure_class",
+        "failure_code",
+        "filesystem_path",
+        "hidden_reasoning",
+        "provider_response_id",
+        "raw_output",
+        "raw_provider_response",
+        "reasoning_content",
+    }
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "semantic_headers":
+                if item not in (
+                    {
+                        "authorization": "Bearer",
+                        "content-type": "application/json",
+                    },
+                    {
+                        "anthropic-version": "2023-06-01",
+                        "authorization": "x-api-key",
+                        "content-type": "application/json",
+                    },
+                ):
+                    return True
+                continue
+            if key in forbidden or (_contains_forbidden_budget_smoke_report_key(item)):
+                return True
+        return False
+    if isinstance(value, list):
+        return any(_contains_forbidden_budget_smoke_report_key(item) for item in value)
+    return False
 
 
 def _context_v2_1_case_projection_is_valid(
