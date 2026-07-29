@@ -404,10 +404,26 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            list(PACKAGE.glob("*context_v2*.py")),
-            [],
+            {
+                path.name for path in PACKAGE.glob("*context_v2*.py")
+            },
+            {
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
+                    "provider_proof.py"
+                )
+            },
         )
-        self.assertEqual(context_v2_factories, set())
+        self.assertEqual(
+            context_v2_factories,
+            {
+                (
+                    "gate2_financial_semantic_v6_context_v2_1_"
+                    "provider_proof."
+                    "Gate2FinancialSemanticV6ContextV21ProviderProofFactory"
+                )
+            },
+        )
         self.assertEqual(public_context_v2_builders, set())
         self.assertEqual(
             {
@@ -568,7 +584,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "gate2_financial_semantic_v6_qualification_run",
         )
         sealed_modules = (
-            *active_packet_consumers,
+            "gate2_financial_semantic_v6_qualification_run",
             "gate2_financial_semantic_v6_expansion",
             "gate2_financial_semantic_v6_prompt",
             "gate2_financial_semantic_v6_totality",
@@ -606,6 +622,83 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 },
                 sidecar_fields,
             )
+        evidence_tree = _tree("gate2_financial_semantic_v6_evidence")
+        evidence_sidecar_owners = set()
+        for node in evidence_tree.body:
+            candidates = (
+                (
+                    (node.name, node),
+                )
+                if isinstance(
+                    node,
+                    (ast.FunctionDef, ast.AsyncFunctionDef),
+                )
+                else (
+                    tuple(
+                        (f"{node.name}.{method.name}", method)
+                        for method in node.body
+                        if isinstance(
+                            method,
+                            (ast.FunctionDef, ast.AsyncFunctionDef),
+                        )
+                    )
+                    if isinstance(node, ast.ClassDef)
+                    else ()
+                )
+            )
+            for owner, candidate in candidates:
+                if any(
+                    path.rsplit(".", 1)[-1] in sidecar_fields
+                    for path in _attribute_paths(candidate)
+                ):
+                    evidence_sidecar_owners.add(owner)
+        self.assertEqual(
+            evidence_sidecar_owners,
+            {
+                (
+                    "Gate2FinancialSemanticV6DecisionEvidenceFactory."
+                    "create_context_v2_1_candidate"
+                ),
+                "replay_financial_semantic_v6_context_v2_1_decision",
+                "_context_v2_1_prepared_authority_is_valid",
+                "_context_v2_1_replay_authorities",
+            },
+        )
+        for active_evidence_node in (
+            _method_node(
+                evidence_tree,
+                "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+                "create",
+            ),
+            _function_node(
+                evidence_tree,
+                "replay_financial_semantic_v6_decision",
+            ),
+            _function_node(
+                evidence_tree,
+                "financial_semantic_v6_canonical_request",
+            ),
+        ):
+            self.assertTrue(
+                all(
+                    path.rsplit(".", 1)[-1] not in sidecar_fields
+                    for path in _attribute_paths(active_evidence_node)
+                )
+            )
+        proof_paths = _attribute_paths(
+            _tree(
+                "gate2_financial_semantic_v6_context_v2_1_"
+                "provider_proof"
+            )
+        )
+        self.assertEqual(
+            {
+                path.rsplit(".", 1)[-1]
+                for path in proof_paths
+                if path.rsplit(".", 1)[-1] in sidecar_fields
+            },
+            sidecar_fields,
+        )
         linter_paths = _attribute_paths(
             _tree("gate2_financial_semantic_v6_context_linter")
         )

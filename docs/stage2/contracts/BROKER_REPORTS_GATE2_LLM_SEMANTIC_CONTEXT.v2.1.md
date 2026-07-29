@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2.1
 
-Status: `IMPLEMENTED_NON_ACTIVE_CONTEXT_CHOICE_AND_SEALED_REQUEST`
+Status: `IMPLEMENTED_NON_ACTIVE_THREE_PROVIDER_LOCAL_PROOF`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2_1`
@@ -22,6 +22,9 @@ Sealed-request receipt:
 Provider-neutral request profile:
 `broker_reports_gate2_financial_semantic_v6_request_v2_1_candidate`
 
+Non-active provider schema projection policy:
+`broker_reports_gate2_context_v2_1_local_schema_projection_v1`
+
 ## 1. Purpose and boundary
 
 Context V2.1 is the sole current minimal model-facing successor candidate for
@@ -38,10 +41,12 @@ For every validated semantic operation, that owner constructs:
 
 The candidate is not part of `packet.payload`. The existing Choice authority
 builds one separately versioned inactive response profile. The existing Context
-Linter authority is the only additional consumer: it combines that exact
-candidate and schema with the unchanged Prompt, validates the private mapping
-receipt, and seals one provider-neutral request. No provider adapter, runtime
-route, persistence path, replay path or qualification runner consumes it.
+Linter combines that exact candidate and schema with the unchanged Prompt,
+validates the private mapping receipt, and seals one provider-neutral request.
+The GOAL 11 zero-call coordinator then delegates provider projection/extraction,
+canonical materialization, Financial Domain persistence/restore and replay to
+their existing authorities. No live runtime route, provider transport or model
+qualification runner consumes it.
 
 The implemented
 [Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
@@ -59,6 +64,8 @@ current packet path does not build V2.0 per request.
 | candidate and receipt construction | `Gate2FinancialSemanticV6PacketFactory.create` | one current candidate and one receipt |
 | response schema and parsing | existing V6 Choice owner | one inactive V2.1 profile restores only through the private receipt |
 | complete-request lint and seal | additive `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` method under the existing linter owner; historical `create` unchanged | one inactive V2.1 request profile and private sealed-request receipt |
+| provider projection binding | adapter-owned `Gate2PreparedProviderRequest.validate_schema_binding`, `canonical_schema_is_bound` and additive `context_v2_1_contract_is_bound` | the adapter deterministically rebuilds the complete prepared request from the validated sealed request and repository profile, then compares the whole contract: messages, model, top-level shape, provider metadata, full projected schema, wrapper/name/strictness, transform count, hashes and `broker_reports_gate2_context_v2_1_local_schema_projection_v1` |
+| exact local evidence/replay | additive `Gate2FinancialSemanticV6DecisionEvidenceFactory.create_context_v2_1_candidate` and Context V2.1 serialize/restore/replay functions under the existing evidence owner | the sealed request is replay-validated against Packet/Choice authorities; restored adapter output and the exact rebuilt prepared request are compared before replay; no coordinator rerun or provider call |
 
 No V2.1 Packet factory, projection owner, Choice factory or semantic wording
 authority is introduced.
@@ -357,18 +364,64 @@ Construction fails closed instead of issuing a transport-eligible request on
 any mismatch or budget overflow. The receipt references the private mapping
 receipt by integrity hash and never duplicates its private rows.
 
-## 11. Current stop
+## 11. GOAL 11 local provider proof
 
-GOAL 10 adds only the inactive provider-neutral request, its lint/budget guard
-and private receipt through existing owners. It does not add:
+GOAL 11 keeps this contract inactive and composes existing owners for OpenAI,
+Anthropic and Google:
 
-- OpenAI, Anthropic or Google request projection;
-- provider response extraction or adapter consumption;
-- provider calls, retries, fallback or semantic repair;
-- active Expansion support for the third V2.1 reason;
-- persistence, restore, replay or report materialization;
-- runtime or production admission.
+```text
+Context V2.1 -> linter -> request builder -> provider adapter projection
+-> simulated response -> adapter extraction -> V2.1 Choice restoration
+-> candidate-only Expansion -> canonical validation/materialization
+-> exact private evidence serialize/restore -> offline evidence replay
+-> Financial Domain persistence/restore and replay reconstruction
+-> transparent report projection
+```
 
-**STOP before GOAL 11:** provider-specific local end-to-end proof may start only
-after this GOAL 10 PR is fresh-reviewed on its immutable head, the real
-`broker-reports-ci` check is green and the PR is merged.
+All three adapters pass the four governed semantic fixtures. Provider-visible
+`choice` and `reason` enums are preserved, including Gemini projection. The
+additive projection behavior is bound to
+`broker_reports_gate2_context_v2_1_local_schema_projection_v1` in every
+prepared request, private-evidence authority set, replay and report. Canonical
+adapter versions are not relabelled because this policy is non-active,
+request-shape-specific proof identity; any future transport activation must
+carry and qualify it explicitly. The
+third reason is admitted only by the explicit V2.1 candidate path; active V6
+Choice schema/hash stays unchanged during the proof. Provider calls, repair,
+fallback, retry and runtime activation are zero.
+
+The candidate-only adapter entrypoint accepts exactly one terminal provider
+envelope: `finish_reason=stop` for OpenAI/Google or `stop_reason=end_turn` for
+Anthropic. It then rebuilds the complete expected provider request through the
+canonical request builder and repository adapter and requires exact equality.
+Legacy active `extract_content` behavior is unchanged.
+
+Replay does not rerun the coordinator from its original Python inputs. It
+restores the serialized exact private evidence, parses the preserved adapter
+output again, and checks its profile, adapter, projection-policy, exact final
+request and provider-visible schema against the freshly reconstructed trusted
+projection before expansion, materialization and snapshot reconstruction.
+Resealing drifted private fields and their hashes therefore fails closed.
+
+Public
+`Gate2FinancialSemanticV6TransparentSmokeReportFactory.create_context_v2_1_provider_case`
+returns only a raw closed projection and has no evidence-minting authority.
+`Gate2FinancialSemanticV6ContextV21ProviderProofFactory.create_case` incorporates
+that projection into an unissued full proof, independently recomputes the same
+unissued proof from the governed inputs and requires exact equality. Only then
+may its private authority issue one opaque immutable case-evidence token.
+Independent canonical full-proof validation follows. The repository-safe
+aggregate accepts only the issued token, never a raw or resealed proof
+dictionary. When projected, the token revalidates its closed field sets,
+integrity hash, four frozen GOAL 10 `model_visible_request_sha256` baselines,
+governed expected answers, repository provider tuple and field comparison
+before producing the 12-case aggregate.
+
+Exact synthetic requests, schemas, extracted outputs and field-level diffs are
+published in the [GOAL 11 transparent report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.transparent.json);
+the [safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json)
+contains only hashes and aggregate accounting.
+
+**STOP before GOAL 12:** no live provider smoke is authorized until the GOAL 11
+PR is fresh-reviewed on its immutable head, the real `broker-reports-ci` check
+is green and the PR is merged.

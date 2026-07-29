@@ -175,13 +175,13 @@ Unchanged:
 - active Packet bytes and hashes;
 - historical Local Choice v1 schema, parser and hashes;
 - Context V2.1 payload and private mapping receipt;
-- Prompt, Expansion, materialization and totality;
-- provider adapters and execution identity;
+- Prompt and active Expansion/materialization/totality paths;
+- provider execution identity and live transport;
 - managed assets, benchmark expectations and runtime admission.
 
-Not owned or implemented by this Choice contract:
+Not owned by this Choice contract:
 
-- provider-specific schema projection;
+- provider-specific schema projection or response-envelope extraction;
 - provider calls or qualification;
 - persistence, replay, benchmark execution or runtime activation.
 
@@ -190,5 +190,10 @@ GOAL 10 consumes this profile only through additive
 inactive provider-neutral sealed request. It neither changes nor reconstructs
 the Choice schema. Choice-owned public validation binds the schema's exact
 model-order bytes, so reordered fields cannot retain acceptance merely because
-the canonical integrity serializer sorts keys. Provider-specific projection
-remains stopped before GOAL 11.
+the canonical integrity serializer sorts keys.
+
+GOAL 11 consumes the sealed request through existing OpenAI, Anthropic and
+Google adapters, then returns adapter-extracted output to this parser. The
+existing Expansion/decision factories expose an additive candidate-only path
+for all three reasons; active V6 remains unchanged. Exact synthetic evidence is
+in the [GOAL 11 report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md).

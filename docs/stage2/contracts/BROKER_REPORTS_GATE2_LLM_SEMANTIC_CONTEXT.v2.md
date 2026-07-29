@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2
 
-Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt, inactive Choice profile and inactive provider-neutral sealed request implemented; provider projection/use, persistence and replay not implemented.
+Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt, Choice profile, provider-neutral sealed request and zero-call three-provider local materialization/replay proof implemented; live provider use and runtime activation not implemented.
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2`
@@ -29,10 +29,11 @@ names are intentionally distinct:
 - **Slim View v2** is an implemented historical candidate conforming to
   Context v1;
 - **Semantic Context V2** is this contract. Its packet-owned candidate and
-  private mapping receipt are implemented as non-active sidecars. The later
-  V2.1 program also implements a separately versioned inactive local Choice
-  profile and inactive provider-neutral complete-request linter; its provider
-  projection/use, persistence and replay are not implemented.
+   private mapping receipt are implemented as non-active sidecars. The later
+   V2.1 program also implements a separately versioned inactive local Choice
+   profile, provider-neutral complete-request linter and three-provider
+   synthetic local projection/materialization/replay proof. Live provider use
+   and runtime activation are not implemented.
 
 The V2.0 design target was a specialist-facing completeness card. The model
 view receives source meaning, evidence-derived structure, managed type
@@ -1414,8 +1415,9 @@ The governing successor sequence is:
 6. GOAL 10 adds the inactive V2.1 sealed-request budget guard through
    `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1`,
    consuming P01-P18 without inventing a Choice schema;
-7. **STOP before GOAL 11:** provider-specific projection and local end-to-end
-   proof require reviewed, green, merged GOAL 10.
+7. GOAL 11 proves three provider-specific projections and the local
+   materialization/persistence/replay path with zero provider calls;
+8. **STOP before GOAL 12:** live smoke requires reviewed, green, merged GOAL 11.
 
 The GOAL 10 linter protects the contracted full P01-P18 V2.1 surface. It does
 not cement the complete V2.0 field set
@@ -1815,8 +1817,9 @@ PACKET_OWNED_MAPPING_RECEIPT: IMPLEMENTED_PRIVATE
 ACTIVE_PACKET_BYTES: FROZEN_BY_EXACT_BASELINES
 HISTORICAL_SLIM: UNCHANGED
 LOCAL_CHOICE_V2: NOT_IMPLEMENTED
-CONTEXT_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED_SEPARATE_AUTHORIZATION_REQUIRED
-CONTEXT_LINTER_V2_1: BLOCKED_BY_RESPONSE_PROFILE_STOP_GOAL_9
+CONTEXT_V2_1_RESPONSE_PROFILE: IMPLEMENTED_NON_ACTIVE_SEPARATE_CONTRACT
+CONTEXT_LINTER_V2_1: IMPLEMENTED_NON_ACTIVE_SEPARATE_CONTRACT
+CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF: IMPLEMENTED_ZERO_CALL
 REQUEST_PROFILE_V2: NOT_IMPLEMENTED
 PERSISTENCE_REPLAY_V2: NOT_IMPLEMENTED
 PROVIDER_CALLS: ZERO

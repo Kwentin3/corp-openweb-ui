@@ -254,6 +254,16 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
         / "broker_reports_gate1"
         / "gate2_financial_semantic_v6_choice.py"
     )
+    candidate_canonical_path = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate2_financial_semantic_v6_canonical.py"
+    )
+    candidate_smoke_report_path = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate2_financial_semantic_v6_smoke_report.py"
+    )
     for path in (SERVICE_ROOT / "broker_reports_gate1").glob("*.py"):
         if path == MODULE_PATH:
             continue
@@ -262,11 +272,135 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
         if path not in {
             inactive_model_assets_path,
             inactive_choice_profile_path,
+            candidate_canonical_path,
+            candidate_smoke_report_path,
         }:
             assert NEW_REASON_CODE not in active_source
     choice_source = inactive_choice_profile_path.read_text(encoding="utf-8")
     assert choice_source.count(NEW_REASON_CODE) == 1
     assert "CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES" in choice_source
+
+    canonical_tree = ast.parse(
+        candidate_canonical_path.read_text(encoding="utf-8")
+    )
+    reason_literal_owners = set()
+    for node in canonical_tree.body:
+        candidates = (
+            [(node.name, node)]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            else (
+                [
+                    (f"{node.name}.{method.name}", method)
+                    for method in node.body
+                    if isinstance(
+                        method,
+                        (ast.FunctionDef, ast.AsyncFunctionDef),
+                    )
+                ]
+                if isinstance(node, ast.ClassDef)
+                else []
+            )
+        )
+        for owner, candidate in candidates:
+            if any(
+                isinstance(item, ast.Constant)
+                and item.value == NEW_REASON_CODE
+                for item in ast.walk(candidate)
+            ):
+                reason_literal_owners.add(owner)
+    assert reason_literal_owners == {
+        (
+            "_Gate2FinancialSemanticV6ContextV21DecisionContract."
+            "_parse_unclassified"
+        ),
+        "_context_v2_1_candidate_contract",
+    }
+    canonical_factory = next(
+        node
+        for node in canonical_tree.body
+        if isinstance(node, ast.ClassDef)
+        and node.name
+        == "Gate2FinancialSemanticV6CanonicalDecisionContractFactory"
+    )
+    active_create = next(
+        node
+        for node in canonical_factory.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "create"
+    )
+    assert all(
+        not isinstance(item, ast.Constant)
+        or item.value != NEW_REASON_CODE
+        for item in ast.walk(active_create)
+    )
+    active_context_flags = [
+        keyword.value
+        for item in ast.walk(active_create)
+        if isinstance(item, ast.Call)
+        for keyword in item.keywords
+        if keyword.arg == "context_v2_1_candidate"
+    ]
+    assert len(active_context_flags) == 1
+    assert isinstance(active_context_flags[0], ast.Constant)
+    assert active_context_flags[0].value is False
+
+    smoke_report_tree = ast.parse(
+        candidate_smoke_report_path.read_text(encoding="utf-8")
+    )
+    literal_assignments = {
+        target.id
+        for node in smoke_report_tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        for target in (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+        )
+        if isinstance(target, ast.Name)
+        and any(
+            isinstance(item, ast.Constant)
+            and item.value == NEW_REASON_CODE
+            for item in ast.walk(node.value)
+        )
+    }
+    assert literal_assignments == {
+        "CONTEXT_V2_1_PROVIDER_PROOF_EXPECTED_ANSWERS",
+        "CONTEXT_V2_1_PROVIDER_PROOF_EXTRACTED_OUTPUTS",
+    }
+    governed_constants = literal_assignments
+    governed_constant_consumers = set()
+    for node in smoke_report_tree.body:
+        candidates = (
+            [(node.name, node)]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            else (
+                [
+                    (f"{node.name}.{method.name}", method)
+                    for method in node.body
+                    if isinstance(
+                        method,
+                        (ast.FunctionDef, ast.AsyncFunctionDef),
+                    )
+                ]
+                if isinstance(node, ast.ClassDef)
+                else []
+            )
+        )
+        for owner, candidate in candidates:
+            if {
+                item.id
+                for item in ast.walk(candidate)
+                if isinstance(item, ast.Name)
+            } & governed_constants:
+                governed_constant_consumers.add(owner)
+    assert governed_constant_consumers == {
+        (
+            "Gate2FinancialSemanticV6TransparentSmokeReportFactory."
+            "create_context_v2_1_provider_case"
+        ),
+        "_context_v2_1_case_projection_is_valid",
+        "_context_v2_1_extracted_output_is_exact",
+    }
 
 
 @pytest.mark.parametrize(

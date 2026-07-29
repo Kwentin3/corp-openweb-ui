@@ -92,16 +92,29 @@ contracts. OpenWebUI остается upstream product shell, а frontend не �
 security, provider keys, data policy, retention, manager visibility or usage
 accounting.
 
-Текущий Broker Reports Gate 2 Context V2.1 slice добавляет только неактивный
-provider-neutral sealed request через новый метод
-`Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1` той же
-существующей linter authority; исторический `create` не меняется. Метод
-соединяет точный Prompt, minified Context V2.1 и Choice-owned response schema без
-`json_schema.name`, выпускает private sealed-request receipt и fail-closed
-проверяет лимит `4 500` UTF-8 bytes. Это не provider projection, не transport и
-не runtime activation; adapters не меняются, provider calls равны нулю.
-Текущий локальный proof и его delivery-gate status зафиксированы в
-[GOAL 10 report](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.report.md).
+Текущий Broker Reports Gate 2 Context V2.1 slice локально проводит уже
+запечатанный provider-neutral request через существующие OpenAI, Anthropic и
+Google adapters, V2.1 Choice parser, candidate-only Expansion, canonical
+validator/materializer и Financial Domain persistence/restore. Все 12
+provider/case paths выполняются на synthetic fixtures; transport, provider
+calls, semantic repair, fallback, retry и runtime activation отсутствуют.
+Локальное provider-schema поведение имеет отдельную non-active identity
+`broker_reports_gate2_context_v2_1_local_schema_projection_v1`; canonical
+adapter versions не переименованы. Candidate-only extraction требует ровно
+один terminal provider envelope, а весь prepared request заново строится через
+canonical request builder и repository adapter и сравнивается целиком. Replay
+выполняется из сериализованного и восстановленного private evidence с повторной
+проверкой sealed request, trusted profile, projection policy, exact prepared
+request и provider-visible schema, а не повторным запуском исходных Python
+inputs. Public smoke-report case projector возвращает только raw projection и
+не может выпускать evidence. `ProviderProofFactory` сначала создаёт unissued
+full proof, независимо пересчитывает его и только после exact equality вызывает
+private issuer opaque immutable case-evidence token. Отдельная proof validation
+повторяет пересчёт, а aggregate принимает только такой token и отклоняет raw или
+заново запечатанные proof dictionaries.
+Точные запросы, provider-visible schemas, adapter-extracted outputs и
+field-level diffs опубликованы в
+[GOAL 11 report](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md).
 
 ## Broker Reports CI
 
@@ -119,6 +132,7 @@ python -m pip install -r requirements-ci.txt
 python scripts/build_openwebui_managed_financial_assets.py --check
 python scripts/build_gate2_financial_semantic_model_assets.py --check
 python scripts/build_gate2_financial_semantic_v5_execution.py --check
+python scripts/build_context_v2_1_three_provider_local_proof.py --check
 python scripts/build_openwebui_pipe_bundle.py --target all
 git diff --exit-code -- openwebui_actions/broker_reports_gate1_pipe_bundled.py openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py
 python -m ruff check --no-cache --select E9,F63,F7,F82 .
@@ -127,6 +141,7 @@ python -m pytest -q `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_choice.py `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_linter.py `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_linter.py `
+  tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_provider_proof.py `
   --tb=short
 python -m pytest -q `
   tests/test_broker_reports_gate_architecture.py `

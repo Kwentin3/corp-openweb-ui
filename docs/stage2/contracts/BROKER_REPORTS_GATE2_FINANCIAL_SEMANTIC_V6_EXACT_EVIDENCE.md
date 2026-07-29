@@ -1,16 +1,20 @@
 # Broker Reports Gate 2 Financial Semantic V6 Exact Evidence
 
 Status: active V6 evidence current; exact non-active Context V2.0 completeness
-packet evidence historical; non-active Context V2.1 candidate/private receipt
-and inactive local Choice response profile with exact in-memory receipt
-restoration implemented; inactive provider-neutral V2.1 sealed request and
-private lint receipt implemented; persistence and persisted restore/replay not
-implemented.
+packet evidence historical; non-active Context V2.1 candidate/private receipt,
+inactive local Choice response profile and provider-neutral sealed request
+implemented; GOAL 11 three-provider local projection, materialization,
+Financial Domain persistence/restore and exact replay implemented with zero
+provider calls; live Context V2.1 model qualification not implemented.
 
 ## Private evidence
 
-`Gate2FinancialSemanticV6DecisionEvidenceFactory.create` is the only V6
-semantic-call evidence boundary. For each call it preserves privately:
+`Gate2FinancialSemanticV6DecisionEvidenceFactory.create` is the active V6
+semantic-call evidence boundary. Its additive
+`create_context_v2_1_candidate` method is the only GOAL 11 zero-call candidate
+evidence boundary. The two paths share the same owner rather than introducing
+a parallel evidence factory. For each active call the owner preserves
+privately:
 
 - the exact canonical request and full response-format identity;
 - the canonical provider schema hash;
@@ -55,6 +59,33 @@ accepts only the exact private field set, verifies `private_evidence_hash`,
 and reinstates canonical contract order after ordinary JSON writers sort
 object keys. It does not change values or weaken replay validation.
 
+The additive Context V2.1 path uses
+`serialize_financial_semantic_v6_context_v2_1_private_evidence`,
+`restore_financial_semantic_v6_context_v2_1_private_evidence` and
+`replay_financial_semantic_v6_context_v2_1_decision`. Its private document
+preserves the exact final provider request, canonical schema hash,
+provider-visible schema, adapter-owned embedded/adapted schema binding,
+adapter-extracted output, normalized Choice, Expansion/validation/materialized
+hashes, zero-call accounting and replay authorities. The authorities include
+the non-active projection identity
+`broker_reports_gate2_context_v2_1_local_schema_projection_v1`.
+
+The exact prepared-request authority is not a field-by-field receipt check.
+It resolves the repository provider profile, rebuilds the full request through
+the canonical request builder and that exact adapter, and requires complete
+prepared-contract equality: messages, model, top-level request shape, provider
+metadata, full projected schema, wrapper/name/strictness, transform count,
+hashes and projection policy. Candidate-only adapter extraction additionally
+requires exactly one terminal provider envelope before reading its content.
+
+Context V2.1 replay starts from the restored adapter output, not from the
+coordinator's original Python arguments. It receives a freshly reconstructed
+validated sealed request, trusted provider profile, adapter identity,
+projection policy, exact prepared request and schema from the
+sealed-request/projection path. A caller cannot change those private fields,
+update their internal authority hashes, reseal the document and pass replay:
+the external trusted comparison fails first.
+
 ## Context V2.0 historical packet evidence and current V2.1 boundary
 
 The non-active
@@ -75,32 +106,50 @@ GOAL 9 adds the separately versioned inactive
 profile through the existing Choice authority. GOAL 10 then adds the inactive
 provider-neutral request and private sealed-request receipt through additive
 `Gate2FinancialSemanticV6ContextLinterFactory.create_context_v2_1`, leaving
-historical `create` unchanged. It adds no provider projection, persistence,
-replay, provider call or runtime activation. The selected Pack `examples[0]`,
+historical `create` unchanged. GOAL 11 composes this sealed request with the
+existing provider adapters, candidate-only Expansion, materializer, Financial
+Domain persistence and transparent projector. It adds no provider call or
+runtime activation. The selected Pack `examples[0]`,
 `counterexamples[0]`, unique direct rule against the only other current
 visible type, and exact first sentence of catalog `meaning` already exist.
 GOAL 7 does not author markers or reason wording. The V2.1 Packet candidate,
 private mapping receipt, inactive Choice profile and private sealed-request
-receipt exist; provider execution evidence does not.
+receipt exist. GOAL 11 evidence is simulated local provider-profile evidence,
+not live model execution evidence.
 
-Only after those steps, a separately authorized V2.1 evidence implementation
-may preserve the exact V2.1 system message, context JSON, complete
-provider-neutral response format, adapter-extracted local answer, packet-owned
+The GOAL 11 proof preserves the exact V2.1 system message, context JSON,
+provider-visible response schema, adapter-extracted local answer, packet-owned
 private mapping receipt and linter-owned private sealed-request receipt before
-normalization. The evidence record must own the answer and output hashes; using
-that answer plus both verified receipts, replay must restore the unchanged
-canonical V6 Choice, Expansion, validation, materialization and report
-projection without provider access or semantic repair.
+normalization. It serializes and restores the candidate private evidence,
+parses/restores the preserved V2.1 Choice again, validates the candidate-only
+Expansion, materializes the Financial Domain artifact, and reconstructs the
+same snapshot after persistence restore. The transparent report records the
+evidence/replay hashes without provider access or semantic repair.
 
-The current evidence/restorer/replay path is bound to the active exact-ID
+The public smoke-report `create_context_v2_1_provider_case` method returns only
+a raw closed projection and cannot issue evidence. ProviderProofFactory embeds
+that projection in an unissued full proof, independently recomputes the same
+unissued proof and requires exact equality. Only then may its private
+report-module authority issue an opaque immutable case-evidence token.
+Independent canonical full-proof validation follows. The aggregate accepts
+only those issued tokens; it never accepts raw or resealed proof dictionaries.
+Token projection revalidates its integrity hash, closed field sets, frozen
+synthetic cases, governed answers and exact request/output comparison.
+
+The live evidence/restorer/replay path remains bound to the active exact-ID
 request and historical candidate. Context V2.0 persistence, restore and replay
-are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 provider-neutral response sealing
-is implemented non-active, while persistence, restore and replay remain
-`NOT_IMPLEMENTED_NOT_RUN`. Neither later status is inferred from request
-sealing or current replay success.
+are `NOT_IMPLEMENTED_NOT_RUN`. Context V2.1 now has a separate non-active,
+zero-call, synthetic local proof; this does not change live execution identity
+or imply model qualification.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.
+
+Current repository-safe GOAL 11 evidence:
+
+- [analytical report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md);
+- [exact synthetic transparent report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.transparent.json);
+- [privacy-safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json).
 
 The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
 deterministic candidate bytes,

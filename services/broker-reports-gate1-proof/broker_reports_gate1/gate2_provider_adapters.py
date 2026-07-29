@@ -16,8 +16,13 @@ from .gate2_model_contracts import (
     Gate2ProviderProfile,
     Gate2SourceFactRuntimeError,
     gate2_model_qualification_status,
+    gate2_provider_profile,
     gate2_provider_profile_revision,
     gate2_resolved_model_matches_requested,
+)
+from .gate2_model_requests import (
+    FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
+    Gate2OpenWebUIRequestBuilder,
 )
 
 
@@ -28,6 +33,26 @@ FORBIDDEN = (
     "Pipes and Gate 2 business runtimes must not build vendor payloads or call provider endpoints"
 )
 MAX_NATIVE_PROVIDER_RESPONSE_BYTES = 1_048_576
+CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION = (
+    "broker_reports_gate2_context_v2_1_local_schema_projection_v1"
+)
+_PROVIDER_EMBEDDED_SCHEMA_PATHS = {
+    "openai_response_format": (
+        "response_format",
+        "json_schema",
+        "schema",
+    ),
+    "gemini_response_format": (
+        "response_format",
+        "json_schema",
+        "schema",
+    ),
+    "anthropic_native_messages": (
+        "output_config",
+        "format",
+        "schema",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -107,9 +132,113 @@ class Gate2OpenWebUIProviderConnectionResolver:
 @dataclass(frozen=True)
 class Gate2PreparedProviderRequest:
     form_data: dict[str, Any]
+    provider_visible_schema: dict[str, Any]
+    provider_adapter_id: str
     canonical_schema_hash: str
     adapted_schema_hash: str
     schema_transform_count: int
+    projection_policy_version: str | None = None
+
+    def schema_binding_is_valid(self) -> bool:
+        embedded_schema: Any = self.form_data
+        schema_path = _PROVIDER_EMBEDDED_SCHEMA_PATHS.get(
+            self.provider_adapter_id
+        )
+        if not isinstance(schema_path, tuple):
+            return False
+        for field in schema_path:
+            if not isinstance(embedded_schema, dict):
+                return False
+            embedded_schema = embedded_schema.get(field)
+        return (
+            isinstance(self.provider_visible_schema, dict)
+            and isinstance(embedded_schema, dict)
+            and self.adapted_schema_hash
+            == _schema_hash(self.provider_visible_schema)
+            == _schema_hash(embedded_schema)
+        )
+
+    def canonical_schema_is_bound(
+        self,
+        canonical_schema: dict[str, Any],
+    ) -> bool:
+        if (
+            not isinstance(canonical_schema, dict)
+            or self.canonical_schema_hash
+            != _schema_hash(canonical_schema)
+        ):
+            return False
+        try:
+            expected_projection_policy = (
+                _validate_semantic_enum_projection(
+                    canonical_schema=canonical_schema,
+                    provider_schema=self.provider_visible_schema,
+                )
+            )
+        except Gate2SourceFactRuntimeError:
+            return False
+        return self.projection_policy_version == expected_projection_policy
+
+    def context_v2_1_contract_is_bound(
+        self,
+        *,
+        canonical_schema: dict[str, Any],
+        provider_profile: Gate2ProviderProfile,
+        model_visible_request: dict[str, Any],
+        local_projection_model_id: str,
+    ) -> bool:
+        try:
+            authoritative_profile = gate2_provider_profile(
+                provider_profile.profile_id
+            )
+        except (AttributeError, Gate2SourceFactRuntimeError):
+            return False
+        if (
+            provider_profile != authoritative_profile
+            or self.provider_adapter_id
+            != authoritative_profile.adapter_id
+            or self.projection_policy_version
+            != CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION
+            or not isinstance(model_visible_request, dict)
+            or not isinstance(local_projection_model_id, str)
+            or not local_projection_model_id
+            or not self.canonical_schema_is_bound(canonical_schema)
+        ):
+            return False
+        response_format = model_visible_request.get("response_format")
+        model_visible_schema = (
+            response_format.get("json_schema", {}).get("schema")
+            if isinstance(response_format, dict)
+            and isinstance(response_format.get("json_schema"), dict)
+            else None
+        )
+        if model_visible_schema != canonical_schema:
+            return False
+        try:
+            form_data = Gate2OpenWebUIRequestBuilder(
+                request_profile=(
+                    FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+                )
+            ).build_from_sealed_context_v2_1(
+                model_visible_request=model_visible_request,
+                model_id=local_projection_model_id,
+            )
+            expected = Gate2ProviderAdapterFactory(
+                profile=authoritative_profile
+            ).create().prepare_form_data(
+                form_data=form_data,
+                response_format=response_format,
+            )
+        except Gate2SourceFactRuntimeError:
+            return False
+        return self == expected
+
+    def validate_schema_binding(self) -> None:
+        if not self.schema_binding_is_valid():
+            raise Gate2SourceFactRuntimeError(
+                "gate2_provider_prepared_schema_binding_invalid",
+                "Prepared request schema binding is invalid",
+            )
 
 
 class Gate2ProviderAdapter(Protocol):
@@ -137,6 +266,25 @@ class Gate2ProviderAdapter(Protocol):
         ...
 
     def extract_content(self, payload: dict[str, Any]) -> Any:
+        ...
+
+    def extract_prepared_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        prepared_request: Gate2PreparedProviderRequest,
+    ) -> Any:
+        ...
+
+    def extract_context_v2_1_prepared_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        prepared_request: Gate2PreparedProviderRequest,
+        canonical_schema: dict[str, Any],
+        model_visible_request: dict[str, Any],
+        local_projection_model_id: str,
+    ) -> Any:
         ...
 
     def execution_metadata(
@@ -275,14 +423,25 @@ class _Gate2OpenWebUIProviderAdapter:
         adapted_response_format = copy.deepcopy(response_format)
         adapted_json_schema = self._strict_schema(adapted_response_format)
         schema_transform_count = self._adapt_schema(adapted_json_schema["schema"])
+        projection_policy_version = _validate_semantic_enum_projection(
+            canonical_schema=canonical_schema,
+            provider_schema=adapted_json_schema["schema"],
+        )
         prepared["response_format"] = adapted_response_format
         self._annotate(prepared)
-        return Gate2PreparedProviderRequest(
+        result = Gate2PreparedProviderRequest(
             form_data=prepared,
+            provider_visible_schema=copy.deepcopy(
+                adapted_json_schema["schema"]
+            ),
+            provider_adapter_id=self.profile.adapter_id,
             canonical_schema_hash=_schema_hash(canonical_schema),
             adapted_schema_hash=_schema_hash(adapted_json_schema["schema"]),
             schema_transform_count=schema_transform_count,
+            projection_policy_version=projection_policy_version,
         )
+        result.validate_schema_binding()
+        return result
 
     def extract_content(self, payload: dict[str, Any]) -> Any:
         choices = payload.get("choices") if isinstance(payload, dict) else None
@@ -305,6 +464,53 @@ class _Gate2OpenWebUIProviderAdapter:
             "gate2_model_invalid_response",
             "Provider response has no structured content",
             raw_output=payload,
+        )
+
+    def extract_prepared_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        prepared_request: Gate2PreparedProviderRequest,
+    ) -> Any:
+        if not isinstance(prepared_request, Gate2PreparedProviderRequest):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Prepared provider request is required for extraction",
+            )
+        return self.extract_content(payload)
+
+    def extract_context_v2_1_prepared_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        prepared_request: Gate2PreparedProviderRequest,
+        canonical_schema: dict[str, Any],
+        model_visible_request: dict[str, Any],
+        local_projection_model_id: str,
+    ) -> Any:
+        if (
+            not isinstance(
+                prepared_request,
+                Gate2PreparedProviderRequest,
+            )
+            or not prepared_request.context_v2_1_contract_is_bound(
+                canonical_schema=canonical_schema,
+                provider_profile=self.profile,
+                model_visible_request=model_visible_request,
+                local_projection_model_id=local_projection_model_id,
+            )
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Context V2.1 prepared request is not exact",
+            )
+        _validate_context_v2_1_terminal_response(
+            payload=payload,
+            provider_adapter_id=self.profile.adapter_id,
+        )
+        return self.extract_prepared_content(
+            payload,
+            prepared_request=prepared_request,
         )
 
     def execution_metadata(
@@ -426,6 +632,48 @@ class _Gate2OpenWebUIProviderAdapter:
 # MUST NOT:
 # Consumers must not parse or normalize OpenAI provider payloads.
 class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
+    def prepare_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        prepared_request = super().prepare_form_data(
+            form_data=form_data,
+            response_format=response_format,
+        )
+        if prepared_request.schema_transform_count != 1:
+            return prepared_request
+        prepared_form_data = copy.deepcopy(prepared_request.form_data)
+        json_schema = self._strict_schema(
+            prepared_form_data["response_format"]
+        )
+        json_schema.setdefault(
+            "name",
+            _OPENAI_ROOT_OBJECT_ENVELOPE_KEY,
+        )
+        result = Gate2PreparedProviderRequest(
+            form_data=prepared_form_data,
+            provider_visible_schema=copy.deepcopy(
+                prepared_request.provider_visible_schema
+            ),
+            provider_adapter_id=(
+                prepared_request.provider_adapter_id
+            ),
+            canonical_schema_hash=(
+                prepared_request.canonical_schema_hash
+            ),
+            adapted_schema_hash=prepared_request.adapted_schema_hash,
+            schema_transform_count=(
+                prepared_request.schema_transform_count
+            ),
+            projection_policy_version=(
+                prepared_request.projection_policy_version
+            ),
+        )
+        result.validate_schema_binding()
+        return result
+
     def _adapt_schema(self, schema: dict[str, Any]) -> int:
         return _project_openai_root_object_schema(schema)
 
@@ -439,6 +687,118 @@ class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
             normalized = _unwrap_openai_root_object_content(decoded)
             return content if normalized is decoded else normalized
         return _unwrap_openai_root_object_content(content)
+
+    def extract_prepared_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        prepared_request: Gate2PreparedProviderRequest,
+    ) -> Any:
+        if not isinstance(prepared_request, Gate2PreparedProviderRequest):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Prepared provider request is required for extraction",
+            )
+        prepared_request.validate_schema_binding()
+        content = super().extract_content(payload)
+        return _extract_openai_content(
+            content,
+            envelope_required=(
+                _openai_root_object_envelope_required(
+                    prepared_request.provider_visible_schema
+                )
+            ),
+        )
+
+
+def _openai_root_object_envelope_required(
+    provider_schema: dict[str, Any],
+) -> bool:
+    properties = provider_schema.get("properties")
+    return (
+        provider_schema.get("type") == "object"
+        and provider_schema.get("additionalProperties") is False
+        and isinstance(properties, dict)
+        and set(properties) == {_OPENAI_ROOT_OBJECT_ENVELOPE_KEY}
+        and isinstance(
+            properties.get(_OPENAI_ROOT_OBJECT_ENVELOPE_KEY),
+            dict,
+        )
+        and provider_schema.get("required")
+        == [_OPENAI_ROOT_OBJECT_ENVELOPE_KEY]
+    )
+
+
+def _extract_openai_content(
+    content: Any,
+    *,
+    envelope_required: bool | None,
+) -> Any:
+    decoded = content
+    if isinstance(content, str):
+        try:
+            decoded = json.loads(
+                content,
+                object_pairs_hook=_unique_provider_json_object,
+            )
+        except _DuplicateProviderJsonKeyError as exc:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_invalid_response",
+                "Provider response contains duplicate JSON keys",
+                failure_class="provider_response_invalid",
+            ) from exc
+        except ValueError:
+            return content
+    normalized = _unwrap_openai_root_object_content(decoded)
+    if envelope_required is True and normalized is decoded:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_invalid_response",
+            "OpenAI response is missing its required root envelope",
+            failure_class="provider_response_invalid",
+        )
+    if normalized is not decoded:
+        return normalized
+    return content if isinstance(content, str) else decoded
+
+
+def _validate_context_v2_1_terminal_response(
+    *,
+    payload: dict[str, Any],
+    provider_adapter_id: str,
+) -> None:
+    if provider_adapter_id in {
+        "openai_response_format",
+        "gemini_response_format",
+    }:
+        choices = (
+            payload.get("choices")
+            if isinstance(payload, dict)
+            else None
+        )
+        if (
+            not isinstance(choices, list)
+            or len(choices) != 1
+            or not isinstance(choices[0], dict)
+            or choices[0].get("finish_reason") != "stop"
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_response_not_terminal",
+                "Context V2.1 requires one terminal provider choice",
+                raw_output=payload,
+                failure_class="provider_response_invalid",
+            )
+        return
+    if (
+        provider_adapter_id != "anthropic_native_messages"
+        or not isinstance(payload, dict)
+        or payload.get("stop_reason") != "end_turn"
+    ):
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_response_not_terminal",
+            "Context V2.1 requires a terminal provider response",
+            raw_output=payload,
+            failure_class="provider_response_invalid",
+        )
 
 
 class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
@@ -470,6 +830,10 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         json_schema = self._strict_schema(response_format)
         schema = copy.deepcopy(json_schema["schema"])
         transform_count = _project_anthropic_structural_schema(schema)
+        projection_policy_version = _validate_semantic_enum_projection(
+            canonical_schema=json_schema["schema"],
+            provider_schema=schema,
+        )
         messages = form_data.get("messages")
         if not isinstance(messages, list):
             raise Gate2SourceFactRuntimeError(
@@ -523,12 +887,17 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         }
         if system_parts:
             prepared["system"] = "\n\n".join(system_parts)
-        return Gate2PreparedProviderRequest(
+        result = Gate2PreparedProviderRequest(
             form_data=prepared,
+            provider_visible_schema=copy.deepcopy(schema),
+            provider_adapter_id=self.profile.adapter_id,
             canonical_schema_hash=_schema_hash(json_schema["schema"]),
             adapted_schema_hash=_schema_hash(schema),
             schema_transform_count=transform_count,
+            projection_policy_version=projection_policy_version,
         )
+        result.validate_schema_binding()
+        return result
 
     def extract_content(self, payload: dict[str, Any]) -> Any:
         blocks = payload.get("content") if isinstance(payload, dict) else None
@@ -787,6 +1156,7 @@ _ANTHROPIC_REMOVED_SCHEMA_KEYWORDS = (
 _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "candidate_id",
     "code_kind",
+    "choice",
     "completeness",
     "confidence",
     "coverage_status",
@@ -801,6 +1171,7 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "operation_type_candidate",
     "position_kind_candidate",
     "precision",
+    "reason",
     "reason_code",
     "semantic_role",
     "source_granularity",
@@ -809,6 +1180,23 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "withholding_type_candidate",
     "validator_status",
 }
+
+_REQUIRED_SEMANTIC_ENUM_PROPERTIES = frozenset({"choice", "reason"})
+
+
+class _DuplicateProviderJsonKeyError(ValueError):
+    pass
+
+
+def _unique_provider_json_object(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateProviderJsonKeyError(key)
+        result[key] = value
+    return result
 
 
 def _project_openai_root_object_schema(schema: dict[str, Any]) -> int:
@@ -949,6 +1337,63 @@ def _project_anthropic_structural_schema(schema: dict[str, Any]) -> int:
                 if isinstance(child, dict):
                     transform_count += _project_anthropic_structural_schema(child)
     return transform_count
+
+
+def _validate_semantic_enum_projection(
+    *,
+    canonical_schema: dict[str, Any],
+    provider_schema: dict[str, Any],
+) -> str | None:
+    canonical = _semantic_enums(canonical_schema)
+    if not canonical:
+        return None
+    projected = _semantic_enums(provider_schema)
+    if projected != canonical:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_provider_schema_semantic_enum_removed",
+            "Provider schema projection removed a required semantic enum",
+        )
+    return CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION
+
+
+def _semantic_enums(value: Any) -> dict[str, tuple[tuple[Any, ...], ...]]:
+    found: dict[str, list[tuple[Any, ...]]] = {}
+
+    def visit(node: Any) -> None:
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                for name, schema in properties.items():
+                    if (
+                        name in _REQUIRED_SEMANTIC_ENUM_PROPERTIES
+                        and isinstance(schema, dict)
+                        and isinstance(schema.get("enum"), list)
+                    ):
+                        found.setdefault(name, []).append(
+                            tuple(copy.deepcopy(schema["enum"]))
+                        )
+                    visit(schema)
+            for key, child in node.items():
+                if key != "properties":
+                    visit(child)
+        elif isinstance(node, list):
+            for child in node:
+                visit(child)
+
+    visit(value)
+    return {
+        name: tuple(
+            sorted(
+                values,
+                key=lambda item: json.dumps(
+                    item,
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                ),
+            )
+        )
+        for name, values in sorted(found.items())
+    }
 
 
 def _collapse_anthropic_const_object_union(

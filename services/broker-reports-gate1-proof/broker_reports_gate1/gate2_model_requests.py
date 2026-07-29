@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from dataclasses import dataclass
@@ -30,6 +31,9 @@ FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE = (
 FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE = (
     "financial_semantic_v6_slim_linted_v1"
 )
+FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE = (
+    "financial_semantic_v6_context_v2_1_local_proof_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -56,6 +60,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V5_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -318,12 +323,80 @@ class Gate2OpenWebUIRequestBuilder:
                 model_id=model_id,
                 response_format=response_format,
             )
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_sealed_context_required",
+                "Context V2.1 local proof requests require a sealed request",
+            )
+        if self.request_profile != DOMAIN_REQUEST_PROFILE:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_unknown",
+                "Unknown Gate 2 model request profile",
+            )
         return self._build_domain(
             prompt=prompt,
             package=package,
             model_id=model_id,
             response_format=response_format,
         )
+
+    def build_from_sealed_context_v2_1(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        model_id: str,
+    ) -> dict[str, Any]:
+        if (
+            self.request_profile
+            != FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_mismatch",
+                "Context V2.1 sealed request requires its local proof profile",
+            )
+        if (
+            not isinstance(model_id, str)
+            or not model_id.strip()
+            or len(model_id) > 512
+            or not isinstance(model_visible_request, dict)
+            or tuple(model_visible_request) != ("messages", "response_format")
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Context V2.1 sealed request is invalid",
+            )
+        messages = model_visible_request.get("messages")
+        response_format = model_visible_request.get("response_format")
+        if (
+            not isinstance(messages, list)
+            or len(messages) != 2
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != ["system", "user"]
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"role", "content"}
+                or not isinstance(item["content"], str)
+                for item in messages
+            )
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(response_format.get("json_schema"), dict)
+            or response_format["json_schema"].get("strict") is not True
+            or not isinstance(
+                response_format["json_schema"].get("schema"),
+                dict,
+            )
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Context V2.1 sealed request shape is invalid",
+            )
+        projected = copy.deepcopy(model_visible_request)
+        projected["model"] = model_id
+        return projected
 
     def _build_source(
         self,

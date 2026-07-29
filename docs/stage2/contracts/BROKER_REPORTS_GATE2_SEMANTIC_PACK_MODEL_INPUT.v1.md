@@ -176,8 +176,9 @@ The later explicit program authorizes GOAL 9 to add the inactive
 [Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 profile through the existing Choice authority. It does not add a Pack
 authority, provider or runtime activation. GOAL 10 adds only the inactive
-provider-neutral linter/sealed request through the existing linter authority;
-provider projection remains stopped before GOAL 11.
+provider-neutral linter/sealed request through the existing linter authority.
+GOAL 11 proves the exact managed projection through existing OpenAI, Anthropic
+and Google adapters without modifying Pack meaning or making a provider call.
 
 ## 10. Explicit non-goals
 

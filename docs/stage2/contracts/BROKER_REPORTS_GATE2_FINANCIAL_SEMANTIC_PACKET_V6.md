@@ -226,8 +226,10 @@ zero provider calls. The existing Choice authority adds the GOAL 9 response
 profile without changing Packet bytes or ownership. The same existing Context
 Linter authority now consumes the exact candidate and private mapping receipt
 through additive `create_context_v2_1`, producing only an inactive
-provider-neutral sealed request. No provider adapter or runtime consumer
-exists; provider projection remains stopped before GOAL 11.
+provider-neutral sealed request. GOAL 11 adds a zero-call local consumer that
+delegates to existing OpenAI, Anthropic and Google adapters plus existing
+materialization/persistence/report owners. No live provider or runtime consumer
+exists.
 
 The selected sources already exist:
 `positive_signal` maps to Pack `examples[0]`, `negative_signal` maps to

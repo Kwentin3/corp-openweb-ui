@@ -1,6 +1,7 @@
 # Broker Reports Gate 2 Financial Decision Expansion V6
 
-Status: Goal 6 contract for Candidate Records By Construction.
+Status: active V6 contract plus additive non-active Context V2.1 local-proof
+consumer.
 
 ## Boundary
 
@@ -13,6 +14,15 @@ The shared
 `Gate2FinancialSemanticV6CanonicalDecisionContractFactory.create` is the only
 V6 adapter from Bundle values and Pack role schemas to the existing canonical
 four-disposition decision contract.
+
+GOAL 11 adds
+`Gate2FinancialSemanticV6DecisionExpansionFactory.create_from_context_v2_1_candidate`
+under the same authority. It first invokes the Choice-owned V2.1 parser and
+receipt-only local-key restoration, then delegates to the same internal
+expansion and canonical validator. Its paired decision-contract factory method
+extends only the candidate unclassified enum with
+`single_registry_type_no_safe_record`. Active `create`, active schema bytes and
+historical hashes remain unchanged.
 
 ## Typed expansion
 
@@ -51,3 +61,6 @@ retained source refs.
 Canonical validation failure, unknown option, or malformed typed output is a
 terminal rejection. There is no typed-to-unclassified conversion, fallback,
 retry, or post-response repair.
+
+The V2.1 candidate path has the same rule. It is local-proof-only,
+`active=false`, transport-ineligible and makes zero provider calls.

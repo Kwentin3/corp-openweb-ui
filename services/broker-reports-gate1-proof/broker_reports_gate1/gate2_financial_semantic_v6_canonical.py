@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
+from typing import Any
+
 from .gate2_financial_evidence_decision import (
     FinancialEvidenceDecisionPackage,
     FinancialEvidenceValueCandidate,
     Gate2FinancialEvidenceDecisionContract,
     Gate2FinancialEvidenceDecisionContractFactory,
     Gate2FinancialEvidenceDecisionError,
+    UNCLASSIFIED_REASON_CODES,
+    UnclassifiedFinancialInputDecision,
 )
 from .gate2_financial_evidence_materialization import (
     Gate2FinancialEvidenceSourcePackage,
@@ -55,6 +61,35 @@ class Gate2FinancialSemanticV6CanonicalDecisionContractFactory:
         source_package: Gate2FinancialEvidenceSourcePackage,
         allowed_type_ids: tuple[str, ...],
     ) -> Gate2FinancialEvidenceDecisionContract:
+        return self._create(
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            allowed_type_ids=allowed_type_ids,
+            context_v2_1_candidate=False,
+        )
+
+    def create_context_v2_1_candidate(
+        self,
+        *,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        allowed_type_ids: tuple[str, ...],
+    ) -> Gate2FinancialEvidenceDecisionContract:
+        return self._create(
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            allowed_type_ids=allowed_type_ids,
+            context_v2_1_candidate=True,
+        )
+
+    def _create(
+        self,
+        *,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        allowed_type_ids: tuple[str, ...],
+        context_v2_1_candidate: bool,
+    ) -> Gate2FinancialEvidenceDecisionContract:
         _validate_bundle(
             evidence_bundle=evidence_bundle,
             source_package=source_package,
@@ -97,7 +132,7 @@ class Gate2FinancialSemanticV6CanonicalDecisionContractFactory:
                 )
             )
         try:
-            result = Gate2FinancialEvidenceDecisionContractFactory(
+            decision_factory = Gate2FinancialEvidenceDecisionContractFactory(
                 registry=self.registry,
                 package=FinancialEvidenceDecisionPackage(
                     source_scope_ref=evidence_bundle.source_scope_ref,
@@ -105,7 +140,10 @@ class Gate2FinancialSemanticV6CanonicalDecisionContractFactory:
                     candidates=tuple(candidates),
                     allowed_type_ids=tuple(sorted(allowed_type_ids)),
                 ),
-            ).create()
+            )
+            result = decision_factory.create()
+            if context_v2_1_candidate:
+                result = _context_v2_1_candidate_contract(result)
         except Gate2FinancialEvidenceDecisionError as exc:
             raise Gate2FinancialSemanticV6CanonicalError(
                 "financial_semantic_v6_canonical_contract_invalid"
@@ -119,6 +157,83 @@ class Gate2FinancialSemanticV6CanonicalDecisionContractFactory:
         ):
             _fail("financial_semantic_v6_canonical_types_mismatch")
         return result
+
+
+class _Gate2FinancialSemanticV6ContextV21DecisionContract(
+    Gate2FinancialEvidenceDecisionContract
+):
+    def canonical_schema(self) -> dict[str, Any]:
+        schema = super().canonical_schema()
+        variants = (
+            schema.get("properties", {})
+            .get("decision", {})
+            .get("anyOf")
+        )
+        matches = []
+        if isinstance(variants, list):
+            for variant in variants:
+                properties = (
+                    variant.get("properties")
+                    if isinstance(variant, dict)
+                    else None
+                )
+                if (
+                    isinstance(properties, dict)
+                    and properties.get("disposition", {}).get("enum")
+                    == ["unclassified_financial_input"]
+                ):
+                    matches.append(properties)
+        if len(matches) != 1:
+            _fail("financial_semantic_v6_context_v2_1_contract_invalid")
+        reason_schema = matches[0].get("reason_code")
+        if (
+            not isinstance(reason_schema, dict)
+            or reason_schema.get("enum")
+            != list(UNCLASSIFIED_REASON_CODES)
+        ):
+            _fail("financial_semantic_v6_context_v2_1_contract_invalid")
+        reason_schema["enum"] = list(_context_v2_1_reason_codes())
+        return schema
+
+    def _parse_unclassified(
+        self,
+        decision: dict[str, Any],
+    ) -> UnclassifiedFinancialInputDecision:
+        reason_code = (
+            decision.get("reason_code")
+            if isinstance(decision, dict)
+            else None
+        )
+        if reason_code != "single_registry_type_no_safe_record":
+            return super()._parse_unclassified(decision)
+        structural_probe = copy.deepcopy(decision)
+        structural_probe["reason_code"] = UNCLASSIFIED_REASON_CODES[0]
+        validated = super()._parse_unclassified(structural_probe)
+        return replace(validated, reason_code=reason_code)
+
+
+def _context_v2_1_candidate_contract(
+    base: Gate2FinancialEvidenceDecisionContract,
+) -> Gate2FinancialEvidenceDecisionContract:
+    if _context_v2_1_reason_codes() != (
+        "no_registry_type",
+        "single_registry_type_no_safe_record",
+        "ambiguous_registry_type",
+    ):
+        _fail("financial_semantic_v6_context_v2_1_contract_invalid")
+    return _Gate2FinancialSemanticV6ContextV21DecisionContract(
+        registry=base.registry,
+        package=base.package,
+        eligible_type_ids=base.eligible_type_ids,
+    )
+
+
+def _context_v2_1_reason_codes() -> tuple[str, ...]:
+    from .gate2_financial_semantic_v6_choice import (
+        CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES,
+    )
+
+    return CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES
 
 
 def _validate_bundle(
