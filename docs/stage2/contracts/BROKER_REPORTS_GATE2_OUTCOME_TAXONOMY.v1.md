@@ -177,9 +177,9 @@ remains:
 | `use_when` | exact first sentence of catalog `meaning` |
 
 The first-sentence rule remains the exact prefix through the first U+002E
-FULL STOP followed by one ASCII space or end of string. GOAL 7 may project
-the catalog v2 candidate through the existing loader/projection owner, but it
-may not copy reason wording into Python, Prompt, Packet or an adapter.
+FULL STOP followed by one ASCII space or end of string. GOAL 7 projects the
+catalog v2 candidate through the existing loader/projection owner without
+copying reason wording into Python, Prompt, Packet or an adapter.
 
 The historical Minimal Model Surface v1 contract and GOAL 5 receipt remain
 unchanged. This contract is its additive GOAL 6 taxonomy successor.
@@ -189,10 +189,10 @@ unchanged. This contract is its additive GOAL 6 taxonomy successor.
 The following are explicit stops:
 
 1. Catalog v2 is inactive and has no active response consumer.
-2. GOAL 7 may implement only the managed minimal projection; it may not
+2. GOAL 7 implements only the managed minimal projection; it does not
    activate or invent a response schema.
-3. GOAL 8 may build only the non-active V2.1 Packet candidate plus private
-   mapping receipt.
+3. GOAL 8 implements only the non-active
+   [V2.1 Packet candidate plus private mapping receipt](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
 4. Before GOAL 9, a separately authorized/versioned V2.1 response profile
    must exist in the existing Choice authority, or the program must be
    amended. GOAL 9 remains linter-only.

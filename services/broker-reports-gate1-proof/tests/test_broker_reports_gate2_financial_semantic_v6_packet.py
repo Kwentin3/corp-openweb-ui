@@ -35,6 +35,9 @@ from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa:
     financial_semantic_v6_canonical_request,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_packet import (  # noqa: E402,E501
+    CONTEXT_V2_1_AGGREGATE_TARGET_BYTES,
+    CONTEXT_V2_1_BLOCKS,
+    CONTEXT_V2_1_TASK,
     FACTORY_REQUIRED,
     FORBIDDEN,
     SEMANTIC_PACKET_AMBIGUITY_RULE,
@@ -51,6 +54,9 @@ from broker_reports_gate1.gate2_financial_semantic_v6_packet import (  # noqa: E
     render_financial_semantic_v6_slim_alias_receipt_private_exact,
     render_financial_semantic_v6_slim_candidate_private_exact,
     validate_financial_semantic_v6_packet,
+)
+from broker_reports_gate1.gate2_financial_semantic_v5_projection import (  # noqa: E402,E501
+    Gate2FinancialSemanticV5ProjectionFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
     Gate2FinancialSemanticV6QualificationFixtureFactory,
@@ -141,6 +147,48 @@ ACTIVE_PACKET_MINIFIED_SHA256_BASELINES = {
     ),
     "syn_successor_v2_forbidden_neighbour": (
         "2e291d7fa01fec0be365eaa5be6783e58ae230f1e2d6a8d53ec677120e64ca74"
+    ),
+}
+CONTEXT_V2_1_BASELINES = {
+    "syn_successor_v2_unique_cash": (
+        "9068537cd35e7ca5f503f5f167440b44ba79f240e442f4c8ede8742c7de8e714",
+        2645,
+    ),
+    "syn_successor_v2_unique_printed_total": (
+        "f80e669e56266b1778cc997c3da7f71bcdd279ae696c126a1024cf008802e54c",
+        2643,
+    ),
+    "syn_successor_v2_multiple_compatible": (
+        "4dd76de2e81a18d12af9c9a96702f975602fc1bece7ddaccc93aabef769984c2",
+        2624,
+    ),
+    "syn_successor_v2_no_registry_type": (
+        "8475b9ce840a4801b4792a347306a5ba85a40a8d10e08e9cfcd80d5b914b1007",
+        2640,
+    ),
+    "syn_successor_v2_missing_discriminator": (
+        "3c0fe72cea84a6156df49598cb3eef5765e0b40988a541cf60ee2e4a197d3f5c",
+        2584,
+    ),
+    "syn_successor_v2_detail_vs_subtotal": (
+        "bfbe343eff9f269cdbe87b677cd8a1657c75c4d7d4fb199c6edb83a79020eba0",
+        2584,
+    ),
+    "syn_successor_v2_adjacent_equal": (
+        "cb8c5630d6d19c8f386de5e6fe036f768a716d787fbee685dd952da5b03af595",
+        2580,
+    ),
+    "syn_successor_v2_adjacent_fx": (
+        "5a6d198b672a615464e03df9ec990c48e9b7cbc12e5a8bb1f25fa1108b326f7c",
+        2624,
+    ),
+    "syn_successor_v2_optional_missing": (
+        "4e1e9e5cbb071feb6812544b74c0f56ee8f748715d5bbe38dffde4a5fd65ece0",
+        2643,
+    ),
+    "syn_successor_v2_forbidden_neighbour": (
+        "e04c3f24b287dca1be398fcabcdc1ec4e637402a16f612969d7a6a58ff58a108",
+        2644,
     ),
 }
 ZERO_CHOICE_CASE_IDS = {
@@ -787,11 +835,16 @@ def test_context_v2_preserves_all_frozen_active_packet_exact_bytes(v6_fixture):
     assert observed == ACTIVE_PACKET_MINIFIED_SHA256_BASELINES
 
 
-def test_context_v2_is_deterministic_non_active_and_keeps_full_type_set(
+def test_context_v2_1_is_deterministic_non_active_and_keeps_managed_surface(
     v6_fixture,
 ):
     observed_zero_choice_cases = set()
     provider_calls_total = 0
+    aggregate_bytes = 0
+    minimal_projection = (
+        Gate2FinancialSemanticV5ProjectionFactory()
+        .create_minimal_managed_projection()
+    )
 
     for case in v6_fixture.semantic_cases:
         packet = case.packet
@@ -809,10 +862,20 @@ def test_context_v2_is_deterministic_non_active_and_keeps_full_type_set(
         )
 
         assert candidate.active is False
+        assert candidate.transport_eligible is False
         assert candidate.provider_calls_total == 0
         assert receipt.provider_calls_total == 0
         assert candidate == rebuilt.context_v2_candidate
         assert receipt == rebuilt.context_v2_mapping_receipt
+        assert tuple(candidate.payload) == CONTEXT_V2_1_BLOCKS
+        assert candidate.payload["task"] == CONTEXT_V2_1_TASK
+        assert tuple(candidate.payload["source"]) == ("children",)
+        assert candidate.payload["type_cards"] == (
+            minimal_projection.payload["type_cards"]
+        )
+        assert candidate.payload["unclassified_reasons"] == (
+            minimal_projection.payload["unclassified_reasons"]
+        )
         assert candidate.view_hash == _sha256_minified(
             candidate.payload,
             sort_keys=False,
@@ -820,9 +883,16 @@ def test_context_v2_is_deterministic_non_active_and_keeps_full_type_set(
         assert candidate.model_visible_utf8_bytes == len(
             _minified_json_bytes(candidate.payload, sort_keys=False)
         )
+        assert (
+            candidate.view_hash,
+            candidate.model_visible_utf8_bytes,
+        ) == CONTEXT_V2_1_BASELINES[case.case_id]
+        assert candidate.model_visible_utf8_bytes <= len(
+            _minified_json_bytes(packet.payload, sort_keys=False)
+        )
         assert len(candidate.payload["type_cards"]) == 2
-        assert len(receipt.local_mappings["type_keys"]) == 2
-        assert receipt.scope["type_set_parity"] is True
+        assert len(receipt.type_mappings) == 2
+        assert len(candidate.payload["unclassified_reasons"]) == 3
 
         if not case.compilation.typed_options:
             observed_zero_choice_cases.add(case.case_id)
@@ -831,12 +901,15 @@ def test_context_v2_is_deterministic_non_active_and_keeps_full_type_set(
 
         provider_calls_total += candidate.provider_calls_total
         provider_calls_total += receipt.provider_calls_total
+        aggregate_bytes += candidate.model_visible_utf8_bytes
 
     assert observed_zero_choice_cases == ZERO_CHOICE_CASE_IDS
+    assert aggregate_bytes == 26_211
+    assert aggregate_bytes <= CONTEXT_V2_1_AGGREGATE_TARGET_BYTES
     assert provider_calls_total == 0
 
 
-def test_context_v2_renders_each_frozen_semantic_literal_exactly_once(
+def test_context_v2_1_renders_each_frozen_semantic_literal_occurrence_once(
     v6_fixture,
 ):
     for case in v6_fixture.semantic_cases:
@@ -855,7 +928,7 @@ def test_context_v2_renders_each_frozen_semantic_literal_exactly_once(
         assert rendered_literals == expected_literals
 
 
-def test_context_v2_model_view_excludes_backend_identities_and_nulls(
+def test_context_v2_1_model_view_excludes_backend_identities_and_nulls(
     v6_fixture,
 ):
     forbidden_keys = {
@@ -953,91 +1026,93 @@ def test_context_v2_model_view_excludes_backend_identities_and_nulls(
         )
 
 
-def test_context_v2_local_mapping_namespaces_are_bijective(v6_fixture):
-    namespace_contracts = (
-        ("value_keys", "value_key", "source_value_ref"),
-        ("structure_keys", "structure_key", "node_identity"),
-        ("type_keys", "type_key", "input_type_id"),
-        ("choice_keys", "choice_key", "typed_option_id"),
-    )
-
-    for case in v6_fixture.semantic_cases:
-        candidate = case.packet.context_v2_candidate
-        mappings = case.packet.context_v2_mapping_receipt.local_mappings
-
-        for namespace, local_key, authority_key in namespace_contracts:
-            rows = mappings[namespace]
-            local_keys = [item[local_key] for item in rows]
-            authority_values = [
-                json.dumps(
-                    item[authority_key],
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                for item in rows
-            ]
-
-            assert len(local_keys) == len(set(local_keys))
-            assert len(authority_values) == len(set(authority_values))
-            for row in rows:
-                rendered = _json_pointer_get(
-                    candidate.payload,
-                    row["json_pointer"],
-                )
-                assert rendered[local_key] == row[local_key]
-
-        assert [item["type_key"] for item in candidate.payload["type_cards"]] == [
-            item["type_key"] for item in mappings["type_keys"]
-        ]
-        assert [item["choice_key"] for item in candidate.payload["choices"]] == [
-            item["choice_key"] for item in mappings["choice_keys"]
-        ]
-        source_nodes = list(_walk_dicts(candidate.payload["source"]))
-        assert [
-            item["value_key"]
-            for item in source_nodes
-            if "literal" in item and "value_key" in item
-        ] == [item["value_key"] for item in mappings["value_keys"]]
-        assert [
-            item["structure_key"]
-            for item in source_nodes
-            if "kind" in item and "structure_key" in item
-        ] == [
-            item["structure_key"] for item in mappings["structure_keys"]
-        ]
-
-        reference_rows = mappings["evidence_reference_targets"]
-        reference_refs = [item["source_value_ref"] for item in reference_rows]
-        assert len(reference_refs) == len(set(reference_refs))
-
-
-def test_context_v2_receipt_covers_every_visible_leaf_and_hashes_it(
+def test_context_v2_1_local_keys_have_consumers_and_restore_exact_options(
     v6_fixture,
 ):
     for case in v6_fixture.semantic_cases:
         candidate = case.packet.context_v2_candidate
         receipt = case.packet.context_v2_mapping_receipt
-        leaves = dict(_primitive_leaf_entries(candidate.payload))
-        for required_empty_pointer in ("/type_cards", "/choices"):
-            if (
-                _json_pointer_get(
-                    candidate.payload,
-                    required_empty_pointer,
-                )
-                == []
-            ):
-                leaves[required_empty_pointer] = []
+        assert case.compilation is not None
 
-        rows = list(receipt.visible_field_sources)
-        assert [item["json_pointer"] for item in rows] == sorted(leaves)
-        assert len(rows) == len(leaves)
-        for row in rows:
-            pointer = row["json_pointer"]
-            assert _json_pointer_get(candidate.payload, pointer) == (leaves[pointer])
-            assert row["field_content_hash"] == _sha256_minified(
-                leaves[pointer],
-                sort_keys=True,
+        assert [
+            item["type_key"] for item in candidate.payload["type_cards"]
+        ] == [item["type_key"] for item in receipt.type_mappings]
+        assert [
+            item["choice_key"] for item in candidate.payload["choices"]
+        ] == [item["choice_key"] for item in receipt.choice_restoration]
+        assert [
+            (
+                item["choice_key"],
+                item["typed_option_id"],
+                item["input_type_id"],
+                tuple(
+                    (binding["role_id"], binding["source_value_ref"])
+                    for binding in item["role_bindings"]
+                ),
+            )
+            for item in receipt.choice_restoration
+        ] == [
+            (
+                f"choice_{index}",
+                option.typed_option_id,
+                option.input_type_id,
+                tuple(
+                    (binding.role_id, binding.source_value_ref)
+                    for binding in option.role_bindings
+                ),
+            )
+            for index, option in enumerate(
+                case.compilation.typed_options,
+                start=1,
+            )
+        ]
+        source_keys = [
+            (key, value)
+            for item in _walk_dicts(candidate.payload["source"])
+            for key, value in item.items()
+            if key in {"value_key", "structure_key"}
+        ]
+        differentiator_targets = [
+            (key, value)
+            for choice in candidate.payload["choices"]
+            for differentiator in choice.get("differentiators", ())
+            for key, value in differentiator.items()
+            if key in {"value_key", "structure_key"}
+        ]
+        assert source_keys == differentiator_targets == []
+        assert receipt.binding_partition["visible_differentiators"] == []
+
+
+def test_context_v2_1_receipt_pins_authorities_and_source_occurrences(
+    v6_fixture,
+):
+    minimal_projection = (
+        Gate2FinancialSemanticV5ProjectionFactory()
+        .create_minimal_managed_projection()
+    )
+    for case in v6_fixture.semantic_cases:
+        candidate = case.packet.context_v2_candidate
+        receipt = case.packet.context_v2_mapping_receipt
+        assert case.evidence_bundle is not None
+
+        rows = receipt.source_mappings["occurrences"]
+        expected_values = [
+            item
+            for item in case.evidence_bundle.source_values
+            if item.value_type != "source_reference"
+        ]
+        assert len(rows) == len(expected_values)
+        for row, value in zip(rows, expected_values, strict=True):
+            rendered = _json_pointer_get(
+                candidate.payload,
+                row["json_pointer"],
+            )
+            assert rendered["literal"] == value.literal_value
+            assert row["source_value_ref"] == value.source_value_ref
+            assert row["source_ref"] == value.source_ref
+            assert row["association_ref"] == value.association_ref
+            assert row["source_evidence_refs"] == list(
+                value.source_evidence_refs
             )
 
         receipt_material = receipt.to_private_dict()
@@ -1048,21 +1123,23 @@ def test_context_v2_receipt_covers_every_visible_leaf_and_hashes_it(
         )
         assert receipt.identities["context_view_hash"] == candidate.view_hash
         assert receipt.identities["active_packet_hash"] == (case.packet.packet_hash)
+        assert receipt.identities["minimal_projection_hash"] == (
+            minimal_projection.projection_hash
+        )
+        assert receipt.identities[
+            "minimal_projection_authority_audit_hash"
+        ] == minimal_projection.authority_audit_hash
 
 
-def test_context_v2_frozen_binding_accounting_oracle(v6_fixture):
-    covered_bindings_total = 0
-    relationships_total = 0
-    semantic_relationships_total = 0
-    evidence_relationships_total = 0
-    factored_occurrences_total = 0
+def test_context_v2_1_frozen_binding_accounting_oracle(v6_fixture):
+    visible_differentiators_total = 0
     compiled_bindings_total = 0
     backend_only_bindings_total = 0
 
     for case in v6_fixture.semantic_cases:
         assert case.compilation is not None
         rows = case.packet.context_v2_mapping_receipt.binding_partition[
-            "visible_relationships"
+            "visible_differentiators"
         ]
         backend_rows = case.packet.context_v2_mapping_receipt.binding_partition[
             "backend_only_bindings"
@@ -1070,33 +1147,20 @@ def test_context_v2_frozen_binding_accounting_oracle(v6_fixture):
         case_compiled_total = sum(
             len(option.role_bindings) for option in case.compilation.typed_options
         )
-        case_covered_total = sum(len(item["covered_bindings"]) for item in rows)
 
-        assert case_covered_total + len(backend_rows) == case_compiled_total
+        assert len(rows) + len(backend_rows) == case_compiled_total
         compiled_bindings_total += case_compiled_total
-        covered_bindings_total += case_covered_total
-        relationships_total += len(rows)
-        semantic_relationships_total += sum(
-            item["classification"] == "semantic_value" for item in rows
-        )
-        evidence_relationships_total += sum(
-            item["classification"] == "evidence_predicate" for item in rows
-        )
-        factored_occurrences_total += sum(
-            len(item["covered_bindings"]) - 1 for item in rows
-        )
+        visible_differentiators_total += len(rows)
         backend_only_bindings_total += len(backend_rows)
 
     assert compiled_bindings_total == 59
-    assert covered_bindings_total == 59
-    assert relationships_total == 35
-    assert semantic_relationships_total == 23
-    assert evidence_relationships_total == 12
-    assert factored_occurrences_total == 24
-    assert backend_only_bindings_total == 0
+    assert visible_differentiators_total == 0
+    assert backend_only_bindings_total == 59
 
 
-def test_context_v2_tampering_is_rejected_by_public_packet_validator(v6_fixture):
+def test_context_v2_1_tampering_is_rejected_by_public_packet_validator(
+    v6_fixture,
+):
     case = v6_fixture.semantic_cases[0]
     packet = case.packet
     assert case.evidence_bundle is not None
@@ -1128,10 +1192,12 @@ def test_context_v2_tampering_is_rejected_by_public_packet_validator(v6_fixture)
             registry=v6_fixture.registry,
         )
 
-    tampered_sources = packet.context_v2_mapping_receipt.visible_field_sources[:-1]
+    tampered_restoration = (
+        packet.context_v2_mapping_receipt.choice_restoration[:-1]
+    )
     tampered_receipt = replace(
         packet.context_v2_mapping_receipt,
-        visible_field_sources=tampered_sources,
+        choice_restoration=tampered_restoration,
     )
     receipt_material = tampered_receipt.to_private_dict()
     receipt_material.pop("integrity_hash")

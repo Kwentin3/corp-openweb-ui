@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_DOCUMENTATION_ONLY_NON_ACTIVE_SURFACE_CONTRACT`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_GOAL8_PACKET_CANDIDATE`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -9,12 +9,14 @@ Contract version: `1.0.0`
 
 Target context revision: `2.1`
 
-Implementation status (2026-07-29): GOAL 7 now implements only the exact
-managed Pack/reason mappings from section 6 as the inactive profile documented
-by
+Implementation status (2026-07-29): GOAL 7 implements the exact managed
+Pack/reason mappings from section 6 as the inactive profile documented by
 [Financial Domain Asset Family v3](./BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v3.md).
-The Context V2.1 Packet, private mapping receipt, Choice response profile,
-request route and activation remain unimplemented.
+GOAL 8 implements the sole current non-active
+[Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
+Packet candidate and its private exact mapping receipt in the existing Packet
+factory. The Choice response profile, complete-request linter, request route
+and activation remain unimplemented.
 
 ## 1. Purpose and scope
 
@@ -32,8 +34,8 @@ Prompt, linter, provider or materialization authority.
 The implemented
 [LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 remains an exact, non-active historical completeness baseline. This contract
-supersedes V2.0 only as the target model surface for a future V2.1 candidate.
-It does not rewrite V2.0 bytes, evidence or receipts.
+supersedes V2.0 as the target model surface for the current non-active V2.1
+candidate. It does not rewrite V2.0 bytes, evidence or receipts.
 
 GOAL 5 does not:
 
@@ -52,13 +54,13 @@ GOAL 5 does not:
 | financial type meaning | [Financial Semantic Pack](./BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md) | GOAL 7 must expose one versioned minimal managed projection |
 | human reason meaning | [Financial Decision Reason Catalog](./BROKER_REPORTS_GATE2_FINANCIAL_DECISION_REASON_CATALOG.v1.md) | GOAL 7 must expose one versioned minimal managed projection after the GOAL 6 taxonomy decision |
 | exact Typed Options and bindings | Candidate Compilation and Typed Option authorities | stay private; only choice differences may be rendered |
-| context construction and private mapping | existing `Gate2FinancialSemanticV6PacketFactory.create` | GOAL 8 may implement V2.1 in this owner only |
+| context construction and private mapping | existing `Gate2FinancialSemanticV6PacketFactory.create` | GOAL 8 implements one non-active V2.1 candidate plus one private exact receipt in this owner only |
 | response schema and normalization | existing V6 Choice authority | unchanged by GOAL 5; a separately authorized versioned V2.1 response profile is required before GOAL 9 |
 | complete-request lint | existing Context Linter authority | GOAL 9 may extend it only after both the V2.1 Packet candidate and Choice-owned response profile exist |
 | provider projection and parsing | existing provider adapters | transport-only; unchanged by GOAL 5 |
 
 The existing V5-named shared Pack projection owner remains the only projection
-owner. GOAL 7 may add one versioned profile there; it must not add another
+owner. GOAL 7 added one versioned profile there; it did not add another
 loader, Pack, catalog, packet builder or adapter-owned semantic dictionary.
 
 The governing GOAL 8 slice authorizes only the Packet candidate and private
@@ -71,7 +73,8 @@ sequence.
 
 ## 3. Closed V2.1 semantic payload shape
 
-The future V2.1 user-content object has exactly these ordered root fields:
+The implemented non-active V2.1 user-content object has exactly these ordered
+root fields:
 
 1. `task`;
 2. `source`;
@@ -130,7 +133,7 @@ fields and arrays are omitted when their closed conditions below do not hold.
 information. No other empty array, empty string, null or placeholder is
 allowed in a conforming payload.
 
-The future V2.1 task is exactly one instruction:
+The current V2.1 task is exactly one instruction:
 
 ```text
 Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.
@@ -467,9 +470,45 @@ field names also do not launder forbidden values; a global source ref under a
 local-key field remains forbidden.
 
 All exact refs, authority pins, complete bindings, restoration mappings and
-integrity data stay in the packet-owned private receipt designed for the
-future V2.1 candidate. Private completeness is not permission to render those
-fields.
+integrity data stay in the implemented packet-owned private V2.1 receipt.
+Private completeness is not permission to render those fields.
+
+### 8.1 GOAL 8 implementation
+
+The existing `Gate2FinancialSemanticV6PacketFactory.create` now constructs one
+current non-active V2.1 candidate and one integrity-bound private receipt
+alongside the unchanged active V6 packet. It calls the exact GOAL 7 minimal
+projection and no longer builds historical V2.0 on the current per-request
+path. V2.0 remains explicit version-pinned test evidence.
+
+Executable proof across the ten frozen semantic cases records:
+
+```text
+ACTIVE_PACKET_HASH_PARITY: 10_OF_10_EXACT
+MODEL_VISIBLE_ROOT_BLOCKS: 5_EXACT
+SOURCE_LITERAL_OCCURRENCES: 45_EXACT
+CHOICES: 12_EXACT
+COMPILED_BINDINGS: 59_EXACT
+VISIBLE_DIFFERENTIATOR_BINDINGS: ZERO
+BACKEND_ONLY_BINDINGS: 59_EXACT
+CONTEXT_V2_1_UTF8_BYTES_TOTAL: 26211
+HISTORICAL_CONTEXT_V2_0_UTF8_BYTES_TOTAL: 78621
+REDUCTION_VS_V2_0: 52410_BYTES_66_66_PERCENT
+AGGREGATE_TARGET_LE_30000: PASSED
+PER_CASE_SMALLER_THAN_ACTIVE: 10_OF_10
+CONTEXT_CANDIDATE_PER_CASE_LE_4500: 10_OF_10
+LOGICAL_REQUEST_FEASIBILITY_LE_4500: FEASIBILITY_ONLY
+SEALED_REQUEST_LE_4500: NOT_PROVEN_CHOICE_PROFILE_NOT_AUTHORIZED
+PROVIDER_CALLS: ZERO
+FULL_BENCHMARK: NOT_RUN
+RUNTIME_ACTIVATION: FALSE
+```
+
+The maximum contract-derived logical Prompt + candidate + response-schema
+envelope is 3,522 bytes. That number is feasibility evidence, not a sealed
+request result: the separately owned V2.1 Choice response profile is still
+unimplemented and no transport path was executed. This contract therefore
+does not claim that the executable sealed-request target has passed.
 
 ## 9. Representative human-readable examples
 
@@ -570,7 +609,7 @@ Both sentences below are exact first sentences of their managed catalog
 
 ## 10. Verification and acceptance
 
-GOAL 5 is accepted only when repository evidence proves:
+The historical GOAL 5 contract acceptance remains:
 
 ```text
 COMPLETE_PROTOCOL_ALLOWLIST: P01-P18
@@ -593,19 +632,31 @@ BENCHMARK_RUNS: ZERO
 RUNTIME_ACTIVATION: FALSE
 ```
 
-The next allowed sequence is:
+Current GOAL 8 acceptance adds:
 
-1. GOAL 6 audits outcome taxonomy and frozen benchmark expectations;
-2. GOAL 7 adds the exact versioned minimal managed projections in the
-   existing projection authorities;
-3. GOAL 8 implements one non-active Context V2.1 in the existing Packet
-   factory;
+```text
+MINIMAL_MANAGED_PROJECTION: IMPLEMENTED_NON_ACTIVE
+CONTEXT_V2_1_PACKET_CANDIDATE: IMPLEMENTED_NON_ACTIVE
+PRIVATE_EXACT_MAPPING_RECEIPT: IMPLEMENTED
+ACTIVE_PACKET_BYTES_CHANGED: NO
+CURRENT_V2_0_BYTES_CHANGED: NO
+CHOICE_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED
+CONTEXT_LINTER_V2_1: NOT_IMPLEMENTED
+SEALED_V2_1_REQUEST: NOT_RUN
+PROVIDER_CALLS: ZERO
+FULL_BENCHMARK_RUNS: ZERO
+RUNTIME_ACTIVATION: FALSE
+```
+
+The program state is:
+
+1. GOAL 6 outcome taxonomy audit is complete;
+2. GOAL 7 exact minimal managed projection is complete;
+3. GOAL 8 non-active Context V2.1 candidate/private receipt is complete;
 4. **STOP:** a separately authorized versioned V2.1 response profile must be
    implemented in the existing Choice authority, or the governing program
    must be amended;
 5. only then may GOAL 9 lint the complete accepted V2.1 request before any
    provider transport.
 
-GOAL 5 does not authorize GOAL 7 or later work before its own reviewed merge,
-it does not authorize GOAL 6 expected-answer changes without evidence, and it
-does not itself clear the post-GOAL-8 response-profile STOP.
+Neither GOAL 5 nor GOAL 8 clears the post-GOAL-8 response-profile STOP.

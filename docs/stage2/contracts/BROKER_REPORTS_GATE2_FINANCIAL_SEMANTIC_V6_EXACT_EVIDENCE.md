@@ -1,8 +1,8 @@
 # Broker Reports Gate 2 Financial Semantic V6 Exact Evidence
 
 Status: active V6 evidence current; exact non-active Context V2.0 completeness
-packet evidence implemented; V2.0 response/sealing/persistence/restore/replay
-not implemented; future V2.1 not implemented.
+packet evidence historical; non-active Context V2.1 candidate/private receipt
+implemented; V2.1 response/sealing/persistence/restore/replay not implemented.
 
 ## Private evidence
 
@@ -52,7 +52,7 @@ accepts only the exact private field set, verifies `private_evidence_hash`,
 and reinstates canonical contract order after ordinary JSON writers sort
 object keys. It does not change values or weaken replay validation.
 
-## Context V2.0 historical packet evidence and future V2.1 boundary
+## Context V2.0 historical packet evidence and current V2.1 boundary
 
 The non-active
 [LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
@@ -64,19 +64,19 @@ and unchanged.
 
 The
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
-supersedes V2.0 only as the future field-eligibility target. GOAL 5 is
-documentation-only and adds no evidence, receipt, persistence, replay,
-provider call or runtime change. GOAL 6 audits outcome taxonomy and the
-count-one stop; GOAL 7 implements the exact GOAL 5-selected managed projection;
-GOAL 8 may implement only the non-active PacketFactory V2.1 candidate plus
-private receipt. **STOP before GOAL 9:** a separately authorized/versioned
-V2.1 response profile must first exist in the Choice authority, or the program
-must be amended. GOAL 9 only consumes that schema while linting P01-P18; it
-cannot invent or build it. The selected Pack `examples[0]`,
+supersedes V2.0 as the current field-eligibility target. GOAL 7 implements the
+exact GOAL 5-selected managed projection; GOAL 8 implements only the
+non-active PacketFactory V2.1 candidate plus private exact receipt. It adds no
+complete request evidence, persistence, replay, provider call or runtime
+activation. **STOP before GOAL 9:** a separately authorized/versioned V2.1
+response profile must first exist in the Choice authority, or the program must
+be amended. GOAL 9 only consumes that schema while linting P01-P18; it cannot
+invent or build it. The selected Pack `examples[0]`,
 `counterexamples[0]`, unique direct rule against the only other current
 visible type, and exact first sentence of catalog `meaning` already exist.
-GOAL 7 does not author markers or reason wording, but its projection and all
-V2.1 evidence remain unimplemented.
+GOAL 7 does not author markers or reason wording. The V2.1 Packet candidate
+and private mapping receipt exist; complete-request/execution evidence does
+not.
 
 Only after those steps, a separately authorized V2.1 evidence implementation
 may preserve the exact V2.1 system message, context JSON, complete
@@ -89,8 +89,9 @@ projection without provider access or semantic repair.
 
 The current evidence/restorer/replay path is bound to the active exact-ID
 request and historical candidate. Context V2.0 persistence, restore and replay
-are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 itself is also `NOT_IMPLEMENTED`.
-Neither status is inferred from current replay success.
+are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 response sealing, persistence,
+restore and replay are also `NOT_IMPLEMENTED_NOT_RUN`. Neither status is
+inferred from candidate construction or current replay success.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.

@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Packet V6
 
-Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_0_COMPLETENESS_BASELINE_NON_ACTIVE`
+Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_1_CANDIDATE_NON_ACTIVE`
 
 ## Boundary
 
@@ -13,9 +13,12 @@ packet entrypoint. It accepts only:
 - the exact Pack/Registry authority.
 
 The packet does not create or repair Typed Options. The same factory also
-returns the historical non-active Slim sidecars and the exact non-active
-Context V2.0 completeness candidate/private mapping receipt; none is part of
-`packet.payload`.
+returns the historical non-active Slim sidecars and the sole current
+non-active
+[Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md)
+candidate/private mapping receipt; none is part of `packet.payload`.
+Context V2.0 remains explicit version-pinned historical evidence and is not
+built on the current per-request path.
 
 ## Exact model-visible shape
 
@@ -58,9 +61,9 @@ Gate 3 methodology, expected answers, and duplicate instructions.
 - `render_financial_semantic_v6_packet_repository_safe` renders only safe
   hashes, counts, type/role IDs, option IDs, and structural summaries.
 - `render_financial_semantic_v6_context_v2_candidate_private_exact` renders
-  the exact non-active V2 model view for private proof.
+  the exact current non-active V2.1 model view for private proof.
 - `render_financial_semantic_v6_context_v2_mapping_receipt_private_exact`
-  renders its exact private mapping receipt.
+  renders its exact V2.1 private mapping receipt.
 
 The repository-safe renderer never emits source literals or source refs.
 
@@ -176,7 +179,7 @@ remains unchanged.
 The audit does not mutate Slim v2, activate it, change the current four-block
 packet or authorize a second packet builder.
 
-## Context V2.0 completeness baseline and future minimal target
+## Historical Context V2.0 and current minimal V2.1 target
 
 The versioned
 [LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
@@ -184,11 +187,11 @@ defines the exact implemented non-active completeness baseline. Its candidate
 and packet-owned mapping receipt remain version-pinned historical sidecars and
 do not replace this packet or the implemented historical Slim View.
 
-The
+The historical
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
-supersedes V2.0 only as the field-eligibility target for a future V2.1
-candidate. GOAL 5 is documentation-only and changes no packet, projection,
-Choice, receipt, request, asset or runtime bytes.
+supersedes V2.0 as the field-eligibility policy for the implemented non-active
+V2.1 candidate. GOAL 8 changes no active packet, Prompt, Choice, request,
+provider, managed-asset or runtime bytes.
 
 The same packet factory derives its V2.0 available type set from the
 validated semantic-contract authority: every active Pack/Registry type
@@ -207,17 +210,24 @@ packet-owned receipt. The V2.0 response profile, linter extension, sealed
 request, persistence/replay, provider projection and route remain
 `NOT_IMPLEMENTED`. Active packet bytes and hashes remain unchanged.
 
-Future work is ordered: GOAL 6 audits outcome taxonomy and the count-one stop;
-GOAL 7 implements the exact GOAL 5-selected managed projection; GOAL 8 may
-implement only one non-active V2.1 candidate plus private mapping receipt in
-this existing Packet factory. **STOP before GOAL 9:** a separately
-authorized/versioned V2.1 response profile must first exist in the Choice
-authority, or the program must be amended. GOAL 9 is linter-only and consumes
-that Choice schema while checking P01-P18; it cannot invent or build it.
+GOAL 8 implements exactly one non-active V2.1 candidate plus private mapping
+receipt in this existing Packet factory. Across the frozen suite it preserves
+all ten active payload hashes, renders 45 exact semantic literal occurrences,
+restores 12 choices and all 59 bindings, and uses 26,211 model-visible UTF-8
+bytes versus 78,621 for historical V2.0. All current choices have distinct
+titles, so zero differentiators and zero consumerless value/structure keys are
+visible.
+
+The candidate is always `active=false`, `transport_eligible=false` and records
+zero provider calls. It has no current request or runtime consumer.
+**STOP before GOAL 9:** a separately authorized/versioned V2.1 response
+profile must first exist in the Choice authority, or the program must be
+amended. GOAL 9 is linter-only and consumes that Choice schema while checking
+P01-P18; it cannot invent or build it.
 
 The selected sources already exist:
 `positive_signal` maps to Pack `examples[0]`, `negative_signal` maps to
 `counterexamples[0]`, nearest distinction maps to the unique direct rule
 against the only other current visible type, and reason `use_when` maps to the
-exact first sentence of catalog `meaning`. GOAL 7 may implement only those
-mappings; packet code may not invent or embed replacement wording.
+exact first sentence of catalog `meaning`. GOAL 7 implements those mappings;
+packet code does not invent or embed replacement wording.

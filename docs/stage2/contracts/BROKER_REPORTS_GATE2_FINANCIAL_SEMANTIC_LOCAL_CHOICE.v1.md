@@ -266,12 +266,12 @@ separate label.
 
 The
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
-supersedes V2.0 only as the future V2.1 field-eligibility target. GOAL 5 is
-documentation-only and adds no Choice schema, parser or normalization. GOAL 6
-audits taxonomy and the count-one stop; GOAL 7 implements the exact managed
-projection selected by GOAL 5 from existing Pack/catalog strings; GOAL 8 may
-build only one non-active V2.1 context candidate plus private receipt in the
-existing Packet authority. **STOP before GOAL 9:** a separately
+supersedes V2.0 as the field-eligibility target for the implemented non-active
+[V2.1 context candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
+GOAL 7 implements the exact managed projection selected by GOAL 5 from
+existing Pack/catalog strings; GOAL 8 builds only that candidate plus private
+receipt in the existing Packet authority and adds no Choice schema, parser or
+normalization. **STOP before GOAL 9:** a separately
 authorized/versioned V2.1 response profile must first be implemented in the
 existing Choice factory, or the program must be amended. GOAL 9 is linter-only
 and consumes that Choice schema while checking P01-P18; it cannot invent or
@@ -279,6 +279,6 @@ build it. GOAL 7 does not author positive/negative markers or reason wording:
 it maps Pack `examples[0]`, `counterexamples[0]`, the unique
 direct rule against the only other current visible type, and the exact first
 sentence of catalog `meaning`. The exact V2.1 key/schema shape belongs to those
-later authorities and must normalize without semantic repair to the same
-canonical V6 Choice. No V2.1 Choice profile or active route exists; this v1
-candidate remains unchanged in bytes and behavior.
+later Choice authorities and must normalize without semantic repair to the
+same canonical V6 Choice. No V2.1 Choice profile or active route exists; this
+historical Local Choice v1 candidate remains unchanged in bytes and behavior.

@@ -91,13 +91,19 @@ would become part of this contract and require a new version.
 ## 3. Authority and construction boundary
 
 `Gate2FinancialSemanticV6PacketFactory.create` remains the sole packet and
-context-candidate construction owner. The GOAL 4 implementation extends that
-factory to return:
+context-candidate construction owner. At the frozen GOAL 4 snapshot, that
+factory returned:
 
 - the unchanged active V6 packet;
 - the unchanged historical Slim View v2 candidate;
 - one non-active Context V2 candidate;
 - one packet-owned private Context V2 mapping receipt.
+
+On the current GOAL 8 path, the same owner returns the versioned
+[Context V2.1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md) candidate
+and receipt instead. V2.0 construction is retained only as version-pinned
+historical test evidence and is not executed per request. This note changes no
+historical V2.0 candidate or receipt bytes.
 
 The existing V6 Choice factory remains the sole response-schema owner. Any
 later V2.1 local-choice profile must be separately versioned and normalize to
@@ -275,13 +281,13 @@ integrity, code-set parity, Pack `source_baseline` parity with the exact
 Registry version/hash, and `runtime_activation=false`. The current
 live/closed-world family pointer remains v1.
 
-The active closed-world type projection drops Pack `title`. The implemented
-non-active V2 profile version-extends that same projection authority; packet
-code does not read the Pack asset directly.
+The active closed-world type projection drops Pack `title`. At the frozen
+GOAL 4 snapshot, the non-active V2 profile version-extended that same
+projection authority; packet code did not read the Pack asset directly.
 
 The reason-catalog validator currently belongs to the managed-family build
-path. The implemented non-active candidate consumes its validated closed-world
-snapshot through the same generated model-assets loader. It does not import
+path. The frozen non-active V2 candidate consumed its validated closed-world
+snapshot through the same generated model-assets loader. It did not import
 `scripts/`, read repository files at runtime, embed the human wording in packet
 Python or introduce a second catalog loader.
 
@@ -435,7 +441,7 @@ Typed Option.
 
 ### 6.3 Deterministic hierarchy and local keys
 
-The implemented non-active packet renderer uses these closed ordering and
+The frozen GOAL 4 non-active packet renderer used these closed ordering and
 assignment rules:
 
 1. iterate every non-reference Evidence Bundle `source_value` in its validated
@@ -1080,10 +1086,11 @@ Allowed field names do not launder forbidden values. A global ref under
 
 ## 15. Private mapping and sealed-request receipts
 
-The design assigns two separate closed private receipts to two owners. GOAL 4
-implements only the first: the packet factory emits the Context-to-authority
-mapping receipt and does not import Prompt or Choice. This V2.0 design never
-implemented the second receipt. Before GOAL 9, the separately
+The design assigns two separate closed private receipts to two owners. At the
+frozen GOAL 4 snapshot, only the first was implemented: the packet factory
+emitted the Context-to-authority mapping receipt and did not import Prompt or
+Choice. This V2.0 design never implemented the second receipt. Before GOAL 9,
+the separately
 authorized/versioned V2.1 response profile must exist in the Choice authority,
 or the program must be amended. Only after that STOP is cleared may the V2.1
 Context Linter consume its corresponding mapping receipt together with the
@@ -1675,16 +1682,16 @@ authority member in exact Pack order as required by sections 7 and 17.
 
 ## 19. Compatibility stops and non-goals
 
-The implemented non-active packet sidecar proves only the Context V2 candidate
-and private mapping boundary. It does not prove the V2 Choice, complete-request
-linter, provider projection, persistence/replay or benchmark compatibility.
+The frozen GOAL 4 non-active packet sidecar proves only the Context V2
+candidate and private mapping boundary. It does not prove the V2 Choice,
+complete-request linter, provider projection, persistence/replay or benchmark
+compatibility.
 
 Explicit stops:
 
-1. The four frozen zero-choice ambiguity cases receive the complete
-   authority-derived available type set in the implemented non-active V2
-   candidate. This does not make their expected semantic answer correct by
-   construction.
+1. The four frozen zero-choice ambiguity cases received the complete
+   authority-derived available type set in the frozen non-active V2 candidate.
+   This does not make their expected semantic answer correct by construction.
 2. Catalog count `1` remains outside both managed reason boundaries. A single
    plausible type with no safely selectable prebound choice must not be
    silently relabelled.
@@ -1711,9 +1718,9 @@ Explicit stops:
 
 In the unchanged active four-block packet the four frozen zero-choice cases
 still expose zero cards, zero options and two technical Compiler blocks for
-ambiguous `amount` binding. The non-active V2 sidecar now exposes both
-authority-derived type cards and zero choices. Their expected answers remain
-frozen, but the semantic audit is not uniform:
+ambiguous `amount` binding. The frozen GOAL 4 non-active V2 sidecar exposed
+authority-derived type cards and zero choices in the frozen GOAL 4 snapshot.
+Their expected answers remain frozen, but the semantic audit is not uniform:
 
 | Case | Contract-level semantic assessment |
 | --- | --- |
@@ -1773,20 +1780,21 @@ BENCHMARK_CONFORMANCE: NOT_CLAIMED
 FOUR_CASE_REASON_COMPATIBILITY: ONE_PLAUSIBLE_THREE_NOT_PROVEN
 ```
 
-## 21. GOAL 4 implementation status
+## 21. Frozen GOAL 4 implementation status
 
-The existing packet factory now constructs the non-active Context V2
-candidate and its private mapping receipt after it has constructed and hashed
-the unchanged active payload. The same existing managed-assets loader exposes
-one closed candidate profile, and the same existing Pack projection owner
-emits the versioned Pack and reason projections. There is no second packet
-builder, catalog loader, Prompt/Choice authority or provider route.
+At the frozen GOAL 4 snapshot, the existing packet factory constructed the
+non-active Context V2 candidate and its private mapping receipt after it had
+constructed and hashed the unchanged active payload. The same existing
+managed-assets loader exposed one closed candidate profile, and the same
+existing Pack projection owner emitted the versioned Pack and reason
+projections. That snapshot added no second packet builder, catalog loader,
+Prompt/Choice authority or provider route.
 
-The implementation proves deterministic local rendering, exact model JSON
-hashing, semantic-literal occurrence coverage, local-key mappings, necessary
-reference targets, exact binding multiset partition, authority pointers and
-receipt integrity. Its sidecars have `active=false` and
-`provider_calls_total=0`.
+The frozen implementation evidence proves deterministic local rendering,
+exact model JSON hashing, semantic-literal occurrence coverage, local-key
+mappings, necessary reference targets, exact binding multiset partition,
+authority pointers and receipt integrity. Its sidecars record `active=false`
+and `provider_calls_total=0`.
 
 GOAL 4 does not implement or claim:
 
