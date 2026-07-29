@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Decision Reason Catalog v1
 
-Status: `VERSIONED_INACTIVE_DRAFT_PROJECTED_ONLY_IN_NON_ACTIVE_CONTEXT_V2`
+Status: `VERSIONED_INACTIVE_DRAFT_PROJECTED_ONLY_IN_NON_ACTIVE_CONTEXT_V2_0`
 
 Catalog ID:
 `broker_reports_gate2_financial_decision_reason_catalog`
@@ -28,7 +28,7 @@ the catalog prose and therefore cannot drift into a second meaning authority.
 | human-readable title, meaning, usage, counter-usage, example and contrast | this versioned catalog JSON |
 | catalog structure, code-set parity, integrity and distinction checks | `Gate2FinancialDecisionReasonCatalogContractFactory` |
 | financial type and role meaning | Financial Semantic Pack |
-| model-visible projection | implemented only in the non-active [Context V2 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), through the existing single managed-assets loader and existing Pack projection owner |
+| model-visible projection | exact completeness projection implemented only in the non-active [Context V2.0 baseline](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md), through the existing single managed-assets loader and existing Pack projection owner; future minimal projection not implemented |
 
 The catalog does not own dispositions, type IDs, type definitions, roles,
 Typed Options, aliases, bindings, provider behavior, validation,
@@ -55,6 +55,29 @@ The generated
 is byte-derived from the Python contract factory. GUI tooling may consume the
 JSON and schema, but direct GUI edits are not publication and cannot mutate
 active runtime.
+
+### Minimal model projection mapping
+
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+does not change this full catalog or author new human wording. It selects a
+future reason card containing only exact catalog `code`, exact `human_title`
+as `title`, and the exact first sentence of catalog `meaning` as `use_when`.
+“First sentence” is the exact prefix through the first U+002E FULL STOP
+followed by one ASCII space or end of string, with no trim, normalization,
+summary or synonym substitution. The full catalog `use_when` remains backend
+administration and is not the source of the minimal field.
+
+Those exact source strings already exist. GOAL 7 only implements this
+deterministic mapping through the existing managed-assets loader/projection
+owner; it may not embed replacement wording. The next immediate step remains
+GOAL 6 outcome-taxonomy/count-one audit. GOAL 8 later builds only the
+PacketFactory V2.1 candidate plus private receipt. **STOP before GOAL 9:** a
+separately authorized/versioned V2.1 response profile must first exist in the
+Choice authority, or the program must be amended. GOAL 9 only consumes that
+Choice schema while linting P01-P18; it cannot invent or build it. GOAL 5 is
+documentation-only; catalog JSON, projection bytes, Choice and runtime remain
+unchanged.
 
 ## 4. Mechanical distinction
 
@@ -133,15 +156,18 @@ already exist.
 
 ## 8. Compatibility stop
 
-This catalog is model-visible only inside the non-active Context V2 sidecar
-and does not claim frozen V6 benchmark conformance. The
-[Context V2 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+This catalog is model-visible only inside the exact non-active Context V2.0
+completeness sidecar and does not claim frozen V6 benchmark conformance. The
+[Context V2.0 contract](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
 requires one readable card for every active Pack/Registry type compatible
 with the Evidence Bundle source family, including types for which no Typed
 Option exists. Candidate Compiler attempted types are a private parity check,
 not the source of the visible type set and not evidence of semantic
 plausibility. GOAL 4 implements and locally validates that closed projection;
 it does not implement a response schema, request route or provider transport.
+That historical full reason-card projection is not evidence that the
+Minimal Model Surface projection has been implemented. Its exact first-sentence
+selection rule is accepted by GOAL 5, while implementation remains GOAL 7.
 
 Count `1` remains outside both catalog boundaries, and some historical cases
 may still describe association ambiguity rather than two distinct plausible
@@ -161,6 +187,10 @@ ROLLBACK_POLICY: DEFINED_NOT_LIVE_PROVEN
 TYPE_MEANINGS_CHANGED: NO
 PROVIDER_CALLS: ZERO
 BENCHMARK_CONFORMANCE: NOT_CLAIMED
-CONTEXT_V2_PROJECTION: IMPLEMENTED_NON_ACTIVE
+CONTEXT_V2_0_COMPLETENESS_PROJECTION: IMPLEMENTED_NON_ACTIVE
+MINIMAL_REASON_PROJECTION: NOT_IMPLEMENTED_GOAL_7
+CONTEXT_V2_1: NOT_IMPLEMENTED_GOAL_8
+CONTEXT_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED_SEPARATE_AUTHORIZATION_REQUIRED
+CONTEXT_V2_1_LINTER: BLOCKED_BY_RESPONSE_PROFILE_STOP_GOAL_9
 ACTIVE_MODEL_ROUTE: UNCHANGED
 ```

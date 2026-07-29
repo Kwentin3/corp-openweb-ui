@@ -1,7 +1,8 @@
 # Broker Reports Gate 2 Financial Semantic V6 Exact Evidence
 
-Status: active V6 evidence current; non-active Context V2 packet evidence
-implemented; V2 persistence/restore/replay not implemented.
+Status: active V6 evidence current; exact non-active Context V2.0 completeness
+packet evidence implemented; V2.0 response/sealing/persistence/restore/replay
+not implemented; future V2.1 not implemented.
 
 ## Private evidence
 
@@ -51,27 +52,45 @@ accepts only the exact private field set, verifies `private_evidence_hash`,
 and reinstates canonical contract order after ordinary JSON writers sort
 object keys. It does not change values or weaken replay validation.
 
-## Context V2 packet evidence and future sealed-request requirement
+## Context V2.0 historical packet evidence and future V2.1 boundary
 
 The non-active
-[LLM Semantic Context V2](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
-extends the private-evidence obligation. Managed Semantic Decision Context
-GOAL 4 implements the exact packet-owned candidate and mapping receipt locally;
-it does not yet seal or persist a complete request.
+[LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md)
+extends the private-evidence obligation as an exact implemented historical
+completeness baseline. Managed Semantic Decision Context GOAL 4 implements the
+packet-owned candidate and mapping receipt locally; it does not seal or persist
+a complete request. The V2.0 bytes, evidence and receipt remain version-pinned
+and unchanged.
 
-The later linter/evidence implementation must preserve the exact system
-message, Context V2
-JSON, complete provider-neutral response format, adapter-extracted local
-answer, packet-owned private mapping receipt and linter-owned private
-sealed-request receipt before normalization. The evidence record owns the
-answer and output hashes; using that answer plus both verified receipts, replay
-must restore the unchanged canonical V6 Choice, Expansion, validation,
-materialization and report projection without provider access or semantic
-repair.
+The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes V2.0 only as the future field-eligibility target. GOAL 5 is
+documentation-only and adds no evidence, receipt, persistence, replay,
+provider call or runtime change. GOAL 6 audits outcome taxonomy and the
+count-one stop; GOAL 7 implements the exact GOAL 5-selected managed projection;
+GOAL 8 may implement only the non-active PacketFactory V2.1 candidate plus
+private receipt. **STOP before GOAL 9:** a separately authorized/versioned
+V2.1 response profile must first exist in the Choice authority, or the program
+must be amended. GOAL 9 only consumes that schema while linting P01-P18; it
+cannot invent or build it. The selected Pack `examples[0]`,
+`counterexamples[0]`, unique direct rule against the only other current
+visible type, and exact first sentence of catalog `meaning` already exist.
+GOAL 7 does not author markers or reason wording, but its projection and all
+V2.1 evidence remain unimplemented.
+
+Only after those steps, a separately authorized V2.1 evidence implementation
+may preserve the exact V2.1 system message, context JSON, complete
+provider-neutral response format, adapter-extracted local answer, packet-owned
+private mapping receipt and linter-owned private sealed-request receipt before
+normalization. The evidence record must own the answer and output hashes; using
+that answer plus both verified receipts, replay must restore the unchanged
+canonical V6 Choice, Expansion, validation, materialization and report
+projection without provider access or semantic repair.
 
 The current evidence/restorer/replay path is bound to the active exact-ID
-request and historical candidate. Context V2 persistence, restore and replay
-are `NOT_IMPLEMENTED_NOT_RUN`, not inferred from current replay success.
+request and historical candidate. Context V2.0 persistence, restore and replay
+are `NOT_IMPLEMENTED_NOT_RUN`; Context V2.1 itself is also `NOT_IMPLEMENTED`.
+Neither status is inferred from current replay success.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.
@@ -81,8 +100,9 @@ deterministic candidate bytes,
 model-view hash, local-key bijections, necessary reference targets,
 field-to-authority pointers, complete exact binding partition and receipt
 integrity. It records zero provider calls and no runtime activation. It does
-not claim the absent V2 Choice profile, sealed-request receipt,
-persistence/restore/replay, provider compatibility or benchmark admission.
+not claim the absent V2.0 Choice profile, any V2.1 implementation,
+sealed-request receipt, persistence/restore/replay, provider compatibility or
+benchmark admission.
 
 Current repository-safe GOAL 4 evidence:
 

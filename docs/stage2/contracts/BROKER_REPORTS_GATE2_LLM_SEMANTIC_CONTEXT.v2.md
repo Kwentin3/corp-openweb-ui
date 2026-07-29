@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2
 
-Status: `IMPLEMENTED_NON_ACTIVE_PACKET_SIDECAR_CHOICE_LINTER_REQUEST_NOT_IMPLEMENTED`
+Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_CHOICE_LINTER_REQUEST_NOT_IMPLEMENTED_FUTURE_TARGET_SUPERSEDED`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2`
@@ -18,8 +18,8 @@ Local response-profile identity:
 
 ## 1. Purpose
 
-This contract defines the complete model-visible boundary for one future,
-non-active Gate 2 financial semantic decision candidate.
+This contract defines the complete model-visible boundary for the implemented
+non-active Gate 2 financial semantic decision V2.0 candidate.
 
 It is the successor of
 [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md),
@@ -33,11 +33,20 @@ names are intentionally distinct:
   Choice profile, complete-request linter, request route and provider use are
   not implemented.
 
-The target is a short specialist-facing decision card. The model receives
-only source meaning, evidence-derived structure, managed type meaning,
-readable prebound relationships, selectable local choices and managed
-unclassified-reason meaning. Exact identity and record construction remain
-code-owned.
+The V2.0 design target was a specialist-facing completeness card. The model
+view receives source meaning, evidence-derived structure, managed type
+meaning, readable prebound relationships, selectable local choices and
+managed unclassified-reason meaning. Exact identity and record construction
+remain code-owned.
+
+V2.0 is now exact, implemented, non-active, version-pinned completeness
+evidence. It is not the future minimal model-surface target. The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+supersedes only that future field-eligibility target; it does not rewrite this
+contract, its candidate bytes or its private mapping receipt. The V2.0 task,
+separate model-visible `value_type`, presence-driven structural fields and
+shared/factored relationship representation remain historical V2.0 details,
+not accepted V2.1 fields or wording.
 
 The Managed Semantic Decision Context GOAL 3 that created this document is not
 the historical staged-program GOAL 3 recorded in Context v1. Historical
@@ -90,15 +99,20 @@ factory to return:
 - one non-active Context V2 candidate;
 - one packet-owned private Context V2 mapping receipt.
 
-The existing V6 Choice factory remains the sole response-schema owner. It may
-later add one non-active local-choice V2 profile that normalizes to the
-unchanged canonical V6 Choice.
+The existing V6 Choice factory remains the sole response-schema owner. Any
+later V2.1 local-choice profile must be separately versioned and normalize to
+the unchanged canonical V6 Choice; GOAL 5 and GOAL 8 do not add a V2.0 or V2.1
+profile. This is a normative **STOP before GOAL 9**: that separately authorized
+profile must first be implemented in the Choice authority, or the program must
+be amended.
 
 The existing Context Linter remains the sole complete-request sealer. Its
-future V2 extension consumes the packet-owned candidate/mapping receipt plus
-the Prompt and Choice-owned schema, then emits a separate private sealed-
-request receipt. The packet factory must not import or reconstruct Prompt or
-Choice outputs, and the linter receipt must not duplicate the packet mapping.
+future V2.1 extension belongs only to GOAL 9 after that STOP is cleared. It
+consumes the packet-owned candidate/mapping receipt plus the Prompt and
+Choice-owned schema, then emits a separate private sealed-request receipt.
+GOAL 9 is linter-only: it must not invent or build the Choice schema. The packet
+factory must not import or reconstruct Prompt or Choice outputs, and the
+linter receipt must not duplicate the packet mapping.
 
 No second packet builder, Semantic Pack, decision-reason catalog, Choice
 authority, binding resolver, provider semantic adapter or materializer is
@@ -109,7 +123,7 @@ validated Evidence Bundle + Candidate Compilation
 validated managed Pack + validated reason catalog
   -> existing Packet factory
      -> non-active Context V2 + private mapping receipt
-  -> existing Choice factory
+  -> separately authorized versioned profile in existing Choice factory
      -> non-active local response schema
   -> existing Context Linter extension
      -> sealed request + private sealed-request receipt
@@ -289,14 +303,16 @@ The Context V2 JSON object has these ordered fields:
 No contract identity, schema version, asset identity, hash or provider
 metadata is rendered in this object.
 
-`task` is the current exact generic instruction:
+`task` is the exact historical V2.0 generic instruction:
 
 ```text
 Select a typed option only when the visible source uniquely supports its complete prebound record; otherwise select unclassified.
 ```
 
 The task appears once in the complete request. Pack and reason cards must not
-repeat it.
+repeat it. Future V2.1 uses the different exact instruction owned by the
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md);
+the complete-prebound wording above is not retained for V2.1.
 
 ## 6. Readable source projection
 
@@ -773,9 +789,15 @@ two or more plausible distinct types (`ambiguous_2plus`). The inadmissible
 state is exactly one plausible type without one safe choice. Audit labels
 never enter model view.
 
-## 12. Non-active response schema
+## 12. Historical V2.0 non-active response-schema design
 
-The existing Choice factory owns one future local V2 response profile.
+This section preserves the exact V2.0 completeness design that was not
+implemented. It is not authorization to add a V2.0 response profile. Any
+future V2.1 response profile remains inside the existing Choice factory and
+must conform to the separately versioned Minimal Model Surface successor.
+GOAL 8 builds only the PacketFactory candidate plus private receipt. The
+missing V2.1 Choice profile is a normative STOP before GOAL 9 and requires
+separate authorization/versioning or a program amendment.
 
 Typed response:
 
@@ -925,9 +947,13 @@ A local unclassified answer normalizes without semantic repair to:
 }
 ```
 
-## 13. Closed model-visible field allowlist
+## 13. Closed V2.0 completeness field allowlist
 
-The full allowlist is:
+The full V2.0 allowlist is preserved below as version-pinned completeness
+evidence. It is not the future minimal allowlist. The
+[Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+accounts for every field here as retained, minimized, backend-only or
+forbidden without mutating this V2.0 shape.
 
 | Surface | Allowed fields |
 | --- | --- |
@@ -1008,17 +1034,17 @@ Field justification is closed as follows:
 | reason `title/meaning/use_when/do_not_use_when` | managed reason catalog | explain positive and negative semantic boundary; model | all required | exact catalog field pointers/hash |
 | reason `contrasts` | managed reason catalog | distinguish neighbouring reasons; model | non-empty reciprocal set | exact contrast pointers/hash |
 | reason contrast fields | managed reason catalog | bind contrast to response code and exact distinction; model | code plus distinction required | exact neighbour-code/distinction pointer |
-| response `choice` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | return one local choice or `unclassified`; parser/normalizer | exactly one | response-schema and request hashes |
-| response `reason` | future V2 profile in the existing Choice factory plus existing decision-code set (`NOT_IMPLEMENTED`) | return exact reason only for unclassified; parser/normalizer | required only for unclassified, forbidden for typed | code-set/catalog parity receipt |
-| wrapper `type` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | select strict JSON Schema response mode; provider | exactly `json_schema` | request-profile/hash |
-| wrapper `json_schema.name` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | stable provider schema label; provider | exactly `semantic_choice` | request-profile/hash |
-| wrapper `json_schema.strict` | future V2 profile in the existing request/provider authority (`NOT_IMPLEMENTED`) | prohibit permissive provider output; provider | exactly boolean `true` | request-profile/hash |
-| wrapper `json_schema.schema` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | carry the exact request-bound schema; provider/model | exactly one schema object | response-schema hash |
-| schema `title` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | human schema label; provider/model | exactly `Semantic choice` | response-schema hash |
-| schema `anyOf` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | separate typed and unclassified shapes; parser/model | typed then unclassified when choices exist, otherwise unclassified only | response-schema hash and choice-set receipt |
-| branch `type/additionalProperties` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | require closed objects; parser/model | exactly `object` and boolean `false` | response-schema hash |
-| branch `properties/required` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | close conditional response fields; parser/model | exact fields and order printed in section 12 | response-schema hash |
-| property `type/enum` | future V2 profile in the existing Choice factory (`NOT_IMPLEMENTED`) | constrain local choice and reason codes; parser/model | exactly `string` plus request-bound enum in section 12 order | response-schema, mapping and catalog parity hashes |
+| response `choice` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | return one local choice or `unclassified`; parser/normalizer | exactly one | response-schema and request hashes |
+| response `reason` | historical V2.0 design slot plus existing decision-code set (`NOT_IMPLEMENTED`) | return exact reason only for unclassified; parser/normalizer | required only for unclassified, forbidden for typed | code-set/catalog parity receipt |
+| wrapper `type` | historical V2.0 design slot in the existing request/provider authority (`NOT_IMPLEMENTED`) | select strict JSON Schema response mode; provider | exactly `json_schema` | request-profile/hash |
+| wrapper `json_schema.name` | historical V2.0 design slot in the existing request/provider authority (`NOT_IMPLEMENTED`) | stable provider schema label; provider | exactly `semantic_choice` | request-profile/hash |
+| wrapper `json_schema.strict` | historical V2.0 design slot in the existing request/provider authority (`NOT_IMPLEMENTED`) | prohibit permissive provider output; provider | exactly boolean `true` | request-profile/hash |
+| wrapper `json_schema.schema` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | carry the exact request-bound schema; provider/model | exactly one schema object | response-schema hash |
+| schema `title` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | human schema label; provider/model | exactly `Semantic choice` | response-schema hash |
+| schema `anyOf` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | separate typed and unclassified shapes; parser/model | typed then unclassified when choices exist, otherwise unclassified only | response-schema hash and choice-set receipt |
+| branch `type/additionalProperties` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | require closed objects; parser/model | exactly `object` and boolean `false` | response-schema hash |
+| branch `properties/required` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | close conditional response fields; parser/model | exact fields and order printed in section 12 | response-schema hash |
+| property `type/enum` | historical V2.0 design slot in the existing Choice factory (`NOT_IMPLEMENTED`) | constrain local choice and reason codes; parser/model | exactly `string` plus request-bound enum in section 12 order | response-schema, mapping and catalog parity hashes |
 
 Anything not listed is forbidden until a later contract version provides a
 semantic or structural justification.
@@ -1056,11 +1082,15 @@ Allowed field names do not launder forbidden values. A global ref under
 
 The design assigns two separate closed private receipts to two owners. GOAL 4
 implements only the first: the packet factory emits the Context-to-authority
-mapping receipt and does not import Prompt or Choice. A future V2 extension of
-the existing Context Linter must consume that mapping receipt together with the
-Prompt-owned system message and Choice-owned response format, then emit the
-second, sealed-request receipt. That future receipt references the mapping
-receipt by integrity hash and does not duplicate its mappings.
+mapping receipt and does not import Prompt or Choice. This V2.0 design never
+implemented the second receipt. Before GOAL 9, the separately
+authorized/versioned V2.1 response profile must exist in the Choice authority,
+or the program must be amended. Only after that STOP is cleared may the V2.1
+Context Linter consume its corresponding mapping receipt together with the
+Prompt-owned system message and Choice-owned response format, then emit a
+sealed-request receipt. The linter never invents or builds the Choice schema.
+That future receipt references the mapping receipt by integrity hash and does
+not duplicate its mappings.
 
 ### 15.1 Packet-owned mapping receipt
 
@@ -1305,9 +1335,12 @@ scope, wrong option, changed ordering, incomplete exact-binding coverage,
 Registry/Pack baseline mismatch, managed-asset mismatch, wrapper/request hash
 mismatch or receipt tampering.
 
-## 16. Restore, expansion and replay
+## 16. Historical V2.0 restore, expansion and replay design
 
-A conforming future local proof must preserve and restore:
+This is the exact unimplemented V2.0 completeness design, not a route to
+transport or a GOAL 5 acceptance surface. A later V2.1 local end-to-end proof
+must define and pin its own corresponding sequence through existing owners.
+The V2.0 design would have preserved and restored:
 
 1. the exact final model-visible system message;
 2. the exact Context V2 JSON;
@@ -1356,15 +1389,31 @@ for the current overloaded representation.
 
 The governing successor sequence is:
 
-1. GOAL 5 defines the Minimal Model Surface allowlist, forbidden fields and
-   field-by-field necessity;
-2. GOAL 6 audits outcome taxonomy and benchmark expectations;
-3. GOAL 7 adds the versioned minimal managed projection;
-4. GOAL 8 builds the non-active Context V2.1 candidate;
-5. only GOAL 9 adds the Context Linter V2.1 and budget guard.
+1. GOAL 5 defines the
+   [Minimal Model Surface](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
+   allowlist, forbidden fields and field-by-field necessity without runtime
+   changes;
+2. GOAL 6 audits outcome taxonomy, the count-one stop and benchmark
+   expectations;
+3. GOAL 7 implements the versioned minimal managed projection using the exact
+   GOAL 5 mappings from Pack `examples[0]`, Pack `counterexamples[0]`, the
+   unique direct rule against the only other current visible type, and the
+   first sentence of catalog `meaning`;
+4. GOAL 8 builds only the non-active PacketFactory Context V2.1 candidate plus
+   private mapping receipt;
+5. **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
+   profile must be implemented in the existing Choice authority, or the
+   program must be amended;
+6. after that STOP is cleared, GOAL 9 adds only the Context Linter V2.1 and
+   budget guard, consuming the P01-P18 Prompt, candidate and Choice-owned
+   schema without inventing or building that schema.
 
-The GOAL 9 linter protects the accepted minimal V2.1 surface. It must not
-cement the complete V2.0 field set described by this contract.
+The GOAL 9 linter protects the contracted full P01-P18 V2.1 surface only after
+the Choice STOP is cleared. It must not cement the complete V2.0 field set
+described by this contract.
+The selected strings already exist in the Pack/catalog; GOAL 7 implements only
+their deterministic projection and may not author replacements. GOAL 6 owns
+taxonomy/count-one review, not these wording selections.
 
 All model-view and receipt arrays have a closed order:
 
@@ -1642,8 +1691,11 @@ Explicit stops:
 3. The reason catalog and family v2 remain inactive drafts. Their validated
    closed-world candidate projection is packaged through the existing single
    model-assets loader, without publication or runtime activation.
-4. Context V2 linter, persisted restore/replay and report projection are later
-   GOALs.
+4. No V2.0 linter will be added by this sequence. Before GOAL 9 can lint
+   P01-P18, a separately authorized/versioned V2.1 response profile must exist
+   in the Choice authority, or the program must be amended. GOAL 9 consumes
+   that schema and never invents/builds it. Persisted restore/replay and report
+   projection remain later explicitly authorized work.
 5. No frozen expected answer, Prompt, Pack type meaning, reason wording,
    option order or provider/model selection changes in GOAL 3.
 6. A valid all-`source_reference` bundle with no necessary inbound
@@ -1739,6 +1791,7 @@ receipt integrity. Its sidecars have `active=false` and
 GOAL 4 does not implement or claim:
 
 - the local Choice V2 schema/parser profile;
+- a separately authorized/versioned V2.1 response profile;
 - Context Linter V2.1 or a sealed complete request;
 - provider projection or compatibility;
 - persisted evidence restore/replay or runtime report projection;
@@ -1750,9 +1803,12 @@ PACKET_OWNED_MAPPING_RECEIPT: IMPLEMENTED_PRIVATE
 ACTIVE_PACKET_BYTES: FROZEN_BY_EXACT_BASELINES
 HISTORICAL_SLIM: UNCHANGED
 LOCAL_CHOICE_V2: NOT_IMPLEMENTED
-CONTEXT_LINTER_V2_1: NOT_IMPLEMENTED
+CONTEXT_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED_SEPARATE_AUTHORIZATION_REQUIRED
+CONTEXT_LINTER_V2_1: BLOCKED_BY_RESPONSE_PROFILE_STOP_GOAL_9
 REQUEST_PROFILE_V2: NOT_IMPLEMENTED
 PERSISTENCE_REPLAY_V2: NOT_IMPLEMENTED
 PROVIDER_CALLS: ZERO
 RUNTIME_ACTIVATION: FALSE
+MINIMAL_MODEL_SURFACE_V1: DOCUMENTATION_ONLY_SUCCESSOR_POLICY
+CONTEXT_V2_0_FUTURE_ACTIVATION_TARGET: SUPERSEDED
 ```
