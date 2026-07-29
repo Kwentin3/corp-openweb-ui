@@ -4,7 +4,7 @@ import copy
 import json
 import sys
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -43,8 +43,11 @@ from broker_reports_gate1.gate2_financial_semantic_v6_candidate_compiler import 
     Gate2FinancialCandidateCompilerFactory,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_packet import (  # noqa: E402,E501
+    SEMANTIC_PACKET_AMBIGUITY_RULE,
+    SEMANTIC_PACKET_OPERATION,
     Gate2FinancialSemanticV6PacketError,
     Gate2FinancialSemanticV6PacketFactory,
+    _context_v2_candidate_and_receipt,
     validate_financial_semantic_context_v2_material,
 )
 from broker_reports_gate1.gate2_financial_semantic_v5_projection import (  # noqa: E402,E501
@@ -60,6 +63,15 @@ BASE_MANIFEST_PATH = (
 )
 BASE_CASE_ID = "syn_successor_v2_unique_cash"
 TEXT_SEGMENT_REF = "segment:context-v2:cash"
+
+
+@dataclass(frozen=True)
+class HistoricalContextV2Evidence:
+    candidate: Any
+    receipt: Any
+    projection: Any
+    active_payload: dict[str, Any]
+    active_packet_hash: str
 
 
 @pytest.fixture(scope="module")
@@ -98,7 +110,7 @@ def _reseal_source_package(
     ).create()
 
 
-def _create_packet(
+def _create_historical_context_v2_evidence(
     *,
     registry: Gate2FinancialEvidenceRegistrySnapshot,
     gate1_payload: dict[str, Any],
@@ -114,28 +126,65 @@ def _create_packet(
         evidence_bundle=bundle,
         source_package=source_package,
     )
-    packet = Gate2FinancialSemanticV6PacketFactory(
-        registry=registry
-    ).create(
-        evidence_bundle=bundle,
-        source_package=source_package,
-        compilation=compilation,
+    projection = (
+        Gate2FinancialSemanticV5ProjectionFactory()
+        .create_context_v2_candidate(
+            registry=registry,
+            source_family_id=bundle.source_family_id,
+        )
     )
-    assert packet.context_v2_candidate.provider_calls_total == 0
-    assert packet.context_v2_mapping_receipt.provider_calls_total == 0
-    return packet, bundle, compilation
+    active_payload = {
+        "task": {
+            "semantic_operation": SEMANTIC_PACKET_OPERATION,
+            "ambiguity_rule": SEMANTIC_PACKET_AMBIGUITY_RULE,
+        }
+    }
+    active_packet_hash = sha256_json(active_payload)
+    historical_candidate, historical_receipt = (
+        _context_v2_candidate_and_receipt(
+            evidence_bundle=bundle,
+            compilation=compilation,
+            registry=registry,
+            projection=projection,
+            active_payload=active_payload,
+            active_packet_hash=active_packet_hash,
+        )
+    )
+    assert historical_candidate.provider_calls_total == 0
+    assert historical_receipt.provider_calls_total == 0
+    return (
+        HistoricalContextV2Evidence(
+            candidate=historical_candidate,
+            receipt=historical_receipt,
+            projection=projection,
+            active_payload=active_payload,
+            active_packet_hash=active_packet_hash,
+        ),
+        bundle,
+        compilation,
+    )
 
 
-def _source_children(packet) -> list[dict[str, Any]]:
-    return packet.context_v2_candidate.payload["source"]["document"][
-        "children"
-    ]
+def _source_children(
+    historical: HistoricalContextV2Evidence,
+) -> list[dict[str, Any]]:
+    return historical.candidate.payload["source"]["document"]["children"]
 
 
-def _necessary_reference_targets(packet) -> list[dict[str, str]]:
-    return packet.context_v2_mapping_receipt.local_mappings[
-        "evidence_reference_targets"
-    ]
+def _necessary_reference_targets(
+    historical: HistoricalContextV2Evidence,
+) -> list[dict[str, str]]:
+    return historical.receipt.local_mappings["evidence_reference_targets"]
+
+
+def _walk_dicts(value):
+    if isinstance(value, dict):
+        yield value
+        for item in value.values():
+            yield from _walk_dicts(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _walk_dicts(item)
 
 
 def test_context_v2_preserves_table_to_row_hierarchy(
@@ -143,13 +192,13 @@ def test_context_v2_preserves_table_to_row_hierarchy(
 ) -> None:
     registry, gate1_payload, source_package = base_authorities
 
-    packet, _, _ = _create_packet(
+    historical, _, _ = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=source_package,
     )
 
-    children = _source_children(packet)
+    children = _source_children(historical)
     assert [item["kind"] for item in children] == ["table"]
     assert [item["kind"] for item in children[0]["children"]] == ["row"]
     assert all(
@@ -158,7 +207,7 @@ def test_context_v2_preserves_table_to_row_hierarchy(
             "target_kind": "location",
             "target": "the only visible row",
         }
-        for item in _necessary_reference_targets(packet)
+        for item in _necessary_reference_targets(historical)
     )
 
 
@@ -177,18 +226,18 @@ def test_context_v2_renders_direct_row_when_table_lineage_is_absent(
         ),
     )
 
-    packet, _, _ = _create_packet(
+    historical, _, _ = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=direct_row_package,
     )
 
-    children = _source_children(packet)
+    children = _source_children(historical)
     assert [item["kind"] for item in children] == ["row"]
     assert len(children[0]["values"]) == 4
     assert {
         (item["target_kind"], item["target"])
-        for item in _necessary_reference_targets(packet)
+        for item in _necessary_reference_targets(historical)
     } == {("location", "the only visible row")}
 
 
@@ -226,18 +275,18 @@ def test_context_v2_renders_gate1_text_segment_projection(
         ),
     )
 
-    packet, _, _ = _create_packet(
+    historical, _, _ = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=text_payload,
         source_package=text_package,
     )
 
-    children = _source_children(packet)
+    children = _source_children(historical)
     assert [item["kind"] for item in children] == ["text segment"]
     assert len(children[0]["values"]) == 4
     assert {
         (item["target_kind"], item["target"])
-        for item in _necessary_reference_targets(packet)
+        for item in _necessary_reference_targets(historical)
     } == {("location", "the only visible text segment")}
 
 
@@ -272,7 +321,7 @@ def test_context_v2_uses_evidence_group_for_ambiguous_reference_target(
         tuple(split_values),
     )
 
-    packet, bundle, _ = _create_packet(
+    historical, bundle, _ = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=split_package,
@@ -288,13 +337,13 @@ def test_context_v2_uses_evidence_group_for_ambiguous_reference_target(
         for item in bundle.source_values
         if item.value_type != "source_reference"
     } == {"row:context-v2:left", "row:context-v2:right"}
-    children = _source_children(packet)
+    children = _source_children(historical)
     assert [item["kind"] for item in children] == [
         "row",
         "row",
         "evidence group",
     ]
-    targets = _necessary_reference_targets(packet)
+    targets = _necessary_reference_targets(historical)
     assert len(targets) == 2
     assert {
         (item["target_kind"], item["target"]) for item in targets
@@ -306,7 +355,7 @@ def test_context_v2_uses_evidence_group_for_ambiguous_reference_target(
     )
     evidence_group_kind_source = next(
         item
-        for item in packet.context_v2_mapping_receipt.visible_field_sources
+        for item in historical.receipt.visible_field_sources
         if item["json_pointer"]
         == f"/source/document/children/{evidence_group_index}/kind"
     )
@@ -351,7 +400,7 @@ def test_context_v2_preserves_interleaved_row_literal_occurrences(
         tuple(interleaved_values),
     )
 
-    packet, bundle, _ = _create_packet(
+    historical, bundle, compilation = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=interleaved_package,
@@ -363,7 +412,9 @@ def test_context_v2_preserves_interleaved_row_literal_occurrences(
         if item.value_type != "source_reference"
     ]
     rows = [
-        item for item in _source_children(packet) if item["kind"] == "row"
+        item
+        for item in _source_children(historical)
+        if item["kind"] == "row"
     ]
     rendered_literals = [
         value["literal"] for row in rows for value in row["values"]
@@ -375,7 +426,7 @@ def test_context_v2_preserves_interleaved_row_literal_occurrences(
 
     literal_sources = [
         item
-        for item in packet.context_v2_mapping_receipt.visible_field_sources
+        for item in historical.receipt.visible_field_sources
         if item["json_pointer"].endswith("/literal")
     ]
     assert {
@@ -386,19 +437,46 @@ def test_context_v2_preserves_interleaved_row_literal_occurrences(
         if item.value_type != "source_reference"
     }
 
+    current_packet = Gate2FinancialSemanticV6PacketFactory(
+        registry=registry
+    ).create(
+        evidence_bundle=bundle,
+        source_package=interleaved_package,
+        compilation=compilation,
+    )
+    current_literals = [
+        item["literal"]
+        for item in _walk_dicts(
+            current_packet.context_v2_candidate.payload["source"]
+        )
+        if "literal" in item
+    ]
+    assert current_literals == rendered_literals
+    assert Counter(current_literals) == Counter(expected_literals)
+    assert Counter(
+        item["source_value_ref"]
+        for item in current_packet.context_v2_mapping_receipt.source_mappings[
+            "occurrences"
+        ]
+    ) == Counter(
+        item.source_value_ref
+        for item in bundle.source_values
+        if item.value_type != "source_reference"
+    )
+
 
 def test_context_v2_rejects_existing_but_wrong_authority_pointer(
     base_authorities,
 ) -> None:
     registry, gate1_payload, source_package = base_authorities
-    packet, bundle, compilation = _create_packet(
+    historical, bundle, compilation = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=source_package,
     )
     field_sources = [
         copy.deepcopy(item)
-        for item in packet.context_v2_mapping_receipt.visible_field_sources
+        for item in historical.receipt.visible_field_sources
     ]
     title_source = next(
         item
@@ -407,7 +485,7 @@ def test_context_v2_rejects_existing_but_wrong_authority_pointer(
     )
     title_source["authority_pointer"] = "/reasons/1/human_title"
     tampered_receipt = replace(
-        packet.context_v2_mapping_receipt,
+        historical.receipt,
         visible_field_sources=tuple(field_sources),
     )
     receipt_material = tampered_receipt.to_private_dict()
@@ -416,27 +494,19 @@ def test_context_v2_rejects_existing_but_wrong_authority_pointer(
         tampered_receipt,
         integrity_hash=sha256_json(receipt_material),
     )
-    projection = (
-        Gate2FinancialSemanticV5ProjectionFactory()
-        .create_context_v2_candidate(
-            registry=registry,
-            source_family_id=bundle.source_family_id,
-        )
-    )
-
     with pytest.raises(
         Gate2FinancialSemanticV6PacketError,
         match="financial_semantic_context_v2_receipt_material_invalid",
     ):
         validate_financial_semantic_context_v2_material(
-            candidate=packet.context_v2_candidate,
+            candidate=historical.candidate,
             receipt=tampered_receipt,
             evidence_bundle=bundle,
             compilation=compilation,
             registry=registry,
-            projection=projection,
-            active_payload=packet.payload,
-            active_packet_hash=packet.packet_hash,
+            projection=historical.projection,
+            active_payload=historical.active_payload,
+            active_packet_hash=historical.active_packet_hash,
         )
 
 
@@ -444,19 +514,17 @@ def test_context_v2_rejects_resealed_wrong_reference_target(
     base_authorities,
 ) -> None:
     registry, gate1_payload, source_package = base_authorities
-    packet, bundle, compilation = _create_packet(
+    historical, bundle, compilation = _create_historical_context_v2_evidence(
         registry=registry,
         gate1_payload=gate1_payload,
         source_package=source_package,
     )
-    local_mappings = copy.deepcopy(
-        packet.context_v2_mapping_receipt.local_mappings
-    )
+    local_mappings = copy.deepcopy(historical.receipt.local_mappings)
     reference_row = local_mappings["evidence_reference_targets"][0]
     assert reference_row["target"] == "the only visible row"
     reference_row["target"] = "the only visible table"
     tampered_receipt = replace(
-        packet.context_v2_mapping_receipt,
+        historical.receipt,
         local_mappings=local_mappings,
     )
     receipt_material = tampered_receipt.to_private_dict()
@@ -465,27 +533,19 @@ def test_context_v2_rejects_resealed_wrong_reference_target(
         tampered_receipt,
         integrity_hash=sha256_json(receipt_material),
     )
-    projection = (
-        Gate2FinancialSemanticV5ProjectionFactory()
-        .create_context_v2_candidate(
-            registry=registry,
-            source_family_id=bundle.source_family_id,
-        )
-    )
-
     with pytest.raises(
         Gate2FinancialSemanticV6PacketError,
         match="financial_semantic_context_v2_receipt_material_invalid",
     ):
         validate_financial_semantic_context_v2_material(
-            candidate=packet.context_v2_candidate,
+            candidate=historical.candidate,
             receipt=tampered_receipt,
             evidence_bundle=bundle,
             compilation=compilation,
             registry=registry,
-            projection=projection,
-            active_payload=packet.payload,
-            active_packet_hash=packet.packet_hash,
+            projection=historical.projection,
+            active_payload=historical.active_payload,
+            active_packet_hash=historical.active_packet_hash,
         )
 
 
@@ -526,7 +586,7 @@ def test_context_v2_fails_closed_when_only_unbound_references_are_available(
 
     with pytest.raises(
         Gate2FinancialSemanticV6PacketError,
-        match="financial_semantic_context_v2_visible_hierarchy_empty",
+        match="financial_semantic_context_v2_1_visible_hierarchy_empty",
     ):
         Gate2FinancialSemanticV6PacketFactory(
             registry=registry

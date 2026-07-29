@@ -164,18 +164,19 @@ The separate implemented non-active
 [Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md) likewise
 remains exact version-pinned historical completeness evidence.
 
-Current GOAL 5 is documentation-only. GOAL 6 audits the outcome taxonomy and
-count-one stop. GOAL 7 may implement one versioned minimal projection through
+GOAL 5 defines the field boundary and GOAL 6 audits the outcome taxonomy and
+count-one stop. GOAL 7 implements one versioned minimal projection through
 the existing managed projection owner using only the exact GOAL 5 selections:
 Pack `examples[0]`, `counterexamples[0]`, the unique direct rule against the
 only other current visible type, and the exact first sentence of catalog
 `meaning`. Those strings already exist; GOAL 7 does not author markers or
-reason wording. GOAL 8 may implement only one non-active PacketFactory V2.1
-candidate plus private receipt. **STOP before GOAL 9:** a separately
+reason wording. GOAL 8 implements only one non-active
+[PacketFactory V2.1 candidate plus private receipt](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
+**STOP before GOAL 9:** a separately
 authorized/versioned V2.1 response profile must first exist in the Choice
 authority, or the program must be amended. GOAL 9 only consumes that schema
 while linting P01-P18; it cannot invent or build it. This contract adds no
-projection, asset, request, provider or runtime change for that sequence.
+new semantic authority, request, provider or runtime activation.
 
 ## 10. Explicit non-goals
 

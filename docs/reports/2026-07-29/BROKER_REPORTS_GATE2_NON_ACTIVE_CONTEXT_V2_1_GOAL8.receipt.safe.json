@@ -1,0 +1,288 @@
+{
+  "schema_version": "broker_reports_gate2_non_active_context_v2_1_goal8_safe_receipt_v1",
+  "goal": "GOAL_8_NON_ACTIVE_CONTEXT_V2_1_PACKET_CANDIDATE",
+  "date": "2026-07-29",
+  "status": "functional_implementation_passed_sealed_request_budget_not_proven",
+  "base": {
+    "ref": "origin/main",
+    "commit": "2d3803652f7faa58baf20ee95f1ae89822177d71"
+  },
+  "branch": "agent/broker-reports-gate2-context-v2-1-goal8",
+  "authority": {
+    "packet_owner": "Gate2FinancialSemanticV6PacketFactory",
+    "packet_entrypoint": "Gate2FinancialSemanticV6PacketFactory.create",
+    "managed_projection_owner": "Gate2FinancialSemanticV5ProjectionFactory",
+    "managed_projection_entrypoint": "Gate2FinancialSemanticV5ProjectionFactory.create_minimal_managed_projection",
+    "context_contract_identity": "broker_reports_gate2_llm_semantic_context_v2_1",
+    "context_contract_version": "2.1.0",
+    "minimal_surface_policy": "broker_reports_gate2_minimal_model_surface_v1",
+    "candidate_schema_version": "broker_reports_gate2_llm_semantic_context_v2_1_candidate",
+    "receipt_schema_version": "broker_reports_gate2_llm_semantic_context_v2_1_mapping_receipt_v1",
+    "new_packet_factory_count": 0,
+    "new_projection_owner_count": 0,
+    "new_choice_owner_count": 0
+  },
+  "managed_projection": {
+    "profile_id": "broker_reports_gate2_minimal_managed_projection_v1_candidate",
+    "semantic_version": "1.0.0",
+    "runtime_activation": false,
+    "transport_eligible": false,
+    "response_profile_status": "not_implemented",
+    "canonical_utf8_bytes": 2102,
+    "projection_sha256": "fae235725094d45d82dfe0eee3fefd4268cf1cd6a2c0aa8a5a7392a4b75acca5",
+    "authority_audit_sha256": "fc3379890c73628c891f8b48fef25874f8bfb8551d93bcd682e78b6e9f374657",
+    "managed_sources": {
+      "family": {
+        "identity": "broker_reports_gate2_financial_domain_assets@1.2.0",
+        "integrity_sha256": "8d48e23a876844376443eeb357bb381fe0443c2bf1525657b6f81979408c630c",
+        "runtime_activation": false
+      },
+      "semantic_pack": {
+        "identity": "broker_reports_managed_financial_semantic_pack@1.0.0",
+        "integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8"
+      },
+      "decision_reason_catalog": {
+        "identity": "broker_reports_gate2_financial_decision_reason_catalog@2.0.0",
+        "integrity_sha256": "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9"
+      }
+    }
+  },
+  "candidate": {
+    "ordered_root_fields": [
+      "task",
+      "source",
+      "type_cards",
+      "choices",
+      "unclassified_reasons"
+    ],
+    "active": false,
+    "transport_eligible": false,
+    "response_profile_status": "not_implemented",
+    "source_literal_occurrences_total": 45,
+    "source_reference_literals_visible": 0,
+    "type_cards_per_case": 2,
+    "reason_cards_per_case": 3,
+    "choices_total": 12,
+    "compiled_bindings_total": 59,
+    "visible_differentiator_bindings_total": 0,
+    "backend_only_bindings_total": 59,
+    "visible_value_keys_total": 0,
+    "visible_structure_keys_total": 0,
+    "provider_calls_total": 0
+  },
+  "budgets": {
+    "candidate_aggregate_target_bytes": 30000,
+    "candidate_aggregate_utf8_bytes": 26211,
+    "historical_context_v2_0_aggregate_utf8_bytes": 78621,
+    "active_v6_aggregate_utf8_bytes": 73970,
+    "reduction_vs_historical_v2_0_bytes": 52410,
+    "reduction_vs_historical_v2_0_percent": 66.66,
+    "all_context_candidates_within_4500_bytes": true,
+    "all_cases_smaller_than_active": true,
+    "aggregate_target_passed": true,
+    "logical_request_feasibility": {
+      "maximum_utf8_bytes": 3522,
+      "target_utf8_bytes": 4500,
+      "status": "feasibility_only_sealed_request_not_proven",
+      "sealed_request_built": false,
+      "sealed_request_target_passed": false,
+      "transport_executed": false,
+      "reason": "choice_owned_v2_1_response_profile_not_implemented"
+    }
+  },
+  "case_receipts": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "active_packet_sha256": "3bcb297a62bf17d74f032b4058dc4c4f3097f33de9f89626b194d4a1600b6851",
+      "active_utf8_bytes": 9638,
+      "context_view_sha256": "9068537cd35e7ca5f503f5f167440b44ba79f240e442f4c8ede8742c7de8e714",
+      "context_utf8_bytes": 2645,
+      "mapping_receipt_sha256": "0a24f59049d314219e236ed68f3e27a862b5b2652ed0d668f0811ad32c630d91",
+      "literal_occurrences": 4,
+      "choices": 2,
+      "bindings": 10
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "active_packet_sha256": "bf63a8bef84415ad2502f3403824eff71bcc386d6c5ea6bb839cdde9870a60c3",
+      "active_utf8_bytes": 9905,
+      "context_view_sha256": "f80e669e56266b1778cc997c3da7f71bcdd279ae696c126a1024cf008802e54c",
+      "context_utf8_bytes": 2643,
+      "mapping_receipt_sha256": "22fa59c0bf217808b84798ad3365827063104f5c10fc0f881616bd08dd9e8d69",
+      "literal_occurrences": 4,
+      "choices": 2,
+      "bindings": 10
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "active_packet_sha256": "82a22e646b96e3588172f3f52f281b4e17aace30842699870abe7933341d5865",
+      "active_utf8_bytes": 4246,
+      "context_view_sha256": "4dd76de2e81a18d12af9c9a96702f975602fc1bece7ddaccc93aabef769984c2",
+      "context_utf8_bytes": 2624,
+      "mapping_receipt_sha256": "5819dc89a7b6c10813ffecc7a455234e56df3a1655cc2bc4ac5a6d7cfd626c99",
+      "literal_occurrences": 6,
+      "choices": 0,
+      "bindings": 0
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "active_packet_sha256": "871385de7814271f6eea35ea930be04c70f92ebc0f4c11d9d19d71f8848e25f5",
+      "active_utf8_bytes": 9770,
+      "context_view_sha256": "8475b9ce840a4801b4792a347306a5ba85a40a8d10e08e9cfcd80d5b914b1007",
+      "context_utf8_bytes": 2640,
+      "mapping_receipt_sha256": "3a206c92816b7600cad18ca133b721c5fd0ead0aa37735750c90c98bf2ab78e6",
+      "literal_occurrences": 4,
+      "choices": 2,
+      "bindings": 10
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "active_packet_sha256": "27ff112adfaec49dc6fe30e1ce0de0be127628ca79838c2b4f1171a7ad1fc775",
+      "active_utf8_bytes": 9145,
+      "context_view_sha256": "3c0fe72cea84a6156df49598cb3eef5765e0b40988a541cf60ee2e4a197d3f5c",
+      "context_utf8_bytes": 2584,
+      "mapping_receipt_sha256": "fc37466094614eac1702705d8b8abb85d1de2c9990c8bb51a653bc8569dd76de",
+      "literal_occurrences": 3,
+      "choices": 2,
+      "bindings": 9
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "active_packet_sha256": "ec252ed7652fd7348b3f618a381da0efdc2c494d36384e94dea79a014cab92c6",
+      "active_utf8_bytes": 3822,
+      "context_view_sha256": "bfbe343eff9f269cdbe87b677cd8a1657c75c4d7d4fb199c6edb83a79020eba0",
+      "context_utf8_bytes": 2584,
+      "mapping_receipt_sha256": "6a09e2a18d4852c46cb6f6f19d914940be8a9e1aac7040f87ed0687431f767db",
+      "literal_occurrences": 5,
+      "choices": 0,
+      "bindings": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "active_packet_sha256": "9eae5bc8bd399fdb7404f1a3caa22d3d8d56a590d933f0d3c4bab3bdfa689621",
+      "active_utf8_bytes": 3724,
+      "context_view_sha256": "cb8c5630d6d19c8f386de5e6fe036f768a716d787fbee685dd952da5b03af595",
+      "context_utf8_bytes": 2580,
+      "mapping_receipt_sha256": "e2b02af18bf07092eb36d1ec73313ef72ae8963d582a9794470ddb9b13e10ec9",
+      "literal_occurrences": 5,
+      "choices": 0,
+      "bindings": 0
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "active_packet_sha256": "160bdefb600523800bbc26c08435af9149103025b0a144021b5dbaf902a607f9",
+      "active_utf8_bytes": 4066,
+      "context_view_sha256": "5a6d198b672a615464e03df9ec990c48e9b7cbc12e5a8bb1f25fa1108b326f7c",
+      "context_utf8_bytes": 2624,
+      "mapping_receipt_sha256": "63e1ef039ec8835af6b65d3cb249e5e81e7e89786b2fba8162bbc13133ed80cc",
+      "literal_occurrences": 6,
+      "choices": 0,
+      "bindings": 0
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "active_packet_sha256": "31a3fdfe2b56cc81fbdd672b16a5ed94c43116dcb8726199d5287e2eeaa15fb2",
+      "active_utf8_bytes": 9779,
+      "context_view_sha256": "4e1e9e5cbb071feb6812544b74c0f56ee8f748715d5bbe38dffde4a5fd65ece0",
+      "context_utf8_bytes": 2643,
+      "mapping_receipt_sha256": "f85954789da0d5e19e5d061f531a68d4b75235da6d8cce5280b6a434ade98b52",
+      "literal_occurrences": 4,
+      "choices": 2,
+      "bindings": 10
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "active_packet_sha256": "8504e930fdaadecc5353a895ab03ec15a8f3aab6fe1fd0bb33accb778bc95dea",
+      "active_utf8_bytes": 9875,
+      "context_view_sha256": "e04c3f24b287dca1be398fcabcdc1ec4e637402a16f612969d7a6a58ff58a108",
+      "context_utf8_bytes": 2644,
+      "mapping_receipt_sha256": "58751913997b84fde03a3cf897151dd1312e994d117020f45ec9ac964786fb33",
+      "literal_occurrences": 4,
+      "choices": 2,
+      "bindings": 10
+    }
+  ],
+  "unchanged_boundaries": {
+    "active_packet_hash_parity": "10_of_10_exact",
+    "active_unclassified_retention": "exact_totality_proof",
+    "historical_context_v2_0_modified": false,
+    "prompt_modified": false,
+    "active_choice_modified": false,
+    "managed_assets_modified": false,
+    "benchmark_manifest_modified": false,
+    "expected_answers_modified": false,
+    "request_builder_modified": false,
+    "provider_adapter_modified": false,
+    "runtime_route_changes": 0,
+    "activation_changes": 0,
+    "generated_function_bundle_changes": 0
+  },
+  "verification": {
+    "dedicated_goal8_tests": {
+      "status": "passed",
+      "tests_passed": 7
+    },
+    "combined_packet_history_architecture_proof": {
+      "status": "passed",
+      "tests_passed": 62,
+      "seconds": 33.94
+    },
+    "ruff_changed_python": "passed",
+    "baseline_compatible_repository_ruff": "passed",
+    "generated_managed_asset_checks": "passed_3",
+    "generated_function_bundle_parity": "passed_3_zero_diff",
+    "anti_drift_ci_steps": {
+      "dedicated_goal8": "7_passed",
+      "architecture_and_packet": "9_passed_38_deselected"
+    },
+    "focused_ci_suite": {
+      "status": "passed",
+      "tests_passed": 156,
+      "warnings": 5,
+      "seconds": 70.41
+    },
+    "all_direct_packet_consumer_modules": {
+      "status": "passed",
+      "tests_passed": 138,
+      "seconds": 107.39,
+      "includes_totality_tests": 6
+    },
+    "privacy_guard": "passed_in_focused_ci_suite",
+    "documentation_json_integrity": "passed_json_parse_and_15_changed_document_relative_links",
+    "workflow_yaml_integrity": "passed",
+    "git_diff_check": "passed",
+    "fresh_local_diff_review": "passed_after_findings_resolved_two_independent_reviews",
+    "fresh_github_diff_review": "required_on_actual_github_diff_before_merge",
+    "github_actions_check": "required_on_actual_pr_head_before_merge",
+    "full_service_suite": {
+      "status": "not_run_by_goal8_contract",
+      "reason": "would_cross_the_historical_full_benchmark_execution_boundary"
+    }
+  },
+  "scope_counters": {
+    "provider_calls": 0,
+    "provider_responses": 0,
+    "full_benchmark_runs": 0,
+    "new_runtime_routes": 0,
+    "new_packet_factories": 0,
+    "new_choice_profiles": 0,
+    "new_linter_profiles": 0,
+    "activation_changes": 0
+  },
+  "privacy": {
+    "customer_literals_in_git": false,
+    "customer_refs_in_git": false,
+    "credentials_in_git": false,
+    "provider_payloads_in_git": false,
+    "hidden_reasoning_traces_in_git": false
+  },
+  "continuation": {
+    "goal_8_status": "functional_implementation_passed_sealed_request_budget_not_proven_pending_reviewed_green_merge",
+    "next_required_authorization": "versioned_v2_1_response_profile_in_existing_choice_authority_or_program_amendment",
+    "goal_9_allowed_now": false,
+    "provider_calls_allowed_now": false,
+    "post_goal_8_stop_active": true
+  },
+  "report": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_NON_ACTIVE_CONTEXT_V2_1_GOAL8.report.md",
+  "integrity_sha256": "7ab66bbe38ff61536c71ea4092eb2d011482ffcc15fe619e1fe865ae5a989f19"
+}

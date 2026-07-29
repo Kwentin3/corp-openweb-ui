@@ -364,7 +364,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             [],
         )
 
-    def test_context_v2_candidate_reuses_existing_loader_and_factories(self):
+    def test_current_context_v2_1_reuses_existing_packet_and_projection_owners(
+        self,
+    ):
+        packet_tree = _tree("gate2_financial_semantic_v6_packet")
         loader_definitions = {
             f"{path.stem}.{node.name}"
             for path in PACKAGE.glob("*.py")
@@ -405,6 +408,15 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(context_v2_factories, set())
         self.assertEqual(public_context_v2_builders, set())
+        self.assertEqual(
+            {
+                node.name
+                for node in packet_tree.body
+                if isinstance(node, ast.ClassDef)
+                and node.name.endswith("Factory")
+            },
+            {"Gate2FinancialSemanticV6PacketFactory"},
+        )
         self.assertIsNotNone(
             _method_node(
                 _tree("gate2_financial_semantic_v5_projection"),
@@ -417,15 +429,51 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "gate2_financial_semantic_v6_packet",
                 "create_context_v2_candidate",
             ),
-            {"Gate2FinancialSemanticV6PacketFactory._build"},
+            set(),
         )
         self.assertEqual(
             _call_owners(
                 "gate2_financial_semantic_v6_packet",
                 "_context_v2_candidate_and_receipt",
             ),
+            set(),
+        )
+        self.assertEqual(
+            _call_owners(
+                "gate2_financial_semantic_v6_packet",
+                "create_minimal_managed_projection",
+            ),
             {"Gate2FinancialSemanticV6PacketFactory._build"},
         )
+        self.assertEqual(
+            _call_owners(
+                "gate2_financial_semantic_v6_packet",
+                "_context_v2_1_candidate_and_receipt",
+            ),
+            {"Gate2FinancialSemanticV6PacketFactory._build"},
+        )
+
+        current_candidate_calls = [
+            node
+            for node in ast.walk(packet_tree)
+            if isinstance(node, ast.Call)
+            and _call_name(node.func)
+            == "Gate2FinancialSemanticV6ContextV21Candidate"
+        ]
+        self.assertEqual(len(current_candidate_calls), 1)
+        current_candidate_keywords = {
+            keyword.arg: keyword.value
+            for keyword in current_candidate_calls[0].keywords
+            if keyword.arg is not None
+        }
+        for field, expected in (
+            ("active", False),
+            ("transport_eligible", False),
+            ("provider_calls_total", 0),
+        ):
+            value = current_candidate_keywords.get(field)
+            self.assertIsInstance(value, ast.Constant)
+            self.assertEqual(value.value, expected)
 
     def test_minimal_managed_projection_reuses_owner_and_stays_inactive(self):
         projection_tree = _tree(
@@ -485,7 +533,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     "create_minimal_managed_projection",
                 )
             },
-            set(),
+            {"Gate2FinancialSemanticV6PacketFactory._build"},
         )
         inactive_profile = "minimal_model_surface_v1_candidate"
         for module_name in (
@@ -501,10 +549,18 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 _string_constants(_tree(module_name)),
             )
 
-    def test_context_v2_sidecars_do_not_enter_active_request_or_evidence(self):
+    def test_context_v2_1_sidecars_do_not_enter_active_request_or_evidence(
+        self,
+    ):
         sidecar_fields = {
             "context_v2_candidate",
             "context_v2_mapping_receipt",
+        }
+        sidecar_markers = {
+            "broker_reports_gate2_llm_semantic_context_v2_1_candidate",
+            "broker_reports_gate2_llm_semantic_context_v2_1_mapping_receipt_v1",
+            "non_active_context_v2_1_candidate",
+            "private_context_v2_1_mapping_receipt",
         }
         active_packet_consumers = (
             "gate2_financial_semantic_v6_evidence",
@@ -512,6 +568,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         sealed_modules = (
             *active_packet_consumers,
+            "gate2_financial_semantic_v6_choice",
+            "gate2_financial_semantic_v6_expansion",
+            "gate2_financial_semantic_v6_prompt",
+            "gate2_financial_semantic_v6_totality",
             "gate2_model_requests",
             "gate2_model_clients",
             "gate2_provider_adapters",
@@ -528,6 +588,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     path.rsplit(".", 1)[-1] not in sidecar_fields
                     for path in _attribute_paths(tree)
                 )
+            )
+            self.assertEqual(
+                _string_constants(tree) & sidecar_markers,
+                set(),
             )
         for module_name in active_packet_consumers:
             self.assertIn("packet.payload", _attribute_paths(_tree(module_name)))

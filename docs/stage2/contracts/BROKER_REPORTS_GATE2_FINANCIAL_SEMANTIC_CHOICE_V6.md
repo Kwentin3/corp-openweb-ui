@@ -115,11 +115,11 @@ Choice and historical Local Choice v1 are unchanged.
 
 The
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
-supersedes V2.0 only as the target field set for a future V2.1 candidate.
-GOAL 5 is documentation-only and adds no Choice schema, parser or normalizer.
-The next immediate step remains GOAL 6 outcome-taxonomy/count-one audit;
-GOAL 7 implements the exact GOAL 5-selected managed projection; GOAL 8 builds
-only the PacketFactory V2.1 candidate plus private receipt.
+supersedes V2.0 as the target field set for the implemented non-active
+[V2.1 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
+GOAL 7 implements the exact GOAL 5-selected managed projection and GOAL 8
+builds only that PacketFactory candidate plus private receipt. Neither GOAL
+adds a Choice schema, parser or normalizer.
 
 **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
 profile must be implemented in this existing Choice authority, or the program

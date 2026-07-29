@@ -128,8 +128,10 @@ GOAL 7 does not:
 - call a provider; or
 - run the full benchmark.
 
-GOAL 8 may consume this profile only through the existing Packet factory to
-build the separately reviewed inactive Context V2.1 candidate.
+GOAL 8 consumes this profile only through the existing Packet factory to
+build the separately reviewed inactive
+[Context V2.1 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
+No request, Choice, transport or runtime consumer is added.
 
 ## 7. Deterministic checks
 
