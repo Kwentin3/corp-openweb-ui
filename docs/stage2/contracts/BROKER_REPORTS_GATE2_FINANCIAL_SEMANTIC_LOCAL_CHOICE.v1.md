@@ -256,8 +256,8 @@ The frozen audit found 12 current choice aliases. All are consumed by the
 response schema, so the key function is necessary. Context V2.0 does not leave
 the 12 positional letters as the sole presentation in its implemented
 non-active packet sidecar. This is historical completeness evidence, not
-evidence that `A/B` caused the model failures or that a V2.1 response profile
-exists.
+evidence that `A/B` caused the model failures; at that historical boundary no
+V2.1 response profile existed.
 
 The exact implemented non-active completeness baseline lives in
 [LLM Semantic Context V2.0](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.md).
@@ -271,14 +271,15 @@ supersedes V2.0 as the field-eligibility target for the implemented non-active
 GOAL 7 implements the exact managed projection selected by GOAL 5 from
 existing Pack/catalog strings; GOAL 8 builds only that candidate plus private
 receipt in the existing Packet authority and adds no Choice schema, parser or
-normalization. **STOP before GOAL 9:** a separately
-authorized/versioned V2.1 response profile must first be implemented in the
-existing Choice factory, or the program must be amended. GOAL 9 is linter-only
-and consumes that Choice schema while checking P01-P18; it cannot invent or
-build it. GOAL 7 does not author positive/negative markers or reason wording:
+normalization. The later governing program separately authorizes GOAL 9, whose
+[Local Choice V2.1 successor](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+is now implemented as an inactive profile in the same Choice factory. GOAL 7
+does not author positive/negative markers or reason wording:
 it maps Pack `examples[0]`, `counterexamples[0]`, the unique
 direct rule against the only other current visible type, and the exact first
 sentence of catalog `meaning`. The exact V2.1 key/schema shape belongs to those
 later Choice authorities and must normalize without semantic repair to the
-same canonical V6 Choice. No V2.1 Choice profile or active route exists; this
-historical Local Choice v1 candidate remains unchanged in bytes and behavior.
+same canonical V6 Choice shape. No V2.1 active route exists; this historical
+Local Choice v1 candidate remains unchanged in bytes and behavior. GOAL 10
+must wait for reviewed, green, merged GOAL 9 before adding a linter or sealed
+request.

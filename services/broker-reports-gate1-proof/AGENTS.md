@@ -59,9 +59,11 @@ separate bootstrap report.
   [Minimal Model Surface v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
   is the GOAL 5 field-eligibility contract inside the existing Semantic
   Matcher boundary. GOAL 7 implements its inactive managed projection and
-  GOAL 8 implements one inactive Packet candidate/private receipt. It still
-  does not implement a Choice response profile, complete-request linter,
-  request, provider route or activation. The additive
+  GOAL 8 implements one inactive Packet candidate/private receipt. The later
+  governing program authorizes GOAL 9 to implement the inactive
+  [Local Choice V2.1 response profile](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+  in the existing Choice owner. Complete-request linter, request, provider
+  route and activation remain absent. The additive
   [Outcome Taxonomy v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
   completes GOAL 6: the four zero-choice plausible-type counts are `2,1,1,1`,
   three historical reasons are corrected only in the versioned audit
@@ -73,11 +75,14 @@ separate bootstrap report.
   consumer outside that Packet construction. GOAL 8 builds only one
   non-active V2.1 candidate plus private mapping receipt in the existing
   Packet factory.
-- **STOP before GOAL 9:** a separately authorized/versioned V2.1 response
-  profile must first be implemented in the existing Choice authority, or the
-  program must be amended. GOAL 9 is linter-only: it consumes the complete
-  P01-P18 Prompt + Packet candidate + Choice-owned schema and must never invent
-  or build that schema.
+- GOAL 9 adds only the versioned inactive V2.1 response schema/parser through
+  `Gate2FinancialSemanticV6ChoiceContractFactory.create`. `choice_N` restores
+  only through `context_v2_mapping_receipt.choice_restoration`. Active V6
+  Choice, historical Local Choice v1, Expansion, linter/request builder,
+  adapters and provider route remain unchanged.
+- **STOP before GOAL 10:** do not begin the V2.1 linter/sealed request until
+  GOAL 9 is fresh-reviewed on its immutable PR head, the real
+  `broker-reports-ci` check is green and the PR is merged.
 - GOAL 5 selects existing managed strings rather than authoring markers:
   `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
   `counterexamples[0]`, nearest distinction is the unique direct rule against
@@ -92,11 +97,11 @@ separate bootstrap report.
   remain non-active outputs. Context V2.0 has a non-active packet renderer and
   private mapping receipt, but no V2.0 local Choice profile/parser, linter,
   provider request, evidence persistence or replay exists. Context V2.1 has
-  one non-active candidate and private exact receipt, but likewise has no
-  Choice profile/parser, linter, provider request, persistence or replay.
-  Runtime and the current qualification runner continue to consume only
-  `packet.payload` and exact-ID Choice until a separately qualified activation
-  GOAL changes that authority.
+  one non-active candidate, private exact receipt and Choice-owned inactive
+  response profile/parser. It still has no V2.1 linter, sealed provider
+  request, persistence or replay. Runtime and the current qualification runner
+  continue to consume only `packet.payload` and exact-ID Choice until a
+  separately qualified activation GOAL changes that authority.
 - Any Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.
@@ -116,6 +121,9 @@ separate bootstrap report.
   local-alias candidate normalizes through the existing Choice/expansion
   authorities and must never be activated through a packet refactor or
   provider-adapter semantic rewrite.
+- Context V2.1 accepts the three governed reason codes only in its inactive
+  profile. The third reason is not yet admitted by active V6
+  Expansion/materialization; do not claim active parity for it.
 - Technical preparation seals the
   [Evidence Bundle](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md);
   the [Candidate Compiler](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_CANDIDATE_COMPILER.v1.md)

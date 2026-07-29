@@ -2,7 +2,9 @@
 
 Status: active V6 evidence current; exact non-active Context V2.0 completeness
 packet evidence historical; non-active Context V2.1 candidate/private receipt
-implemented; V2.1 response/sealing/persistence/restore/replay not implemented.
+and inactive local Choice response profile with exact in-memory receipt
+restoration implemented; V2.1 sealed request, persistence and persisted
+restore/replay not implemented.
 
 ## Private evidence
 
@@ -66,17 +68,18 @@ The
 [Minimal Model Surface v1](./BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 supersedes V2.0 as the current field-eligibility target. GOAL 7 implements the
 exact GOAL 5-selected managed projection; GOAL 8 implements only the
-non-active PacketFactory V2.1 candidate plus private exact receipt. It adds no
-complete request evidence, persistence, replay, provider call or runtime
-activation. **STOP before GOAL 9:** a separately authorized/versioned V2.1
-response profile must first exist in the Choice authority, or the program must
-be amended. GOAL 9 only consumes that schema while linting P01-P18; it cannot
-invent or build it. The selected Pack `examples[0]`,
+non-active PacketFactory V2.1 candidate plus private exact receipt. The later
+GOAL 9 adds the separately versioned inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+profile through the existing Choice authority. It adds no complete request
+evidence, persistence, replay, provider call or runtime activation. **STOP
+before GOAL 10:** the linter/sealed request must wait for reviewed, green,
+merged GOAL 9. The selected Pack `examples[0]`,
 `counterexamples[0]`, unique direct rule against the only other current
 visible type, and exact first sentence of catalog `meaning` already exist.
-GOAL 7 does not author markers or reason wording. The V2.1 Packet candidate
-and private mapping receipt exist; complete-request/execution evidence does
-not.
+GOAL 7 does not author markers or reason wording. The V2.1 Packet candidate,
+private mapping receipt and inactive Choice profile exist;
+complete-request/execution evidence does not.
 
 Only after those steps, a separately authorized V2.1 evidence implementation
 may preserve the exact V2.1 system message, context JSON, complete

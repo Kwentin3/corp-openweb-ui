@@ -249,13 +249,24 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
         / "broker_reports_gate1"
         / "gate2_financial_semantic_model_assets.py"
     )
+    inactive_choice_profile_path = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate2_financial_semantic_v6_choice.py"
+    )
     for path in (SERVICE_ROOT / "broker_reports_gate1").glob("*.py"):
         if path == MODULE_PATH:
             continue
         active_source = path.read_text(encoding="utf-8")
         assert MODULE_PATH.stem not in active_source
-        if path != inactive_model_assets_path:
+        if path not in {
+            inactive_model_assets_path,
+            inactive_choice_profile_path,
+        }:
             assert NEW_REASON_CODE not in active_source
+    choice_source = inactive_choice_profile_path.read_text(encoding="utf-8")
+    assert choice_source.count(NEW_REASON_CODE) == 1
+    assert "CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES" in choice_source
 
 
 @pytest.mark.parametrize(

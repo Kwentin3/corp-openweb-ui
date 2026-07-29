@@ -42,11 +42,6 @@ DECISION_PATH = (
     / "broker_reports_gate1"
     / "gate2_financial_evidence_decision.py"
 )
-ACTIVE_CHOICE_PATH = (
-    SERVICE_ROOT
-    / "broker_reports_gate1"
-    / "gate2_financial_semantic_v6_choice.py"
-)
 ACTIVE_PROMPT_PATH = (
     SERVICE_ROOT
     / "broker_reports_gate1"
@@ -67,9 +62,6 @@ EXPECTED_IMMUTABLE_GIT_BLOBS = {
     ),
     DECISION_PATH: (
         "dc4fd160aeda35b2d0a3d063a871d4cc71f6efcefcc134d0d164722d5176f19f"
-    ),
-    ACTIVE_CHOICE_PATH: (
-        "dfd3dc7e6110fdc3549d024711c60fd4450fb73acce6807f7b9a203e5a271877"
     ),
     ACTIVE_PROMPT_PATH: (
         "a6334ae2dd7e0f417e8ad629dbec9423ccc297b8fe20acac119d6b2caadfb8fc"
@@ -344,7 +336,7 @@ def test_catalog_v2_rejects_self_consistent_added_code_rename() -> None:
         _factory(module, candidate)
 
 
-def test_historical_catalog_family_and_active_code_blobs_are_unchanged() -> None:
+def test_historical_catalog_family_decision_and_prompt_blobs_are_unchanged() -> None:
     for path, expected in EXPECTED_IMMUTABLE_GIT_BLOBS.items():
         assert hashlib.sha256(_git_blob(path)).hexdigest() == expected
 

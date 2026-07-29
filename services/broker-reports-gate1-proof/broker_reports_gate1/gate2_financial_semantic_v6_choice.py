@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +24,11 @@ from .gate2_financial_semantic_v6_candidate_compiler import (
     Gate2FinancialCandidateCompilation,
 )
 from .gate2_financial_semantic_v6_packet import (
+    CONTEXT_V2_1_CANDIDATE_SCHEMA_VERSION,
+    CONTEXT_V2_1_MAPPING_RECEIPT_SCHEMA_VERSION,
+    CONTEXT_V2_1_POLICY_VERSION,
+    Gate2FinancialSemanticV6ContextV21Candidate,
+    Gate2FinancialSemanticV6ContextV21MappingReceipt,
     Gate2FinancialSemanticV6Packet,
     Gate2FinancialSemanticV6PacketError,
     validate_financial_semantic_v6_packet,
@@ -39,6 +45,17 @@ LOCAL_CHOICE_CANDIDATE_SCHEMA_VERSION = (
 LOCAL_CHOICE_CANDIDATE_POLICY_VERSION = (
     "broker_reports_gate2_llm_semantic_context_local_choice_v1"
 )
+CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_context_v2_1_choice_response_profile_v1"
+)
+CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_POLICY_VERSION = (
+    "broker_reports_gate2_llm_semantic_context_v2_1_local_choice_v1"
+)
+CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES = (
+    "no_registry_type",
+    "single_registry_type_no_safe_record",
+    "ambiguous_registry_type",
+)
 SEMANTIC_CHOICE_PROVIDER_DISPOSITIONS = (
     "typed_input",
     "unclassified_financial_input",
@@ -52,6 +69,7 @@ SEMANTIC_CHOICE_OUTPUT_FIELDS = frozenset(
 )
 LOCAL_CHOICE_OUTPUT_FIELDS = frozenset({"choice", "reason"})
 _MAX_LOCAL_CHOICE_BYTES = 1024
+_MAX_CONTEXT_V2_1_CHOICE_BYTES = 1024
 _CANONICAL_GATE2_DISPOSITIONS = (
     "typed_input",
     "unclassified_financial_input",
@@ -61,14 +79,15 @@ _CANONICAL_GATE2_DISPOSITIONS = (
 
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6ChoiceContractFactory.create is the only V6 "
-    "active minimal semantic-choice and non-active local-choice candidate "
-    "contract entrypoint"
+    "active minimal semantic-choice, historical non-active local-choice, and "
+    "non-active Context V2.1 response-profile contract entrypoint"
 )
 FORBIDDEN = (
     "The provider choice must not return a type ID, source ref, role binding, "
     "literal, provenance, dimension or record field; technical preclose "
     "dispositions must not be exposed to the model; the local candidate must "
-    "not expose canonical option IDs or become an active request schema"
+    "not expose canonical option IDs or become an active request schema; "
+    "Context V2.1 choices must restore only through its private mapping receipt"
 )
 
 
@@ -126,6 +145,55 @@ class Gate2FinancialSemanticV6LocalChoiceCandidate:
 
 
 @dataclass(frozen=True)
+class Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile:
+    schema_version: str
+    policy_version: str
+    active: bool
+    transport_eligible: bool
+    packet_hash: str
+    context_view_hash: str
+    mapping_receipt_integrity_hash: str
+    canonical_choice_schema_hash: str
+    choice_keys: tuple[str, ...]
+    unclassified_reason_codes: tuple[str, ...]
+    response_schema: dict[str, Any]
+    response_schema_hash: str
+    provider_calls_total: int
+    post_response_repair_allowed: bool
+    integrity_hash: str
+
+    def canonical_schema(self) -> dict[str, Any]:
+        return copy.deepcopy(self.response_schema)
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "context_view_hash": self.context_view_hash,
+            "mapping_receipt_integrity_hash": (
+                self.mapping_receipt_integrity_hash
+            ),
+            "canonical_choice_schema_hash": (
+                self.canonical_choice_schema_hash
+            ),
+            "response_schema_hash": self.response_schema_hash,
+            "choice_keys": list(self.choice_keys),
+            "unclassified_reason_codes": list(
+                self.unclassified_reason_codes
+            ),
+            "model_output_fields": sorted(LOCAL_CHOICE_OUTPUT_FIELDS),
+            "canonical_option_ids_visible_total": 0,
+            "provider_calls_total": self.provider_calls_total,
+            "post_response_repair_allowed": (
+                self.post_response_repair_allowed
+            ),
+            "integrity_hash": self.integrity_hash,
+        }
+
+
+@dataclass(frozen=True)
 class Gate2FinancialSemanticV6ChoiceContract:
     schema_version: str
     policy_version: str
@@ -139,6 +207,9 @@ class Gate2FinancialSemanticV6ChoiceContract:
     unclassified_reason_codes: tuple[str, ...]
     canonical_gate2_dispositions: tuple[str, ...]
     local_candidate: Gate2FinancialSemanticV6LocalChoiceCandidate
+    context_v2_1_response_profile: (
+        Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile
+    )
 
     def canonical_schema(self) -> dict[str, Any]:
         return copy.deepcopy(self.choice_schema)
@@ -168,6 +239,9 @@ class Gate2FinancialSemanticV6ChoiceContract:
             "provider_calls_total": 0,
             "non_active_local_candidate": (
                 self.local_candidate.safe_summary()
+            ),
+            "non_active_context_v2_1_response_profile": (
+                self.context_v2_1_response_profile.safe_summary()
             ),
         }
 
@@ -281,6 +355,72 @@ class Gate2FinancialSemanticV6ChoiceContractFactory:
             post_response_repair_allowed=False,
             integrity_hash=sha256_json(local_material),
         )
+        context_v2_1_choice_keys = tuple(
+            item["choice_key"]
+            for item in packet.context_v2_candidate.payload["choices"]
+        )
+        context_v2_1_reason_codes = tuple(
+            item["code"]
+            for item in packet.context_v2_candidate.payload[
+                "unclassified_reasons"
+            ]
+        )
+        context_v2_1_schema = _context_v2_1_choice_schema(
+            choice_keys=context_v2_1_choice_keys,
+            reason_codes=context_v2_1_reason_codes,
+        )
+        _validate_context_v2_1_choice_schema(
+            schema=context_v2_1_schema,
+            choice_keys=context_v2_1_choice_keys,
+            reason_codes=context_v2_1_reason_codes,
+        )
+        context_v2_1_material = {
+            "schema_version": (
+                CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_SCHEMA_VERSION
+            ),
+            "policy_version": (
+                CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_POLICY_VERSION
+            ),
+            "active": False,
+            "transport_eligible": False,
+            "packet_hash": packet.packet_hash,
+            "context_view_hash": packet.context_v2_candidate.view_hash,
+            "mapping_receipt_integrity_hash": (
+                packet.context_v2_mapping_receipt.integrity_hash
+            ),
+            "canonical_choice_schema_hash": sha256_json(choice_schema),
+            "choice_keys": list(context_v2_1_choice_keys),
+            "unclassified_reason_codes": list(context_v2_1_reason_codes),
+            "response_schema": copy.deepcopy(context_v2_1_schema),
+            "response_schema_hash": sha256_json(context_v2_1_schema),
+            "provider_calls_total": 0,
+            "post_response_repair_allowed": False,
+        }
+        context_v2_1_response_profile = (
+            Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile(
+                schema_version=(
+                    CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_SCHEMA_VERSION
+                ),
+                policy_version=(
+                    CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_POLICY_VERSION
+                ),
+                active=False,
+                transport_eligible=False,
+                packet_hash=packet.packet_hash,
+                context_view_hash=packet.context_v2_candidate.view_hash,
+                mapping_receipt_integrity_hash=(
+                    packet.context_v2_mapping_receipt.integrity_hash
+                ),
+                canonical_choice_schema_hash=sha256_json(choice_schema),
+                choice_keys=context_v2_1_choice_keys,
+                unclassified_reason_codes=context_v2_1_reason_codes,
+                response_schema=copy.deepcopy(context_v2_1_schema),
+                response_schema_hash=sha256_json(context_v2_1_schema),
+                provider_calls_total=0,
+                post_response_repair_allowed=False,
+                integrity_hash=sha256_json(context_v2_1_material),
+            )
+        )
         return Gate2FinancialSemanticV6ChoiceContract(
             schema_version=SEMANTIC_CHOICE_SCHEMA_VERSION,
             policy_version=SEMANTIC_CHOICE_POLICY_VERSION,
@@ -294,6 +434,7 @@ class Gate2FinancialSemanticV6ChoiceContractFactory:
             unclassified_reason_codes=UNCLASSIFIED_REASON_CODES,
             canonical_gate2_dispositions=DISPOSITIONS,
             local_candidate=local_candidate,
+            context_v2_1_response_profile=context_v2_1_response_profile,
         )
 
 
@@ -373,6 +514,73 @@ def normalize_financial_semantic_v6_local_choice(
     exact_option_id = packet.slim_alias_receipt.choice_aliases.get(choice)
     if exact_option_id is None:
         _fail("financial_semantic_v6_local_choice_alias_unknown")
+    return {
+        "disposition": "typed_input",
+        "typed_option_id": exact_option_id,
+    }
+
+
+def normalize_financial_semantic_v6_context_v2_1_choice(
+    *,
+    model_output: str | dict[str, Any],
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+) -> dict[str, str]:
+    _validate_context_v2_1_response_profile_binding(
+        choice_contract=choice_contract,
+        packet=packet,
+    )
+    if isinstance(model_output, str):
+        if (
+            not model_output
+            or len(model_output.encode("utf-8"))
+            > _MAX_CONTEXT_V2_1_CHOICE_BYTES
+        ):
+            _fail("financial_semantic_v6_context_v2_1_choice_size_invalid")
+        try:
+            parsed = json.loads(
+                model_output,
+                object_pairs_hook=_unique_context_v2_1_choice_object,
+            )
+        except json.JSONDecodeError as exc:
+            raise Gate2FinancialSemanticV6ChoiceError(
+                "financial_semantic_v6_context_v2_1_choice_json_invalid"
+            ) from exc
+    else:
+        parsed = model_output
+    if not isinstance(parsed, dict):
+        _fail("financial_semantic_v6_context_v2_1_choice_invalid")
+    choice = parsed.get("choice")
+    profile = choice_contract.context_v2_1_response_profile
+    if choice == "unclassified":
+        if set(parsed) != {"choice", "reason"}:
+            _fail(
+                "financial_semantic_v6_context_v2_1_choice_"
+                "unclassified_shape_invalid"
+            )
+        reason = parsed["reason"]
+        if (
+            not isinstance(reason, str)
+            or reason not in profile.unclassified_reason_codes
+        ):
+            _fail(
+                "financial_semantic_v6_context_v2_1_choice_reason_invalid"
+            )
+        return {
+            "disposition": "unclassified_financial_input",
+            "reason_code": reason,
+        }
+    if set(parsed) != {"choice"} or not isinstance(choice, str):
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_typed_shape_invalid"
+        )
+    restoration = {
+        item["choice_key"]: item["typed_option_id"]
+        for item in packet.context_v2_mapping_receipt.choice_restoration
+    }
+    exact_option_id = restoration.get(choice)
+    if exact_option_id is None:
+        _fail("financial_semantic_v6_context_v2_1_choice_key_unknown")
     return {
         "disposition": "typed_input",
         "typed_option_id": exact_option_id,
@@ -467,6 +675,76 @@ def _local_choice_schema(
         "title": "Semantic choice",
         "anyOf": variants,
     }
+
+
+def _context_v2_1_choice_schema(
+    *,
+    choice_keys: tuple[str, ...],
+    reason_codes: tuple[str, ...],
+) -> dict[str, Any]:
+    variants = []
+    if choice_keys:
+        variants.append(
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "choice": {
+                        "type": "string",
+                        "enum": list(choice_keys),
+                    },
+                },
+                "required": ["choice"],
+            }
+        )
+    variants.append(
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "choice": {
+                    "type": "string",
+                    "enum": ["unclassified"],
+                },
+                "reason": {
+                    "type": "string",
+                    "enum": list(reason_codes),
+                },
+            },
+            "required": ["choice", "reason"],
+        }
+    )
+    return {"anyOf": variants}
+
+
+def _validate_context_v2_1_choice_schema(
+    *,
+    schema: Any,
+    choice_keys: tuple[str, ...],
+    reason_codes: tuple[str, ...],
+) -> None:
+    if (
+        not isinstance(schema, dict)
+        or set(schema) != {"anyOf"}
+        or not isinstance(schema["anyOf"], list)
+        or not schema["anyOf"]
+        or choice_keys
+        != tuple(f"choice_{index}" for index in range(1, len(choice_keys) + 1))
+        or "unclassified" in choice_keys
+        or len(choice_keys) != len(set(choice_keys))
+        or reason_codes != CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES
+        or len(reason_codes) != len(set(reason_codes))
+    ):
+        _fail("financial_semantic_v6_context_v2_1_choice_schema_invalid")
+    expected = _context_v2_1_choice_schema(
+        choice_keys=choice_keys,
+        reason_codes=reason_codes,
+    )
+    if schema != expected:
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_"
+            "schema_authority_mismatch"
+        )
 
 
 def _validate_local_choice_schema(
@@ -577,6 +855,232 @@ def _validate_local_candidate_binding(
     )
 
 
+def _validate_context_v2_1_response_profile_binding(
+    *,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+) -> None:
+    if (
+        not isinstance(
+            choice_contract,
+            Gate2FinancialSemanticV6ChoiceContract,
+        )
+        or not isinstance(packet, Gate2FinancialSemanticV6Packet)
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_authority_invalid"
+        )
+    profile = choice_contract.context_v2_1_response_profile
+    candidate = packet.context_v2_candidate
+    receipt = packet.context_v2_mapping_receipt
+    if (
+        not isinstance(
+            profile,
+            Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile,
+        )
+        or not isinstance(
+            candidate,
+            Gate2FinancialSemanticV6ContextV21Candidate,
+        )
+        or not isinstance(
+            receipt,
+            Gate2FinancialSemanticV6ContextV21MappingReceipt,
+        )
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_profile_invalid"
+        )
+    try:
+        active_typed_option_rows = packet.payload["typed_options"]
+        visible_choice_rows = candidate.payload["choices"]
+        visible_reason_rows = candidate.payload["unclassified_reasons"]
+        if (
+            not isinstance(active_typed_option_rows, list)
+            or not isinstance(visible_choice_rows, list)
+            or not isinstance(visible_reason_rows, list)
+            or any(
+                not isinstance(item, dict)
+                for item in active_typed_option_rows
+            )
+            or any(not isinstance(item, dict) for item in visible_choice_rows)
+            or any(not isinstance(item, dict) for item in visible_reason_rows)
+        ):
+            raise TypeError
+        active_typed_option_ids = tuple(
+            item["option_id"] for item in active_typed_option_rows
+        )
+        visible_choice_keys = tuple(
+            item["choice_key"] for item in visible_choice_rows
+        )
+        visible_reason_codes = tuple(
+            item["code"] for item in visible_reason_rows
+        )
+        restoration_rows = receipt.choice_restoration
+        if not isinstance(restoration_rows, tuple) or any(
+            not isinstance(item, dict) for item in restoration_rows
+        ):
+            raise TypeError
+        restoration_choice_keys = tuple(
+            item["choice_key"] for item in restoration_rows
+        )
+        restoration_option_ids = tuple(
+            item["typed_option_id"] for item in restoration_rows
+        )
+        restoration_pointers = tuple(
+            item["json_pointer"] for item in restoration_rows
+        )
+        receipt_material = receipt.to_private_dict()
+        receipt_integrity_hash = receipt_material.pop("integrity_hash")
+        presentation_choice_keys = tuple(
+            receipt.presentation_order["choice_keys"]
+        )
+        presentation_reason_codes = tuple(
+            receipt.presentation_order["reason_codes"]
+        )
+        if (
+            any(
+                not {"choice_key", "json_pointer", "typed_option_id"}.issubset(
+                    item
+                )
+                for item in restoration_rows
+            )
+            or any(
+                not isinstance(item, str) or not item
+                for item in (
+                    *active_typed_option_ids,
+                    *visible_choice_keys,
+                    *visible_reason_codes,
+                    *restoration_choice_keys,
+                    *restoration_option_ids,
+                    *restoration_pointers,
+                    *presentation_choice_keys,
+                    *presentation_reason_codes,
+                )
+            )
+        ):
+            raise TypeError
+    except (AttributeError, KeyError, TypeError):
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_receipt_invalid"
+        )
+    profile_material = {
+        "schema_version": profile.schema_version,
+        "policy_version": profile.policy_version,
+        "active": profile.active,
+        "transport_eligible": profile.transport_eligible,
+        "packet_hash": profile.packet_hash,
+        "context_view_hash": profile.context_view_hash,
+        "mapping_receipt_integrity_hash": (
+            profile.mapping_receipt_integrity_hash
+        ),
+        "canonical_choice_schema_hash": (
+            profile.canonical_choice_schema_hash
+        ),
+        "choice_keys": list(profile.choice_keys),
+        "unclassified_reason_codes": list(
+            profile.unclassified_reason_codes
+        ),
+        "response_schema": copy.deepcopy(profile.response_schema),
+        "response_schema_hash": profile.response_schema_hash,
+        "provider_calls_total": profile.provider_calls_total,
+        "post_response_repair_allowed": (
+            profile.post_response_repair_allowed
+        ),
+    }
+    context_view_hash = hashlib.sha256(
+        json.dumps(
+            candidate.payload,
+            ensure_ascii=False,
+            sort_keys=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    expected_pointers = tuple(
+        f"/choices/{index}" for index in range(len(restoration_rows))
+    )
+    presentation_material = {
+        "source_occurrence_pointers": receipt.presentation_order.get(
+            "source_occurrence_pointers"
+        ),
+        "type_keys": receipt.presentation_order.get("type_keys"),
+        "choice_keys": list(presentation_choice_keys),
+        "reason_codes": list(presentation_reason_codes),
+    }
+    if (
+        profile.schema_version
+        != CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_SCHEMA_VERSION
+        or profile.policy_version
+        != CONTEXT_V2_1_CHOICE_RESPONSE_PROFILE_POLICY_VERSION
+        or profile.active is not False
+        or profile.transport_eligible is not False
+        or profile.provider_calls_total != 0
+        or profile.post_response_repair_allowed is not False
+        or candidate.schema_version
+        != CONTEXT_V2_1_CANDIDATE_SCHEMA_VERSION
+        or candidate.policy_version != CONTEXT_V2_1_POLICY_VERSION
+        or candidate.active is not False
+        or candidate.transport_eligible is not False
+        or candidate.provider_calls_total != 0
+        or receipt.schema_version
+        != CONTEXT_V2_1_MAPPING_RECEIPT_SCHEMA_VERSION
+        or receipt.policy_version != CONTEXT_V2_1_POLICY_VERSION
+        or receipt.provider_calls_total != 0
+        or packet.packet_hash != sha256_json(packet.payload)
+        or profile.packet_hash != packet.packet_hash
+        or candidate.view_hash != context_view_hash
+        or profile.context_view_hash != candidate.view_hash
+        or receipt.identities.get("active_packet_hash")
+        != packet.packet_hash
+        or receipt.identities.get("context_view_hash")
+        != candidate.view_hash
+        or receipt_integrity_hash != receipt.integrity_hash
+        or receipt_integrity_hash != sha256_json(receipt_material)
+        or profile.mapping_receipt_integrity_hash
+        != receipt.integrity_hash
+        or profile.canonical_choice_schema_hash
+        != choice_contract.choice_schema_hash
+        or choice_contract.choice_schema_hash
+        != sha256_json(choice_contract.choice_schema)
+        or choice_contract.typed_option_ids != active_typed_option_ids
+        or len(active_typed_option_ids) != len(set(active_typed_option_ids))
+        or choice_contract.choice_schema
+        != _choice_schema(active_typed_option_ids)
+        or profile.choice_keys != visible_choice_keys
+        or profile.choice_keys != restoration_choice_keys
+        or profile.choice_keys != presentation_choice_keys
+        or profile.choice_keys
+        != tuple(
+            f"choice_{index}"
+            for index in range(1, len(profile.choice_keys) + 1)
+        )
+        or len(profile.choice_keys) != len(set(profile.choice_keys))
+        or "unclassified" in profile.choice_keys
+        or profile.unclassified_reason_codes != visible_reason_codes
+        or profile.unclassified_reason_codes != presentation_reason_codes
+        or profile.unclassified_reason_codes
+        != CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES
+        or len(profile.unclassified_reason_codes)
+        != len(set(profile.unclassified_reason_codes))
+        or restoration_option_ids != active_typed_option_ids
+        or len(restoration_option_ids) != len(set(restoration_option_ids))
+        or restoration_pointers != expected_pointers
+        or receipt.presentation_order.get("presentation_identity")
+        != sha256_json(presentation_material)
+        or profile.response_schema_hash
+        != sha256_json(profile.response_schema)
+        or profile.integrity_hash != sha256_json(profile_material)
+    ):
+        _fail(
+            "financial_semantic_v6_context_v2_1_choice_integrity_invalid"
+        )
+    _validate_context_v2_1_choice_schema(
+        schema=profile.response_schema,
+        choice_keys=profile.choice_keys,
+        reason_codes=profile.unclassified_reason_codes,
+    )
+
+
 def _unique_local_object(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
@@ -584,6 +1088,19 @@ def _unique_local_object(
     for key, value in pairs:
         if key in result:
             _fail("financial_semantic_v6_local_choice_duplicate_key")
+        result[key] = value
+    return result
+
+
+def _unique_context_v2_1_choice_object(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            _fail(
+                "financial_semantic_v6_context_v2_1_choice_duplicate_key"
+            )
         result[key] = value
     return result
 

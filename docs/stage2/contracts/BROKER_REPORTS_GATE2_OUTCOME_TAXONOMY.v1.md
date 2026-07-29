@@ -35,7 +35,7 @@ dated GOAL 6 report and receipt are evidence only.
 | audited expected answers | additive frozen V6 outcome-audit manifest v1 |
 | current technical preclose | unchanged `Gate2FinancialSemanticV5PrecloseFactory.create` |
 | future minimal model projection | existing managed-assets loader/projection owner, beginning in GOAL 7 |
-| future V2.1 response profile | existing Choice authority, only after separate explicit authorization |
+| inactive V2.1 response profile | existing Choice authority, explicitly authorized and implemented by GOAL 9 |
 
 The catalog v2 candidate is a successor of the same catalog ID. It is not a
 second active catalog, is not packaged into the historical family v2
@@ -109,11 +109,12 @@ The catalog uses two selection dimensions:
 The count-one entry is pinned to `1` and `0`, respectively. The existing
 reasons remain pinned to `0/0` and `2+/0`.
 
-This decision does not authorize a response-schema change. The active V6
-decision tuple, V6 Choice, Local Choice, normalizer, parser, Packet, Prompt,
-provider adapters and runtime route remain unchanged. Until a separately
-authorized V2.1 Choice profile accepts the new code, any request that requires
-the count-one outcome is ineligible for provider transport.
+This decision did not itself authorize a response-schema change. The later
+GOAL 9 authorization adds an inactive V2.1 Choice profile accepting the new
+code without changing the active V6 decision tuple, V6 Choice, historical
+Local Choice, Packet, Prompt, provider adapters or runtime route. Any request
+that requires the count-one outcome remains ineligible for provider transport
+until the later sealed-request and qualification gates pass.
 
 ## 6. Frozen zero-choice audit
 
@@ -193,11 +194,11 @@ The following are explicit stops:
    activate or invent a response schema.
 3. GOAL 8 implements only the non-active
    [V2.1 Packet candidate plus private mapping receipt](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
-4. Before GOAL 9, a separately authorized/versioned V2.1 response profile
-   must exist in the existing Choice authority, or the program must be
-   amended. GOAL 9 remains linter-only.
-5. No provider smoke may include a count-one case until that response profile
-   accepts and defines the new reason.
+4. The later governing program authorizes GOAL 9; the inactive versioned V2.1
+   response profile now accepts and preserves the new reason in the existing
+   Choice authority.
+5. No provider smoke may include a count-one case until GOAL 10 seals the
+   request and the later smoke goal is explicitly reached.
 6. Prompt and Pack changes are not authorized by this audit.
 7. The full benchmark is not authorized or executed by GOAL 6.
 

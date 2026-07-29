@@ -172,11 +172,11 @@ only other current visible type, and the exact first sentence of catalog
 `meaning`. Those strings already exist; GOAL 7 does not author markers or
 reason wording. GOAL 8 implements only one non-active
 [PacketFactory V2.1 candidate plus private receipt](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
-**STOP before GOAL 9:** a separately
-authorized/versioned V2.1 response profile must first exist in the Choice
-authority, or the program must be amended. GOAL 9 only consumes that schema
-while linting P01-P18; it cannot invent or build it. This contract adds no
-new semantic authority, request, provider or runtime activation.
+The later explicit program authorizes GOAL 9 to add the inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+profile through the existing Choice authority. It does not add a Pack
+authority, request, provider or runtime activation. **STOP before GOAL 10:**
+the linter/sealed request must wait for reviewed, green, merged GOAL 9.
 
 ## 10. Explicit non-goals
 

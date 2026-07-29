@@ -1,6 +1,8 @@
 # Broker Reports Gate 2 Financial Semantic V6 Local Proof
 
-Status: Goal 10 contract for Candidate Records By Construction.
+Status: historical Candidate Records By Construction contract for the prior
+V6-program Goal 10. That number does not govern the current Context V2.1
+Qualification And Admission program.
 
 ## Frozen benchmark
 

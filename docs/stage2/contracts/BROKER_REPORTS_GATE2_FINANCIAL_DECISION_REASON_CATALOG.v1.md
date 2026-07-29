@@ -68,16 +68,16 @@ followed by one ASCII space or end of string, with no trim, normalization,
 summary or synonym substitution. The full catalog `use_when` remains backend
 administration and is not the source of the minimal field.
 
-Those exact source strings already exist. GOAL 7 only implements this
-deterministic mapping through the existing managed-assets loader/projection
-owner; it may not embed replacement wording. The next immediate step remains
-GOAL 6 outcome-taxonomy/count-one audit. GOAL 8 later builds only the
-PacketFactory V2.1 candidate plus private receipt. **STOP before GOAL 9:** a
-separately authorized/versioned V2.1 response profile must first exist in the
-Choice authority, or the program must be amended. GOAL 9 only consumes that
-Choice schema while linting P01-P18; it cannot invent or build it. GOAL 5 is
-documentation-only; catalog JSON, projection bytes, Choice and runtime remain
-unchanged.
+Those exact source strings already exist. GOAL 6 completed the
+outcome-taxonomy/count-one audit, GOAL 7 implemented this deterministic mapping
+through the existing managed-assets loader/projection owner without embedding
+replacement wording, and GOAL 8 built only the PacketFactory V2.1 candidate
+plus private receipt. The later explicit program authorizes GOAL 9 to add the
+inactive
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+profile in the existing Choice authority. Catalog JSON and projection bytes
+remain unchanged; active Choice/runtime also remain unchanged. GOAL 10 owns
+the later linter/sealed request after reviewed, green, merged GOAL 9.
 
 ## 4. Mechanical distinction
 
@@ -177,6 +177,9 @@ only by adding the non-active sidecar.
 
 ## 9. Acceptance
 
+The following is the frozen catalog-v1 acceptance snapshot. Its GOAL labels
+record the prior program state and are not current continuation routing:
+
 ```text
 CATALOG: VERSIONED_GUI_READY_DRAFT
 CODE_SET_AUTHORITY: EXISTING_DECISION_CONTRACT
@@ -194,3 +197,8 @@ CONTEXT_V2_1_RESPONSE_PROFILE: NOT_IMPLEMENTED_SEPARATE_AUTHORIZATION_REQUIRED
 CONTEXT_V2_1_LINTER: BLOCKED_BY_RESPONSE_PROFILE_STOP_GOAL_9
 ACTIVE_MODEL_ROUTE: UNCHANGED
 ```
+
+Current routing records GOAL 7 projection and GOAL 8 Context V2.1
+candidate/private receipt as complete. The current GOAL 9 slice adds only the
+inactive Choice-owned response profile; GOAL 10 owns the later linter and
+sealed request after reviewed, green, merged GOAL 9.

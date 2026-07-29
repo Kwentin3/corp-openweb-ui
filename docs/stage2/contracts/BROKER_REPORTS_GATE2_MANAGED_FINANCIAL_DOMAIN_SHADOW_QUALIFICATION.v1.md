@@ -1,6 +1,9 @@
 # Broker Reports Gate 2 Managed Financial Domain Shadow Qualification v1
 
-Status: normative qualification contract for GOAL 10.
+Status: historical normative qualification contract for prior
+managed-domain-program GOAL 10. All GOAL numbers in this file are historical
+and do not govern the current Context V2.1 Qualification And Admission
+program.
 
 ## 1. Purpose
 

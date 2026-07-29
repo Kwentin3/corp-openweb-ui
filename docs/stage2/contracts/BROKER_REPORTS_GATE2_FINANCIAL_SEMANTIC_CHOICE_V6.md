@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Financial Semantic Choice V6
 
-Status: `ACTIVE_V6_UNCHANGED_LOCAL_V1_NON_ACTIVE_CONTEXT_V2_0_CHOICE_NOT_IMPLEMENTED`
+Status: `ACTIVE_V6_UNCHANGED_CONTEXT_V2_1_RESPONSE_PROFILE_NON_ACTIVE`
 
 ## Boundary
 
@@ -82,6 +82,13 @@ mapping, canonical expansion/materialization parity and unchanged
 unclassified retention. Neither the current provider schema nor its request
 route changed. Provider calls remain zero.
 
+The separately versioned
+[Local Choice V2.1](./BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
+response profile is also implemented inside this same factory and remains
+non-active and transport-ineligible. It uses Context V2.1 `choice_N` keys and
+restores them only through the private Context V2.1 mapping receipt. It does
+not replace this active exact-ID schema or historical Local Choice v1.
+
 The
 [LLM Semantic Context v1](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v1.md)
 defines the complete model-visible boundary. The local candidate satisfies its
@@ -118,14 +125,16 @@ The
 supersedes V2.0 as the target field set for the implemented non-active
 [V2.1 candidate](./BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md).
 GOAL 7 implements the exact GOAL 5-selected managed projection and GOAL 8
-builds only that PacketFactory candidate plus private receipt. Neither GOAL
-adds a Choice schema, parser or normalizer.
+builds only that PacketFactory candidate plus private receipt. The later
+governing program separately authorized GOAL 9 to add the V2.1 response
+profile through this existing Choice authority.
 
-**STOP before GOAL 9:** a separately authorized/versioned V2.1 response
-profile must be implemented in this existing Choice authority, or the program
-must be amended. Neither GOAL 8 nor GOAL 9 owns that missing profile. GOAL 9
-is linter-only: it consumes the Choice-owned schema while checking P01-P18 and
-must not invent or build it.
+GOAL 9 does not change active V6 Choice bytes or its two active reason codes.
+Its inactive profile adds the exact Context V2.1 reason set, including
+`single_registry_type_no_safe_record`, and normalizes it to the unchanged V6
+minimal Choice field shape. Active Expansion/materialization of that third
+reason is not claimed. Context Linter V2.1 and the sealed request belong to
+GOAL 10 after the reviewed, green GOAL 9 PR is merged.
 
 The selection rules use existing managed strings: Pack
 `examples[0]`, `counterexamples[0]`, the unique direct rule against the only

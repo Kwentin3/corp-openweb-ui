@@ -31,6 +31,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_choice import (
     LOCAL_CHOICE_OUTPUT_FIELDS,
     SEMANTIC_CHOICE_OUTPUT_FIELDS,
     _choice_schema,
+    _context_v2_1_choice_schema,
     _local_choice_schema,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
@@ -549,7 +550,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 _string_constants(_tree(module_name)),
             )
 
-    def test_context_v2_1_sidecars_do_not_enter_active_request_or_evidence(
+    def test_context_v2_1_sidecars_enter_only_inactive_choice_authority(
         self,
     ):
         sidecar_fields = {
@@ -568,7 +569,6 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         sealed_modules = (
             *active_packet_consumers,
-            "gate2_financial_semantic_v6_choice",
             "gate2_financial_semantic_v6_expansion",
             "gate2_financial_semantic_v6_prompt",
             "gate2_financial_semantic_v6_totality",
@@ -593,6 +593,17 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 _string_constants(tree) & sidecar_markers,
                 set(),
             )
+        choice_paths = _attribute_paths(
+            _tree("gate2_financial_semantic_v6_choice")
+        )
+        self.assertEqual(
+            {
+                path.rsplit(".", 1)[-1]
+                for path in choice_paths
+                if path.rsplit(".", 1)[-1] in sidecar_fields
+            },
+            sidecar_fields,
+        )
         for module_name in active_packet_consumers:
             self.assertIn("packet.payload", _attribute_paths(_tree(module_name)))
 
@@ -631,6 +642,14 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             node.name for node in tree.body if isinstance(node, ast.ClassDef)
         }
         local_schema = _local_choice_schema(("A", "B"))
+        context_v2_1_schema = _context_v2_1_choice_schema(
+            choice_keys=("choice_1", "choice_2"),
+            reason_codes=(
+                "no_registry_type",
+                "single_registry_type_no_safe_record",
+                "ambiguous_registry_type",
+            ),
+        )
         local_fields = {
             field
             for variant in local_schema["anyOf"]
@@ -652,6 +671,15 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(local_fields, set(LOCAL_CHOICE_OUTPUT_FIELDS))
         self.assertNotIn("typed_option_id", str(local_schema))
+        self.assertNotIn("typed_option_id", str(context_v2_1_schema))
+        self.assertEqual(
+            {
+                field
+                for variant in context_v2_1_schema["anyOf"]
+                for field in variant["properties"]
+            },
+            set(LOCAL_CHOICE_OUTPUT_FIELDS),
+        )
         self.assertEqual(
             list(PACKAGE.glob("gate2_financial_semantic_v6*local_choice*.py")),
             [],
