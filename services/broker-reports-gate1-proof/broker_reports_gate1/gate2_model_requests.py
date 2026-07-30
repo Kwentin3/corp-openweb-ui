@@ -37,6 +37,9 @@ FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE = (
 FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE = (
     "financial_semantic_v6_context_v2_1_budget_smoke_v1"
 )
+FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE = (
+    "financial_semantic_v6_type_first_local_proof_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -65,6 +68,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -343,6 +347,14 @@ class Gate2OpenWebUIRequestBuilder:
                 "gate2_model_request_sealed_context_required",
                 "Context V2.1 budget-smoke requests require a sealed request",
             )
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_sealed_context_required",
+                "Type-First local proof requests require a sealed request",
+            )
         if self.request_profile != DOMAIN_REQUEST_PROFILE:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_unknown",
@@ -416,6 +428,61 @@ class Gate2OpenWebUIRequestBuilder:
             == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
         ):
             projected["stream"] = False
+        return projected
+
+    def build_from_sealed_type_first(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        model_id: str,
+    ) -> dict[str, Any]:
+        if (
+            self.request_profile
+            != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_mismatch",
+                "Type-First sealed request requires its local proof profile",
+            )
+        if (
+            not isinstance(model_id, str)
+            or not model_id.strip()
+            or len(model_id) > 512
+            or not isinstance(model_visible_request, dict)
+            or tuple(model_visible_request) != ("messages", "response_format")
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First sealed request is invalid",
+            )
+        messages = model_visible_request.get("messages")
+        response_format = model_visible_request.get("response_format")
+        if (
+            not isinstance(messages, list)
+            or len(messages) != 2
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != ["system", "user"]
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"role", "content"}
+                or not isinstance(item["content"], str)
+                for item in messages
+            )
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(response_format.get("json_schema"), dict)
+            or response_format["json_schema"].get("strict") is not True
+            or not isinstance(
+                response_format["json_schema"].get("schema"),
+                dict,
+            )
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First sealed request shape is invalid",
+            )
+        projected = copy.deepcopy(model_visible_request)
+        projected["model"] = model_id
         return projected
 
     def _build_source(
@@ -1282,3 +1349,20 @@ class Gate2OpenWebUIRequestBuilder:
                 }
             },
         }
+
+
+def financial_semantic_v6_type_first_local_proof_request(
+    *,
+    model_visible_request: dict[str, Any],
+    model_id: str,
+) -> dict[str, Any]:
+    """Build the exact inactive Type-First local-proof request."""
+
+    return Gate2OpenWebUIRequestBuilder(
+        request_profile=(
+            FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        )
+    ).build_from_sealed_type_first(
+        model_visible_request=model_visible_request,
+        model_id=model_id,
+    )

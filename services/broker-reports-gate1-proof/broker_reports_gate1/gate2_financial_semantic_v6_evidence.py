@@ -4,15 +4,34 @@ import copy
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
 from typing import Any
 
+from .gate2_economy_budget import (
+    validate_type_first_economy_accounting_receipt,
+)
+from .gate2_financial_evidence_decision import (
+    UnclassifiedFinancialInputDecision,
+)
+from .gate2_financial_domain_catalog import (
+    Gate2FinancialDomainCatalogFactory,
+    Gate2FinancialDomainSnapshot,
+)
+from .gate2_financial_domain_contracts import FinancialDomainAccessContext
+from .gate2_financial_domain_persistence import (
+    Gate2FinancialDomainPersistenceFactory,
+)
 from .gate2_financial_evidence_materialization import (
+    FinancialEvidenceExecutionMetadata,
+    Gate2FinancialEvidenceMaterializerFactory,
     Gate2FinancialEvidenceSourcePackage,
 )
 from .gate2_financial_evidence_materialization_contracts import sha256_json
+from .gate2_financial_evidence_materialization_validation import (
+    validate_financial_evidence_inputs,
+)
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
 )
@@ -25,10 +44,17 @@ from .gate2_financial_semantic_v6_candidate_compiler import (
 from .gate2_financial_semantic_v6_choice import (
     Gate2FinancialSemanticV6ChoiceContract,
     Gate2FinancialSemanticV6ChoiceError,
+    Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    normalize_financial_semantic_v6_type_first_response,
+    validate_financial_semantic_v6_type_first_response_profile,
 )
 from .gate2_financial_semantic_v6_context_linter import (
+    Gate2FinancialSemanticV6ContextLintError,
+    Gate2FinancialSemanticV6ContextLinterFactory,
     Gate2FinancialSemanticV6ContextV21SealedRequest,
+    Gate2FinancialSemanticV6TypeFirstSealedRequest,
     validate_financial_semantic_v6_context_v2_1_sealed_request,
+    validate_financial_semantic_v6_type_first_sealed_request,
 )
 from .gate2_financial_semantic_v6_execution_identity import (
     V6_EXACT_MODEL_ID,
@@ -45,9 +71,12 @@ from .gate2_financial_semantic_v6_expansion import (
     Gate2FinancialSemanticV6DecisionExpansionFactory,
     Gate2FinancialSemanticV6ExpandedDecision,
     Gate2FinancialSemanticV6ExpansionError,
+    validate_financial_semantic_v6_type_first_expanded_decision,
 )
 from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6Packet,
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
 )
 from .gate2_financial_semantic_v6_prompt import (
     V6_SEMANTIC_SYSTEM_PROMPT,
@@ -68,8 +97,10 @@ from .gate2_model_contracts import (
 from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
+    financial_semantic_v6_type_first_local_proof_request,
 )
 from .gate2_provider_adapters import (
     CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE,
@@ -97,6 +128,18 @@ V6_CONTEXT_V2_1_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
 V6_CONTEXT_V2_1_REPLAY_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_v2_1_replay_v1"
 )
+V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_decision_evidence_v1"
+)
+V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_safe_receipt_v1"
+)
+V6_TYPE_FIRST_TECHNICAL_FAILURE_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_technical_failure_evidence_v1"
+)
+V6_TYPE_FIRST_REPLAY_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_decision_replay_v1"
+)
 V6_CONTEXT_V2_1_BUDGET_SMOKE_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_v2_1_"
     "budget_smoke_private_evidence_v1"
@@ -115,10 +158,13 @@ V6_CONTEXT_V2_1_BUDGET_SMOKE_REPLAY_SCHEMA_VERSION = (
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6DecisionEvidenceFactory.create, "
     "its additive create_context_v2_1_candidate method, "
+    "its additive inactive create_type_first_candidate and "
+    "create_type_first_technical_failure methods, "
     "its additive create_context_v2_1_budget_smoke_candidate and "
     "create_context_v2_1_budget_smoke_failure methods, "
     "restore_financial_semantic_v6_private_evidence and "
-    "the additive Context V2.1 serialize/restore/replay functions are the "
+    "the additive Context V2.1 and Type-First serialize/restore/replay "
+    "functions are the "
     "only V6 exact-decision evidence entrypoints"
 )
 FORBIDDEN = (
@@ -200,6 +246,25 @@ _ZERO_CALL_ACCOUNTING = {
     "semantic_repair_total": 0,
     "fallback_total": 0,
     "retry_total": 0,
+}
+_TYPE_FIRST_ZERO_CALL_SUCCESS_ACCOUNTING = {
+    "maximum_provider_calls_per_operation": 1,
+    "maximum_fallback_calls_per_operation": 0,
+    "provider_calls_authorized_total": 0,
+    "fallback_calls_authorized_total": 0,
+    "provider_submissions_total": 0,
+    "provider_calls_total": 0,
+    "provider_responses_total": 0,
+    "transport_invocations_total": 0,
+    "simulated_terminal_envelopes_total": 1,
+    "repair_total": 0,
+    "semantic_repair_total": 0,
+    "fallback_total": 0,
+    "retry_total": 0,
+}
+_TYPE_FIRST_ZERO_CALL_FAILURE_ACCOUNTING = {
+    **_TYPE_FIRST_ZERO_CALL_SUCCESS_ACCOUNTING,
+    "simulated_terminal_envelopes_total": 0,
 }
 _BUDGET_SMOKE_SUCCESS_PRIVATE_FIELDS = (
     "schema_version",
@@ -415,6 +480,56 @@ class Gate2FinancialSemanticV6ContextV21ReplayResult:
     expansion: Gate2FinancialSemanticV6ExpandedDecision
     total_materialization: Gate2FinancialSemanticV6TotalMaterialization
     provider_calls_total: int
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstEvidenceBundle:
+    private_evidence: dict[str, Any]
+    safe_receipt: dict[str, Any]
+    parsed_response: dict[str, tuple[str, ...]]
+    expansion: Gate2FinancialSemanticV6ExpandedDecision
+    materialized_artifact: dict[str, Any]
+    restored_snapshot: Gate2FinancialDomainSnapshot
+    qualification_counters: dict[str, int]
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstTechnicalFailureEvidenceBundle:
+    private_evidence: dict[str, Any]
+    safe_receipt: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstReplayResult:
+    schema_version: str
+    status: str
+    private_evidence_hash: str
+    expansion_integrity_hash: str
+    materialized_artifact_hash: str
+    snapshot_integrity_hash: str
+    qualification_counters: dict[str, int]
+    provider_calls_total: int
+    retry_total: int
+    repair_total: int
+    fallback_total: int
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstTechnicalFailureReplayResult:
+    schema_version: str
+    status: str
+    private_evidence_hash: str
+    invalid_input_sha256: str
+    failure_stage: str
+    exact_error_code: str
+    invalid_response_total: int
+    canonical_decision_total: int
+    materialized_record_total: int
+    financial_domain_snapshot_total: int
+    provider_calls_total: int
+    retry_total: int
+    repair_total: int
+    fallback_total: int
 
 
 @dataclass(frozen=True)
@@ -734,6 +849,390 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
             normalized_semantic_choice=copy.deepcopy(normalized_choice),
             expansion=expansion,
             total_materialization=total,
+        )
+
+    def create_type_first_candidate(
+        self,
+        *,
+        case_id: str,
+        provider_profile_id: str,
+        local_projection_model_id: str,
+        economy_accounting_receipt: dict[str, Any],
+        sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
+        prepared_request: Gate2PreparedProviderRequest,
+        simulated_provider_envelope: dict[str, Any],
+        adapter_extracted_output: Any,
+        type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+        mapping_receipt: (
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt
+        ),
+        response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+        expansion: Gate2FinancialSemanticV6ExpandedDecision,
+        execution_metadata: FinancialEvidenceExecutionMetadata,
+        materialized_artifact: dict[str, Any],
+        snapshot: Gate2FinancialDomainSnapshot,
+        serialized_snapshot: str,
+        snapshot_authority_key: bytes,
+        access_context: FinancialDomainAccessContext,
+        created_at: str,
+        expires_at: str | None,
+        oracle_plausible_type_keys: tuple[str, ...],
+    ) -> Gate2FinancialSemanticV6TypeFirstEvidenceBundle:
+        _case_id(case_id)
+        exact = _validate_type_first_success_chain(
+            registry=self.registry,
+            provider_profile_id=provider_profile_id,
+            local_projection_model_id=local_projection_model_id,
+            economy_accounting_receipt=economy_accounting_receipt,
+            sealed_request=sealed_request,
+            prepared_request=prepared_request,
+            simulated_provider_envelope=simulated_provider_envelope,
+            adapter_extracted_output=adapter_extracted_output,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            response_profile=response_profile,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            expansion=expansion,
+            execution_metadata=execution_metadata,
+            materialized_artifact=materialized_artifact,
+            snapshot=snapshot,
+            serialized_snapshot=serialized_snapshot,
+            snapshot_authority_key=snapshot_authority_key,
+            access_context=access_context,
+            created_at=created_at,
+            expires_at=expires_at,
+            oracle_plausible_type_keys=oracle_plausible_type_keys,
+        )
+        profile = exact["provider_profile"]
+        parsed = exact["parsed_response"]
+        counters = exact["qualification_counters"]
+        restored_snapshot = exact["restored_snapshot"]
+        execution_accounting = exact["execution_accounting"]
+        private_material = {
+            "schema_version": (
+                V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION
+            ),
+            "case_id": case_id,
+            "provider_profile_id": profile.profile_id,
+            "provider_adapter_id": profile.adapter_id,
+            "provider_adapter_version": profile.adapter_version,
+            "local_projection_model_id": local_projection_model_id,
+            "request_profile": (
+                FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+            ),
+            "economy_accounting_receipt": _type_first_json_roundtrip(
+                economy_accounting_receipt
+            ),
+            "exact_logical_request": {
+                "response_schema": response_profile.canonical_schema(),
+                "user_context": copy.deepcopy(
+                    type_first_candidate.payload
+                ),
+            },
+            "exact_sealed_request": _type_first_json_roundtrip(
+                asdict(sealed_request)
+            ),
+            "exact_prepared_request": _type_first_json_roundtrip(
+                asdict(prepared_request)
+            ),
+            "simulated_provider_envelope": _type_first_json_roundtrip(
+                simulated_provider_envelope
+            ),
+            "adapter_extracted_output": _type_first_json_roundtrip(
+                adapter_extracted_output
+            ),
+            "parsed_response": {
+                key: list(value) for key, value in parsed.items()
+            },
+            "oracle_plausible_type_keys": list(
+                oracle_plausible_type_keys
+            ),
+            "qualification_counters": copy.deepcopy(counters),
+            "canonical_choice": _type_first_canonical_choice(
+                expansion
+            ),
+            "expanded_canonical_decision": _type_first_json_roundtrip(
+                expansion.to_private_dict()
+            ),
+            "execution_metadata": asdict(execution_metadata),
+            "materialized_artifact": _type_first_json_roundtrip(
+                materialized_artifact
+            ),
+            "serialized_financial_domain_snapshot": serialized_snapshot,
+            "snapshot_recipe": {
+                "access_context": asdict(access_context),
+                "created_at": created_at,
+                "expires_at": expires_at,
+            },
+            "authority_hashes": {
+                "packet_hash": packet.packet_hash,
+                "type_first_context_view_hash": (
+                    type_first_candidate.context_view_sha256
+                ),
+                "mapping_receipt_integrity_hash": (
+                    mapping_receipt.integrity_sha256
+                ),
+                "response_profile_integrity_hash": (
+                    response_profile.integrity_sha256
+                ),
+                "economy_accounting_receipt_hash": (
+                    economy_accounting_receipt["integrity_hash"]
+                ),
+                "sealed_request_integrity_hash": (
+                    sealed_request.sealed_request_receipt.integrity_sha256
+                ),
+                "logical_request_hash": (
+                    sealed_request.sealed_request_receipt
+                    .logical_request_sha256
+                ),
+                "prepared_request_hash": sha256_json(
+                    asdict(prepared_request)
+                ),
+                "adapter_extracted_output_hash": sha256_json(
+                    adapter_extracted_output
+                ),
+                "expansion_integrity_hash": expansion.integrity_hash,
+                "materialized_artifact_hash": sha256_json(
+                    materialized_artifact
+                ),
+                "serialized_snapshot_hash": _sha256_text(
+                    serialized_snapshot
+                ),
+                "snapshot_integrity_hash": (
+                    restored_snapshot.integrity_sha256
+                ),
+                "evidence_bundle_integrity_hash": (
+                    evidence_bundle.integrity_hash
+                ),
+                "source_package_integrity_hash": (
+                    source_package.integrity_hash
+                ),
+                "candidate_compilation_integrity_hash": (
+                    compilation.integrity_hash
+                ),
+                "registry_hash": self.registry.registry_hash,
+                "semantic_pack_integrity_hash": (
+                    mapping_receipt.semantic_pack_identity[
+                        "integrity_sha256"
+                    ]
+                ),
+                "managed_projection_hash": (
+                    mapping_receipt.managed_projection_identity[
+                        "projection_sha256"
+                    ]
+                ),
+                "managed_projection_authority_audit_hash": (
+                    mapping_receipt.managed_projection_identity[
+                        "authority_audit_sha256"
+                    ]
+                ),
+            },
+            "execution_accounting": copy.deepcopy(
+                execution_accounting
+            ),
+        }
+        private_evidence = {
+            **copy.deepcopy(private_material),
+            "private_evidence_hash": sha256_json(private_material),
+        }
+        safe_material = {
+            "schema_version": V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION,
+            "case_id": case_id,
+            "status": "EXACT_ZERO_CALL_LOCAL_PROOF",
+            "decision_classification": expansion.disposition,
+            "hashes": copy.deepcopy(private_material["authority_hashes"]),
+            "counts": {
+                "plausible_types_total": len(
+                    parsed["plausible_type_keys"]
+                ),
+                "matching_complete_options_total": (
+                    _type_first_matching_complete_options_total(
+                        plausible_type_keys=parsed[
+                            "plausible_type_keys"
+                        ],
+                        mapping_receipt=mapping_receipt,
+                        compilation=compilation,
+                    )
+                ),
+                "materialized_records_total": 1,
+                "financial_domain_snapshots_total": 1,
+            },
+            "qualification_counters": copy.deepcopy(counters),
+            "execution_accounting": copy.deepcopy(
+                execution_accounting
+            ),
+            "raw_private_data_in_receipt": False,
+            "runtime_activation": False,
+            "production_admission": False,
+            "private_evidence_hash": private_evidence[
+                "private_evidence_hash"
+            ],
+        }
+        safe_receipt = {
+            **safe_material,
+            "receipt_hash": sha256_json(safe_material),
+        }
+        _validate_type_first_private_evidence(private_evidence)
+        _validate_type_first_safe_receipt(
+            safe_receipt=safe_receipt,
+            private_evidence=private_evidence,
+        )
+        return Gate2FinancialSemanticV6TypeFirstEvidenceBundle(
+            private_evidence=copy.deepcopy(private_evidence),
+            safe_receipt=copy.deepcopy(safe_receipt),
+            parsed_response=copy.deepcopy(parsed),
+            expansion=expansion,
+            materialized_artifact=copy.deepcopy(materialized_artifact),
+            restored_snapshot=restored_snapshot,
+            qualification_counters=copy.deepcopy(counters),
+        )
+
+    def create_type_first_technical_failure(
+        self,
+        *,
+        case_id: str,
+        failure_stage: str,
+        exact_error_code: str,
+        exact_invalid_input: Any,
+        economy_accounting_receipt: dict[str, Any],
+        response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+        type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+        mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6TypeFirstTechnicalFailureEvidenceBundle:
+        _case_id(case_id)
+        execution_accounting = (
+            _type_first_zero_call_execution_accounting(
+                economy_accounting_receipt=economy_accounting_receipt,
+                simulated_terminal_envelopes_total=0,
+            )
+        )
+        private_invalid_input = _type_first_json_roundtrip(
+            exact_invalid_input
+        )
+        observed_error_code = _reproduce_type_first_technical_failure(
+            failure_stage=failure_stage,
+            exact_invalid_input=private_invalid_input,
+            response_profile=response_profile,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        )
+        if (
+            not _type_first_failure_stage_owns_error(
+                failure_stage=failure_stage,
+                error_code=observed_error_code,
+            )
+            or observed_error_code != exact_error_code
+        ):
+            _fail(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "code_mismatch"
+            )
+        invalid_input_sha256 = sha256_json(private_invalid_input)
+        non_sensitive_counts = {
+            "invalid_input_utf8_bytes": len(
+                json.dumps(
+                    private_invalid_input,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            ),
+            "visible_type_keys_total": len(response_profile.type_keys),
+            "invalid_response_total": int(
+                failure_stage == "response_parser"
+            ),
+            "canonical_decision_total": 0,
+            "materialized_record_total": 0,
+            "financial_domain_snapshot_total": 0,
+        }
+        private_material = {
+            "schema_version": (
+                V6_TYPE_FIRST_TECHNICAL_FAILURE_EVIDENCE_SCHEMA_VERSION
+            ),
+            "case_id": case_id,
+            "failure_stage": failure_stage,
+            "exact_error_code": exact_error_code,
+            "exact_private_invalid_input": private_invalid_input,
+            "invalid_input_sha256": invalid_input_sha256,
+            "economy_accounting_receipt": _type_first_json_roundtrip(
+                economy_accounting_receipt
+            ),
+            "available_authority_hashes": _type_first_authority_hashes(
+                economy_accounting_receipt=economy_accounting_receipt,
+                response_profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            ),
+            "non_sensitive_counts": non_sensitive_counts,
+            "execution_accounting": copy.deepcopy(
+                execution_accounting
+            ),
+        }
+        private_evidence = {
+            **copy.deepcopy(private_material),
+            "private_evidence_hash": sha256_json(private_material),
+        }
+        safe_material = {
+            "schema_version": V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION,
+            "case_id": case_id,
+            "status": "EXACT_ZERO_CALL_TECHNICAL_FAILURE",
+            "invalid_input_sha256": invalid_input_sha256,
+            "exact_error_code": exact_error_code,
+            "failure_stage": failure_stage,
+            "non_sensitive_counts": copy.deepcopy(
+                non_sensitive_counts
+            ),
+            "execution_accounting": copy.deepcopy(
+                execution_accounting
+            ),
+            "raw_private_data_in_receipt": False,
+            "runtime_activation": False,
+            "production_admission": False,
+            "private_evidence_hash": private_evidence[
+                "private_evidence_hash"
+            ],
+        }
+        safe_receipt = {
+            **safe_material,
+            "receipt_hash": sha256_json(safe_material),
+        }
+        _validate_type_first_private_evidence(private_evidence)
+        _validate_type_first_safe_receipt(
+            safe_receipt=safe_receipt,
+            private_evidence=private_evidence,
+        )
+        return (
+            Gate2FinancialSemanticV6TypeFirstTechnicalFailureEvidenceBundle(
+                private_evidence=copy.deepcopy(private_evidence),
+                safe_receipt=copy.deepcopy(safe_receipt),
+            )
         )
 
     def create_context_v2_1_budget_smoke_candidate(
@@ -3981,3 +4480,1521 @@ def _case_id(value: Any) -> None:
 
 def _fail(code: str) -> None:
     raise Gate2FinancialSemanticV6DecisionEvidenceError(code)
+
+
+def type_first_qualification_comparison(
+    *,
+    oracle_plausible_type_keys: tuple[str, ...],
+    observed_plausible_type_keys: tuple[str, ...],
+    visible_type_key_order: tuple[str, ...],
+    decision_disposition: str,
+    audited_exact_safe_typed_option_id: str | None,
+    audited_matching_complete_options_total: int,
+    observed_selected_typed_option_id: str | None,
+) -> dict[str, int]:
+    for values in (
+        oracle_plausible_type_keys,
+        observed_plausible_type_keys,
+    ):
+        if (
+            not isinstance(values, tuple)
+            or len(values) != len(set(values))
+            or any(item not in visible_type_key_order for item in values)
+            or tuple(
+                item
+                for item in visible_type_key_order
+                if item in values
+            )
+            != values
+        ):
+            _fail("financial_semantic_v6_type_first_oracle_invalid")
+    if decision_disposition not in {
+        "typed_input",
+        "unclassified_financial_input",
+    }:
+        _fail("financial_semantic_v6_type_first_decision_invalid")
+    if (
+        isinstance(audited_matching_complete_options_total, bool)
+        or not isinstance(audited_matching_complete_options_total, int)
+        or audited_matching_complete_options_total < 0
+        or (
+            audited_exact_safe_typed_option_id is None
+            and audited_matching_complete_options_total == 1
+        )
+        or (
+            audited_exact_safe_typed_option_id is not None
+            and (
+                not isinstance(
+                    audited_exact_safe_typed_option_id,
+                    str,
+                )
+                or not audited_exact_safe_typed_option_id
+                or len(oracle_plausible_type_keys) != 1
+                or audited_matching_complete_options_total != 1
+            )
+        )
+        or (
+            decision_disposition == "typed_input"
+            and (
+                not isinstance(
+                    observed_selected_typed_option_id,
+                    str,
+                )
+                or not observed_selected_typed_option_id
+            )
+        )
+        or (
+            decision_disposition != "typed_input"
+            and observed_selected_typed_option_id is not None
+        )
+    ):
+        _fail("financial_semantic_v6_type_first_oracle_invalid")
+    exact = observed_plausible_type_keys == oracle_plausible_type_keys
+    false_empty = (
+        not observed_plausible_type_keys
+        and bool(oracle_plausible_type_keys)
+    )
+    false_singleton = (
+        len(observed_plausible_type_keys) == 1
+        and len(oracle_plausible_type_keys) != 1
+    )
+    false_superset = (
+        set(observed_plausible_type_keys)
+        > set(oracle_plausible_type_keys)
+    )
+    wrong_singleton = (
+        len(observed_plausible_type_keys) == 1
+        and len(oracle_plausible_type_keys) == 1
+        and observed_plausible_type_keys
+        != oracle_plausible_type_keys
+    )
+    typed = decision_disposition == "typed_input"
+    unsafe_typed = (
+        typed
+        and observed_selected_typed_option_id
+        != audited_exact_safe_typed_option_id
+    )
+    safe_under_typing = (
+        not typed
+        and len(oracle_plausible_type_keys) == 1
+        and audited_matching_complete_options_total == 1
+        and audited_exact_safe_typed_option_id is not None
+    )
+    return {
+        "plausible_type_set_exact_total": int(exact),
+        "false_empty_total": int(false_empty),
+        "false_singleton_total": int(false_singleton),
+        "false_superset_total": int(false_superset),
+        "wrong_singleton_type_total": int(wrong_singleton),
+        "false_singleton_typed_total": int(false_singleton and typed),
+        "unsafe_typed_total": int(unsafe_typed),
+        "safe_under_typing_total": int(safe_under_typing),
+        "invalid_response_total": 0,
+    }
+
+
+def serialize_financial_semantic_v6_type_first_private_evidence(
+    *,
+    private_evidence: dict[str, Any],
+) -> str:
+    _validate_type_first_private_evidence(private_evidence)
+    return json.dumps(
+        private_evidence,
+        ensure_ascii=False,
+        sort_keys=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def restore_financial_semantic_v6_type_first_private_evidence(
+    *,
+    serialized: str,
+) -> dict[str, Any]:
+    if not isinstance(serialized, str) or not serialized:
+        _fail("financial_semantic_v6_type_first_evidence_serialization_invalid")
+    try:
+        restored = json.loads(
+            serialized,
+            object_pairs_hook=_unique_context_v2_1_evidence_object,
+            parse_constant=_reject_context_v2_1_non_finite_number,
+        )
+    except (
+        TypeError,
+        ValueError,
+        Gate2FinancialSemanticV6DecisionEvidenceError,
+    ) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_evidence_serialization_invalid"
+        ) from exc
+    _validate_type_first_private_evidence(restored)
+    return copy.deepcopy(restored)
+
+
+def replay_financial_semantic_v6_type_first_decision(
+    *,
+    private_evidence: dict[str, Any],
+    expected_sealed_request: (
+        Gate2FinancialSemanticV6TypeFirstSealedRequest | None
+    ),
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    snapshot_authority_key: bytes,
+) -> (
+    Gate2FinancialSemanticV6TypeFirstReplayResult
+    | Gate2FinancialSemanticV6TypeFirstTechnicalFailureReplayResult
+):
+    _validate_type_first_private_evidence(private_evidence)
+    if private_evidence["schema_version"] == (
+        V6_TYPE_FIRST_TECHNICAL_FAILURE_EVIDENCE_SCHEMA_VERSION
+    ):
+        return _replay_type_first_technical_failure(
+            private_evidence=private_evidence,
+            response_profile=response_profile,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+        )
+    if not isinstance(
+        expected_sealed_request,
+        Gate2FinancialSemanticV6TypeFirstSealedRequest,
+    ):
+        _fail("financial_semantic_v6_type_first_replay_seal_mismatch")
+    if (
+        private_evidence["exact_sealed_request"]
+        != _type_first_json_roundtrip(
+            asdict(expected_sealed_request)
+        )
+    ):
+        _fail("financial_semantic_v6_type_first_replay_seal_mismatch")
+    try:
+        prepared_request = Gate2PreparedProviderRequest(
+            **copy.deepcopy(
+                private_evidence["exact_prepared_request"]
+            )
+        )
+        execution_metadata = FinancialEvidenceExecutionMetadata(
+            **copy.deepcopy(private_evidence["execution_metadata"])
+        )
+        access_context = FinancialDomainAccessContext(
+            **copy.deepcopy(
+                private_evidence["snapshot_recipe"]["access_context"]
+            )
+        )
+    except (TypeError, KeyError) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_replay_authority_invalid"
+        ) from exc
+    model_output = copy.deepcopy(
+        private_evidence["adapter_extracted_output"]
+    )
+    expansion = Gate2FinancialSemanticV6DecisionExpansionFactory(
+        registry=registry
+    ).create_from_type_first_candidate(
+        model_output=model_output,
+        response_profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+    )
+    if (
+        _type_first_json_roundtrip(expansion.to_private_dict())
+        != private_evidence["expanded_canonical_decision"]
+    ):
+        if (
+            expansion.selected_typed_option_id
+            != private_evidence["expanded_canonical_decision"].get(
+                "selected_typed_option_id"
+            )
+        ):
+            _fail("exact_code_owned_typed_option_mismatch")
+        _fail("financial_semantic_v6_type_first_replay_expansion_mismatch")
+    materialized_artifact = (
+        Gate2FinancialEvidenceMaterializerFactory(
+            registry=registry,
+            source_package=source_package,
+            execution_metadata=execution_metadata,
+        )
+        .create()
+        .materialize(validated_decision=expansion.validated_decision)
+    )
+    if (
+        materialized_artifact
+        != private_evidence["materialized_artifact"]
+    ):
+        _fail("financial_semantic_v6_type_first_replay_materialization_mismatch")
+    persistence = Gate2FinancialDomainPersistenceFactory(
+        snapshot_authority_key=snapshot_authority_key
+    )
+    serialized_snapshot = private_evidence[
+        "serialized_financial_domain_snapshot"
+    ]
+    restored_snapshot = persistence.restore(
+        serialized=serialized_snapshot
+    )
+    recipe = private_evidence["snapshot_recipe"]
+    rebuilt_snapshot = Gate2FinancialDomainCatalogFactory(
+        registry=registry,
+        snapshot_authority_key=snapshot_authority_key,
+    ).create(
+        materialized_artifacts=(materialized_artifact,),
+        source_packages=(source_package,),
+        access_context=access_context,
+        created_at=recipe["created_at"],
+        expires_at=recipe["expires_at"],
+    )
+    if (
+        rebuilt_snapshot != restored_snapshot
+        or persistence.serialize(snapshot=restored_snapshot)
+        != serialized_snapshot
+    ):
+        _fail("financial_semantic_v6_type_first_replay_snapshot_mismatch")
+    rebuilt = Gate2FinancialSemanticV6DecisionEvidenceFactory(
+        registry=registry
+    ).create_type_first_candidate(
+        case_id=private_evidence["case_id"],
+        provider_profile_id=private_evidence["provider_profile_id"],
+        local_projection_model_id=(
+            private_evidence["local_projection_model_id"]
+        ),
+        economy_accounting_receipt=copy.deepcopy(
+            private_evidence["economy_accounting_receipt"]
+        ),
+        sealed_request=expected_sealed_request,
+        prepared_request=prepared_request,
+        simulated_provider_envelope=copy.deepcopy(
+            private_evidence["simulated_provider_envelope"]
+        ),
+        adapter_extracted_output=model_output,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        response_profile=response_profile,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        expansion=expansion,
+        execution_metadata=execution_metadata,
+        materialized_artifact=materialized_artifact,
+        snapshot=restored_snapshot,
+        serialized_snapshot=serialized_snapshot,
+        snapshot_authority_key=snapshot_authority_key,
+        access_context=access_context,
+        created_at=recipe["created_at"],
+        expires_at=recipe["expires_at"],
+        oracle_plausible_type_keys=tuple(
+            private_evidence["oracle_plausible_type_keys"]
+        ),
+    )
+    if rebuilt.private_evidence != private_evidence:
+        _fail("financial_semantic_v6_type_first_replay_evidence_mismatch")
+    accounting = private_evidence["execution_accounting"]
+    return Gate2FinancialSemanticV6TypeFirstReplayResult(
+        schema_version=V6_TYPE_FIRST_REPLAY_SCHEMA_VERSION,
+        status="EXACT",
+        private_evidence_hash=private_evidence[
+            "private_evidence_hash"
+        ],
+        expansion_integrity_hash=expansion.integrity_hash,
+        materialized_artifact_hash=sha256_json(
+            materialized_artifact
+        ),
+        snapshot_integrity_hash=restored_snapshot.integrity_sha256,
+        qualification_counters=copy.deepcopy(
+            rebuilt.qualification_counters
+        ),
+        provider_calls_total=accounting["provider_calls_total"],
+        retry_total=accounting["retry_total"],
+        repair_total=accounting["repair_total"],
+        fallback_total=accounting["fallback_total"],
+    )
+
+
+def _type_first_authority_hashes(
+    *,
+    economy_accounting_receipt: dict[str, Any],
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> dict[str, str]:
+    return {
+        "packet_hash": packet.packet_hash,
+        "type_first_context_view_hash": (
+            type_first_candidate.context_view_sha256
+        ),
+        "mapping_receipt_integrity_hash": (
+            mapping_receipt.integrity_sha256
+        ),
+        "response_profile_integrity_hash": (
+            response_profile.integrity_sha256
+        ),
+        "economy_accounting_receipt_hash": (
+            economy_accounting_receipt["integrity_hash"]
+        ),
+        "choice_schema_hash": choice_contract.choice_schema_hash,
+        "evidence_bundle_integrity_hash": evidence_bundle.integrity_hash,
+        "source_package_integrity_hash": source_package.integrity_hash,
+        "candidate_compilation_integrity_hash": compilation.integrity_hash,
+        "registry_hash": registry.registry_hash,
+        "semantic_pack_integrity_hash": (
+            mapping_receipt.semantic_pack_identity[
+                "integrity_sha256"
+            ]
+        ),
+        "managed_projection_hash": (
+            mapping_receipt.managed_projection_identity[
+                "projection_sha256"
+            ]
+        ),
+        "managed_projection_authority_audit_hash": (
+            mapping_receipt.managed_projection_identity[
+                "authority_audit_sha256"
+            ]
+        ),
+    }
+
+
+def _type_first_zero_call_execution_accounting(
+    *,
+    economy_accounting_receipt: dict[str, Any],
+    simulated_terminal_envelopes_total: int,
+) -> dict[str, int]:
+    try:
+        validate_type_first_economy_accounting_receipt(
+            economy_accounting_receipt
+        )
+    except Gate2SourceFactRuntimeError as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_economy_"
+            "accounting_invalid"
+        ) from exc
+    if (
+        simulated_terminal_envelopes_total not in {0, 1}
+        or economy_accounting_receipt[
+            "provider_calls_authorized_total"
+        ]
+        != 0
+        or economy_accounting_receipt[
+            "fallback_calls_authorized_total"
+        ]
+        != 0
+        or economy_accounting_receipt["authorized_operations_total"] != 0
+        or economy_accounting_receipt[
+            "estimated_cost_authorized_usd"
+        ]
+        != "0.000000000"
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_nonzero_economy_"
+            "accounting"
+        )
+    expected = (
+        _TYPE_FIRST_ZERO_CALL_SUCCESS_ACCOUNTING
+        if simulated_terminal_envelopes_total == 1
+        else _TYPE_FIRST_ZERO_CALL_FAILURE_ACCOUNTING
+    )
+    return copy.deepcopy(expected)
+
+
+def _type_first_ordered_json_sha256(value: Any) -> str:
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_logical_request_invalid"
+        ) from exc
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _type_first_json_roundtrip(value: Any) -> Any:
+    try:
+        return json.loads(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ),
+            parse_constant=_reject_context_v2_1_non_finite_number,
+        )
+    except (TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_json_invalid"
+        ) from exc
+
+
+def _type_first_matching_complete_options_total(
+    *,
+    plausible_type_keys: tuple[str, ...],
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> int:
+    return len(
+        _type_first_audited_complete_options(
+            plausible_type_keys=plausible_type_keys,
+            mapping_receipt=mapping_receipt,
+            compilation=compilation,
+        )
+    )
+
+
+def _type_first_audited_complete_options(
+    *,
+    plausible_type_keys: tuple[str, ...],
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> tuple[Any, ...]:
+    if len(plausible_type_keys) != 1:
+        return ()
+    input_type_id = mapping_receipt.local_to_canonical_type_ids.get(
+        plausible_type_keys[0]
+    )
+    if input_type_id is None:
+        _fail("mapping_receipt_mismatch")
+    return tuple(
+        option
+        for option in compilation.typed_options
+        if (
+            option.input_type_id == input_type_id
+            and option.materializability_receipt.status
+            == "materializable"
+            and option.materializability_receipt.typed_inputs_total == 1
+            and option.materializability_receipt.unclassified_inputs_total
+            == 0
+        )
+    )
+
+
+def _type_first_canonical_choice(
+    expansion: Gate2FinancialSemanticV6ExpandedDecision,
+) -> dict[str, str]:
+    if expansion.disposition == "typed_input":
+        if not isinstance(expansion.selected_typed_option_id, str):
+            _fail(
+                "financial_semantic_v6_type_first_canonical_choice_invalid"
+            )
+        choice = {
+            "disposition": "typed_input",
+            "typed_option_id": expansion.selected_typed_option_id,
+        }
+    elif expansion.disposition == "unclassified_financial_input":
+        decision = expansion.validated_decision.decision
+        if not isinstance(
+            decision,
+            UnclassifiedFinancialInputDecision,
+        ):
+            _fail(
+                "financial_semantic_v6_type_first_canonical_choice_invalid"
+            )
+        choice = {
+            "disposition": "unclassified_financial_input",
+            "reason_code": decision.reason_code,
+        }
+    else:
+        _fail(
+            "financial_semantic_v6_type_first_canonical_choice_invalid"
+        )
+    if sha256_json(choice) != expansion.model_choice_hash:
+        _fail(
+            "financial_semantic_v6_type_first_canonical_choice_invalid"
+        )
+    return choice
+
+
+def _validate_type_first_simulated_terminal_envelope(
+    value: Any,
+) -> None:
+    choices = value.get("choices") if isinstance(value, dict) else None
+    if (
+        not isinstance(choices, list)
+        or len(choices) != 1
+        or not isinstance(choices[0], dict)
+        or choices[0].get("finish_reason") != "stop"
+        or not isinstance(choices[0].get("message"), dict)
+        or not isinstance(
+            choices[0]["message"].get("content"),
+            (str, dict),
+        )
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_simulated_terminal_"
+            "envelope_invalid"
+        )
+
+
+def _restore_type_first_binding_failure_input(
+    *,
+    exact_invalid_input: Any,
+) -> tuple[
+    Any,
+    Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+]:
+    if (
+        not isinstance(exact_invalid_input, dict)
+        or set(exact_invalid_input)
+        != {
+            "model_output",
+            "response_profile",
+            "type_first_candidate",
+            "mapping_receipt",
+        }
+        or not isinstance(
+            exact_invalid_input["response_profile"],
+            dict,
+        )
+        or not isinstance(
+            exact_invalid_input["type_first_candidate"],
+            dict,
+        )
+        or not isinstance(
+            exact_invalid_input["mapping_receipt"],
+            dict,
+        )
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "input_invalid"
+        )
+    profile_value = copy.deepcopy(
+        exact_invalid_input["response_profile"]
+    )
+    candidate_value = copy.deepcopy(
+        exact_invalid_input["type_first_candidate"]
+    )
+    receipt_value = copy.deepcopy(
+        exact_invalid_input["mapping_receipt"]
+    )
+    try:
+        profile_value["type_keys"] = tuple(
+            profile_value["type_keys"]
+        )
+        receipt_value["visible_type_card_order"] = tuple(
+            receipt_value["visible_type_card_order"]
+        )
+        return (
+            copy.deepcopy(exact_invalid_input["model_output"]),
+            Gate2FinancialSemanticV6TypeFirstResponseProfile(
+                **profile_value
+            ),
+            Gate2FinancialSemanticV6TypeFirstCandidate(
+                **candidate_value
+            ),
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt(
+                **receipt_value
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "input_invalid"
+        ) from exc
+
+
+def _type_first_failure_stage_owns_error(
+    *,
+    failure_stage: str,
+    error_code: str,
+) -> bool:
+    owned = {
+        "request_sealing": {
+            "context_profile_schema_hash_mismatch",
+            "source_hash_drift",
+            "type_first_logical_request_budget_exceeded",
+            "type_first_sealed_replay_invalid",
+            "financial_semantic_v6_context_v2_1_serialization_invalid",
+        },
+        "response_parser": {
+            "malformed_json",
+            "duplicate_response_field",
+            "response_root_not_object",
+            "missing_plausible_types",
+            "extra_response_field",
+            "plausible_types_null",
+            "plausible_types_not_array",
+            "backend_type_id_forbidden",
+            "unknown_type_key",
+            "duplicate_type_key",
+            "out_of_order_type_keys",
+        },
+        "binding_validation": {
+            "source_hash_drift",
+            "pack_projection_drift",
+            "evidence_bundle_scope_mismatch",
+            "candidate_compilation_scope_mismatch",
+            "mapping_receipt_mismatch",
+            "context_profile_schema_hash_mismatch",
+        },
+        "decision_expansion": {
+            "exact_code_owned_typed_option_mismatch",
+        },
+    }
+    return error_code in owned.get(failure_stage, set())
+
+
+def _reproduce_type_first_technical_failure(
+    *,
+    failure_stage: str,
+    exact_invalid_input: Any,
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> str:
+    if failure_stage == "request_sealing":
+        try:
+            validate_financial_semantic_v6_type_first_response_profile(
+                profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=registry,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6DecisionEvidenceError(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "stage_mismatch"
+            ) from exc
+        if (
+            not isinstance(exact_invalid_input, dict)
+            or set(exact_invalid_input)
+            != {
+                "system_message",
+                "serialized_context",
+                "response_format",
+            }
+        ):
+            _fail(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "input_invalid"
+            )
+        try:
+            Gate2FinancialSemanticV6ContextLinterFactory(
+                registry=registry
+            ).create_type_first(
+                packet=packet,
+                choice_contract=choice_contract,
+                type_first_candidate=type_first_candidate,
+                response_profile=response_profile,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                system_message=exact_invalid_input["system_message"],
+                serialized_context=exact_invalid_input[
+                    "serialized_context"
+                ],
+                response_format=exact_invalid_input["response_format"],
+                mapping_receipt=mapping_receipt,
+            )
+        except Gate2FinancialSemanticV6ContextLintError as exc:
+            return exc.code
+    elif failure_stage == "response_parser":
+        try:
+            validate_financial_semantic_v6_type_first_response_profile(
+                profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=registry,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6DecisionEvidenceError(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "stage_mismatch"
+            ) from exc
+        try:
+            normalize_financial_semantic_v6_type_first_response(
+                model_output=copy.deepcopy(exact_invalid_input),
+                response_profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            return exc.code
+    elif failure_stage == "binding_validation":
+        (
+            invalid_model_output,
+            invalid_response_profile,
+            invalid_candidate,
+            invalid_mapping_receipt,
+        ) = _restore_type_first_binding_failure_input(
+            exact_invalid_input=exact_invalid_input,
+        )
+        try:
+            validate_financial_semantic_v6_type_first_response_profile(
+                profile=invalid_response_profile,
+                type_first_candidate=invalid_candidate,
+                mapping_receipt=invalid_mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=registry,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            return exc.code
+        del invalid_model_output
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "stage_mismatch"
+        )
+    elif failure_stage == "decision_expansion":
+        if (
+            not isinstance(exact_invalid_input, dict)
+            or set(exact_invalid_input)
+            != {
+                "model_output",
+                "supplied_selected_typed_option_id",
+            }
+        ):
+            _fail(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "input_invalid"
+            )
+        try:
+            expected = Gate2FinancialSemanticV6DecisionExpansionFactory(
+                registry=registry
+            ).create_from_type_first_candidate(
+                model_output=copy.deepcopy(
+                    exact_invalid_input["model_output"]
+                ),
+                response_profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+            )
+        except Gate2FinancialSemanticV6ExpansionError as exc:
+            raise Gate2FinancialSemanticV6DecisionEvidenceError(
+                "financial_semantic_v6_type_first_technical_failure_"
+                "stage_mismatch"
+            ) from exc
+        supplied = exact_invalid_input[
+            "supplied_selected_typed_option_id"
+        ]
+        if expected.disposition == "typed_input" and supplied != (
+            expected.selected_typed_option_id
+        ):
+            invalid_expansion = replace(
+                expected,
+                selected_typed_option_id=supplied,
+            )
+            try:
+                validate_financial_semantic_v6_type_first_expanded_decision(
+                    expansion=invalid_expansion,
+                    model_output=copy.deepcopy(
+                        exact_invalid_input["model_output"]
+                    ),
+                    response_profile=response_profile,
+                    type_first_candidate=type_first_candidate,
+                    mapping_receipt=mapping_receipt,
+                    choice_contract=choice_contract,
+                    packet=packet,
+                    evidence_bundle=evidence_bundle,
+                    source_package=source_package,
+                    compilation=compilation,
+                    registry=registry,
+                )
+            except Gate2FinancialSemanticV6ExpansionError as exc:
+                return exc.code
+    else:
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_stage_invalid"
+        )
+    _fail(
+        "financial_semantic_v6_type_first_technical_failure_not_reproduced"
+    )
+
+
+def _replay_type_first_technical_failure(
+    *,
+    private_evidence: dict[str, Any],
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> Gate2FinancialSemanticV6TypeFirstTechnicalFailureReplayResult:
+    if private_evidence["available_authority_hashes"] != (
+        _type_first_authority_hashes(
+            economy_accounting_receipt=private_evidence[
+                "economy_accounting_receipt"
+            ],
+            response_profile=response_profile,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+        )
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "authority_mismatch"
+        )
+    observed_error_code = _reproduce_type_first_technical_failure(
+        failure_stage=private_evidence["failure_stage"],
+        exact_invalid_input=private_evidence[
+            "exact_private_invalid_input"
+        ],
+        response_profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+    )
+    if observed_error_code != private_evidence["exact_error_code"]:
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "replay_code_mismatch"
+        )
+    counts = private_evidence["non_sensitive_counts"]
+    accounting = private_evidence["execution_accounting"]
+    return Gate2FinancialSemanticV6TypeFirstTechnicalFailureReplayResult(
+        schema_version=V6_TYPE_FIRST_REPLAY_SCHEMA_VERSION,
+        status="EXACT_TECHNICAL_FAILURE",
+        private_evidence_hash=private_evidence[
+            "private_evidence_hash"
+        ],
+        invalid_input_sha256=private_evidence[
+            "invalid_input_sha256"
+        ],
+        failure_stage=private_evidence["failure_stage"],
+        exact_error_code=observed_error_code,
+        invalid_response_total=counts["invalid_response_total"],
+        canonical_decision_total=counts["canonical_decision_total"],
+        materialized_record_total=counts["materialized_record_total"],
+        financial_domain_snapshot_total=counts[
+            "financial_domain_snapshot_total"
+        ],
+        provider_calls_total=accounting["provider_calls_total"],
+        retry_total=accounting["retry_total"],
+        repair_total=accounting["repair_total"],
+        fallback_total=accounting["fallback_total"],
+    )
+
+
+def _validate_type_first_success_chain(
+    *,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    provider_profile_id: str,
+    local_projection_model_id: str,
+    economy_accounting_receipt: dict[str, Any],
+    sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
+    prepared_request: Gate2PreparedProviderRequest,
+    simulated_provider_envelope: dict[str, Any],
+    adapter_extracted_output: Any,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    expansion: Gate2FinancialSemanticV6ExpandedDecision,
+    execution_metadata: FinancialEvidenceExecutionMetadata,
+    materialized_artifact: dict[str, Any],
+    snapshot: Gate2FinancialDomainSnapshot,
+    serialized_snapshot: str,
+    snapshot_authority_key: bytes,
+    access_context: FinancialDomainAccessContext,
+    created_at: str,
+    expires_at: str | None,
+    oracle_plausible_type_keys: tuple[str, ...],
+) -> dict[str, Any]:
+    execution_accounting = _type_first_zero_call_execution_accounting(
+        economy_accounting_receipt=economy_accounting_receipt,
+        simulated_terminal_envelopes_total=1,
+    )
+    if (
+        provider_profile_id != "openai_gpt"
+        or not isinstance(local_projection_model_id, str)
+        or not local_projection_model_id
+        or not isinstance(
+            sealed_request,
+            Gate2FinancialSemanticV6TypeFirstSealedRequest,
+        )
+        or not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        )
+        or not isinstance(simulated_provider_envelope, dict)
+        or not isinstance(
+            execution_metadata,
+            FinancialEvidenceExecutionMetadata,
+        )
+        or not isinstance(snapshot, Gate2FinancialDomainSnapshot)
+        or not isinstance(access_context, FinancialDomainAccessContext)
+    ):
+        _fail("financial_semantic_v6_type_first_evidence_input_invalid")
+    profile = gate2_provider_profile(provider_profile_id)
+    validate_financial_semantic_v6_type_first_sealed_request(
+        sealed_request=sealed_request,
+        packet=packet,
+        choice_contract=choice_contract,
+        type_first_candidate=type_first_candidate,
+        response_profile=response_profile,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+        system_message=V6_SEMANTIC_SYSTEM_PROMPT,
+        mapping_receipt=mapping_receipt,
+    )
+    expected_form_data = financial_semantic_v6_type_first_local_proof_request(
+        model_visible_request=sealed_request.model_visible_request,
+        model_id=local_projection_model_id,
+    )
+    adapter = Gate2ProviderAdapterFactory(profile=profile).create()
+    expected_prepared = adapter.prepare_form_data(
+        form_data=expected_form_data,
+        response_format=sealed_request.response_format,
+    )
+    prepared_request.validate_schema_binding()
+    canonical_schema = response_profile.canonical_schema()
+    if (
+        prepared_request != expected_prepared
+        or prepared_request.provider_adapter_id != profile.adapter_id
+        or not prepared_request.canonical_schema_is_bound(
+            canonical_schema
+        )
+        or prepared_request.provider_visible_schema != canonical_schema
+    ):
+        _fail("financial_semantic_v6_type_first_prepared_request_mismatch")
+    _validate_type_first_simulated_terminal_envelope(
+        simulated_provider_envelope
+    )
+    independently_extracted = adapter.extract_prepared_content(
+        copy.deepcopy(simulated_provider_envelope),
+        prepared_request=prepared_request,
+    )
+    if independently_extracted != adapter_extracted_output:
+        _fail("financial_semantic_v6_type_first_adapter_output_mismatch")
+    parsed = normalize_financial_semantic_v6_type_first_response(
+        model_output=copy.deepcopy(adapter_extracted_output),
+        response_profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+    )
+    expected_expansion = (
+        Gate2FinancialSemanticV6DecisionExpansionFactory(
+            registry=registry
+        ).create_from_type_first_candidate(
+            model_output=copy.deepcopy(adapter_extracted_output),
+            response_profile=response_profile,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+    )
+    if expansion != expected_expansion:
+        _fail("financial_semantic_v6_type_first_expansion_mismatch")
+    validate_financial_semantic_v6_type_first_expanded_decision(
+        expansion=expansion,
+        model_output=copy.deepcopy(adapter_extracted_output),
+        response_profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+    )
+    rebuilt_artifact = (
+        Gate2FinancialEvidenceMaterializerFactory(
+            registry=registry,
+            source_package=source_package,
+            execution_metadata=execution_metadata,
+        )
+        .create()
+        .materialize(validated_decision=expansion.validated_decision)
+    )
+    validate_financial_evidence_inputs(
+        payload=materialized_artifact,
+        registry=registry,
+        source_package=source_package,
+    )
+    if rebuilt_artifact != materialized_artifact:
+        _fail("financial_semantic_v6_type_first_materialization_mismatch")
+    persistence = Gate2FinancialDomainPersistenceFactory(
+        snapshot_authority_key=snapshot_authority_key
+    )
+    restored_snapshot = persistence.restore(
+        serialized=serialized_snapshot
+    )
+    rebuilt_snapshot = Gate2FinancialDomainCatalogFactory(
+        registry=registry,
+        snapshot_authority_key=snapshot_authority_key,
+    ).create(
+        materialized_artifacts=(materialized_artifact,),
+        source_packages=(source_package,),
+        access_context=access_context,
+        created_at=created_at,
+        expires_at=expires_at,
+    )
+    if (
+        snapshot != restored_snapshot
+        or snapshot != rebuilt_snapshot
+        or persistence.serialize(snapshot=snapshot)
+        != serialized_snapshot
+    ):
+        _fail("financial_semantic_v6_type_first_snapshot_mismatch")
+    audited_options = _type_first_audited_complete_options(
+        plausible_type_keys=oracle_plausible_type_keys,
+        mapping_receipt=mapping_receipt,
+        compilation=compilation,
+    )
+    counters = type_first_qualification_comparison(
+        oracle_plausible_type_keys=oracle_plausible_type_keys,
+        observed_plausible_type_keys=parsed[
+            "plausible_type_keys"
+        ],
+        visible_type_key_order=response_profile.type_keys,
+        decision_disposition=expansion.disposition,
+        audited_exact_safe_typed_option_id=(
+            audited_options[0].typed_option_id
+            if len(audited_options) == 1
+            else None
+        ),
+        audited_matching_complete_options_total=len(audited_options),
+        observed_selected_typed_option_id=(
+            expansion.selected_typed_option_id
+        ),
+    )
+    return {
+        "provider_profile": profile,
+        "parsed_response": parsed,
+        "restored_snapshot": restored_snapshot,
+        "qualification_counters": counters,
+        "execution_accounting": execution_accounting,
+    }
+
+
+def _validate_type_first_private_evidence(value: Any) -> None:
+    if (
+        isinstance(value, dict)
+        and value.get("schema_version")
+        == V6_TYPE_FIRST_TECHNICAL_FAILURE_EVIDENCE_SCHEMA_VERSION
+    ):
+        _validate_type_first_technical_failure_private_evidence(value)
+        return
+    if not isinstance(value, dict):
+        _fail("financial_semantic_v6_type_first_private_evidence_invalid")
+    required = {
+        "schema_version",
+        "case_id",
+        "provider_profile_id",
+        "provider_adapter_id",
+        "provider_adapter_version",
+        "local_projection_model_id",
+        "request_profile",
+        "economy_accounting_receipt",
+        "exact_logical_request",
+        "exact_sealed_request",
+        "exact_prepared_request",
+        "simulated_provider_envelope",
+        "adapter_extracted_output",
+        "parsed_response",
+        "oracle_plausible_type_keys",
+        "qualification_counters",
+        "canonical_choice",
+        "expanded_canonical_decision",
+        "execution_metadata",
+        "materialized_artifact",
+        "serialized_financial_domain_snapshot",
+        "snapshot_recipe",
+        "authority_hashes",
+        "execution_accounting",
+        "private_evidence_hash",
+    }
+    expected_accounting = _type_first_zero_call_execution_accounting(
+        economy_accounting_receipt=value.get(
+            "economy_accounting_receipt"
+        ),
+        simulated_terminal_envelopes_total=1,
+    )
+    if not isinstance(value, dict) or set(value) != required:
+        _fail("financial_semantic_v6_type_first_private_evidence_invalid")
+    material = {
+        key: copy.deepcopy(item)
+        for key, item in value.items()
+        if key != "private_evidence_hash"
+    }
+    authority_hashes = value.get("authority_hashes")
+    required_authority_hashes = {
+        "packet_hash",
+        "type_first_context_view_hash",
+        "mapping_receipt_integrity_hash",
+        "response_profile_integrity_hash",
+        "economy_accounting_receipt_hash",
+        "sealed_request_integrity_hash",
+        "logical_request_hash",
+        "prepared_request_hash",
+        "adapter_extracted_output_hash",
+        "expansion_integrity_hash",
+        "materialized_artifact_hash",
+        "serialized_snapshot_hash",
+        "snapshot_integrity_hash",
+        "evidence_bundle_integrity_hash",
+        "source_package_integrity_hash",
+        "candidate_compilation_integrity_hash",
+        "registry_hash",
+        "semantic_pack_integrity_hash",
+        "managed_projection_hash",
+        "managed_projection_authority_audit_hash",
+    }
+    if (
+        not isinstance(authority_hashes, dict)
+        or set(authority_hashes) != required_authority_hashes
+        or any(
+            not isinstance(item, str)
+            or _SHA256_RE.fullmatch(item) is None
+            for item in authority_hashes.values()
+        )
+    ):
+        _fail("financial_semantic_v6_type_first_private_evidence_invalid")
+    if (
+        value["schema_version"]
+        != V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION
+        or value["private_evidence_hash"] != sha256_json(material)
+        or value["request_profile"]
+        != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        or value["execution_accounting"] != expected_accounting
+        or authority_hashes.get(
+            "materialized_artifact_hash"
+        )
+        != sha256_json(value["materialized_artifact"])
+        or authority_hashes.get(
+            "serialized_snapshot_hash"
+        )
+        != _sha256_text(
+            value["serialized_financial_domain_snapshot"]
+        )
+        or not isinstance(value["exact_logical_request"], dict)
+        or set(value["exact_logical_request"])
+        != {"response_schema", "user_context"}
+        or authority_hashes.get("logical_request_hash")
+        != _type_first_ordered_json_sha256(
+            value["exact_logical_request"]
+        )
+        or not isinstance(value["exact_sealed_request"], dict)
+        or authority_hashes.get("logical_request_hash")
+        != value["exact_sealed_request"]
+        .get("sealed_request_receipt", {})
+        .get("logical_request_sha256")
+        or not isinstance(value["canonical_choice"], dict)
+        or not isinstance(value["expanded_canonical_decision"], dict)
+        or value["canonical_choice"].get("disposition")
+        != value["expanded_canonical_decision"].get("disposition")
+        or sha256_json(value["canonical_choice"])
+        != value["expanded_canonical_decision"].get(
+            "model_choice_hash"
+        )
+        or _type_first_json_roundtrip(value) != value
+        or "snapshot_authority_key" in value
+    ):
+        _fail("financial_semantic_v6_type_first_private_evidence_invalid")
+    _case_id(value["case_id"])
+
+
+def _validate_type_first_technical_failure_private_evidence(
+    value: dict[str, Any],
+) -> None:
+    required = {
+        "schema_version",
+        "case_id",
+        "failure_stage",
+        "exact_error_code",
+        "exact_private_invalid_input",
+        "invalid_input_sha256",
+        "economy_accounting_receipt",
+        "available_authority_hashes",
+        "non_sensitive_counts",
+        "execution_accounting",
+        "private_evidence_hash",
+    }
+    expected_accounting = _type_first_zero_call_execution_accounting(
+        economy_accounting_receipt=value.get(
+            "economy_accounting_receipt"
+        ),
+        simulated_terminal_envelopes_total=0,
+    )
+    material = {
+        key: copy.deepcopy(item)
+        for key, item in value.items()
+        if key != "private_evidence_hash"
+    }
+    counts = value.get("non_sensitive_counts")
+    authority_hashes = value.get("available_authority_hashes")
+    required_authority_hashes = {
+        "packet_hash",
+        "type_first_context_view_hash",
+        "mapping_receipt_integrity_hash",
+        "response_profile_integrity_hash",
+        "economy_accounting_receipt_hash",
+        "choice_schema_hash",
+        "evidence_bundle_integrity_hash",
+        "source_package_integrity_hash",
+        "candidate_compilation_integrity_hash",
+        "registry_hash",
+        "semantic_pack_integrity_hash",
+        "managed_projection_hash",
+        "managed_projection_authority_audit_hash",
+    }
+    if (
+        set(value) != required
+        or value["private_evidence_hash"] != sha256_json(material)
+        or value["invalid_input_sha256"]
+        != sha256_json(value["exact_private_invalid_input"])
+        or value["failure_stage"]
+        not in {
+            "request_sealing",
+            "response_parser",
+            "binding_validation",
+            "decision_expansion",
+        }
+        or not isinstance(value["exact_error_code"], str)
+        or re.fullmatch(r"[a-z0-9_]{1,160}", value["exact_error_code"])
+        is None
+        or value["execution_accounting"] != expected_accounting
+        or not isinstance(authority_hashes, dict)
+        or set(authority_hashes) != required_authority_hashes
+        or any(
+            not isinstance(item, str)
+            or _SHA256_RE.fullmatch(item) is None
+            for item in authority_hashes.values()
+        )
+        or not isinstance(counts, dict)
+        or set(counts)
+        != {
+            "invalid_input_utf8_bytes",
+            "visible_type_keys_total",
+            "invalid_response_total",
+            "canonical_decision_total",
+            "materialized_record_total",
+            "financial_domain_snapshot_total",
+        }
+        or any(
+            not isinstance(item, int) or item < 0
+            for item in counts.values()
+        )
+        or any(
+            counts[field] != 0
+            for field in (
+                "canonical_decision_total",
+                "materialized_record_total",
+                "financial_domain_snapshot_total",
+            )
+        )
+        or counts["invalid_response_total"]
+        != int(value["failure_stage"] == "response_parser")
+        or _type_first_json_roundtrip(value) != value
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "private_evidence_invalid"
+        )
+    _case_id(value["case_id"])
+
+
+def _validate_type_first_safe_receipt(
+    *,
+    safe_receipt: Any,
+    private_evidence: dict[str, Any],
+) -> None:
+    if private_evidence.get("schema_version") == (
+        V6_TYPE_FIRST_TECHNICAL_FAILURE_EVIDENCE_SCHEMA_VERSION
+    ):
+        _validate_type_first_technical_failure_safe_receipt(
+            safe_receipt=safe_receipt,
+            private_evidence=private_evidence,
+        )
+        return
+    required = {
+        "schema_version",
+        "case_id",
+        "status",
+        "decision_classification",
+        "hashes",
+        "counts",
+        "qualification_counters",
+        "execution_accounting",
+        "raw_private_data_in_receipt",
+        "runtime_activation",
+        "production_admission",
+        "private_evidence_hash",
+        "receipt_hash",
+    }
+    if not isinstance(safe_receipt, dict) or set(safe_receipt) != required:
+        _fail("financial_semantic_v6_type_first_safe_receipt_invalid")
+    material = {
+        key: copy.deepcopy(value)
+        for key, value in safe_receipt.items()
+        if key != "receipt_hash"
+    }
+    if (
+        safe_receipt.get("schema_version")
+        != V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION
+        or safe_receipt.get("case_id") != private_evidence["case_id"]
+        or safe_receipt.get("status") != "EXACT_ZERO_CALL_LOCAL_PROOF"
+        or safe_receipt.get("receipt_hash") != sha256_json(material)
+        or safe_receipt.get("private_evidence_hash")
+        != private_evidence["private_evidence_hash"]
+        or safe_receipt.get("decision_classification")
+        != private_evidence["expanded_canonical_decision"].get(
+            "disposition"
+        )
+        or safe_receipt.get("hashes")
+        != private_evidence["authority_hashes"]
+        or not isinstance(safe_receipt.get("counts"), dict)
+        or set(safe_receipt["counts"])
+        != {
+            "plausible_types_total",
+            "matching_complete_options_total",
+            "materialized_records_total",
+            "financial_domain_snapshots_total",
+        }
+        or any(
+            not isinstance(value, int) or value < 0
+            for value in safe_receipt["counts"].values()
+        )
+        or safe_receipt["counts"]["materialized_records_total"] != 1
+        or safe_receipt["counts"]["financial_domain_snapshots_total"] != 1
+        or safe_receipt.get("qualification_counters")
+        != private_evidence["qualification_counters"]
+        or safe_receipt.get("execution_accounting")
+        != _TYPE_FIRST_ZERO_CALL_SUCCESS_ACCOUNTING
+        or safe_receipt.get("raw_private_data_in_receipt") is not False
+        or safe_receipt.get("runtime_activation") is not False
+        or safe_receipt.get("production_admission") is not False
+    ):
+        _fail("financial_semantic_v6_type_first_safe_receipt_invalid")
+
+
+def _validate_type_first_technical_failure_safe_receipt(
+    *,
+    safe_receipt: Any,
+    private_evidence: dict[str, Any],
+) -> None:
+    required = {
+        "schema_version",
+        "case_id",
+        "status",
+        "invalid_input_sha256",
+        "exact_error_code",
+        "failure_stage",
+        "non_sensitive_counts",
+        "execution_accounting",
+        "raw_private_data_in_receipt",
+        "runtime_activation",
+        "production_admission",
+        "private_evidence_hash",
+        "receipt_hash",
+    }
+    if not isinstance(safe_receipt, dict) or set(safe_receipt) != required:
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "safe_receipt_invalid"
+        )
+    material = {
+        key: copy.deepcopy(value)
+        for key, value in safe_receipt.items()
+        if key != "receipt_hash"
+    }
+    if (
+        safe_receipt["schema_version"]
+        != V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION
+        or safe_receipt["status"]
+        != "EXACT_ZERO_CALL_TECHNICAL_FAILURE"
+        or safe_receipt["receipt_hash"] != sha256_json(material)
+        or safe_receipt["case_id"] != private_evidence["case_id"]
+        or safe_receipt["invalid_input_sha256"]
+        != private_evidence["invalid_input_sha256"]
+        or safe_receipt["exact_error_code"]
+        != private_evidence["exact_error_code"]
+        or safe_receipt["failure_stage"]
+        != private_evidence["failure_stage"]
+        or safe_receipt["non_sensitive_counts"]
+        != private_evidence["non_sensitive_counts"]
+        or safe_receipt["execution_accounting"]
+        != _TYPE_FIRST_ZERO_CALL_FAILURE_ACCOUNTING
+        or safe_receipt["raw_private_data_in_receipt"] is not False
+        or safe_receipt["runtime_activation"] is not False
+        or safe_receipt["production_admission"] is not False
+        or safe_receipt["private_evidence_hash"]
+        != private_evidence["private_evidence_hash"]
+    ):
+        _fail(
+            "financial_semantic_v6_type_first_technical_failure_"
+            "safe_receipt_invalid"
+        )

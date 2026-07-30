@@ -32,14 +32,20 @@ from .gate2_financial_semantic_v6_canonical import (
     Gate2FinancialSemanticV6CanonicalError,
 )
 from .gate2_financial_semantic_v6_choice import (
+    SINGLE_REGISTRY_TYPE_NO_SAFE_RECORD_REASON_CODE,
     Gate2FinancialSemanticV6ChoiceContract,
     Gate2FinancialSemanticV6ChoiceError,
+    Gate2FinancialSemanticV6TypeFirstResponseProfile,
     normalize_financial_semantic_v6_context_v2_1_choice,
     normalize_financial_semantic_v6_local_choice,
+    normalize_financial_semantic_v6_type_first_response,
     validate_financial_semantic_v6_choice_contract,
+    validate_financial_semantic_v6_type_first_response_profile,
 )
 from .gate2_financial_semantic_v6_packet import (
     Gate2FinancialSemanticV6Packet,
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
 )
 
 
@@ -49,11 +55,15 @@ DECISION_EXPANSION_SCHEMA_VERSION = (
 DECISION_EXPANSION_POLICY_VERSION = (
     "broker_reports_gate2_candidate_records_by_construction_v1"
 )
+TYPE_FIRST_DECISION_EXPANSION_PROFILE = (
+    "broker_reports_gate2_type_first_decision_expansion_v1"
+)
 _MAX_MODEL_CHOICE_BYTES = 8192
 
 FACTORY_REQUIRED = (
-    "Gate2FinancialSemanticV6DecisionExpansionFactory.create is the only "
-    "minimal-choice-to-canonical-decision expansion entrypoint"
+    "Gate2FinancialSemanticV6DecisionExpansionFactory.create and its "
+    "additive inactive candidate methods are the only "
+    "minimal-choice-to-canonical-decision expansion entrypoints"
 )
 FORBIDDEN = (
     "The expander must not accept model-provided type IDs, refs, bindings "
@@ -216,6 +226,95 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
             context_v2_1_candidate=True,
         )
 
+    def create_from_type_first_candidate(
+        self,
+        *,
+        model_output: str | dict[str, Any],
+        response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+        type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+        mapping_receipt: (
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt
+        ),
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6ExpandedDecision:
+        try:
+            validate_financial_semantic_v6_type_first_response_profile(
+                profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            )
+            parsed = normalize_financial_semantic_v6_type_first_response(
+                model_output=model_output,
+                response_profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6ExpansionError(exc.code) from exc
+        plausible_type_keys = parsed["plausible_type_keys"]
+        try:
+            canonical_type_ids = tuple(
+                mapping_receipt.local_to_canonical_type_ids[type_key]
+                for type_key in plausible_type_keys
+            )
+        except KeyError as exc:
+            raise Gate2FinancialSemanticV6ExpansionError(
+                "mapping_receipt_mismatch"
+            ) from exc
+        if not canonical_type_ids:
+            canonical_choice = {
+                "disposition": "unclassified_financial_input",
+                "reason_code": "no_registry_type",
+            }
+        elif len(canonical_type_ids) >= 2:
+            canonical_choice = {
+                "disposition": "unclassified_financial_input",
+                "reason_code": "ambiguous_registry_type",
+            }
+        else:
+            matching_options = _type_first_complete_options(
+                input_type_id=canonical_type_ids[0],
+                compilation=compilation,
+            )
+            if len(matching_options) != 1:
+                canonical_choice = {
+                    "disposition": "unclassified_financial_input",
+                    "reason_code": (
+                        SINGLE_REGISTRY_TYPE_NO_SAFE_RECORD_REASON_CODE
+                    ),
+                }
+            else:
+                canonical_choice = {
+                    "disposition": "typed_input",
+                    "typed_option_id": (
+                        matching_options[0].typed_option_id
+                    ),
+                }
+        return self._expand(
+            model_output=canonical_choice,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            context_v2_1_candidate=True,
+            expansion_policy_version=(
+                TYPE_FIRST_DECISION_EXPANSION_PROFILE
+            ),
+        )
+
     def _expand(
         self,
         *,
@@ -226,7 +325,13 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
         source_package: Gate2FinancialEvidenceSourcePackage,
         compilation: Gate2FinancialCandidateCompilation,
         context_v2_1_candidate: bool = False,
+        expansion_policy_version: str = DECISION_EXPANSION_POLICY_VERSION,
     ) -> Gate2FinancialSemanticV6ExpandedDecision:
+        if expansion_policy_version not in {
+            DECISION_EXPANSION_POLICY_VERSION,
+            TYPE_FIRST_DECISION_EXPANSION_PROFILE,
+        }:
+            _fail("financial_semantic_v6_expansion_policy_invalid")
         _validate_choice_contract(
             choice_contract=choice_contract,
             packet=packet,
@@ -307,7 +412,7 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
         )
         material = {
             "schema_version": DECISION_EXPANSION_SCHEMA_VERSION,
-            "policy_version": DECISION_EXPANSION_POLICY_VERSION,
+            "policy_version": expansion_policy_version,
             "packet_hash": packet.packet_hash,
             "choice_schema_hash": choice_contract.choice_schema_hash,
             "candidate_compilation_integrity_hash": (compilation.integrity_hash),
@@ -323,7 +428,7 @@ class Gate2FinancialSemanticV6DecisionExpansionFactory:
         }
         return Gate2FinancialSemanticV6ExpandedDecision(
             schema_version=DECISION_EXPANSION_SCHEMA_VERSION,
-            policy_version=DECISION_EXPANSION_POLICY_VERSION,
+            policy_version=expansion_policy_version,
             packet_hash=packet.packet_hash,
             choice_schema_hash=choice_contract.choice_schema_hash,
             candidate_compilation_integrity_hash=(compilation.integrity_hash),
@@ -401,6 +506,48 @@ def validate_financial_semantic_v6_context_v2_1_expanded_decision(
         _fail(
             "financial_semantic_v6_context_v2_1_expansion_integrity_invalid"
         )
+
+
+def validate_financial_semantic_v6_type_first_expanded_decision(
+    *,
+    expansion: Gate2FinancialSemanticV6ExpandedDecision,
+    model_output: str | dict[str, Any],
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> None:
+    if not isinstance(
+        expansion,
+        Gate2FinancialSemanticV6ExpandedDecision,
+    ):
+        _fail("financial_semantic_v6_type_first_expansion_invalid")
+    expected = Gate2FinancialSemanticV6DecisionExpansionFactory(
+        registry=registry
+    ).create_from_type_first_candidate(
+        model_output=model_output,
+        response_profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+    )
+    if (
+        expansion.disposition == "typed_input"
+        and expansion.selected_typed_option_id
+        != expected.selected_typed_option_id
+    ):
+        _fail("exact_code_owned_typed_option_mismatch")
+    if expansion != expected:
+        _fail("financial_semantic_v6_type_first_expansion_integrity_invalid")
 
 
 def _parse_minimal_choice(
@@ -487,6 +634,24 @@ def _exact_option(
     if len(matches) != 1:
         _fail("financial_semantic_v6_expansion_option_unknown")
     return matches[0]
+
+
+def _type_first_complete_options(
+    *,
+    input_type_id: str,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> tuple[Any, ...]:
+    return tuple(
+        option
+        for option in compilation.typed_options
+        if (
+            option.input_type_id == input_type_id
+            and option.materializability_receipt.status == "materializable"
+            and option.materializability_receipt.typed_inputs_total == 1
+            and option.materializability_receipt.unclassified_inputs_total
+            == 0
+        )
+    )
 
 
 def _typed_canonical_choice(option) -> dict[str, Any]:

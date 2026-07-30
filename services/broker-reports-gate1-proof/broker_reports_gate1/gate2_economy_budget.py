@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Any, Iterable
 
@@ -36,6 +36,7 @@ from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
     SOURCE_QUALIFICATION_REQUEST_PROFILE,
     SOURCE_REQUEST_PROFILE,
 )
@@ -55,6 +56,12 @@ TOKEN_ESTIMATOR_ID = "compact_request_utf8_bytes_div_4_plus_64_v1"
 HARD_PROVIDER_LIMIT = "provider_transport_enforced"
 QUALIFICATION_TARGET_BUDGET = "workload_maximum_estimated_input_tokens"
 ACTUAL_COST_OBSERVATION = "post_response_reported_usage"
+TYPE_FIRST_ONE_CALL_NO_FALLBACK_POLICY_VERSION = (
+    "broker_reports_gate2_type_first_one_call_no_fallback_v1"
+)
+TYPE_FIRST_ACCOUNTING_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_economy_accounting_receipt_v1"
+)
 _TOKEN_ESTIMATOR_OVERHEAD = 64
 _USD_QUANTUM = Decimal("0.000000001")
 _TOOL_FIELDS = frozenset(
@@ -106,6 +113,9 @@ _WORKLOAD_BY_REQUEST_PROFILE = {
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE: (
         WORKLOAD_GATE2_FINANCIAL_EVIDENCE
     ),
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE: (
+        WORKLOAD_GATE2_FINANCIAL_EVIDENCE
+    ),
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE: (
         WORKLOAD_GATE2_FINANCIAL_CHECKSUM
     ),
@@ -155,9 +165,20 @@ class Gate2EconomyBudgetSessionFactory:
                 "gate2_economy_budget_request_profile_unknown",
                 "Request profile has no economy workload budget",
             )
+        workload = self.policy.workload(workload_class)
+        if (
+            request_profile
+            == FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        ):
+            workload = replace(
+                workload,
+                maximum_provider_calls_per_operation=1,
+                maximum_fallback_calls_per_operation=0,
+            )
         return Gate2EconomyBudgetSession(
             policy=self.policy,
-            workload=self.policy.workload(workload_class),
+            workload=workload,
+            request_profile=request_profile,
         )
 
 
@@ -167,15 +188,61 @@ class Gate2EconomyBudgetSession:
         *,
         policy: Gate2EconomyModelPolicySnapshot,
         workload: EconomyWorkloadPolicy,
+        request_profile: str,
     ) -> None:
         self.policy = policy
         self.workload = workload
+        self.request_profile = request_profile
         self._operation_call_counts: dict[str, int] = {}
         self._operation_fallback_counts: dict[str, int] = {}
         self._operation_estimated_costs: dict[str, Decimal] = {}
         self._provider_calls_authorized_total = 0
         self._fallback_calls_authorized_total = 0
         self._estimated_cost_authorized_total = Decimal("0")
+
+    def type_first_accounting_receipt(self) -> dict[str, Any]:
+        if (
+            self.request_profile
+            != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+            or self.workload.maximum_provider_calls_per_operation != 1
+            or self.workload.maximum_fallback_calls_per_operation != 0
+        ):
+            _fail(
+                "gate2_economy_type_first_accounting_profile_invalid",
+                "Type-First accounting requires its exact economy profile",
+            )
+        material = {
+            "schema_version": (
+                TYPE_FIRST_ACCOUNTING_RECEIPT_SCHEMA_VERSION
+            ),
+            "policy_version": (
+                TYPE_FIRST_ONE_CALL_NO_FALLBACK_POLICY_VERSION
+            ),
+            "request_profile": self.request_profile,
+            "policy_hash": self.policy.policy_hash,
+            "workload_class": self.workload.workload_class,
+            "maximum_provider_calls_per_operation": 1,
+            "maximum_fallback_calls_per_operation": 0,
+            "provider_calls_authorized_total": (
+                self._provider_calls_authorized_total
+            ),
+            "fallback_calls_authorized_total": (
+                self._fallback_calls_authorized_total
+            ),
+            "authorized_operations_total": len(
+                self._operation_call_counts
+            ),
+            "estimated_cost_authorized_usd": _usd_text(
+                self._estimated_cost_authorized_total
+            ),
+            "customer_content_in_receipt": False,
+        }
+        receipt = {
+            **material,
+            "integrity_hash": _hash_json(material),
+        }
+        validate_type_first_economy_accounting_receipt(receipt)
+        return receipt
 
     def prepare_call(
         self,
@@ -761,6 +828,75 @@ class Gate2EconomyBudgetSession:
         }
         receipt["integrity_hash"] = _hash_json(receipt)
         _fail(code, message, receipt=receipt)
+
+
+def validate_type_first_economy_accounting_receipt(
+    receipt: Any,
+) -> None:
+    required = {
+        "schema_version",
+        "policy_version",
+        "request_profile",
+        "policy_hash",
+        "workload_class",
+        "maximum_provider_calls_per_operation",
+        "maximum_fallback_calls_per_operation",
+        "provider_calls_authorized_total",
+        "fallback_calls_authorized_total",
+        "authorized_operations_total",
+        "estimated_cost_authorized_usd",
+        "customer_content_in_receipt",
+        "integrity_hash",
+    }
+    if not isinstance(receipt, dict) or set(receipt) != required:
+        _fail(
+            "gate2_economy_type_first_accounting_receipt_invalid",
+            "Type-First economy accounting receipt is invalid",
+        )
+    material = {
+        key: copy.deepcopy(value)
+        for key, value in receipt.items()
+        if key != "integrity_hash"
+    }
+    try:
+        estimated_cost = Decimal(
+            receipt["estimated_cost_authorized_usd"]
+        )
+    except (InvalidOperation, KeyError, TypeError):
+        estimated_cost = Decimal("-1")
+    if (
+        receipt["schema_version"]
+        != TYPE_FIRST_ACCOUNTING_RECEIPT_SCHEMA_VERSION
+        or receipt["policy_version"]
+        != TYPE_FIRST_ONE_CALL_NO_FALLBACK_POLICY_VERSION
+        or receipt["request_profile"]
+        != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        or receipt["policy_hash"]
+        != Gate2EconomyModelPolicyFactory().create().policy_hash
+        or receipt["workload_class"]
+        != WORKLOAD_GATE2_FINANCIAL_EVIDENCE
+        or receipt["maximum_provider_calls_per_operation"] != 1
+        or receipt["maximum_fallback_calls_per_operation"] != 0
+        or any(
+            isinstance(receipt[field], bool)
+            or not isinstance(receipt[field], int)
+            or receipt[field] < 0
+            for field in (
+                "provider_calls_authorized_total",
+                "fallback_calls_authorized_total",
+                "authorized_operations_total",
+            )
+        )
+        or estimated_cost < 0
+        or receipt["estimated_cost_authorized_usd"]
+        != _usd_text(estimated_cost)
+        or receipt["customer_content_in_receipt"] is not False
+        or receipt["integrity_hash"] != _hash_json(material)
+    ):
+        _fail(
+            "gate2_economy_type_first_accounting_receipt_invalid",
+            "Type-First economy accounting receipt is invalid",
+        )
 
 
 def estimate_gate2_request_input_tokens(form_data: dict[str, Any]) -> int:

@@ -7,7 +7,10 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Mapping
 
-from .gate2_economy_budget import Gate2EconomyBudgetSessionFactory
+from .gate2_economy_budget import (
+    TYPE_FIRST_ONE_CALL_NO_FALLBACK_POLICY_VERSION,
+    Gate2EconomyBudgetSessionFactory,
+)
 from .gate2_financial_evidence_materialization_contracts import sha256_json
 from .gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistrySnapshot,
@@ -44,7 +47,10 @@ from .gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
     gate2_provider_profile,
 )
-from .gate2_model_requests import Gate2OpenWebUIRequestBuilder
+from .gate2_model_requests import (
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
+    Gate2OpenWebUIRequestBuilder,
+)
 from .gate2_provider_adapters import (
     Gate2ContextV21BudgetSmokeTransportContract,
     Gate2PreparedProviderRequest,
@@ -98,6 +104,72 @@ BUDGET_SMOKE_SNAPSHOT_AUTHORITY_KEY = (
 BUDGET_SMOKE_CONTINUATION_KEY = (
     b"broker-reports-context-v2-1-goal12-continuation-v1"
 )
+TYPE_FIRST_QUALIFICATION_PROFILE_VERSION = (
+    "broker_reports_gate2_type_first_qualification_profile_v1"
+)
+TYPE_FIRST_PROFILE_IDENTITIES = (
+    (
+        "context",
+        "broker_reports_gate2_type_first_context_v1_candidate",
+    ),
+    (
+        "private_mapping_receipt",
+        "broker_reports_gate2_type_first_mapping_receipt_v1",
+    ),
+    (
+        "response",
+        "broker_reports_gate2_type_first_plausible_types_response_v1",
+    ),
+    (
+        "sealed_request_receipt",
+        "broker_reports_gate2_type_first_sealed_request_receipt_v1",
+    ),
+    (
+        "request",
+        FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
+    ),
+    (
+        "decision",
+        "broker_reports_gate2_type_first_fail_closed_policy_v1",
+    ),
+    (
+        "expansion",
+        "broker_reports_gate2_type_first_decision_expansion_v1",
+    ),
+    (
+        "evidence",
+        "broker_reports_gate2_type_first_decision_evidence_v1",
+    ),
+    (
+        "technical_failure_evidence",
+        "broker_reports_gate2_type_first_technical_failure_evidence_v1",
+    ),
+    (
+        "replay",
+        "broker_reports_gate2_type_first_decision_replay_v1",
+    ),
+    (
+        "economy",
+        TYPE_FIRST_ONE_CALL_NO_FALLBACK_POLICY_VERSION,
+    ),
+)
+TYPE_FIRST_QUALIFICATION_COUNTERS = (
+    "plausible_type_set_exact_total",
+    "false_empty_total",
+    "false_singleton_total",
+    "false_superset_total",
+    "wrong_singleton_type_total",
+    "false_singleton_typed_total",
+    "unsafe_typed_total",
+    "safe_under_typing_total",
+    "invalid_response_total",
+)
+TYPE_FIRST_QUALIFICATION_HARD_GATES = (
+    ("unsafe_typed_total", 0),
+    ("false_singleton_typed_total", 0),
+    ("wrong_singleton_type_total", 0),
+    ("invalid_response_total", 0),
+)
 
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator executes only "
@@ -115,6 +187,40 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeError(ValueError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstProfileDeclaration:
+    schema_version: str
+    profile_identities: tuple[tuple[str, str], ...]
+    counters: tuple[str, ...]
+    hard_gates: tuple[tuple[str, int], ...]
+    active: bool
+    transport_eligible: bool
+    execute_slot_allowed: bool
+    provider_calls_authorized_total: int
+    provider_submissions_total: int
+    provider_responses_total: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "profile_identities": dict(self.profile_identities),
+            "counters": list(self.counters),
+            "hard_gates": dict(self.hard_gates),
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "execute_slot_allowed": self.execute_slot_allowed,
+            "provider_calls_authorized_total": (
+                self.provider_calls_authorized_total
+            ),
+            "provider_submissions_total": self.provider_submissions_total,
+            "provider_responses_total": self.provider_responses_total,
+        }
+
+    @property
+    def integrity_sha256(self) -> str:
+        return sha256_json(self.to_dict())
 
 
 @dataclass(frozen=True)
@@ -331,6 +437,22 @@ def build_financial_semantic_v6_context_v2_1_budget_smoke_plan(
 
 
 class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
+    @staticmethod
+    def type_first_profile_declaration(
+    ) -> Gate2FinancialSemanticV6TypeFirstProfileDeclaration:
+        return Gate2FinancialSemanticV6TypeFirstProfileDeclaration(
+            schema_version=TYPE_FIRST_QUALIFICATION_PROFILE_VERSION,
+            profile_identities=TYPE_FIRST_PROFILE_IDENTITIES,
+            counters=TYPE_FIRST_QUALIFICATION_COUNTERS,
+            hard_gates=TYPE_FIRST_QUALIFICATION_HARD_GATES,
+            active=False,
+            transport_eligible=False,
+            execute_slot_allowed=False,
+            provider_calls_authorized_total=0,
+            provider_submissions_total=0,
+            provider_responses_total=0,
+        )
+
     def __init__(
         self,
         *,

@@ -27,8 +27,11 @@ from .gate2_financial_semantic_v6_candidate_compiler import (
 )
 from .gate2_financial_semantic_v6_choice import (
     Gate2FinancialSemanticV6ChoiceContract,
+    Gate2FinancialSemanticV6ChoiceError,
+    Gate2FinancialSemanticV6TypeFirstResponseProfile,
     normalize_financial_semantic_v6_local_choice,
     validate_financial_semantic_v6_choice_contract,
+    validate_financial_semantic_v6_type_first_response_profile,
 )
 from .gate2_financial_semantic_v6_expansion import (
     Gate2FinancialSemanticV6DecisionExpansionFactory,
@@ -38,9 +41,16 @@ from .gate2_financial_semantic_v6_packet import (
     SEMANTIC_PACKET_AMBIGUITY_RULE,
     SLIM_VIEW_BLOCKS,
     SLIM_VIEW_UNCLASSIFIED_REASONS,
+    TYPE_FIRST_BLOCKS,
+    TYPE_FIRST_CONTEXT_PROFILE,
+    TYPE_FIRST_DECISION_POLICY_VERSION,
+    TYPE_FIRST_FORBIDDEN_FIELDS,
+    TYPE_FIRST_TASK,
     Gate2FinancialSemanticV6Packet,
     Gate2FinancialSemanticV6ContextV21MappingReceipt,
     Gate2FinancialSemanticV6SlimAliasReceipt,
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
     validate_financial_semantic_v6_packet,
 )
 from .gate2_financial_semantic_v6_prompt import (
@@ -57,6 +67,7 @@ from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION,
     FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_ID,
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
     Gate2FinancialSemanticV6ContextLintReceipt,
     Gate2OpenWebUIRequestBuilder,
     financial_semantic_v6_model_visible_utf8_bytes,
@@ -79,16 +90,25 @@ CONTEXT_V2_1_SEALED_REQUEST_PROFILE = (
 )
 CONTEXT_V2_1_SEALED_REQUEST_MAX_UTF8_BYTES = 4_500
 CONTEXT_V2_1_SEALED_REQUEST_STATUS_PASSED = "passed"
+TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_sealed_request_receipt_v1"
+)
+TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE = (
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+)
+TYPE_FIRST_LOGICAL_REQUEST_MAX_UTF8_BYTES = 2_500
+TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED = "passed"
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6ContextLinterFactory is the only V6 complete "
     "request lint-and-seal authority for the historical Slim request and "
-    "the non-active Context V2.1 provider-neutral request"
+    "the non-active Context V2.1 or Type-First provider-neutral request"
 )
 FORBIDDEN = (
     "No V6 Slim request may reach the transport builder without one exact "
-    "passed request-bound lint receipt; Context V2.1 must remain non-active "
-    "and provider-neutral; the linter must not repair context, aliases, "
-    "model choices, canonical bindings or materialized records"
+    "passed request-bound lint receipt; Context V2.1 and Type-First must "
+    "remain non-active and provider-neutral; the linter must not repair "
+    "context, aliases, model choices, canonical bindings or materialized "
+    "records"
 )
 
 _FORBIDDEN_MODEL_FIELDS = frozenset(
@@ -289,6 +309,112 @@ class Gate2FinancialSemanticV6ContextV21SealedRequest:
             ),
             "model_visible_utf8_bytes": (
                 self.sealed_request_receipt.model_visible_utf8_bytes
+            ),
+            "estimated_input_tokens": (
+                self.sealed_request_receipt.estimated_input_tokens
+            ),
+            "sealed_request_receipt": (
+                self.sealed_request_receipt.to_safe_dict()
+            ),
+            "provider_calls_total": 0,
+            "contains_source_literals": False,
+            "contains_exact_refs": False,
+        }
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt:
+    schema_version: str
+    policy_version: str
+    request_profile: str
+    context_profile: str
+    context_view_sha256: str
+    source_projection_sha256: str
+    response_profile: str
+    response_schema_sha256: str
+    system_prompt_version: str
+    system_prompt_sha256: str
+    mapping_receipt_integrity_sha256: str
+    logical_request_sha256: str
+    logical_request_utf8_bytes: int
+    model_visible_request_sha256: str
+    model_visible_request_utf8_bytes: int
+    token_estimator_id: str
+    estimated_input_tokens: int
+    invariant_counters: dict[str, int]
+    status: str
+    provider_calls_total: int
+    integrity_sha256: str
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "request_profile": self.request_profile,
+            "context_profile": self.context_profile,
+            "context_view_sha256": self.context_view_sha256,
+            "source_projection_sha256": (
+                self.source_projection_sha256
+            ),
+            "response_profile": self.response_profile,
+            "response_schema_sha256": self.response_schema_sha256,
+            "system_prompt_version": self.system_prompt_version,
+            "system_prompt_sha256": self.system_prompt_sha256,
+            "mapping_receipt_integrity_sha256": (
+                self.mapping_receipt_integrity_sha256
+            ),
+            "logical_request_sha256": self.logical_request_sha256,
+            "logical_request_utf8_bytes": (
+                self.logical_request_utf8_bytes
+            ),
+            "model_visible_request_sha256": (
+                self.model_visible_request_sha256
+            ),
+            "model_visible_request_utf8_bytes": (
+                self.model_visible_request_utf8_bytes
+            ),
+            "token_estimator_id": self.token_estimator_id,
+            "estimated_input_tokens": self.estimated_input_tokens,
+            "invariant_counters": copy.deepcopy(
+                self.invariant_counters
+            ),
+            "status": self.status,
+            "provider_calls_total": self.provider_calls_total,
+        }
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            **self.integrity_payload(),
+            "integrity_sha256": self.integrity_sha256,
+        }
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstSealedRequest:
+    active: bool
+    transport_eligible: bool
+    serialized_context: str
+    response_format: dict[str, Any]
+    model_visible_request: dict[str, Any]
+    sealed_request_receipt: (
+        Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt
+    )
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "request_profile": TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "model_visible_request_sha256": (
+                self.sealed_request_receipt
+                .model_visible_request_sha256
+            ),
+            "logical_request_utf8_bytes": (
+                self.sealed_request_receipt.logical_request_utf8_bytes
+            ),
+            "model_visible_request_utf8_bytes": (
+                self.sealed_request_receipt
+                .model_visible_request_utf8_bytes
             ),
             "estimated_input_tokens": (
                 self.sealed_request_receipt.estimated_input_tokens
@@ -879,6 +1005,222 @@ class Gate2FinancialSemanticV6ContextLinterFactory:
             sealed_request_receipt=receipt,
         )
 
+    def create_type_first(
+        self,
+        *,
+        packet: Gate2FinancialSemanticV6Packet,
+        choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+        type_first_candidate: (
+            Gate2FinancialSemanticV6TypeFirstCandidate
+        ),
+        response_profile: (
+            Gate2FinancialSemanticV6TypeFirstResponseProfile
+        ),
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+        system_message: str,
+        serialized_context: str,
+        response_format: dict[str, Any],
+        mapping_receipt: (
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt
+        ),
+    ) -> Gate2FinancialSemanticV6TypeFirstSealedRequest:
+        try:
+            validate_financial_semantic_v6_type_first_response_profile(
+                profile=response_profile,
+                type_first_candidate=type_first_candidate,
+                mapping_receipt=mapping_receipt,
+                choice_contract=choice_contract,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            )
+        except Gate2FinancialSemanticV6ChoiceError as exc:
+            raise Gate2FinancialSemanticV6ContextLintError(
+                exc.code
+            ) from exc
+        if (
+            not isinstance(system_message, str)
+            or system_message != V6_SEMANTIC_SYSTEM_PROMPT
+            or sha256_json(system_message) != V6_SEMANTIC_PROMPT_HASH
+        ):
+            _fail("context_profile_schema_hash_mismatch")
+        expected_context = _model_json_text(
+            type_first_candidate.payload
+        )
+        if (
+            not isinstance(serialized_context, str)
+            or serialized_context != expected_context
+        ):
+            _fail("source_hash_drift")
+        exact_schema = response_profile.canonical_schema()
+        expected_response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "strict": True,
+                "schema": copy.deepcopy(exact_schema),
+            },
+        }
+        if (
+            not isinstance(response_format, dict)
+            or response_format != expected_response_format
+            or response_profile.response_schema_sha256
+            != sha256_json(exact_schema)
+        ):
+            _fail("context_profile_schema_hash_mismatch")
+        logical_request = {
+            "response_schema": copy.deepcopy(exact_schema),
+            "user_context": copy.deepcopy(
+                type_first_candidate.payload
+            ),
+        }
+        logical_request_bytes = _model_json_bytes(logical_request)
+        validate_financial_semantic_v6_type_first_logical_request_budget(
+            response_schema=exact_schema,
+            user_context=type_first_candidate.payload,
+        )
+        projection_prompt = _ProjectionPrompt(
+            version=V6_SEMANTIC_PROMPT_VERSION,
+            content=system_message,
+            hash=V6_SEMANTIC_PROMPT_HASH,
+            packet_hash=type_first_candidate.context_view_sha256,
+            choice_schema_hash=(
+                response_profile.response_schema_sha256
+            ),
+        )
+        model_visible_request = (
+            financial_semantic_v6_slim_model_visible_projection(
+                prompt=projection_prompt,
+                package=copy.deepcopy(
+                    type_first_candidate.payload
+                ),
+                response_format=copy.deepcopy(response_format),
+            )
+        )
+        if (
+            tuple(model_visible_request) != (
+                "messages",
+                "response_format",
+            )
+            or model_visible_request["messages"]
+            != [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": serialized_context},
+            ]
+            or model_visible_request["response_format"]
+            != response_format
+        ):
+            _fail("context_profile_schema_hash_mismatch")
+        private_literals = {
+            *mapping_receipt.local_to_canonical_type_ids.values(),
+            *(item.typed_option_id for item in compilation.typed_options),
+            packet.packet_hash,
+            evidence_bundle.integrity_hash,
+            compilation.integrity_hash,
+            mapping_receipt.integrity_sha256,
+        }
+        visible_strings = tuple(
+            _walk_strings(model_visible_request)
+        )
+        invariant_counters = {
+            "model_visible_root_fields_total": len(
+                type_first_candidate.payload
+            ),
+            "visible_type_cards_total": len(
+                type_first_candidate.payload["type_cards"]
+            ),
+            "mapping_rows_total": len(
+                mapping_receipt.local_to_canonical_type_ids
+            ),
+            "mapping_rows_covered_total": sum(
+                item in mapping_receipt.local_to_canonical_type_ids
+                for item in response_profile.type_keys
+            ),
+            "null_fields": _count_nulls(model_visible_request),
+            "forbidden_fields": sum(
+                len(TYPE_FIRST_FORBIDDEN_FIELDS.intersection(item))
+                for item in _walk_dicts_local(model_visible_request)
+            ),
+            "private_identity_literals": sum(
+                item in private_literals for item in visible_strings
+            ),
+        }
+        if (
+            invariant_counters["model_visible_root_fields_total"]
+            != len(TYPE_FIRST_BLOCKS)
+            or tuple(type_first_candidate.payload)
+            != TYPE_FIRST_BLOCKS
+            or type_first_candidate.payload["task"] != TYPE_FIRST_TASK
+            or invariant_counters["visible_type_cards_total"]
+            != invariant_counters["mapping_rows_total"]
+            or invariant_counters["mapping_rows_total"]
+            != invariant_counters["mapping_rows_covered_total"]
+            or invariant_counters["null_fields"] != 0
+            or invariant_counters["forbidden_fields"] != 0
+            or invariant_counters["private_identity_literals"] != 0
+        ):
+            _fail("mapping_receipt_mismatch")
+        draft = Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt(
+            schema_version=(
+                TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION
+            ),
+            policy_version=TYPE_FIRST_DECISION_POLICY_VERSION,
+            request_profile=TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
+            context_profile=TYPE_FIRST_CONTEXT_PROFILE,
+            context_view_sha256=(
+                type_first_candidate.context_view_sha256
+            ),
+            source_projection_sha256=(
+                type_first_candidate.source_projection_sha256
+            ),
+            response_profile=response_profile.schema_version,
+            response_schema_sha256=(
+                response_profile.response_schema_sha256
+            ),
+            system_prompt_version=V6_SEMANTIC_PROMPT_VERSION,
+            system_prompt_sha256=V6_SEMANTIC_PROMPT_HASH,
+            mapping_receipt_integrity_sha256=(
+                mapping_receipt.integrity_sha256
+            ),
+            logical_request_sha256=hashlib.sha256(
+                logical_request_bytes
+            ).hexdigest(),
+            logical_request_utf8_bytes=len(logical_request_bytes),
+            model_visible_request_sha256=_model_hash(
+                model_visible_request
+            ),
+            model_visible_request_utf8_bytes=len(
+                _model_json_bytes(model_visible_request)
+            ),
+            token_estimator_id=TOKEN_ESTIMATOR_ID,
+            estimated_input_tokens=estimate_gate2_request_input_tokens(
+                model_visible_request
+            ),
+            invariant_counters=copy.deepcopy(invariant_counters),
+            status=TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED,
+            provider_calls_total=0,
+            integrity_sha256="",
+        )
+        receipt = replace(
+            draft,
+            integrity_sha256=sha256_json(
+                draft.integrity_payload()
+            ),
+        )
+        return Gate2FinancialSemanticV6TypeFirstSealedRequest(
+            active=False,
+            transport_eligible=False,
+            serialized_context=serialized_context,
+            response_format=copy.deepcopy(response_format),
+            model_visible_request=copy.deepcopy(
+                model_visible_request
+            ),
+            sealed_request_receipt=receipt,
+        )
+
     def prove_local_totality(
         self,
         *,
@@ -1064,6 +1406,32 @@ def validate_financial_semantic_v6_context_v2_1_request_budget(
     return model_visible_utf8_bytes
 
 
+def validate_financial_semantic_v6_type_first_logical_request_budget(
+    *,
+    response_schema: dict[str, Any],
+    user_context: dict[str, Any],
+) -> int:
+    if (
+        not isinstance(response_schema, dict)
+        or not isinstance(user_context, dict)
+    ):
+        _fail("type_first_logical_request_budget_invalid")
+    logical_request_utf8_bytes = len(
+        _model_json_bytes(
+            {
+                "response_schema": copy.deepcopy(response_schema),
+                "user_context": copy.deepcopy(user_context),
+            }
+        )
+    )
+    if (
+        logical_request_utf8_bytes
+        > TYPE_FIRST_LOGICAL_REQUEST_MAX_UTF8_BYTES
+    ):
+        _fail("type_first_logical_request_budget_exceeded")
+    return logical_request_utf8_bytes
+
+
 def validate_financial_semantic_v6_context_v2_1_sealed_request(
     *,
     sealed_request: (
@@ -1109,6 +1477,107 @@ def validate_financial_semantic_v6_context_v2_1_sealed_request(
         _fail(
             "financial_semantic_v6_context_v2_1_sealed_replay_mismatch"
         )
+
+
+def validate_financial_semantic_v6_type_first_sealed_request(
+    *,
+    sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
+    packet: Gate2FinancialSemanticV6Packet,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+    system_message: str,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+) -> None:
+    if not isinstance(
+        sealed_request,
+        Gate2FinancialSemanticV6TypeFirstSealedRequest,
+    ):
+        _fail("type_first_sealed_replay_invalid")
+    receipt = sealed_request.sealed_request_receipt
+    if not isinstance(
+        receipt,
+        Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt,
+    ):
+        _fail("type_first_sealed_replay_invalid")
+    if (
+        sealed_request.active is not False
+        or sealed_request.transport_eligible is not False
+        or receipt.schema_version
+        != TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION
+        or receipt.policy_version != TYPE_FIRST_DECISION_POLICY_VERSION
+        or receipt.request_profile
+        != TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+        or receipt.context_profile != TYPE_FIRST_CONTEXT_PROFILE
+        or receipt.response_profile != response_profile.schema_version
+        or receipt.system_prompt_version != V6_SEMANTIC_PROMPT_VERSION
+        or receipt.system_prompt_sha256 != V6_SEMANTIC_PROMPT_HASH
+        or receipt.status != TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED
+        or receipt.provider_calls_total != 0
+        or receipt.integrity_sha256
+        != sha256_json(receipt.integrity_payload())
+    ):
+        _fail("type_first_sealed_replay_invalid")
+    if (
+        receipt.context_view_sha256
+        != type_first_candidate.context_view_sha256
+        or receipt.source_projection_sha256
+        != type_first_candidate.source_projection_sha256
+    ):
+        _fail("source_hash_drift")
+    if (
+        receipt.mapping_receipt_integrity_sha256
+        != mapping_receipt.integrity_sha256
+    ):
+        _fail("mapping_receipt_mismatch")
+    logical_request_bytes = _model_json_bytes(
+        {
+            "response_schema": response_profile.canonical_schema(),
+            "user_context": copy.deepcopy(type_first_candidate.payload),
+        }
+    )
+    validate_financial_semantic_v6_type_first_logical_request_budget(
+        response_schema=response_profile.canonical_schema(),
+        user_context=type_first_candidate.payload,
+    )
+    if (
+        receipt.response_schema_sha256
+        != response_profile.response_schema_sha256
+        or receipt.logical_request_sha256
+        != hashlib.sha256(logical_request_bytes).hexdigest()
+        or receipt.logical_request_utf8_bytes
+        != len(logical_request_bytes)
+        or receipt.model_visible_request_sha256
+        != _model_hash(sealed_request.model_visible_request)
+        or receipt.model_visible_request_utf8_bytes
+        != len(_model_json_bytes(sealed_request.model_visible_request))
+    ):
+        _fail("type_first_sealed_replay_mismatch")
+    replayed = Gate2FinancialSemanticV6ContextLinterFactory(
+        registry=registry
+    ).create_type_first(
+        packet=packet,
+        choice_contract=choice_contract,
+        type_first_candidate=type_first_candidate,
+        response_profile=response_profile,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        system_message=system_message,
+        serialized_context=sealed_request.serialized_context,
+        response_format=sealed_request.response_format,
+        mapping_receipt=mapping_receipt,
+    )
+    if (
+        _model_json_bytes(replayed.model_visible_request)
+        != _model_json_bytes(sealed_request.model_visible_request)
+        or replayed != sealed_request
+    ):
+        _fail("type_first_sealed_replay_mismatch")
 
 
 def _validate_visible_context(payload: Any) -> _VisibleContext:

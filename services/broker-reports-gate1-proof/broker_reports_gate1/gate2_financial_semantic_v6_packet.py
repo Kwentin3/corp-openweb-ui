@@ -105,14 +105,16 @@ SEMANTIC_PACKET_FORBIDDEN_FIELDS = frozenset(
 )
 
 FACTORY_REQUIRED = (
-    "Gate2FinancialSemanticV6PacketFactory.create is the only V6 "
+    "Gate2FinancialSemanticV6PacketFactory.create and its additive "
+    "create_type_first_candidate method are the only V6 "
     "model-facing semantic-packet, non-active Slim candidate and "
-    "current non-active Context V2.1 candidate and private mapping-receipt "
-    "construction entrypoint"
+    "current non-active Context V2.1 or Type-First candidate and private "
+    "mapping-receipt construction entrypoints"
 )
 FORBIDDEN = (
     "The active packet must contain exactly four model-visible blocks; a "
-    "non-active Slim or Context V2.1 candidate must stay inside the same "
+    "non-active Slim, Context V2.1 or Type-First candidate must stay inside "
+    "the same "
     "factory and must not build historical Context V2.0 per request, create "
     "a second current candidate or factory, activate a request route, copy "
     "managed wording, expose unused aliases, source or type global IDs, "
@@ -237,6 +239,52 @@ class Gate2FinancialSemanticV6PacketFactory:
             compilation=compilation,
             slim_choice_order=slim_choice_order,
         )
+
+    def create_type_first_candidate(
+        self,
+        *,
+        packet: Gate2FinancialSemanticV6Packet,
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> tuple[
+        Gate2FinancialSemanticV6TypeFirstCandidate,
+        Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    ]:
+        _validate_type_first_active_scopes(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+        try:
+            validate_financial_semantic_v6_packet(
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            )
+        except Gate2FinancialSemanticV6PacketError as exc:
+            raise Gate2FinancialSemanticV6PacketError(
+                "mapping_receipt_mismatch"
+            ) from exc
+        candidate, receipt = _derive_type_first_candidate_and_receipt(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+        validate_financial_semantic_v6_type_first_material(
+            candidate=candidate,
+            receipt=receipt,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        )
+        return candidate, receipt
 
     def _build(
         self,
@@ -4488,6 +4536,516 @@ class Gate2FinancialSemanticV6ContextV21MappingReceipt:
             "contains_source_value_refs": False,
             "integrity_hash": self.integrity_hash,
         }
+
+
+TYPE_FIRST_CONTEXT_PROFILE = (
+    "broker_reports_gate2_type_first_context_v1_candidate"
+)
+TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_mapping_receipt_v1"
+)
+TYPE_FIRST_DECISION_POLICY_VERSION = (
+    "broker_reports_gate2_type_first_fail_closed_policy_v1"
+)
+TYPE_FIRST_TASK = (
+    "Return every type_key from type_cards whose financial meaning remains "
+    "plausible for the visible source. Return all plausible types, not only "
+    "the best one. Judge type plausibility independently of whether code can "
+    "construct a complete record. Preserve type_cards order."
+)
+TYPE_FIRST_BLOCKS = ("task", "source", "type_cards")
+TYPE_FIRST_FORBIDDEN_FIELDS = frozenset(
+    {
+        "active_packet_hash",
+        "association_ref",
+        "bindings",
+        "bundle_id",
+        "candidate_compilation_integrity_hash",
+        "canonical_type_ids",
+        "choice_key",
+        "choices",
+        "compiler_option_counts",
+        "complete_options",
+        "differentiators",
+        "document_ref",
+        "hashes",
+        "input_type_id",
+        "integrity_hash",
+        "integrity_sha256",
+        "materialization_metadata",
+        "option_id",
+        "projection_hash",
+        "provider_metadata",
+        "reason_code",
+        "refs",
+        "role_bindings",
+        "source_ref",
+        "source_value_ref",
+        "typed_option_id",
+        "typed_option_ids",
+        "unclassified_reasons",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstCandidate:
+    schema_version: str
+    policy_version: str
+    active: bool
+    transport_eligible: bool
+    payload: dict[str, Any]
+    context_view_sha256: str
+    source_projection_sha256: str
+    model_visible_utf8_bytes: int
+    provider_calls_total: int
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "context_view_sha256": self.context_view_sha256,
+            "source_projection_sha256": self.source_projection_sha256,
+            "model_visible_utf8_bytes": self.model_visible_utf8_bytes,
+            "type_cards_total": len(self.payload.get("type_cards", ())),
+            "provider_calls_total": self.provider_calls_total,
+            "contains_canonical_type_ids": False,
+            "contains_typed_option_ids": False,
+        }
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstMappingReceipt:
+    schema_version: str
+    policy_version: str
+    context_profile: dict[str, Any]
+    context_view_sha256: str
+    source_projection_sha256: str
+    visible_type_card_order: tuple[str, ...]
+    local_to_canonical_type_ids: dict[str, str]
+    semantic_pack_identity: dict[str, str]
+    managed_projection_identity: dict[str, Any]
+    evidence_bundle_scope: dict[str, Any]
+    candidate_compilation_scope: dict[str, Any]
+    provider_calls_total: int
+    integrity_sha256: str
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "context_profile": copy.deepcopy(self.context_profile),
+            "context_view_sha256": self.context_view_sha256,
+            "source_projection_sha256": self.source_projection_sha256,
+            "visible_type_card_order": list(
+                self.visible_type_card_order
+            ),
+            "local_to_canonical_type_ids": copy.deepcopy(
+                self.local_to_canonical_type_ids
+            ),
+            "semantic_pack_identity": copy.deepcopy(
+                self.semantic_pack_identity
+            ),
+            "managed_projection_identity": copy.deepcopy(
+                self.managed_projection_identity
+            ),
+            "evidence_bundle_scope": copy.deepcopy(
+                self.evidence_bundle_scope
+            ),
+            "candidate_compilation_scope": copy.deepcopy(
+                self.candidate_compilation_scope
+            ),
+            "provider_calls_total": self.provider_calls_total,
+        }
+
+    def to_private_dict(self) -> dict[str, Any]:
+        return {
+            **self.integrity_payload(),
+            "integrity_sha256": self.integrity_sha256,
+        }
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "context_view_sha256": self.context_view_sha256,
+            "source_projection_sha256": self.source_projection_sha256,
+            "visible_type_cards_total": len(
+                self.visible_type_card_order
+            ),
+            "type_mappings_total": len(
+                self.local_to_canonical_type_ids
+            ),
+            "provider_calls_total": self.provider_calls_total,
+            "contains_canonical_type_ids": False,
+            "integrity_sha256": self.integrity_sha256,
+        }
+
+
+def _derive_type_first_candidate_and_receipt(
+    *,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> tuple[
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+]:
+    context_candidate = packet.context_v2_candidate
+    context_receipt = packet.context_v2_mapping_receipt
+    payload = {
+        "task": TYPE_FIRST_TASK,
+        "source": copy.deepcopy(context_candidate.payload["source"]),
+        "type_cards": copy.deepcopy(
+            context_candidate.payload["type_cards"]
+        ),
+    }
+    visible_order = tuple(
+        item["type_key"] for item in payload["type_cards"]
+    )
+    mappings = {
+        item["type_key"]: item["input_type_id"]
+        for item in context_receipt.type_mappings
+    }
+    context_view_sha256 = _model_hash(payload)
+    source_projection_sha256 = _integrity_hash(payload["source"])
+    candidate = Gate2FinancialSemanticV6TypeFirstCandidate(
+        schema_version=TYPE_FIRST_CONTEXT_PROFILE,
+        policy_version=TYPE_FIRST_DECISION_POLICY_VERSION,
+        active=False,
+        transport_eligible=False,
+        payload=copy.deepcopy(payload),
+        context_view_sha256=context_view_sha256,
+        source_projection_sha256=source_projection_sha256,
+        model_visible_utf8_bytes=len(_model_json_bytes(payload)),
+        provider_calls_total=0,
+    )
+    receipt_without_integrity = {
+        "schema_version": TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION,
+        "policy_version": TYPE_FIRST_DECISION_POLICY_VERSION,
+        "context_profile": _type_first_context_profile_binding(packet),
+        "context_view_sha256": context_view_sha256,
+        "source_projection_sha256": source_projection_sha256,
+        "visible_type_card_order": list(visible_order),
+        "local_to_canonical_type_ids": copy.deepcopy(mappings),
+        "semantic_pack_identity": _type_first_pack_identity(compilation),
+        "managed_projection_identity": (
+            _type_first_managed_projection_identity(packet)
+        ),
+        "evidence_bundle_scope": _type_first_evidence_scope(
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+        ),
+        "candidate_compilation_scope": (
+            _type_first_compilation_scope(compilation)
+        ),
+        "provider_calls_total": 0,
+    }
+    receipt = Gate2FinancialSemanticV6TypeFirstMappingReceipt(
+        schema_version=TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION,
+        policy_version=TYPE_FIRST_DECISION_POLICY_VERSION,
+        context_profile=copy.deepcopy(
+            receipt_without_integrity["context_profile"]
+        ),
+        context_view_sha256=context_view_sha256,
+        source_projection_sha256=source_projection_sha256,
+        visible_type_card_order=visible_order,
+        local_to_canonical_type_ids=copy.deepcopy(mappings),
+        semantic_pack_identity=copy.deepcopy(
+            receipt_without_integrity["semantic_pack_identity"]
+        ),
+        managed_projection_identity=copy.deepcopy(
+            receipt_without_integrity["managed_projection_identity"]
+        ),
+        evidence_bundle_scope=copy.deepcopy(
+            receipt_without_integrity["evidence_bundle_scope"]
+        ),
+        candidate_compilation_scope=copy.deepcopy(
+            receipt_without_integrity["candidate_compilation_scope"]
+        ),
+        provider_calls_total=0,
+        integrity_sha256=_integrity_hash(receipt_without_integrity),
+    )
+    return candidate, receipt
+
+
+def validate_financial_semantic_v6_type_first_material(
+    *,
+    candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> None:
+    _validate_type_first_active_scopes(
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+    )
+    try:
+        validate_financial_semantic_v6_packet(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+        )
+    except Gate2FinancialSemanticV6PacketError as exc:
+        raise Gate2FinancialSemanticV6PacketError(
+            "mapping_receipt_mismatch"
+        ) from exc
+    if (
+        not isinstance(
+            candidate,
+            Gate2FinancialSemanticV6TypeFirstCandidate,
+        )
+        or not isinstance(
+            receipt,
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+        )
+        or candidate.schema_version != TYPE_FIRST_CONTEXT_PROFILE
+        or candidate.policy_version
+        != TYPE_FIRST_DECISION_POLICY_VERSION
+        or candidate.active is not False
+        or candidate.transport_eligible is not False
+        or candidate.provider_calls_total != 0
+        or receipt.schema_version
+        != TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION
+        or receipt.policy_version
+        != TYPE_FIRST_DECISION_POLICY_VERSION
+        or receipt.provider_calls_total != 0
+    ):
+        _fail("mapping_receipt_mismatch")
+    if (
+        tuple(candidate.payload) != TYPE_FIRST_BLOCKS
+        or candidate.payload.get("task") != TYPE_FIRST_TASK
+        or not isinstance(candidate.payload.get("source"), dict)
+        or not isinstance(candidate.payload.get("type_cards"), list)
+        or not candidate.payload["type_cards"]
+        or _contains_none(candidate.payload)
+        or any(
+            TYPE_FIRST_FORBIDDEN_FIELDS.intersection(item)
+            for item in _walk_dicts(candidate.payload)
+        )
+    ):
+        _fail("mapping_receipt_mismatch")
+    if (
+        receipt.integrity_sha256
+        != _integrity_hash(receipt.integrity_payload())
+        or tuple(receipt.to_private_dict())
+        != (
+            "schema_version",
+            "policy_version",
+            "context_profile",
+            "context_view_sha256",
+            "source_projection_sha256",
+            "visible_type_card_order",
+            "local_to_canonical_type_ids",
+            "semantic_pack_identity",
+            "managed_projection_identity",
+            "evidence_bundle_scope",
+            "candidate_compilation_scope",
+            "provider_calls_total",
+            "integrity_sha256",
+        )
+    ):
+        _fail("mapping_receipt_mismatch")
+    expected_source = packet.context_v2_candidate.payload["source"]
+    observed_source_hash = _integrity_hash(candidate.payload["source"])
+    if (
+        candidate.payload["source"] != expected_source
+        or candidate.source_projection_sha256 != observed_source_hash
+        or receipt.source_projection_sha256 != observed_source_hash
+    ):
+        _fail("source_hash_drift")
+    expected_cards = packet.context_v2_candidate.payload["type_cards"]
+    if (
+        candidate.payload["type_cards"] != expected_cards
+        or receipt.semantic_pack_identity
+        != _type_first_pack_identity(compilation)
+        or receipt.managed_projection_identity
+        != _type_first_managed_projection_identity(packet)
+    ):
+        _fail("pack_projection_drift")
+    if receipt.evidence_bundle_scope != _type_first_evidence_scope(
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+    ):
+        _fail("evidence_bundle_scope_mismatch")
+    if (
+        receipt.candidate_compilation_scope
+        != _type_first_compilation_scope(compilation)
+    ):
+        _fail("candidate_compilation_scope_mismatch")
+    expected_order = tuple(
+        item["type_key"] for item in expected_cards
+    )
+    try:
+        expected_mappings = {
+            item["type_key"]: item["input_type_id"]
+            for item in packet.context_v2_mapping_receipt.type_mappings
+        }
+    except (KeyError, TypeError):
+        _fail("mapping_receipt_mismatch")
+    if (
+        receipt.context_profile
+        != _type_first_context_profile_binding(packet)
+        or receipt.visible_type_card_order != expected_order
+        or tuple(receipt.local_to_canonical_type_ids)
+        != expected_order
+        or receipt.local_to_canonical_type_ids != expected_mappings
+        or len(expected_order) != len(set(expected_order))
+        or len(expected_mappings) != len(expected_order)
+    ):
+        _fail("mapping_receipt_mismatch")
+    if (
+        candidate.context_view_sha256
+        != _model_hash(candidate.payload)
+        or receipt.context_view_sha256
+        != candidate.context_view_sha256
+        or candidate.model_visible_utf8_bytes
+        != len(_model_json_bytes(candidate.payload))
+    ):
+        _fail("mapping_receipt_mismatch")
+    expected_candidate, expected_receipt = (
+        _derive_type_first_candidate_and_receipt(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+    )
+    if candidate != expected_candidate or receipt != expected_receipt:
+        _fail("mapping_receipt_mismatch")
+
+
+def _validate_type_first_active_scopes(
+    *,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+) -> None:
+    if (
+        not isinstance(packet, Gate2FinancialSemanticV6Packet)
+        or not isinstance(evidence_bundle, Gate2FinancialEvidenceBundle)
+        or not isinstance(
+            source_package,
+            Gate2FinancialEvidenceSourcePackage,
+        )
+        or packet.evidence_bundle_integrity_hash
+        != evidence_bundle.integrity_hash
+        or evidence_bundle.source_package_ref
+        != source_package.package_ref
+        or evidence_bundle.source_package_integrity_hash
+        != source_package.integrity_hash
+    ):
+        _fail("evidence_bundle_scope_mismatch")
+    if (
+        not isinstance(
+            compilation,
+            Gate2FinancialCandidateCompilation,
+        )
+        or packet.candidate_compilation_integrity_hash
+        != compilation.integrity_hash
+    ):
+        _fail("candidate_compilation_scope_mismatch")
+    try:
+        context_identities = (
+            packet.context_v2_mapping_receipt.identities
+        )
+        expected_pack = _type_first_pack_identity(compilation)
+        projection_hash = context_identities[
+            "minimal_projection_hash"
+        ]
+    except (AttributeError, KeyError, TypeError):
+        _fail("pack_projection_drift")
+    if (
+        not projection_hash
+        or expected_pack["integrity_sha256"]
+        != compilation.semantic_pack_integrity_sha256
+    ):
+        _fail("pack_projection_drift")
+
+
+def _type_first_context_profile_binding(
+    packet: Gate2FinancialSemanticV6Packet,
+) -> dict[str, Any]:
+    return {
+        "schema_version": packet.context_v2_candidate.schema_version,
+        "policy_version": packet.context_v2_candidate.policy_version,
+        "context_view_sha256": packet.context_v2_candidate.view_hash,
+        "mapping_receipt_integrity_sha256": (
+            packet.context_v2_mapping_receipt.integrity_hash
+        ),
+    }
+
+
+def _type_first_pack_identity(
+    compilation: Gate2FinancialCandidateCompilation,
+) -> dict[str, str]:
+    return {
+        "pack_id": compilation.semantic_pack_id,
+        "semantic_version": compilation.semantic_pack_version,
+        "integrity_sha256": compilation.semantic_pack_integrity_sha256,
+    }
+
+
+def _type_first_managed_projection_identity(
+    packet: Gate2FinancialSemanticV6Packet,
+) -> dict[str, Any]:
+    identities = packet.context_v2_mapping_receipt.identities
+    return {
+        "profile_id": identities["minimal_projection_profile_id"],
+        "semantic_version": identities[
+            "minimal_projection_version"
+        ],
+        "projection_sha256": identities[
+            "minimal_projection_hash"
+        ],
+        "authority_audit_sha256": identities[
+            "minimal_projection_authority_audit_hash"
+        ],
+        "managed_source_identities": copy.deepcopy(
+            identities["managed_source_identities"]
+        ),
+    }
+
+
+def _type_first_evidence_scope(
+    *,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+) -> dict[str, Any]:
+    return {
+        "evidence_bundle_id": evidence_bundle.bundle_id,
+        "evidence_bundle_integrity_sha256": (
+            evidence_bundle.integrity_hash
+        ),
+        "source_package_ref": source_package.package_ref,
+        "source_package_integrity_sha256": source_package.integrity_hash,
+        "source_scope_ref": evidence_bundle.source_scope_ref,
+        "source_family_id": evidence_bundle.source_family_id,
+    }
+
+
+def _type_first_compilation_scope(
+    compilation: Gate2FinancialCandidateCompilation,
+) -> dict[str, Any]:
+    return {
+        "candidate_compilation_integrity_sha256": (
+            compilation.integrity_hash
+        ),
+        "semantic_pack_integrity_sha256": (
+            compilation.semantic_pack_integrity_sha256
+        ),
+    }
 
 
 def _context_v2_1_candidate_and_receipt(

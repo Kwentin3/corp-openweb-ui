@@ -27,11 +27,17 @@ from .gate2_financial_semantic_v6_packet import (
     CONTEXT_V2_1_CANDIDATE_SCHEMA_VERSION,
     CONTEXT_V2_1_MAPPING_RECEIPT_SCHEMA_VERSION,
     CONTEXT_V2_1_POLICY_VERSION,
+    TYPE_FIRST_CONTEXT_PROFILE,
+    TYPE_FIRST_DECISION_POLICY_VERSION,
+    TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION,
     Gate2FinancialSemanticV6ContextV21Candidate,
     Gate2FinancialSemanticV6ContextV21MappingReceipt,
     Gate2FinancialSemanticV6Packet,
     Gate2FinancialSemanticV6PacketError,
+    Gate2FinancialSemanticV6TypeFirstCandidate,
+    Gate2FinancialSemanticV6TypeFirstMappingReceipt,
     validate_financial_semantic_v6_packet,
+    validate_financial_semantic_v6_type_first_material,
 )
 
 
@@ -56,6 +62,9 @@ CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES = (
     "single_registry_type_no_safe_record",
     "ambiguous_registry_type",
 )
+SINGLE_REGISTRY_TYPE_NO_SAFE_RECORD_REASON_CODE = (
+    CONTEXT_V2_1_UNCLASSIFIED_REASON_CODES[1]
+)
 SEMANTIC_CHOICE_PROVIDER_DISPOSITIONS = (
     "typed_input",
     "unclassified_financial_input",
@@ -70,6 +79,10 @@ SEMANTIC_CHOICE_OUTPUT_FIELDS = frozenset(
 LOCAL_CHOICE_OUTPUT_FIELDS = frozenset({"choice", "reason"})
 _MAX_LOCAL_CHOICE_BYTES = 1024
 _MAX_CONTEXT_V2_1_CHOICE_BYTES = 1024
+_MAX_TYPE_FIRST_RESPONSE_BYTES = 1024
+TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_plausible_types_response_v1"
+)
 _CANONICAL_GATE2_DISPOSITIONS = (
     "typed_input",
     "unclassified_financial_input",
@@ -78,16 +91,19 @@ _CANONICAL_GATE2_DISPOSITIONS = (
 )
 
 FACTORY_REQUIRED = (
-    "Gate2FinancialSemanticV6ChoiceContractFactory.create is the only V6 "
+    "Gate2FinancialSemanticV6ChoiceContractFactory.create and its additive "
+    "create_type_first_response_profile method are the only V6 "
     "active minimal semantic-choice, historical non-active local-choice, and "
-    "non-active Context V2.1 response-profile contract entrypoint"
+    "non-active Context V2.1 or Type-First response-profile contract "
+    "entrypoints"
 )
 FORBIDDEN = (
     "The provider choice must not return a type ID, source ref, role binding, "
     "literal, provenance, dimension or record field; technical preclose "
     "dispositions must not be exposed to the model; the local candidate must "
     "not expose canonical option IDs or become an active request schema; "
-    "Context V2.1 choices must restore only through its private mapping receipt"
+    "Context V2.1 choices and Type-First types must restore only through "
+    "their private mapping receipts"
 )
 
 
@@ -194,6 +210,69 @@ class Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile:
 
 
 @dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstResponseProfile:
+    schema_version: str
+    policy_version: str
+    active: bool
+    transport_eligible: bool
+    packet_hash: str
+    context_view_sha256: str
+    mapping_receipt_integrity_sha256: str
+    canonical_choice_schema_hash: str
+    type_keys: tuple[str, ...]
+    response_schema: dict[str, Any]
+    response_schema_sha256: str
+    provider_calls_total: int
+    post_response_repair_allowed: bool
+    integrity_sha256: str
+
+    def canonical_schema(self) -> dict[str, Any]:
+        return copy.deepcopy(self.response_schema)
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "packet_hash": self.packet_hash,
+            "context_view_sha256": self.context_view_sha256,
+            "mapping_receipt_integrity_sha256": (
+                self.mapping_receipt_integrity_sha256
+            ),
+            "canonical_choice_schema_hash": (
+                self.canonical_choice_schema_hash
+            ),
+            "type_keys": list(self.type_keys),
+            "response_schema": copy.deepcopy(self.response_schema),
+            "response_schema_sha256": self.response_schema_sha256,
+            "provider_calls_total": self.provider_calls_total,
+            "post_response_repair_allowed": (
+                self.post_response_repair_allowed
+            ),
+        }
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "context_view_sha256": self.context_view_sha256,
+            "mapping_receipt_integrity_sha256": (
+                self.mapping_receipt_integrity_sha256
+            ),
+            "response_schema_sha256": self.response_schema_sha256,
+            "visible_type_keys_total": len(self.type_keys),
+            "provider_calls_total": self.provider_calls_total,
+            "post_response_repair_allowed": (
+                self.post_response_repair_allowed
+            ),
+            "integrity_sha256": self.integrity_sha256,
+        }
+
+
+@dataclass(frozen=True)
 class Gate2FinancialSemanticV6ChoiceContract:
     schema_version: str
     policy_version: str
@@ -268,6 +347,105 @@ class Gate2FinancialSemanticV6ChoiceContractFactory:
             source_package=source_package,
             compilation=compilation,
         )
+
+    def create_type_first_response_profile(
+        self,
+        *,
+        packet: Gate2FinancialSemanticV6Packet,
+        type_first_candidate: (
+            Gate2FinancialSemanticV6TypeFirstCandidate
+        ),
+        mapping_receipt: (
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt
+        ),
+        evidence_bundle: Gate2FinancialEvidenceBundle,
+        source_package: Gate2FinancialEvidenceSourcePackage,
+        compilation: Gate2FinancialCandidateCompilation,
+    ) -> Gate2FinancialSemanticV6TypeFirstResponseProfile:
+        try:
+            validate_financial_semantic_v6_type_first_material(
+                candidate=type_first_candidate,
+                receipt=mapping_receipt,
+                packet=packet,
+                evidence_bundle=evidence_bundle,
+                source_package=source_package,
+                compilation=compilation,
+                registry=self.registry,
+            )
+        except Gate2FinancialSemanticV6PacketError as exc:
+            raise Gate2FinancialSemanticV6ChoiceError(exc.code) from exc
+        choice_contract = self._build(
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+        )
+        type_keys = tuple(
+            item["type_key"]
+            for item in type_first_candidate.payload["type_cards"]
+        )
+        response_schema = _type_first_response_schema(type_keys)
+        _validate_type_first_response_schema(
+            schema=response_schema,
+            type_keys=type_keys,
+        )
+        material = {
+            "schema_version": (
+                TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION
+            ),
+            "policy_version": TYPE_FIRST_DECISION_POLICY_VERSION,
+            "active": False,
+            "transport_eligible": False,
+            "packet_hash": packet.packet_hash,
+            "context_view_sha256": (
+                type_first_candidate.context_view_sha256
+            ),
+            "mapping_receipt_integrity_sha256": (
+                mapping_receipt.integrity_sha256
+            ),
+            "canonical_choice_schema_hash": (
+                choice_contract.choice_schema_hash
+            ),
+            "type_keys": list(type_keys),
+            "response_schema": copy.deepcopy(response_schema),
+            "response_schema_sha256": sha256_json(response_schema),
+            "provider_calls_total": 0,
+            "post_response_repair_allowed": False,
+        }
+        profile = Gate2FinancialSemanticV6TypeFirstResponseProfile(
+            schema_version=TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION,
+            policy_version=TYPE_FIRST_DECISION_POLICY_VERSION,
+            active=False,
+            transport_eligible=False,
+            packet_hash=packet.packet_hash,
+            context_view_sha256=(
+                type_first_candidate.context_view_sha256
+            ),
+            mapping_receipt_integrity_sha256=(
+                mapping_receipt.integrity_sha256
+            ),
+            canonical_choice_schema_hash=(
+                choice_contract.choice_schema_hash
+            ),
+            type_keys=type_keys,
+            response_schema=copy.deepcopy(response_schema),
+            response_schema_sha256=sha256_json(response_schema),
+            provider_calls_total=0,
+            post_response_repair_allowed=False,
+            integrity_sha256=sha256_json(material),
+        )
+        validate_financial_semantic_v6_type_first_response_profile(
+            profile=profile,
+            type_first_candidate=type_first_candidate,
+            mapping_receipt=mapping_receipt,
+            choice_contract=choice_contract,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=self.registry,
+        )
+        return profile
 
     def _build(
         self,
@@ -595,6 +773,89 @@ def normalize_financial_semantic_v6_context_v2_1_choice(
     }
 
 
+def normalize_financial_semantic_v6_type_first_response(
+    *,
+    model_output: str | dict[str, Any],
+    response_profile: (
+        Gate2FinancialSemanticV6TypeFirstResponseProfile
+    ),
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+) -> dict[str, tuple[str, ...]]:
+    _validate_type_first_response_profile_binding(
+        profile=response_profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+    )
+    if isinstance(model_output, str):
+        if (
+            not model_output
+            or len(model_output.encode("utf-8"))
+            > _MAX_TYPE_FIRST_RESPONSE_BYTES
+        ):
+            _fail("malformed_json")
+        try:
+            decoded = json.loads(
+                model_output,
+                object_pairs_hook=_TypeFirstJsonObject,
+                parse_constant=_reject_type_first_json_constant,
+            )
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise Gate2FinancialSemanticV6ChoiceError(
+                "malformed_json"
+            ) from exc
+        if isinstance(decoded, _TypeFirstJsonObject):
+            root_pairs = decoded.pairs
+            if len({key for key, _ in root_pairs}) != len(root_pairs):
+                _fail("duplicate_response_field")
+            parsed: Any = dict(root_pairs)
+        else:
+            parsed = decoded
+    else:
+        parsed = copy.deepcopy(model_output)
+    if not isinstance(parsed, dict):
+        _fail("response_root_not_object")
+    if "plausible_types" not in parsed:
+        _fail("missing_plausible_types")
+    if set(parsed) != {"plausible_types"}:
+        _fail("extra_response_field")
+    plausible_types = parsed["plausible_types"]
+    if plausible_types is None:
+        _fail("plausible_types_null")
+    if not isinstance(plausible_types, list):
+        _fail("plausible_types_not_array")
+    canonical_ids = frozenset(
+        mapping_receipt.local_to_canonical_type_ids.values()
+    )
+    if any(
+        isinstance(item, str) and item in canonical_ids
+        for item in plausible_types
+    ):
+        _fail("backend_type_id_forbidden")
+    if any(
+        not isinstance(item, str)
+        or item not in response_profile.type_keys
+        for item in plausible_types
+    ):
+        _fail("unknown_type_key")
+    if len(plausible_types) != len(set(plausible_types)):
+        _fail("duplicate_type_key")
+    positions = tuple(
+        response_profile.type_keys.index(item)
+        for item in plausible_types
+    )
+    if positions != tuple(sorted(positions)):
+        _fail("out_of_order_type_keys")
+    local_keys = tuple(plausible_types)
+    return {
+        "plausible_type_keys": local_keys,
+    }
+
+
 def _choice_schema(
     typed_option_ids: tuple[str, ...],
 ) -> dict[str, Any]:
@@ -723,6 +984,43 @@ def _context_v2_1_choice_schema(
         }
     )
     return {"anyOf": variants}
+
+
+def _type_first_response_schema(
+    type_keys: tuple[str, ...],
+) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "plausible_types": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(type_keys),
+                },
+                "minItems": 0,
+                "maxItems": len(type_keys),
+                "uniqueItems": True,
+            }
+        },
+        "required": ["plausible_types"],
+    }
+
+
+def _validate_type_first_response_schema(
+    *,
+    schema: Any,
+    type_keys: tuple[str, ...],
+) -> None:
+    if (
+        not type_keys
+        or len(type_keys) != len(set(type_keys))
+        or type_keys
+        != tuple(f"type_{index}" for index in range(1, len(type_keys) + 1))
+        or schema != _type_first_response_schema(type_keys)
+    ):
+        _fail("context_profile_schema_hash_mismatch")
 
 
 def _validate_context_v2_1_choice_schema(
@@ -1089,6 +1387,134 @@ def _validate_context_v2_1_response_profile_binding(
     )
 
 
+def validate_financial_semantic_v6_type_first_response_profile(
+    *,
+    profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+    evidence_bundle: Gate2FinancialEvidenceBundle,
+    source_package: Gate2FinancialEvidenceSourcePackage,
+    compilation: Gate2FinancialCandidateCompilation,
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> None:
+    try:
+        validate_financial_semantic_v6_type_first_material(
+            candidate=type_first_candidate,
+            receipt=mapping_receipt,
+            packet=packet,
+            evidence_bundle=evidence_bundle,
+            source_package=source_package,
+            compilation=compilation,
+            registry=registry,
+        )
+    except Gate2FinancialSemanticV6PacketError as exc:
+        raise Gate2FinancialSemanticV6ChoiceError(exc.code) from exc
+    validate_financial_semantic_v6_choice_contract(
+        contract=choice_contract,
+        packet=packet,
+        evidence_bundle=evidence_bundle,
+        source_package=source_package,
+        compilation=compilation,
+        registry=registry,
+    )
+    _validate_type_first_response_profile_binding(
+        profile=profile,
+        type_first_candidate=type_first_candidate,
+        mapping_receipt=mapping_receipt,
+        choice_contract=choice_contract,
+        packet=packet,
+    )
+
+
+def _validate_type_first_response_profile_binding(
+    *,
+    profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_first_candidate: Gate2FinancialSemanticV6TypeFirstCandidate,
+    mapping_receipt: Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+    choice_contract: Gate2FinancialSemanticV6ChoiceContract,
+    packet: Gate2FinancialSemanticV6Packet,
+) -> None:
+    if (
+        not isinstance(
+            profile,
+            Gate2FinancialSemanticV6TypeFirstResponseProfile,
+        )
+        or not isinstance(
+            type_first_candidate,
+            Gate2FinancialSemanticV6TypeFirstCandidate,
+        )
+        or not isinstance(
+            mapping_receipt,
+            Gate2FinancialSemanticV6TypeFirstMappingReceipt,
+        )
+        or not isinstance(
+            choice_contract,
+            Gate2FinancialSemanticV6ChoiceContract,
+        )
+        or not isinstance(packet, Gate2FinancialSemanticV6Packet)
+    ):
+        _fail("context_profile_schema_hash_mismatch")
+    if (
+        mapping_receipt.schema_version
+        != TYPE_FIRST_MAPPING_RECEIPT_SCHEMA_VERSION
+        or mapping_receipt.policy_version
+        != TYPE_FIRST_DECISION_POLICY_VERSION
+        or mapping_receipt.provider_calls_total != 0
+        or mapping_receipt.integrity_sha256
+        != sha256_json(mapping_receipt.integrity_payload())
+        or type_first_candidate.schema_version
+        != TYPE_FIRST_CONTEXT_PROFILE
+        or type_first_candidate.policy_version
+        != TYPE_FIRST_DECISION_POLICY_VERSION
+        or type_first_candidate.active is not False
+        or type_first_candidate.transport_eligible is not False
+        or type_first_candidate.provider_calls_total != 0
+        or mapping_receipt.context_view_sha256
+        != type_first_candidate.context_view_sha256
+        or mapping_receipt.visible_type_card_order
+        != tuple(
+            item.get("type_key")
+            for item in type_first_candidate.payload.get(
+                "type_cards",
+                (),
+            )
+        )
+        or tuple(mapping_receipt.local_to_canonical_type_ids)
+        != mapping_receipt.visible_type_card_order
+    ):
+        _fail("mapping_receipt_mismatch")
+    if (
+        profile.schema_version
+        != TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION
+        or profile.policy_version
+        != TYPE_FIRST_DECISION_POLICY_VERSION
+        or profile.active is not False
+        or profile.transport_eligible is not False
+        or profile.provider_calls_total != 0
+        or profile.post_response_repair_allowed is not False
+        or profile.packet_hash != packet.packet_hash
+        or profile.context_view_sha256
+        != type_first_candidate.context_view_sha256
+        or profile.mapping_receipt_integrity_sha256
+        != mapping_receipt.integrity_sha256
+        or profile.canonical_choice_schema_hash
+        != choice_contract.choice_schema_hash
+        or profile.type_keys
+        != mapping_receipt.visible_type_card_order
+        or profile.response_schema_sha256
+        != sha256_json(profile.response_schema)
+        or profile.integrity_sha256
+        != sha256_json(profile.integrity_payload())
+    ):
+        _fail("context_profile_schema_hash_mismatch")
+    _validate_type_first_response_schema(
+        schema=profile.response_schema,
+        type_keys=profile.type_keys,
+    )
+
+
 def _model_json_bytes(value: Any) -> bytes:
     try:
         return json.dumps(
@@ -1127,6 +1553,15 @@ def _unique_context_v2_1_choice_object(
             )
         result[key] = value
     return result
+
+
+@dataclass(frozen=True)
+class _TypeFirstJsonObject:
+    pairs: list[tuple[str, Any]]
+
+
+def _reject_type_first_json_constant(value: str) -> None:
+    raise ValueError(value)
 
 
 def _validate_choice_schema(
