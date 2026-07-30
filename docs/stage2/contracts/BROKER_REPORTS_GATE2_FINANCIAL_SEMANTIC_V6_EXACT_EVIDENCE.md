@@ -6,8 +6,9 @@ inactive local Choice response profile and provider-neutral sealed request
 implemented; GOAL 11 three-provider local projection, materialization,
 Financial Domain persistence/restore and exact replay implemented with zero
 provider calls; GOAL 12 live Context V2.1 budget-smoke evidence,
-failure checkpoint, persistence/restore and exact offline replay completed
-against the frozen plan with `8` submissions and no benchmark-eligible model.
+failure checkpoint and replay path implemented; terminal private evidence was
+restored and validated against the frozen plan with `8` submissions and no
+benchmark-eligible model.
 
 ## Private evidence
 
