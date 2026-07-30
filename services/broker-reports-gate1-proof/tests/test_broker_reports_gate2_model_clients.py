@@ -1608,6 +1608,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             "hashlib",
             "inspect",
             "json",
+            "math",
             "time",
             "typing",
             "urllib",

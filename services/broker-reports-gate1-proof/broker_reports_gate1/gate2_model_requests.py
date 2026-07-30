@@ -34,6 +34,9 @@ FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE = (
 FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE = (
     "financial_semantic_v6_context_v2_1_local_proof_v1"
 )
+FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE = (
+    "financial_semantic_v6_context_v2_1_budget_smoke_v1"
+)
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -61,6 +64,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
 )
 
@@ -331,6 +335,14 @@ class Gate2OpenWebUIRequestBuilder:
                 "gate2_model_request_sealed_context_required",
                 "Context V2.1 local proof requests require a sealed request",
             )
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_sealed_context_required",
+                "Context V2.1 budget-smoke requests require a sealed request",
+            )
         if self.request_profile != DOMAIN_REQUEST_PROFILE:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_unknown",
@@ -351,7 +363,10 @@ class Gate2OpenWebUIRequestBuilder:
     ) -> dict[str, Any]:
         if (
             self.request_profile
-            != FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
+            not in {
+                FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
+                FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
+            }
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_mismatch",
@@ -396,6 +411,11 @@ class Gate2OpenWebUIRequestBuilder:
             )
         projected = copy.deepcopy(model_visible_request)
         projected["model"] = model_id
+        if (
+            self.request_profile
+            == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
+        ):
+            projected["stream"] = False
         return projected
 
     def _build_source(

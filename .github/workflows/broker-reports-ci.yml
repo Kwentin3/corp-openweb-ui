@@ -48,6 +48,7 @@ jobs:
           python scripts/build_gate2_financial_semantic_model_assets.py --check
           python scripts/build_gate2_financial_semantic_v5_execution.py --check
           python scripts/build_context_v2_1_three_provider_local_proof.py --check
+          python scripts/build_context_v2_1_budget_smoke_plan.py --check
 
       - name: Check generated Function bundles
         run: |
@@ -68,6 +69,17 @@ jobs:
             tests/test_broker_reports_gate2_financial_semantic_v6_context_linter.py \
             tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_linter.py \
             tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_provider_proof.py \
+            tests/test_broker_reports_gate2_context_v2_1_budget_smoke_client.py \
+            tests/test_broker_reports_gate2_context_v2_1_budget_smoke_direct_transport.py \
+            tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan.py \
+            tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_evidence.py \
+            tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_report.py \
+            tests/test_live_gate2_financial_semantic_v6_context_v2_1_three_provider_smoke.py \
+            tests/test_build_context_v2_1_budget_smoke_plan.py \
+            tests/test_broker_reports_gate2_model_clients.py \
+            tests/test_broker_reports_gate2_provider_execution.py \
+            tests/test_broker_reports_gate2_economy_budget.py \
+            tests/test_broker_reports_gate2_financial_semantic_v6_evidence.py \
             --tb=short
           python -m pytest -q \
             tests/test_broker_reports_gate_architecture.py \

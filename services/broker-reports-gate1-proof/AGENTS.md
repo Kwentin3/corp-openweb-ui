@@ -64,7 +64,8 @@ separate bootstrap report.
   [Local Choice V2.1 response profile](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
   in the existing Choice owner. GOAL 10 adds the inactive provider-neutral
   sealed request; GOAL 11 adds only a zero-call three-provider local proof.
-  Provider transport, model qualification and activation remain absent. The additive
+  GOAL 12 adds only the frozen qualification transport/evidence path governed
+  below. Product runtime transport and activation remain absent. The additive
   [Outcome Taxonomy v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
   completes GOAL 6: the four zero-choice plausible-type counts are `2,1,1,1`,
   three historical reasons are corrected only in the versioned audit
@@ -114,6 +115,50 @@ separate bootstrap report.
   immutable case-evidence token. Independent full-proof validation follows.
   The aggregate accepts only the issued token; raw or resealed proof
   dictionaries must fail closed.
+- GOAL 12 is the separately versioned, qualification-only
+  [Context V2.1 Budget Model Smoke](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md).
+  Its immutable plan is issued only by
+  `Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory.create`; its thin
+  coordinator reuses the existing linter, request builder, economy budget,
+  provider adapter/client, Choice, Expansion/materialization, evidence and
+  report owners. It must not become a product runtime or second qualification
+  framework.
+- The frozen provider-major ceiling is 12 slots: OpenAI
+  `gpt-5.4-nano-2026-03-17`, Anthropic
+  `claude-haiku-4-5-20251001` and Google
+  `models/gemini-3.1-flash-lite`, each over the four audited Context V2.1
+  semantic cases. Retry, repair, fallback and runtime model/parameter
+  overrides are zero. Google is a stable selector without a proven dated
+  immutable identity and must fail before transport unless that proof exists
+  before its first submission.
+- Every allowed GOAL 12 transport requires a clean committed pre-call plan and
+  a real green `broker-reports-ci` GitHub Actions check for the exact open,
+  non-draft PR head and exact workflow/run/job provenance. Its frozen policy is
+  `direct_exact_provider_http_via_openwebui_connection_v1`: OpenWebUI supplies
+  only the enabled Admin connection and credential; the qualification client
+  sends the sealed request directly to the canonical provider endpoint with
+  redirects and ambient proxies denied, a `180` second timeout, a `1,048,576`
+  byte response cap and retry `0`.
+- The HMAC-sealed external private ledger consumes each slot before network,
+  after a permanent per-slot `O_EXCL` claim has been flushed. Resume never
+  resubmits a claimed or consumed slot. A nonblocking OS-backed lease under
+  git-common metadata serializes the complete execute/resume section before
+  auth, state recovery or transport and is released by descriptor close or
+  process death. One persistent safe execution-owner claim binds the plan/head
+  and hashed external state directory;
+  an atomic annotated-tag ref
+  `broker-reports-goal12-execution-lock-<plan_hash>` binds the same owner across
+  clones and must never be deleted. A second `--execute` cannot reset the
+  submission budget by choosing a new directory. Exact provider envelopes
+  remain outside Git. Safe and transparent synthetic reports are hash-linked,
+  `active=false`, and keep `production_admissions=[]`.
+- GOAL 12 completed with `8` submissions and `8` responses. OpenAI and
+  Anthropic passed the technical smoke but failed the semantic smoke; Google
+  failed closed before transport in all four slots because its immutable dated
+  model identity was not proven. Retry, repair, fallback and semantic repair
+  remained zero. No provider/model is benchmark-eligible, so GOAL 13 must not
+  start without an explicit new candidate or policy decision. Preserve the
+  external private ledger and permanent execution-lock tag as audit evidence.
 - GOAL 5 selects existing managed strings rather than authoring markers:
   `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
   `counterexamples[0]`, nearest distinction is the unique direct rule against
@@ -133,11 +178,10 @@ separate bootstrap report.
   sealed request and private sealed-request receipt. GOAL 11 proves local
   OpenAI/Anthropic/Google projection, extraction, candidate-only Expansion,
   private-evidence serialize/restore/replay, materialization and Financial
-  Domain persistence/restore/reconstruction. It still has no live provider
-  transport or runtime consumer.
-  Runtime and the current qualification runner continue to consume only
-  `packet.payload` and exact-ID Choice until a separately qualified activation
-  GOAL changes that authority.
+  Domain persistence/restore/reconstruction. GOAL 12 alone may consume the
+  sealed candidate through its explicit qualification profile. Product runtime
+  continues to consume only `packet.payload` and exact-ID Choice until a
+  separately qualified activation GOAL changes that authority.
 - Any historical Slim + Local Choice transport must first use
   `Gate2FinancialSemanticV6ContextLinterFactory.create`; the existing request
   builder rejects the candidate profile without its exact sealed lint receipt.

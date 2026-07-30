@@ -197,3 +197,13 @@ Google adapters, then returns adapter-extracted output to this parser. The
 existing Expansion/decision factories expose an additive candidate-only path
 for all three reasons; active V6 remains unchanged. Exact synthetic evidence is
 in the [GOAL 11 report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md).
+
+GOAL 12 carried the same exact inactive profile through the separately
+versioned qualification-only
+[budget-model smoke](./BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md).
+That path does not make this Choice profile product-transport-eligible: the
+immutable slot plan, one-attempt client seam and external evidence ledger are
+qualification authorities, while parsing and restoration still delegate here
+without semantic repair.
+The [terminal report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md)
+records no benchmark-eligible model and no activation.

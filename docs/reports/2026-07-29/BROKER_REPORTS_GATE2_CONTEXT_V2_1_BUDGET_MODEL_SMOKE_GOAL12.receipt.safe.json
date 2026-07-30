@@ -1,0 +1,81 @@
+{
+  "active": false,
+  "execution_accounting": {
+    "fallback_total": 0,
+    "local_invocations_total": 8,
+    "provider_responses_total": 8,
+    "provider_submissions_total": 8,
+    "repair_total": 0,
+    "retry_total": 0,
+    "semantic_repair_total": 0
+  },
+  "plan_integrity_hash": "9191197bdc947d6ba86db3169ba0d8c911ef88423d611e2c4424a9379167cbab",
+  "private_evidence_hashes": [
+    "8767c1bd9db52c40b061914ce45f8fc73c9434e9b9b646fffad003e8eac85115",
+    "cfc0e726ac4d1a4d82c36592b8c314ca5bd54f87d430fc88137c41bc3adcce41",
+    "4505a8b5165baf320ad704eba61cff5cdeabb26a9a67c2040bb6a9d90d8fc346",
+    "47662fe2ec9e431a576a800ed8135020449372cf28eb3cde3a793d21cd40926e",
+    "84019fdd5ec9c714e44d4063592f066add80c63546112ad40cf3bf0b6ab957ef",
+    "77a5edb195c431d7d7c6bfbd5079ab1305c246cd3591a77f14317d884b3fe5c9",
+    "ba911ffd3b4975f6ac662cb66f53e0c343033c96363ca6a266d931580fea7967",
+    "5d9bf604964c4fd4f683bd2f43c65b7a3eca0c0a5a46165162d5953acccd02f6",
+    "76d2d82cf806ef3538e673811f243e640a6cc71b69becb03bc5a6425747c1331",
+    "4cefada45c88cfd776aeea67eac166b0ffce780618d7f881b9cf379f146523fd",
+    "4ec4b6df69bea0799b6e92a1fb9f51f1ae78c564ceb0eeabf4e9b1a18c87abcb",
+    "197c9ffbb3ed526944322f97b0255fb559eec61f11bf4489ba4369ae1b8f25e0"
+  ],
+  "production_admissions": [],
+  "provider_verdicts": [
+    {
+      "benchmark_admission_eligible": false,
+      "error_category_counts": {
+        "infrastructure_provider_failure": 0,
+        "invalid_response": 0,
+        "safe_under_typing": 0,
+        "unsafe_typed": 0,
+        "wrong_typed_type": 0,
+        "wrong_unclassified_reason": 2
+      },
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "provider_profile_id": "openai_gpt",
+      "semantic_smoke_verdict": "SEMANTIC_SMOKE_FAILED",
+      "technical_smoke_verdict": "TECHNICAL_SMOKE_PASSED"
+    },
+    {
+      "benchmark_admission_eligible": false,
+      "error_category_counts": {
+        "infrastructure_provider_failure": 0,
+        "invalid_response": 0,
+        "safe_under_typing": 0,
+        "unsafe_typed": 0,
+        "wrong_typed_type": 0,
+        "wrong_unclassified_reason": 1
+      },
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "provider_profile_id": "anthropic_claude",
+      "semantic_smoke_verdict": "SEMANTIC_SMOKE_FAILED",
+      "technical_smoke_verdict": "TECHNICAL_SMOKE_PASSED"
+    },
+    {
+      "benchmark_admission_eligible": false,
+      "error_category_counts": {
+        "infrastructure_provider_failure": 4,
+        "invalid_response": 0,
+        "safe_under_typing": 0,
+        "unsafe_typed": 0,
+        "wrong_typed_type": 0,
+        "wrong_unclassified_reason": 0
+      },
+      "exact_model_id": "models/gemini-3.1-flash-lite",
+      "provider_profile_id": "google_gemini",
+      "semantic_smoke_verdict": "SEMANTIC_SMOKE_FAILED",
+      "technical_smoke_verdict": "TECHNICAL_SMOKE_FAILED"
+    }
+  ],
+  "raw_provider_output_included": false,
+  "receipt_hash": "0a000d3bbec1a3cf9e5c50c1f6c7401181c217d7f35b7643d6a34e163a9b6a93",
+  "repository_head": "ed12ee627282f7954fb494c35f2a7f2b6e75ff7e",
+  "schema_version": "broker_reports_gate2_context_v2_1_budget_smoke_safe_receipt_v1",
+  "status": "completed",
+  "transparent_report_hash": "ed812608fea8b87540fc554593828e1638f3c985b2dd7ed64cb9cb30785d3d26"
+}

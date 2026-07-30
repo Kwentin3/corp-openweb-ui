@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_THREE_PROVIDER_LOCAL_PROOF`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_GOAL12_TERMINAL_SMOKE`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -21,8 +21,11 @@ GOAL 8 implements the sole current non-active
   complete-request linter and sealed request receipt in the existing Context
   Linter factory. GOAL 11 proves the additive request projection, adapter
   extraction, canonical materialization, persistence/restore and replay for
-  OpenAI, Anthropic and Google profiles without provider calls. Live provider
-  transport, model qualification and activation remain unimplemented.
+  OpenAI, Anthropic and Google profiles without provider calls. GOAL 12
+  implements the separately versioned immutable 12-slot plan and
+  qualification-only one-attempt harness under the existing owners. Its
+  terminal evidence records `8` submissions, retry/repair/fallback `0/0/0`,
+  no benchmark-eligible provider/model and no activation.
 
 ## 1. Purpose and scope
 
@@ -795,5 +798,9 @@ The program state is:
    through the existing linter authority;
 6. GOAL 11 proves the three provider adapter projections and the full local
    materialization/persistence/replay path without provider calls;
-7. **STOP before GOAL 12:** live smoke requires a fresh-reviewed immutable
-   GOAL 11 head, green real GitHub Actions check and merged PR.
+7. GOAL 12 froze the exact three-provider/four-case plan, passed its pre-call
+   delivery gate and completed the qualification-only one-attempt smoke;
+8. terminal GOAL 12 evidence records `8` submissions and no eligible
+   provider/model;
+9. **STOP before GOAL 13:** no provider/model may enter the full benchmark;
+   further attempts require a separate explicit candidate or policy decision.
