@@ -54,8 +54,9 @@ The adversarial corpus intentionally demonstrates the unresolved false-singleton
 
 ## Repository authority
 
+- Hash boundary: `repository_lf_bytes`
 - Contract integrity: `73f4ea51d8767b28fc8b3a9b1e12a6345f897ea8cbe8bde42decd0cb1ff70775`
-- Safe receipt integrity: `6cd30aef1d4cea2a55d8af459034db9debc214603305ae306d63b53db771677e`
+- Safe receipt integrity: `25e3c451a20c471ccf23d2471d1e5c7b24de673883369ea42392170bbb6b6993`
 - Gate 1 generated bundle: `376e8eb3ce84aad9d72e521f9a677ab8270f52c017fd11a773ac30eab09baa56`
 - Gate 2 source generated bundle: `d5425d44ef54e50c9b13a074ccf2742cef56d80e7d103ed53d52505571fa7b16`
 - Gate 2 domain generated bundle: `01dc90d1348f268749694e15ca8a47e5e82f122f0309d9c5dc3a3c0f3cb88706`

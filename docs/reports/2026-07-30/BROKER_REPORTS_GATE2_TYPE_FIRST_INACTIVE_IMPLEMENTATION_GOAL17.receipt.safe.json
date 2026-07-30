@@ -35,7 +35,7 @@
     "simulated_terminal_envelopes_total": 10,
     "transport_invocations_total": 0
   },
-  "integrity_sha256": "6cd30aef1d4cea2a55d8af459034db9debc214603305ae306d63b53db771677e",
+  "integrity_sha256": "25e3c451a20c471ccf23d2471d1e5c7b24de673883369ea42392170bbb6b6993",
   "pack_projection_drift_error_code": "pack_projection_drift",
   "privacy": {
     "private_evidence_returned": false,
@@ -67,15 +67,16 @@
       "gate2_domain": "01dc90d1348f268749694e15ca8a47e5e82f122f0309d9c5dc3a3c0f3cb88706",
       "gate2_source": "d5425d44ef54e50c9b13a074ccf2742cef56d80e7d103ed53d52505571fa7b16"
     },
+    "hash_boundary": "repository_lf_bytes",
     "owner_source_sha256": {
-      "choice": "fcbc2ded8f2530f77fe2e2c61ed7378a08a057f8c8425a500621d9b1b95636d4",
-      "context_linter": "36e791fcf9734cc8866c335447c17053fc6048f45f52d4ffa5f0b9c2f23b1f17",
-      "economy": "5aceecc22ec77513810b4c01803179283cc504dd4715b7e1ad418be8e02fe5ee",
-      "evidence": "b56cec6bb9de42071de0e71e214b4a14c44e10e40125dbb2b3bae03346cc0cc8",
-      "expansion": "c70e2055dbea132e2e349246fd9e67d63a40579e79c4bd8314f9d669c17ba3c4",
-      "packet": "efef29d0842c0681929e1f81e47c834df947118653768eb4918a1d864b6c5b44",
-      "qualification_declaration": "8dbe5c3fcbeda8b018e1bc9a6db911bf459fa0986f49fd2b05467f93c6b32549",
-      "request_builder": "6f6fa73cd31b0945bd5ffc0babaa632a95d9d92f1f67570449abf045389ad03d"
+      "choice": "40b8dc866ecfbd8d9c5285d0585a3febc3aedb364c69020a5cd032882137f0cd",
+      "context_linter": "47227292e5e184d8d958aae0e72b153d9e6ca2c5d32524502d01cefc520bf630",
+      "economy": "99cc099e2886bb04eac54ee5ab697a91e0ec396c333a2de6e391ef99c9917765",
+      "evidence": "4cb372d483badc07f714415e1de5913a51baf3dc5dcd39a3a89bfdf8b2f848e4",
+      "expansion": "75b9823d4e068cdd7380ef6f3ee0d50c12c49eb1964043dc901d000b789f650e",
+      "packet": "4bb686e3e5d339c899d37a45135a87fc784de993b0e830438d3673e1a028e332",
+      "qualification_declaration": "2ba7171b0a8fb99bef63f76bf3b772b7ca15a96af8b2c4ac1c0b67638c4c1bab",
+      "request_builder": "389969245b3e2c25dd35e6485cd2b51647c74fe93e3b3f506fa0d2ffffdb75e0"
     }
   },
   "runtime_activation": false,

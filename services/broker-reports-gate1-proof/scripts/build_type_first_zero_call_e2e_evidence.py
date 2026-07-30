@@ -119,6 +119,7 @@ CREATED_AT = "2026-07-30T00:00:00Z"
 E2E_SCHEMA_VERSION = (
     "broker_reports_gate2_type_first_zero_call_local_e2e_v1"
 )
+REPOSITORY_AUTHORITY_HASH_BOUNDARY = "repository_lf_bytes"
 QUALIFICATION_COUNTERS = (
     "plausible_type_set_exact_total",
     "false_empty_total",
@@ -1279,17 +1280,18 @@ def _repository_authorities() -> dict[str, Any]:
         ),
     }
     return {
+        "hash_boundary": REPOSITORY_AUTHORITY_HASH_BOUNDARY,
         "contract_integrity_sha256": _load_contract_integrity(
             CONTRACT_PATH
         ),
         "owner_source_sha256": {
-            owner: _sha256_file(
+            owner: _sha256_repository_file(
                 SERVICE_ROOT / "broker_reports_gate1" / filename
             )
             for owner, filename in owner_files.items()
         },
         "generated_bundle_sha256": {
-            bundle: _sha256_file(
+            bundle: _sha256_repository_file(
                 SERVICE_ROOT / "openwebui_actions" / filename
             )
             for bundle, filename in bundle_files.items()
@@ -1297,8 +1299,20 @@ def _repository_authorities() -> dict[str, Any]:
     }
 
 
-def _sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _sha256_repository_file(path: Path) -> str:
+    try:
+        material = path.read_bytes()
+    except OSError as exc:
+        raise TypeFirstZeroCallE2EError(
+            "repository_authority_file_unreadable"
+        ) from exc
+    if b"\r" in material.replace(b"\r\n", b""):
+        raise TypeFirstZeroCallE2EError(
+            "repository_authority_line_endings_invalid"
+        )
+    return hashlib.sha256(
+        material.replace(b"\r\n", b"\n")
+    ).hexdigest()
 
 
 def _load_contract_integrity(path: Path) -> str:
@@ -1546,6 +1560,7 @@ def render_type_first_goal17_report(
             "",
             "## Repository authority",
             "",
+            f"- Hash boundary: `{authorities['hash_boundary']}`",
             f"- Contract integrity: `{authorities['contract_integrity_sha256']}`",
             f"- Safe receipt integrity: `{result['integrity_sha256']}`",
             f"- Gate 1 generated bundle: `{bundles['gate1']}`",

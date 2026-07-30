@@ -300,6 +300,9 @@ def test_support_runner_has_no_transport_or_provider_invocation_callsite():
 
 
 def test_goal17_report_and_safe_receipt_are_current(e2e_result) -> None:
+    assert e2e_result["repository_authorities"]["hash_boundary"] == (
+        E2E.REPOSITORY_AUTHORITY_HASH_BOUNDARY
+    )
     assert E2E.SAFE_RECEIPT_PATH.read_text(encoding="utf-8") == (
         E2E.serialize_type_first_zero_call_safe_receipt(e2e_result)
     )
@@ -326,6 +329,26 @@ def test_goal17_contract_self_integrity_is_recomputed_fail_closed(
         match="contract_integrity_mismatch",
     ):
         E2E._load_contract_integrity(tampered_path)
+
+
+def test_repository_authority_hash_boundary_is_cross_platform(
+    tmp_path: Path,
+) -> None:
+    lf_path = tmp_path / "lf.py"
+    crlf_path = tmp_path / "crlf.py"
+    invalid_path = tmp_path / "invalid.py"
+    lf_path.write_bytes(b"first\nsecond\n")
+    crlf_path.write_bytes(b"first\r\nsecond\r\n")
+    invalid_path.write_bytes(b"first\rsecond\n")
+
+    assert E2E._sha256_repository_file(
+        lf_path
+    ) == E2E._sha256_repository_file(crlf_path)
+    with pytest.raises(
+        E2E.TypeFirstZeroCallE2EError,
+        match="repository_authority_line_endings_invalid",
+    ):
+        E2E._sha256_repository_file(invalid_path)
 
 
 def _walk_dicts(value: Any) -> Iterator[dict[str, Any]]:
