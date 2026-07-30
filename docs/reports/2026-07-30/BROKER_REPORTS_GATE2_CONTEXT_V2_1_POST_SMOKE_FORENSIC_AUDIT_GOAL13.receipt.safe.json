@@ -1,0 +1,127 @@
+{
+  "active": false,
+  "aggregate_findings": {
+    "cases_audited_total": 3,
+    "expected_answers_independently_revalidated_total": 3,
+    "proven_causal_root_layers_total": 0,
+    "safe_unclassified_dispositions_total": 3,
+    "unsafe_typed_total": 0,
+    "wrong_diagnostic_reasons_total": 3,
+    "wrong_typed_type_total": 0
+  },
+  "audit_date": "2026-07-30",
+  "case_findings": [
+    {
+      "actual_reason_code": "single_registry_type_no_safe_record",
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "disposition_exact_match": true,
+      "exact_misclassification": "plausible_type_count_2plus_to_1",
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "expected_answer_defect_supported": false,
+      "expected_answer_independently_revalidated": true,
+      "expected_reason_code": "ambiguous_registry_type",
+      "layer_evidence_strength": {
+        "choices_presentation": "supported",
+        "expected_answer_defect": "hypothesis",
+        "model_capability": "hypothesis",
+        "reason_contract_error_locus": "proven",
+        "source_projection": "supported",
+        "type_glossary": "hypothesis"
+      },
+      "plausible_type_ids": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "provider_profile_id": "openai_gpt",
+      "reason_exact_match": false,
+      "source_case_integrity_hash": "b0ecca88a5e18b58b8530200afb91001c5dca89c7a91c341bd4c4956cd3d80b3"
+    },
+    {
+      "actual_reason_code": "no_registry_type",
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "disposition_exact_match": true,
+      "exact_misclassification": "plausible_type_count_1_to_0",
+      "exact_model_id": "gpt-5.4-nano-2026-03-17",
+      "expected_answer_defect_supported": false,
+      "expected_answer_independently_revalidated": true,
+      "expected_reason_code": "single_registry_type_no_safe_record",
+      "layer_evidence_strength": {
+        "choices_presentation": "supported",
+        "expected_answer_defect": "hypothesis",
+        "model_capability": "hypothesis",
+        "reason_contract_error_locus": "proven",
+        "source_projection": "hypothesis",
+        "type_glossary": "hypothesis"
+      },
+      "plausible_type_ids": [
+        "printed_financial_metric_v1"
+      ],
+      "provider_profile_id": "openai_gpt",
+      "reason_exact_match": false,
+      "source_case_integrity_hash": "882863401f598c8dec414e5f92dc8fe7b524e6e96bee775bb8b6616d75636953"
+    },
+    {
+      "actual_reason_code": "ambiguous_registry_type",
+      "case_id": "syn_successor_v2_no_registry_type",
+      "disposition_exact_match": true,
+      "exact_misclassification": "plausible_type_count_0_to_2plus",
+      "exact_model_id": "claude-haiku-4-5-20251001",
+      "expected_answer_defect_supported": false,
+      "expected_answer_independently_revalidated": true,
+      "expected_reason_code": "no_registry_type",
+      "layer_evidence_strength": {
+        "choices_presentation": "supported",
+        "expected_answer_defect": "hypothesis",
+        "model_capability": "hypothesis",
+        "reason_contract_error_locus": "proven",
+        "source_projection": "hypothesis",
+        "type_glossary": "supported"
+      },
+      "plausible_type_ids": [],
+      "provider_profile_id": "anthropic_claude",
+      "reason_exact_match": false,
+      "source_case_integrity_hash": "71493ed9f00b8702643c50b22e3252bd1bc1ddcf7e389bd94141d3dac4b4629b"
+    }
+  ],
+  "change_accounting": {
+    "context_files_changed": 0,
+    "corrective_implementation_files_changed": 0,
+    "documentation_and_evidence_files_changed": 4,
+    "expected_answers_changed": 0,
+    "historical_evidence_files_rewritten": 0,
+    "product_logic_files_changed": 0,
+    "prompt_files_changed": 0,
+    "repository_support_files_changed": 1,
+    "runtime_files_changed": 0
+  },
+  "execution_accounting": {
+    "fallback_total": 0,
+    "full_benchmark_runs_total": 0,
+    "provider_responses_total": 0,
+    "provider_submissions_total": 0,
+    "repair_total": 0,
+    "retry_total": 0,
+    "semantic_repair_total": 0
+  },
+  "independent_authorities": {
+    "outcome_audit_manifest_integrity_sha256": "774acd03c95ddc2d898112b6b62e3bed54613cfeaac7f98689e7c05224d271ae",
+    "outcome_audit_manifest_raw_sha256": "6c303dee2c8d221e452a565c0da2c1dae6d00b609054e6eacfa42f497d71432d",
+    "reason_catalog_v2_integrity_sha256": "2510b57b51749a14f76b987cddaa3eea19f1bb975a97c6c089565253dc3593e9",
+    "reason_catalog_v2_raw_sha256": "fb1adbc8cdb69096d3a40de3418392215560ce980b23a95d3f1fb48e66429289",
+    "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "semantic_pack_raw_sha256": "9538ccb8f2111efa24e25d1b7b10145ccff8ca4e3c655cdc6d71b916d926c3fd"
+  },
+  "integrity_hash": "dc65e32d0833e13035cd1efb99a8df4fb32952a372c6e1eb91b0b76a13932262",
+  "production_admissions": [],
+  "raw_provider_output_included": false,
+  "raw_synthetic_source_included": false,
+  "report_file": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.report.md",
+  "report_file_sha256": "7161542710ef9c33a45d3c16fb30f10ed97636e1d59d6c2e01bad88083a0379b",
+  "schema_version": "broker_reports_gate2_context_v2_1_post_smoke_forensic_audit_safe_receipt_v1",
+  "source_goal12_evidence": {
+    "plan_integrity_hash": "9191197bdc947d6ba86db3169ba0d8c911ef88423d611e2c4424a9379167cbab",
+    "transparent_report_integrity_hash": "e4b2ed6e0da8c58b4236aabf0e009c957b3d1fbdfa593fed81f32c6dac5ccef5",
+    "transparent_report_raw_sha256": "7f4718f13763c9963592326e8481072606219435495fb6fbd59655a881197281"
+  },
+  "status": "completed"
+}
