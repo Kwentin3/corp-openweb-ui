@@ -1,0 +1,1543 @@
+{
+  "active": false,
+  "case_count": 3,
+  "cases": [
+    {
+      "bounded_interpretation": [
+        {
+          "bounded_finding": "Every literal survives, but amount-to-description pairing is absent. Causation is not established.",
+          "evidence_strength": "supported",
+          "layer": "source_projection"
+        },
+        {
+          "bounded_finding": "Both relevant cards and their reciprocal distinction are visible; no causal glossary defect is proven.",
+          "evidence_strength": "hypothesis",
+          "layer": "type_glossary"
+        },
+        {
+          "bounded_finding": "Zero choices and an unclassified-only schema are directly present.",
+          "evidence_strength": "supported",
+          "layer": "choices_presentation"
+        },
+        {
+          "bounded_finding": "The proven mismatch locus is plausible-type cardinality 2+ to 1; that does not prove the contract caused it.",
+          "evidence_strength": "proven",
+          "layer": "reason_contract"
+        },
+        {
+          "bounded_finding": "One exact response cannot isolate capability from presentation.",
+          "evidence_strength": "hypothesis",
+          "layer": "model_capability"
+        },
+        {
+          "bounded_finding": "Independent revalidation reproduces the expected answer and records expected_answer_defect_supported=false.",
+          "evidence_strength": "not supported",
+          "historical_exploratory_label": "hypothesis",
+          "layer": "expected_answer_defect"
+        }
+      ],
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "comparison": {
+        "independently_audited_expected_answer": {
+          "disposition": "unclassified_financial_input",
+          "reason_code": "ambiguous_registry_type"
+        },
+        "plausible_local_type_set": [
+          "type_1",
+          "type_2"
+        ]
+      },
+      "context": {
+        "allowed_reason_codes": [
+          "no_registry_type",
+          "single_registry_type_no_safe_record",
+          "ambiguous_registry_type"
+        ],
+        "choices_count": 0,
+        "exact_canonical_response_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "enum": [
+                    "unclassified"
+                  ],
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "no_registry_type",
+                    "single_registry_type_no_safe_record",
+                    "ambiguous_registry_type"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "choice",
+                "reason"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "exact_semantic_context": {
+          "choices": [],
+          "source": {
+            "children": [
+              {
+                "children": [
+                  {
+                    "kind": "row",
+                    "values": [
+                      {
+                        "literal": "310.00",
+                        "meaning": "amount a"
+                      },
+                      {
+                        "literal": "410.00",
+                        "meaning": "amount b"
+                      },
+                      {
+                        "literal": "Possible cash",
+                        "meaning": "description"
+                      },
+                      {
+                        "literal": "EUR",
+                        "meaning": "currency"
+                      },
+                      {
+                        "literal": "2026-03-03",
+                        "meaning": "as of date"
+                      },
+                      {
+                        "literal": "Possible total",
+                        "meaning": "description 2"
+                      }
+                    ]
+                  }
+                ],
+                "kind": "table"
+              }
+            ]
+          },
+          "task": "Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.",
+          "type_cards": [
+            {
+              "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+              "nearest_competitor": {
+                "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.",
+                "type_key": "type_2"
+              },
+              "negative_signal": "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+              "positive_signal": "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+              "title": "Cash balance snapshot",
+              "type_key": "type_1"
+            },
+            {
+              "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+              "nearest_competitor": {
+                "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.",
+                "type_key": "type_1"
+              },
+              "negative_signal": "A total calculated by Gate 2 from child rows.",
+              "positive_signal": "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+              "title": "Printed financial metric",
+              "type_key": "type_2"
+            }
+          ],
+          "unclassified_reasons": [
+            {
+              "code": "no_registry_type",
+              "title": "No available type matches",
+              "use_when": "Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning."
+            },
+            {
+              "code": "single_registry_type_no_safe_record",
+              "title": "One matching type, no safe record",
+              "use_when": "Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type."
+            },
+            {
+              "code": "ambiguous_registry_type",
+              "title": "Multiple available types remain plausible",
+              "use_when": "Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely."
+            }
+          ]
+        },
+        "exact_semantic_context_serialized": "{\"task\":\"Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.\",\"source\":{\"children\":[{\"kind\":\"table\",\"children\":[{\"kind\":\"row\",\"values\":[{\"meaning\":\"amount a\",\"literal\":\"310.00\"},{\"meaning\":\"amount b\",\"literal\":\"410.00\"},{\"meaning\":\"description\",\"literal\":\"Possible cash\"},{\"meaning\":\"currency\",\"literal\":\"EUR\"},{\"meaning\":\"as of date\",\"literal\":\"2026-03-03\"},{\"meaning\":\"description 2\",\"literal\":\"Possible total\"}]}]}]},\"type_cards\":[{\"type_key\":\"type_1\",\"title\":\"Cash balance snapshot\",\"definition\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"positive_signal\":\"A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.\",\"negative_signal\":\"A synthetic row states a segregated regulatory asset without an ordinary cash classification.\",\"nearest_competitor\":{\"type_key\":\"type_2\",\"distinction\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"}},{\"type_key\":\"type_2\",\"title\":\"Printed financial metric\",\"definition\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"positive_signal\":\"A synthetic statement prints a labelled total for an explicit period and statement scope.\",\"negative_signal\":\"A total calculated by Gate 2 from child rows.\",\"nearest_competitor\":{\"type_key\":\"type_1\",\"distinction\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"}}],\"choices\":[],\"unclassified_reasons\":[{\"code\":\"no_registry_type\",\"title\":\"No available type matches\",\"use_when\":\"Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning.\"},{\"code\":\"single_registry_type_no_safe_record\",\"title\":\"One matching type, no safe record\",\"use_when\":\"Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type.\"},{\"code\":\"ambiguous_registry_type\",\"title\":\"Multiple available types remain plausible\",\"use_when\":\"Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely.\"}]}",
+        "exact_system_message": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+        "hashes": {
+          "canonical_schema_sha256": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
+          "exact_system_message_utf8_sha256": "a73c8b85514ec2310882b4b03101253233108e0c99d5dcdfd3830256179f6210",
+          "exact_user_content_utf8_sha256": "4dd76de2e81a18d12af9c9a96702f975602fc1bece7ddaccc93aabef769984c2",
+          "model_visible_request_sha256": "303681e6f94e012ba6891950fde6128dd533e23c5783f25a33b4e14efa54a161",
+          "semantic_context_canonical_sha256": "e3896021fc1d513e336bc6488af2e3ed8e178b4c994e7fb5169fa461e09f59dd"
+        },
+        "provider_semantic_context_byte_identical": true,
+        "typed_branch_present": false,
+        "unclassified_branch_present": true
+      },
+      "facts_before_interpretation": [
+        "The exact source contains 6 values in one row.",
+        "The exact visible source literals, in model order, are [\"310.00\",\"410.00\",\"Possible cash\",\"EUR\",\"2026-03-03\",\"Possible total\"].",
+        "Association visibility is partial: One row groups all six values, but the exact source contains no amount-to-description pair links.",
+        "The exact choices array contains 0 entries.",
+        "The canonical schema contains no typed branch.",
+        "The canonical schema contains the unclassified branch.",
+        "Both exact outputs contain choice=unclassified.",
+        "The independently audited plausible local type set is [type_1, type_2].",
+        "The independently audited plausible type count is 2.",
+        "The independently audited expected canonical answer is {\"disposition\":\"unclassified_financial_input\",\"reason_code\":\"ambiguous_registry_type\"}.",
+        "The exact expected reason is ambiguous_registry_type; Nano returned single_registry_type_no_safe_record; Haiku returned ambiguous_registry_type."
+      ],
+      "ordinal": 1,
+      "providers": [
+        {
+          "adapter": {
+            "id": "openai_response_format",
+            "version": "1.1.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "83c339e98ace8146227990ecfe80b1f82cc73ab6921af58dc3860ac89223201d",
+            "hash_basis": "canonical_json_value",
+            "storage_type": "object",
+            "value": {
+              "choice": "unclassified",
+              "reason": "single_registry_type_no_safe_record"
+            }
+          },
+          "exact_model_id": "gpt-5.4-nano-2026-03-17",
+          "field_level_diff": {
+            "all_fields_match": false,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "single_registry_type_no_safe_record",
+                "exact_match": false,
+                "expected_present": true,
+                "expected_value": "ambiguous_registry_type",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Nano",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "single_registry_type_no_safe_record"
+          },
+          "provider_id": "openai",
+          "provider_profile_id": "openai_gpt",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "broker_reports_gate2_choice": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "choice": {
+                          "enum": [
+                            "unclassified"
+                          ],
+                          "type": "string"
+                        },
+                        "reason": {
+                          "enum": [
+                            "no_registry_type",
+                            "single_registry_type_no_safe_record",
+                            "ambiguous_registry_type"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "choice",
+                        "reason"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "broker_reports_gate2_choice"
+              ],
+              "type": "object"
+            },
+            "provider_request_wrapper": "openai_response_format",
+            "provider_visible_schema_location": "response_format.json_schema.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": "properties.broker_reports_gate2_choice",
+              "name": "broker_reports_gate2_choice",
+              "strict": true,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 1,
+            "stream_field": {
+              "present": true,
+              "value": false
+            },
+            "system_message_location": "messages[0].content",
+            "token_limit": {
+              "field": "max_completion_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_completion_tokens",
+              "messages",
+              "model",
+              "response_format",
+              "stream"
+            ],
+            "user_content_location": "messages[1].content"
+          }
+        },
+        {
+          "adapter": {
+            "id": "anthropic_native_messages",
+            "version": "1.2.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "9bdeb1174ec8efb3558d031008a6f68eda6f53423e9de8a670ee83ede809c9ed",
+            "hash_basis": "exact_utf8_string",
+            "storage_type": "string",
+            "value": "{\"choice\": \"unclassified\", \"reason\": \"ambiguous_registry_type\"}"
+          },
+          "exact_model_id": "claude-haiku-4-5-20251001",
+          "field_level_diff": {
+            "all_fields_match": true,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "ambiguous_registry_type",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "ambiguous_registry_type",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Haiku",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "ambiguous_registry_type"
+          },
+          "provider_id": "anthropic",
+          "provider_profile_id": "anthropic_claude",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "no_registry_type",
+                        "single_registry_type_no_safe_record",
+                        "ambiguous_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "provider_request_wrapper": "anthropic_native_messages",
+            "provider_visible_schema_location": "output_config.format.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": null,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 0,
+            "stream_field": {
+              "present": false
+            },
+            "system_message_location": "system",
+            "token_limit": {
+              "field": "max_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_tokens",
+              "messages",
+              "model",
+              "output_config",
+              "system"
+            ],
+            "user_content_location": "messages[0].content"
+          }
+        }
+      ],
+      "source": {
+        "association_basis": "One row groups all six values, but the exact source contains no amount-to-description pair links.",
+        "association_visible": "partial",
+        "exact_source_json": {
+          "children": [
+            {
+              "children": [
+                {
+                  "kind": "row",
+                  "values": [
+                    {
+                      "literal": "310.00",
+                      "meaning": "amount a"
+                    },
+                    {
+                      "literal": "410.00",
+                      "meaning": "amount b"
+                    },
+                    {
+                      "literal": "Possible cash",
+                      "meaning": "description"
+                    },
+                    {
+                      "literal": "EUR",
+                      "meaning": "currency"
+                    },
+                    {
+                      "literal": "2026-03-03",
+                      "meaning": "as of date"
+                    },
+                    {
+                      "literal": "Possible total",
+                      "meaning": "description 2"
+                    }
+                  ]
+                }
+              ],
+              "kind": "table"
+            }
+          ]
+        },
+        "exact_source_sha256": "a57db2fce25ac14ed9ce54a615b9706868933ac49f56d1dd7b45d40a0ed0d679",
+        "fixture_case_sha256": "463ebcfa64083e036b36d6bada84f042a199efb5b75219d66df834b3ad2edacd",
+        "table_json_parity": {
+          "duplicate_mappings_total": 0,
+          "exact_matches_total": 6,
+          "literal_mismatches_total": 0,
+          "missing_total": 0,
+          "source_values_total": 6,
+          "table_rows_total": 6
+        },
+        "table_rows": [
+          {
+            "literal": "310.00",
+            "meaning": "amount a"
+          },
+          {
+            "literal": "410.00",
+            "meaning": "amount b"
+          },
+          {
+            "literal": "Possible cash",
+            "meaning": "description"
+          },
+          {
+            "literal": "EUR",
+            "meaning": "currency"
+          },
+          {
+            "literal": "2026-03-03",
+            "meaning": "as of date"
+          },
+          {
+            "literal": "Possible total",
+            "meaning": "description 2"
+          }
+        ]
+      }
+    },
+    {
+      "bounded_interpretation": [
+        {
+          "bounded_finding": "No literal or amount role is lost; the flat row remains an unproved contributor.",
+          "evidence_strength": "hypothesis",
+          "layer": "source_projection"
+        },
+        {
+          "bounded_finding": "The visible printed-metric card covers a labelled source total; no concrete glossary defect is shown.",
+          "evidence_strength": "hypothesis",
+          "layer": "type_glossary"
+        },
+        {
+          "bounded_finding": "choices=[] establishes zero safe prebound records, not zero plausible types.",
+          "evidence_strength": "supported",
+          "layer": "choices_presentation"
+        },
+        {
+          "bounded_finding": "The proven mismatch locus is plausible-type cardinality 1 to 0; causal responsibility is not proven.",
+          "evidence_strength": "proven",
+          "layer": "reason_contract"
+        },
+        {
+          "bounded_finding": "The exact response cannot isolate model capability.",
+          "evidence_strength": "hypothesis",
+          "layer": "model_capability"
+        },
+        {
+          "bounded_finding": "Independent revalidation reproduces the corrected expected answer and records expected_answer_defect_supported=false.",
+          "evidence_strength": "not supported",
+          "historical_exploratory_label": "hypothesis",
+          "layer": "expected_answer_defect"
+        }
+      ],
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "comparison": {
+        "independently_audited_expected_answer": {
+          "disposition": "unclassified_financial_input",
+          "reason_code": "single_registry_type_no_safe_record"
+        },
+        "plausible_local_type_set": [
+          "type_2"
+        ]
+      },
+      "context": {
+        "allowed_reason_codes": [
+          "no_registry_type",
+          "single_registry_type_no_safe_record",
+          "ambiguous_registry_type"
+        ],
+        "choices_count": 0,
+        "exact_canonical_response_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "enum": [
+                    "unclassified"
+                  ],
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "no_registry_type",
+                    "single_registry_type_no_safe_record",
+                    "ambiguous_registry_type"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "choice",
+                "reason"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "exact_semantic_context": {
+          "choices": [],
+          "source": {
+            "children": [
+              {
+                "children": [
+                  {
+                    "kind": "row",
+                    "values": [
+                      {
+                        "literal": "USD",
+                        "meaning": "currency"
+                      },
+                      {
+                        "literal": "2026-03-06",
+                        "meaning": "date"
+                      },
+                      {
+                        "literal": "25.00",
+                        "meaning": "detail amount"
+                      },
+                      {
+                        "literal": "Fee detail and subtotal",
+                        "meaning": "description"
+                      },
+                      {
+                        "literal": "125.00",
+                        "meaning": "subtotal amount"
+                      }
+                    ]
+                  }
+                ],
+                "kind": "table"
+              }
+            ]
+          },
+          "task": "Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.",
+          "type_cards": [
+            {
+              "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+              "nearest_competitor": {
+                "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.",
+                "type_key": "type_2"
+              },
+              "negative_signal": "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+              "positive_signal": "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+              "title": "Cash balance snapshot",
+              "type_key": "type_1"
+            },
+            {
+              "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+              "nearest_competitor": {
+                "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.",
+                "type_key": "type_1"
+              },
+              "negative_signal": "A total calculated by Gate 2 from child rows.",
+              "positive_signal": "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+              "title": "Printed financial metric",
+              "type_key": "type_2"
+            }
+          ],
+          "unclassified_reasons": [
+            {
+              "code": "no_registry_type",
+              "title": "No available type matches",
+              "use_when": "Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning."
+            },
+            {
+              "code": "single_registry_type_no_safe_record",
+              "title": "One matching type, no safe record",
+              "use_when": "Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type."
+            },
+            {
+              "code": "ambiguous_registry_type",
+              "title": "Multiple available types remain plausible",
+              "use_when": "Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely."
+            }
+          ]
+        },
+        "exact_semantic_context_serialized": "{\"task\":\"Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.\",\"source\":{\"children\":[{\"kind\":\"table\",\"children\":[{\"kind\":\"row\",\"values\":[{\"meaning\":\"currency\",\"literal\":\"USD\"},{\"meaning\":\"date\",\"literal\":\"2026-03-06\"},{\"meaning\":\"detail amount\",\"literal\":\"25.00\"},{\"meaning\":\"description\",\"literal\":\"Fee detail and subtotal\"},{\"meaning\":\"subtotal amount\",\"literal\":\"125.00\"}]}]}]},\"type_cards\":[{\"type_key\":\"type_1\",\"title\":\"Cash balance snapshot\",\"definition\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"positive_signal\":\"A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.\",\"negative_signal\":\"A synthetic row states a segregated regulatory asset without an ordinary cash classification.\",\"nearest_competitor\":{\"type_key\":\"type_2\",\"distinction\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"}},{\"type_key\":\"type_2\",\"title\":\"Printed financial metric\",\"definition\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"positive_signal\":\"A synthetic statement prints a labelled total for an explicit period and statement scope.\",\"negative_signal\":\"A total calculated by Gate 2 from child rows.\",\"nearest_competitor\":{\"type_key\":\"type_1\",\"distinction\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"}}],\"choices\":[],\"unclassified_reasons\":[{\"code\":\"no_registry_type\",\"title\":\"No available type matches\",\"use_when\":\"Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning.\"},{\"code\":\"single_registry_type_no_safe_record\",\"title\":\"One matching type, no safe record\",\"use_when\":\"Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type.\"},{\"code\":\"ambiguous_registry_type\",\"title\":\"Multiple available types remain plausible\",\"use_when\":\"Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely.\"}]}",
+        "exact_system_message": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+        "hashes": {
+          "canonical_schema_sha256": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
+          "exact_system_message_utf8_sha256": "a73c8b85514ec2310882b4b03101253233108e0c99d5dcdfd3830256179f6210",
+          "exact_user_content_utf8_sha256": "bfbe343eff9f269cdbe87b677cd8a1657c75c4d7d4fb199c6edb83a79020eba0",
+          "model_visible_request_sha256": "c6f53bdf45df0ccbc26b67c71f48cc9b638d70132ed0f4f156b6e994c6a72116",
+          "semantic_context_canonical_sha256": "164d1f2bffe8fa5f35b030493380889d83d293e3b416ca5037168ff0829a9f7d"
+        },
+        "provider_semantic_context_byte_identical": true,
+        "typed_branch_present": false,
+        "unclassified_branch_present": true
+      },
+      "facts_before_interpretation": [
+        "The exact source contains 5 values in one row.",
+        "The exact visible source literals, in model order, are [\"USD\",\"2026-03-06\",\"25.00\",\"Fee detail and subtotal\",\"125.00\"].",
+        "Association visibility is partial: The exact meanings distinguish detail amount from subtotal amount, but the flat row contains no explicit pair or relationship binding.",
+        "The exact choices array contains 0 entries.",
+        "The canonical schema contains no typed branch.",
+        "The canonical schema contains the unclassified branch.",
+        "Both exact outputs contain choice=unclassified.",
+        "The independently audited plausible local type set is [type_2].",
+        "The independently audited plausible type count is 1.",
+        "The independently audited expected canonical answer is {\"disposition\":\"unclassified_financial_input\",\"reason_code\":\"single_registry_type_no_safe_record\"}.",
+        "The exact expected reason is single_registry_type_no_safe_record; Nano returned no_registry_type; Haiku returned single_registry_type_no_safe_record."
+      ],
+      "ordinal": 2,
+      "providers": [
+        {
+          "adapter": {
+            "id": "openai_response_format",
+            "version": "1.1.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "24dd3e8c49c83819b8b8eb1232796685a7fd36b330a0b02bad550eed11411cc0",
+            "hash_basis": "canonical_json_value",
+            "storage_type": "object",
+            "value": {
+              "choice": "unclassified",
+              "reason": "no_registry_type"
+            }
+          },
+          "exact_model_id": "gpt-5.4-nano-2026-03-17",
+          "field_level_diff": {
+            "all_fields_match": false,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "no_registry_type",
+                "exact_match": false,
+                "expected_present": true,
+                "expected_value": "single_registry_type_no_safe_record",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Nano",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "no_registry_type"
+          },
+          "provider_id": "openai",
+          "provider_profile_id": "openai_gpt",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "broker_reports_gate2_choice": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "choice": {
+                          "enum": [
+                            "unclassified"
+                          ],
+                          "type": "string"
+                        },
+                        "reason": {
+                          "enum": [
+                            "no_registry_type",
+                            "single_registry_type_no_safe_record",
+                            "ambiguous_registry_type"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "choice",
+                        "reason"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "broker_reports_gate2_choice"
+              ],
+              "type": "object"
+            },
+            "provider_request_wrapper": "openai_response_format",
+            "provider_visible_schema_location": "response_format.json_schema.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": "properties.broker_reports_gate2_choice",
+              "name": "broker_reports_gate2_choice",
+              "strict": true,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 1,
+            "stream_field": {
+              "present": true,
+              "value": false
+            },
+            "system_message_location": "messages[0].content",
+            "token_limit": {
+              "field": "max_completion_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_completion_tokens",
+              "messages",
+              "model",
+              "response_format",
+              "stream"
+            ],
+            "user_content_location": "messages[1].content"
+          }
+        },
+        {
+          "adapter": {
+            "id": "anthropic_native_messages",
+            "version": "1.2.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "0f75e99f1d2746e4c310eebcbaa471c5a3133614ce61099a001fde4e535a72ad",
+            "hash_basis": "exact_utf8_string",
+            "storage_type": "string",
+            "value": "{\"choice\": \"unclassified\", \"reason\": \"single_registry_type_no_safe_record\"}"
+          },
+          "exact_model_id": "claude-haiku-4-5-20251001",
+          "field_level_diff": {
+            "all_fields_match": true,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "single_registry_type_no_safe_record",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "single_registry_type_no_safe_record",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Haiku",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "single_registry_type_no_safe_record"
+          },
+          "provider_id": "anthropic",
+          "provider_profile_id": "anthropic_claude",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "no_registry_type",
+                        "single_registry_type_no_safe_record",
+                        "ambiguous_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "provider_request_wrapper": "anthropic_native_messages",
+            "provider_visible_schema_location": "output_config.format.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": null,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 0,
+            "stream_field": {
+              "present": false
+            },
+            "system_message_location": "system",
+            "token_limit": {
+              "field": "max_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_tokens",
+              "messages",
+              "model",
+              "output_config",
+              "system"
+            ],
+            "user_content_location": "messages[0].content"
+          }
+        }
+      ],
+      "source": {
+        "association_basis": "The exact meanings distinguish detail amount from subtotal amount, but the flat row contains no explicit pair or relationship binding.",
+        "association_visible": "partial",
+        "exact_source_json": {
+          "children": [
+            {
+              "children": [
+                {
+                  "kind": "row",
+                  "values": [
+                    {
+                      "literal": "USD",
+                      "meaning": "currency"
+                    },
+                    {
+                      "literal": "2026-03-06",
+                      "meaning": "date"
+                    },
+                    {
+                      "literal": "25.00",
+                      "meaning": "detail amount"
+                    },
+                    {
+                      "literal": "Fee detail and subtotal",
+                      "meaning": "description"
+                    },
+                    {
+                      "literal": "125.00",
+                      "meaning": "subtotal amount"
+                    }
+                  ]
+                }
+              ],
+              "kind": "table"
+            }
+          ]
+        },
+        "exact_source_sha256": "1ace0eee5e8887802488b2f1bb8ffce6b0c6d395f817508dc9c01bdcbf2c5ada",
+        "fixture_case_sha256": "b2d6364b966713f8ec20ab792a9c7d662f0684a339d89ee50db8cd57d530af4e",
+        "table_json_parity": {
+          "duplicate_mappings_total": 0,
+          "exact_matches_total": 5,
+          "literal_mismatches_total": 0,
+          "missing_total": 0,
+          "source_values_total": 5,
+          "table_rows_total": 5
+        },
+        "table_rows": [
+          {
+            "literal": "USD",
+            "meaning": "currency"
+          },
+          {
+            "literal": "2026-03-06",
+            "meaning": "date"
+          },
+          {
+            "literal": "25.00",
+            "meaning": "detail amount"
+          },
+          {
+            "literal": "Fee detail and subtotal",
+            "meaning": "description"
+          },
+          {
+            "literal": "125.00",
+            "meaning": "subtotal amount"
+          }
+        ]
+      }
+    },
+    {
+      "bounded_interpretation": [
+        {
+          "bounded_finding": "All four values survive in one simple row; no projection defect creating two meanings is shown.",
+          "evidence_strength": "hypothesis",
+          "layer": "source_projection"
+        },
+        {
+          "bounded_finding": "The full Pack detail-row exclusion is absent from the minimal visible card; its causal effect is unobserved.",
+          "evidence_strength": "supported",
+          "layer": "type_glossary"
+        },
+        {
+          "bounded_finding": "Two structural choices are visible while the audited plausible type set is empty.",
+          "evidence_strength": "supported",
+          "layer": "choices_presentation"
+        },
+        {
+          "bounded_finding": "The proven mismatch locus is plausible-type cardinality 0 to 2+; the contract is not thereby proven causal.",
+          "evidence_strength": "proven",
+          "layer": "reason_contract"
+        },
+        {
+          "bounded_finding": "Capability cannot be separated from the supported presentation risks.",
+          "evidence_strength": "hypothesis",
+          "layer": "model_capability"
+        },
+        {
+          "bounded_finding": "Pack, reason catalog and corrected audit reproduce zero plausible types; expected_answer_defect_supported=false.",
+          "evidence_strength": "not supported",
+          "historical_exploratory_label": "hypothesis",
+          "layer": "expected_answer_defect"
+        }
+      ],
+      "case_id": "syn_successor_v2_no_registry_type",
+      "comparison": {
+        "independently_audited_expected_answer": {
+          "disposition": "unclassified_financial_input",
+          "reason_code": "no_registry_type"
+        },
+        "plausible_local_type_set": []
+      },
+      "context": {
+        "allowed_reason_codes": [
+          "no_registry_type",
+          "single_registry_type_no_safe_record",
+          "ambiguous_registry_type"
+        ],
+        "choices_count": 2,
+        "exact_canonical_response_schema": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "enum": [
+                    "choice_1",
+                    "choice_2"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "choice"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "choice": {
+                  "enum": [
+                    "unclassified"
+                  ],
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "no_registry_type",
+                    "single_registry_type_no_safe_record",
+                    "ambiguous_registry_type"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "choice",
+                "reason"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "exact_semantic_context": {
+          "choices": [
+            {
+              "choice_key": "choice_1",
+              "title": "Printed financial metric"
+            },
+            {
+              "choice_key": "choice_2",
+              "title": "Cash balance snapshot"
+            }
+          ],
+          "source": {
+            "children": [
+              {
+                "children": [
+                  {
+                    "kind": "row",
+                    "values": [
+                      {
+                        "literal": "42.25",
+                        "meaning": "amount"
+                      },
+                      {
+                        "literal": "CHF",
+                        "meaning": "currency"
+                      },
+                      {
+                        "literal": "2026-03-04",
+                        "meaning": "date"
+                      },
+                      {
+                        "literal": "Broker fee detail",
+                        "meaning": "description"
+                      }
+                    ]
+                  }
+                ],
+                "kind": "table"
+              }
+            ]
+          },
+          "task": "Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.",
+          "type_cards": [
+            {
+              "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+              "nearest_competitor": {
+                "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.",
+                "type_key": "type_2"
+              },
+              "negative_signal": "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+              "positive_signal": "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+              "title": "Cash balance snapshot",
+              "type_key": "type_1"
+            },
+            {
+              "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+              "nearest_competitor": {
+                "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.",
+                "type_key": "type_1"
+              },
+              "negative_signal": "A total calculated by Gate 2 from child rows.",
+              "positive_signal": "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+              "title": "Printed financial metric",
+              "type_key": "type_2"
+            }
+          ],
+          "unclassified_reasons": [
+            {
+              "code": "no_registry_type",
+              "title": "No available type matches",
+              "use_when": "Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning."
+            },
+            {
+              "code": "single_registry_type_no_safe_record",
+              "title": "One matching type, no safe record",
+              "use_when": "Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type."
+            },
+            {
+              "code": "ambiguous_registry_type",
+              "title": "Multiple available types remain plausible",
+              "use_when": "Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely."
+            }
+          ]
+        },
+        "exact_semantic_context_serialized": "{\"task\":\"Select one choice only when the visible source, type cards, and any shown differentiators uniquely support it; otherwise select unclassified.\",\"source\":{\"children\":[{\"kind\":\"table\",\"children\":[{\"kind\":\"row\",\"values\":[{\"meaning\":\"amount\",\"literal\":\"42.25\"},{\"meaning\":\"currency\",\"literal\":\"CHF\"},{\"meaning\":\"date\",\"literal\":\"2026-03-04\"},{\"meaning\":\"description\",\"literal\":\"Broker fee detail\"}]}]}]},\"type_cards\":[{\"type_key\":\"type_1\",\"title\":\"Cash balance snapshot\",\"definition\":\"A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.\",\"positive_signal\":\"A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.\",\"negative_signal\":\"A synthetic row states a segregated regulatory asset without an ordinary cash classification.\",\"nearest_competitor\":{\"type_key\":\"type_2\",\"distinction\":\"Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.\"}},{\"type_key\":\"type_2\",\"title\":\"Printed financial metric\",\"definition\":\"A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.\",\"positive_signal\":\"A synthetic statement prints a labelled total for an explicit period and statement scope.\",\"negative_signal\":\"A total calculated by Gate 2 from child rows.\",\"nearest_competitor\":{\"type_key\":\"type_1\",\"distinction\":\"A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.\"}}],\"choices\":[{\"choice_key\":\"choice_1\",\"title\":\"Printed financial metric\"},{\"choice_key\":\"choice_2\",\"title\":\"Cash balance snapshot\"}],\"unclassified_reasons\":[{\"code\":\"no_registry_type\",\"title\":\"No available type matches\",\"use_when\":\"Source-stated financial values are present, but none of the available financial type definitions matches their visible meaning.\"},{\"code\":\"single_registry_type_no_safe_record\",\"title\":\"One matching type, no safe record\",\"use_when\":\"Exactly one available financial type remains plausible, but the visible source does not uniquely support one complete prebound record for that type.\"},{\"code\":\"ambiguous_registry_type\",\"title\":\"Multiple available types remain plausible\",\"use_when\":\"Source-stated financial values are present and two or more distinct available financial type definitions remain plausible after all visible evidence is considered, so no single type can be selected safely.\"}]}",
+        "exact_system_message": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+        "hashes": {
+          "canonical_schema_sha256": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
+          "exact_system_message_utf8_sha256": "a73c8b85514ec2310882b4b03101253233108e0c99d5dcdfd3830256179f6210",
+          "exact_user_content_utf8_sha256": "8475b9ce840a4801b4792a347306a5ba85a40a8d10e08e9cfcd80d5b914b1007",
+          "model_visible_request_sha256": "b2edde39e5ae1b9f1a871db49bdfb619dc5f7c719169ccd42231187cc0963a6a",
+          "semantic_context_canonical_sha256": "325ffaa465144c3ccd1ba9a17e7d032ac1d14fccd20331561fc599037457db49"
+        },
+        "provider_semantic_context_byte_identical": true,
+        "typed_branch_present": true,
+        "unclassified_branch_present": true
+      },
+      "facts_before_interpretation": [
+        "The exact source contains 4 values in one row.",
+        "The exact visible source literals, in model order, are [\"42.25\",\"CHF\",\"2026-03-04\",\"Broker fee detail\"].",
+        "Association visibility is yes: One amount, currency, date and description are grouped in one row with no competing value pair.",
+        "The exact choices array contains 2 entries.",
+        "The canonical schema contains a typed branch.",
+        "The canonical schema contains the unclassified branch.",
+        "Both exact outputs contain choice=unclassified.",
+        "The independently audited plausible local type set is [].",
+        "The independently audited plausible type count is 0.",
+        "The independently audited expected canonical answer is {\"disposition\":\"unclassified_financial_input\",\"reason_code\":\"no_registry_type\"}.",
+        "The exact expected reason is no_registry_type; Nano returned no_registry_type; Haiku returned ambiguous_registry_type."
+      ],
+      "ordinal": 3,
+      "providers": [
+        {
+          "adapter": {
+            "id": "openai_response_format",
+            "version": "1.1.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "24dd3e8c49c83819b8b8eb1232796685a7fd36b330a0b02bad550eed11411cc0",
+            "hash_basis": "canonical_json_value",
+            "storage_type": "object",
+            "value": {
+              "choice": "unclassified",
+              "reason": "no_registry_type"
+            }
+          },
+          "exact_model_id": "gpt-5.4-nano-2026-03-17",
+          "field_level_diff": {
+            "all_fields_match": true,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "no_registry_type",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "no_registry_type",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Nano",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "no_registry_type"
+          },
+          "provider_id": "openai",
+          "provider_profile_id": "openai_gpt",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "broker_reports_gate2_choice": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "choice": {
+                          "enum": [
+                            "choice_1",
+                            "choice_2"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "choice"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "choice": {
+                          "enum": [
+                            "unclassified"
+                          ],
+                          "type": "string"
+                        },
+                        "reason": {
+                          "enum": [
+                            "no_registry_type",
+                            "single_registry_type_no_safe_record",
+                            "ambiguous_registry_type"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "choice",
+                        "reason"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "broker_reports_gate2_choice"
+              ],
+              "type": "object"
+            },
+            "provider_request_wrapper": "openai_response_format",
+            "provider_visible_schema_location": "response_format.json_schema.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": "properties.broker_reports_gate2_choice",
+              "name": "broker_reports_gate2_choice",
+              "strict": true,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 1,
+            "stream_field": {
+              "present": true,
+              "value": false
+            },
+            "system_message_location": "messages[0].content",
+            "token_limit": {
+              "field": "max_completion_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_completion_tokens",
+              "messages",
+              "model",
+              "response_format",
+              "stream"
+            ],
+            "user_content_location": "messages[1].content"
+          }
+        },
+        {
+          "adapter": {
+            "id": "anthropic_native_messages",
+            "version": "1.2.0"
+          },
+          "exact_adapter_output": {
+            "exact_output_sha256": "b6c6f5528d9de0c548d0d6191e3ff32c9ebd4b713d786c680b228951af1a8c03",
+            "hash_basis": "exact_utf8_string",
+            "storage_type": "string",
+            "value": "{\"choice\":\"unclassified\",\"reason\":\"ambiguous_registry_type\"}"
+          },
+          "exact_model_id": "claude-haiku-4-5-20251001",
+          "field_level_diff": {
+            "all_fields_match": false,
+            "fields": [
+              {
+                "actual_present": true,
+                "actual_value": "unclassified_financial_input",
+                "exact_match": true,
+                "expected_present": true,
+                "expected_value": "unclassified_financial_input",
+                "field": "disposition"
+              },
+              {
+                "actual_present": true,
+                "actual_value": "ambiguous_registry_type",
+                "exact_match": false,
+                "expected_present": true,
+                "expected_value": "no_registry_type",
+                "field": "reason_code"
+              }
+            ]
+          },
+          "model_label": "Haiku",
+          "normalized_canonical_answer": {
+            "disposition": "unclassified_financial_input",
+            "reason_code": "ambiguous_registry_type"
+          },
+          "provider_id": "anthropic",
+          "provider_profile_id": "anthropic_claude",
+          "wrapper_delta": {
+            "exact_provider_visible_schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "choice_1",
+                        "choice_2"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "choice": {
+                      "enum": [
+                        "unclassified"
+                      ],
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "no_registry_type",
+                        "single_registry_type_no_safe_record",
+                        "ambiguous_registry_type"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choice",
+                    "reason"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "provider_request_wrapper": "anthropic_native_messages",
+            "provider_visible_schema_location": "output_config.format.schema",
+            "provider_visible_schema_wrapper": {
+              "canonical_schema_nested_under": null,
+              "type": "json_schema"
+            },
+            "schema_transformation_count": 0,
+            "stream_field": {
+              "present": false
+            },
+            "system_message_location": "system",
+            "token_limit": {
+              "field": "max_tokens",
+              "value": 640
+            },
+            "top_level_fields": [
+              "max_tokens",
+              "messages",
+              "model",
+              "output_config",
+              "system"
+            ],
+            "user_content_location": "messages[0].content"
+          }
+        }
+      ],
+      "source": {
+        "association_basis": "One amount, currency, date and description are grouped in one row with no competing value pair.",
+        "association_visible": "yes",
+        "exact_source_json": {
+          "children": [
+            {
+              "children": [
+                {
+                  "kind": "row",
+                  "values": [
+                    {
+                      "literal": "42.25",
+                      "meaning": "amount"
+                    },
+                    {
+                      "literal": "CHF",
+                      "meaning": "currency"
+                    },
+                    {
+                      "literal": "2026-03-04",
+                      "meaning": "date"
+                    },
+                    {
+                      "literal": "Broker fee detail",
+                      "meaning": "description"
+                    }
+                  ]
+                }
+              ],
+              "kind": "table"
+            }
+          ]
+        },
+        "exact_source_sha256": "b28d94f13eb34f7ac374ec7d1e35f0705414ca483b446cc6e21259059c276b65",
+        "fixture_case_sha256": "1c269989f6afb31809fc6f242341f3a6777b4f8da1de7041f395e3737cde507f",
+        "table_json_parity": {
+          "duplicate_mappings_total": 0,
+          "exact_matches_total": 4,
+          "literal_mismatches_total": 0,
+          "missing_total": 0,
+          "source_values_total": 4,
+          "table_rows_total": 4
+        },
+        "table_rows": [
+          {
+            "literal": "42.25",
+            "meaning": "amount"
+          },
+          {
+            "literal": "CHF",
+            "meaning": "currency"
+          },
+          {
+            "literal": "2026-03-04",
+            "meaning": "date"
+          },
+          {
+            "literal": "Broker fee detail",
+            "meaning": "description"
+          }
+        ]
+      }
+    }
+  ],
+  "change_accounting": {
+    "choice_changes_total": 0,
+    "context_changes_total": 0,
+    "corrective_implementation_changes_total": 0,
+    "expected_answer_changes_total": 0,
+    "historical_files_modified_total": 0,
+    "product_logic_changes_total": 0,
+    "prompt_changes_total": 0,
+    "runtime_changes_total": 0,
+    "semantic_pack_changes_total": 0,
+    "source_projection_changes_total": 0
+  },
+  "execution_accounting": {
+    "fallback_total": 0,
+    "provider_calls_total": 0,
+    "provider_responses_total": 0,
+    "provider_submissions_total": 0,
+    "repair_total": 0,
+    "retry_total": 0
+  },
+  "final_refactor_choice": "not_selected",
+  "integrity_sha256": "be1035b1b2a0b0b2909dfd77bd3e63ab2462db2134dc7108019f2607dab9f97a",
+  "model_ids": [
+    "gpt-5.4-nano-2026-03-17",
+    "claude-haiku-4-5-20251001"
+  ],
+  "production_admissions": [],
+  "schema_version": "broker_reports_gate2_context_v2_1_comparative_evidence_v1",
+  "source_evidence": [
+    {
+      "identity": "goal12_precall_plan",
+      "repository_lf_sha256": "2b3a25cd04f0fffc6532477a44b93f6ce78e7e32f76bc239cceb13a2f5abacfe"
+    },
+    {
+      "identity": "goal12_precall_transparent",
+      "repository_lf_sha256": "f64ef2e1daa92cc3eaa204ed34f1e753595ce0d4c7a4fd937492a6c145c58537"
+    },
+    {
+      "identity": "goal12_terminal_report",
+      "repository_lf_sha256": "fa5d4e6d5961124e59bcd4204291772476dc7afb6c41ee80b719b658b3d3664b"
+    },
+    {
+      "identity": "goal12_terminal_transparent",
+      "repository_lf_sha256": "7f4718f13763c9963592326e8481072606219435495fb6fbd59655a881197281"
+    },
+    {
+      "identity": "goal12_terminal_receipt",
+      "repository_lf_sha256": "b4e77203c7fdffd96ad09b4a7ef5364ccef09072c8fc645e38a36a142dfffc8b"
+    },
+    {
+      "identity": "goal13_forensic_report",
+      "repository_lf_sha256": "7161542710ef9c33a45d3c16fb30f10ed97636e1d59d6c2e01bad88083a0379b"
+    },
+    {
+      "identity": "goal13_forensic_receipt",
+      "repository_lf_sha256": "7c350ce0b24c8e252fc963cf9d9d7c05d3a895c169fb855dcb16afcfc9226735"
+    },
+    {
+      "identity": "successor_v2_fixture_manifest",
+      "repository_lf_sha256": "448a3ea8622a6421c292e5daccef4c5ae65c38a7720a83e1cb8151daa4d2e1aa"
+    },
+    {
+      "identity": "corrected_outcome_audit",
+      "repository_lf_sha256": "9d99e32d80a38a3621821d0e1918584a82615cca1cf1212e481f5e52811b8249"
+    },
+    {
+      "identity": "unchanged_semantic_pack",
+      "repository_lf_sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f"
+    },
+    {
+      "identity": "managed_reason_catalog_v2",
+      "repository_lf_sha256": "cb784fe262c08297b9cd71c84e2bf36195d214f7aec82f3cc74f5707a24dde24"
+    }
+  ],
+  "status": "completed_offline_comparative_review",
+  "synthetic_evidence_only": true,
+  "verification": {
+    "context_matches_goal12": true,
+    "expected_answers_match_corrected_audit": true,
+    "haiku_outputs_match_goal12": true,
+    "historical_goal12_goal13_repository_lf_hashes_match": true,
+    "nano_outputs_match_goal12": true,
+    "privacy_validation": "passed",
+    "report_scope_case_ids": [
+      "syn_successor_v2_multiple_compatible",
+      "syn_successor_v2_detail_vs_subtotal",
+      "syn_successor_v2_no_registry_type"
+    ],
+    "source_authority_repository_lf_hashes_match": true,
+    "table_json_parity": {
+      "duplicate_mappings_total": 0,
+      "exact_matches_total": 15,
+      "literal_mismatches_total": 0,
+      "missing_total": 0,
+      "source_values_total": 15,
+      "table_rows_total": 15
+    }
+  }
+}
