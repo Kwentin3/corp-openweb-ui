@@ -248,6 +248,23 @@ reason/cardinality error locus but does not prove a source, glossary, choices,
 contract or model-capability root cause. It performs no provider call and does
 not start a corrective refactor or the full benchmark.
 
+Current repository-safe GOAL 14 comparative evidence:
+
+- [evidence-first comparative review](../../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.report.md);
+- [transparent comparative evidence](../../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.transparent.json);
+- [privacy-safe receipt](../../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.receipt.safe.json).
+
+GOAL 14 compares exactly the three disputed synthetic cases. It preserves one
+exact semantic-context copy per case, the canonical response schema, both
+adapter-extracted outputs, the corrected expected answer, plausible type set,
+mechanical field diff and bounded layer interpretation. The deterministic
+offline builder is checked with
+`python scripts/build_context_v2_1_comparative_evidence_pack.py --check`; the
+`broker-reports-ci` job also runs its behavioral test. The builder reads only
+hash-pinned stored authorities. Provider calls and runtime/product changes are
+zero, historical GOAL 12/13 artifacts remain byte-identical, no causal root or
+final refactor is selected.
+
 The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
 deterministic candidate bytes,
 model-view hash, local-key bijections, necessary reference targets,
