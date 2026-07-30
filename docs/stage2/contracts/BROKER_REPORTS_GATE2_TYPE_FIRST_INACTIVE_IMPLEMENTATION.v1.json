@@ -1,0 +1,622 @@
+{
+  "schema_version": "broker_reports_gate2_type_first_inactive_implementation_amendment_v1",
+  "amendment_identity": "broker_reports_gate2_type_first_inactive_implementation_v1",
+  "base_contract_identity": "broker_reports_gate2_type_first_fail_closed_v1",
+  "status": {
+    "active": false,
+    "transport_eligible": false,
+    "runtime_activation": false,
+    "provider_calls_total": 0,
+    "provider_submissions_total": 0,
+    "provider_responses_total": 0,
+    "retry_total": 0,
+    "repair_total": 0,
+    "semantic_repair_total": 0,
+    "fallback_total": 0,
+    "production_admissions_change_total": 0,
+    "new_authorities_total": 0
+  },
+  "profile_identities": {
+    "context_profile": "broker_reports_gate2_type_first_context_v1_candidate",
+    "private_mapping_receipt": "broker_reports_gate2_type_first_mapping_receipt_v1",
+    "response_profile": "broker_reports_gate2_type_first_plausible_types_response_v1",
+    "sealed_request_receipt": "broker_reports_gate2_type_first_sealed_request_receipt_v1",
+    "request_profile": "financial_semantic_v6_type_first_local_proof_v1",
+    "provider_schema_projection_policy": "broker_reports_gate2_type_first_local_schema_projection_v1",
+    "decision_policy": "broker_reports_gate2_type_first_fail_closed_policy_v1",
+    "expansion_profile": "broker_reports_gate2_type_first_decision_expansion_v1",
+    "evidence_profile": "broker_reports_gate2_type_first_decision_evidence_v1",
+    "technical_failure_evidence_profile": "broker_reports_gate2_type_first_technical_failure_evidence_v1",
+    "replay_profile": "broker_reports_gate2_type_first_decision_replay_v1",
+    "economy_profile": "broker_reports_gate2_type_first_one_call_no_fallback_v1",
+    "qualification_profile_declaration": "broker_reports_gate2_type_first_qualification_profile_v1"
+  },
+  "packet_profile": {
+    "owner": "Gate2FinancialSemanticV6PacketFactory",
+    "additive_entrypoint": "create_type_first_candidate",
+    "field_order": [
+      "task",
+      "source",
+      "type_cards"
+    ],
+    "root_fields_total": 3,
+    "exact_task": "Return every type_key from type_cards whose financial meaning remains plausible for the visible source. Return all plausible types, not only the best one. Judge type plausibility independently of whether code can construct a complete record. Preserve type_cards order.",
+    "source_rule": "byte_equivalent_copy_of_current_context_v2_1_source",
+    "type_cards_rule": "byte_equivalent_copy_of_current_context_v2_1_type_cards_in_current_order",
+    "serialization": "utf8_minified_json_preserve_insertion_order_non_finite_forbidden",
+    "excluded_model_visible_fields": [
+      "choices",
+      "complete_options",
+      "differentiators",
+      "unclassified_reasons",
+      "canonical_type_ids",
+      "typed_option_ids",
+      "compiler_option_counts",
+      "bindings",
+      "refs",
+      "hashes",
+      "materialization_metadata"
+    ],
+    "historical_context_v2_builder_called": false,
+    "active_packet_changed": false
+  },
+  "private_mapping_receipt": {
+    "owner": "Gate2FinancialSemanticV6PacketFactory",
+    "model_visible": false,
+    "field_order": [
+      "schema_version",
+      "policy_version",
+      "context_profile",
+      "context_view_sha256",
+      "source_projection_sha256",
+      "visible_type_card_order",
+      "local_to_canonical_type_ids",
+      "semantic_pack_identity",
+      "managed_projection_identity",
+      "evidence_bundle_scope",
+      "candidate_compilation_scope",
+      "provider_calls_total",
+      "integrity_sha256"
+    ],
+    "mapping_source": "current_context_v2_1_type_mappings",
+    "index_derived_mapping_allowed": false,
+    "integrity_rule": "sha256_of_canonical_sorted_compact_json_without_integrity_sha256",
+    "binding_error_codes": {
+      "source_projection": "source_hash_drift",
+      "semantic_pack_or_managed_projection": "pack_projection_drift",
+      "evidence_bundle_scope": "evidence_bundle_scope_mismatch",
+      "candidate_compilation_scope": "candidate_compilation_scope_mismatch",
+      "mapping_or_receipt_integrity": "mapping_receipt_mismatch"
+    }
+  },
+  "response_contract": {
+    "owner": "Gate2FinancialSemanticV6ChoiceContractFactory",
+    "additive_factory_entrypoint": "create_type_first_response_profile",
+    "parser": "normalize_financial_semantic_v6_type_first_response",
+    "logical_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plausible_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "type_1",
+              "type_2"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "plausible_types"
+      ]
+    },
+    "real_profile_enum_binding": "exact_visible_type_cards[*].type_key",
+    "real_profile_max_items_binding": "count(exact_visible_type_cards)",
+    "ordered_set_rule": "exact_subsequence_of_visible_type_card_order",
+    "repair_sort_dedupe_allowed": false,
+    "error_precedence": [
+      {
+        "condition": "json_decode_failure",
+        "error_code": "malformed_json"
+      },
+      {
+        "condition": "duplicate_root_json_member",
+        "error_code": "duplicate_response_field"
+      },
+      {
+        "condition": "response_root_not_object",
+        "error_code": "response_root_not_object"
+      },
+      {
+        "condition": "missing_plausible_types",
+        "error_code": "missing_plausible_types"
+      },
+      {
+        "condition": "extra_response_field",
+        "error_code": "extra_response_field"
+      },
+      {
+        "condition": "plausible_types_null",
+        "error_code": "plausible_types_null"
+      },
+      {
+        "condition": "plausible_types_not_array",
+        "error_code": "plausible_types_not_array"
+      },
+      {
+        "condition": "backend_type_id_present",
+        "error_code": "backend_type_id_forbidden"
+      },
+      {
+        "condition": "non_string_or_unknown_local_key",
+        "error_code": "unknown_type_key"
+      },
+      {
+        "condition": "duplicate_local_key",
+        "error_code": "duplicate_type_key"
+      },
+      {
+        "condition": "out_of_order_local_keys",
+        "error_code": "out_of_order_type_keys"
+      }
+    ],
+    "goal16_markdown_omission_clarified": "response_root_not_object",
+    "additive_parser_totality_error": "duplicate_response_field"
+  },
+  "sealed_request_contract": {
+    "owner": "Gate2FinancialSemanticV6ContextLinterFactory",
+    "additive_entrypoint": "create_type_first",
+    "exact_system_prompt_owner": "Gate2FinancialSemanticV6ContextLinterFactory Type-First profile",
+    "exact_system_message": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+    "maximum_provider_neutral_logical_request_utf8_bytes": 2500,
+    "logical_request_measurement_basis": "exact_response_schema_plus_exact_user_context",
+    "request_shape": {
+      "message_roles": [
+        "system",
+        "user"
+      ],
+      "response_format_type": "json_schema",
+      "strict": true
+    },
+    "required_bindings": [
+      "complete_model_visible_request_hash",
+      "context_view_sha256",
+      "response_schema_sha256",
+      "system_prompt_sha256",
+      "mapping_receipt_integrity_sha256",
+      "semantic_pack_identity",
+      "managed_projection_identity",
+      "evidence_bundle_scope",
+      "candidate_compilation_scope"
+    ],
+    "technical_failure_financial_domain_write_total": 0
+  },
+  "request_builder_contract": {
+    "owner": "Gate2OpenWebUIRequestBuilder",
+    "additive_entrypoint": "build_from_sealed_type_first",
+    "generic_build_allowed": false,
+    "production_request_profiles_member": false,
+    "product_pipe_consumer_total": 0,
+    "native_transport_entrypoint_total": 0
+  },
+  "provider_adapter_contract": {
+    "owner": "Gate2ProviderAdapterFactory.create",
+    "existing_entrypoints": [
+      "prepare_form_data",
+      "Gate2PreparedProviderRequest.validate_schema_binding",
+      "extract_prepared_content"
+    ],
+    "required_provider_paths": [
+      "openai_gpt"
+    ],
+    "terminal_simulated_envelopes_exactly_one": true,
+    "provider_visible_schema_equals_canonical_schema": true,
+    "parser_reenforces_complete_logical_schema": true,
+    "additive_type_first_adapter_symbols_total": 0,
+    "semantic_decision_owned_by_adapter": false,
+    "transport_called": false
+  },
+  "decision_contract": {
+    "owner": "Gate2FinancialSemanticV6DecisionExpansionFactory",
+    "additive_entrypoint": "create_from_type_first_candidate",
+    "option_source": "Gate2FinancialCandidateCompilation.typed_options",
+    "blocked_compiler_attempts_count_as_options": false,
+    "option_count_changes_plausible_set": false,
+    "rows": [
+      {
+        "plausible_cardinality": "zero",
+        "matching_complete_option_cardinality": "any",
+        "disposition": "unclassified_financial_input",
+        "reason_code": "no_registry_type"
+      },
+      {
+        "plausible_cardinality": "two_or_more",
+        "matching_complete_option_cardinality": "any",
+        "disposition": "unclassified_financial_input",
+        "reason_code": "ambiguous_registry_type"
+      },
+      {
+        "plausible_cardinality": "one",
+        "matching_complete_option_cardinality": "zero",
+        "disposition": "unclassified_financial_input",
+        "reason_code": "single_registry_type_no_safe_record"
+      },
+      {
+        "plausible_cardinality": "one",
+        "matching_complete_option_cardinality": "two_or_more",
+        "disposition": "unclassified_financial_input",
+        "reason_code": "single_registry_type_no_safe_record"
+      },
+      {
+        "plausible_cardinality": "one",
+        "matching_complete_option_cardinality": "one",
+        "disposition": "typed_input",
+        "restoration": "exact_unchanged_v6_typed_option"
+      }
+    ],
+    "restoration_failure": "exact_code_owned_typed_option_mismatch"
+  },
+  "validation_materialization_contract": {
+    "canonical_validator": "Gate2FinancialEvidenceValidatedDecisionFactory.create",
+    "canonical_materializer": "Gate2FinancialEvidenceMaterializerFactory.create().materialize",
+    "v6_totality_owner": "Gate2FinancialSemanticV6TotalMaterializerFactory",
+    "v6_totality_changed": false,
+    "v6_totality_used_by_type_first": false,
+    "new_validator_total": 0,
+    "new_materializer_total": 0
+  },
+  "persistence_contract": {
+    "snapshot_owner": "Gate2FinancialDomainCatalogFactory.create",
+    "persistence_owner": "Gate2FinancialDomainPersistenceFactory",
+    "serialize_entrypoint": "serialize",
+    "restore_entrypoint": "restore",
+    "successful_replay_requires_exact_snapshot": true,
+    "technical_failure_snapshot_total": 0
+  },
+  "evidence_replay_contract": {
+    "owner": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+    "additive_entrypoint": "create_type_first_candidate",
+    "technical_failure_entrypoint": "create_type_first_technical_failure",
+    "replay_entrypoint": "replay_financial_semantic_v6_type_first_decision",
+    "private_evidence_required_fields": [
+      "exact_logical_request",
+      "exact_prepared_request",
+      "exact_simulated_terminal_envelope",
+      "adapter_extracted_content",
+      "parsed_ordered_plausible_types",
+      "canonical_choice",
+      "decision_expansion",
+      "canonical_materialization",
+      "serialized_financial_domain_snapshot",
+      "authority_hashes",
+      "zero_call_economy_accounting",
+      "independent_oracle_answer",
+      "comparator_counters"
+    ],
+    "safe_evidence_allowed": [
+      "allowlisted_identities",
+      "hashes",
+      "cardinalities",
+      "outcome_classes",
+      "error_classes",
+      "counter_values"
+    ],
+    "safe_evidence_forbidden": [
+      "source_literals",
+      "customer_values",
+      "raw_provider_content",
+      "credentials",
+      "local_paths"
+    ],
+    "technical_failure_behavior": {
+      "technical_evidence_retained": true,
+      "exact_private_invalid_input_retained": true,
+      "exact_invalid_input_safe_visible": false,
+      "failure_stage_and_exact_error_code_retained": true,
+      "available_authority_hashes_retained": true,
+      "safe_projection_fields": [
+        "invalid_input_sha256",
+        "exact_error_code",
+        "failure_stage",
+        "non_sensitive_counts"
+      ],
+      "replay_reproduces_same_exact_error_code": true,
+      "replay_repair_total": 0,
+      "canonical_decision_total": 0,
+      "materialized_record_total": 0,
+      "financial_domain_snapshot_total": 0
+    },
+    "replay_provider_calls_total": 0
+  },
+  "economy_contract": {
+    "owner": "Gate2EconomyBudgetSessionFactory.create",
+    "workload_class": "gate2_financial_evidence",
+    "maximum_provider_calls_per_operation": 1,
+    "maximum_fallback_calls_per_operation": 0,
+    "provider_calls_authorized_total": 0,
+    "provider_submissions_total": 0,
+    "provider_responses_total": 0,
+    "retry_total": 0,
+    "repair_total": 0,
+    "semantic_repair_total": 0,
+    "fallback_total": 0,
+    "historical_workload_profiles_changed": false,
+    "request_specific_no_fallback_guard_required": true
+  },
+  "qualification_contract": {
+    "coordinator_owner": "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator",
+    "goal17_additive_symbol": "type_first_profile_declaration",
+    "execute_slot_allowed": false,
+    "client_creation_allowed": false,
+    "slot_consumption_allowed": false,
+    "transport_allowed": false,
+    "comparison_owner": "Gate2FinancialSemanticV6DecisionEvidenceFactory.create_type_first_candidate",
+    "oracle_influences_product_decision": false,
+    "counters": [
+      "plausible_type_set_exact_total",
+      "false_empty_total",
+      "false_singleton_total",
+      "false_superset_total",
+      "wrong_singleton_type_total",
+      "false_singleton_typed_total",
+      "unsafe_typed_total",
+      "safe_under_typing_total",
+      "invalid_response_total"
+    ],
+    "hard_gates": {
+      "unsafe_typed_total": 0,
+      "false_singleton_typed_total": 0,
+      "wrong_singleton_type_total": 0,
+      "invalid_response_total": 0
+    }
+  },
+  "local_proof_contract": {
+    "orchestration": "maintained_goal17_support_builder_and_tests",
+    "product_runtime_imported": false,
+    "new_runtime_owner_total": 0,
+    "new_coordinator_total": 0,
+    "provider_calls_total": 0,
+    "required_provider_adapter_paths": 1,
+    "pipeline": [
+      "packet_candidate_and_private_mapping_receipt",
+      "choice_response_profile",
+      "context_linter_and_sealed_logical_request",
+      "request_builder",
+      "openai_prepared_request",
+      "one_simulated_terminal_openai_envelope",
+      "provider_adapter_extraction",
+      "type_first_parser",
+      "decision_expansion",
+      "canonical_validation_and_materialization",
+      "financial_domain_snapshot_serialize_restore",
+      "decision_evidence_serialize_restore",
+      "replay_and_exact_snapshot_comparison"
+    ],
+    "adversarial_cases": [
+      "true_zero_response_empty",
+      "true_singleton_one_matching_option",
+      "true_singleton_zero_matching_options",
+      "true_singleton_multiple_matching_options",
+      "true_multiple_response_multiple",
+      "true_multiple_false_singleton_one_matching_option",
+      "true_zero_false_singleton_one_matching_option",
+      "wrong_singleton_type",
+      "unknown_local_key",
+      "duplicate_local_key",
+      "out_of_order_local_keys",
+      "mapping_receipt_drift",
+      "pack_projection_hash_drift",
+      "source_projection_evidence_bundle_scope_drift",
+      "exact_option_restoration_mismatch",
+      "response_root_not_object",
+      "duplicate_root_response_member"
+    ],
+    "false_singleton_product_result_repaired_by_comparator": false
+  },
+  "compatibility_contract": {
+    "active_v6_packet_changed": false,
+    "historical_slim_changed": false,
+    "historical_context_v2_changed": false,
+    "context_v2_1_changed": false,
+    "active_choice_changed": false,
+    "historical_choice_changed": false,
+    "prompt_changed": false,
+    "managed_assets_changed": false,
+    "semantic_pack_changed": false,
+    "type_boundaries_changed": false,
+    "provider_transport_behavior_changed": false,
+    "openwebui_imports_changed": false,
+    "generated_bundle_bytes_changed": true,
+    "generated_bundle_change_reason": "deterministic_closed_world_rebuild_of_request_builder_and_economy_sources",
+    "generated_bundle_module_import_topology_changed": false,
+    "generated_bundle_type_first_product_consumer_total": 0,
+    "feature_valves_changed": false,
+    "product_pipes_changed": false,
+    "production_admissions_changed": false
+  },
+  "traceability": [
+    {
+      "clause": "TF-01",
+      "contract_subject": "identities_and_inactive_state",
+      "existing_owner": "V6 Packet Choice and Context Linter authorities",
+      "required_additive_symbol": "exact_profiles_listed_in_profile_identities",
+      "required_tests": [
+        "test_type_first_profiles_are_exact_inactive_and_transport_ineligible",
+        "test_context_v2_1_is_non_transport_and_provider_free"
+      ],
+      "evidence": "safe_profile_summaries"
+    },
+    {
+      "clause": "TF-02",
+      "contract_subject": "exact_three_field_packet",
+      "existing_owner": "Gate2FinancialSemanticV6PacketFactory",
+      "required_additive_symbol": "create_type_first_candidate",
+      "required_tests": [
+        "test_type_first_packet_reuses_exact_context_v2_1_source_and_cards",
+        "test_context_v2_1_has_exact_minimal_surface_and_literal_occurrence_parity"
+      ],
+      "evidence": "candidate_hash_and_byte_counts"
+    },
+    {
+      "clause": "TF-03",
+      "contract_subject": "private_mapping",
+      "existing_owner": "Gate2FinancialSemanticV6PacketFactory",
+      "required_additive_symbol": "type_first_mapping_receipt_and_validator",
+      "required_tests": [
+        "test_type_first_mapping_receipt_is_exact_private_and_tamper_evident",
+        "test_context_v2_1_receipt_restores_all_choices_and_bindings_exactly"
+      ],
+      "evidence": "private_receipt_hash_safe_hash_only"
+    },
+    {
+      "clause": "TF-04",
+      "contract_subject": "response_schema_and_parser",
+      "existing_owner": "Gate2FinancialSemanticV6ChoiceContractFactory",
+      "required_additive_symbol": "create_type_first_response_profile and normalize_financial_semantic_v6_type_first_response",
+      "required_tests": [
+        "test_exact_nine_response_negative_fixtures_fail_closed",
+        "test_type_first_parser_rejects_non_object_and_duplicate_root_keys"
+      ],
+      "evidence": "parsed_set_or_exact_technical_error"
+    },
+    {
+      "clause": "TF-05",
+      "contract_subject": "sealed_request",
+      "existing_owner": "Gate2FinancialSemanticV6ContextLinterFactory",
+      "required_additive_symbol": "create_type_first",
+      "required_tests": [
+        "test_type_first_linter_enforces_2500_bytes",
+        "test_all_governed_context_v2_1_requests_are_exact_sealed_and_within_budget"
+      ],
+      "evidence": "sealed_request_receipt"
+    },
+    {
+      "clause": "TF-06",
+      "contract_subject": "request_construction",
+      "existing_owner": "Gate2OpenWebUIRequestBuilder",
+      "required_additive_symbol": "build_from_sealed_type_first",
+      "required_tests": [
+        "test_type_first_request_profile_requires_sealed_entrypoint",
+        "test_context_v2_1_request_profile_cannot_bypass_the_sealed_entrypoint"
+      ],
+      "evidence": "exact_logical_and_prepared_request_hashes"
+    },
+    {
+      "clause": "TF-07",
+      "contract_subject": "provider_binding_and_extraction",
+      "existing_owner": "Gate2ProviderAdapterFactory and Gate2PreparedProviderRequest",
+      "required_additive_symbol": "none_existing_generic_prepare_validate_and_extract",
+      "required_tests": [
+        "test_type_first_openai_simulated_terminal_envelope_is_exact",
+        "test_type_first_prepared_request_and_schema_drift_fail_closed"
+      ],
+      "evidence": "provider_visible_schema_and_prepared_request_hashes"
+    },
+    {
+      "clause": "TF-08",
+      "contract_subject": "deterministic_decision_table",
+      "existing_owner": "Gate2FinancialSemanticV6DecisionExpansionFactory",
+      "required_additive_symbol": "create_from_type_first_candidate",
+      "required_tests": [
+        "test_type_first_nine_decision_table_cells",
+        "test_type_first_adversarial_semantic_cases"
+      ],
+      "evidence": "parsed_set_canonical_choice_and_expansion_hashes"
+    },
+    {
+      "clause": "TF-09",
+      "contract_subject": "canonical_validation_and_materialization",
+      "existing_owner": "Gate2FinancialEvidenceValidatedDecisionFactory and Gate2FinancialEvidenceMaterializerFactory",
+      "required_additive_symbol": "existing create and existing create().materialize",
+      "required_tests": [
+        "test_validated_decision_uses_canonical_materialization_totality",
+        "test_typed_expansion_always_materializes_with_all_structural_checks"
+      ],
+      "evidence": "canonical_artifact_hash"
+    },
+    {
+      "clause": "TF-10",
+      "contract_subject": "v6_totality_compatibility",
+      "existing_owner": "Gate2FinancialSemanticV6TotalMaterializerFactory",
+      "required_additive_symbol": "none_unchanged_and_not_used_by_type_first",
+      "required_tests": [
+        "test_type_first_uses_existing_canonical_materializer_directly",
+        "test_totality_module_delegates_to_canonical_materializer_without_repair"
+      ],
+      "evidence": "canonical_artifact_hash"
+    },
+    {
+      "clause": "TF-11",
+      "contract_subject": "snapshot_persistence",
+      "existing_owner": "Gate2FinancialDomainCatalogFactory and Gate2FinancialDomainPersistenceFactory",
+      "required_additive_symbol": "existing create serialize restore",
+      "required_tests": [
+        "test_type_first_snapshot_restore_and_replay_are_exact",
+        "test_all_twelve_provider_case_paths_are_exact_terminal_proofs"
+      ],
+      "evidence": "serialized_snapshot_hash"
+    },
+    {
+      "clause": "TF-12",
+      "contract_subject": "evidence_replay_and_comparator",
+      "existing_owner": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+      "required_additive_symbol": "create_type_first_candidate create_type_first_technical_failure and versioned restore replay",
+      "required_tests": [
+        "test_type_first_private_evidence_and_offline_replay_are_exact",
+        "test_type_first_technical_failure_evidence_replays_without_snapshot",
+        "test_offline_replay_reproduces_exact_artifact_without_provider_call"
+      ],
+      "evidence": "private_evidence_hash_and_privacy_safe_counter_projection"
+    },
+    {
+      "clause": "TF-13",
+      "contract_subject": "economy",
+      "existing_owner": "Gate2EconomyBudgetSessionFactory",
+      "required_additive_symbol": "request_specific_type_first_no_fallback_profile",
+      "required_tests": [
+        "test_type_first_budget_forbids_fallback_without_changing_historical_profiles",
+        "test_default_and_fallback_call_budgets_are_enforced"
+      ],
+      "evidence": "zero_call_accounting"
+    },
+    {
+      "clause": "TF-14",
+      "contract_subject": "zero_call_local_proof",
+      "existing_owner": "maintained GOAL17 support builder and tests",
+      "required_additive_symbol": "compose_existing_owners_only",
+      "required_tests": [
+        "test_type_first_openai_simulated_terminal_path_is_exact",
+        "test_type_first_full_adversarial_matrix"
+      ],
+      "evidence": "exact_private_proof_and_safe_projection"
+    },
+    {
+      "clause": "TF-15",
+      "contract_subject": "qualification_declaration",
+      "existing_owner": "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator",
+      "required_additive_symbol": "type_first_profile_declaration_only",
+      "required_tests": [
+        "test_type_first_profile_declaration_has_no_transport_call_owner",
+        "test_goal12_reuses_plan_client_evidence_and_report_authorities"
+      ],
+      "evidence": "declaration_hash_and_zero_calls"
+    },
+    {
+      "clause": "TF-16",
+      "contract_subject": "compatibility_and_activation",
+      "existing_owner": "Broker Reports architecture authority tests",
+      "required_additive_symbol": "no_product_consumer_and_no_active_or_admission_mutation",
+      "required_tests": [
+        "test_type_first_profile_has_no_product_pipe_consumer",
+        "test_generated_bundle_modules_match_maintained_source"
+      ],
+      "evidence": "change_accounting_all_zero"
+    }
+  ],
+  "integrity_sha256": "f63ee0ce2d8d83810575523ea3da714e6b624603400e6b86224230089dca5814"
+}
