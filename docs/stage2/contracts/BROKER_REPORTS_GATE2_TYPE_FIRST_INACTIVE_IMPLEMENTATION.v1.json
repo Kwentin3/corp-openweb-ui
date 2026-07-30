@@ -199,6 +199,13 @@
   "request_builder_contract": {
     "owner": "Gate2OpenWebUIRequestBuilder",
     "additive_entrypoint": "build_from_sealed_type_first",
+    "required_argument_type": "Gate2FinancialSemanticV6TypeFirstSealedRequest",
+    "raw_model_visible_request_dict_allowed": false,
+    "linter_issued_non_serialized_builder_capability_required": true,
+    "builder_capability_evidence_serialization_allowed": false,
+    "builder_capability_issuer_callsite_owner": "Gate2FinancialSemanticV6ContextLinterFactory.create_type_first",
+    "receipt_self_integrity_recomputed": true,
+    "request_schema_prompt_context_source_and_logical_hashes_recomputed": true,
     "generic_build_allowed": false,
     "production_request_profiles_member": false,
     "product_pipe_consumer_total": 0,
@@ -444,10 +451,14 @@
       "clause": "TF-01",
       "contract_subject": "identities_and_inactive_state",
       "existing_owner": "V6 Packet Choice and Context Linter authorities",
-      "required_additive_symbol": "exact_profiles_listed_in_profile_identities",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke:TYPE_FIRST_PROFILE_IDENTITIES"
+      ],
       "required_tests": [
-        "test_type_first_profiles_are_exact_inactive_and_transport_ineligible",
-        "test_context_v2_1_is_non_transport_and_provider_free"
+        "tests/test_broker_reports_gate2_type_first_architecture.py::test_type_first_contract_is_inactive_and_changes_no_admission_or_valve",
+        "tests/test_broker_reports_gate2_type_first_support_profiles.py::test_type_first_request_profile_is_exact_sealed_only_and_inactive",
+        "tests/test_broker_reports_gate2_type_first_support_profiles.py::test_type_first_qualification_declaration_is_frozen_and_non_executable",
+        "tests/test_broker_reports_gate2_financial_semantic_context_v2_1.py::test_context_v2_1_is_non_transport_and_provider_free"
       ],
       "evidence": "safe_profile_summaries"
     },
@@ -455,10 +466,12 @@
       "clause": "TF-02",
       "contract_subject": "exact_three_field_packet",
       "existing_owner": "Gate2FinancialSemanticV6PacketFactory",
-      "required_additive_symbol": "create_type_first_candidate",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_packet:Gate2FinancialSemanticV6PacketFactory.create_type_first_candidate"
+      ],
       "required_tests": [
-        "test_type_first_packet_reuses_exact_context_v2_1_source_and_cards",
-        "test_context_v2_1_has_exact_minimal_surface_and_literal_occurrence_parity"
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_candidate_reuses_exact_context_v2_1_semantics",
+        "tests/test_broker_reports_gate2_financial_semantic_context_v2_1.py::test_context_v2_1_has_exact_minimal_surface_and_literal_occurrence_parity"
       ],
       "evidence": "candidate_hash_and_byte_counts"
     },
@@ -466,10 +479,14 @@
       "clause": "TF-03",
       "contract_subject": "private_mapping",
       "existing_owner": "Gate2FinancialSemanticV6PacketFactory",
-      "required_additive_symbol": "type_first_mapping_receipt_and_validator",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_packet:Gate2FinancialSemanticV6TypeFirstMappingReceipt",
+        "broker_reports_gate1.gate2_financial_semantic_v6_packet:validate_financial_semantic_v6_type_first_material"
+      ],
       "required_tests": [
-        "test_type_first_mapping_receipt_is_exact_private_and_tamper_evident",
-        "test_context_v2_1_receipt_restores_all_choices_and_bindings_exactly"
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_candidate_reuses_exact_context_v2_1_semantics",
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_mapping_receipt_fails_closed_by_drift_class",
+        "tests/test_broker_reports_gate2_financial_semantic_context_v2_1.py::test_context_v2_1_receipt_restores_all_choices_and_bindings_exactly"
       ],
       "evidence": "private_receipt_hash_safe_hash_only"
     },
@@ -477,10 +494,13 @@
       "clause": "TF-04",
       "contract_subject": "response_schema_and_parser",
       "existing_owner": "Gate2FinancialSemanticV6ChoiceContractFactory",
-      "required_additive_symbol": "create_type_first_response_profile and normalize_financial_semantic_v6_type_first_response",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_choice:Gate2FinancialSemanticV6ChoiceContractFactory.create_type_first_response_profile",
+        "broker_reports_gate1.gate2_financial_semantic_v6_choice:normalize_financial_semantic_v6_type_first_response"
+      ],
       "required_tests": [
-        "test_exact_nine_response_negative_fixtures_fail_closed",
-        "test_type_first_parser_rejects_non_object_and_duplicate_root_keys"
+        "tests/test_build_type_first_fail_closed_contract.py::test_exact_nine_response_negative_fixtures_fail_closed",
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_schema_and_parser_are_exact_and_fail_closed"
       ],
       "evidence": "parsed_set_or_exact_technical_error"
     },
@@ -488,10 +508,12 @@
       "clause": "TF-05",
       "contract_subject": "sealed_request",
       "existing_owner": "Gate2FinancialSemanticV6ContextLinterFactory",
-      "required_additive_symbol": "create_type_first",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_context_linter:Gate2FinancialSemanticV6ContextLinterFactory.create_type_first"
+      ],
       "required_tests": [
-        "test_type_first_linter_enforces_2500_bytes",
-        "test_all_governed_context_v2_1_requests_are_exact_sealed_and_within_budget"
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_linter_enforces_exact_2500_byte_measurement",
+        "tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_linter.py::test_all_governed_context_v2_1_requests_are_exact_sealed_and_within_budget"
       ],
       "evidence": "sealed_request_receipt"
     },
@@ -499,10 +521,15 @@
       "clause": "TF-06",
       "contract_subject": "request_construction",
       "existing_owner": "Gate2OpenWebUIRequestBuilder",
-      "required_additive_symbol": "build_from_sealed_type_first",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_model_requests:Gate2OpenWebUIRequestBuilder.build_from_sealed_type_first",
+        "broker_reports_gate1.gate2_model_requests:_issue_type_first_request_builder_seal"
+      ],
       "required_tests": [
-        "test_type_first_request_profile_requires_sealed_entrypoint",
-        "test_context_v2_1_request_profile_cannot_bypass_the_sealed_entrypoint"
+        "tests/test_broker_reports_gate2_type_first_support_profiles.py::test_type_first_request_profile_is_exact_sealed_only_and_inactive",
+        "tests/test_broker_reports_gate2_type_first_inactive.py::test_type_first_request_builder_requires_exact_integrity_bound_seal",
+        "tests/test_broker_reports_gate2_type_first_architecture.py::test_type_first_request_builder_seal_is_issued_only_by_linter_owner",
+        "tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_provider_proof.py::test_context_v2_1_request_profile_cannot_bypass_the_sealed_entrypoint"
       ],
       "evidence": "exact_logical_and_prepared_request_hashes"
     },
@@ -510,10 +537,14 @@
       "clause": "TF-07",
       "contract_subject": "provider_binding_and_extraction",
       "existing_owner": "Gate2ProviderAdapterFactory and Gate2PreparedProviderRequest",
-      "required_additive_symbol": "none_existing_generic_prepare_validate_and_extract",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_provider_adapters:Gate2ProviderAdapter.prepare_form_data",
+        "broker_reports_gate1.gate2_provider_adapters:Gate2PreparedProviderRequest.validate_schema_binding",
+        "broker_reports_gate1.gate2_provider_adapters:Gate2ProviderAdapter.extract_prepared_content"
+      ],
       "required_tests": [
-        "test_type_first_openai_simulated_terminal_envelope_is_exact",
-        "test_type_first_prepared_request_and_schema_drift_fail_closed"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_type_first_prepared_request_and_schema_drift_fail_closed",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call"
       ],
       "evidence": "provider_visible_schema_and_prepared_request_hashes"
     },
@@ -521,10 +552,14 @@
       "clause": "TF-08",
       "contract_subject": "deterministic_decision_table",
       "existing_owner": "Gate2FinancialSemanticV6DecisionExpansionFactory",
-      "required_additive_symbol": "create_from_type_first_candidate",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_expansion:Gate2FinancialSemanticV6DecisionExpansionFactory.create_from_type_first_candidate"
+      ],
       "required_tests": [
-        "test_type_first_nine_decision_table_cells",
-        "test_type_first_adversarial_semantic_cases"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_real_compiler_zero_one_and_multiple_option_fixtures_are_proven",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_semantic_false_sets_are_measured_without_repair",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_at_least_fifteen_adversarial_cases_fail_closed_and_replay"
       ],
       "evidence": "parsed_set_canonical_choice_and_expansion_hashes"
     },
@@ -532,10 +567,14 @@
       "clause": "TF-09",
       "contract_subject": "canonical_validation_and_materialization",
       "existing_owner": "Gate2FinancialEvidenceValidatedDecisionFactory and Gate2FinancialEvidenceMaterializerFactory",
-      "required_additive_symbol": "existing create and existing create().materialize",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_evidence_materialization:Gate2FinancialEvidenceValidatedDecisionFactory.create",
+        "broker_reports_gate1.gate2_financial_evidence_materialization:Gate2FinancialEvidenceMaterializerFactory.create",
+        "broker_reports_gate1.gate2_financial_evidence_materialization:Gate2FinancialEvidenceMaterializer.materialize"
+      ],
       "required_tests": [
-        "test_validated_decision_uses_canonical_materialization_totality",
-        "test_typed_expansion_always_materializes_with_all_structural_checks"
+        "tests/test_broker_reports_gate_architecture.py::BrokerReportsGateArchitectureTest::test_validated_decision_uses_canonical_materialization_totality",
+        "tests/test_broker_reports_gate2_financial_semantic_v6_totality.py::test_typed_expansion_always_materializes_with_all_structural_checks"
       ],
       "evidence": "canonical_artifact_hash"
     },
@@ -543,10 +582,12 @@
       "clause": "TF-10",
       "contract_subject": "v6_totality_compatibility",
       "existing_owner": "Gate2FinancialSemanticV6TotalMaterializerFactory",
-      "required_additive_symbol": "none_unchanged_and_not_used_by_type_first",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_totality:Gate2FinancialSemanticV6TotalMaterializerFactory.create"
+      ],
       "required_tests": [
-        "test_type_first_uses_existing_canonical_materializer_directly",
-        "test_totality_module_delegates_to_canonical_materializer_without_repair"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call",
+        "tests/test_broker_reports_gate2_financial_semantic_v6_totality.py::test_totality_module_delegates_to_canonical_materializer_without_repair"
       ],
       "evidence": "canonical_artifact_hash"
     },
@@ -554,10 +595,14 @@
       "clause": "TF-11",
       "contract_subject": "snapshot_persistence",
       "existing_owner": "Gate2FinancialDomainCatalogFactory and Gate2FinancialDomainPersistenceFactory",
-      "required_additive_symbol": "existing create serialize restore",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_domain_catalog:Gate2FinancialDomainCatalogFactory.create",
+        "broker_reports_gate1.gate2_financial_domain_persistence:Gate2FinancialDomainPersistenceFactory.serialize",
+        "broker_reports_gate1.gate2_financial_domain_persistence:Gate2FinancialDomainPersistenceFactory.restore"
+      ],
       "required_tests": [
-        "test_type_first_snapshot_restore_and_replay_are_exact",
-        "test_all_twelve_provider_case_paths_are_exact_terminal_proofs"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call",
+        "tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_provider_proof.py::test_all_twelve_provider_case_paths_are_exact_terminal_proofs"
       ],
       "evidence": "serialized_snapshot_hash"
     },
@@ -565,11 +610,17 @@
       "clause": "TF-12",
       "contract_subject": "evidence_replay_and_comparator",
       "existing_owner": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
-      "required_additive_symbol": "create_type_first_candidate create_type_first_technical_failure and versioned restore replay",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_evidence:Gate2FinancialSemanticV6DecisionEvidenceFactory.create_type_first_candidate",
+        "broker_reports_gate1.gate2_financial_semantic_v6_evidence:Gate2FinancialSemanticV6DecisionEvidenceFactory.create_type_first_technical_failure",
+        "broker_reports_gate1.gate2_financial_semantic_v6_evidence:serialize_financial_semantic_v6_type_first_private_evidence",
+        "broker_reports_gate1.gate2_financial_semantic_v6_evidence:restore_financial_semantic_v6_type_first_private_evidence",
+        "broker_reports_gate1.gate2_financial_semantic_v6_evidence:replay_financial_semantic_v6_type_first_decision"
+      ],
       "required_tests": [
-        "test_type_first_private_evidence_and_offline_replay_are_exact",
-        "test_type_first_technical_failure_evidence_replays_without_snapshot",
-        "test_offline_replay_reproduces_exact_artifact_without_provider_call"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_semantic_false_sets_are_measured_without_repair",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_at_least_fifteen_adversarial_cases_fail_closed_and_replay"
       ],
       "evidence": "private_evidence_hash_and_privacy_safe_counter_projection"
     },
@@ -577,10 +628,14 @@
       "clause": "TF-13",
       "contract_subject": "economy",
       "existing_owner": "Gate2EconomyBudgetSessionFactory",
-      "required_additive_symbol": "request_specific_type_first_no_fallback_profile",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_economy_budget:Gate2EconomyBudgetSessionFactory.create",
+        "broker_reports_gate1.gate2_economy_budget:Gate2EconomyBudgetSession.type_first_accounting_receipt",
+        "broker_reports_gate1.gate2_economy_budget:validate_type_first_economy_accounting_receipt"
+      ],
       "required_tests": [
-        "test_type_first_budget_forbids_fallback_without_changing_historical_profiles",
-        "test_default_and_fallback_call_budgets_are_enforced"
+        "tests/test_broker_reports_gate2_type_first_support_profiles.py::test_type_first_economy_is_one_call_no_fallback_without_policy_drift",
+        "tests/test_broker_reports_gate2_economy_budget.py::test_default_and_fallback_call_budgets_are_enforced"
       ],
       "evidence": "zero_call_accounting"
     },
@@ -588,10 +643,15 @@
       "clause": "TF-14",
       "contract_subject": "zero_call_local_proof",
       "existing_owner": "maintained GOAL17 support builder and tests",
-      "required_additive_symbol": "compose_existing_owners_only",
+      "required_symbols": [
+        "scripts.build_type_first_zero_call_e2e_evidence:build_type_first_zero_call_e2e_evidence"
+      ],
       "required_tests": [
-        "test_type_first_openai_simulated_terminal_path_is_exact",
-        "test_type_first_full_adversarial_matrix"
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_success_chain_is_terminal_exact_and_zero_call",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_at_least_fifteen_adversarial_cases_fail_closed_and_replay",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_support_runner_has_no_transport_or_provider_invocation_callsite",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_goal17_report_and_safe_receipt_are_current",
+        "tests/test_broker_reports_gate2_type_first_e2e.py::test_goal17_contract_self_integrity_is_recomputed_fail_closed"
       ],
       "evidence": "exact_private_proof_and_safe_projection"
     },
@@ -599,10 +659,12 @@
       "clause": "TF-15",
       "contract_subject": "qualification_declaration",
       "existing_owner": "Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator",
-      "required_additive_symbol": "type_first_profile_declaration_only",
+      "required_symbols": [
+        "broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke:Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator.type_first_profile_declaration"
+      ],
       "required_tests": [
-        "test_type_first_profile_declaration_has_no_transport_call_owner",
-        "test_goal12_reuses_plan_client_evidence_and_report_authorities"
+        "tests/test_broker_reports_gate2_type_first_support_profiles.py::test_type_first_qualification_declaration_is_frozen_and_non_executable",
+        "tests/test_broker_reports_gate_architecture.py::BrokerReportsGateArchitectureTest::test_goal12_reuses_plan_client_evidence_and_report_authorities"
       ],
       "evidence": "declaration_hash_and_zero_calls"
     },
@@ -610,13 +672,15 @@
       "clause": "TF-16",
       "contract_subject": "compatibility_and_activation",
       "existing_owner": "Broker Reports architecture authority tests",
-      "required_additive_symbol": "no_product_consumer_and_no_active_or_admission_mutation",
+      "required_symbols": [],
       "required_tests": [
-        "test_type_first_profile_has_no_product_pipe_consumer",
-        "test_generated_bundle_modules_match_maintained_source"
+        "tests/test_broker_reports_gate2_type_first_architecture.py::test_type_first_contract_is_inactive_and_changes_no_admission_or_valve",
+        "tests/test_broker_reports_gate2_type_first_architecture.py::test_product_pipes_imports_valves_and_consumers_are_immutable",
+        "tests/test_broker_reports_gate2_type_first_architecture.py::test_generated_bundle_module_topology_is_unchanged",
+        "tests/test_broker_reports_gate_architecture.py::BrokerReportsGateArchitectureTest::test_generated_bundle_modules_match_maintained_source"
       ],
       "evidence": "change_accounting_all_zero"
     }
   ],
-  "integrity_sha256": "f63ee0ce2d8d83810575523ea3da714e6b624603400e6b86224230089dca5814"
+  "integrity_sha256": "73f4ea51d8767b28fc8b3a9b1e12a6345f897ea8cbe8bde42decd0cb1ff70775"
 }

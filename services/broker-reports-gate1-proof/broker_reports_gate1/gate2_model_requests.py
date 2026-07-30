@@ -3,8 +3,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
@@ -40,6 +41,10 @@ FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE = (
 FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE = (
     "financial_semantic_v6_type_first_local_proof_v1"
 )
+FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_type_first_sealed_request_receipt_v1"
+)
+FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED = "passed"
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
     "financial_context_checksum_v1"
 )
@@ -162,6 +167,199 @@ class Gate2FinancialSemanticV6ContextLintReceipt:
         }
 
 
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt:
+    schema_version: str
+    policy_version: str
+    request_profile: str
+    context_profile: str
+    context_view_sha256: str
+    source_projection_sha256: str
+    response_profile: str
+    response_schema_sha256: str
+    system_prompt_version: str
+    system_prompt_sha256: str
+    mapping_receipt_integrity_sha256: str
+    logical_request_sha256: str
+    logical_request_utf8_bytes: int
+    model_visible_request_sha256: str
+    model_visible_request_utf8_bytes: int
+    token_estimator_id: str
+    estimated_input_tokens: int
+    invariant_counters: dict[str, int]
+    status: str
+    provider_calls_total: int
+    integrity_sha256: str
+
+    def integrity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "request_profile": self.request_profile,
+            "context_profile": self.context_profile,
+            "context_view_sha256": self.context_view_sha256,
+            "source_projection_sha256": (
+                self.source_projection_sha256
+            ),
+            "response_profile": self.response_profile,
+            "response_schema_sha256": self.response_schema_sha256,
+            "system_prompt_version": self.system_prompt_version,
+            "system_prompt_sha256": self.system_prompt_sha256,
+            "mapping_receipt_integrity_sha256": (
+                self.mapping_receipt_integrity_sha256
+            ),
+            "logical_request_sha256": self.logical_request_sha256,
+            "logical_request_utf8_bytes": (
+                self.logical_request_utf8_bytes
+            ),
+            "model_visible_request_sha256": (
+                self.model_visible_request_sha256
+            ),
+            "model_visible_request_utf8_bytes": (
+                self.model_visible_request_utf8_bytes
+            ),
+            "token_estimator_id": self.token_estimator_id,
+            "estimated_input_tokens": self.estimated_input_tokens,
+            "invariant_counters": copy.deepcopy(
+                self.invariant_counters
+            ),
+            "status": self.status,
+            "provider_calls_total": self.provider_calls_total,
+        }
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            **self.integrity_payload(),
+            "integrity_sha256": self.integrity_sha256,
+        }
+
+
+_TYPE_FIRST_REQUEST_BUILDER_SEAL_ISSUER = object()
+
+
+class _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal:
+    __slots__ = ("__weakref__",)
+
+    def __init__(
+        self,
+        *,
+        issuer: object,
+    ) -> None:
+        if issuer is not _TYPE_FIRST_REQUEST_BUILDER_SEAL_ISSUER:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First request-builder seal issuer is invalid",
+            )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        del name, value
+        raise AttributeError(
+            "Type-First request-builder seal is immutable"
+        )
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        del memo
+        return self
+
+
+def _type_first_request_builder_seal_authority():
+    receipt_integrities: WeakKeyDictionary[
+        _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal,
+        str,
+    ] = WeakKeyDictionary()
+
+    def issue(
+        *,
+        receipt: Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt,
+    ) -> _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal:
+        if (
+            not isinstance(
+                receipt,
+                Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt,
+            )
+            or receipt.integrity_sha256
+            != _sha256_json(receipt.integrity_payload())
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First request-builder seal receipt is invalid",
+            )
+        seal = _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal(
+            issuer=_TYPE_FIRST_REQUEST_BUILDER_SEAL_ISSUER,
+        )
+        receipt_integrities[seal] = receipt.integrity_sha256
+        return seal
+
+    def matches(
+        *,
+        seal: Any,
+        receipt_integrity_sha256: str,
+    ) -> bool:
+        return (
+            isinstance(
+                seal,
+                _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal,
+            )
+            and receipt_integrities.get(seal)
+            == receipt_integrity_sha256
+        )
+
+    return issue, matches
+
+
+(
+    _issue_type_first_request_builder_seal,
+    _type_first_request_builder_seal_matches,
+) = _type_first_request_builder_seal_authority()
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstSealedRequest:
+    active: bool
+    transport_eligible: bool
+    serialized_context: str
+    response_format: dict[str, Any]
+    model_visible_request: dict[str, Any]
+    sealed_request_receipt: (
+        Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt
+    )
+    _request_builder_seal: (
+        _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal
+    ) = field(repr=False, compare=False)
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "request_profile": (
+                FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+            ),
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "model_visible_request_sha256": (
+                self.sealed_request_receipt
+                .model_visible_request_sha256
+            ),
+            "logical_request_utf8_bytes": (
+                self.sealed_request_receipt.logical_request_utf8_bytes
+            ),
+            "model_visible_request_utf8_bytes": (
+                self.sealed_request_receipt
+                .model_visible_request_utf8_bytes
+            ),
+            "estimated_input_tokens": (
+                self.sealed_request_receipt.estimated_input_tokens
+            ),
+            "sealed_request_receipt": (
+                self.sealed_request_receipt.to_safe_dict()
+            ),
+            "provider_calls_total": 0,
+            "contains_source_literals": False,
+            "contains_exact_refs": False,
+        }
+
+
 def financial_semantic_v6_slim_model_visible_projection(
     *,
     prompt,
@@ -209,6 +407,38 @@ def financial_semantic_v6_estimated_input_tokens(
         // 4
         + _FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_OVERHEAD,
     )
+
+
+def _ordered_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _strict_type_first_json_object(value: str) -> dict[str, Any]:
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError("duplicate_json_member")
+            result[key] = item
+        return result
+
+    def reject_non_finite(_: str) -> None:
+        raise ValueError("non_finite_json_number")
+
+    parsed = json.loads(
+        value,
+        object_pairs_hook=reject_duplicates,
+        parse_constant=reject_non_finite,
+    )
+    if not isinstance(parsed, dict):
+        raise ValueError("json_root_not_object")
+    return parsed
 
 
 # OWNER:
@@ -433,7 +663,7 @@ class Gate2OpenWebUIRequestBuilder:
     def build_from_sealed_type_first(
         self,
         *,
-        model_visible_request: dict[str, Any],
+        sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
         model_id: str,
     ) -> dict[str, Any]:
         if (
@@ -448,12 +678,59 @@ class Gate2OpenWebUIRequestBuilder:
             not isinstance(model_id, str)
             or not model_id.strip()
             or len(model_id) > 512
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First model identity is invalid",
+            )
+        if not isinstance(
+            sealed_request,
+            Gate2FinancialSemanticV6TypeFirstSealedRequest,
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_sealed_context_required",
+                "Type-First request requires an integrity-bound seal",
+            )
+        receipt = sealed_request.sealed_request_receipt
+        request_builder_seal = sealed_request._request_builder_seal
+        model_visible_request = sealed_request.model_visible_request
+        try:
+            receipt_integrity_sha256 = _sha256_json(
+                receipt.integrity_payload()
+            )
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First sealed request receipt is invalid",
+            ) from exc
+        if (
+            not isinstance(
+                receipt,
+                Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt,
+            )
+            or not _type_first_request_builder_seal_matches(
+                seal=request_builder_seal,
+                receipt_integrity_sha256=receipt.integrity_sha256,
+            )
+            or sealed_request.active is not False
+            or sealed_request.transport_eligible is not False
+            or receipt.schema_version
+            != (
+                FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION
+            )
+            or receipt.request_profile
+            != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
+            or receipt.status
+            != FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED
+            or receipt.provider_calls_total != 0
+            or receipt.integrity_sha256
+            != receipt_integrity_sha256
             or not isinstance(model_visible_request, dict)
             or tuple(model_visible_request) != ("messages", "response_format")
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
-                "Type-First sealed request is invalid",
+                "Type-First sealed request receipt is invalid",
             )
         messages = model_visible_request.get("messages")
         response_format = model_visible_request.get("response_format")
@@ -469,18 +746,76 @@ class Gate2OpenWebUIRequestBuilder:
                 for item in messages
             )
             or not isinstance(response_format, dict)
+            or set(response_format) != {"type", "json_schema"}
             or response_format.get("type") != "json_schema"
             or not isinstance(response_format.get("json_schema"), dict)
+            or set(response_format["json_schema"]) != {"strict", "schema"}
             or response_format["json_schema"].get("strict") is not True
             or not isinstance(
                 response_format["json_schema"].get("schema"),
                 dict,
             )
+            or sealed_request.response_format != response_format
+            or sealed_request.serialized_context
+            != messages[1]["content"]
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
                 "Type-First sealed request shape is invalid",
             )
+        try:
+            user_context = _strict_type_first_json_object(
+                sealed_request.serialized_context
+            )
+            response_schema = response_format["json_schema"]["schema"]
+            logical_request = {
+                "response_schema": copy.deepcopy(response_schema),
+                "user_context": copy.deepcopy(user_context),
+            }
+            logical_request_bytes = _ordered_json_bytes(logical_request)
+            model_visible_request_bytes = _ordered_json_bytes(
+                model_visible_request
+            )
+            if (
+                tuple(user_context) != ("task", "source", "type_cards")
+                or not isinstance(user_context["source"], dict)
+                or not isinstance(user_context["type_cards"], list)
+                or receipt.model_visible_request_sha256
+                != hashlib.sha256(model_visible_request_bytes).hexdigest()
+                or receipt.model_visible_request_utf8_bytes
+                != len(model_visible_request_bytes)
+                or receipt.logical_request_sha256
+                != hashlib.sha256(logical_request_bytes).hexdigest()
+                or receipt.logical_request_utf8_bytes
+                != len(logical_request_bytes)
+                or receipt.response_schema_sha256
+                != _sha256_json(response_schema)
+                or receipt.system_prompt_sha256
+                != _sha256_json(messages[0]["content"])
+                or receipt.context_view_sha256
+                != hashlib.sha256(
+                    _ordered_json_bytes(user_context)
+                ).hexdigest()
+                or receipt.source_projection_sha256
+                != _sha256_json(user_context["source"])
+                or receipt.token_estimator_id
+                != FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_ID
+                or receipt.estimated_input_tokens
+                != financial_semantic_v6_estimated_input_tokens(
+                    model_visible_request
+                )
+            ):
+                raise Gate2SourceFactRuntimeError(
+                    "gate2_model_request_invalid",
+                    "Type-First sealed request integrity is invalid",
+                )
+        except (KeyError, TypeError, ValueError) as exc:
+            if isinstance(exc, Gate2SourceFactRuntimeError):
+                raise
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Type-First sealed request integrity is invalid",
+            ) from exc
         projected = copy.deepcopy(model_visible_request)
         projected["model"] = model_id
         return projected
@@ -1353,7 +1688,7 @@ class Gate2OpenWebUIRequestBuilder:
 
 def financial_semantic_v6_type_first_local_proof_request(
     *,
-    model_visible_request: dict[str, Any],
+    sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
     model_id: str,
 ) -> dict[str, Any]:
     """Build the exact inactive Type-First local-proof request."""
@@ -1363,6 +1698,6 @@ def financial_semantic_v6_type_first_local_proof_request(
             FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
         )
     ).build_from_sealed_type_first(
-        model_visible_request=model_visible_request,
+        sealed_request=sealed_request,
         model_id=model_id,
     )

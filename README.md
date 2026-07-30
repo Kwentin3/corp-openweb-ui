@@ -169,6 +169,10 @@ python scripts/build_gate2_financial_semantic_model_assets.py --check
 python scripts/build_gate2_financial_semantic_v5_execution.py --check
 python scripts/build_context_v2_1_three_provider_local_proof.py --check
 python scripts/build_context_v2_1_budget_smoke_plan.py --check
+python scripts/build_context_v2_1_comparative_evidence_pack.py --check
+python scripts/build_type_first_semantic_decision_architecture_audit.py --check
+python scripts/build_type_first_fail_closed_contract.py --check
+python scripts/build_type_first_zero_call_e2e_evidence.py --check
 python scripts/build_openwebui_pipe_bundle.py --target all
 git diff --exit-code -- openwebui_actions/broker_reports_gate1_pipe_bundled.py openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py openwebui_actions/broker_reports_gate2_domain_source_fact_pipe_bundled.py
 python -m ruff check --no-cache --select E9,F63,F7,F82 .
@@ -185,6 +189,13 @@ python -m pytest -q `
   tests/test_broker_reports_gate2_financial_semantic_v6_context_v2_1_budget_smoke_report.py `
   tests/test_live_gate2_financial_semantic_v6_context_v2_1_three_provider_smoke.py `
   tests/test_build_context_v2_1_budget_smoke_plan.py `
+  tests/test_build_context_v2_1_comparative_evidence_pack.py `
+  tests/test_build_type_first_semantic_decision_architecture_audit.py `
+  tests/test_build_type_first_fail_closed_contract.py `
+  tests/test_broker_reports_gate2_type_first_architecture.py `
+  tests/test_broker_reports_gate2_type_first_support_profiles.py `
+  tests/test_broker_reports_gate2_type_first_inactive.py `
+  tests/test_broker_reports_gate2_type_first_e2e.py `
   tests/test_broker_reports_gate2_model_clients.py `
   tests/test_broker_reports_gate2_provider_execution.py `
   tests/test_broker_reports_gate2_economy_budget.py `

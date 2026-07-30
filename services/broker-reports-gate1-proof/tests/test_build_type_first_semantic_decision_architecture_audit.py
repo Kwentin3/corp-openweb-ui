@@ -399,18 +399,19 @@ def test_receipt_integrity_file_hashes_and_zero_change_accounting(
     assert set(transparent["change_accounting"].values()) == {0}
 
 
-def test_historical_goal12_to_goal14_authorities_are_immutable_and_safe(
+def test_goal15_source_authorities_are_immutable_base_snapshot_and_safe(
     built_artifacts,
 ) -> None:
     _report, transparent, receipt = built_artifacts
     actual = BUILDER._validate_source_authorities()
     assert len(BUILDER.HISTORICAL_AUTHORITIES) == 10
-    for identity, path, expected_hash in BUILDER.HISTORICAL_AUTHORITIES:
+    for identity, path, expected_hash in BUILDER.SOURCE_AUTHORITIES:
         repository_path = path.relative_to(REPO_ROOT).as_posix()
+        assert path.is_file(), identity
         repository_bytes = _git_bytes(
             "cat-file",
             "blob",
-            f"HEAD:{repository_path}",
+            f"{BUILDER.BASE_COMMIT}:{repository_path}",
         )
         assert b"\r" not in repository_bytes, identity
         assert hashlib.sha256(repository_bytes).hexdigest() == expected_hash
@@ -451,6 +452,7 @@ def test_builder_is_closed_world_offline_support_code() -> None:
         "json",
         "pathlib",
         "re",
+        "subprocess",
         "typing",
     }
     for forbidden in (

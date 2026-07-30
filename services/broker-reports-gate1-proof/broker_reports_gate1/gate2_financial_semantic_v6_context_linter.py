@@ -68,8 +68,13 @@ from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_ID,
     FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE,
     FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION as TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION,
+    FINANCIAL_SEMANTIC_V6_TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED as TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED,
     Gate2FinancialSemanticV6ContextLintReceipt,
+    Gate2FinancialSemanticV6TypeFirstSealedRequest,
+    Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt,
     Gate2OpenWebUIRequestBuilder,
+    _issue_type_first_request_builder_seal,
     financial_semantic_v6_model_visible_utf8_bytes,
     financial_semantic_v6_slim_model_visible_projection,
 )
@@ -90,14 +95,10 @@ CONTEXT_V2_1_SEALED_REQUEST_PROFILE = (
 )
 CONTEXT_V2_1_SEALED_REQUEST_MAX_UTF8_BYTES = 4_500
 CONTEXT_V2_1_SEALED_REQUEST_STATUS_PASSED = "passed"
-TYPE_FIRST_SEALED_REQUEST_RECEIPT_SCHEMA_VERSION = (
-    "broker_reports_gate2_type_first_sealed_request_receipt_v1"
-)
 TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE = (
     FINANCIAL_SEMANTIC_V6_TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE
 )
 TYPE_FIRST_LOGICAL_REQUEST_MAX_UTF8_BYTES = 2_500
-TYPE_FIRST_SEALED_REQUEST_STATUS_PASSED = "passed"
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6ContextLinterFactory is the only V6 complete "
     "request lint-and-seal authority for the historical Slim request and "
@@ -309,112 +310,6 @@ class Gate2FinancialSemanticV6ContextV21SealedRequest:
             ),
             "model_visible_utf8_bytes": (
                 self.sealed_request_receipt.model_visible_utf8_bytes
-            ),
-            "estimated_input_tokens": (
-                self.sealed_request_receipt.estimated_input_tokens
-            ),
-            "sealed_request_receipt": (
-                self.sealed_request_receipt.to_safe_dict()
-            ),
-            "provider_calls_total": 0,
-            "contains_source_literals": False,
-            "contains_exact_refs": False,
-        }
-
-
-@dataclass(frozen=True)
-class Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt:
-    schema_version: str
-    policy_version: str
-    request_profile: str
-    context_profile: str
-    context_view_sha256: str
-    source_projection_sha256: str
-    response_profile: str
-    response_schema_sha256: str
-    system_prompt_version: str
-    system_prompt_sha256: str
-    mapping_receipt_integrity_sha256: str
-    logical_request_sha256: str
-    logical_request_utf8_bytes: int
-    model_visible_request_sha256: str
-    model_visible_request_utf8_bytes: int
-    token_estimator_id: str
-    estimated_input_tokens: int
-    invariant_counters: dict[str, int]
-    status: str
-    provider_calls_total: int
-    integrity_sha256: str
-
-    def integrity_payload(self) -> dict[str, Any]:
-        return {
-            "schema_version": self.schema_version,
-            "policy_version": self.policy_version,
-            "request_profile": self.request_profile,
-            "context_profile": self.context_profile,
-            "context_view_sha256": self.context_view_sha256,
-            "source_projection_sha256": (
-                self.source_projection_sha256
-            ),
-            "response_profile": self.response_profile,
-            "response_schema_sha256": self.response_schema_sha256,
-            "system_prompt_version": self.system_prompt_version,
-            "system_prompt_sha256": self.system_prompt_sha256,
-            "mapping_receipt_integrity_sha256": (
-                self.mapping_receipt_integrity_sha256
-            ),
-            "logical_request_sha256": self.logical_request_sha256,
-            "logical_request_utf8_bytes": (
-                self.logical_request_utf8_bytes
-            ),
-            "model_visible_request_sha256": (
-                self.model_visible_request_sha256
-            ),
-            "model_visible_request_utf8_bytes": (
-                self.model_visible_request_utf8_bytes
-            ),
-            "token_estimator_id": self.token_estimator_id,
-            "estimated_input_tokens": self.estimated_input_tokens,
-            "invariant_counters": copy.deepcopy(
-                self.invariant_counters
-            ),
-            "status": self.status,
-            "provider_calls_total": self.provider_calls_total,
-        }
-
-    def to_safe_dict(self) -> dict[str, Any]:
-        return {
-            **self.integrity_payload(),
-            "integrity_sha256": self.integrity_sha256,
-        }
-
-
-@dataclass(frozen=True)
-class Gate2FinancialSemanticV6TypeFirstSealedRequest:
-    active: bool
-    transport_eligible: bool
-    serialized_context: str
-    response_format: dict[str, Any]
-    model_visible_request: dict[str, Any]
-    sealed_request_receipt: (
-        Gate2FinancialSemanticV6TypeFirstSealedRequestReceipt
-    )
-
-    def safe_summary(self) -> dict[str, Any]:
-        return {
-            "request_profile": TYPE_FIRST_LOCAL_PROOF_REQUEST_PROFILE,
-            "active": self.active,
-            "transport_eligible": self.transport_eligible,
-            "model_visible_request_sha256": (
-                self.sealed_request_receipt
-                .model_visible_request_sha256
-            ),
-            "logical_request_utf8_bytes": (
-                self.sealed_request_receipt.logical_request_utf8_bytes
-            ),
-            "model_visible_request_utf8_bytes": (
-                self.sealed_request_receipt
-                .model_visible_request_utf8_bytes
             ),
             "estimated_input_tokens": (
                 self.sealed_request_receipt.estimated_input_tokens
@@ -1219,6 +1114,11 @@ class Gate2FinancialSemanticV6ContextLinterFactory:
                 model_visible_request
             ),
             sealed_request_receipt=receipt,
+            _request_builder_seal=(
+                _issue_type_first_request_builder_seal(
+                    receipt=receipt
+                )
+            ),
         )
 
     def prove_local_totality(

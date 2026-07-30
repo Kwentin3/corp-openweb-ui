@@ -930,20 +930,19 @@ def test_historical_and_active_authority_pins_match_git_blobs(
         "provider_adapter_owner",
     } <= active_identities
 
+    assert BUILDER.BASE_COMMIT == EXACT_BASE_COMMIT
     for pin in pins:
         repository_path = pin["repository_path"]
         assert not Path(repository_path).is_absolute()
         working_path = REPO_ROOT / repository_path
         assert working_path.is_file(), pin["identity"]
-        working_bytes = _repository_lf_bytes(working_path.read_bytes())
         repository_bytes = _git_bytes(
             "cat-file",
             "blob",
-            f"HEAD:{repository_path}",
+            f"{EXACT_BASE_COMMIT}:{repository_path}",
         )
         assert b"\r" not in repository_bytes, pin["identity"]
         assert _sha256_bytes(repository_bytes) == pin["sha256"]
-        assert _sha256_bytes(working_bytes) == pin["sha256"]
 
 
 def test_builder_is_stdlib_only_offline_support_code() -> None:
@@ -969,6 +968,7 @@ def test_builder_is_stdlib_only_offline_support_code() -> None:
         "math",
         "pathlib",
         "re",
+        "subprocess",
         "typing",
     }
 

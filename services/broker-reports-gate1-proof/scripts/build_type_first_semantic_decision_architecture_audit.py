@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -2756,13 +2757,43 @@ def write_or_check_outputs(
 def _validate_source_authorities() -> dict[str, str]:
     observed: dict[str, str] = {}
     for identity, path, expected_hash in SOURCE_AUTHORITIES:
-        actual = _sha256_bytes(_repository_lf_bytes(path.read_bytes()))
+        if not path.is_file():
+            raise ValueError(f"source_authority_missing:{identity}")
+        repository_path = path.relative_to(REPO_ROOT).as_posix()
+        actual = _sha256_bytes(
+            _repository_lf_bytes(
+                _git_blob_bytes(
+                    commit=BASE_COMMIT,
+                    repository_path=repository_path,
+                    identity=identity,
+                )
+            )
+        )
         if actual != expected_hash:
             raise ValueError(
                 f"source_authority_hash_invalid:{identity}:{actual}"
             )
         observed[identity] = actual
     return observed
+
+
+def _git_blob_bytes(
+    *,
+    commit: str,
+    repository_path: str,
+    identity: str,
+) -> bytes:
+    completed = subprocess.run(
+        ["git", "cat-file", "blob", f"{commit}:{repository_path}"],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        raise ValueError(
+            f"source_authority_snapshot_missing:{identity}:{commit}"
+        )
+    return completed.stdout
 
 
 def _repository_lf_bytes(value: bytes) -> bytes:

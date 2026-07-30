@@ -938,8 +938,10 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
                     type_first_candidate.payload
                 ),
             },
-            "exact_sealed_request": _type_first_json_roundtrip(
-                asdict(sealed_request)
+            "exact_sealed_request": (
+                _type_first_sealed_request_private_dict(
+                    sealed_request
+                )
             ),
             "exact_prepared_request": _type_first_json_roundtrip(
                 asdict(prepared_request)
@@ -4674,8 +4676,8 @@ def replay_financial_semantic_v6_type_first_decision(
         _fail("financial_semantic_v6_type_first_replay_seal_mismatch")
     if (
         private_evidence["exact_sealed_request"]
-        != _type_first_json_roundtrip(
-            asdict(expected_sealed_request)
+        != _type_first_sealed_request_private_dict(
+            expected_sealed_request
         )
     ):
         _fail("financial_semantic_v6_type_first_replay_seal_mismatch")
@@ -4951,6 +4953,19 @@ def _type_first_json_roundtrip(value: Any) -> Any:
         raise Gate2FinancialSemanticV6DecisionEvidenceError(
             "financial_semantic_v6_type_first_json_invalid"
         ) from exc
+
+
+def _type_first_sealed_request_private_dict(
+    sealed_request: Gate2FinancialSemanticV6TypeFirstSealedRequest,
+) -> dict[str, Any]:
+    material = asdict(sealed_request)
+    material.pop("_request_builder_seal", None)
+    roundtripped = _type_first_json_roundtrip(material)
+    if not isinstance(roundtripped, dict):
+        raise Gate2FinancialSemanticV6DecisionEvidenceError(
+            "financial_semantic_v6_type_first_json_invalid"
+        )
+    return roundtripped
 
 
 def _type_first_matching_complete_options_total(
@@ -5504,7 +5519,7 @@ def _validate_type_first_success_chain(
         mapping_receipt=mapping_receipt,
     )
     expected_form_data = financial_semantic_v6_type_first_local_proof_request(
-        model_visible_request=sealed_request.model_visible_request,
+        sealed_request=sealed_request,
         model_id=local_projection_model_id,
     )
     adapter = Gate2ProviderAdapterFactory(profile=profile).create()

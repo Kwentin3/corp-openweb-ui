@@ -190,6 +190,20 @@ existing sealed-context-required class of failure. The profile stays outside
 the production `GATE2_REQUEST_PROFILES` set and is not imported by a product
 Pipe.
 
+The additive method accepts the exact immutable
+`Gate2FinancialSemanticV6TypeFirstSealedRequest`, not a caller-built
+`model_visible_request` dictionary. Before projecting `model`, it recomputes
+the receipt self-hash and the bound request, schema, Prompt, context, source,
+logical-request byte and token-estimator values. Raw shape-valid dictionaries,
+stale receipts and self-resealed wrong-profile receipts fail closed. The
+request also carries a non-serialized builder capability issued only by
+`Gate2FinancialSemanticV6ContextLinterFactory.create_type_first`. The builder
+binds that capability to the original receipt integrity hash, so a caller
+cannot change context metadata or model-visible bytes and then make the
+request acceptable merely by recomputing public hashes. Evidence and replay
+persist the exact request fields but never serialize or recreate this
+capability; replay obtains a fresh sealed request through the Linter owner.
+
 `Gate2ProviderAdapterFactory.create` remains the sole provider-adapter
 authority and its semantic behavior is unchanged. The local proof composes the
 existing OpenAI profile and public generic entrypoints only:
@@ -393,27 +407,31 @@ Provider calls, runtime activation and production admission changes are zero.
 
 ## 12. Authority and traceability matrix
 
-All rows reuse an existing owner. `Required additive symbol` is an
-implementation obligation, not a new authority.
+All rows reuse an existing owner. The table is a compact human-readable index;
+its symbol and test labels are intentionally abbreviated and do not enumerate
+every governed anchor. The companion JSON is the sole machine-readable
+traceability authority: it records the complete symbol set as
+`module:qualname` and the complete test set as exact pytest node IDs. The
+architecture test resolves every JSON anchor and fails closed on drift.
 
-| Clause | Existing owner | Required additive symbol or unchanged entrypoint | Required test anchor | Evidence |
+| Clause | Existing owner | Representative symbol(s) or unchanged entrypoint | Representative test anchor | Evidence |
 | --- | --- | --- | --- | --- |
-| `TF-01` identities/inactive state | V6 Packet, Choice, Linter owners | exact identities in Sections 1-2; all inactive | `test_type_first_profiles_are_exact_inactive_and_transport_ineligible` plus `test_context_v2_1_is_non_transport_and_provider_free` | safe profile summaries |
-| `TF-02` exact three-field Packet | `Gate2FinancialSemanticV6PacketFactory` | `create_type_first_candidate` | `test_type_first_packet_reuses_exact_context_v2_1_source_and_cards` plus `test_context_v2_1_has_exact_minimal_surface_and_literal_occurrence_parity` | candidate hash and byte counts |
-| `TF-03` private mapping | same Packet owner | Type-First mapping receipt and validator | `test_type_first_mapping_receipt_is_exact_private_and_tamper_evident` plus Context V2.1 receipt/tamper tests | private receipt hash; safe hash only |
-| `TF-04` response/parser | `Gate2FinancialSemanticV6ChoiceContractFactory` | `create_type_first_response_profile`; `normalize_financial_semantic_v6_type_first_response` | GOAL 16 exact negative fixtures plus `test_type_first_parser_rejects_non_object_and_duplicate_root_keys` | parser result or exact technical code |
-| `TF-05` sealed request | `Gate2FinancialSemanticV6ContextLinterFactory` | `create_type_first` | Context V2.1 exact sealing, tamper and budget tests plus `test_type_first_linter_enforces_2500_bytes` | sealed-request receipt |
-| `TF-06` request construction | `Gate2OpenWebUIRequestBuilder` | `build_from_sealed_type_first` | `test_type_first_request_profile_requires_sealed_entrypoint` plus existing Context V2.1 sealed-entrypoint test | exact logical/prepared request hashes |
-| `TF-07` provider binding/extraction | `Gate2ProviderAdapterFactory` and `Gate2PreparedProviderRequest` | existing generic `prepare_form_data`, `validate_schema_binding` and `extract_prepared_content`; unchanged | OpenAI simulated terminal-envelope proof and request/schema drift negatives | provider-visible schema and prepared-request hashes |
-| `TF-08` decision table | `Gate2FinancialSemanticV6DecisionExpansionFactory` | `create_from_type_first_candidate` | nine decision-table cells and adversarial cases 1-8, 15 | parsed set, canonical Choice and Expansion hashes |
-| `TF-09` validation/materialization | canonical Validation and Materialization owners | existing `create`; existing `create().materialize` | existing expansion, totality and canonical-materializer tests | canonical artifact hash |
-| `TF-10` V6 totality compatibility | `Gate2FinancialSemanticV6TotalMaterializerFactory` | unchanged; not used as a Type-First entrypoint | historical totality regressions plus direct Type-First canonical materializer proof | canonical artifact hash |
-| `TF-11` snapshot persistence | Financial Domain Catalog and Persistence owners | existing `create`, `serialize`, `restore` | existing provider-proof persistence/replay test plus Type-First exact snapshot test | serialized snapshot hash |
-| `TF-12` evidence/replay/comparator | `Gate2FinancialSemanticV6DecisionEvidenceFactory` | `create_type_first_candidate`, `create_type_first_technical_failure` and versioned restore/replay | existing exact evidence/offline replay tests plus all Type-First comparator counters and technical-failure replay | private evidence hash and privacy-safe counter projection |
-| `TF-13` Economy | `Gate2EconomyBudgetSessionFactory` | request-specific Type-First no-fallback profile | existing one-call budget tests plus `test_type_first_budget_forbids_fallback_without_changing_historical_profiles` | zero-call accounting |
-| `TF-14` local proof | maintained GOAL 17 support builder/tests | compose existing owners only; no runtime owner or coordinator | OpenAI simulated terminal path and full adversarial matrix | exact private proof and safe projection |
-| `TF-15` qualification declaration | existing Context V2.1 Budget Smoke coordinator | `type_first_profile_declaration` only | architecture test proving no Type-First transport call owner | declaration hash; calls zero |
-| `TF-16` compatibility/activation | architecture authority tests | no product consumer; no active/admission mutation | historical regression, bundle parity and product-import negatives | change accounting all zero |
+| `TF-01` identities/inactive state | V6 Packet, Choice, Linter owners | `TYPE_FIRST_PROFILE_IDENTITIES` | `test_type_first_contract_is_inactive_and_changes_no_admission_or_valve`; `test_type_first_request_profile_is_exact_sealed_only_and_inactive`; `test_type_first_qualification_declaration_is_frozen_and_non_executable` | safe profile summaries |
+| `TF-02` exact three-field Packet | `Gate2FinancialSemanticV6PacketFactory` | `create_type_first_candidate` | `test_type_first_candidate_reuses_exact_context_v2_1_semantics`; `test_context_v2_1_has_exact_minimal_surface_and_literal_occurrence_parity` | candidate hash and byte counts |
+| `TF-03` private mapping | same Packet owner | `Gate2FinancialSemanticV6TypeFirstMappingReceipt`; `validate_financial_semantic_v6_type_first_material` | `test_type_first_candidate_reuses_exact_context_v2_1_semantics`; `test_type_first_mapping_receipt_fails_closed_by_drift_class` | private receipt hash; safe hash only |
+| `TF-04` response/parser | `Gate2FinancialSemanticV6ChoiceContractFactory` | `create_type_first_response_profile`; `normalize_financial_semantic_v6_type_first_response` | `test_exact_nine_response_negative_fixtures_fail_closed`; `test_type_first_schema_and_parser_are_exact_and_fail_closed` | parser result or exact technical code |
+| `TF-05` sealed request | `Gate2FinancialSemanticV6ContextLinterFactory` | `create_type_first` | `test_type_first_linter_enforces_exact_2500_byte_measurement`; `test_all_governed_context_v2_1_requests_are_exact_sealed_and_within_budget` | sealed-request receipt |
+| `TF-06` request construction | `Gate2OpenWebUIRequestBuilder` | `build_from_sealed_type_first` | `test_type_first_request_profile_is_exact_sealed_only_and_inactive`; `test_type_first_request_builder_requires_exact_integrity_bound_seal`; existing Context V2.1 sealed-entrypoint test | exact logical/prepared request hashes |
+| `TF-07` provider binding/extraction | `Gate2ProviderAdapterFactory` and `Gate2PreparedProviderRequest` | existing `prepare_form_data`, `validate_schema_binding`, `extract_prepared_content` | `test_type_first_prepared_request_and_schema_drift_fail_closed`; `test_success_chain_is_terminal_exact_and_zero_call` | provider-visible schema and prepared-request hashes |
+| `TF-08` decision table | `Gate2FinancialSemanticV6DecisionExpansionFactory` | `create_from_type_first_candidate` | `test_real_compiler_zero_one_and_multiple_option_fixtures_are_proven`; `test_semantic_false_sets_are_measured_without_repair`; `test_at_least_fifteen_adversarial_cases_fail_closed_and_replay` | parsed set, canonical Choice and Expansion hashes |
+| `TF-09` validation/materialization | canonical Validation and Materialization owners | existing `create`; existing `materialize` | `test_validated_decision_uses_canonical_materialization_totality`; `test_typed_expansion_always_materializes_with_all_structural_checks` | canonical artifact hash |
+| `TF-10` V6 totality compatibility | `Gate2FinancialSemanticV6TotalMaterializerFactory` | unchanged `create`; not used as a Type-First entrypoint | `test_success_chain_is_terminal_exact_and_zero_call`; `test_totality_module_delegates_to_canonical_materializer_without_repair` | canonical artifact hash |
+| `TF-11` snapshot persistence | Financial Domain Catalog and Persistence owners | existing `create`, `serialize`, `restore` | `test_success_chain_is_terminal_exact_and_zero_call`; `test_all_twelve_provider_case_paths_are_exact_terminal_proofs` | serialized snapshot hash |
+| `TF-12` evidence/replay/comparator | `Gate2FinancialSemanticV6DecisionEvidenceFactory` | `create_type_first_candidate`, `create_type_first_technical_failure` and versioned restore/replay | `test_success_chain_is_terminal_exact_and_zero_call`, `test_semantic_false_sets_are_measured_without_repair` and `test_at_least_fifteen_adversarial_cases_fail_closed_and_replay` | private evidence hash and privacy-safe counter projection |
+| `TF-13` Economy | `Gate2EconomyBudgetSessionFactory` | `create`; `type_first_accounting_receipt`; `validate_type_first_economy_accounting_receipt` | `test_type_first_economy_is_one_call_no_fallback_without_policy_drift`; `test_default_and_fallback_call_budgets_are_enforced` | zero-call accounting |
+| `TF-14` local proof | maintained GOAL 17 support builder/tests | `build_type_first_zero_call_e2e_evidence` | `test_success_chain_is_terminal_exact_and_zero_call`; `test_at_least_fifteen_adversarial_cases_fail_closed_and_replay`; `test_support_runner_has_no_transport_or_provider_invocation_callsite`; current-output and self-integrity tests | exact private proof and safe projection |
+| `TF-15` qualification declaration | existing Context V2.1 Budget Smoke coordinator | `type_first_profile_declaration` | `test_type_first_qualification_declaration_is_frozen_and_non_executable`; `test_goal12_reuses_plan_client_evidence_and_report_authorities` | declaration hash; calls zero |
+| `TF-16` compatibility/activation | architecture authority tests | no additive implementation symbol | `test_type_first_contract_is_inactive_and_changes_no_admission_or_valve`; `test_product_pipes_imports_valves_and_consumers_are_immutable`; `test_generated_bundle_module_topology_is_unchanged`; `test_generated_bundle_modules_match_maintained_source` | change accounting all zero |
 
 The implementation PR must update this matrix only when a symbol or test name
 changes. Evidence paths remain the later GOAL 17 report and safe receipt; this
