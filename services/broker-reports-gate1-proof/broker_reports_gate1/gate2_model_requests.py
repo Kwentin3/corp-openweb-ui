@@ -5,7 +5,6 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Any
-from weakref import WeakKeyDictionary
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
@@ -266,10 +265,10 @@ class _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal:
 
 
 def _type_first_request_builder_seal_authority():
-    receipt_integrities: WeakKeyDictionary[
+    receipt_integrities: dict[
         _Gate2FinancialSemanticV6TypeFirstRequestBuilderSeal,
         str,
-    ] = WeakKeyDictionary()
+    ] = {}
 
     def issue(
         *,

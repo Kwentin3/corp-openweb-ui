@@ -55,10 +55,10 @@ The adversarial corpus intentionally demonstrates the unresolved false-singleton
 ## Repository authority
 
 - Contract integrity: `73f4ea51d8767b28fc8b3a9b1e12a6345f897ea8cbe8bde42decd0cb1ff70775`
-- Safe receipt integrity: `572a68669e0bad43622242e44768cf9dc8cf73c57e61cfe8d18cfd35cab7ccf5`
-- Gate 1 generated bundle: `6101dd72c74ea8e968d47b4158a2b433f271fb377047ff8772fbad0c2bac406b`
-- Gate 2 source generated bundle: `61b692821de093423e594fc0339762136f58a11c3b9a41f3e5af32f45b36fef7`
-- Gate 2 domain generated bundle: `a4f4042f39b2a4bac225aecf58cad047f0d74f35b0a1b6cb9e68740e87a657e6`
+- Safe receipt integrity: `6cd30aef1d4cea2a55d8af459034db9debc214603305ae306d63b53db771677e`
+- Gate 1 generated bundle: `376e8eb3ce84aad9d72e521f9a677ab8270f52c017fd11a773ac30eab09baa56`
+- Gate 2 source generated bundle: `d5425d44ef54e50c9b13a074ccf2742cef56d80e7d103ed53d52505571fa7b16`
+- Gate 2 domain generated bundle: `01dc90d1348f268749694e15ca8a47e5e82f122f0309d9c5dc3a3c0f3cb88706`
 
 The three bundle changes are deterministic closed-world copies of the maintained Broker Reports owner/support modules. Bundle topology and product consumer count remain unchanged.
 
