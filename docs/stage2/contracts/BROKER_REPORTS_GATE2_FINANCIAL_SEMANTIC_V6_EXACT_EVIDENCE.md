@@ -6,8 +6,8 @@ inactive local Choice response profile and provider-neutral sealed request
 implemented; GOAL 11 three-provider local projection, materialization,
 Financial Domain persistence/restore and exact replay implemented with zero
 provider calls; GOAL 12 live Context V2.1 budget-smoke evidence,
-failure checkpoint, persistence/restore and exact offline replay implemented
-against the frozen pre-call plan, but no GOAL 12 provider submission has run.
+failure checkpoint, persistence/restore and exact offline replay completed
+against the frozen plan with `8` submissions and no benchmark-eligible model.
 
 ## Private evidence
 
@@ -141,10 +141,12 @@ Failure checkpoints are terminal evidence and are deliberately not replayed
 as successful semantic decisions.
 
 The repository-safe receipt contains only bounded identity, verdicts, counts,
-metrics and hashes. Exact prompts, source values, normalized answers, provider
-response IDs and raw transport envelopes remain outside Git. The pre-call
-plan is repository-safe; it is not execution evidence and makes no green-suite
-or provider-quality claim.
+metrics and hashes. The terminal transparent report may publish only the
+frozen synthetic prompts, synthetic source values, adapter-extracted outputs,
+normalized answers and mechanical diffs authorized by the GOAL 12 contract.
+Actual-corpus prompts/source values, provider response IDs and raw transport
+envelopes remain outside Git. The pre-call plan is repository-safe; it is not
+execution evidence and makes no green-suite or provider-quality claim.
 
 No transport is evidence-eligible until the runner proves the exact head has
 an open, non-draft PR and completed-success `broker-reports-ci` check owned by
@@ -205,9 +207,8 @@ synthetic cases, governed answers and exact request/output comparison.
 The historical live evidence/restorer/replay path remains bound to its active
 exact-ID request. Context V2.0 persistence, restore and replay are
 `NOT_IMPLEMENTED_NOT_RUN`. Context V2.1 has the separate non-active, zero-call,
-synthetic GOAL 11 proof and the frozen but unexecuted GOAL 12 live evidence
-path. Neither changes runtime activation nor implies model qualification
-before actual terminal GOAL 12 evidence exists.
+synthetic GOAL 11 proof and the completed GOAL 12 live evidence path. Neither
+changes runtime activation; GOAL 12 produced no benchmark-eligible model.
 Private source values, refs, mappings and exact actual-corpus requests remain
 outside Git. The Managed Semantic Decision Context GOAL 4 safe receipt contains
 only statuses, aggregates, hashes and synthetic-suite accounting.
@@ -218,14 +219,18 @@ Current repository-safe GOAL 11 evidence:
 - [exact synthetic transparent report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.transparent.json);
 - [privacy-safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json).
 
-Current repository-safe GOAL 12 pre-call evidence:
+Current repository-safe GOAL 12 evidence:
 
 - [frozen transparent plan](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.transparent.json);
-- [privacy-safe plan](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json).
+- [privacy-safe plan](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json);
+- [terminal analytical report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md);
+- [terminal transparent synthetic evidence](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json);
+- [terminal privacy-safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json).
 
-These files record zero provider submissions. Terminal GOAL 12 result links
-must be added only after the exact pre-call commit passes GitHub Actions and
-the one-shot runner actually completes.
+The pre-call files record zero submissions. The terminal files record `8`
+submissions and `8` responses, retry/repair/fallback `0/0/0`, no
+benchmark-eligible provider/model, `active=false` and empty production
+admissions. Raw provider envelopes remain outside Git.
 
 The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
 deterministic candidate bytes,

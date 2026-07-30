@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Context V2.1 Budget Model Smoke v1
 
-Status: `IMPLEMENTED_FROZEN_PRECALL_NOT_EXECUTED`
+Status: `COMPLETED_NON_ACTIVE_NO_BENCHMARK_ELIGIBLE_MODEL`
 
 Date: `2026-07-29`
 
@@ -24,6 +24,18 @@ The frozen pre-call artifacts are:
 
 Both artifacts have provider calls `0`. Their plan integrity hash is
 `9191197bdc947d6ba86db3169ba0d8c911ef88423d611e2c4424a9379167cbab`.
+
+The bounded execution then produced:
+
+- [terminal analytical report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md);
+- [exact transparent synthetic report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json);
+- [privacy-safe terminal receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json).
+
+It records `8` submissions and `8` responses, retry/repair/fallback
+`0/0/0`, `active=false` and `production_admissions=[]`. OpenAI and Anthropic
+passed the technical smoke but failed the semantic smoke. Google failed closed
+before transport in all four slots because its dated immutable model identity
+was not proven. No provider/model is benchmark-eligible.
 
 ## 2. Frozen candidate ledger
 
@@ -208,3 +220,16 @@ same successful run/head. After execution, the exact transparent report,
 privacy-safe receipt and canonical documentation are committed to the same
 PR. The final immutable head is reviewed again only after its own Actions
 check is green.
+
+The pre-call gate was satisfied on execution head
+`ed12ee627282f7954fb494c35f2a7f2b6e75ff7e` by GitHub Actions run
+`30499975059`, job `90737275511`. Terminal evidence does not inherit that
+check: its final commit still requires its own green `broker-reports-ci` check
+and fresh immutable-head review before merge.
+
+## 9. Terminal stop
+
+The completed smoke admitted no provider/model to GOAL 13. No retry, repair,
+fallback, candidate substitution or additional provider attempt is authorized
+by this contract. GOAL 13 must not start unless a separate explicit candidate
+or policy decision creates a new governed route.

@@ -152,6 +152,13 @@ separate bootstrap report.
   submission budget by choosing a new directory. Exact provider envelopes
   remain outside Git. Safe and transparent synthetic reports are hash-linked,
   `active=false`, and keep `production_admissions=[]`.
+- GOAL 12 completed with `8` submissions and `8` responses. OpenAI and
+  Anthropic passed the technical smoke but failed the semantic smoke; Google
+  failed closed before transport in all four slots because its immutable dated
+  model identity was not proven. Retry, repair, fallback and semantic repair
+  remained zero. No provider/model is benchmark-eligible, so GOAL 13 must not
+  start without an explicit new candidate or policy decision. Preserve the
+  external private ledger and permanent execution-lock tag as audit evidence.
 - GOAL 5 selects existing managed strings rather than authoring markers:
   `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
   `counterexamples[0]`, nearest distinction is the unique direct rule against

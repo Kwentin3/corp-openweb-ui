@@ -499,6 +499,47 @@ def test_private_state_create_restore_tamper_and_repo_boundary(
         for entry in created["slots"].values()
     )
 
+    completed = copy.deepcopy(created)
+    completed["status"] = "completed"
+    completed["transparent_report_sha256"] = "1" * 64
+    completed["safe_receipt_hash"] = "2" * 64
+    for entry in completed["slots"].values():
+        entry["status"] = "completed"
+        entry["safe_summary"] = {"status": "terminal"}
+    CLI._write_private_state(
+        private_dir / "state.private.json",
+        completed,
+        state_authority_key=state_authority_key,
+    )
+    assert CLI._restore_private_state(
+        private_dir=private_dir,
+        plan=plan,
+        head=head,
+        base_url=base_url,
+        state_authority_key=state_authority_key,
+    ) == completed
+
+    incomplete_terminal = copy.deepcopy(completed)
+    first_slot_id = plan.slots[0].slot_id
+    incomplete_terminal["slots"][first_slot_id]["status"] = "pending"
+    incomplete_terminal["slots"][first_slot_id]["safe_summary"] = None
+    CLI._write_private_state(
+        private_dir / "state.private.json",
+        incomplete_terminal,
+        state_authority_key=state_authority_key,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="goal12_private_state_invalid",
+    ):
+        CLI._restore_private_state(
+            private_dir=private_dir,
+            plan=plan,
+            head=head,
+            base_url=base_url,
+            state_authority_key=state_authority_key,
+        )
+
     lock_path = tmp_path / "execution-lock.safe.json"
     CLI._claim_execution_lock(
         path=lock_path,
@@ -537,7 +578,6 @@ def test_private_state_create_restore_tamper_and_repo_boundary(
             private_dir=tmp_path / "different-private-state",
         )
 
-    first_slot_id = plan.slots[0].slot_id
     forged = copy.deepcopy(created)
     forged["slots"][first_slot_id]["slot_integrity_hash"] = "0" * 64
     CLI._write_json_atomically(
@@ -580,6 +620,56 @@ def test_private_state_create_restore_tamper_and_repo_boundary(
         CLI._validated_private_state_dir(
             other_repository / "private-evidence"
         )
+
+
+def test_completed_result_hashes_are_immutable() -> None:
+    report = {"status": "completed"}
+    safe_receipt = {"receipt_hash": "3" * 64}
+    expected_report_hash = CLI.sha256_json(report)
+    assert CLI._completed_result_hashes(
+        state={"status": "in_progress"},
+        report=report,
+        safe_receipt=safe_receipt,
+    ) == (expected_report_hash, "3" * 64)
+    assert CLI._completed_result_hashes(
+        state={
+            "status": "completed",
+            "transparent_report_sha256": expected_report_hash,
+            "safe_receipt_hash": "3" * 64,
+        },
+        report=report,
+        safe_receipt=safe_receipt,
+    ) == (expected_report_hash, "3" * 64)
+    with pytest.raises(
+        RuntimeError,
+        match="goal12_completed_result_hash_mismatch",
+    ):
+        CLI._completed_result_hashes(
+            state={
+                "status": "completed",
+                "transparent_report_sha256": "4" * 64,
+                "safe_receipt_hash": "3" * 64,
+            },
+            report=report,
+            safe_receipt=safe_receipt,
+        )
+
+
+def test_terminal_output_validation_is_byte_exact(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "terminal.json"
+    expected = "{\n  \"status\": \"completed\"\n}\n"
+    CLI._write_or_validate_text(path, expected)
+    assert path.read_bytes() == expected.encode("utf-8")
+    CLI._write_or_validate_text(path, expected)
+
+    path.write_bytes(expected.replace("\n", "\r\n").encode("utf-8"))
+    with pytest.raises(
+        RuntimeError,
+        match="goal12_existing_output_mismatch",
+    ):
+        CLI._write_or_validate_text(path, expected)
 
 
 def test_process_lease_rejects_concurrent_resume_before_delegate(

@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2
 
-Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt, Choice profile, provider-neutral sealed request, zero-call three-provider local proof and GOAL 12 frozen pre-call harness implemented; GOAL 12 provider submissions remain zero and runtime activation is absent.
+Status: `V2_0_PACKET_SIDECAR_IMPLEMENTED_NON_ACTIVE_COMPLETENESS_BASELINE_FUTURE_TARGET_SUPERSEDED`; current V2.1 candidate/private receipt, Choice profile, provider-neutral sealed request, zero-call three-provider local proof and terminal GOAL 12 smoke are implemented; GOAL 12 admitted no benchmark-eligible model and runtime activation is absent.
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2`
@@ -1417,11 +1417,11 @@ The governing successor sequence is:
    consuming P01-P18 without inventing a Choice schema;
 7. GOAL 11 proves three provider-specific projections and the local
    materialization/persistence/replay path with zero provider calls;
-8. GOAL 12 freezes the exact three-provider/four-case pre-call plan and
-   implements the one-attempt qualification harness; provider calls remain
-   zero until its exact open PR head has a real green Actions check;
-9. **STOP before GOAL 13:** only terminal, reviewed, green and merged GOAL 12
-   evidence may advance an eligible provider/model.
+8. GOAL 12 froze the exact three-provider/four-case plan, passed its pre-call
+   Actions gate and completed the one-attempt qualification smoke with `8`
+   submissions and no benchmark-eligible model;
+9. **STOP before GOAL 13:** no provider/model may advance; further attempts
+   require a separate explicit candidate or policy decision.
 
 The GOAL 10 linter protects the contracted full P01-P18 V2.1 surface. It does
 not cement the complete V2.0 field set

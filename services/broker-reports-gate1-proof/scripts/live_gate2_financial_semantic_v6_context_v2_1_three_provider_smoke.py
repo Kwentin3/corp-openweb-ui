@@ -521,6 +521,13 @@ def _main_unleased(
         report=report,
         safe_receipt=safe_receipt,
     )
+    transparent_report_sha256, safe_receipt_hash = (
+        _completed_result_hashes(
+            state=state,
+            report=report,
+            safe_receipt=safe_receipt,
+        )
+    )
     _write_or_validate_text(
         TRANSPARENT_REPORT_PATH,
         _pretty_json(report) + "\n",
@@ -534,8 +541,8 @@ def _main_unleased(
         markdown,
     )
     state["status"] = "completed"
-    state["transparent_report_sha256"] = sha256_json(report)
-    state["safe_receipt_hash"] = safe_receipt["receipt_hash"]
+    state["transparent_report_sha256"] = transparent_report_sha256
+    state["safe_receipt_hash"] = safe_receipt_hash
     _write_private_state(
         state_path,
         state,
@@ -543,6 +550,25 @@ def _main_unleased(
     )
     print(_pretty_json(safe_receipt))
     return 0
+
+
+def _completed_result_hashes(
+    *,
+    state: dict[str, Any],
+    report: dict[str, Any],
+    safe_receipt: dict[str, Any],
+) -> tuple[str, str]:
+    transparent_report_sha256 = sha256_json(report)
+    safe_receipt_hash = safe_receipt.get("receipt_hash")
+    if not _is_sha256(safe_receipt_hash):
+        raise RuntimeError("goal12_completed_result_hash_invalid")
+    if state.get("status") == "completed" and (
+        state.get("transparent_report_sha256")
+        != transparent_report_sha256
+        or state.get("safe_receipt_hash") != safe_receipt_hash
+    ):
+        raise RuntimeError("goal12_completed_result_hash_mismatch")
+    return transparent_report_sha256, safe_receipt_hash
 
 
 def main() -> int:
@@ -735,9 +761,10 @@ def _restore_private_state(
         state_authority_key=state_authority_key,
     )
     expected_slot_ids = {item.slot_id for item in plan.slots}
+    state_status = state.get("status")
     if (
         state.get("schema_version") != STATE_SCHEMA_VERSION
-        or state.get("status") != "in_progress"
+        or state_status not in {"in_progress", "completed"}
         or state.get("plan_integrity_hash") != plan.integrity_hash
         or state.get("repository_head") != head
         or state.get("base_url_sha256") != _sha256_text(base_url)
@@ -797,6 +824,26 @@ def _restore_private_state(
             )
         ):
             raise RuntimeError("goal12_private_state_invalid")
+    if (
+        state_status == "in_progress"
+        and (
+            state.get("transparent_report_sha256") is not None
+            or state.get("safe_receipt_hash") is not None
+        )
+    ) or (
+        state_status == "completed"
+        and (
+            any(
+                entry.get("status") != "completed"
+                for entry in state["slots"].values()
+            )
+            or not _is_sha256(
+                state.get("transparent_report_sha256")
+            )
+            or not _is_sha256(state.get("safe_receipt_hash"))
+        )
+    ):
+        raise RuntimeError("goal12_private_state_invalid")
     return state
 
 
@@ -1941,10 +1988,10 @@ def _write_text_atomically(
 def _write_or_validate_text(path: Path, text: str) -> None:
     if path.exists():
         try:
-            observed = path.read_text(encoding="utf-8")
+            observed = path.read_bytes()
         except OSError as exc:
             raise RuntimeError("goal12_existing_output_unreadable") from exc
-        if observed != text:
+        if observed != text.encode("utf-8"):
             raise RuntimeError("goal12_existing_output_mismatch")
         return
     _write_text_atomically(

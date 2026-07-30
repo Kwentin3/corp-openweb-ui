@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 Minimal Model Surface v1
 
-Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_GOAL12_FROZEN_PRECALL`
+Status: `ACCEPTED_NON_ACTIVE_SURFACE_WITH_GOAL12_TERMINAL_SMOKE`
 
 Contract identity:
 `broker_reports_gate2_minimal_model_surface_v1`
@@ -21,11 +21,11 @@ GOAL 8 implements the sole current non-active
   complete-request linter and sealed request receipt in the existing Context
   Linter factory. GOAL 11 proves the additive request projection, adapter
   extraction, canonical materialization, persistence/restore and replay for
-  OpenAI, Anthropic and Google profiles without provider calls. GOAL 12 now
-  implements the separately versioned immutable 12-slot pre-call plan and
-  qualification-only one-attempt harness under the existing owners. The
-  committed evidence still records provider calls `0`; live results, model
-  qualification acceptance and activation remain absent.
+  OpenAI, Anthropic and Google profiles without provider calls. GOAL 12
+  implements the separately versioned immutable 12-slot plan and
+  qualification-only one-attempt harness under the existing owners. Its
+  terminal evidence records `8` submissions, retry/repair/fallback `0/0/0`,
+  no benchmark-eligible provider/model and no activation.
 
 ## 1. Purpose and scope
 
@@ -798,11 +798,9 @@ The program state is:
    through the existing linter authority;
 6. GOAL 11 proves the three provider adapter projections and the full local
    materialization/persistence/replay path without provider calls;
-7. GOAL 12 freezes the exact three-provider/four-case plan and implements the
-   qualification-only one-attempt harness; the current pre-call evidence has
-   provider submissions `0`;
-8. **PRE-CALL STOP:** the first GOAL 12 submission requires the committed exact
-   open, non-draft PR head and its real green `broker-reports-ci` GitHub Actions
-   check;
-9. **STOP before GOAL 13:** no provider/model can enter the full benchmark
-   before terminal GOAL 12 evidence is fresh-reviewed, green and merged.
+7. GOAL 12 froze the exact three-provider/four-case plan, passed its pre-call
+   delivery gate and completed the qualification-only one-attempt smoke;
+8. terminal GOAL 12 evidence records `8` submissions and no eligible
+   provider/model;
+9. **STOP before GOAL 13:** no provider/model may enter the full benchmark;
+   further attempts require a separate explicit candidate or policy decision.

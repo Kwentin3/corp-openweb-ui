@@ -120,9 +120,17 @@ GOAL 12 adds only a qualification-time, one-attempt Context V2.1 smoke path.
 Its [contract](docs/stage2/contracts/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
 and [immutable pre-call plan](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json)
 freeze 12 provider/case slots, exact requests and zero retry/repair/fallback.
-The plan is not execution evidence: provider submissions remain zero until the
-exact committed PR head has a green `broker-reports-ci` check. Context V2.1
-remains inactive and production admissions stay empty.
+The plan itself is not execution evidence. After its exact committed PR head
+passed the real `broker-reports-ci` check, the bounded run completed with
+`8` submissions and `8` responses. OpenAI and Anthropic passed the technical
+smoke but failed the semantic smoke; Google failed closed before transport in
+all four slots because its immutable dated model identity was not proven.
+The [terminal report](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md),
+[transparent synthetic evidence](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json)
+and [privacy-safe receipt](docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json)
+record retry/repair/fallback `0/0/0`, no benchmark-eligible model,
+`active=false` and empty production admissions. GOAL 13 is blocked unless a
+separate explicit candidate or policy decision authorizes a new path.
 The frozen transport policy is
 `direct_exact_provider_http_via_openwebui_connection_v1`: OpenWebUI supplies
 only the exact enabled Admin connection/credential; the runner never calls

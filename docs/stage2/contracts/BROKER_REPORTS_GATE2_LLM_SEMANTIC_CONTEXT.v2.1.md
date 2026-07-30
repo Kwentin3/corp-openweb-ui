@@ -1,6 +1,6 @@
 # Broker Reports Gate 2 LLM Semantic Context V2.1
 
-Status: `IMPLEMENTED_NON_ACTIVE_GOAL12_FROZEN_PRECALL`
+Status: `IMPLEMENTED_NON_ACTIVE_GOAL12_COMPLETED_NO_ELIGIBLE_MODEL`
 
 Contract identity:
 `broker_reports_gate2_llm_semantic_context_v2_1`
@@ -433,7 +433,7 @@ GOAL 11 is merged. The separately versioned
 [GOAL 12 contract](./BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
 now governs qualification-only provider transport.
 
-The committed pre-call plan freezes OpenAI
+The committed pre-call plan froze OpenAI
 `gpt-5.4-nano-2026-03-17`, Anthropic
 `claude-haiku-4-5-20251001`, Google
 `models/gemini-3.1-flash-lite` and the same four synthetic semantic cases for
@@ -467,6 +467,17 @@ output, normalized and expected answers, mechanical diff, tokens, cost and
 latency. Context V2.1 remains `active=false`, and production admissions remain
 empty.
 
-**PRE-CALL STOP:** no GOAL 12 submission is authorized until the plan/harness
-commit has a real green `broker-reports-ci` GitHub Actions check on its exact
-open, non-draft PR head, with exact workflow, run and job provenance.
+That pre-call gate was satisfied on execution head
+`ed12ee627282f7954fb494c35f2a7f2b6e75ff7e`. The bounded run completed with
+`8` submissions and `8` responses. OpenAI and Anthropic passed the technical
+smoke but failed the semantic smoke; Google failed closed before transport in
+all four slots. Retry, repair, fallback and semantic repair remained zero.
+
+The [terminal report](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md),
+[transparent synthetic evidence](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json)
+and [privacy-safe receipt](../../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json)
+record no benchmark-eligible provider/model, `active=false` and empty
+production admissions.
+
+**TERMINAL STOP:** GOAL 13 must not start. Further provider attempts or a new
+candidate require a separate explicit candidate or policy decision.

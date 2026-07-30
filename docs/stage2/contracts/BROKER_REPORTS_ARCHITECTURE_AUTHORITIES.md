@@ -306,15 +306,14 @@ expected answer or runtime byte. The ordered successor program is:
 7. GOAL 11 proves OpenAI, Anthropic and Google projection plus extraction,
    materialization, persistence/restore and exact replay on four synthetic
    fixtures with zero provider calls;
-8. GOAL 12 freezes one budget candidate per provider and at most 12 live
+8. GOAL 12 froze one budget candidate per provider and at most 12 live
    qualification slots under the existing owners, using exact direct-provider
    transport resolved from the enabled OpenWebUI connection, a committed
    pre-call plan, exact open-PR/Actions provenance and one-shot external
-   execution claims; the stable Google selector fails before transport while
-   immutable identity is unproven;
-9. **STOP before GOAL 13:** only a GOAL 12 provider/model with exact technical
-   pipeline, four exact answers and zero unsafe/invalid/retry/repair/fallback
-   outcomes may enter the full benchmark.
+   execution claims; the run completed with `8` submissions, OpenAI and
+   Anthropic semantic failures, and four Google pretransport failures;
+9. **STOP before GOAL 13:** GOAL 12 produced no eligible provider/model.
+   Further attempts require a separate explicit candidate or policy decision.
 
 The minimal contract selects existing semantic wording; it does not author it.
 `positive_signal` is exact Pack `examples[0]`, `negative_signal` is exact
@@ -408,10 +407,10 @@ inactive and is not accepted by the active V6 Choice. GOAL 7 packages it in
 inactive family v3 and implements only its exact managed minimal projection
 through the existing loader/projection owner. The current non-active V2.1
 Packet construction, Choice-owned response profile, provider-neutral Context
-Linter, GOAL 11 zero-call local proof and the frozen-precall GOAL 12
-qualification plan/evidence path are its only consumers. None is product
-runtime. GOAL 12 provider calls remain zero until its exact committed open PR
-head passes the real Actions delivery gate.
+Linter, GOAL 11 zero-call local proof and the terminal GOAL 12 qualification
+plan/evidence path are its only consumers. None is product runtime. GOAL 12
+completed with `8` submissions, no benchmark-eligible provider/model and no
+activation.
 Current non-active V2.1 uses the Minimal Model Surface instruction, not the historical
 V2.0 complete-prebound task.
 
@@ -425,9 +424,9 @@ V2.0 complete-prebound task.
    future storage adapter must delegate serialization and may not mint snapshot
    authority.
 4. The OpenAI root-object projection is implemented locally in the existing
-   adapter. GOAL 12 provider smoke is authorized only after its exact pre-call
-   PR head passes the separately enforced Actions delivery gate; the committed
-   pre-call state has provider calls zero.
+   adapter. GOAL 12 passed its separately enforced pre-call Actions gate and
+   completed without admitting a provider/model; its terminal final head still
+   requires its own green Actions check and fresh review before merge.
 
 ## Historical LLM Semantic Context v1 candidate boundary
 
