@@ -1,0 +1,38 @@
+{
+  "base_commit": "737682f7dacdd0ff6b1d68c06e51d64c86a4283c",
+  "cases_simulated": [
+    "syn_successor_v2_unique_cash",
+    "syn_successor_v2_unique_printed_total",
+    "syn_successor_v2_multiple_compatible",
+    "syn_successor_v2_no_registry_type",
+    "syn_successor_v2_missing_discriminator",
+    "syn_successor_v2_detail_vs_subtotal",
+    "syn_successor_v2_adjacent_equal",
+    "syn_successor_v2_adjacent_fx",
+    "syn_successor_v2_optional_missing",
+    "syn_successor_v2_forbidden_neighbour"
+  ],
+  "confidence": "medium",
+  "detailed_cases_simulated": [
+    "syn_successor_v2_unique_cash",
+    "syn_successor_v2_no_registry_type",
+    "syn_successor_v2_multiple_compatible",
+    "syn_successor_v2_detail_vs_subtotal"
+  ],
+  "goal_identity": "BROKER_REPORTS_GATE2_GOAL15_TYPE_FIRST_ARCHITECTURE_AUDIT",
+  "historical_files_modified_total": 0,
+  "integrity_sha256": "872e5d19df7641a286174aa99d32888cc4aa5eabace60ab00ed41c21c6af3e10",
+  "product_logic_changes_total": 0,
+  "provider_calls_total": 0,
+  "recommendation_id": "SELECT_VARIANT_B_AS_MVP_AND_RESERVE_C",
+  "report_file_sha256": "eedd5b04ef79830b8fee0906629fbd202a10f914a29e9cad07b4da98d3ebbd27",
+  "runtime_changes_total": 0,
+  "schema_version": "broker_reports_gate2_type_first_semantic_decision_architecture_audit_receipt_v1",
+  "transparent_file_sha256": "d66ed03007b586bb861fb76e48297949e8e294b00142cf7bcc80dc95db9b7ed9",
+  "unresolved_assumptions_count": 7,
+  "variant_ids": [
+    "ONE_CALL_CHOICES_AND_PLAUSIBLE_TYPES",
+    "ONE_CALL_TYPE_FIRST_FAIL_CLOSED",
+    "TYPE_FIRST_THEN_RECORD_SELECTION"
+  ]
+}

@@ -46,6 +46,9 @@ Current local implementation evidence:
 - [GOAL 14 evidence-first comparative review](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.report.md)
 - [GOAL 14 transparent comparative evidence](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.transparent.json)
 - [GOAL 14 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.receipt.safe.json)
+- [GOAL 15 type-first semantic decision architecture audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md)
+- [GOAL 15 transparent architecture analysis](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json)
+- [GOAL 15 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json)
 
 Historical evidence only:
 
@@ -646,6 +649,9 @@ Read first:
 - [Context V2.1 GOAL 14 evidence-first comparative review](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.report.md)
 - [Context V2.1 GOAL 14 transparent comparative evidence](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.transparent.json)
 - [Context V2.1 GOAL 14 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.receipt.safe.json)
+- [Context V2.1 GOAL 15 type-first semantic decision architecture audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md)
+- [Context V2.1 GOAL 15 transparent architecture analysis](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json)
+- [Context V2.1 GOAL 15 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)
