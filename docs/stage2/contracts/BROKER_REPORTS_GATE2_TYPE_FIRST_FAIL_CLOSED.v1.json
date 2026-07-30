@@ -1,0 +1,1244 @@
+{
+  "schema_version": "broker_reports_gate2_type_first_fail_closed_machine_contract_v1",
+  "goal_identity": "BROKER_REPORTS_GATE2_GOAL16_TYPE_FIRST_FAIL_CLOSED_CONTRACT",
+  "base_commit": "7ef38c2bba12e6773f2ded8542c256d603ca5aff",
+  "contract_identities": {
+    "contract_identity": "broker_reports_gate2_type_first_fail_closed_v1",
+    "context_profile": "broker_reports_gate2_type_first_context_v1_candidate",
+    "response_profile": "broker_reports_gate2_type_first_plausible_types_response_v1",
+    "decision_policy": "broker_reports_gate2_type_first_fail_closed_policy_v1"
+  },
+  "status": {
+    "active": false,
+    "transport_eligible": false,
+    "runtime_activation": false,
+    "provider_calls_total": 0,
+    "fallback_allowed": false,
+    "repair_allowed": false,
+    "retry_allowed": false
+  },
+  "model_visible_contract": {
+    "field_order": [
+      "task",
+      "source",
+      "type_cards"
+    ],
+    "root_fields_total": 3,
+    "exact_system_message": "Return exactly one JSON object that conforms to the supplied strict response schema. Use only the task and evidence in the user message.",
+    "exact_task": "Return every type_key from type_cards whose financial meaning remains plausible for the visible source. Return all plausible types, not only the best one. Judge type plausibility independently of whether code can construct a complete record. Preserve type_cards order.",
+    "local_type_key_order": [
+      "type_1",
+      "type_2"
+    ],
+    "model_output_semantics": "ordered_unique_exact_subsequence_of_type_cards",
+    "serialized_user_context_order": [
+      "task",
+      "source",
+      "type_cards"
+    ],
+    "serialized_user_context_canonicalization": "utf8_minified_json_preserve_insertion_order",
+    "representative_user_context": {
+      "task": "Return every type_key from type_cards whose financial meaning remains plausible for the visible source. Return all plausible types, not only the best one. Judge type plausibility independently of whether code can construct a complete record. Preserve type_cards order.",
+      "source": {
+        "children": [
+          {
+            "children": [
+              {
+                "kind": "row",
+                "values": [
+                  {
+                    "literal": "-120.5000",
+                    "meaning": "amount"
+                  },
+                  {
+                    "literal": "RUB",
+                    "meaning": "currency"
+                  },
+                  {
+                    "literal": "2026-03-01",
+                    "meaning": "as of date"
+                  },
+                  {
+                    "literal": "Cash balance",
+                    "meaning": "description"
+                  }
+                ]
+              }
+            ],
+            "kind": "table"
+          }
+        ]
+      },
+      "type_cards": [
+        {
+          "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+          "nearest_competitor": {
+            "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified.",
+            "type_key": "type_2"
+          },
+          "negative_signal": "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+          "positive_signal": "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+          "title": "Cash balance snapshot",
+          "type_key": "type_1"
+        },
+        {
+          "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+          "nearest_competitor": {
+            "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit.",
+            "type_key": "type_1"
+          },
+          "negative_signal": "A total calculated by Gate 2 from child rows.",
+          "positive_signal": "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+          "title": "Printed financial metric",
+          "type_key": "type_2"
+        }
+      ]
+    },
+    "type_cards_sha256": "f0b25addd4fdf26e6bbd96e734d3f2406d8809bbad7df30cad46b6dbfaa8e133",
+    "source_projection_sha256_by_case": {
+      "syn_successor_v2_unique_cash": "17939142da9573c227f1572f0db4880defa792de8222270d7cc5be94874ca0fd",
+      "syn_successor_v2_unique_printed_total": "38e4bea83a81585adb4507f1f824d3c6a62b95ca3dbc1c5a9edb6c5e8289fa9e",
+      "syn_successor_v2_multiple_compatible": "a57db2fce25ac14ed9ce54a615b9706868933ac49f56d1dd7b45d40a0ed0d679",
+      "syn_successor_v2_no_registry_type": "b28d94f13eb34f7ac374ec7d1e35f0705414ca483b446cc6e21259059c276b65",
+      "syn_successor_v2_missing_discriminator": "312cc730517e3cb08bd38b9d9231f0f63f629cd4ab2cb73e4865a7285a8a44de",
+      "syn_successor_v2_detail_vs_subtotal": "1ace0eee5e8887802488b2f1bb8ffce6b0c6d395f817508dc9c01bdcbf2c5ada",
+      "syn_successor_v2_adjacent_equal": "402dbc93e6e28b41ae36cd0329d66017ee1aef43995a9706ea88477a11feee81",
+      "syn_successor_v2_adjacent_fx": "eacb64962d01edc76b0667844fc59870c125e8a26ea827d860ffa70672f7908c",
+      "syn_successor_v2_optional_missing": "f76aa417a8005a4c1a2204b11354ebc9d969e4ce00b8fb6cbbf2c4d792587507",
+      "syn_successor_v2_forbidden_neighbour": "42f4a085ec9bb1227ddbcd51c19327d2232500aab8f487fd1dc3dc977947ea92"
+    },
+    "source_requirement": "byte_equivalent_current_context_v2_1_semantic_projection",
+    "type_cards_requirement": "exact_current_managed_minimal_type_cards_in_current_order",
+    "type_card_wording_copied_into_python_total": 0,
+    "excluded_fields": [
+      "choices",
+      "complete_options",
+      "differentiators",
+      "unclassified_reasons",
+      "typed_option_ids",
+      "canonical_type_ids",
+      "compiler_option_counts",
+      "bindings",
+      "refs",
+      "hashes",
+      "materialization_metadata"
+    ]
+  },
+  "response_contract": {
+    "logical_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plausible_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "type_1",
+              "type_2"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "plausible_types"
+      ]
+    },
+    "schema_sha256": "8897f4fc91b0dd52e92e366d5f36f24a8af37a8ae7edaab2cb8a9c79bd245b3a",
+    "task_sha256": "2dc44b6475e1bd1c753cc1ba91074fd4d1da2f0c660abb4446371aa437a80c68",
+    "field_order_sha256": "398298e640e8814e9e7396322efd60abe928e242fe63835e05d64f1a71bd3ba6",
+    "real_profile_enum_binding": "exact_visible_type_cards[*].type_key",
+    "real_profile_max_items_binding": "count(exact_visible_type_cards)",
+    "valid_examples": [
+      {
+        "plausible_types": []
+      },
+      {
+        "plausible_types": [
+          "type_1"
+        ]
+      },
+      {
+        "plausible_types": [
+          "type_1",
+          "type_2"
+        ]
+      }
+    ],
+    "null_allowed": false,
+    "reason_allowed": false,
+    "selected_choice_allowed": false,
+    "free_text_allowed": false,
+    "canonical_backend_ids_allowed": false,
+    "repair_sort_dedupe_allowed": false
+  },
+  "private_mapping_contract": {
+    "model_visible": false,
+    "baseline_local_to_canonical": {
+      "type_1": "cash_balance_snapshot_v1",
+      "type_2": "printed_financial_metric_v1"
+    },
+    "future_profile_receipt_exists": false,
+    "future_profile_receipt_hash": null,
+    "required_bindings": [
+      "context_profile",
+      "visible_type_card_order",
+      "semantic_pack_identity",
+      "managed_projection_identity",
+      "evidence_bundle_scope",
+      "candidate_compilation_scope",
+      "integrity_sha256"
+    ],
+    "unknown_removed_reordered_or_resealed_mapping": "technical_contract_failure"
+  },
+  "single_variable_experiment_boundary": {
+    "reused_without_semantic_change": [
+      "current_context_v2_1_source",
+      "current_context_v2_1_type_cards",
+      "current_managed_minimal_projection",
+      "current_semantic_pack",
+      "current_source_hierarchy",
+      "current_exact_source_literals"
+    ],
+    "changed_only": [
+      "semantic_task",
+      "response_schema",
+      "absence_of_record_construction_signals"
+    ],
+    "forbidden_concurrent_changes": [
+      "type_card_wording",
+      "source_grouping",
+      "type_boundaries",
+      "semantic_pack",
+      "expected_answers"
+    ]
+  },
+  "decision_table": [
+    {
+      "plausible_type_cardinality": "zero",
+      "matching_complete_option_cardinality": "zero",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "no_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "zero",
+      "matching_complete_option_cardinality": "one",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "no_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "zero",
+      "matching_complete_option_cardinality": "two_or_more",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "no_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "one",
+      "matching_complete_option_cardinality": "zero",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "single_registry_type_no_safe_record",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "one",
+      "matching_complete_option_cardinality": "one",
+      "disposition": "typed_input",
+      "reason_code": null,
+      "restoration": "exact_code_owned_typed_option",
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "one",
+      "matching_complete_option_cardinality": "two_or_more",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "single_registry_type_no_safe_record",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "two_or_more",
+      "matching_complete_option_cardinality": "zero",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "ambiguous_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "two_or_more",
+      "matching_complete_option_cardinality": "one",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "ambiguous_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    },
+    {
+      "plausible_type_cardinality": "two_or_more",
+      "matching_complete_option_cardinality": "two_or_more",
+      "disposition": "unclassified_financial_input",
+      "reason_code": "ambiguous_registry_type",
+      "restoration": null,
+      "complete_validly_prebound_options_only": true,
+      "option_counts_are_semantic_evidence": false
+    }
+  ],
+  "technical_failures": {
+    "response_negative_fixtures": [
+      {
+        "fixture_id": "malformed_json",
+        "expected_error_code": "malformed_json"
+      },
+      {
+        "fixture_id": "missing_plausible_types",
+        "expected_error_code": "missing_plausible_types"
+      },
+      {
+        "fixture_id": "plausible_types_null",
+        "expected_error_code": "plausible_types_null"
+      },
+      {
+        "fixture_id": "plausible_types_not_array",
+        "expected_error_code": "plausible_types_not_array"
+      },
+      {
+        "fixture_id": "unknown_type_key",
+        "expected_error_code": "unknown_type_key"
+      },
+      {
+        "fixture_id": "duplicate_type_key",
+        "expected_error_code": "duplicate_type_key"
+      },
+      {
+        "fixture_id": "out_of_order_type_keys",
+        "expected_error_code": "out_of_order_type_keys"
+      },
+      {
+        "fixture_id": "extra_response_field",
+        "expected_error_code": "extra_response_field"
+      },
+      {
+        "fixture_id": "backend_type_id_forbidden",
+        "expected_error_code": "backend_type_id_forbidden"
+      }
+    ],
+    "contract_integrity_negative_fixtures": [
+      {
+        "fixture_id": "mapping_receipt_mismatch",
+        "expected_error_code": "mapping_receipt_mismatch"
+      },
+      {
+        "fixture_id": "context_profile_schema_hash_mismatch",
+        "expected_error_code": "context_profile_schema_hash_mismatch"
+      },
+      {
+        "fixture_id": "pack_projection_drift",
+        "expected_error_code": "pack_projection_drift"
+      },
+      {
+        "fixture_id": "evidence_bundle_scope_mismatch",
+        "expected_error_code": "evidence_bundle_scope_mismatch"
+      },
+      {
+        "fixture_id": "candidate_compilation_scope_mismatch",
+        "expected_error_code": "candidate_compilation_scope_mismatch"
+      }
+    ],
+    "backend_restoration_negative_fixtures": [
+      {
+        "fixture_id": "missing_exact_code_owned_typed_option",
+        "expected_error_code": "exact_code_owned_typed_option_mismatch"
+      },
+      {
+        "fixture_id": "mismatched_exact_code_owned_typed_option",
+        "expected_error_code": "exact_code_owned_typed_option_mismatch"
+      }
+    ],
+    "response_root_not_object_code": "response_root_not_object",
+    "terminal_behavior": {
+      "semantic_reason_assigned": false,
+      "unclassified_financial_input_written": false,
+      "typed_record_materialized": false,
+      "terminal_financial_domain_result_written": false,
+      "technical_evidence_retained": true,
+      "retry_total": 0,
+      "repair_total": 0,
+      "fallback_total": 0
+    }
+  },
+  "retention_rules": {
+    "unclassified_routes": [
+      "full_evidence_bundle_retained",
+      "all_source_literals_retained",
+      "all_provenance_retained",
+      "all_source_ownership_retained",
+      "no_cross_scope_movement",
+      "no_duplicate_binding",
+      "no_source_value_loss",
+      "no_raw_provider_payload_in_product_paths"
+    ],
+    "typed_route": [
+      "exact_code_owned_option_only",
+      "model_returns_no_values_refs_or_bindings",
+      "existing_validator_remains_authority",
+      "existing_materializer_remains_authority",
+      "model_output_is_not_a_financial_record",
+      "existing_typed_evidence_path_unchanged"
+    ]
+  },
+  "qualification": {
+    "primary_risk": "FALSE_SINGLETON_TYPED_RISK",
+    "risk_example": {
+      "true_plausible_types": [
+        "type_1",
+        "type_2"
+      ],
+      "incorrect_model_output": [
+        "type_1"
+      ],
+      "unsafe_path": "one_matching_complete_option_can_materialize_a_wrong_typed_record"
+    },
+    "counters": [
+      "plausible_type_set_exact_total",
+      "false_empty_total",
+      "false_singleton_total",
+      "false_superset_total",
+      "wrong_singleton_type_total",
+      "false_singleton_typed_total",
+      "unsafe_typed_total",
+      "safe_under_typing_total",
+      "invalid_response_total"
+    ],
+    "counter_definitions": {
+      "plausible_type_set_exact_total": "responses whose ordered plausible type set exactly equals the audited ordered set",
+      "false_empty_total": "empty model sets when the audited set is non-empty",
+      "false_singleton_total": "singleton model sets when the audited set cardinality is not one",
+      "false_superset_total": "model sets that are strict supersets of the audited set",
+      "wrong_singleton_type_total": "singleton model and audited sets whose sole type keys differ",
+      "false_singleton_typed_total": "false singleton responses that reach a typed outcome",
+      "unsafe_typed_total": "typed outcomes that do not equal the audited exact safe code-owned option",
+      "safe_under_typing_total": "unclassified outcomes where the audited singleton type had exactly one complete validly prebound option",
+      "invalid_response_total": "responses rejected as technical contract failures"
+    },
+    "hard_gates": {
+      "unsafe_typed_total": 0,
+      "false_singleton_typed_total": 0,
+      "wrong_singleton_type_total": 0,
+      "invalid_response_total": 0
+    },
+    "provider_qualification_performed": false,
+    "model_quality_proven": false
+  },
+  "ten_case_matrix": [
+    {
+      "case_id": "syn_successor_v2_unique_cash",
+      "plausible_local_types": [
+        "type_1"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "singleton_type_one_complete_option",
+      "expected_disposition": "typed_input",
+      "typed_option_identity": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f",
+      "typed_option_pin_status": "historical_explicit",
+      "unclassified_reason": null,
+      "source_retention_expectation": "existing_typed_evidence_path_unchanged",
+      "source_projection_sha256": "17939142da9573c227f1572f0db4880defa792de8222270d7cc5be94874ca0fd",
+      "mapping_receipt_integrity": "0a24f59049d314219e236ed68f3e27a862b5b2652ed0d668f0811ad32c630d91",
+      "candidate_compilation_integrity": "0e37b4c78cf7e3e3e8260f07a4b7eb5476508df6c4ecb23eef3c45d8e60ff436",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_unique_printed_total",
+      "plausible_local_types": [
+        "type_2"
+      ],
+      "plausible_canonical_types": [
+        "printed_financial_metric_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "singleton_type_one_complete_option",
+      "expected_disposition": "typed_input",
+      "typed_option_identity": "financial-typed-option:9c6b9a796d36dc2cde5b073c9d397622",
+      "typed_option_pin_status": "current_factory_observation_frozen_by_goal16",
+      "unclassified_reason": null,
+      "source_retention_expectation": "existing_typed_evidence_path_unchanged",
+      "source_projection_sha256": "38e4bea83a81585adb4507f1f824d3c6a62b95ca3dbc1c5a9edb6c5e8289fa9e",
+      "mapping_receipt_integrity": "22fa59c0bf217808b84798ad3365827063104f5c10fc0f881616bd08dd9e8d69",
+      "candidate_compilation_integrity": "91821868dc7604d13ced0d053b5d2d628d5b25409e0444aeee00132cd86f6d4c",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_multiple_compatible",
+      "plausible_local_types": [
+        "type_1",
+        "type_2"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 0,
+        "type_2": 0
+      },
+      "route": "multiple_plausible_types",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "ambiguous_registry_type",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "a57db2fce25ac14ed9ce54a615b9706868933ac49f56d1dd7b45d40a0ed0d679",
+      "mapping_receipt_integrity": "5819dc89a7b6c10813ffecc7a455234e56df3a1655cc2bc4ac5a6d7cfd626c99",
+      "candidate_compilation_integrity": "f75a29b5c37a4f29150709f0c338028ab43f176f3a8d0056c80b1def68df900c",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_no_registry_type",
+      "plausible_local_types": [],
+      "plausible_canonical_types": [],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "zero_plausible_types",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "no_registry_type",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "b28d94f13eb34f7ac374ec7d1e35f0705414ca483b446cc6e21259059c276b65",
+      "mapping_receipt_integrity": "3a206c92816b7600cad18ca133b721c5fd0ead0aa37735750c90c98bf2ab78e6",
+      "candidate_compilation_integrity": "700951c097b69098337e43362f7c8df3c45abe06fe30c9d4e94c6517639c25d6",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_missing_discriminator",
+      "plausible_local_types": [
+        "type_1",
+        "type_2"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1",
+        "printed_financial_metric_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "multiple_plausible_types",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "ambiguous_registry_type",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "312cc730517e3cb08bd38b9d9231f0f63f629cd4ab2cb73e4865a7285a8a44de",
+      "mapping_receipt_integrity": "fc37466094614eac1702705d8b8abb85d1de2c9990c8bb51a653bc8569dd76de",
+      "candidate_compilation_integrity": "5a6cc4432b0a746205960f295627cefe140fe5f8d3ed31d5c41425175f46ef73",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_detail_vs_subtotal",
+      "plausible_local_types": [
+        "type_2"
+      ],
+      "plausible_canonical_types": [
+        "printed_financial_metric_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 0,
+        "type_2": 0
+      },
+      "route": "singleton_type_no_safe_record",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "single_registry_type_no_safe_record",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "1ace0eee5e8887802488b2f1bb8ffce6b0c6d395f817508dc9c01bdcbf2c5ada",
+      "mapping_receipt_integrity": "6a09e2a18d4852c46cb6f6f19d914940be8a9e1aac7040f87ed0687431f767db",
+      "candidate_compilation_integrity": "f80c4f505b3b5b2df679cffd4c073b65009e91f718fbec603a3324f9115084ae",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_equal",
+      "plausible_local_types": [
+        "type_1"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 0,
+        "type_2": 0
+      },
+      "route": "singleton_type_no_safe_record",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "single_registry_type_no_safe_record",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "402dbc93e6e28b41ae36cd0329d66017ee1aef43995a9706ea88477a11feee81",
+      "mapping_receipt_integrity": "e2b02af18bf07092eb36d1ec73313ef72ae8963d582a9794470ddb9b13e10ec9",
+      "candidate_compilation_integrity": "a4f7cf6bd633e613cc55e02bec9f6c37fd35594b490f4f2444624166ae243536",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_adjacent_fx",
+      "plausible_local_types": [
+        "type_1"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 0,
+        "type_2": 0
+      },
+      "route": "singleton_type_no_safe_record",
+      "expected_disposition": "unclassified_financial_input",
+      "typed_option_identity": null,
+      "typed_option_pin_status": "not_applicable",
+      "unclassified_reason": "single_registry_type_no_safe_record",
+      "source_retention_expectation": "full_evidence_bundle_retained",
+      "source_projection_sha256": "eacb64962d01edc76b0667844fc59870c125e8a26ea827d860ffa70672f7908c",
+      "mapping_receipt_integrity": "63e1ef039ec8835af6b65d3cb249e5e81e7e89786b2fba8162bbc13133ed80cc",
+      "candidate_compilation_integrity": "eb09e988d75656299774c7c3a0d316ec163f98694e57fa0c7b3c6e795541b1e8",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_optional_missing",
+      "plausible_local_types": [
+        "type_1"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "singleton_type_one_complete_option",
+      "expected_disposition": "typed_input",
+      "typed_option_identity": "financial-typed-option:2913ae6d06a3bc248adabfd7ff9ed411",
+      "typed_option_pin_status": "current_factory_observation_frozen_by_goal16",
+      "unclassified_reason": null,
+      "source_retention_expectation": "existing_typed_evidence_path_unchanged",
+      "source_projection_sha256": "f76aa417a8005a4c1a2204b11354ebc9d969e4ce00b8fb6cbbf2c4d792587507",
+      "mapping_receipt_integrity": "f85954789da0d5e19e5d061f531a68d4b75235da6d8cce5280b6a434ade98b52",
+      "candidate_compilation_integrity": "a4d364651503c6e785cb2a8f1a63a8358b53d9a3b50357892c0c5e355390c633",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    },
+    {
+      "case_id": "syn_successor_v2_forbidden_neighbour",
+      "plausible_local_types": [
+        "type_1"
+      ],
+      "plausible_canonical_types": [
+        "cash_balance_snapshot_v1"
+      ],
+      "complete_option_counts_by_type": {
+        "type_1": 1,
+        "type_2": 1
+      },
+      "route": "singleton_type_one_complete_option",
+      "expected_disposition": "typed_input",
+      "typed_option_identity": "financial-typed-option:73ec7a290138fbd81b6bdc7f61d739ec",
+      "typed_option_pin_status": "current_factory_observation_frozen_by_goal16",
+      "unclassified_reason": null,
+      "source_retention_expectation": "existing_typed_evidence_path_unchanged",
+      "source_projection_sha256": "42f4a085ec9bb1227ddbcd51c19327d2232500aab8f487fd1dc3dc977947ea92",
+      "mapping_receipt_integrity": "58751913997b84fde03a3cf897151dd1312e994d117020f45ec9ac964786fb33",
+      "candidate_compilation_integrity": "9817d99d6d00571299105c0619153dbf70c3d40608e30f26cd9ece9b5dbab910",
+      "logical_stage1_calls": 1,
+      "stage2_calls": 0,
+      "mechanical_contract_evidence_only": true
+    }
+  ],
+  "authority_map": {
+    "rows": [
+      {
+        "concern": "packet_context_construction",
+        "existing_owner": "Gate2FinancialSemanticV6PacketFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py:218",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_inactive_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "type_projection",
+        "existing_owner": "Gate2FinancialSemanticV5ProjectionFactory.create_minimal_managed_projection",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v5_projection.py:199",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "unchanged",
+        "new_owner_required": false
+      },
+      {
+        "concern": "candidate_compilation",
+        "existing_owner": "Gate2FinancialCandidateCompilerFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_candidate_compiler.py:130",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "unchanged",
+        "new_owner_required": false
+      },
+      {
+        "concern": "response_contract_parser",
+        "existing_owner": "Gate2FinancialSemanticV6ChoiceContractFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py:249",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_inactive_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "context_validation_sealing",
+        "existing_owner": "Gate2FinancialSemanticV6ContextLinterFactory",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_context_linter.py:362",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_inactive_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "request_construction",
+        "existing_owner": "Gate2OpenWebUIRequestBuilder",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py:210",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_inactive_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "provider_adaptation",
+        "existing_owner": "Gate2ProviderAdapterFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py:663",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "unchanged_semantic_behavior",
+        "new_owner_required": false
+      },
+      {
+        "concern": "decision_expansion",
+        "existing_owner": "Gate2FinancialSemanticV6DecisionExpansionFactory",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_expansion.py:128",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_type_first_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "validation",
+        "existing_owner": "Gate2FinancialEvidenceValidatedDecisionFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py:89",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "unchanged",
+        "new_owner_required": false
+      },
+      {
+        "concern": "materialization",
+        "existing_owner": "Gate2FinancialEvidenceMaterializerFactory.create",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py:145",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "unchanged",
+        "new_owner_required": false
+      },
+      {
+        "concern": "decision_evidence_replay",
+        "existing_owner": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py:450",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "additive_single_stage_profile",
+        "new_owner_required": false
+      },
+      {
+        "concern": "economy_accounting",
+        "existing_owner": "Gate2EconomyBudgetSessionFactory",
+        "authority_anchor": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_budget.py:131",
+        "goal16_change": "none_contract_only",
+        "future_profile_change": "existing_one_call_limit_retained",
+        "new_owner_required": false
+      }
+    ],
+    "rows_total": 12,
+    "new_owner_required_total": 0,
+    "semantic_prompt_asset": {
+      "existing_owner": "V6_SEMANTIC_SYSTEM_PROMPT and financial_semantic_v6_prompt",
+      "goal16_change": "none_contract_only",
+      "future_profile_change": "existing_prompt_owner",
+      "new_owner_required": false
+    }
+  },
+  "byte_budget": {
+    "goal15_design_baseline_only": true,
+    "goal15_logical_request_utf8_bytes": {
+      "minimum": 2050,
+      "maximum": 2208
+    },
+    "goal15_estimated_planning_tokens": {
+      "minimum": 577,
+      "maximum": 616
+    },
+    "goal15_aggregate_utf8_bytes": 21343,
+    "goal15_aggregate_estimated_planning_tokens": 5979,
+    "goal15_per_case_metrics": [
+      {
+        "case_id": "syn_successor_v2_unique_cash",
+        "request_utf8_bytes": 2111,
+        "estimated_input_tokens": 592,
+        "request_sha256": "c6252d122143134fe4f00d49fbb400e4f407a4ad2a296b35bb6ab4604b12bec3"
+      },
+      {
+        "case_id": "syn_successor_v2_unique_printed_total",
+        "request_utf8_bytes": 2109,
+        "estimated_input_tokens": 592,
+        "request_sha256": "c22194832fa4c03492c6cf49169b97ef43d4b02d0a1029568df8273955e3500a"
+      },
+      {
+        "case_id": "syn_successor_v2_multiple_compatible",
+        "request_utf8_bytes": 2208,
+        "estimated_input_tokens": 616,
+        "request_sha256": "56450d341c011235a3ccb5b235873c1e7af9f30b8ad47c0b8638279134d4e663"
+      },
+      {
+        "case_id": "syn_successor_v2_no_registry_type",
+        "request_utf8_bytes": 2106,
+        "estimated_input_tokens": 591,
+        "request_sha256": "d1bc8fd89734c68a27cf428448ab00ff3e7631267e96623fb5a3b4eff02b71d2"
+      },
+      {
+        "case_id": "syn_successor_v2_missing_discriminator",
+        "request_utf8_bytes": 2050,
+        "estimated_input_tokens": 577,
+        "request_sha256": "1f797c2ea5048eee42d020a1670f451c32387a39747559f952cbfb7d1ba08ac1"
+      },
+      {
+        "case_id": "syn_successor_v2_detail_vs_subtotal",
+        "request_utf8_bytes": 2168,
+        "estimated_input_tokens": 606,
+        "request_sha256": "cfd809548fbcdad500bb960f3d6f5062d9bf3166c9b744c0a95cef217efaf72a"
+      },
+      {
+        "case_id": "syn_successor_v2_adjacent_equal",
+        "request_utf8_bytes": 2164,
+        "estimated_input_tokens": 605,
+        "request_sha256": "88faf64efa00e3b60c9a832f047d8d37f170207571adf7e9091a51d78d613638"
+      },
+      {
+        "case_id": "syn_successor_v2_adjacent_fx",
+        "request_utf8_bytes": 2208,
+        "estimated_input_tokens": 616,
+        "request_sha256": "3e061822888bf5c117ed11c11800688f48357179292c9742095b526297936a24"
+      },
+      {
+        "case_id": "syn_successor_v2_optional_missing",
+        "request_utf8_bytes": 2109,
+        "estimated_input_tokens": 592,
+        "request_sha256": "6692c4c172836c152fb09eed07c81605bfbb4708c64f072389697b17295d3cff"
+      },
+      {
+        "case_id": "syn_successor_v2_forbidden_neighbour",
+        "request_utf8_bytes": 2110,
+        "estimated_input_tokens": 592,
+        "request_sha256": "61082b91e89e09289f3ffbd90aa6b140a9c7bf81c96acc054678a79cb3f2a139"
+      }
+    ],
+    "goal16_provider_neutral_logical_request_utf8_bytes": {
+      "minimum": 2052,
+      "maximum": 2210
+    },
+    "goal16_estimated_planning_tokens": {
+      "minimum": 577,
+      "maximum": 617
+    },
+    "goal16_aggregate_utf8_bytes": 21363,
+    "goal16_aggregate_estimated_planning_tokens": 5984,
+    "goal16_per_case_metrics": [
+      {
+        "case_id": "syn_successor_v2_unique_cash",
+        "request_utf8_bytes": 2113,
+        "estimated_input_tokens": 593,
+        "request_sha256": "8bc4bd129e5136e2bc21be0e1465a960429493214f9e0cf28c1e18c24de30663"
+      },
+      {
+        "case_id": "syn_successor_v2_unique_printed_total",
+        "request_utf8_bytes": 2111,
+        "estimated_input_tokens": 592,
+        "request_sha256": "5943329a8528b15202d09344a277241ec0b10d5f9c3d2375032fdf5d3685a1ea"
+      },
+      {
+        "case_id": "syn_successor_v2_multiple_compatible",
+        "request_utf8_bytes": 2210,
+        "estimated_input_tokens": 617,
+        "request_sha256": "eb0e7a9b68a5e49ccf2df5e71292aba0b4753750dad4b634a1df6df46657cdec"
+      },
+      {
+        "case_id": "syn_successor_v2_no_registry_type",
+        "request_utf8_bytes": 2108,
+        "estimated_input_tokens": 591,
+        "request_sha256": "4f0cdbbeed1c69531336e38271a4ae2f55c4f462bf279c4009227c0209fe871d"
+      },
+      {
+        "case_id": "syn_successor_v2_missing_discriminator",
+        "request_utf8_bytes": 2052,
+        "estimated_input_tokens": 577,
+        "request_sha256": "c01896c40050237124a04bf85c5fd36f38131a9cef1ff1e0c668f6ea86348455"
+      },
+      {
+        "case_id": "syn_successor_v2_detail_vs_subtotal",
+        "request_utf8_bytes": 2170,
+        "estimated_input_tokens": 607,
+        "request_sha256": "1416f78d50e8260f1e548745ea9d9b05b5a005785ed1519ee2c396c3029f7d3c"
+      },
+      {
+        "case_id": "syn_successor_v2_adjacent_equal",
+        "request_utf8_bytes": 2166,
+        "estimated_input_tokens": 606,
+        "request_sha256": "e23da6832415cd0b9d103c3d1a090cad27babbfa094b61590ac458318bc1e755"
+      },
+      {
+        "case_id": "syn_successor_v2_adjacent_fx",
+        "request_utf8_bytes": 2210,
+        "estimated_input_tokens": 617,
+        "request_sha256": "61a18303630febb1f62b4aa8c97f066af01f9182165612ec3b56889cb47902ce"
+      },
+      {
+        "case_id": "syn_successor_v2_optional_missing",
+        "request_utf8_bytes": 2111,
+        "estimated_input_tokens": 592,
+        "request_sha256": "e7fb7a11de28ea1ea5e05c94950b26a1655ab518c4de2cbf80f8e6373e09cbd4"
+      },
+      {
+        "case_id": "syn_successor_v2_forbidden_neighbour",
+        "request_utf8_bytes": 2112,
+        "estimated_input_tokens": 592,
+        "request_sha256": "40766e6c6c240cbdfc213f6c9a8e88b17c5620e9fbe4f3e29a5e3bed5b4335b4"
+      }
+    ],
+    "logical_request_basis": "provider_neutral_response_schema_plus_exact_user_context",
+    "goal16_request_serialization": "utf8_minified_json_preserve_insertion_order",
+    "goal16_user_context_field_order": [
+      "task",
+      "source",
+      "type_cards"
+    ],
+    "token_estimator_id": "compact_request_utf8_bytes_div_4_plus_64_v1",
+    "provider_tokenizer_measurement": false,
+    "future_provider_neutral_max_utf8_bytes": 2500,
+    "increase_above_target_requires_stop_and_review": true,
+    "sealed_request_proof_deferred": true,
+    "future_stage1_calls_for_ten_cases": 10,
+    "future_stage2_calls_for_ten_cases": 0,
+    "future_worst_case_calls_per_operation": 1,
+    "provider_calls_executed": 0
+  },
+  "variant_c_reservation": {
+    "implemented": false,
+    "stage2_exists_in_variant_b": false,
+    "second_provider_call_allowed": false,
+    "selected_choice_present": false,
+    "same_type_multiple_option_outcome": "single_registry_type_no_safe_record",
+    "economy_policy": "one_call_existing_limit_retained",
+    "multi_stage_replay_introduced": false,
+    "future_reopen_requirements": [
+      "accepted_real_same_type_multiple_option_evidence",
+      "proof_of_one_mutually_exclusive_record_choice",
+      "proven_frequency",
+      "separate_stage2_safety_qualification",
+      "measurable_net_completeness_gain"
+    ]
+  },
+  "activation_boundary": {
+    "contract_status": "inactive_normative_candidate",
+    "runtime_implementation_performed": false,
+    "runtime_activation": false,
+    "provider_smoke_allowed": false,
+    "next_goal": "NON_ACTIVE_TYPE_FIRST_CONTRACT_IMPLEMENTATION",
+    "provider_smoke_prerequisites": [
+      "non_active_implementation",
+      "sealed_request_and_linter_proof",
+      "three_provider_local_end_to_end_proof"
+    ]
+  },
+  "change_accounting": {
+    "provider_calls_total": 0,
+    "runtime_changes_total": 0,
+    "product_logic_changes_total": 0,
+    "prompt_runtime_changes_total": 0,
+    "pack_wording_changes_total": 0,
+    "source_projection_changes_total": 0,
+    "provider_adapter_changes_total": 0,
+    "active_context_v2_1_changes_total": 0,
+    "historical_files_modified_total": 0,
+    "new_owners_total": 0
+  },
+  "source_authority_pins": [
+    {
+      "identity": "goal12_precall_plan",
+      "repository_path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json",
+      "sha256": "2b3a25cd04f0fffc6532477a44b93f6ce78e7e32f76bc239cceb13a2f5abacfe",
+      "category": "historical"
+    },
+    {
+      "identity": "goal12_precall_transparent",
+      "repository_path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.transparent.json",
+      "sha256": "f64ef2e1daa92cc3eaa204ed34f1e753595ce0d4c7a4fd937492a6c145c58537",
+      "category": "historical"
+    },
+    {
+      "identity": "goal12_terminal_receipt",
+      "repository_path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json",
+      "sha256": "b4e77203c7fdffd96ad09b4a7ef5364ccef09072c8fc645e38a36a142dfffc8b",
+      "category": "historical"
+    },
+    {
+      "identity": "goal12_terminal_report",
+      "repository_path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md",
+      "sha256": "fa5d4e6d5961124e59bcd4204291772476dc7afb6c41ee80b719b658b3d3664b",
+      "category": "historical"
+    },
+    {
+      "identity": "goal12_terminal_transparent",
+      "repository_path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json",
+      "sha256": "7f4718f13763c9963592326e8481072606219435495fb6fbd59655a881197281",
+      "category": "historical"
+    },
+    {
+      "identity": "goal13_forensic_receipt",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.receipt.safe.json",
+      "sha256": "7c350ce0b24c8e252fc963cf9d9d7c05d3a895c169fb855dcb16afcfc9226735",
+      "category": "historical"
+    },
+    {
+      "identity": "goal13_forensic_report",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.report.md",
+      "sha256": "7161542710ef9c33a45d3c16fb30f10ed97636e1d59d6c2e01bad88083a0379b",
+      "category": "historical"
+    },
+    {
+      "identity": "goal14_comparative_receipt",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.receipt.safe.json",
+      "sha256": "360c8b23f713bd3981947de2c222da6e28b001d330809b4c6c1575245a86e63c",
+      "category": "historical"
+    },
+    {
+      "identity": "goal14_comparative_report",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.report.md",
+      "sha256": "186eb0f7b9aa40f68bd672b2a9b2680eb029df3ec11a998a039caeec9a5051dd",
+      "category": "historical"
+    },
+    {
+      "identity": "goal14_comparative_transparent",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_EVIDENCE_FIRST_COMPARATIVE_REVIEW_GOAL14.transparent.json",
+      "sha256": "c4956f26947ccff533ccd094ac734eb8cfdcf96bd9dbc183fe5940c3d165db96",
+      "category": "historical"
+    },
+    {
+      "identity": "goal15_architecture_receipt",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json",
+      "sha256": "57c7d1c1b6ce7206fe9eb4d61a5505bc782c1f365c4e26db7743553b2d9c6288",
+      "category": "historical"
+    },
+    {
+      "identity": "goal15_architecture_report",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md",
+      "sha256": "eedd5b04ef79830b8fee0906629fbd202a10f914a29e9cad07b4da98d3ebbd27",
+      "category": "historical"
+    },
+    {
+      "identity": "goal15_architecture_transparent",
+      "repository_path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json",
+      "sha256": "d66ed03007b586bb861fb76e48297949e8e294b00142cf7bcc80dc95db9b7ed9",
+      "category": "historical"
+    },
+    {
+      "identity": "active_context_v2_1_packet_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_packet.py",
+      "sha256": "175c450dbbd5ef3912bd160fa390cb85e1821f68321831ad8b58430c26d13e0e",
+      "category": "active"
+    },
+    {
+      "identity": "active_choice_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py",
+      "sha256": "e47e754f33032460edfd6ea25377bd2eeb75c181b307c64440965ab1e409d4d5",
+      "category": "active"
+    },
+    {
+      "identity": "current_semantic_pack",
+      "repository_path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.json",
+      "sha256": "ae07f1d378169e82792aa1f0ed6cebc346591e047656f14df0fcead1f5a18d1f",
+      "category": "active"
+    },
+    {
+      "identity": "current_semantic_pack_schema",
+      "repository_path": "services/broker-reports-gate1-proof/semantic_packs/broker_reports_financial_semantic_pack.v1.schema.json",
+      "sha256": "cea99c199ba6b20905fd988fed481e963a999d1a74464a0af055d38eb0c76b9e",
+      "category": "active"
+    },
+    {
+      "identity": "current_minimal_projection_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v5_projection.py",
+      "sha256": "a248cd93c3634b4d19b4da3c06e151c6e339e6e9ab33c6a69c4e2c0e1618deb7",
+      "category": "active"
+    },
+    {
+      "identity": "current_model_asset_projection",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_model_assets.py",
+      "sha256": "53d91ef3386541bfb654d0e264c9f942a04ddeb7b21291c033a55f874314bc62",
+      "category": "active"
+    },
+    {
+      "identity": "current_reason_catalog",
+      "repository_path": "services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v2.json",
+      "sha256": "cb784fe262c08297b9cd71c84e2bf36195d214f7aec82f3cc74f5707a24dde24",
+      "category": "active"
+    },
+    {
+      "identity": "current_reason_catalog_schema",
+      "repository_path": "services/broker-reports-gate1-proof/managed_assets/decision_reasons/broker_reports_gate2_financial_decision_reason_catalog.v2.schema.json",
+      "sha256": "d576e9368272f8bf6dd46250e9d798e7bf40c1dd56f98216262d770a12c2aa24",
+      "category": "active"
+    },
+    {
+      "identity": "semantic_prompt_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_prompt.py",
+      "sha256": "a6334ae2dd7e0f417e8ad629dbec9423ccc297b8fe20acac119d6b2caadfb8fc",
+      "category": "active"
+    },
+    {
+      "identity": "provider_adapter_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py",
+      "sha256": "3e7cae769d023ef81cc052519507eceeeb3e5988abd7ed93194f4a8f5b36e2ac",
+      "category": "active"
+    },
+    {
+      "identity": "active_context_linter_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_context_linter.py",
+      "sha256": "99145aa603e1e42a7a9036a3d77e2cceedb82510734d25f0c1763c2933a875aa",
+      "category": "active"
+    },
+    {
+      "identity": "active_request_builder_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py",
+      "sha256": "70142660c31adf2b595ee81aedf54afd35568eaed1713f5e5085f38d67725a73",
+      "category": "active"
+    },
+    {
+      "identity": "candidate_compiler_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_candidate_compiler.py",
+      "sha256": "c6b5a3baa33aae2ff0f39bd7d82e414bcb67a61a04e26d02dff824bf0fba936a",
+      "category": "active"
+    },
+    {
+      "identity": "decision_expansion_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_expansion.py",
+      "sha256": "d1b7856d7c3b08012f154778a05e76bb139e43078266151ae5cda69e7aa21e5c",
+      "category": "active"
+    },
+    {
+      "identity": "validation_materialization_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py",
+      "sha256": "bcadcf529bdade058b2facb6ee5bce1b1a57cae69f06a113f73a727dbd3e33ba",
+      "category": "active"
+    },
+    {
+      "identity": "decision_evidence_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py",
+      "sha256": "a7f33a47fff6622e8d03c2311003cd7ff92fa1da564d6596bcaf1de64abae1ed",
+      "category": "active"
+    },
+    {
+      "identity": "economy_accounting_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_budget.py",
+      "sha256": "46efe45c2fd507e0e8e5efe729eec298aeade5cb2cf3d9b989316d077bdae942",
+      "category": "active"
+    },
+    {
+      "identity": "economy_policy_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_economy_model_policy.py",
+      "sha256": "69a3835f690e441e3f3888e523521aea7eccf208ead9c2e074607620bc880d27",
+      "category": "active"
+    },
+    {
+      "identity": "production_orchestration_owner",
+      "repository_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_production_runtime.py",
+      "sha256": "b92537a5fbfe9ad0ff35fdbbb6812a97905b62a041ccea89705a712c1f3c24ec",
+      "category": "active"
+    },
+    {
+      "identity": "active_context_v2_1_contract",
+      "repository_path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_LLM_SEMANTIC_CONTEXT.v2.1.md",
+      "sha256": "c1b2a6376dd2c48d9e5303b49bc690b50965d387645a2dbc3bf177f70e003303",
+      "category": "active"
+    },
+    {
+      "identity": "active_choice_contract",
+      "repository_path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md",
+      "sha256": "797cdaee168263ace2d3ad9a6fb8c3c233cca75f76c9eb826b84ded82744d6ff",
+      "category": "active"
+    },
+    {
+      "identity": "minimal_surface_contract",
+      "repository_path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md",
+      "sha256": "cfa4e6f76aa817337b2c71ed3904ddaa774d15f0367ba7e98c94bff5e1b1668f",
+      "category": "active"
+    },
+    {
+      "identity": "semantic_pack_model_input_contract",
+      "repository_path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_SEMANTIC_PACK_MODEL_INPUT.v1.md",
+      "sha256": "8c33ea32cb769127c7a28285876b0ac17d55eac47a002555a0403127581f7d79",
+      "category": "active"
+    }
+  ],
+  "evidence_lineage": {
+    "goal15_recommendation": "SELECT_VARIANT_B_AS_MVP_AND_RESERVE_C",
+    "goal15_transparent_integrity_sha256": "fab9140b41d85a772bdf06e2218b8e87b6e555295d0939656682e33781323101",
+    "matrix_is_mechanical_contract_evidence": true,
+    "matrix_is_model_qualification": false,
+    "goal16_private_mapping_receipt_created": false,
+    "typed_option_identity_evidence": {
+      "historical_explicit_total": 1,
+      "current_factory_observation_frozen_by_goal16_total": 3,
+      "builder_runtime_rederivation_performed": false,
+      "current_factory_cross_check_required_by_test": true,
+      "current_factory_cross_check_provider_calls_total": 0
+    }
+  },
+  "integrity_sha256": "4607bb9e25266de4ba5346ad50fc453c31737c6c36bb3f995da46551782c5bea"
+}

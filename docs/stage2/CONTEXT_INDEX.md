@@ -23,6 +23,8 @@ Current canonical route:
 - [Context V2.1 GOAL 12 budget-model smoke contract](contracts/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
 - [Gate 2 Minimal Model Surface v1 implemented projection/candidate/Choice/linter boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 - [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
+- [Gate 2 Type-First Fail-Closed v1 normative inactive contract](contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.md)
+- [Gate 2 Type-First Fail-Closed v1 machine-readable contract](contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.json)
 - [Financial Semantic Packet V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Financial Semantic V6 Exact Evidence](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md)
@@ -49,6 +51,8 @@ Current local implementation evidence:
 - [GOAL 15 type-first semantic decision architecture audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md)
 - [GOAL 15 transparent architecture analysis](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json)
 - [GOAL 15 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json)
+- [GOAL 16 versioned type-first fail-closed contract report](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.report.md)
+- [GOAL 16 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.receipt.safe.json)
 
 Historical evidence only:
 
@@ -637,6 +641,8 @@ Read first:
 - [Context V2.1 GOAL 12 budget-model smoke contract](contracts/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE.v1.md)
 - [Gate 2 Minimal Model Surface v1 implemented projection/candidate/Choice/linter boundary](contracts/BROKER_REPORTS_GATE2_MINIMAL_MODEL_SURFACE.v1.md)
 - [Gate 2 Outcome Taxonomy v1 and corrected expectation boundary](contracts/BROKER_REPORTS_GATE2_OUTCOME_TAXONOMY.v1.md)
+- [Gate 2 Type-First Fail-Closed v1 normative inactive contract](contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.md)
+- [Gate 2 Type-First Fail-Closed v1 machine-readable contract](contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.json)
 - [Financial Semantic Choice V6](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md)
 - [Context V2.1 Local Choice response profile](contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_LOCAL_CHOICE.v2.1.md)
 - [Context V2.1 linter and provider-neutral sealed-request GOAL 10 report](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_LINTER_AND_SEALED_REQUEST_GOAL10.report.md)
@@ -652,6 +658,8 @@ Read first:
 - [Context V2.1 GOAL 15 type-first semantic decision architecture audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md)
 - [Context V2.1 GOAL 15 transparent architecture analysis](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json)
 - [Context V2.1 GOAL 15 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json)
+- [Context V2.1 GOAL 16 versioned type-first fail-closed contract report](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.report.md)
+- [Context V2.1 GOAL 16 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.receipt.safe.json)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)

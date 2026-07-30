@@ -59,6 +59,7 @@ jobs:
           python scripts/build_context_v2_1_budget_smoke_plan.py --check
           python scripts/build_context_v2_1_comparative_evidence_pack.py --check
           python scripts/build_type_first_semantic_decision_architecture_audit.py --check
+          python scripts/build_type_first_fail_closed_contract.py --check
 
       - name: Check generated Function bundles
         run: |
@@ -88,6 +89,7 @@ jobs:
             tests/test_build_context_v2_1_budget_smoke_plan.py \
             tests/test_build_context_v2_1_comparative_evidence_pack.py \
             tests/test_build_type_first_semantic_decision_architecture_audit.py \
+            tests/test_build_type_first_fail_closed_contract.py \
             tests/test_broker_reports_gate2_model_clients.py \
             tests/test_broker_reports_gate2_provider_execution.py \
             tests/test_broker_reports_gate2_economy_budget.py \
