@@ -8,7 +8,9 @@ Financial Domain persistence/restore and exact replay implemented with zero
 provider calls; GOAL 12 live Context V2.1 budget-smoke evidence,
 failure checkpoint and replay path implemented; terminal private evidence was
 restored and validated against the frozen plan with `8` submissions and no
-benchmark-eligible model.
+benchmark-eligible model; GOAL 13 exact post-smoke forensic audit completed
+against the immutable GOAL 12 evidence with zero provider calls, zero runtime
+changes and no claimed causal root layer.
 
 ## Private evidence
 
@@ -232,6 +234,19 @@ The pre-call files record zero submissions. The terminal files record `8`
 submissions and `8` responses, retry/repair/fallback `0/0/0`, no
 benchmark-eligible provider/model, `active=false` and empty production
 admissions. Raw provider envelopes remain outside Git.
+
+Current repository-safe GOAL 13 forensic evidence:
+
+- [exact post-smoke forensic audit](../../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.report.md);
+- [privacy-safe receipt](../../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.receipt.safe.json).
+
+GOAL 13 reuses the immutable exact GOAL 12 synthetic requests and outputs. It
+independently revalidates the three expected answers and classifies all three
+wrong unclassified reasons without changing runtime, Prompt, Context,
+expected answers or historical evidence. The audit proves the diagnostic
+reason/cardinality error locus but does not prove a source, glossary, choices,
+contract or model-capability root cause. It performs no provider call and does
+not start a corrective refactor or the full benchmark.
 
 The packet-owned Managed Semantic Decision Context GOAL 4 proof covers
 deterministic candidate bytes,

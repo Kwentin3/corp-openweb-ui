@@ -41,6 +41,8 @@ Current local implementation evidence:
 - [GOAL 12 terminal report — no benchmark-eligible model](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md)
 - [GOAL 12 terminal transparent synthetic evidence](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.transparent.json)
 - [GOAL 12 terminal privacy-safe receipt](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json)
+- [GOAL 13 exact post-smoke forensic audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.report.md)
+- [GOAL 13 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.receipt.safe.json)
 
 Historical evidence only:
 
@@ -636,6 +638,8 @@ Read first:
 - [Context V2.1 GOAL 12 immutable pre-call plan](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.precall.plan.safe.json)
 - [Context V2.1 GOAL 12 terminal report — no benchmark-eligible model](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.report.md)
 - [Context V2.1 GOAL 12 terminal privacy-safe receipt](../reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_BUDGET_MODEL_SMOKE_GOAL12.receipt.safe.json)
+- [Context V2.1 GOAL 13 exact post-smoke forensic audit](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.report.md)
+- [Context V2.1 GOAL 13 privacy-safe receipt](../reports/2026-07-30/BROKER_REPORTS_GATE2_CONTEXT_V2_1_POST_SMOKE_FORENSIC_AUDIT_GOAL13.receipt.safe.json)
 - [BROKER_REPORTS_3NDFL](blueprints/BROKER_REPORTS_3NDFL.blueprint.md)
 - [CSV pre-Gate-3 context v1](contracts/BROKER_REPORTS_CSV_PRE_GATE3_CONTEXT.v1.md)
 - [Gate 1 supported pilot profile v1](contracts/BROKER_REPORTS_GATE1_SUPPORTED_PILOT_PROFILE.v1.md)
