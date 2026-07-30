@@ -386,3 +386,29 @@ The terminal receipt records exactly six submissions/responses, a passed
 technical pipeline, failed Haiku unclassified acceptance, zero
 fallback/repair/hidden retry, and no full benchmark, qualification verdict,
 runtime activation or production admission.
+
+## GOAL 15 type-first architecture audit
+
+The 2026-07-30 documentation-only audit compares three provider-neutral future
+Semantic Matcher designs: a joint type-and-choice call, a one-call type-first
+fail-closed profile, and an adaptive type-first flow with optional same-type
+record selection. It mechanically simulates all ten governed Context V2.1
+fixtures, records exact option counts and logical-request byte estimates, and
+maps every change to an existing architecture owner.
+
+No governed fixture has one plausible type with multiple complete options of
+that type, so the adaptive Stage 2 route executes zero times in the mechanical
+simulation. A documentation-only thought experiment explains the behavioral
+difference without claiming benchmark coverage or occurrence frequency.
+
+The evidence-bound recommendation is
+`SELECT_VARIANT_B_AS_MVP_AND_RESERVE_C` with `medium` confidence. This is not
+implementation authorization, runtime activation, model qualification, or
+production admission. Provider calls, runtime changes, product-logic changes,
+new architecture owners and historical-artifact modifications are all zero.
+
+Evidence:
+
+- [architecture decision report](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md);
+- [transparent analysis JSON](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json);
+- [privacy-safe receipt](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json).
