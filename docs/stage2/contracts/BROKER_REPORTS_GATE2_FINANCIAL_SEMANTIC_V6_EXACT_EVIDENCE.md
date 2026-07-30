@@ -412,3 +412,40 @@ Evidence:
 - [architecture decision report](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md);
 - [transparent analysis JSON](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json);
 - [privacy-safe receipt](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json).
+
+## GOAL 16 versioned type-first fail-closed contract
+
+The 2026-07-30 documentation-first contract formalizes approved Variant B as
+`broker_reports_gate2_type_first_fail_closed_v1`. The model-visible user
+context contains only ordered `task`, `source` and `type_cards`; the response
+contains only the ordered plausible local type set. Choices, complete options,
+reason codes, canonical IDs and record-construction signals remain outside the
+model-visible boundary.
+
+The deterministic backend table preserves constructibility as non-semantic
+evidence. Zero plausible types yields `no_registry_type`; two or more yields
+`ambiguous_registry_type`; a singleton yields a typed result only with exactly
+one complete validly prebound option of that type. Zero or multiple matching
+options yield `single_registry_type_no_safe_record`. Technical failures remain
+technical and cannot be repaired, retried, converted to a semantic reason or
+materialized.
+
+The contract freezes all ten governed cases, nine response-negative fixtures,
+five contract-integrity negative fixtures, two backend-restoration negative
+fixtures, the `FALSE_SINGLETON_TYPED_RISK` qualification counters and four
+zero-tolerance hard gates. It preserves the twelve existing owners and the
+existing one-call economy limit. Variant C, Stage 2, multi-stage replay and a
+second provider call remain absent.
+
+This is inactive contract evidence, not runtime implementation, model
+qualification, provider smoke or production admission. Active Context V2.1,
+Choice, Prompt, Pack, minimal projection and provider adapters remain
+byte-identical. Provider calls, runtime changes, product-logic changes and new
+owners are zero.
+
+Evidence:
+
+- [normative inactive contract](BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.md);
+- [machine-readable contract](BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.json);
+- [contract report](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.report.md);
+- [privacy-safe receipt](../../reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.receipt.safe.json).
