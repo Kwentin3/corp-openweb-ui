@@ -1,6 +1,6 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive KT2.1 closure
+Status: canonical entry point after inactive KT2.1 closure and DOC0 audit
 
 Effective date: 2026-07-31
 
@@ -153,6 +153,25 @@ historical v3 defect, private old-trace bytes, retained evidence branches, and
 stale inaccessible worktree metadata are explicit non-blocking debts with
 reopening triggers.
 
+## 12.1 DOC0 document-pipeline audit
+
+The 2026-07-31 DOC0 research audit mapped the current PDF path from private
+intake through Gate 1, semantic visual-table materialization, ArtifactStore,
+Gate 2 segmentation and the model-visible package. It found
+`WHOLE_DOCUMENT_ARTIFACT=FRAGMENTED` and proved the first irreversible
+downstream context loss at
+`FullSourceArtifactBuilder._build_pdf_document ->
+PdfLayoutUnitBuilder._build_page_units`.
+
+The existing `description + rows` logical table remains fit only for its
+bounded single-crop numeric profile and has explicit document-context,
+header-hierarchy, footnote and cross-page gaps. DOC0 made no runtime, bundle,
+prompt, valve, admission or live change. The canonical audit artifacts are
+`BROKER_REPORTS_DOCUMENT_PIPELINE_MAP.v1.md`,
+`BROKER_REPORTS_CONTEXT_LOSS_MATRIX.v1.json`,
+`BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json` and
+`BROKER_REPORTS_LOGICAL_TABLE_FORMAT_AUDIT.v1.md`.
+
 ## 13. KT2 closure and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
@@ -185,4 +204,8 @@ VALUES_ONLY_TYPED = 0
 MISSING_REQUIRED_CONTEXT_TYPED = 0
 MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
+DOC0_CURRENT_PIPELINE_AUDIT = PASSED
+WHOLE_DOCUMENT_ARTIFACT = FRAGMENTED
+FIRST_IRREVERSIBLE_CONTEXT_LOSS = IDENTIFIED
+CURRENT_LOGICAL_TABLE_FORMAT = FIT_WITH_EXPLICIT_GAPS
 ```
