@@ -27,14 +27,14 @@
 | Gate 2 source | `aa49f3be808837ab41189644c5309478b82643dc5b77a97e84c581bdeb07eef8` |
 | Gate 2 domain | `21ab2062cbf86a10404b22a7fb35cb745482b2b09e639ec695c5b3b2ef629ace` |
 
-Prompts: `12/12 exact`.  
-Valves: `exact`.  
-Health checks: `3/3`.  
-Nonterminal workload/temp/staging: `0/0/0`.  
-Provider/customer calls: `0`.  
-Customer documents used: `0`.  
-Knowledge/RAG/vector delta: `0`.  
-Type-First activation: `0`.
+- Prompts: `12/12 exact`.
+- Valves: `exact`.
+- Health checks: `3/3`.
+- Nonterminal workload/temp/staging: `0/0/0`.
+- Provider/customer calls: `0`.
+- Customer documents used: `0`.
+- Knowledge/RAG/vector delta: `0`.
+- Type-First activation: `0`.
 
 ## Workspace
 

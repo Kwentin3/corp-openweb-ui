@@ -1,7 +1,7 @@
 # Broker Reports KT1.5 — final authority closure
 
-Дата: 2026-07-31  
-Область: Broker Reports / НДФЛ  
+Дата: 2026-07-31
+Область: Broker Reports / НДФЛ
 Статус: `PASSED`
 
 ## 1. Терминальный результат
