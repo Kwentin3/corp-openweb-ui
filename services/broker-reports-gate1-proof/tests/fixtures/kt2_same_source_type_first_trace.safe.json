@@ -4,40 +4,40 @@
     "no_fact": 0,
     "technical_failure": 0,
     "total_units": 3,
-    "typed": 1,
+    "typed": 0,
     "unaccounted_units": 0,
-    "unclassified": 2,
+    "unclassified": 3,
     "unsupported": 0
   },
   "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
   "evidence_safe_receipt": {
     "case_id": "kt2-main",
     "customer_values_present": false,
-    "execution_integrity_hash": "6399c69d8d4453d9a5cabae80ffcff2d14cc2203f5f792edb8c7bf42f72acddf",
-    "gate2_packages_hash": "5465170bf429909a150b8a2bf6c66ccdb2723859a50fea094d023d4a869cb4c2",
+    "execution_integrity_hash": "53218a5124d4d7d512827a25f56bbae2847e8e4428b579f8d1abb967de92d09d",
+    "gate2_packages_hash": "d8ead9de46f70ce5c2111856e206614ce6a5997b71c86156512b14c42b4e9716",
     "materialized_artifact_hashes": [
-      "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
-      "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
-      "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712"
+      "aa47400fef326b677afb5cff96ba554d3e32d17e87e7dec67ccebb7a54759fb9",
+      "e4c1ecd0e1db63389ad28b0e9ef2b4a0ffdeff4c97d0d5e114c111ec8fcaf524",
+      "f898c40a26828453020aafd79ca486a909f62840c7ba098365a3b644c893b04c"
     ],
-    "private_evidence_hash": "05b821a01df7a0971307ec07248189acd03f4704e3381b8f5b4e82ed993a2f00",
+    "private_evidence_hash": "4af020d9a7c2a03360bf806cebc31580a590d601d85e5993d573d83f03a10cc5",
     "provider_calls_total": 0,
     "raw_provider_payload_present": false,
     "raw_source_refs_present": false,
-    "receipt_hash": "f745631ee788e76034644a84df14e9ca8c815b5f11f89678854946b33ee1499e",
+    "receipt_hash": "f3750db588c0ede1b84fb7ce2f2a95d78e7737c318d11472e431bfb514d65fc2",
     "replay_exact": true,
     "restored_decisions_hash": "701cf2e3a1ab3be22fa6f407e30ab5fb3939b145664ee3962804667feeed7ede",
     "schema_version": "broker_reports_gate2_financial_semantic_v6_type_first_safe_receipt_v1",
-    "sealed_mapping_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
-    "sealed_request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
+    "sealed_mapping_hash": "f664704a5dd3db4064e84b15cecb9d068b02df5fe62768e7be6832b3787bc1d0",
+    "sealed_request_hash": "e39fd862d274a2cfadd72b915fb25cfe013948a3792a85922db6f3c8e47f1b13",
     "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
-    "simulated_response_hash": "424d882b7e98bd485dc52d1cbe8bd8860df14d89ee6ae531607f5127b6e81591",
-    "source_package_batch_hash": "751559639009630a09e56b8198df3a36b63e08050423577aa53a543c7810abef",
+    "simulated_response_hash": "ab5ef4cd4d3ce8c32cda082f93d4be337403015d37293f1a48a36ca4f0554993",
+    "source_package_batch_hash": "fc5fb64c1d06bdf0bb6dbd298a1a7a21dea236a7be5486738d68577130f0739d",
     "source_units_total": 3,
-    "type_card_projection_hash": "704f4d09463308aa65c6e895936d0af92e387f15b624d5ea7610496cb2c4e8d6",
-    "typed_units_total": 1,
+    "type_card_projection_hash": "b9cc32021d8a5af472f4d11cc9dc70408d84bc08fee8d8b8d786043408289426",
+    "typed_units_total": 0,
     "unaccounted_units_total": 0,
-    "unclassified_units_total": 2
+    "unclassified_units_total": 3
   },
   "existing_owner_reuse": {
     "choice": "Gate2FinancialSemanticV6ChoiceContractFactory",
@@ -56,7 +56,7 @@
     "unsafe_typed_total": 0,
     "wrong_singleton_total": 0
   },
-  "integrity_hash": "b7112aa3666e50a7f6739ba3d12a31bc3deba6b3c8cba046f1cc8956169d33ee",
+  "integrity_hash": "7ce7ff7db7dfe0db3f27992e0bfc6f706664ce1e8b98a62ec5bc09c0e30d0b01",
   "privacy": {
     "customer_values": false,
     "private_paths": false,
@@ -64,11 +64,11 @@
     "raw_source_refs": false
   },
   "replay": {
-    "execution_integrity_hash": "6399c69d8d4453d9a5cabae80ffcff2d14cc2203f5f792edb8c7bf42f72acddf",
+    "execution_integrity_hash": "53218a5124d4d7d512827a25f56bbae2847e8e4428b579f8d1abb967de92d09d",
     "materialized_artifact_hashes": [
-      "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
-      "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
-      "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712"
+      "aa47400fef326b677afb5cff96ba554d3e32d17e87e7dec67ccebb7a54759fb9",
+      "e4c1ecd0e1db63389ad28b0e9ef2b4a0ffdeff4c97d0d5e114c111ec8fcaf524",
+      "f898c40a26828453020aafd79ca486a909f62840c7ba098365a3b644c893b04c"
     ],
     "provider_calls_total": 0,
     "replay_exact": true,
@@ -80,14 +80,14 @@
     "contains_canonical_type_ids": false,
     "contains_source_refs": false,
     "contains_values": false,
-    "integrity_hash": "c12ec16c63c1c3aa723e30895395c12d3b7ad981ba42913acff6d684706cacf0",
+    "integrity_hash": "28883841cf0908698422ce0e3ecf6c8f802ce67a7b08267b5e0a3e6cb2410699",
     "local_type_keys_total": 2,
-    "mapping_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
+    "mapping_hash": "f664704a5dd3db4064e84b15cecb9d068b02df5fe62768e7be6832b3787bc1d0",
     "policy_version": "broker_reports_gate2_same_source_type_first_proof_v1",
     "post_response_repair_allowed": false,
     "provider_calls_total": 0,
-    "request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
-    "response_schema_hash": "80e02571db00ed47f1c79d022fb60e13815056c4fc0a6ebe6e1edd0c23cf8f9c",
+    "request_hash": "e39fd862d274a2cfadd72b915fb25cfe013948a3792a85922db6f3c8e47f1b13",
+    "response_schema_hash": "e73fe708a16a3d51df9a4755afc99f5c77b8f7a66f520f388bb8c8f67972375a",
     "schema_version": "broker_reports_gate2_financial_type_first_response_profile_v1",
     "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
     "source_units_total": 3,
@@ -97,10 +97,10 @@
   "sealed_mapping_safe_summary": {
     "contains_source_literals": false,
     "contains_source_refs": false,
-    "integrity_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
-    "prebound_options_total": 4,
+    "integrity_hash": "f664704a5dd3db4064e84b15cecb9d068b02df5fe62768e7be6832b3787bc1d0",
+    "prebound_options_total": 0,
     "provider_calls_total": 0,
-    "request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
+    "request_hash": "e39fd862d274a2cfadd72b915fb25cfe013948a3792a85922db6f3c8e47f1b13",
     "schema_version": "broker_reports_gate2_same_source_type_first_mapping_v1",
     "semantic_pack_id": "broker_reports_managed_financial_semantic_pack",
     "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
@@ -115,31 +115,38 @@
   },
   "traces": [
     {
-      "code_reason": "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION",
+      "code_reason": "INSUFFICIENT_SEMANTIC_CONTEXT",
+      "context_sufficiency": {
+        "context_integrity_hash": "e201bed249af9cdc78bb683c565f902befa92756e45550970e12cad78df0213d",
+        "integrity_hash": "63ab74c9f0b6e57b6d99f03946628c782ea351e87968f8dcbcb7a1e972898825",
+        "missing_facets": [
+          "date_or_period",
+          "printed_label_evidence_ref",
+          "statement_scope"
+        ],
+        "required_facets": [
+          "amount",
+          "currency_or_unit",
+          "date_or_period",
+          "printed_label_evidence_ref",
+          "statement_scope"
+        ],
+        "satisfied_facets": [
+          "amount",
+          "currency_or_unit"
+        ],
+        "schema_version": "broker_reports_context_sufficiency_decision_v1",
+        "source_binding_hash": "15a93dbe38c71d1807eb9b1caa5be0f90199e03f5dd1c598ca1db967efeeb791",
+        "status": "INSUFFICIENT",
+        "triggered_disqualifiers": []
+      },
       "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
       "materialization": {
-        "artifact_hash": "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
-        "disposition": "typed_input",
+        "artifact_hash": "e4c1ecd0e1db63389ad28b0e9ef2b4a0ffdeff4c97d0d5e114c111ec8fcaf524",
+        "disposition": "unclassified_financial_input",
         "owner": "Gate2FinancialEvidenceMaterializerFactory"
       },
-      "prebound_options": [
-        {
-          "constructibility_status": "exact_materializable",
-          "local_option_key": "o001",
-          "local_type_key": "t02",
-          "option_hash": "15b5a972ab4a9542b2901b18cfac92b0d37a0d16635dbe45eb66b02d4142c595",
-          "source_refs_hash": "fa6cbd7c979a1983d460b38adc055fbba8fa5684f51f03ed3b03455458971886",
-          "value_bindings_total": 5
-        },
-        {
-          "constructibility_status": "exact_materializable",
-          "local_option_key": "o002",
-          "local_type_key": "t01",
-          "option_hash": "7b5c726c85157a2d40a342379ca86a019f1679e6eda2edb2af29ee4bf9059104",
-          "source_refs_hash": "3b581cc9af4d8a53bd32c0ec0b06d0812069cb6e9584003b2b4a661211acc512",
-          "value_bindings_total": 4
-        }
-      ],
+      "prebound_options": [],
       "replay": {
         "hash_match": true,
         "provider_calls_total": 0,
@@ -155,40 +162,168 @@
         "source_unit_key": "u02"
       },
       "source_unit": {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u02",
-        "values": [
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "USD",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "2026-02-28",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_date",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [],
+            "parent_rows": [],
+            "previous_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate resources",
+                  "USD",
+                  "100.00"
+                ],
+                "row_ordinal": 8,
+                "row_role": "unknown_row_role"
+              },
+              {
+                "raw_cells": [
+                  "Aggregate obligations",
+                  "USD",
+                  "150.00"
+                ],
+                "row_ordinal": 13,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "200.00",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "200.00",
+                "local_value_key": "v01",
+                "value_type": "source_decimal"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v02",
+                "value_type": "source_currency"
+              },
+              {
+                "literal_value": "Aggregate obligations and owner capital",
+                "local_value_key": "v03",
+                "value_type": "source_text"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate obligations and owner capital",
+                "USD",
+                "200.00"
+              ]
+            ],
+            "row_ordinal": 15,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "e201bed249af9cdc78bb683c565f902befa92756e45550970e12cad78df0213d",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u02"
       },
-      "trace_hash": "e0363507729041666e8b5483504c2186cd879f0d336f0aaf542072cdb06161ea",
-      "trace_id": "unique_safe_typed_path",
+      "trace_hash": "79750c684c1ec82d4e9194e6e2ee066d02cbfbb8ab1b20a691b09e3bcff7cfd3",
+      "trace_id": "old_singleton_context_downgrade",
       "type_cards": [
         {
           "competitors": [
@@ -204,6 +339,11 @@
               "competitor": "regulated asset balance snapshot v1",
               "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
             }
+          ],
+          "context_disqualifiers": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
           ],
           "counterexamples": [
             "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
@@ -223,6 +363,13 @@
             "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "as_of_date",
+            "balance_class",
+            "currency_or_unit",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -243,6 +390,11 @@
               "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
             }
           ],
+          "context_disqualifiers": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
           "counterexamples": [
             "A total calculated by Gate 2 from child rows.",
             "A repeated visual representation of the same printed source metric.",
@@ -261,6 +413,13 @@
             "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "currency_or_unit",
+            "date_or_period",
+            "printed_label_evidence_ref",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -268,15 +427,16 @@
         }
       ],
       "validator_result": {
-        "output_hash": "40eb7ce8ab4bb11c733676bc62e8b02eec147c5b4d0069b240ad263319f8a42c",
+        "output_hash": "b6b71088007b90b70beebc475174e88f04ddb2485c85b55a94e3351fa4dbd72e",
         "status": "accepted"
       }
     },
     {
       "code_reason": "MULTIPLE_PLAUSIBLE_TYPES",
+      "context_sufficiency": null,
       "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
       "materialization": {
-        "artifact_hash": "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
+        "artifact_hash": "aa47400fef326b677afb5cff96ba554d3e32d17e87e7dec67ccebb7a54759fb9",
         "disposition": "unclassified_financial_input",
         "owner": "Gate2FinancialEvidenceMaterializerFactory"
       },
@@ -298,39 +458,168 @@
         "source_unit_key": "u01"
       },
       "source_unit": {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u01",
-        "values": [
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "150.00",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "RUB",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate obligations and owner capital",
+                  "USD",
+                  "200.00"
+                ],
+                "row_ordinal": 15,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "parent_rows": [],
+            "previous_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate resources",
+                  "USD",
+                  "100.00"
+                ],
+                "row_ordinal": 8,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "Opaque period label",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "Aggregate obligations",
+                "local_value_key": "v01",
+                "value_type": "source_text"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v02",
+                "value_type": "source_currency"
+              },
+              {
+                "literal_value": "150.00",
+                "local_value_key": "v03",
+                "value_type": "source_decimal"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate obligations",
+                "USD",
+                "150.00"
+              ]
+            ],
+            "row_ordinal": 13,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_text",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "cd06d5a20666c30e9735d39a8cd0a9e7287c8efe5afc91984cf1ac4c5c2dfb8a",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01"
       },
-      "trace_hash": "1747a2b9b94735d56973d4b846c2710a3210b5c6feef486f6f199ee879746d67",
+      "trace_hash": "f22d82fe9e57d60c3e9c4f491da233876732843ddb974fe8798db22f3134105a",
       "trace_id": "multiple_plausible_types",
       "type_cards": [
         {
@@ -347,6 +636,11 @@
               "competitor": "regulated asset balance snapshot v1",
               "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
             }
+          ],
+          "context_disqualifiers": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
           ],
           "counterexamples": [
             "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
@@ -366,6 +660,13 @@
             "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "as_of_date",
+            "balance_class",
+            "currency_or_unit",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -386,6 +687,11 @@
               "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
             }
           ],
+          "context_disqualifiers": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
           "counterexamples": [
             "A total calculated by Gate 2 from child rows.",
             "A repeated visual representation of the same printed source metric.",
@@ -404,6 +710,13 @@
             "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "currency_or_unit",
+            "date_or_period",
+            "printed_label_evidence_ref",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -411,15 +724,39 @@
         }
       ],
       "validator_result": {
-        "output_hash": "1362474b572847c34cc608dddb7b88dbc239565d21599b50f3259dcb009ac121",
+        "output_hash": "fb7fff4d0aec99b83677606229f3376199c3574be443ff2cf29ecc8dd02d8d55",
         "status": "accepted"
       }
     },
     {
-      "code_reason": "PLAUSIBLE_TYPE_WITHOUT_EXACT_OPTION",
+      "code_reason": "INSUFFICIENT_SEMANTIC_CONTEXT",
+      "context_sufficiency": {
+        "context_integrity_hash": "cd06d5a20666c30e9735d39a8cd0a9e7287c8efe5afc91984cf1ac4c5c2dfb8a",
+        "integrity_hash": "75e2bdf4400ba0acc576582e17a4f8703ba3cba57aec75032913892d1838a14c",
+        "missing_facets": [
+          "date_or_period",
+          "printed_label_evidence_ref",
+          "statement_scope"
+        ],
+        "required_facets": [
+          "amount",
+          "currency_or_unit",
+          "date_or_period",
+          "printed_label_evidence_ref",
+          "statement_scope"
+        ],
+        "satisfied_facets": [
+          "amount",
+          "currency_or_unit"
+        ],
+        "schema_version": "broker_reports_context_sufficiency_decision_v1",
+        "source_binding_hash": "fde88a8a9a84e8e78b028f54cf4d38b7044db65e438d940c81e9865ff69084fa",
+        "status": "INSUFFICIENT",
+        "triggered_disqualifiers": []
+      },
       "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
       "materialization": {
-        "artifact_hash": "88a8d106bd26affab65e4c32a3a44704a67690d109046274c7e542c6062af923",
+        "artifact_hash": "0d4ccb032ffd400e2f1bd6aba8a61fdd97825d946497b8f893894588ff935d0e",
         "disposition": "unclassified_financial_input",
         "owner": "Gate2FinancialEvidenceMaterializerFactory"
       },
@@ -439,40 +776,169 @@
         "source_unit_key": "u01"
       },
       "source_unit": {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u01",
-        "values": [
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "150.00",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "RUB",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate obligations and owner capital",
+                  "USD",
+                  "200.00"
+                ],
+                "row_ordinal": 15,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "parent_rows": [],
+            "previous_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate resources",
+                  "USD",
+                  "100.00"
+                ],
+                "row_ordinal": 8,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "Opaque period label",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "Aggregate obligations",
+                "local_value_key": "v01",
+                "value_type": "source_text"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v02",
+                "value_type": "source_currency"
+              },
+              {
+                "literal_value": "150.00",
+                "local_value_key": "v03",
+                "value_type": "source_decimal"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate obligations",
+                "USD",
+                "150.00"
+              ]
+            ],
+            "row_ordinal": 13,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_text",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "cd06d5a20666c30e9735d39a8cd0a9e7287c8efe5afc91984cf1ac4c5c2dfb8a",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01"
       },
-      "trace_hash": "82045df0576050551a0ff5dde2c10ea215d14218e4009724424254e1a61ec50c",
-      "trace_id": "no_exact_constructible_option",
+      "trace_hash": "0cacfa250bb7503693d6340f63a83c8a97362d4e80e0f08636afa8fdf19913d4",
+      "trace_id": "second_insufficient_context_variant",
       "type_cards": [
         {
           "competitors": [
@@ -488,6 +954,11 @@
               "competitor": "regulated asset balance snapshot v1",
               "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
             }
+          ],
+          "context_disqualifiers": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
           ],
           "counterexamples": [
             "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
@@ -507,6 +978,13 @@
             "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "as_of_date",
+            "balance_class",
+            "currency_or_unit",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -527,6 +1005,11 @@
               "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
             }
           ],
+          "context_disqualifiers": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
           "counterexamples": [
             "A total calculated by Gate 2 from child rows.",
             "A repeated visual representation of the same printed source metric.",
@@ -545,6 +1028,13 @@
             "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "currency_or_unit",
+            "date_or_period",
+            "printed_label_evidence_ref",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -552,36 +1042,20 @@
         }
       ],
       "validator_result": {
-        "output_hash": "e98d6896e28918f5aaf279189253c5e10f541e937c97ad7e4f5edcbc0b8126db",
+        "output_hash": "3183e1b7dcc4c02392d0695f26d2acac3b0444b560ecd49b985def2d058affc0",
         "status": "accepted"
       }
     },
     {
       "code_reason": "NO_PLAUSIBLE_TYPE",
+      "context_sufficiency": null,
       "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
       "materialization": {
-        "artifact_hash": "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712",
+        "artifact_hash": "f898c40a26828453020aafd79ca486a909f62840c7ba098365a3b644c893b04c",
         "disposition": "unclassified_financial_input",
         "owner": "Gate2FinancialEvidenceMaterializerFactory"
       },
-      "prebound_options": [
-        {
-          "constructibility_status": "exact_materializable",
-          "local_option_key": "o003",
-          "local_type_key": "t01",
-          "option_hash": "3bd06317ecf0e75c14021b7ac99017f5448cf689afb62f035a4920087f9e8d1c",
-          "source_refs_hash": "9f2b5ffef9e812076519c5b0867588fd0ff50c1cdff234c95c03c4e01e1206c2",
-          "value_bindings_total": 4
-        },
-        {
-          "constructibility_status": "exact_materializable",
-          "local_option_key": "o004",
-          "local_type_key": "t02",
-          "option_hash": "ff6df57cf175901a130712d4e501791ffa89544b0bb21c44103f83aea970d63f",
-          "source_refs_hash": "1910991539afbb294e5d8866bd7754f55fc70f188a2248ef8f708a4faf5152c2",
-          "value_bindings_total": 5
-        }
-      ],
+      "prebound_options": [],
       "replay": {
         "hash_match": true,
         "provider_calls_total": 0,
@@ -593,39 +1067,167 @@
         "source_unit_key": "u03"
       },
       "source_unit": {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u03",
-        "values": [
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "100.00",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "RUB",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate obligations",
+                  "USD",
+                  "150.00"
+                ],
+                "row_ordinal": 13,
+                "row_role": "unknown_row_role"
+              },
+              {
+                "raw_cells": [
+                  "Aggregate obligations and owner capital",
+                  "USD",
+                  "200.00"
+                ],
+                "row_ordinal": 15,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "parent_rows": [],
+            "previous_rows": [],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "2026-01-31",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "Aggregate resources",
+                "local_value_key": "v01",
+                "value_type": "source_text"
+              },
+              {
+                "literal_value": "100.00",
+                "local_value_key": "v02",
+                "value_type": "source_decimal"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v03",
+                "value_type": "source_currency"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate resources",
+                "USD",
+                "100.00"
+              ]
+            ],
+            "row_ordinal": 8,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_date",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "1c1b72fb23334c0cdc53896f40327e85eb8ec4aee93faed3fd29685b5340362b",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u03"
       },
-      "trace_hash": "ec5d0a4af1dccde486092faa9590ecbf5c414088a229613b10748916f291363e",
+      "trace_hash": "1dcbcb2e6ba67214a69262b91d9b0af509a127807f6904c74a9555aa4ebb932a",
       "trace_id": "false_singleton_trap",
       "type_cards": [
         {
@@ -643,6 +1245,11 @@
               "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
             }
           ],
+          "context_disqualifiers": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
+          ],
           "counterexamples": [
             "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
             "A synthetic deposit event records movement rather than an as-of balance.",
@@ -661,6 +1268,13 @@
             "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "as_of_date",
+            "balance_class",
+            "currency_or_unit",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -681,6 +1295,11 @@
               "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
             }
           ],
+          "context_disqualifiers": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
           "counterexamples": [
             "A total calculated by Gate 2 from child rows.",
             "A repeated visual representation of the same printed source metric.",
@@ -699,6 +1318,13 @@
             "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
           ],
           "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "required_context_facets": [
+            "amount",
+            "currency_or_unit",
+            "date_or_period",
+            "printed_label_evidence_ref",
+            "statement_scope"
+          ],
           "supported_source_shapes": [
             "broker_reports_normalized_table_projection_v0",
             "semantic_visual_logical_table_v1"
@@ -706,7 +1332,7 @@
         }
       ],
       "validator_result": {
-        "output_hash": "8047055ad9cb3ad9eb7a0976fb302d4b2dcc0056d65877ddccf4a2abc040b486",
+        "output_hash": "0444d59ff9158fc55333f13c3f3c0e63abafee16ee53bcbb1ec8c33b0b436708",
         "status": "accepted"
       }
     }
@@ -721,107 +1347,492 @@
     "expected_answers"
   ],
   "what_model_saw": {
-    "request_key": "type-first:1487116b460b3502e6791bd5",
+    "request_key": "type-first:82ddab6108596319c2d5dc12",
     "schema_version": "broker_reports_type_first_request_v1",
     "source_units": [
       {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u01",
-        "values": [
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "150.00",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "RUB",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate obligations and owner capital",
+                  "USD",
+                  "200.00"
+                ],
+                "row_ordinal": 15,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "parent_rows": [],
+            "previous_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate resources",
+                  "USD",
+                  "100.00"
+                ],
+                "row_ordinal": 8,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "Opaque period label",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "Aggregate obligations",
+                "local_value_key": "v01",
+                "value_type": "source_text"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v02",
+                "value_type": "source_currency"
+              },
+              {
+                "literal_value": "150.00",
+                "local_value_key": "v03",
+                "value_type": "source_decimal"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate obligations",
+                "USD",
+                "150.00"
+              ]
+            ],
+            "row_ordinal": 13,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_text",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "cd06d5a20666c30e9735d39a8cd0a9e7287c8efe5afc91984cf1ac4c5c2dfb8a",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01"
       },
       {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u02",
-        "values": [
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "USD",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "2026-02-28",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_date",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [],
+            "parent_rows": [],
+            "previous_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate resources",
+                  "USD",
+                  "100.00"
+                ],
+                "row_ordinal": 8,
+                "row_role": "unknown_row_role"
+              },
+              {
+                "raw_cells": [
+                  "Aggregate obligations",
+                  "USD",
+                  "150.00"
+                ],
+                "row_ordinal": 13,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "200.00",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "200.00",
+                "local_value_key": "v01",
+                "value_type": "source_decimal"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v02",
+                "value_type": "source_currency"
+              },
+              {
+                "literal_value": "Aggregate obligations and owner capital",
+                "local_value_key": "v03",
+                "value_type": "source_text"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate obligations and owner capital",
+                "USD",
+                "200.00"
+              ]
+            ],
+            "row_ordinal": 15,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "e201bed249af9cdc78bb683c565f902befa92756e45550970e12cad78df0213d",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u02"
       },
       {
-        "source_shape": "broker_reports_normalized_table_projection_v0",
-        "source_unit_key": "u03",
-        "values": [
-          {
-            "column_meaning": "safe_column_01",
-            "literal_value": "100.00",
-            "local_value_key": "v01",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_decimal",
-            "visible_label": null
+        "bounded_semantic_context": {
+          "document_context": {
+            "account_type": "",
+            "document_role": "",
+            "document_title": "",
+            "document_type": "",
+            "issuer_role": "",
+            "language": "",
+            "reporting_period": "",
+            "statement_scope": ""
           },
-          {
-            "column_meaning": "safe_column_03",
-            "literal_value": "RUB",
-            "local_value_key": "v02",
-            "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_currency",
-            "visible_label": null
+          "local_structural_context": {
+            "continuation": {},
+            "excluded_target_rows_total": 1,
+            "linked_footnotes": [],
+            "next_rows": [
+              {
+                "raw_cells": [
+                  "Aggregate obligations",
+                  "USD",
+                  "150.00"
+                ],
+                "row_ordinal": 13,
+                "row_role": "unknown_row_role"
+              },
+              {
+                "raw_cells": [
+                  "Aggregate obligations and owner capital",
+                  "USD",
+                  "200.00"
+                ],
+                "row_ordinal": 15,
+                "row_role": "unknown_row_role"
+              }
+            ],
+            "parent_rows": [],
+            "previous_rows": [],
+            "selection_rules": [
+              "same_document",
+              "same_table_identity",
+              "contiguous_row_ordinal",
+              "explicit_parent_footnote_or_continuation_only"
+            ]
           },
-          {
-            "column_meaning": "safe_column_02",
-            "literal_value": "2026-01-31",
-            "local_value_key": "v03",
+          "quality_and_restrictions": {
+            "context_truncated": false,
+            "financial_interpretation_allowed": true,
+            "missing_facets": [
+              "account_type",
+              "document_role",
+              "document_title",
+              "document_type",
+              "group_labels",
+              "issuer_role",
+              "language",
+              "normalized_column_roles",
+              "raw_headers",
+              "reporting_period",
+              "section_path",
+              "table_title"
+            ],
+            "source_input_mode": "normalized_table_projection",
+            "source_package_completeness": "complete",
+            "source_package_restrictions": [
+              "do_not_choose_final_document_use_without_deterministic_stage_policy",
+              "do_not_load_customer_documents_to_knowledge_or_vector_store",
+              "do_not_treat_pdf_or_html_source_role_uncertainty_as_gate1_ingestion_blocker",
+              "do_not_treat_unanswered_questions_as_resolved",
+              "do_not_use_reduced_subset_as_the_only_next_stage_context",
+              "extractor_must_not_assign_final_row_ownership",
+              "extractor_must_not_calculate_tax_profit_or_loss",
+              "extractor_must_not_change_domain_route",
+              "extractor_must_not_consolidate_duplicates",
+              "extractor_must_not_generate_declaration_or_xls",
+              "extractor_must_not_resolve_issues",
+              "extractor_must_not_use_external_knowledge_or_rag"
+            ],
+            "source_representation": "semantic_visual_logical_table",
+            "unresolved_issues": [
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "source_role_policy_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              },
+              {
+                "affected_stage": "consolidation",
+                "blocked_stages": [
+                  "consolidation",
+                  "declaration_support"
+                ],
+                "impact": "blocks_consolidation",
+                "issue_type": "structural_uncertainty",
+                "stages_that_may_continue": [
+                  "cross_check",
+                  "domain_ingestion",
+                  "source_fact_extraction"
+                ],
+                "status": "unresolved"
+              }
+            ]
+          },
+          "schema_version": "broker_reports_bounded_semantic_context_v1",
+          "section_context": {
+            "group_labels": [],
+            "related_notes": [],
+            "section_path": [],
+            "table_title": ""
+          },
+          "table_context": {
+            "header_confidence": "unknown",
+            "normalized_column_roles": [],
+            "raw_headers": [
+              "unknown"
+            ],
+            "table_quality": "medium"
+          },
+          "target_unit": {
+            "normalized_values": [
+              {
+                "literal_value": "Aggregate resources",
+                "local_value_key": "v01",
+                "value_type": "source_text"
+              },
+              {
+                "literal_value": "100.00",
+                "local_value_key": "v02",
+                "value_type": "source_decimal"
+              },
+              {
+                "literal_value": "USD",
+                "local_value_key": "v03",
+                "value_type": "source_currency"
+              }
+            ],
+            "raw_cells": [
+              [
+                "Aggregate resources",
+                "USD",
+                "100.00"
+              ]
+            ],
+            "row_ordinal": 8,
             "row_role": "unknown_row_role",
-            "section_role": null,
-            "value_type": "source_date",
-            "visible_label": null
+            "visible_labels": []
           }
-        ]
+        },
+        "bounded_semantic_context_hash": "1c1b72fb23334c0cdc53896f40327e85eb8ec4aee93faed3fd29685b5340362b",
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u03"
       }
     ],
     "task": {
@@ -830,7 +1841,7 @@
       "plural_results_allowed": true,
       "values_or_refs_must_not_be_returned": true
     },
-    "type_card_projection_hash": "704f4d09463308aa65c6e895936d0af92e387f15b624d5ea7610496cb2c4e8d6",
+    "type_card_projection_hash": "b9cc32021d8a5af472f4d11cc9dc70408d84bc08fee8d8b8d786043408289426",
     "type_card_projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
     "type_cards": [
       {
@@ -847,6 +1858,11 @@
             "competitor": "regulated asset balance snapshot v1",
             "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
           }
+        ],
+        "context_disqualifiers": [
+          "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+          "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+          "A cash-like label alone is insufficient without a source-stated amount and state context."
         ],
         "counterexamples": [
           "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
@@ -866,6 +1882,13 @@
           "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
         ],
         "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+        "required_context_facets": [
+          "amount",
+          "as_of_date",
+          "balance_class",
+          "currency_or_unit",
+          "statement_scope"
+        ],
         "supported_source_shapes": [
           "broker_reports_normalized_table_projection_v0",
           "semantic_visual_logical_table_v1"
@@ -886,6 +1909,11 @@
             "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
           }
         ],
+        "context_disqualifiers": [
+          "Choose unclassified when the printed label cannot be bound to exact evidence.",
+          "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+          "Do not infer that a visually emphasized or last row is a printed total."
+        ],
         "counterexamples": [
           "A total calculated by Gate 2 from child rows.",
           "A repeated visual representation of the same printed source metric.",
@@ -904,6 +1932,13 @@
           "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
         ],
         "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+        "required_context_facets": [
+          "amount",
+          "currency_or_unit",
+          "date_or_period",
+          "printed_label_evidence_ref",
+          "statement_scope"
+        ],
         "supported_source_shapes": [
           "broker_reports_normalized_table_projection_v0",
           "semantic_visual_logical_table_v1"

@@ -37,6 +37,12 @@ of `current_source_fact_orchestration`. It is product- and provider-unreachable,
 owns no canonical contract, and delegates parsing, validation, materialization,
 evidence and persistence to the existing sole owners.
 
+KT2.1 adds `Gate2BoundedSemanticContextFactory` beneath that same inactive
+proof. It owns only deterministic, structure-based context projection. It
+cannot see Type Cards, choose a type, call a provider, validate/materialize a
+fact, or enter a product/Function route. Its sufficiency guard reuses the same
+Pack, validator, materializer, and replay authorities.
+
 ## Owner index
 
 | Owner ID | Primary module | Domain | Runtime status |

@@ -19,7 +19,7 @@
   ],
   "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
   "full_real_package_structural_copy_index": 0,
-  "integrity_hash": "9a2c015b24be2e29cb72ea31839757fdaef52a45e31c56d002971ee5b0eb576c",
+  "integrity_hash": "a2443ef2fcbf621990052a00e0350c201d6ebae0ded922d7bcb732cb12f613d0",
   "packages": [
     {
       "allowed_evidence_refs": [
@@ -1424,7 +1424,7 @@
                 {
                   "cell_ref": "safe_cc3bfc6a3badb2332366af83",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_e8fc109b12457e4e5033ed9c",
                   "source_value_refs": [
                     "safe_e8fc109b12457e4e5033ed9c"
@@ -1435,7 +1435,7 @@
                 {
                   "cell_ref": "safe_d2682c81416e997f2bc2e357",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_01_02",
@@ -1444,7 +1444,7 @@
                 {
                   "cell_ref": "safe_b97bea459b08ee896d997220",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_01_03",
@@ -1459,7 +1459,7 @@
                 {
                   "cell_ref": "safe_bd666177d1ff3dd75c1bf860",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_a0a11c6177e3262330d56977",
                   "source_value_refs": [
                     "safe_a0a11c6177e3262330d56977"
@@ -1470,7 +1470,7 @@
                 {
                   "cell_ref": "safe_c4086062ef4047ab47ae507b",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_d9232d03dc75cfe930be57e4",
                   "source_value_refs": [
                     "safe_d9232d03dc75cfe930be57e4"
@@ -1481,7 +1481,7 @@
                 {
                   "cell_ref": "safe_0a4dae4f5a354c70e34e654d",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_94b419ad4a28c0e6b8350d6b",
                   "source_value_refs": [
                     "safe_94b419ad4a28c0e6b8350d6b"
@@ -1498,7 +1498,7 @@
                 {
                   "cell_ref": "safe_b23d36651f794bf4c8954774",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_e033a837dff9a42a2bd7696f",
                   "source_value_refs": [
                     "safe_e033a837dff9a42a2bd7696f"
@@ -1509,7 +1509,7 @@
                 {
                   "cell_ref": "safe_bc424608e8ae9f26bacda461",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_03_02",
@@ -1518,7 +1518,7 @@
                 {
                   "cell_ref": "safe_108bd1d5a8006b0aa93c084c",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_03_03",
@@ -1533,7 +1533,7 @@
                 {
                   "cell_ref": "safe_56f67d9e546ef66c3c09a739",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_6fbeea4ebfc0108edfad4757",
                   "source_value_refs": [
                     "safe_6fbeea4ebfc0108edfad4757"
@@ -1544,7 +1544,7 @@
                 {
                   "cell_ref": "safe_76fbe59b1b042d91bb4a87af",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_04_02",
@@ -1553,7 +1553,7 @@
                 {
                   "cell_ref": "safe_9d0b712bcc2330631c757130",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_6d2666f7020a6095a8fbbb81",
                   "source_value_refs": [
                     "safe_6d2666f7020a6095a8fbbb81"
@@ -1570,7 +1570,7 @@
                 {
                   "cell_ref": "safe_305d9598f996199d36eb7d5f",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_7438fcc24b03aedf427c4f06",
                   "source_value_refs": [
                     "safe_7438fcc24b03aedf427c4f06"
@@ -1581,7 +1581,7 @@
                 {
                   "cell_ref": "safe_d04a47531ef821bbff7bf563",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_05_02",
@@ -1590,7 +1590,7 @@
                 {
                   "cell_ref": "safe_41d8ba20ffd97c26a3c33b39",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_1c000c586c6c45000192619b",
                   "source_value_refs": [
                     "safe_1c000c586c6c45000192619b"
@@ -1607,7 +1607,7 @@
                 {
                   "cell_ref": "safe_2caf19f44fcc81dcd9711c1e",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_ab0c9da940f86a1440e07a4e",
                   "source_value_refs": [
                     "safe_ab0c9da940f86a1440e07a4e"
@@ -1618,7 +1618,7 @@
                 {
                   "cell_ref": "safe_02bab04db0b67dcd85379f28",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_06_02",
@@ -1627,7 +1627,7 @@
                 {
                   "cell_ref": "safe_4298c708a5ffaa9644cb49aa",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_f2b819dbb4e8235a7ef6ba1a",
                   "source_value_refs": [
                     "safe_f2b819dbb4e8235a7ef6ba1a"
@@ -1644,7 +1644,7 @@
                 {
                   "cell_ref": "safe_ae2f6a20235d7ed2a41c57ab",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_b352b06e3b7cfd2d2e13a353",
                   "source_value_refs": [
                     "safe_b352b06e3b7cfd2d2e13a353"
@@ -1655,7 +1655,7 @@
                 {
                   "cell_ref": "safe_3edb6b6f2d4681c463e5d7d7",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_07_02",
@@ -1664,7 +1664,7 @@
                 {
                   "cell_ref": "safe_ad876af5d6ed0e498c62a243",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_5ad43ba41ebd52e118ebe0a6",
                   "source_value_refs": [
                     "safe_5ad43ba41ebd52e118ebe0a6"
@@ -1681,7 +1681,7 @@
                 {
                   "cell_ref": "safe_25795878d3fe4c3bcff68b14",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_f1c0b98abe356f654c9018d9",
                   "source_value_refs": [
                     "safe_f1c0b98abe356f654c9018d9"
@@ -1692,7 +1692,7 @@
                 {
                   "cell_ref": "safe_c5c757f8751203c041a8bded",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_08_02",
@@ -1701,7 +1701,7 @@
                 {
                   "cell_ref": "safe_0a8fbe505575be2cd20f033f",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_c9411db6feceef214c613917",
                   "source_value_refs": [
                     "safe_c9411db6feceef214c613917"
@@ -1718,7 +1718,7 @@
                 {
                   "cell_ref": "safe_8e923ef6f1b9413ce83f756d",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_341687998cc25b05d86cc371",
                   "source_value_refs": [
                     "safe_341687998cc25b05d86cc371"
@@ -1729,7 +1729,7 @@
                 {
                   "cell_ref": "safe_2aee8a8b2a6657711ce37ce8",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_e5d6294d0dbd402812250d10",
                   "source_value_refs": [
                     "safe_e5d6294d0dbd402812250d10"
@@ -1740,7 +1740,7 @@
                 {
                   "cell_ref": "safe_1991737c51e177bd0221d38f",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_4cca06de819eaecebd5e4bbc",
                   "source_value_refs": [
                     "safe_4cca06de819eaecebd5e4bbc"
@@ -1757,7 +1757,7 @@
                 {
                   "cell_ref": "safe_76b364f28aee5e8dadeae9ae",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_4e23e26ddf3e6886f4bf9bac",
                   "source_value_refs": [
                     "safe_4e23e26ddf3e6886f4bf9bac"
@@ -1768,7 +1768,7 @@
                 {
                   "cell_ref": "safe_79a1997a23d4a355db05daba",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_10_02",
@@ -1777,7 +1777,7 @@
                 {
                   "cell_ref": "safe_403fe0ce553b25954b08dce6",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_10_03",
@@ -1792,7 +1792,7 @@
                 {
                   "cell_ref": "safe_56d3c710a06e42a73811ed9b",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_dafd315363a9b036cdecea78",
                   "source_value_refs": [
                     "safe_dafd315363a9b036cdecea78"
@@ -1803,7 +1803,7 @@
                 {
                   "cell_ref": "safe_fd84bf1ff3dc139965b6282b",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_11_02",
@@ -1812,7 +1812,7 @@
                 {
                   "cell_ref": "safe_b2169991023ce340d24ce46f",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_11_03",
@@ -1827,7 +1827,7 @@
                 {
                   "cell_ref": "safe_8bdc1a03799accfac0ca0168",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_87789afbd47fa77a95c006ea",
                   "source_value_refs": [
                     "safe_87789afbd47fa77a95c006ea"
@@ -1838,7 +1838,7 @@
                 {
                   "cell_ref": "safe_fc220498c40519986207be7c",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_3a165ba7f7e5123933da466b",
                   "source_value_refs": [
                     "safe_3a165ba7f7e5123933da466b"
@@ -1849,7 +1849,7 @@
                 {
                   "cell_ref": "safe_c56dad3486e907064a4ffb1b",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_1c4813edeac3e9a2b2c05731",
                   "source_value_refs": [
                     "safe_1c4813edeac3e9a2b2c05731"
@@ -1866,7 +1866,7 @@
                 {
                   "cell_ref": "safe_e29ff176d40892b8199d9b16",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_dfacc63b3aaab501395cf94b",
                   "source_value_refs": [
                     "safe_dfacc63b3aaab501395cf94b"
@@ -1877,7 +1877,7 @@
                 {
                   "cell_ref": "safe_cabbbea9bbfb0934cb878ce5",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_13_02",
@@ -1886,7 +1886,7 @@
                 {
                   "cell_ref": "safe_838f42647819db7e50f0b967",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_d7f1e6877e8b9c4796bbd0f0",
                   "source_value_refs": [
                     "safe_d7f1e6877e8b9c4796bbd0f0"
@@ -1903,7 +1903,7 @@
                 {
                   "cell_ref": "safe_61ff1bcabd08b3c336a61073",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_5cc3de484ce122eebc26bef4",
                   "source_value_refs": [
                     "safe_5cc3de484ce122eebc26bef4"
@@ -1914,7 +1914,7 @@
                 {
                   "cell_ref": "safe_241c23805a40edb19fce8970",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_b89b65013632e63ce3b06c32",
                   "source_value_refs": [
                     "safe_b89b65013632e63ce3b06c32"
@@ -1925,7 +1925,7 @@
                 {
                   "cell_ref": "safe_591c10ebe58a32ac184ae8dc",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_f760f59b88be320540519612",
                   "source_value_refs": [
                     "safe_f760f59b88be320540519612"
@@ -1942,7 +1942,7 @@
                 {
                   "cell_ref": "safe_47284c382d9f60f98a2f9b72",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_394b38b080434a30fb20b28d",
                   "source_value_refs": [
                     "safe_394b38b080434a30fb20b28d"
@@ -1953,7 +1953,7 @@
                 {
                   "cell_ref": "safe_a0f0cc7aee350bd0122d02df",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": null,
                   "source_value_refs": [],
                   "value": "opaque_15_02",
@@ -1962,7 +1962,7 @@
                 {
                   "cell_ref": "safe_e866e019430966b5e15397b4",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_461357c459cecaf09f0a6b05",
                   "source_value_refs": [
                     "safe_461357c459cecaf09f0a6b05"
@@ -1979,7 +1979,7 @@
                 {
                   "cell_ref": "safe_d211578bfa67a675900e0b5a",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_d88249ab3467878819fa7ac0",
                   "source_value_refs": [
                     "safe_d88249ab3467878819fa7ac0"
@@ -1990,7 +1990,7 @@
                 {
                   "cell_ref": "safe_f170fc19d6d22133c83589e2",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_507abcc8fd3120cbde1da4bf",
                   "source_value_refs": [
                     "safe_507abcc8fd3120cbde1da4bf"
@@ -2001,7 +2001,7 @@
                 {
                   "cell_ref": "safe_1afa314a63cc744cddead351",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_101b31ea4f30bbf58012f790",
                   "source_value_refs": [
                     "safe_101b31ea4f30bbf58012f790"
@@ -3402,34 +3402,34 @@
                 {
                   "cell_ref": "safe_8e923ef6f1b9413ce83f756d",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_341687998cc25b05d86cc371",
                   "source_value_refs": [
                     "safe_341687998cc25b05d86cc371"
                   ],
-                  "value": "100.00",
+                  "value": "Aggregate resources",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_2aee8a8b2a6657711ce37ce8",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_e5d6294d0dbd402812250d10",
                   "source_value_refs": [
                     "safe_e5d6294d0dbd402812250d10"
                   ],
-                  "value": "2026-01-31",
+                  "value": "USD",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_1991737c51e177bd0221d38f",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_4cca06de819eaecebd5e4bbc",
                   "source_value_refs": [
                     "safe_4cca06de819eaecebd5e4bbc"
                   ],
-                  "value": "RUB",
+                  "value": "100.00",
                   "value_kind_hints": []
                 }
               ],
@@ -3443,9 +3443,9 @@
         "normalized_source_projection": {
           "cells": [
             [
-              "100.00",
-              "2026-01-31",
-              "RUB"
+              "Aggregate resources",
+              "USD",
+              "100.00"
             ]
           ]
         },
@@ -3456,7 +3456,7 @@
         "private_slice_artifact_ref": "safe_c464d392d54990a8344b6efe",
         "private_values": [
           {
-            "normalized_value": "100.00",
+            "normalized_value": "Aggregate resources",
             "source_value_refs": [
               "safe_341687998cc25b05d86cc371"
             ],
@@ -3464,7 +3464,7 @@
             "value_path_ref": "safe_d3c4b0a6afa31e35c84beee6"
           },
           {
-            "normalized_value": "2026-01-31",
+            "normalized_value": "USD",
             "source_value_refs": [
               "safe_e5d6294d0dbd402812250d10"
             ],
@@ -3472,7 +3472,7 @@
             "value_path_ref": "safe_122d948ce0011db82f95a674"
           },
           {
-            "normalized_value": "RUB",
+            "normalized_value": "100.00",
             "source_value_refs": [
               "safe_4cca06de819eaecebd5e4bbc"
             ],
@@ -3895,34 +3895,34 @@
                 {
                   "cell_ref": "safe_61ff1bcabd08b3c336a61073",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_5cc3de484ce122eebc26bef4",
                   "source_value_refs": [
                     "safe_5cc3de484ce122eebc26bef4"
                   ],
-                  "value": "150.00",
+                  "value": "Aggregate obligations",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_241c23805a40edb19fce8970",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_b89b65013632e63ce3b06c32",
                   "source_value_refs": [
                     "safe_b89b65013632e63ce3b06c32"
                   ],
-                  "value": "RUB",
+                  "value": "USD",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_591c10ebe58a32ac184ae8dc",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_f760f59b88be320540519612",
                   "source_value_refs": [
                     "safe_f760f59b88be320540519612"
                   ],
-                  "value": "Opaque period label",
+                  "value": "150.00",
                   "value_kind_hints": []
                 }
               ],
@@ -3936,9 +3936,9 @@
         "normalized_source_projection": {
           "cells": [
             [
-              "150.00",
-              "RUB",
-              "Opaque period label"
+              "Aggregate obligations",
+              "USD",
+              "150.00"
             ]
           ]
         },
@@ -3949,7 +3949,7 @@
         "private_slice_artifact_ref": "safe_c464d392d54990a8344b6efe",
         "private_values": [
           {
-            "normalized_value": "150.00",
+            "normalized_value": "Aggregate obligations",
             "source_value_refs": [
               "safe_5cc3de484ce122eebc26bef4"
             ],
@@ -3957,7 +3957,7 @@
             "value_path_ref": "safe_a0d19a04441bfbedbd1e6d80"
           },
           {
-            "normalized_value": "RUB",
+            "normalized_value": "USD",
             "source_value_refs": [
               "safe_b89b65013632e63ce3b06c32"
             ],
@@ -3965,7 +3965,7 @@
             "value_path_ref": "safe_5f5a98923c88bfef42a382e1"
           },
           {
-            "normalized_value": "Opaque period label",
+            "normalized_value": "150.00",
             "source_value_refs": [
               "safe_f760f59b88be320540519612"
             ],
@@ -4388,34 +4388,34 @@
                 {
                   "cell_ref": "safe_d211578bfa67a675900e0b5a",
                   "column_ref": "safe_a67b57c0c8acadb819c56f17",
-                  "header_label": "safe_column_01",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_d88249ab3467878819fa7ac0",
                   "source_value_refs": [
                     "safe_d88249ab3467878819fa7ac0"
                   ],
-                  "value": "200.00",
+                  "value": "Aggregate obligations and owner capital",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_f170fc19d6d22133c83589e2",
                   "column_ref": "safe_ea6dace068c695ae1bc85ea8",
-                  "header_label": "safe_column_02",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_507abcc8fd3120cbde1da4bf",
                   "source_value_refs": [
                     "safe_507abcc8fd3120cbde1da4bf"
                   ],
-                  "value": "2026-02-28",
+                  "value": "USD",
                   "value_kind_hints": []
                 },
                 {
                   "cell_ref": "safe_1afa314a63cc744cddead351",
                   "column_ref": "safe_41bab5efc8c55e9208fc758f",
-                  "header_label": "safe_column_03",
+                  "header_label": "unknown",
                   "source_value_ref": "safe_101b31ea4f30bbf58012f790",
                   "source_value_refs": [
                     "safe_101b31ea4f30bbf58012f790"
                   ],
-                  "value": "USD",
+                  "value": "200.00",
                   "value_kind_hints": []
                 }
               ],
@@ -4429,9 +4429,9 @@
         "normalized_source_projection": {
           "cells": [
             [
-              "200.00",
-              "2026-02-28",
-              "USD"
+              "Aggregate obligations and owner capital",
+              "USD",
+              "200.00"
             ]
           ]
         },
@@ -4442,7 +4442,7 @@
         "private_slice_artifact_ref": "safe_c464d392d54990a8344b6efe",
         "private_values": [
           {
-            "normalized_value": "200.00",
+            "normalized_value": "Aggregate obligations and owner capital",
             "source_value_refs": [
               "safe_d88249ab3467878819fa7ac0"
             ],
@@ -4450,7 +4450,7 @@
             "value_path_ref": "safe_c3f3c54ff2e030baa710809a"
           },
           {
-            "normalized_value": "2026-02-28",
+            "normalized_value": "USD",
             "source_value_refs": [
               "safe_507abcc8fd3120cbde1da4bf"
             ],
@@ -4458,7 +4458,7 @@
             "value_path_ref": "safe_e8f7c2687effd34c5c68384c"
           },
           {
-            "normalized_value": "USD",
+            "normalized_value": "200.00",
             "source_value_refs": [
               "safe_101b31ea4f30bbf58012f790"
             ],
@@ -4612,7 +4612,8 @@
     "private_paths": false,
     "raw_provider_payloads": false,
     "raw_source_refs": false,
-    "safe_placeholders_only": true
+    "safe_placeholders_only": true,
+    "synthetic_semantic_labels": true
   },
   "proof_bounded_normalization": {
     "authority": "package.document_ref",
@@ -4649,8 +4650,8 @@
         3,
         3
       ],
-      "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-      "package_sha256": "8944a18d208607ace24cdffe89286e511c12455531317fa46d5c6a83f287c0fe",
+      "evidence_class": "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
+      "package_sha256": "442a249b4946a508de389d62617bc9fb0b26eec6383b087f5b03d36175c96847",
       "row_refs_total": 16,
       "rows_total": 16,
       "schema_version": "broker_reports_source_fact_package_v0",
@@ -4666,8 +4667,25 @@
       "cells_by_row": [
         3
       ],
-      "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-      "package_sha256": "2b60e2e0a6241e8fc1329e3ca3755a9f46473e2acefedd8e83b04ca4c982935a",
+      "evidence_class": "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
+      "package_sha256": "1d022f7a8a442ed40b2a1b18a065e3419ad4fabfd6a6ab4b891fc11302289782",
+      "row_refs_total": 1,
+      "rows_total": 1,
+      "schema_version": "broker_reports_derived_source_unit_v0",
+      "selected_source_refs_total": 1,
+      "source_input_mode": "normalized_table_projection",
+      "source_value_index_total": 3,
+      "source_value_refs_total": 3,
+      "unit_kind": "table_row_window"
+    },
+    {
+      "allowed_source_value_refs_total": 3,
+      "cell_refs_total": 3,
+      "cells_by_row": [
+        3
+      ],
+      "evidence_class": "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
+      "package_sha256": "a035ab87a69531acd36ded69f25f42a0ded5200850d104c51ad06b49e4827028",
       "row_refs_total": 1,
       "rows_total": 1,
       "schema_version": "broker_reports_derived_source_unit_v0",
@@ -4684,24 +4702,7 @@
         3
       ],
       "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-      "package_sha256": "af1e209357df0312da1f487ff69f08aa948861e2ca52e3e16b430befbf0fc260",
-      "row_refs_total": 1,
-      "rows_total": 1,
-      "schema_version": "broker_reports_derived_source_unit_v0",
-      "selected_source_refs_total": 1,
-      "source_input_mode": "normalized_table_projection",
-      "source_value_index_total": 3,
-      "source_value_refs_total": 3,
-      "unit_kind": "table_row_window"
-    },
-    {
-      "allowed_source_value_refs_total": 3,
-      "cell_refs_total": 3,
-      "cells_by_row": [
-        3
-      ],
-      "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-      "package_sha256": "8a4e5a184650113e97c4fb06c9274f49cf64e587afa9504c5fba93599d4ce4db",
+      "package_sha256": "2b4178d9ee9f1d1578624386d0e3ee853f716c779bfe7471e8ea039c6a0c19af",
       "row_refs_total": 1,
       "rows_total": 1,
       "schema_version": "broker_reports_derived_source_unit_v0",

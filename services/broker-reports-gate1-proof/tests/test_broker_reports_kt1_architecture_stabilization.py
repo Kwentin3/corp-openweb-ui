@@ -467,18 +467,24 @@ def test_17_new_package_module_is_declared_subordinate_and_ci_runs_this_suite() 
         )
         and path.endswith(".py")
     ]
-    allowed_subordinate = (
-        "services/broker-reports-gate1-proof/broker_reports_gate1/"
-        "gate2_same_source_type_first_proof.py"
-    )
-    assert set(added_package_modules) <= {allowed_subordinate}
+    allowed_subordinates = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate2_same_source_type_first_proof.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate2_bounded_semantic_context.py"
+        ),
+    }
+    assert set(added_package_modules) <= allowed_subordinates
     if added_package_modules:
         capabilities = _owners()["current_source_fact_orchestration"][
             "inactive_subordinate_capabilities"
         ]
-        assert [item["module"] for item in capabilities] == [
-            allowed_subordinate
-        ]
+        assert set(added_package_modules) <= {
+            item["module"] for item in capabilities
+        }
         assert all(item["canonical_owner_delta"] == 0 for item in capabilities)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"

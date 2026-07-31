@@ -1,6 +1,6 @@
 {
   "evidence_class": "REAL_SOURCE_TO_PRIVACY_SAFE_STRUCTURAL_COPY",
-  "integrity_sha256": "ea8ab7cede2f6e92be07f47f2ec85ddeac9b2618c4c326dda9e815a554ed9a32",
+  "integrity_sha256": "c2ab8313ef0c5e98f071b04d79d3de94b5cd4abea304e7419dd0ea120ddcacec",
   "privacy": {
     "customer_values_in_receipt": false,
     "private_paths_in_receipt": false,
@@ -21,13 +21,14 @@
   "public_fixture": {
     "field_roles_preserved": true,
     "fixture_schema_version": "broker_reports_kt2_same_source_corpus_v1",
-    "fixture_sha256": "883c5352b2d4c5a24064467d4349a9b0e7eb4d981dc6967ae62bfddaf0fad212",
+    "fixture_sha256": "df5e405a3f431060a3374cc83ec97868ec4379d73cd7d0f6edfd233e1fe19b8b",
     "literal_values_replaced": true,
     "packages_total": 4,
     "real_gate2_packages_total": 1,
     "real_source_units_total": 3,
     "ref_topology_preserved": true,
     "row_graph_preserved": true,
+    "semantic_row_roles_preserved": true,
     "unit_boundaries_preserved": true
   },
   "schema_version": "broker_reports_kt2_same_source_binding_v1",
@@ -87,7 +88,7 @@
           3
         ],
         "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-        "package_sha256": "8944a18d208607ace24cdffe89286e511c12455531317fa46d5c6a83f287c0fe",
+        "package_sha256": "442a249b4946a508de389d62617bc9fb0b26eec6383b087f5b03d36175c96847",
         "row_refs_total": 16,
         "rows_total": 16,
         "schema_version": "broker_reports_source_fact_package_v0",
@@ -124,7 +125,7 @@
           3
         ],
         "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-        "package_sha256": "2b60e2e0a6241e8fc1329e3ca3755a9f46473e2acefedd8e83b04ca4c982935a",
+        "package_sha256": "1d022f7a8a442ed40b2a1b18a065e3419ad4fabfd6a6ab4b891fc11302289782",
         "row_refs_total": 1,
         "rows_total": 1,
         "schema_version": "broker_reports_derived_source_unit_v0",
@@ -161,7 +162,7 @@
           3
         ],
         "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-        "package_sha256": "af1e209357df0312da1f487ff69f08aa948861e2ca52e3e16b430befbf0fc260",
+        "package_sha256": "a035ab87a69531acd36ded69f25f42a0ded5200850d104c51ad06b49e4827028",
         "row_refs_total": 1,
         "rows_total": 1,
         "schema_version": "broker_reports_derived_source_unit_v0",
@@ -198,7 +199,7 @@
           3
         ],
         "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
-        "package_sha256": "8a4e5a184650113e97c4fb06c9274f49cf64e587afa9504c5fba93599d4ce4db",
+        "package_sha256": "2b4178d9ee9f1d1578624386d0e3ee853f716c779bfe7471e8ea039c6a0c19af",
         "row_refs_total": 1,
         "rows_total": 1,
         "schema_version": "broker_reports_derived_source_unit_v0",
