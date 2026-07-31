@@ -1,0 +1,58 @@
+{
+  "schema_version": "broker_reports_gate2_canonical_domain_research_receipt_v1",
+  "date": "2026-07-23",
+  "repository_base_revision": "ba759a40c39ae2ed3225e77da36745c8d7ac44d3",
+  "branch": "codex/broker-reports-gate2-canonical-domain-research-v1",
+  "research_program_status": "completed_with_explicit_gaps",
+  "goal_statuses": {
+    "goal_0_current_domain_archaeology": "completed",
+    "goal_1_corpus_concept_inventory": "completed",
+    "goal_2_domain_layer_model": "completed",
+    "goal_3_fact_registry_blueprint": "completed",
+    "goal_4_decision_contract_blueprint": "completed",
+    "goal_5_initial_registry_candidates": "completed_with_gaps",
+    "goal_6_register_model_audit": "completed",
+    "goal_7_migration_plan": "completed"
+  },
+  "safe_evidence": {
+    "authorized_corpus_documents": 6,
+    "bounded_table_crops": 9,
+    "visual_provider_executions": 36,
+    "actual_corpus_safe_receipt_sha256": "f8862b9a2104a8b4f08b24b6ebe06fc784ce78bb27524e2dd67e8cce92eff1f5",
+    "semantic_selection_reproof_safe_receipt_sha256": "60a6a57b8371c5acb5c960c03305790878376c21da5d1cb35c85b28e6f4ffc68",
+    "semantic_selection_packages_total": 41,
+    "semantic_selection_packages_accepted": 21,
+    "semantic_selection_packages_rejected": 20,
+    "semantic_selection_uncovered_refs": 42,
+    "pre_revision_packages_accepted": 35,
+    "pre_revision_uncovered_refs": 7
+  },
+  "registry_draft": {
+    "declarations_total": 12,
+    "unique_fact_type_ids": 12,
+    "lifecycle": "experimental_only",
+    "production_authority": false
+  },
+  "current_stage_decision": {
+    "risk": "critical_until_contained",
+    "recommendation": "atomic_rollback_then_keep_semantic_selection_disabled_until_corpus_qualification",
+    "stage_changed_by_this_program": false
+  },
+  "scope_controls": {
+    "production_code_changed": false,
+    "gate1_changed": false,
+    "canonical_validator_changed": false,
+    "provider_policy_changed": false,
+    "runtime_dependencies_added": false,
+    "stage_release_performed": false,
+    "customer_values_in_git": false,
+    "customer_labels_in_git": false,
+    "source_filenames_in_git": false,
+    "raw_provider_output_in_git": false
+  },
+  "deliverables": {
+    "markdown_reports": 9,
+    "machine_readable_safe_registry_drafts": 1,
+    "safe_research_receipts": 1
+  }
+}

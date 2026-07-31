@@ -98,17 +98,17 @@ EXPECTED_CASES = {
 }
 
 
-@unittest.skipUnless(
-    REFERENCE_PATH.exists(),
-    "offline private benchmark reference is required",
-)
 class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        self.reference = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
+        self.reference = (
+            json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
+            if REFERENCE_PATH.exists()
+            else {}
+        )
 
     def test_run_help_exposes_no_reference_argument(self) -> None:
         completed = subprocess.run(
@@ -124,6 +124,10 @@ class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
         self.assertIn("--manifest", completed.stdout)
         self.assertIn("--corpus-root", completed.stdout)
 
+    @unittest.skipUnless(
+        REFERENCE_PATH.exists(),
+        "offline private benchmark reference is required",
+    )
     def test_frozen_manifest_and_reference_have_exact_scope_and_hash_binding(
         self,
     ) -> None:
@@ -545,6 +549,10 @@ class BrokerReportsPdfTableStrategyBenchmarkTests(unittest.TestCase):
         self.assertTrue(raised.exception.terminal_verified)
         self.assertTrue(raised.exception.reference_accessed)
 
+    @unittest.skipUnless(
+        REFERENCE_PATH.exists(),
+        "offline private benchmark reference is required",
+    )
     def test_scorer_minimal_smoke_uses_tracked_reference_after_seal(self) -> None:
         terminal_path, seal_path = self._write_terminal_and_seal()
 

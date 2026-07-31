@@ -1,0 +1,168 @@
+{
+  "schema_version": "broker_reports_debt_register_v1",
+  "effective_date": "2026-07-31",
+  "summary": {
+    "debts_total": 10,
+    "unknown_debts_total": 0,
+    "unowned_debts_total": 0,
+    "kt2_blocking_debts_total": 0
+  },
+  "debts": [
+    {
+      "debt_id": "BR-DEBT-SKIP-001",
+      "title": "Conditional and historical test skips",
+      "domain": "Broker Reports tests",
+      "owner": "Broker Reports Test Maintainers",
+      "status": "PARTIALLY_RESOLVED_NON_BLOCKING",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "docs/stage2/BROKER_REPORTS_SKIP_AUDIT.v1.json",
+        "18 of 23 original skips removed; 5 remain classified"
+      ],
+      "reason_not_blocking_kt2": "The remaining two private-reference tests are conditional by contract and three diff guards are historical; current architecture and full-suite paths execute.",
+      "resolution_or_trigger": "Reopen if a private benchmark reference becomes an approved CI asset, an old GOAL change-set is rebuilt, or any remaining skip masks a failure."
+    },
+    {
+      "debt_id": "BR-DEBT-RUFF-001",
+      "title": "Repository-wide Ruff backlog",
+      "domain": "Repository quality",
+      "owner": "Repository Quality Maintainers",
+      "status": "OPEN_NON_BLOCKING",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "2026-07-31 full Ruff: 264 findings in 42 files",
+        "E402=161; F401=99; F841=4",
+        "mandatory E9/F63/F7/F82 profile passed"
+      ],
+      "reason_not_blocking_kt2": "The enforced correctness profile is green and KT1.6 changed files pass their applicable full rules; the backlog is pre-existing style/import hygiene.",
+      "resolution_or_trigger": "Fix per touched file or through a dedicated repository-wide Ruff migration before expanding the enforced rule set."
+    },
+    {
+      "debt_id": "BR-DEBT-V3-001",
+      "title": "Historical source_fact_selection_v3 schema-hash defect",
+      "domain": "Historical compatibility",
+      "owner": "Gate 2 Historical Compatibility Owner",
+      "status": "DEFERRED_NON_BLOCKING",
+      "severity": "MEDIUM",
+      "blocks_kt2": false,
+      "evidence": [
+        "source_fact_selection_v3 is HISTORICAL_READ_ONLY",
+        "product containment guard is hard false"
+      ],
+      "reason_not_blocking_kt2": "Option A uses the existing current product boundary and does not reactivate or rewrite v3.",
+      "resolution_or_trigger": "Reopen only for an explicitly authorized historical receipt repair, replay incompatibility, or proposal to reactivate v3."
+    },
+    {
+      "debt_id": "BR-DEBT-PRIVATE-001",
+      "title": "Private crop bytes unavailable for old traces",
+      "domain": "Evidence custody",
+      "owner": "Broker Reports Evidence Custodian",
+      "status": "ACCEPTED_PRIVATE_ONLY",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "GOAL 18 safe evidence is preserved",
+        "private trace pack and customer bytes are excluded from Git"
+      ],
+      "reason_not_blocking_kt2": "KT2 must begin with newly authorized same-source proof inputs; old private bytes are not needed to establish architecture readiness.",
+      "resolution_or_trigger": "Reopen if an authorized historical replay requires exact crop bytes; resolve through private evidence custody, never Git."
+    },
+    {
+      "debt_id": "BR-DEBT-WORKSPACE-001",
+      "title": "Primary Workspace dirty-state observation",
+      "domain": "Repository operations",
+      "owner": "Repository Operations",
+      "status": "CLOSED",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "Primary Workspace main@cf84128 was clean at KT1.6 snapshot",
+        "All useful project reports are tracked, classified private-only, or rejected"
+      ],
+      "reason_not_blocking_kt2": "The primary Workspace is no longer dirty and is not used as the future KT2 authority worktree.",
+      "resolution_or_trigger": "Reopen if unclassified project-generated reports or unrelated dirty changes appear."
+    },
+    {
+      "debt_id": "BR-DEBT-BRANCH-001",
+      "title": "Retained historical evidence branches",
+      "domain": "Repository operations",
+      "owner": "Repository Operations",
+      "status": "ACCEPTED_NON_BLOCKING",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "PR #232 and superseded PR source commits are referenced by ledgers and receipts"
+      ],
+      "reason_not_blocking_kt2": "Retained branches are evidence anchors and are not product routes or KT2 bases.",
+      "resolution_or_trigger": "Delete only after an explicit retention decision proves every referenced commit is durably archived elsewhere."
+    },
+    {
+      "debt_id": "BR-DEBT-REPORT-001",
+      "title": "Stale present-tense statements in dated reports",
+      "domain": "Documentation evidence",
+      "owner": "Broker Reports Documentation Maintainers",
+      "status": "CLASSIFIED_NON_BLOCKING",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        "docs/stage2/BROKER_REPORTS_EVIDENCE_INDEX.v1.md",
+        "Historical receipts and reports remain unchanged"
+      ],
+      "reason_not_blocking_kt2": "The Evidence Index makes report-date scope explicit and current state is owned by the canonical current documents.",
+      "resolution_or_trigger": "Reopen if a current document cites a historical status as current authority or an unclassified generated report appears."
+    },
+    {
+      "debt_id": "BR-DEBT-EVIDENCE-001",
+      "title": "Architecture and audit evidence absent from main",
+      "domain": "Documentation delivery",
+      "owner": "Broker Reports Architecture Owner",
+      "status": "CLOSED_BY_CONSOLIDATION",
+      "severity": "HIGH",
+      "blocks_kt2": false,
+      "evidence": [
+        "PR #238 evidence is merged",
+        "PR #234 canonical artifacts are extracted by KT1.6",
+        "PR #233 evidence is preserved unchanged",
+        "PR #77 research is classified"
+      ],
+      "reason_not_blocking_kt2": "All accepted artifacts are present in the canonical tree and rejected artifacts have explicit ledgers.",
+      "resolution_or_trigger": "Reopen if a canonical file is removed, diverges from its ledger, or exists only in a draft PR/worktree."
+    },
+    {
+      "debt_id": "BR-DEBT-PR-001",
+      "title": "Ambiguous open Broker Reports PRs",
+      "domain": "GitHub governance",
+      "owner": "Broker Reports Program Owner",
+      "status": "CLOSED_BY_KT1_6_GITHUB_CLEANUP",
+      "severity": "HIGH",
+      "blocks_kt2": false,
+      "evidence": [
+        "PR #238 merged",
+        "PR #234 closed after extraction",
+        "PR #233 closed after preservation",
+        "PR #77 closed after supersession audit"
+      ],
+      "reason_not_blocking_kt2": "No stale architecture/audit/research PR remains open after the terminal cleanup.",
+      "resolution_or_trigger": "Reopen on any new or reopened Broker Reports PR whose authority and owner are not explicit."
+    },
+    {
+      "debt_id": "BR-DEBT-WORKTREE-001",
+      "title": "Inaccessible stale unregistered Git worktree metadata",
+      "domain": "Repository operations",
+      "owner": "Repository Operations",
+      "status": "OPEN_NON_BLOCKING",
+      "severity": "LOW",
+      "blocks_kt2": false,
+      "evidence": [
+        ".git/worktrees/corp-openweb-ui-kt1-worktree is not registered by git worktree list",
+        "A fresh worktree can be created and used normally"
+      ],
+      "reason_not_blocking_kt2": "The stale ACL-protected metadata is outside the registered worktree set and does not prevent clean worktree creation or Git operations.",
+      "resolution_or_trigger": "Repository Operations removes it with suitable host permissions if git worktree prune/add starts failing or before repository relocation."
+    }
+  ],
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "12de9cb8732c751e8459761e69c7142f518292d157f7559a8c3cb27a51f595c7"
+}
