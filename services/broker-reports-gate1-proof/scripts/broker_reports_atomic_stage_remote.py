@@ -1154,7 +1154,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     rollback_loader_contract = _json_object(rollback.get("previous_loader"))
     if rollback_loader_contract.get("content_sha256") != previous_loader_sha256:
         raise StageReleaseError("stage_release_loader_rollback_mismatch")
-    modified = False
+    restore_required = False
     health_checks = 0
     rollback_proof = {
         "requested": bool(prove_rollback),
@@ -1165,11 +1165,11 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     }
     try:
         _stop_container()
+        restore_required = True
         _replace_loader(
             content=candidate_loader_bytes,
             expected_sha256=previous_loader_sha256,
         )
-        modified = True
         _replace_release_rows(
             db_path=db_path,
             replacement_function_rows=desired_rows,
@@ -1259,7 +1259,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         if candidate["counters"] != before["counters"]:
             raise StageReleaseError("stage_release_repository_sink_delta_detected")
     except BaseException:
-        if modified:
+        if restore_required:
             _restore_after_failure(
                 db_path=db_path,
                 rollback_function_rows=rollback_rows,
