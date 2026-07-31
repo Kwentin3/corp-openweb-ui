@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import ast
 import copy
-import hashlib
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from broker_reports_gate1.gate2_financial_domain_contracts import (  # noqa: E402
     FINANCIAL_DOMAIN_QUERY_POLICY_VERSION,
@@ -43,6 +42,9 @@ from broker_reports_gate1.gate2_financial_semantic_model_assets import (  # noqa
 )
 from broker_reports_gate1.gate2_successor_local_proof_v2 import (  # noqa: E402,E501
     Gate2SuccessorLocalProofV2Error,
+)
+from verify_historical_safe_receipt import (  # noqa: E402
+    verify_historical_safe_receipt,
 )
 
 
@@ -259,8 +261,12 @@ def test_local_domain_proof_has_closed_world_factory_boundaries():
     }
 
 
-def test_goal9_safe_receipt_hashes_current_git_blobs():
+def test_goal9_safe_receipt_hashes_historical_git_blobs():
     receipt = json.loads(SAFE_RECEIPT_PATH.read_text(encoding="utf-8"))
+    verification = verify_historical_safe_receipt(
+        repo_root=ROOT.parents[1],
+        receipt_path=SAFE_RECEIPT_PATH,
+    )
 
     assert receipt["hash_boundary"] == "git_blob_bytes"
     assert receipt["local_proof"]["acceptance"] == {
@@ -269,14 +275,11 @@ def test_goal9_safe_receipt_hashes_current_git_blobs():
         "query_gaps": "ZERO",
         "provider_calls": "ZERO",
     }
-    for deliverable in receipt["deliverables"]:
-        blob = subprocess.check_output(
-            ["git", "show", f":{deliverable['path']}"],
-            cwd=ROOT.parents[1],
-        )
-        assert hashlib.sha256(blob).hexdigest() == (
-            deliverable["git_blob_sha256"]
-        )
+    assert verification.historical_source_commit == (
+        "c49bba056d777b65baaa9969390e32454f4d0468"
+    )
+    assert verification.historical_blobs_checked_total == 4
+    assert verification.current_head_differences_total >= 1
 
     rendered = json.dumps(receipt, ensure_ascii=False, sort_keys=True)
     assert all(

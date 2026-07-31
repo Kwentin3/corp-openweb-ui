@@ -46,10 +46,25 @@ from live_update_gate2_function_and_prompt import (  # noqa: E402
 )
 
 
-def load_bundle_module():
+def _broker_reports_modules() -> dict[str, object]:
+    return {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "broker_reports_gate1"
+        or name.startswith("broker_reports_gate1.")
+    }
+
+
+def _clear_broker_reports_modules() -> None:
     for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
+        if name == "broker_reports_gate1" or name.startswith(
+            "broker_reports_gate1."
+        ):
             del sys.modules[name]
+
+
+def load_bundle_module():
+    _clear_broker_reports_modules()
     spec = importlib.util.spec_from_file_location(
         "broker_reports_gate2_source_fact_pipe_bundled_under_test",
         BUNDLE,
@@ -62,9 +77,7 @@ def load_bundle_module():
 
 
 def load_domain_bundle_module():
-    for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
-            del sys.modules[name]
+    _clear_broker_reports_modules()
     spec = importlib.util.spec_from_file_location(
         "broker_reports_gate2_domain_source_fact_pipe_bundled_under_test",
         DOMAIN_BUNDLE,
@@ -77,6 +90,9 @@ def load_domain_bundle_module():
 
 
 class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._maintained_modules = _broker_reports_modules()
+
     def test_synthetic_seed_and_purge_use_contract_owning_bundles(self):
         self.assertEqual(
             "broker_reports_gate1_pipe_bundled.py",
@@ -151,9 +167,8 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        for name in list(sys.modules):
-            if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
-                del sys.modules[name]
+        _clear_broker_reports_modules()
+        sys.modules.update(self._maintained_modules)
 
     def test_table_proof_accepts_current_and_legacy_table_source_modes(self):
         self.assertEqual(
