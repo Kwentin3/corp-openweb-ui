@@ -1,13 +1,16 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive KT2.1 implementation
+Status: canonical entry point after inactive KT2.1 closure
 
 Effective date: 2026-07-31
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
-KT2.1 implementation merge: reported after merge because a commit cannot name
-its own future merge commit.
+KT2.1 implementation merge:
+`a4ed4670d80d562fc866ae052d5a6e8d944e46d6`.
+
+KT2.1 evidence merge: reported in the terminal response because a commit
+cannot name its own future merge commit.
 
 Current-state lifecycle corrective merge:
 `24948360095a749e11b1b0bcedbb8ae871a6b7f8`.
@@ -28,7 +31,7 @@ canonical state.
 - Release: `broker-reports-db009421b68c`.
 - KT1.5 evidence merge before the canonical evidence consolidation:
   `dd677feecb1c9a6adc0fa568045ee8782429834c`.
-- Fresh post-KT2 read-only delivery verification passed on 2026-07-31. All
+- Fresh post-KT2.1 read-only delivery verification passed on 2026-07-31. All
   three Function bundles and 12 managed prompts were exact, and the repository
   factory boundary passed. The earlier atomic release receipt remains valid;
   it was not rerun because KT2 changed no generated or live bundle bytes.
@@ -152,9 +155,10 @@ reopening triggers.
 
 ## 13. KT2 closure and next gates
 
-KT2 is complete at the mechanical inactive proof boundary. KT2.1 implementation
-is present and inactive; terminal closure still requires its post-merge and
-evidence PR receipts. Any model qualification needs
+KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
+complete at its inactive bounded-context and context-sufficiency boundary;
+post-merge tests, fresh live readback, and closure evidence passed. Any model
+qualification needs
 a separately authorized exact candidate and four-disposition live gate. Any
 product activation needs a later explicit product decision, fresh reachability
 review, governed release, rollback proof, and independent live readback.
@@ -175,7 +179,8 @@ KT2_READY = FALSE_COMPLETED
 KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED
 TYPE_FIRST_PRODUCT_REACHABILITY = FALSE
 KT2 = COMPLETE
-KT21_BOUNDED_CONTEXT = IMPLEMENTED_INACTIVE_POSTMERGE_PENDING
+KT21_BOUNDED_CONTEXT = PASSED_INACTIVE
+CONTEXT_SUFFICIENCY_GUARD = PASSED
 VALUES_ONLY_TYPED = 0
 MISSING_REQUIRED_CONTEXT_TYPED = 0
 MODEL_QUALIFICATION = NOT_STARTED

@@ -1,8 +1,8 @@
 {
   "schema_version": "broker_reports_current_state_v1",
   "effective_date": "2026-07-31",
-  "repository_authority_commit": "24948360095a749e11b1b0bcedbb8ae871a6b7f8",
-  "repository_authority_scope": "kt21_inactive_bounded_context_implementation_pending_postmerge_evidence",
+  "repository_authority_commit": "a4ed4670d80d562fc866ae052d5a6e8d944e46d6",
+  "repository_authority_scope": "kt21_inactive_bounded_context_and_sufficiency_closure",
   "operational_live_authority_commit": "db009421b68c8b09df728239d23c217e5482d3a1",
   "repository_debt": "CLOSED",
   "live_parity_debt": "CLOSED",
@@ -12,8 +12,9 @@
   "kt2_status": "COMPLETE",
   "kt2_ready": false,
   "kt2_same_source_type_first_proof": "PASSED",
-  "kt21_implementation_merge": "reported_in_terminal_response_due_to_merge_commit_self_reference",
-  "kt21_status": "IMPLEMENTED_AWAITING_POSTMERGE_EVIDENCE",
+  "kt21_implementation_merge": "a4ed4670d80d562fc866ae052d5a6e8d944e46d6",
+  "kt21_evidence_merge": "reported_in_terminal_response_due_to_merge_commit_self_reference",
+  "kt21_status": "COMPLETE_INACTIVE",
   "bounded_semantic_context": "PRESENT_INACTIVE",
   "context_sufficiency_guard": "PRESENT_FAIL_CLOSED",
   "old_typed_case_recheck": "INSUFFICIENT_SEMANTIC_CONTEXT",
@@ -80,7 +81,7 @@
   ],
   "fresh_read_only_live_verification": {
     "date": "2026-07-31",
-    "repository_authority_commit": "24948360095a749e11b1b0bcedbb8ae871a6b7f8",
+    "repository_authority_commit": "a4ed4670d80d562fc866ae052d5a6e8d944e46d6",
     "delivery_status": "PASSED",
     "atomic_status": "NOT_RERUN_UNCHANGED_LIVE_RELEASE",
     "prior_atomic_release_status": "PASSED",
@@ -92,5 +93,5 @@
     "live_changes": 0
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "e7779f4b829c3edbc8674350449f6bcc06ca172f28632db34fa9a08d986a1a8f"
+  "integrity_sha256": "d9a275d57fb3eff4d6906d3c4027bd0ba71b42ceea20c6f87e63b120f428e404"
 }
