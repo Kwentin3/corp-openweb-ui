@@ -251,4 +251,3 @@ Repository debt is locally and CI accepted. Review and merge remain external
 acceptance steps. LIVE parity debt remains open and Phase 2 is prohibited until
 PR #235 is approved and merged, the exact `origin/main` commit is known, the
 canonical tree is clean, and deterministic bundles match that commit.
-
