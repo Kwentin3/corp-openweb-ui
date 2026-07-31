@@ -936,14 +936,31 @@ def test_historical_and_active_authority_pins_match_git_blobs(
         working_path = REPO_ROOT / repository_path
         assert working_path.is_file(), pin["identity"]
         working_bytes = _repository_lf_bytes(working_path.read_bytes())
-        repository_bytes = _git_bytes(
-            "cat-file",
-            "blob",
-            f"HEAD:{repository_path}",
-        )
-        assert b"\r" not in repository_bytes, pin["identity"]
-        assert _sha256_bytes(repository_bytes) == pin["sha256"]
-        assert _sha256_bytes(working_bytes) == pin["sha256"]
+        working_hash = _sha256_bytes(working_bytes)
+        if repository_path in BUILDER.AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS:
+            successor = json.loads(
+                BUILDER.AUTHORIZED_SUCCESSOR_CONTRACT_PATH.read_text(
+                    encoding="utf-8"
+                )
+            )
+            assert (
+                successor["authorized_successor_repository_hashes"][
+                    repository_path
+                ]
+                == working_hash
+            )
+            assert successor["status"]["active"] is False
+            assert successor["status"]["product_reachable"] is False
+            assert successor["status"]["provider_reachable"] is False
+        else:
+            repository_bytes = _git_bytes(
+                "cat-file",
+                "blob",
+                f"HEAD:{repository_path}",
+            )
+            assert b"\r" not in repository_bytes, pin["identity"]
+            assert _sha256_bytes(repository_bytes) == pin["sha256"]
+            assert working_hash == pin["sha256"]
 
 
 def test_builder_is_stdlib_only_offline_support_code() -> None:

@@ -79,6 +79,11 @@ from .gate2_provider_adapters import (
     Gate2PreparedProviderRequest,
     Gate2ProviderAdapterFactory,
 )
+from .gate2_same_source_type_first_proof import (
+    Gate2SameSourceTypeFirstProof,
+    Gate2TypeFirstExecution,
+    Gate2TypeFirstPreparedProof,
+)
 
 
 V6_PRIVATE_DECISION_EVIDENCE_SCHEMA_VERSION = (
@@ -89,6 +94,15 @@ V6_SAFE_DECISION_RECEIPT_SCHEMA_VERSION = (
 )
 V6_DECISION_REPLAY_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_replay_v1"
+)
+V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_type_first_private_evidence_v1"
+)
+V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_type_first_safe_receipt_v1"
+)
+V6_TYPE_FIRST_REPLAY_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_semantic_v6_type_first_replay_v1"
 )
 V6_CONTEXT_V2_1_PRIVATE_EVIDENCE_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_v2_1_"
@@ -117,8 +131,10 @@ FACTORY_REQUIRED = (
     "its additive create_context_v2_1_candidate method, "
     "its additive create_context_v2_1_budget_smoke_candidate and "
     "create_context_v2_1_budget_smoke_failure methods, "
+    "its additive create_type_first_proof method, "
     "restore_financial_semantic_v6_private_evidence and "
-    "the additive Context V2.1 serialize/restore/replay functions are the "
+    "the additive Context V2.1 and Type-First serialize/restore/replay "
+    "functions are the "
     "only V6 exact-decision evidence entrypoints"
 )
 FORBIDDEN = (
@@ -447,6 +463,26 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeReplayResult:
     fallback_total: int
 
 
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstEvidenceBundle:
+    private_evidence: dict[str, Any]
+    safe_receipt: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstReplayResult:
+    schema_version: str
+    status: str
+    private_evidence_hash: str
+    request_hash: str
+    mapping_hash: str
+    simulated_response_hash: str
+    execution_integrity_hash: str
+    materialized_artifact_hashes: tuple[str, ...]
+    provider_calls_total: int
+    replay_hash_match: bool
+
+
 class Gate2FinancialSemanticV6DecisionEvidenceFactory:
     def __init__(
         self,
@@ -458,6 +494,134 @@ class Gate2FinancialSemanticV6DecisionEvidenceFactory:
         self.registry = registry
         self.exact_model_id = exact_model_id
         self.provider_profile_id = provider_profile_id
+
+    def create_type_first_proof(
+        self,
+        *,
+        case_id: str,
+        gate2_packages: tuple[dict[str, Any], ...],
+        prepared: Gate2TypeFirstPreparedProof,
+        simulated_response: dict[str, Any],
+        execution: Gate2TypeFirstExecution,
+    ) -> Gate2FinancialSemanticV6TypeFirstEvidenceBundle:
+        """Create proof-only evidence through the existing V6 authority."""
+
+        _case_id(case_id)
+        if not gate2_packages:
+            _fail("financial_semantic_v6_type_first_evidence_packages_empty")
+        proof = Gate2SameSourceTypeFirstProof(registry=self.registry)
+        rebuilt = proof.prepare(gate2_packages=gate2_packages)
+        replayed_execution = proof.execute(
+            prepared=rebuilt,
+            simulated_response=simulated_response,
+        )
+        if (
+            rebuilt.candidate.request_hash != prepared.candidate.request_hash
+            or rebuilt.mapping_receipt.integrity_hash
+            != prepared.mapping_receipt.integrity_hash
+            or rebuilt.integrity_hash != prepared.integrity_hash
+            or replayed_execution.integrity_hash != execution.integrity_hash
+        ):
+            _fail("financial_semantic_v6_type_first_evidence_rebuild_mismatch")
+        materialized_hashes = tuple(
+            item.total_materialization.canonical_artifact_hash
+            for item in execution.units
+        )
+        private_material = {
+            "schema_version": V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION,
+            "case_id": case_id,
+            "gate2_packages": copy.deepcopy(list(gate2_packages)),
+            "gate2_packages_hash": sha256_json(list(gate2_packages)),
+            "source_package_batch_hash": prepared.source_package_batch_hash,
+            "semantic_pack": {
+                "pack_id": prepared.mapping_receipt.semantic_pack_id,
+                "semantic_version": (
+                    prepared.mapping_receipt.semantic_pack_version
+                ),
+                "integrity_sha256": (
+                    prepared.mapping_receipt.semantic_pack_integrity_sha256
+                ),
+            },
+            "type_card_projection_version": (
+                prepared.candidate.projection_version
+            ),
+            "type_card_projection_hash": (
+                prepared.candidate.type_card_projection_hash
+            ),
+            "sealed_request": copy.deepcopy(prepared.candidate.payload),
+            "sealed_request_hash": prepared.candidate.request_hash,
+            "sealed_mapping": prepared.mapping_receipt.to_private_dict(),
+            "sealed_mapping_hash": prepared.mapping_receipt.integrity_hash,
+            "response_profile_hash": prepared.response_profile.integrity_hash,
+            "simulated_response": copy.deepcopy(simulated_response),
+            "simulated_response_hash": execution.simulated_response_hash,
+            "restored_decisions_hash": execution.restored_decisions_hash,
+            "unit_trace_hashes": [item.trace_hash for item in execution.units],
+            "validator_output_hashes": [
+                item.expansion.canonical_decision_hash
+                for item in execution.units
+            ],
+            "materialized_artifact_hashes": list(materialized_hashes),
+            "materialized_artifact_integrity_hashes": [
+                item.total_materialization.canonical_artifact[
+                    "integrity_hash"
+                ]
+                for item in execution.units
+            ],
+            "execution_integrity_hash": execution.integrity_hash,
+            "execution_accounting": copy.deepcopy(execution.accounting),
+            "provider_calls_total": 0,
+            "retries_total": 0,
+            "repairs_total": 0,
+            "fallbacks_total": 0,
+            "replay_exact": True,
+        }
+        private_evidence = {
+            **private_material,
+            "private_evidence_hash": sha256_json(private_material),
+        }
+        safe_material = {
+            "schema_version": V6_TYPE_FIRST_SAFE_RECEIPT_SCHEMA_VERSION,
+            "case_id": case_id,
+            "gate2_packages_hash": sha256_json(list(gate2_packages)),
+            "source_package_batch_hash": prepared.source_package_batch_hash,
+            "semantic_pack_integrity_sha256": (
+                prepared.mapping_receipt.semantic_pack_integrity_sha256
+            ),
+            "type_card_projection_hash": (
+                prepared.candidate.type_card_projection_hash
+            ),
+            "sealed_request_hash": prepared.candidate.request_hash,
+            "sealed_mapping_hash": prepared.mapping_receipt.integrity_hash,
+            "simulated_response_hash": execution.simulated_response_hash,
+            "restored_decisions_hash": execution.restored_decisions_hash,
+            "execution_integrity_hash": execution.integrity_hash,
+            "materialized_artifact_hashes": list(materialized_hashes),
+            "source_units_total": len(execution.units),
+            "typed_units_total": execution.accounting["typed"],
+            "unclassified_units_total": execution.accounting[
+                "unclassified"
+            ],
+            "unaccounted_units_total": execution.accounting[
+                "unaccounted_units"
+            ],
+            "provider_calls_total": 0,
+            "customer_values_present": False,
+            "raw_source_refs_present": False,
+            "raw_provider_payload_present": False,
+            "private_evidence_hash": private_evidence[
+                "private_evidence_hash"
+            ],
+            "replay_exact": True,
+        }
+        safe_receipt = {
+            **safe_material,
+            "receipt_hash": sha256_json(safe_material),
+        }
+        return Gate2FinancialSemanticV6TypeFirstEvidenceBundle(
+            private_evidence=copy.deepcopy(private_evidence),
+            safe_receipt=copy.deepcopy(safe_receipt),
+        )
 
     def create(
         self,
@@ -1058,6 +1222,99 @@ def financial_semantic_v6_canonical_request(
         package=packet.payload,
         model_id=exact_model_id,
         response_format=response_format,
+    )
+
+
+def replay_financial_semantic_v6_type_first_proof(
+    *,
+    private_evidence: dict[str, Any],
+    registry: Gate2FinancialEvidenceRegistrySnapshot,
+) -> Gate2FinancialSemanticV6TypeFirstReplayResult:
+    """Rebuild the entire inactive Type-First chain with zero provider calls."""
+
+    if not isinstance(private_evidence, dict):
+        _fail("financial_semantic_v6_type_first_replay_evidence_invalid")
+    material = copy.deepcopy(private_evidence)
+    supplied_hash = material.pop("private_evidence_hash", None)
+    if (
+        private_evidence.get("schema_version")
+        != V6_TYPE_FIRST_PRIVATE_EVIDENCE_SCHEMA_VERSION
+        or supplied_hash != sha256_json(material)
+        or private_evidence.get("provider_calls_total") != 0
+        or private_evidence.get("retries_total") != 0
+        or private_evidence.get("repairs_total") != 0
+        or private_evidence.get("fallbacks_total") != 0
+    ):
+        _fail("financial_semantic_v6_type_first_replay_evidence_invalid")
+    packages = private_evidence.get("gate2_packages")
+    if (
+        not isinstance(packages, list)
+        or not packages
+        or private_evidence.get("gate2_packages_hash")
+        != sha256_json(packages)
+    ):
+        _fail("financial_semantic_v6_type_first_replay_packages_invalid")
+    proof = Gate2SameSourceTypeFirstProof(registry=registry)
+    prepared = proof.prepare(gate2_packages=tuple(copy.deepcopy(packages)))
+    if (
+        prepared.source_package_batch_hash
+        != private_evidence.get("source_package_batch_hash")
+        or prepared.candidate.request_hash
+        != private_evidence.get("sealed_request_hash")
+        or prepared.candidate.payload != private_evidence.get("sealed_request")
+        or prepared.mapping_receipt.integrity_hash
+        != private_evidence.get("sealed_mapping_hash")
+        or prepared.mapping_receipt.to_private_dict()
+        != private_evidence.get("sealed_mapping")
+        or prepared.response_profile.integrity_hash
+        != private_evidence.get("response_profile_hash")
+        or prepared.mapping_receipt.semantic_pack_integrity_sha256
+        != (private_evidence.get("semantic_pack") or {}).get(
+            "integrity_sha256"
+        )
+    ):
+        _fail("financial_semantic_v6_type_first_replay_authority_mismatch")
+    execution = proof.execute(
+        prepared=prepared,
+        simulated_response=copy.deepcopy(
+            private_evidence.get("simulated_response")
+        ),
+    )
+    materialized_hashes = tuple(
+        item.total_materialization.canonical_artifact_hash
+        for item in execution.units
+    )
+    if (
+        execution.simulated_response_hash
+        != private_evidence.get("simulated_response_hash")
+        or execution.restored_decisions_hash
+        != private_evidence.get("restored_decisions_hash")
+        or [item.trace_hash for item in execution.units]
+        != private_evidence.get("unit_trace_hashes")
+        or [
+            item.expansion.canonical_decision_hash
+            for item in execution.units
+        ]
+        != private_evidence.get("validator_output_hashes")
+        or list(materialized_hashes)
+        != private_evidence.get("materialized_artifact_hashes")
+        or execution.integrity_hash
+        != private_evidence.get("execution_integrity_hash")
+        or execution.accounting
+        != private_evidence.get("execution_accounting")
+    ):
+        _fail("financial_semantic_v6_type_first_replay_hash_mismatch")
+    return Gate2FinancialSemanticV6TypeFirstReplayResult(
+        schema_version=V6_TYPE_FIRST_REPLAY_SCHEMA_VERSION,
+        status="exact",
+        private_evidence_hash=str(supplied_hash),
+        request_hash=prepared.candidate.request_hash,
+        mapping_hash=prepared.mapping_receipt.integrity_hash,
+        simulated_response_hash=execution.simulated_response_hash,
+        execution_integrity_hash=execution.integrity_hash,
+        materialized_artifact_hashes=materialized_hashes,
+        provider_calls_total=0,
+        replay_hash_match=True,
     )
 
 

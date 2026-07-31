@@ -1,0 +1,914 @@
+{
+  "completeness_accounting": {
+    "excluded": 0,
+    "no_fact": 0,
+    "technical_failure": 0,
+    "total_units": 3,
+    "typed": 1,
+    "unaccounted_units": 0,
+    "unclassified": 2,
+    "unsupported": 0
+  },
+  "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
+  "evidence_safe_receipt": {
+    "case_id": "kt2-main",
+    "customer_values_present": false,
+    "execution_integrity_hash": "6399c69d8d4453d9a5cabae80ffcff2d14cc2203f5f792edb8c7bf42f72acddf",
+    "gate2_packages_hash": "5465170bf429909a150b8a2bf6c66ccdb2723859a50fea094d023d4a869cb4c2",
+    "materialized_artifact_hashes": [
+      "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
+      "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
+      "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712"
+    ],
+    "private_evidence_hash": "05b821a01df7a0971307ec07248189acd03f4704e3381b8f5b4e82ed993a2f00",
+    "provider_calls_total": 0,
+    "raw_provider_payload_present": false,
+    "raw_source_refs_present": false,
+    "receipt_hash": "f745631ee788e76034644a84df14e9ca8c815b5f11f89678854946b33ee1499e",
+    "replay_exact": true,
+    "restored_decisions_hash": "701cf2e3a1ab3be22fa6f407e30ab5fb3939b145664ee3962804667feeed7ede",
+    "schema_version": "broker_reports_gate2_financial_semantic_v6_type_first_safe_receipt_v1",
+    "sealed_mapping_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
+    "sealed_request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
+    "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "simulated_response_hash": "424d882b7e98bd485dc52d1cbe8bd8860df14d89ee6ae531607f5127b6e81591",
+    "source_package_batch_hash": "751559639009630a09e56b8198df3a36b63e08050423577aa53a543c7810abef",
+    "source_units_total": 3,
+    "type_card_projection_hash": "704f4d09463308aa65c6e895936d0af92e387f15b624d5ea7610496cb2c4e8d6",
+    "typed_units_total": 1,
+    "unaccounted_units_total": 0,
+    "unclassified_units_total": 2
+  },
+  "existing_owner_reuse": {
+    "choice": "Gate2FinancialSemanticV6ChoiceContractFactory",
+    "evidence_replay": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+    "expansion": "Gate2FinancialSemanticV6DecisionExpansionFactory",
+    "materializer": "Gate2FinancialEvidenceMaterializerFactory",
+    "persistence": "ArtifactStoreFactory / ArtifactResolver",
+    "validator": "Gate2FinancialEvidenceValidatedDecisionFactory"
+  },
+  "false_singleton_comparator": {
+    "false_singleton_cases_total": 1,
+    "false_singleton_detected_total": 1,
+    "false_singleton_typed_total": 0,
+    "proof_passed": true,
+    "provider_calls_total": 0,
+    "unsafe_typed_total": 0,
+    "wrong_singleton_total": 0
+  },
+  "integrity_hash": "b7112aa3666e50a7f6739ba3d12a31bc3deba6b3c8cba046f1cc8956169d33ee",
+  "privacy": {
+    "customer_values": false,
+    "private_paths": false,
+    "raw_provider_payloads": false,
+    "raw_source_refs": false
+  },
+  "replay": {
+    "execution_integrity_hash": "6399c69d8d4453d9a5cabae80ffcff2d14cc2203f5f792edb8c7bf42f72acddf",
+    "materialized_artifact_hashes": [
+      "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
+      "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
+      "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712"
+    ],
+    "provider_calls_total": 0,
+    "replay_exact": true,
+    "replay_hash_match": true,
+    "status": "exact"
+  },
+  "response_profile_safe_summary": {
+    "active": false,
+    "contains_canonical_type_ids": false,
+    "contains_source_refs": false,
+    "contains_values": false,
+    "integrity_hash": "c12ec16c63c1c3aa723e30895395c12d3b7ad981ba42913acff6d684706cacf0",
+    "local_type_keys_total": 2,
+    "mapping_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
+    "policy_version": "broker_reports_gate2_same_source_type_first_proof_v1",
+    "post_response_repair_allowed": false,
+    "provider_calls_total": 0,
+    "request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
+    "response_schema_hash": "80e02571db00ed47f1c79d022fb60e13815056c4fc0a6ebe6e1edd0c23cf8f9c",
+    "schema_version": "broker_reports_gate2_financial_type_first_response_profile_v1",
+    "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "source_units_total": 3,
+    "transport_eligible": false
+  },
+  "schema_version": "broker_reports_kt2_type_first_trace_pack_v1",
+  "sealed_mapping_safe_summary": {
+    "contains_source_literals": false,
+    "contains_source_refs": false,
+    "integrity_hash": "37d115a2474d954894501dfe1025659507c153be5558e202cb6791953d2f9bdc",
+    "prebound_options_total": 4,
+    "provider_calls_total": 0,
+    "request_hash": "7d18d7236b67a70f0b2781df9f90fe0fec1bb5ddf64c8166cca138b82109538b",
+    "schema_version": "broker_reports_gate2_same_source_type_first_mapping_v1",
+    "semantic_pack_id": "broker_reports_managed_financial_semantic_pack",
+    "semantic_pack_integrity_sha256": "ab0b5aaaa4cd8133ab26d7dce8e501770c2d14f2c1bd2205cbad3fa2c6e0e7f8",
+    "semantic_pack_version": "1.0.0",
+    "source_units_total": 3,
+    "type_restoration_total": 2
+  },
+  "source_binding": {
+    "exact_private_values_in_git": false,
+    "real_gate2_packages_total": 1,
+    "real_source_units_total": 3
+  },
+  "traces": [
+    {
+      "code_reason": "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION",
+      "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
+      "materialization": {
+        "artifact_hash": "40089f4e598dd0f26760e11c48890c1ca435584279a71462cd191d4a5a7184dd",
+        "disposition": "typed_input",
+        "owner": "Gate2FinancialEvidenceMaterializerFactory"
+      },
+      "prebound_options": [
+        {
+          "constructibility_status": "exact_materializable",
+          "local_option_key": "o001",
+          "local_type_key": "t02",
+          "option_hash": "15b5a972ab4a9542b2901b18cfac92b0d37a0d16635dbe45eb66b02d4142c595",
+          "source_refs_hash": "fa6cbd7c979a1983d460b38adc055fbba8fa5684f51f03ed3b03455458971886",
+          "value_bindings_total": 5
+        },
+        {
+          "constructibility_status": "exact_materializable",
+          "local_option_key": "o002",
+          "local_type_key": "t01",
+          "option_hash": "7b5c726c85157a2d40a342379ca86a019f1679e6eda2edb2af29ee4bf9059104",
+          "source_refs_hash": "3b581cc9af4d8a53bd32c0ec0b06d0812069cb6e9584003b2b4a661211acc512",
+          "value_bindings_total": 4
+        }
+      ],
+      "replay": {
+        "hash_match": true,
+        "provider_calls_total": 0,
+        "status": "exact"
+      },
+      "restored_local_keys": [
+        "t02"
+      ],
+      "simulated_response": {
+        "plausible_type_keys": [
+          "t02"
+        ],
+        "source_unit_key": "u02"
+      },
+      "source_unit": {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u02",
+        "values": [
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "USD",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "2026-02-28",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_date",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "200.00",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          }
+        ]
+      },
+      "trace_hash": "e0363507729041666e8b5483504c2186cd879f0d336f0aaf542072cdb06161ea",
+      "trace_id": "unique_safe_typed_path",
+      "type_cards": [
+        {
+          "competitors": [
+            {
+              "competitor": "t02",
+              "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+            },
+            {
+              "competitor": "cash movement",
+              "distinction": "A movement is an event over time; this type is a state at one reporting date."
+            },
+            {
+              "competitor": "regulated asset balance snapshot v1",
+              "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+            }
+          ],
+          "counterexamples": [
+            "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+            "A synthetic deposit event records movement rather than an as-of balance.",
+            "A source prints a broad total whose cash classification is not explicit."
+          ],
+          "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+          "display_name": "Cash balance snapshot",
+          "local_type_key": "t01",
+          "negative_signals": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
+          ],
+          "positive_signals": [
+            "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+            "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        },
+        {
+          "competitors": [
+            {
+              "competitor": "t01",
+              "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+            },
+            {
+              "competitor": "gate2 calculated aggregate",
+              "distinction": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+            },
+            {
+              "competitor": "detail source row",
+              "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+            }
+          ],
+          "counterexamples": [
+            "A total calculated by Gate 2 from child rows.",
+            "A repeated visual representation of the same printed source metric.",
+            "An unlabeled amount whose reporting scope cannot be bound."
+          ],
+          "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+          "display_name": "Printed financial metric",
+          "local_type_key": "t02",
+          "negative_signals": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
+          "positive_signals": [
+            "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+            "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        }
+      ],
+      "validator_result": {
+        "output_hash": "40eb7ce8ab4bb11c733676bc62e8b02eec147c5b4d0069b240ad263319f8a42c",
+        "status": "accepted"
+      }
+    },
+    {
+      "code_reason": "MULTIPLE_PLAUSIBLE_TYPES",
+      "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
+      "materialization": {
+        "artifact_hash": "f5abbc5d093e8d867f6956c3a2828d03b9a993a95a03ed0e3b9df1567491889e",
+        "disposition": "unclassified_financial_input",
+        "owner": "Gate2FinancialEvidenceMaterializerFactory"
+      },
+      "prebound_options": [],
+      "replay": {
+        "hash_match": true,
+        "provider_calls_total": 0,
+        "status": "exact"
+      },
+      "restored_local_keys": [
+        "t01",
+        "t02"
+      ],
+      "simulated_response": {
+        "plausible_type_keys": [
+          "t01",
+          "t02"
+        ],
+        "source_unit_key": "u01"
+      },
+      "source_unit": {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01",
+        "values": [
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "150.00",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "RUB",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "Opaque period label",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_text",
+            "visible_label": null
+          }
+        ]
+      },
+      "trace_hash": "1747a2b9b94735d56973d4b846c2710a3210b5c6feef486f6f199ee879746d67",
+      "trace_id": "multiple_plausible_types",
+      "type_cards": [
+        {
+          "competitors": [
+            {
+              "competitor": "t02",
+              "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+            },
+            {
+              "competitor": "cash movement",
+              "distinction": "A movement is an event over time; this type is a state at one reporting date."
+            },
+            {
+              "competitor": "regulated asset balance snapshot v1",
+              "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+            }
+          ],
+          "counterexamples": [
+            "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+            "A synthetic deposit event records movement rather than an as-of balance.",
+            "A source prints a broad total whose cash classification is not explicit."
+          ],
+          "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+          "display_name": "Cash balance snapshot",
+          "local_type_key": "t01",
+          "negative_signals": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
+          ],
+          "positive_signals": [
+            "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+            "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        },
+        {
+          "competitors": [
+            {
+              "competitor": "t01",
+              "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+            },
+            {
+              "competitor": "gate2 calculated aggregate",
+              "distinction": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+            },
+            {
+              "competitor": "detail source row",
+              "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+            }
+          ],
+          "counterexamples": [
+            "A total calculated by Gate 2 from child rows.",
+            "A repeated visual representation of the same printed source metric.",
+            "An unlabeled amount whose reporting scope cannot be bound."
+          ],
+          "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+          "display_name": "Printed financial metric",
+          "local_type_key": "t02",
+          "negative_signals": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
+          "positive_signals": [
+            "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+            "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        }
+      ],
+      "validator_result": {
+        "output_hash": "1362474b572847c34cc608dddb7b88dbc239565d21599b50f3259dcb009ac121",
+        "status": "accepted"
+      }
+    },
+    {
+      "code_reason": "PLAUSIBLE_TYPE_WITHOUT_EXACT_OPTION",
+      "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
+      "materialization": {
+        "artifact_hash": "88a8d106bd26affab65e4c32a3a44704a67690d109046274c7e542c6062af923",
+        "disposition": "unclassified_financial_input",
+        "owner": "Gate2FinancialEvidenceMaterializerFactory"
+      },
+      "prebound_options": [],
+      "replay": {
+        "hash_match": true,
+        "provider_calls_total": 0,
+        "status": "exact"
+      },
+      "restored_local_keys": [
+        "t02"
+      ],
+      "simulated_response": {
+        "plausible_type_keys": [
+          "t02"
+        ],
+        "source_unit_key": "u01"
+      },
+      "source_unit": {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01",
+        "values": [
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "150.00",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "RUB",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "Opaque period label",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_text",
+            "visible_label": null
+          }
+        ]
+      },
+      "trace_hash": "82045df0576050551a0ff5dde2c10ea215d14218e4009724424254e1a61ec50c",
+      "trace_id": "no_exact_constructible_option",
+      "type_cards": [
+        {
+          "competitors": [
+            {
+              "competitor": "t02",
+              "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+            },
+            {
+              "competitor": "cash movement",
+              "distinction": "A movement is an event over time; this type is a state at one reporting date."
+            },
+            {
+              "competitor": "regulated asset balance snapshot v1",
+              "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+            }
+          ],
+          "counterexamples": [
+            "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+            "A synthetic deposit event records movement rather than an as-of balance.",
+            "A source prints a broad total whose cash classification is not explicit."
+          ],
+          "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+          "display_name": "Cash balance snapshot",
+          "local_type_key": "t01",
+          "negative_signals": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
+          ],
+          "positive_signals": [
+            "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+            "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        },
+        {
+          "competitors": [
+            {
+              "competitor": "t01",
+              "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+            },
+            {
+              "competitor": "gate2 calculated aggregate",
+              "distinction": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+            },
+            {
+              "competitor": "detail source row",
+              "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+            }
+          ],
+          "counterexamples": [
+            "A total calculated by Gate 2 from child rows.",
+            "A repeated visual representation of the same printed source metric.",
+            "An unlabeled amount whose reporting scope cannot be bound."
+          ],
+          "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+          "display_name": "Printed financial metric",
+          "local_type_key": "t02",
+          "negative_signals": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
+          "positive_signals": [
+            "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+            "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        }
+      ],
+      "validator_result": {
+        "output_hash": "e98d6896e28918f5aaf279189253c5e10f541e937c97ad7e4f5edcbc0b8126db",
+        "status": "accepted"
+      }
+    },
+    {
+      "code_reason": "NO_PLAUSIBLE_TYPE",
+      "evidence_class": "DETERMINISTIC_ADVERSARIAL_DERIVATION",
+      "materialization": {
+        "artifact_hash": "e4774c635b2b3efc8890978cfd15d1c41d5a951e6462c3d8547747bd0852d712",
+        "disposition": "unclassified_financial_input",
+        "owner": "Gate2FinancialEvidenceMaterializerFactory"
+      },
+      "prebound_options": [
+        {
+          "constructibility_status": "exact_materializable",
+          "local_option_key": "o003",
+          "local_type_key": "t01",
+          "option_hash": "3bd06317ecf0e75c14021b7ac99017f5448cf689afb62f035a4920087f9e8d1c",
+          "source_refs_hash": "9f2b5ffef9e812076519c5b0867588fd0ff50c1cdff234c95c03c4e01e1206c2",
+          "value_bindings_total": 4
+        },
+        {
+          "constructibility_status": "exact_materializable",
+          "local_option_key": "o004",
+          "local_type_key": "t02",
+          "option_hash": "ff6df57cf175901a130712d4e501791ffa89544b0bb21c44103f83aea970d63f",
+          "source_refs_hash": "1910991539afbb294e5d8866bd7754f55fc70f188a2248ef8f708a4faf5152c2",
+          "value_bindings_total": 5
+        }
+      ],
+      "replay": {
+        "hash_match": true,
+        "provider_calls_total": 0,
+        "status": "exact"
+      },
+      "restored_local_keys": [],
+      "simulated_response": {
+        "plausible_type_keys": [],
+        "source_unit_key": "u03"
+      },
+      "source_unit": {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u03",
+        "values": [
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "100.00",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "RUB",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "2026-01-31",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_date",
+            "visible_label": null
+          }
+        ]
+      },
+      "trace_hash": "ec5d0a4af1dccde486092faa9590ecbf5c414088a229613b10748916f291363e",
+      "trace_id": "false_singleton_trap",
+      "type_cards": [
+        {
+          "competitors": [
+            {
+              "competitor": "t02",
+              "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+            },
+            {
+              "competitor": "cash movement",
+              "distinction": "A movement is an event over time; this type is a state at one reporting date."
+            },
+            {
+              "competitor": "regulated asset balance snapshot v1",
+              "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+            }
+          ],
+          "counterexamples": [
+            "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+            "A synthetic deposit event records movement rather than an as-of balance.",
+            "A source prints a broad total whose cash classification is not explicit."
+          ],
+          "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+          "display_name": "Cash balance snapshot",
+          "local_type_key": "t01",
+          "negative_signals": [
+            "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+            "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+            "A cash-like label alone is insufficient without a source-stated amount and state context."
+          ],
+          "positive_signals": [
+            "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+            "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        },
+        {
+          "competitors": [
+            {
+              "competitor": "t01",
+              "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+            },
+            {
+              "competitor": "gate2 calculated aggregate",
+              "distinction": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+            },
+            {
+              "competitor": "detail source row",
+              "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+            }
+          ],
+          "counterexamples": [
+            "A total calculated by Gate 2 from child rows.",
+            "A repeated visual representation of the same printed source metric.",
+            "An unlabeled amount whose reporting scope cannot be bound."
+          ],
+          "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+          "display_name": "Printed financial metric",
+          "local_type_key": "t02",
+          "negative_signals": [
+            "Choose unclassified when the printed label cannot be bound to exact evidence.",
+            "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+            "Do not infer that a visually emphasized or last row is a printed total."
+          ],
+          "positive_signals": [
+            "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+            "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
+          ],
+          "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+          "supported_source_shapes": [
+            "broker_reports_normalized_table_projection_v0",
+            "semantic_visual_logical_table_v1"
+          ]
+        }
+      ],
+      "validator_result": {
+        "output_hash": "8047055ad9cb3ad9eb7a0976fb302d4b2dcc0056d65877ddccf4a2abc040b486",
+        "status": "accepted"
+      }
+    }
+  ],
+  "what_model_did_not_see": [
+    "canonical_type_ids",
+    "canonical_typed_option_ids",
+    "source_refs",
+    "role_bindings",
+    "materialized_values",
+    "code_owned_reasons",
+    "expected_answers"
+  ],
+  "what_model_saw": {
+    "request_key": "type-first:1487116b460b3502e6791bd5",
+    "schema_version": "broker_reports_type_first_request_v1",
+    "source_units": [
+      {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u01",
+        "values": [
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "150.00",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "RUB",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "Opaque period label",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_text",
+            "visible_label": null
+          }
+        ]
+      },
+      {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u02",
+        "values": [
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "USD",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "2026-02-28",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_date",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "200.00",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          }
+        ]
+      },
+      {
+        "source_shape": "broker_reports_normalized_table_projection_v0",
+        "source_unit_key": "u03",
+        "values": [
+          {
+            "column_meaning": "safe_column_01",
+            "literal_value": "100.00",
+            "local_value_key": "v01",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_decimal",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_03",
+            "literal_value": "RUB",
+            "local_value_key": "v02",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_currency",
+            "visible_label": null
+          },
+          {
+            "column_meaning": "safe_column_02",
+            "literal_value": "2026-01-31",
+            "local_value_key": "v03",
+            "row_role": "unknown_row_role",
+            "section_role": null,
+            "value_type": "source_date",
+            "visible_label": null
+          }
+        ]
+      }
+    ],
+    "task": {
+      "empty_results_allowed": true,
+      "operation": "return_all_plausible_type_keys_per_source_unit",
+      "plural_results_allowed": true,
+      "values_or_refs_must_not_be_returned": true
+    },
+    "type_card_projection_hash": "704f4d09463308aa65c6e895936d0af92e387f15b624d5ea7610496cb2c4e8d6",
+    "type_card_projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+    "type_cards": [
+      {
+        "competitors": [
+          {
+            "competitor": "t02",
+            "distinction": "Use this type only when ordinary cash-class state semantics are explicit; a printed total without that classification remains a printed metric or unclassified."
+          },
+          {
+            "competitor": "cash movement",
+            "distinction": "A movement is an event over time; this type is a state at one reporting date."
+          },
+          {
+            "competitor": "regulated asset balance snapshot v1",
+            "distinction": "Restricted, regulated, or segregated assets are not ordinary cash unless the source explicitly says so."
+          }
+        ],
+        "counterexamples": [
+          "A synthetic row states a segregated regulatory asset without an ordinary cash classification.",
+          "A synthetic deposit event records movement rather than an as-of balance.",
+          "A source prints a broad total whose cash classification is not explicit."
+        ],
+        "definition": "A source-stated cash-class balance for an explicit statement scope and reporting date. Restricted or segregated balances are excluded unless the source explicitly classifies them as ordinary cash.",
+        "display_name": "Cash balance snapshot",
+        "local_type_key": "t01",
+        "negative_signals": [
+          "Choose unclassified when ordinary versus restricted or segregated status is unclear.",
+          "Choose unclassified when reporting date, statement scope, or currency or unit cannot be bound to exact source refs.",
+          "A cash-like label alone is insufficient without a source-stated amount and state context."
+        ],
+        "positive_signals": [
+          "A synthetic statement row explicitly states an ordinary cash balance for a reporting date and statement scope.",
+          "Choose only for a source-stated ordinary cash-class balance with an explicit reporting date, statement scope, source value, and currency or unit. Never infer unrestricted liquidity."
+        ],
+        "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+        "supported_source_shapes": [
+          "broker_reports_normalized_table_projection_v0",
+          "semantic_visual_logical_table_v1"
+        ]
+      },
+      {
+        "competitors": [
+          {
+            "competitor": "t01",
+            "distinction": "A printed total is not a cash balance unless ordinary cash-class state semantics are explicit."
+          },
+          {
+            "competitor": "gate2 calculated aggregate",
+            "distinction": "This type preserves a total printed by the source; a value calculated by Gate 2 is never this type."
+          },
+          {
+            "competitor": "detail source row",
+            "distinction": "A detail row is not a printed metric unless the source explicitly presents it as a labelled metric or total."
+          }
+        ],
+        "counterexamples": [
+          "A total calculated by Gate 2 from child rows.",
+          "A repeated visual representation of the same printed source metric.",
+          "An unlabeled amount whose reporting scope cannot be bound."
+        ],
+        "definition": "A financial total or metric printed by the source for an explicit reporting scope and date or period. It remains distinct from every aggregate calculated by Gate 2.",
+        "display_name": "Printed financial metric",
+        "local_type_key": "t02",
+        "negative_signals": [
+          "Choose unclassified when the printed label cannot be bound to exact evidence.",
+          "Choose unclassified when neither a date nor period or the statement scope can be bound.",
+          "Do not infer that a visually emphasized or last row is a printed total."
+        ],
+        "positive_signals": [
+          "A synthetic statement prints a labelled total for an explicit period and statement scope.",
+          "Choose only for a financial total or metric explicitly printed by the source with a bound label, source value, reporting scope, date or period, and currency or unit. Never use for a Gate 2 calculated aggregate."
+        ],
+        "projection_version": "broker_reports_gate2_financial_type_card_projection_v1",
+        "supported_source_shapes": [
+          "broker_reports_normalized_table_projection_v0",
+          "semantic_visual_logical_table_v1"
+        ]
+      }
+    ]
+  }
+}

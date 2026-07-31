@@ -355,7 +355,13 @@ def test_10_future_semantic_route_is_singular() -> None:
     decisions = _metadata()["program_owner_decisions"]
     assert decisions["preferred_option"] == "A"
     assert decisions["reserve_option"] == "B_IF_DISTINCT_DOMAIN_IS_PROVEN"
-    assert decisions["kt2_authorized"] is False
+    assert decisions["kt2_authorized"] is True
+    subordinate = _owners()["current_source_fact_orchestration"][
+        "inactive_subordinate_capabilities"
+    ][0]
+    assert subordinate["product_reachability"] == "FORBIDDEN"
+    assert subordinate["provider_reachability"] == "FORBIDDEN"
+    assert subordinate["canonical_owner_delta"] == 0
     adr = _read(CONVERGENCE_ADR)
     assert (
         adr.count(
@@ -451,7 +457,7 @@ def test_16_production_source_does_not_require_boundary_comments() -> None:
     assert "does not require architecture" in policy
 
 
-def test_17_kt1_adds_no_owner_module_and_ci_runs_this_suite() -> None:
+def test_17_new_package_module_is_declared_subordinate_and_ci_runs_this_suite() -> None:
     added_package_modules = [
         path
         for status, path in _changed_paths()
@@ -461,7 +467,19 @@ def test_17_kt1_adds_no_owner_module_and_ci_runs_this_suite() -> None:
         )
         and path.endswith(".py")
     ]
-    assert added_package_modules == []
+    allowed_subordinate = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_same_source_type_first_proof.py"
+    )
+    assert set(added_package_modules) <= {allowed_subordinate}
+    if added_package_modules:
+        capabilities = _owners()["current_source_fact_orchestration"][
+            "inactive_subordinate_capabilities"
+        ]
+        assert [item["module"] for item in capabilities] == [
+            allowed_subordinate
+        ]
+        assert all(item["canonical_owner_delta"] == 0 for item in capabilities)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )

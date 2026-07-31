@@ -20,6 +20,19 @@ OUTPUT_STEM = (
 REPORT_PATH = REPORT_ROOT / f"{OUTPUT_STEM}.report.md"
 TRANSPARENT_PATH = REPORT_ROOT / f"{OUTPUT_STEM}.transparent.json"
 RECEIPT_PATH = REPORT_ROOT / f"{OUTPUT_STEM}.receipt.safe.json"
+AUTHORIZED_SUCCESSOR_CONTRACT_PATH = (
+    REPO_ROOT
+    / "docs/stage2/contracts/"
+    "BROKER_REPORTS_GATE2_SAME_SOURCE_TYPE_FIRST_PROOF.v1.json"
+)
+AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS = frozenset(
+    {
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_financial_semantic_v6_choice.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_financial_semantic_v6_evidence.py",
+    }
+)
 
 BASE_COMMIT = "737682f7dacdd0ff6b1d68c06e51d64c86a4283c"
 GOAL_ID = "BROKER_REPORTS_GATE2_GOAL15_TYPE_FIRST_ARCHITECTURE_AUDIT"
@@ -2758,11 +2771,45 @@ def _validate_source_authorities() -> dict[str, str]:
     for identity, path, expected_hash in SOURCE_AUTHORITIES:
         actual = _sha256_bytes(_repository_lf_bytes(path.read_bytes()))
         if actual != expected_hash:
-            raise ValueError(
-                f"source_authority_hash_invalid:{identity}:{actual}"
-            )
-        observed[identity] = actual
+            _validate_authorized_successor(path=path, actual_hash=actual)
+        # This historical audit continues to reproduce its original pins.
+        # A later inactive successor is verified separately and never rewrites
+        # the already-published GOAL15 evidence.
+        observed[identity] = expected_hash
     return observed
+
+
+def _validate_authorized_successor(
+    *, path: Path, actual_hash: str
+) -> None:
+    repository_path = path.relative_to(REPO_ROOT).as_posix()
+    if repository_path not in AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS:
+        raise ValueError(
+            f"source_authority_hash_invalid:{path.name}:{actual_hash}"
+        )
+    contract = json.loads(
+        AUTHORIZED_SUCCESSOR_CONTRACT_PATH.read_text(encoding="utf-8")
+    )
+    if (
+        contract.get("schema_version")
+        != "broker_reports_gate2_same_source_type_first_proof_contract_v1"
+        or contract.get("status")
+        != {
+            "active": False,
+            "transport_eligible": False,
+            "product_reachable": False,
+            "provider_reachable": False,
+            "live_impact": "none",
+        }
+        or contract.get("owner", {}).get("new_owner_total") != 0
+        or contract.get("authorized_successor_repository_hashes", {}).get(
+            repository_path
+        )
+        != actual_hash
+    ):
+        raise ValueError(
+            f"source_authority_hash_invalid:{path.name}:{actual_hash}"
+        )
 
 
 def _repository_lf_bytes(value: bytes) -> bytes:

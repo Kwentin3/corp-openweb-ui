@@ -1,0 +1,214 @@
+{
+  "evidence_class": "REAL_SOURCE_TO_PRIVACY_SAFE_STRUCTURAL_COPY",
+  "integrity_sha256": "ea8ab7cede2f6e92be07f47f2ec85ddeac9b2618c4c326dda9e815a554ed9a32",
+  "privacy": {
+    "customer_values_in_receipt": false,
+    "private_paths_in_receipt": false,
+    "raw_provider_payloads_in_receipt": false,
+    "raw_source_refs_in_receipt": false
+  },
+  "private_sources": {
+    "historical_window_file_sha256": "8c3b929e57311150e636bb7c1569dcd5dc21fc6626a43666a6ebd4029c4880f6",
+    "real_gate2_package_sha256": "f4e0df64290d2d8472175e6044b0da87650548d7e33a5463b1f12e8d2333a33f",
+    "real_source_unit_payload_sha256s": [
+      "a3ba5bbd43fbcfe86d502e37aea92980ba5a7c095e97fbabb281381000e07db0",
+      "dcfa3ec4efd7990432f43fede893be0003306c8a6dcb2e9ee6d33f63a9d7ac1b",
+      "51ef57a5766eca32bf16d6d6f8d0982dc0884167ec332070281e6293a48d9e7c"
+    ],
+    "real_source_units_parent_identity_sha256": "968732a7cd34e882a2bac774adde8f73305641ee488ee44caffdd9c4cbfb5d88",
+    "trace_file_sha256": "b420b3675681d7809a9b5fbd47d4960daf00f9fb46e4832f2a777c5416a4856c"
+  },
+  "public_fixture": {
+    "field_roles_preserved": true,
+    "fixture_schema_version": "broker_reports_kt2_same_source_corpus_v1",
+    "fixture_sha256": "883c5352b2d4c5a24064467d4349a9b0e7eb4d981dc6967ae62bfddaf0fad212",
+    "literal_values_replaced": true,
+    "packages_total": 4,
+    "real_gate2_packages_total": 1,
+    "real_source_units_total": 3,
+    "ref_topology_preserved": true,
+    "row_graph_preserved": true,
+    "unit_boundaries_preserved": true
+  },
+  "schema_version": "broker_reports_kt2_same_source_binding_v1",
+  "structure_comparison": [
+    {
+      "private_structure": {
+        "allowed_source_value_refs_total": 33,
+        "cell_refs_total": 48,
+        "cells_by_row": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "evidence_class": "REAL_SOURCE",
+        "package_sha256": "f4e0df64290d2d8472175e6044b0da87650548d7e33a5463b1f12e8d2333a33f",
+        "row_refs_total": 16,
+        "rows_total": 16,
+        "schema_version": "broker_reports_source_fact_package_v0",
+        "selected_source_refs_total": 16,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 33,
+        "source_value_refs_total": 33,
+        "unit_kind": "table_row_window"
+      },
+      "public_structure": {
+        "allowed_source_value_refs_total": 33,
+        "cell_refs_total": 48,
+        "cells_by_row": [
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
+        "package_sha256": "8944a18d208607ace24cdffe89286e511c12455531317fa46d5c6a83f287c0fe",
+        "row_refs_total": 16,
+        "rows_total": 16,
+        "schema_version": "broker_reports_source_fact_package_v0",
+        "selected_source_refs_total": 16,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 33,
+        "source_value_refs_total": 33,
+        "unit_kind": "table_row_window"
+      },
+      "structure_equal": true
+    },
+    {
+      "private_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "REAL_SOURCE",
+        "package_sha256": "a3ba5bbd43fbcfe86d502e37aea92980ba5a7c095e97fbabb281381000e07db0",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "public_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
+        "package_sha256": "2b60e2e0a6241e8fc1329e3ca3755a9f46473e2acefedd8e83b04ca4c982935a",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "structure_equal": true
+    },
+    {
+      "private_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "REAL_SOURCE",
+        "package_sha256": "dcfa3ec4efd7990432f43fede893be0003306c8a6dcb2e9ee6d33f63a9d7ac1b",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "public_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
+        "package_sha256": "af1e209357df0312da1f487ff69f08aa948861e2ca52e3e16b430befbf0fc260",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "structure_equal": true
+    },
+    {
+      "private_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "REAL_SOURCE",
+        "package_sha256": "51ef57a5766eca32bf16d6d6f8d0982dc0884167ec332070281e6293a48d9e7c",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "public_structure": {
+        "allowed_source_value_refs_total": 3,
+        "cell_refs_total": 3,
+        "cells_by_row": [
+          3
+        ],
+        "evidence_class": "PRIVACY_SAFE_STRUCTURAL_COPY",
+        "package_sha256": "8a4e5a184650113e97c4fb06c9274f49cf64e587afa9504c5fba93599d4ce4db",
+        "row_refs_total": 1,
+        "rows_total": 1,
+        "schema_version": "broker_reports_derived_source_unit_v0",
+        "selected_source_refs_total": 1,
+        "source_input_mode": "normalized_table_projection",
+        "source_value_index_total": 3,
+        "source_value_refs_total": 3,
+        "unit_kind": "table_row_window"
+      },
+      "structure_equal": true
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": "broker_reports_gate2_same_source_type_first_proof_contract_v1",
+  "status": {
+    "active": false,
+    "transport_eligible": false,
+    "product_reachable": false,
+    "provider_reachable": false,
+    "live_impact": "none"
+  },
+  "owner": {
+    "owner_id": "current_source_fact_orchestration",
+    "sole_product_symbol": "Gate2DomainSourceFactRuntimeFactory",
+    "subordinate_proof_symbol": "Gate2SameSourceTypeFirstProof",
+    "new_owner_total": 0
+  },
+  "authorized_successor_repository_hashes": {
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py": "23742ea70d3541126585452e82dc458a5adc772d3e3665d2f4f2cabd6688f12b",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "70a004390426d0312dd22406b3c64960ff4f456c17cbf1bfeb402494c935bfcd"
+  },
+  "contracts": {
+    "request_schema": "broker_reports_type_first_request_v1",
+    "response_schema": "broker_reports_type_first_response_v1",
+    "mapping_schema": "broker_reports_gate2_same_source_type_first_mapping_v1",
+    "type_card_projection": "broker_reports_gate2_financial_type_card_projection_v1",
+    "proof_schema": "broker_reports_gate2_same_source_type_first_proof_v1"
+  },
+  "sole_authorities": {
+    "package": "Gate2TablePackageFactory",
+    "segmentation": "Gate2SourceUnitSegmenterFactory",
+    "semantic_pack": "Gate2FinancialSemanticContractFactory",
+    "response_parser": "Gate2FinancialSemanticV6ChoiceContractFactory",
+    "decision_expansion": "Gate2FinancialSemanticV6DecisionExpansionFactory",
+    "canonical_validator": "Gate2FinancialEvidenceValidatedDecisionFactory",
+    "canonical_materializer": "Gate2FinancialEvidenceMaterializerFactory",
+    "evidence_replay": "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+    "persistence": "ArtifactStoreFactory / ArtifactResolver",
+    "downstream_presentation": "AnswerContextSelectionFactory after completed Gate 2"
+  },
+  "typed_gate": {
+    "plausible_type_count": 1,
+    "exact_restored_option_count": 1,
+    "validator_status": "accepted"
+  },
+  "code_owned_reasons": [
+    "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION",
+    "MULTIPLE_PLAUSIBLE_TYPES",
+    "NO_PLAUSIBLE_TYPE",
+    "PLAUSIBLE_TYPE_WITHOUT_EXACT_OPTION",
+    "MULTIPLE_EXACT_OPTIONS",
+    "UNKNOWN_LOCAL_KEY",
+    "REQUEST_HASH_MISMATCH",
+    "INVALID_RESPONSE_SCHEMA",
+    "UNSUPPORTED_SOURCE_SHAPE",
+    "TECHNICAL_FAILURE"
+  ],
+  "zero_invariants": {
+    "provider_calls": 0,
+    "retries": 0,
+    "repairs": 0,
+    "fallbacks": 0,
+    "model_generated_values": 0,
+    "unknown_local_keys_accepted": 0,
+    "unbound_source_refs": 0,
+    "duplicate_materialized_facts": 0,
+    "canonical_type_count_delta": 0,
+    "canonical_shape_delta": 0,
+    "materializer_contract_delta": 0,
+    "product_reachability_changes": 0,
+    "live_changes": 0
+  },
+  "replay": {
+    "offline": true,
+    "exact_bytes_and_hashes": true,
+    "provider_calls": 0,
+    "tamper_fail_closed": true
+  }
+}
