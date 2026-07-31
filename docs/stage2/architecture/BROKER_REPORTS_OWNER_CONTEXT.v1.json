@@ -265,6 +265,16 @@
           "provider_reachability": "FORBIDDEN",
           "canonical_owner_delta": 0,
           "contract": "docs/stage2/contracts/BROKER_REPORTS_GATE2_SAME_SOURCE_TYPE_FIRST_PROOF.v1.md"
+        },
+        {
+          "capability_id": "kt21_bounded_semantic_context",
+          "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_bounded_semantic_context.py",
+          "symbol": "Gate2BoundedSemanticContextFactory",
+          "runtime_status": "PROOF_ONLY_SUBORDINATE",
+          "product_reachability": "FORBIDDEN",
+          "provider_reachability": "FORBIDDEN",
+          "canonical_owner_delta": 0,
+          "contract": "docs/stage2/contracts/BROKER_REPORTS_BOUNDED_SEMANTIC_CONTEXT.v1.md"
         }
       ]
     },

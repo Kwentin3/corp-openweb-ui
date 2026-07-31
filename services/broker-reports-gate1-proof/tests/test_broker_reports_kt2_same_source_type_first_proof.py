@@ -142,6 +142,7 @@ def test_private_binding_and_public_corpus_are_exact_and_rebuildable(corpus):
         "raw_provider_payloads": False,
         "raw_source_refs": False,
         "safe_placeholders_only": True,
+        "synthetic_semantic_labels": True,
     }
 
 
@@ -179,12 +180,16 @@ def test_pack_backed_cards_prebound_options_and_model_boundary(authorities):
             "competitors",
             "counterexamples",
             "supported_source_shapes",
+            "required_context_facets",
+            "context_disqualifiers",
             "projection_version",
         }
         assert card["positive_signals"]
         assert card["negative_signals"]
         assert card["competitors"]
         assert card["counterexamples"]
+        assert card["required_context_facets"]
+        assert card["context_disqualifiers"]
     request_text = json.dumps(prepared.candidate.payload, sort_keys=True)
     assert "cash_balance_snapshot_v1" not in request_text
     assert "printed_financial_metric_v1" not in request_text
@@ -196,7 +201,7 @@ def test_pack_backed_cards_prebound_options_and_model_boundary(authorities):
 
     mapping = prepared.mapping_receipt
     assert len(mapping.type_restoration) == 2
-    assert len(mapping.option_restoration) == 4
+    assert len(mapping.option_restoration) == 0
     for option in mapping.option_restoration:
         assert set(option) == {
             "local_option_key",
@@ -214,12 +219,12 @@ def test_pack_backed_cards_prebound_options_and_model_boundary(authorities):
         assert option["source_refs"]
 
 
-def test_vertical_materializes_one_and_fails_closed_for_two(authorities):
+def test_vertical_rechecks_old_singleton_and_fails_closed(authorities):
     _registry, _proof, _packages, prepared, response, execution = authorities
     assert execution.accounting == {
         "total_units": 3,
-        "typed": 1,
-        "unclassified": 2,
+        "typed": 0,
+        "unclassified": 3,
         "no_fact": 0,
         "unsupported": 0,
         "technical_failure": 0,
@@ -228,30 +233,21 @@ def test_vertical_materializes_one_and_fails_closed_for_two(authorities):
     }
     assert [item.code_reason for item in execution.units] == [
         "MULTIPLE_PLAUSIBLE_TYPES",
-        "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION",
+        "INSUFFICIENT_SEMANTIC_CONTEXT",
         "NO_PLAUSIBLE_TYPE",
     ]
-    typed = execution.units[1]
-    assert typed.disposition == "typed_input"
-    assert typed.expansion.validated_decision.decision.disposition == "typed_input"
-    artifact = typed.total_materialization.canonical_artifact
-    assert artifact["terminal_disposition"] == "typed_input"
-    assert len(artifact["typed_inputs"]) == 1
-    assert artifact["unclassified_inputs"] == []
-    source_refs = {
-        item["source_value_ref"]
-        for item in artifact["typed_inputs"][0]["source_values"]
+    old_singleton = execution.units[1]
+    assert old_singleton.disposition == "unclassified_financial_input"
+    assert old_singleton.context_sufficiency is not None
+    assert old_singleton.context_sufficiency.status == "INSUFFICIENT"
+    assert set(old_singleton.context_sufficiency.missing_facets) == {
+        "date_or_period",
+        "printed_label_evidence_ref",
+        "statement_scope",
     }
-    exact_option = next(
-        item
-        for item in prepared.mapping_receipt.option_restoration
-        if item["source_unit_key"] == "u02"
-        and item["local_type_key"] == "t02"
-    )
-    assert source_refs == set(exact_option["source_refs"])
     assert all(
         item.disposition == "unclassified_financial_input"
-        for item in (execution.units[0], execution.units[2])
+        for item in execution.units
     )
     assert execution.provider_calls_total == 0
     assert execution.retries_total == 0
@@ -286,7 +282,7 @@ def test_false_singleton_is_observable_and_never_typed(authorities):
     }
 
 
-def test_no_exact_option_and_four_human_reviewable_traces(authorities):
+def test_insufficient_context_and_four_human_reviewable_traces(authorities):
     _registry, proof, _packages, prepared, response, execution = authorities
     no_exact_response = proof.response(
         prepared=prepared,
@@ -301,7 +297,7 @@ def test_no_exact_option_and_four_human_reviewable_traces(authorities):
         simulated_response=no_exact_response,
     )
     assert no_exact_execution.units[0].code_reason == (
-        "PLAUSIBLE_TYPE_WITHOUT_EXACT_OPTION"
+        "INSUFFICIENT_SEMANTIC_CONTEXT"
     )
     assert no_exact_execution.units[0].disposition == (
         "unclassified_financial_input"
@@ -324,9 +320,8 @@ def test_no_exact_option_and_four_human_reviewable_traces(authorities):
     ]
     assert len(selected) == 4
     assert {item["code_reason"] for item in selected} == {
-        "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION",
+        "INSUFFICIENT_SEMANTIC_CONTEXT",
         "MULTIPLE_PLAUSIBLE_TYPES",
-        "PLAUSIBLE_TYPE_WITHOUT_EXACT_OPTION",
         "NO_PLAUSIBLE_TYPE",
     }
     assert all(
@@ -572,7 +567,7 @@ def test_replay_detects_all_authority_and_fixture_substitutions(
             "model_source_projection"
         ]["rows"][0]["cells"][0]["value"] = "999.00"
     elif mutation == "mapping_substitution":
-        tampered["sealed_mapping"]["option_restoration"].reverse()
+        tampered["sealed_mapping"]["type_restoration"].reverse()
     elif mutation == "pack_substitution":
         tampered["semantic_pack"]["integrity_sha256"] = "0" * 64
     tampered = _rehash_private_evidence(tampered)

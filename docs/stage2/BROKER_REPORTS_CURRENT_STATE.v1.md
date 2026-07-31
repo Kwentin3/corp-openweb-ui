@@ -1,10 +1,13 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after KT2 closure
+Status: canonical entry point after inactive KT2.1 implementation
 
 Effective date: 2026-07-31
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
+
+KT2.1 implementation merge: reported after merge because a commit cannot name
+its own future merge commit.
 
 Current-state lifecycle corrective merge:
 `24948360095a749e11b1b0bcedbb8ae871a6b7f8`.
@@ -73,6 +76,13 @@ validator, materializer, ArtifactStore, and evidence/replay owners. The proof
 is not product- or provider-reachable. Model qualification and product
 activation have not started.
 
+KT2.1 adds one deterministic bounded-context builder and one post-response
+context-sufficiency guard inside that same inactive proof. The builder follows
+only document/table/row and explicit parent, footnote, or continuation links;
+it neither sees Type Cards nor returns a financial type. The guard projects
+required facets from the existing Pack metadata and fails closed with
+`INSUFFICIENT_SEMANTIC_CONTEXT` before typed materialization.
+
 ## 7. Sole owners
 
 The normative owner inventory is
@@ -98,18 +108,22 @@ is `contracts/BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md`. Load-bearing owners are:
 ## 8. Semantic Pack status
 
 The Financial Semantic Pack and its hash-pinned snapshot remain the sole
-current type authority. KT2 projects versioned model-facing Type Cards from
-that authority without changing Pack bytes, canonical types, meanings,
-admissions, prompts, valves, or runtime behavior. The experimental PR #77
-registry draft is not a runtime or documentation authority.
+current type authority. KT2.1 projects `required_context_facets` from the
+Pack's required/identity roles and date/currency requirements, and projects
+`context_disqualifiers` from its ambiguity guidance. Pack bytes, hash,
+canonical types, meanings, admissions, prompts, valves, and runtime behavior
+remain unchanged. The experimental PR #77 registry draft is not a runtime or
+documentation authority.
 
 ## 9. Known semantic risks
 
-KT2 proved one bounded false-singleton case observable and not typed. Corpus
-generalization, broader source-to-type ambiguity, and candidate/provider
-qualification remain future semantic risks. The bounded proof is not an excuse
-to add a second route, invent values, relax fail-closed validation, or claim
-production readiness.
+KT2 proved one bounded false-singleton case observable and not typed. KT2.1
+then found that the former positive singleton fixture had replaced a semantic
+row label with values and that the real packages lacked meaningful raw headers,
+section/table title, and reporting period. It is now honestly unclassified as
+`INSUFFICIENT_SEMANTIC_CONTEXT`. A separately marked synthetic semantic
+redaction proves the sufficient typed path. Corpus generalization and real
+model qualification remain future risks.
 
 ## 10. Repository and live parity
 
@@ -138,7 +152,9 @@ reopening triggers.
 
 ## 13. KT2 closure and next gates
 
-KT2 is complete at the inactive proof boundary. Any model qualification needs
+KT2 is complete at the mechanical inactive proof boundary. KT2.1 implementation
+is present and inactive; terminal closure still requires its post-merge and
+evidence PR receipts. Any model qualification needs
 a separately authorized exact candidate and four-disposition live gate. Any
 product activation needs a later explicit product decision, fresh reachability
 review, governed release, rollback proof, and independent live readback.
@@ -159,6 +175,9 @@ KT2_READY = FALSE_COMPLETED
 KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED
 TYPE_FIRST_PRODUCT_REACHABILITY = FALSE
 KT2 = COMPLETE
+KT21_BOUNDED_CONTEXT = IMPLEMENTED_INACTIVE_POSTMERGE_PENDING
+VALUES_ONLY_TYPED = 0
+MISSING_REQUIRED_CONTEXT_TYPED = 0
 MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```

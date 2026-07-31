@@ -114,9 +114,9 @@ def build() -> tuple[dict[str, Any], dict[str, Any]]:
         copy.deepcopy(main_trace["traces"][2]),
     ]
     trace_ids = (
-        "unique_safe_typed_path",
+        "old_singleton_context_downgrade",
         "multiple_plausible_types",
-        "no_exact_constructible_option",
+        "second_insufficient_context_variant",
         "false_singleton_trap",
     )
     for trace_id, trace in zip(trace_ids, selected_traces, strict=True):

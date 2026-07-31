@@ -4,6 +4,13 @@ import copy
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
+from .gate2_bounded_semantic_context import (
+    Gate2BoundedSemanticContext,
+    Gate2BoundedSemanticContextFactory,
+    Gate2ContextSufficiencyDecision,
+    Gate2ContextSufficiencyGuard,
+    validate_bounded_semantic_context,
+)
 from .gate2_deterministic_financial_scopes import (
     Gate2DeterministicFinancialScope,
     Gate2DeterministicFinancialScopeFromGate1V2Factory,
@@ -167,6 +174,7 @@ class Gate2TypeFirstUnitAuthorities:
     compilation: Gate2FinancialCandidateCompilation
     packet: Gate2FinancialSemanticV6Packet
     choice_contract: Gate2FinancialSemanticV6ChoiceContract
+    bounded_context: Gate2BoundedSemanticContext
 
 
 @dataclass(frozen=True)
@@ -188,6 +196,7 @@ class Gate2TypeFirstUnitExecution:
     exact_restored_option_keys: tuple[str, ...]
     code_reason: str
     disposition: str
+    context_sufficiency: Gate2ContextSufficiencyDecision | None
     expansion: Gate2FinancialSemanticV6ExpandedDecision
     total_materialization: Gate2FinancialSemanticV6TotalMaterialization
     trace_hash: str
@@ -256,6 +265,7 @@ class Gate2SameSourceTypeFirstProof:
                 key=lambda item: item.source_package.integrity_hash,
             )
         )
+        context_factory = Gate2BoundedSemanticContextFactory()
         units: list[Gate2TypeFirstUnitAuthorities] = []
         for index, scope in enumerate(ordered_scopes, start=1):
             source_unit_key = f"u{index:02d}"
@@ -284,6 +294,11 @@ class Gate2SameSourceTypeFirstProof:
                 source_package=scope.source_package,
                 compilation=compilation,
             )
+            bounded_context = context_factory.create(
+                source_package=scope.source_package,
+                selected_source_refs=scope.selected_source_refs,
+                gate2_packages=packages,
+            )
             units.append(
                 Gate2TypeFirstUnitAuthorities(
                     source_unit_key=source_unit_key,
@@ -293,6 +308,7 @@ class Gate2SameSourceTypeFirstProof:
                     compilation=compilation,
                     packet=packet,
                     choice_contract=choice_contract,
+                    bounded_context=bounded_context,
                 )
             )
 
@@ -371,6 +387,7 @@ class Gate2SameSourceTypeFirstProof:
                     "compilation_hash": unit.compilation.integrity_hash,
                     "packet_hash": unit.packet.packet_hash,
                     "choice_schema_hash": unit.choice_contract.choice_schema_hash,
+                    "bounded_context_hash": unit.bounded_context.integrity_hash,
                 }
                 for unit in units
             ],
@@ -402,6 +419,10 @@ class Gate2SameSourceTypeFirstProof:
             type_restoration=type_restoration,
         )
         response_object = _response_object(simulated_response)
+        type_cards_by_key = {
+            item["local_type_key"]: item
+            for item in prepared.candidate.payload["type_cards"]
+        }
         results: list[Gate2TypeFirstUnitExecution] = []
         for unit, decision in zip(prepared.units, restored, strict=True):
             results.append(
@@ -409,6 +430,7 @@ class Gate2SameSourceTypeFirstProof:
                     unit=unit,
                     decision=decision,
                     mapping=prepared.mapping_receipt,
+                    type_cards_by_key=type_cards_by_key,
                 )
             )
         accounting = _accounting(results)
@@ -537,6 +559,12 @@ class Gate2SameSourceTypeFirstProof:
                 "supported_source_shapes": list(
                     declaration["compatible_source_families"]
                 ),
+                "required_context_facets": _required_context_facets(
+                    declaration
+                ),
+                "context_disqualifiers": list(
+                    declaration.get("ambiguity_guidance") or []
+                ),
                 "projection_version": TYPE_CARD_PROJECTION_VERSION,
             }
             if (
@@ -575,26 +603,13 @@ class Gate2SameSourceTypeFirstProof:
         self,
         unit: Gate2TypeFirstUnitAuthorities,
     ) -> dict[str, Any]:
-        visible = [
-            value
-            for value in unit.evidence_bundle.source_values
-            if value.value_type != "source_reference"
-        ]
         return {
             "source_unit_key": unit.source_unit_key,
             "source_shape": unit.evidence_bundle.source_family_id,
-            "values": [
-                {
-                    "local_value_key": f"v{index:02d}",
-                    "value_type": value.value_type,
-                    "literal_value": value.literal_value,
-                    "column_meaning": value.column_meaning,
-                    "visible_label": value.visible_label,
-                    "row_role": value.row_role,
-                    "section_role": value.section_role,
-                }
-                for index, value in enumerate(visible, start=1)
-            ],
+            "bounded_semantic_context": copy.deepcopy(
+                unit.bounded_context.payload
+            ),
+            "bounded_semantic_context_hash": unit.bounded_context.integrity_hash,
         }
 
     def _mapping_receipt(
@@ -682,6 +697,7 @@ class Gate2SameSourceTypeFirstProof:
         unit: Gate2TypeFirstUnitAuthorities,
         decision: dict[str, Any],
         mapping: Gate2TypeFirstMappingReceipt,
+        type_cards_by_key: dict[str, dict[str, Any]],
     ) -> Gate2TypeFirstUnitExecution:
         plausible_type_ids = tuple(decision["plausible_type_ids"])
         plausible_type_keys = tuple(decision["plausible_type_keys"])
@@ -691,13 +707,30 @@ class Gate2SameSourceTypeFirstProof:
             if item["source_unit_key"] == unit.source_unit_key
             and item["canonical_type_id"] in plausible_type_ids
         ]
+        context_sufficiency: Gate2ContextSufficiencyDecision | None = None
         if len(plausible_type_ids) == 1:
             exact_for_type = [
                 item
                 for item in exact_options
                 if item["canonical_type_id"] == plausible_type_ids[0]
             ]
-            if len(exact_for_type) == 1:
+            context_sufficiency = Gate2ContextSufficiencyGuard().evaluate(
+                context=unit.bounded_context,
+                type_card=type_cards_by_key[plausible_type_keys[0]],
+                exact_option=(
+                    exact_for_type[0] if len(exact_for_type) == 1 else None
+                ),
+                expected_source_package_integrity_hash=(
+                    unit.source_package.integrity_hash
+                ),
+            )
+            if context_sufficiency.status != "SUFFICIENT":
+                code_reason = "INSUFFICIENT_SEMANTIC_CONTEXT"
+                canonical_choice = {
+                    "disposition": "unclassified_financial_input",
+                    "reason_code": "no_registry_type",
+                }
+            elif len(exact_for_type) == 1:
                 code_reason = "UNIQUE_PLAUSIBLE_TYPE_AND_EXACT_OPTION"
                 canonical_choice = {
                     "disposition": "typed_input",
@@ -789,6 +822,9 @@ class Gate2SameSourceTypeFirstProof:
             ],
             "code_reason": code_reason,
             "disposition": expansion.disposition,
+            "context_sufficiency": (
+                asdict(context_sufficiency) if context_sufficiency else None
+            ),
             "validator_output_hash": expansion.canonical_decision_hash,
             "materialized_fact_hash": total.canonical_artifact_hash,
         }
@@ -801,6 +837,7 @@ class Gate2SameSourceTypeFirstProof:
             ),
             code_reason=code_reason,
             disposition=expansion.disposition,
+            context_sufficiency=context_sufficiency,
             expansion=expansion,
             total_materialization=total,
             trace_hash=sha256_json(trace),
@@ -816,14 +853,39 @@ class Gate2SameSourceTypeFirstProof:
             or prepared.candidate.active
             or prepared.candidate.transport_eligible
             or prepared.candidate.provider_calls_total != 0
+            or prepared.candidate.request_hash
+            != sha256_json(prepared.candidate.payload)
             or prepared.mapping_receipt.request_hash
             != prepared.candidate.request_hash
             or prepared.response_profile.request_hash
             != prepared.candidate.request_hash
             or prepared.response_profile.mapping_hash
             != prepared.mapping_receipt.integrity_hash
+            or any(
+                unit.bounded_context.source_package_integrity_hash
+                != unit.source_package.integrity_hash
+                for unit in prepared.units
+            )
         ):
             _fail("type_first_prepared_proof_invalid")
+        source_units = {
+            item.get("source_unit_key"): item
+            for item in prepared.candidate.payload.get("source_units") or []
+        }
+        if set(source_units) != {
+            unit.source_unit_key for unit in prepared.units
+        }:
+            _fail("type_first_context_unit_coverage_invalid")
+        for unit in prepared.units:
+            validate_bounded_semantic_context(unit.bounded_context)
+            visible = source_units[unit.source_unit_key]
+            if (
+                visible.get("bounded_semantic_context")
+                != unit.bounded_context.payload
+                or visible.get("bounded_semantic_context_hash")
+                != unit.bounded_context.integrity_hash
+            ):
+                _fail("type_first_context_request_mismatch")
 
 
 def false_singleton_comparator(
@@ -900,6 +962,11 @@ def safe_trace_pack(
                 ),
                 "restored_local_keys": list(result.plausible_type_keys),
                 "code_reason": result.code_reason,
+                "context_sufficiency": (
+                    _context_sufficiency_payload(result.context_sufficiency)
+                    if result.context_sufficiency
+                    else None
+                ),
                 "validator_result": {
                     "status": "accepted",
                     "output_hash": result.expansion.canonical_decision_hash,
@@ -977,6 +1044,51 @@ def _restored_payload(item: dict[str, Any]) -> dict[str, Any]:
         "plausible_type_keys": list(item["plausible_type_keys"]),
         "plausible_type_ids": list(item["plausible_type_ids"]),
     }
+
+
+def _context_sufficiency_payload(
+    decision: Gate2ContextSufficiencyDecision,
+) -> dict[str, Any]:
+    return {
+        "schema_version": decision.schema_version,
+        "status": decision.status,
+        "required_facets": list(decision.required_facets),
+        "satisfied_facets": list(decision.satisfied_facets),
+        "missing_facets": list(decision.missing_facets),
+        "triggered_disqualifiers": list(decision.triggered_disqualifiers),
+        "context_integrity_hash": decision.context_integrity_hash,
+        "source_binding_hash": decision.source_binding_hash,
+        "integrity_hash": decision.integrity_hash,
+    }
+
+
+def _required_context_facets(declaration: dict[str, Any]) -> list[str]:
+    """Project context evidence requirements from the one Semantic Pack."""
+
+    roles = declaration["roles"]
+    required = {str(item["role_id"]) for item in roles["required"]}
+    optional = {str(item["role_id"]) for item in roles["optional"]}
+    temporal = declaration["date_period_requirement"]
+    if temporal == "date_or_period_required":
+        required.difference_update({"as_of_date", "period"})
+        required.add("date_or_period")
+    elif temporal == "as_of_date_required":
+        required.add("as_of_date")
+    elif temporal == "period_required":
+        required.add("period")
+    currency_unit = declaration["currency_unit_requirement"]
+    if currency_unit == "currency_or_unit_required":
+        required.add("currency_or_unit")
+    elif currency_unit == "currency_required":
+        required.add("currency")
+    elif currency_unit == "unit_required":
+        required.add("unit")
+    required.update(
+        role
+        for role in declaration["identity_roles"]
+        if role in optional and role not in {"as_of_date", "period"}
+    )
+    return sorted(required)
 
 
 def _response_object(value: str | dict[str, Any]) -> dict[str, Any]:

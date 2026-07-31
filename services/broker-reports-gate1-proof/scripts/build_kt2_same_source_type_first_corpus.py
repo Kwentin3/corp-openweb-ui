@@ -43,9 +43,9 @@ BINDING_PATH = (
 CORPUS_SCHEMA_VERSION = "broker_reports_kt2_same_source_corpus_v1"
 BINDING_SCHEMA_VERSION = "broker_reports_kt2_same_source_binding_v1"
 SAFE_VALUES = (
-    ("100.00", "2026-01-31", "RUB"),
-    ("150.00", "RUB", "Opaque period label"),
-    ("200.00", "2026-02-28", "USD"),
+    ("Aggregate resources", "USD", "100.00"),
+    ("Aggregate obligations", "USD", "150.00"),
+    ("Aggregate obligations and owner capital", "USD", "200.00"),
 )
 
 
@@ -86,9 +86,9 @@ def build() -> tuple[dict[str, Any], dict[str, Any]]:
         for package, evidence_class in zip(
             packages,
             (
-                "PRIVACY_SAFE_STRUCTURAL_COPY",
-                "PRIVACY_SAFE_STRUCTURAL_COPY",
-                "PRIVACY_SAFE_STRUCTURAL_COPY",
+                "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
+                "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
+                "SEMANTICALLY_EQUIVALENT_SYNTHETIC_REDACTION",
                 "PRIVACY_SAFE_STRUCTURAL_COPY",
             ),
             strict=True,
@@ -131,6 +131,7 @@ def build() -> tuple[dict[str, Any], dict[str, Any]]:
             "raw_provider_payloads": False,
             "private_paths": False,
             "safe_placeholders_only": True,
+            "synthetic_semantic_labels": True,
         },
         "proof_bounded_normalization": {
             "field": "source_unit.document_ref",
@@ -172,6 +173,7 @@ def build() -> tuple[dict[str, Any], dict[str, Any]]:
             "field_roles_preserved": True,
             "ref_topology_preserved": True,
             "literal_values_replaced": True,
+            "semantic_row_roles_preserved": True,
         },
         "structure_comparison": [
             {
@@ -271,6 +273,9 @@ def _sanitize_package(
     ref_map: dict[str, str],
     replacement_values: tuple[str, ...] | None,
 ) -> dict[str, Any]:
+    original_rows = (
+        (package.get("source_unit") or {}).get("model_source_projection") or {}
+    ).get("rows") or []
     safe = _sanitize_tree(copy.deepcopy(package), ref_map=ref_map)
     unit = safe.get("source_unit") or {}
     safe["source_unit"] = unit
@@ -286,7 +291,17 @@ def _sanitize_package(
             else:
                 value = f"opaque_{row_number:02d}_{column_number:02d}"
             cell["value"] = value
-            cell["header_label"] = f"safe_column_{column_number:02d}"
+            original_header = str(
+                original_rows[row_number - 1]["cells"][column_number - 1].get(
+                    "header_label"
+                )
+                or ""
+            )
+            cell["header_label"] = (
+                "unknown"
+                if original_header.strip().casefold() in {"", "unknown"}
+                else f"synthetic_column_role_{column_number:02d}"
+            )
             refs = cell.get("source_value_refs") or [
                 cell.get("source_value_ref")
             ]
