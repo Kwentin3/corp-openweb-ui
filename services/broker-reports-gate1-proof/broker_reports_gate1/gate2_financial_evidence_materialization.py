@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+# Architecture boundary (KT1)
+# Domain: Canonical Financial Materialization.
+# Input contract: expanded decision plus authoritative source/registry snapshots.
+# Output contract: validated decision and canonical financial evidence inputs.
+# Owns: canonical validation and the sole financial evidence materialization path.
+# Does not own: model choice, crop/source parsing, persistence, or tax calculation.
+# Allowed consumers: Financial Domain persistence and exact evidence replay.
+# Runtime status: ACTIVE_PRODUCT authority; caller reachability is separately gated.
+# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
+# Contract tests: test_broker_reports_gate2_financial_evidence_materialization.py.
+
 from dataclasses import asdict
 from typing import Any
 

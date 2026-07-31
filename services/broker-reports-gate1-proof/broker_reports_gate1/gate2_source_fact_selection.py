@@ -1,5 +1,22 @@
 from __future__ import annotations
 
+# Architecture boundary (KT1)
+# Domain: Historical and Compatibility Routes.
+# Input contract: pinned broker_reports_source_fact_selection_v3 proposal.
+# Output contract: v3 validation/materialization outcome for frozen evidence.
+# Owns: validation of its exact historical version only.
+# Does not own: current product classification, fallback, or new writes.
+# Allowed consumers: historical replay, audit, migration, and contract tests.
+# Runtime status: HISTORICAL_READ_ONLY; product reachability is false.
+# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
+# Contract tests: test_broker_reports_gate2_source_fact_runtime.py.
+#
+# Historical containment (KT1)
+# Why retained: pinned v3 evidence and compatibility must remain reproducible.
+# Why product reachability is forbidden: it overlaps the current source-fact owner.
+# Allowed consumers: frozen replay, audit, migration, and version-pinned tests.
+# ADR required to change status: a successor to the convergence ADR plus owner proof.
+
 import copy
 import json
 from collections import Counter

@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+# Architecture boundary (KT1)
+# Domain: Replay and Comparators.
+# Input contract: governed V6 private evidence and bound contract snapshots.
+# Output contract: exact safe receipt, replay result, and comparator verdict.
+# Owns: evidence issue/restore/replay for existing V6 authorities.
+# Does not own: provider retry, semantic repair, activation, or a second policy.
+# Allowed consumers: audit, qualification checks, and contract tests.
+# Runtime status: PROOF_ONLY unless an established read path explicitly consumes it.
+# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
+# Contract tests: test_broker_reports_gate2_financial_semantic_v6_evidence.py.
+
 import copy
 import hashlib
 import json

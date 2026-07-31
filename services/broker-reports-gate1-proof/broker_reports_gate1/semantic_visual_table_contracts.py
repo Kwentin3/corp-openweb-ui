@@ -7,6 +7,17 @@ persistence, and terminal state belong to deterministic application code.
 
 from __future__ import annotations
 
+# Architecture boundary (KT1)
+# Domain: Semantic Visual Table Transcription.
+# Input contract: one immutable bounded table crop and the managed prompt.
+# Output contract: broker_reports_semantic_table_transcription_v1.
+# Owns: the model-visible description + rows response shape.
+# Does not own: financial classification, lineage IDs, persistence, or promotion.
+# Allowed consumers: validator, VLM runtime, deterministic table materializer.
+# Runtime status: ACTIVE_PRODUCT in repository; live parity is unverified.
+# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
+# Contract tests: test_broker_reports_semantic_visual_table_contracts.py.
+
 import copy
 from typing import Any
 
