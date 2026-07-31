@@ -60,6 +60,8 @@ jobs:
           python scripts/build_context_v2_1_comparative_evidence_pack.py --check
           python scripts/build_type_first_semantic_decision_architecture_audit.py --check
           python scripts/build_type_first_fail_closed_contract.py --check
+          python scripts/build_kt2_same_source_type_first_corpus.py --check
+          python scripts/build_kt2_same_source_type_first_proof.py --check
 
       - name: Check generated Function bundles
         run: |
@@ -107,6 +109,7 @@ jobs:
           tests/test_broker_reports_gate_architecture.py
           tests/test_broker_reports_kt1_architecture_stabilization.py
           tests/test_broker_reports_kt16_canonical_context.py
+          tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py
           tests/test_broker_reports_gate2_pipe_bundle.py
           tests/test_broker_reports_managed_decision_reason_catalog.py

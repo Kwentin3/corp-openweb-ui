@@ -269,6 +269,11 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
         / "broker_reports_gate1"
         / "gate2_financial_semantic_v6_evidence.py"
     )
+    candidate_type_first_proof_path = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate2_same_source_type_first_proof.py"
+    )
     for path in (SERVICE_ROOT / "broker_reports_gate1").glob("*.py"):
         if path == MODULE_PATH:
             continue
@@ -280,6 +285,7 @@ def test_audit_validator_imports_and_runtime_consumers_are_closed() -> None:
             candidate_canonical_path,
             candidate_smoke_report_path,
             candidate_smoke_evidence_path,
+            candidate_type_first_proof_path,
         }:
             assert NEW_REASON_CODE not in active_source
     choice_source = inactive_choice_profile_path.read_text(encoding="utf-8")

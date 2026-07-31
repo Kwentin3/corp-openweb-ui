@@ -29,8 +29,13 @@ pr_232_disposition = CLOSED_WITHOUT_MERGE
 owner_context_policy = SIDECAR_OWNER_METADATA
 live_parity_checkpoint = CLOSED_BY_KT1_5
 historical_v3_schema_hash_fix_deferred = true
-kt2_authorized = false
+kt2_authorized = true
 ```
+
+KT2 adds `Gate2SameSourceTypeFirstProof` as an inactive subordinate capability
+of `current_source_fact_orchestration`. It is product- and provider-unreachable,
+owns no canonical contract, and delegates parsing, validation, materialization,
+evidence and persistence to the existing sole owners.
 
 ## Owner index
 

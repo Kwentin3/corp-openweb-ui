@@ -70,6 +70,14 @@ SEMANTIC_CHOICE_OUTPUT_FIELDS = frozenset(
 LOCAL_CHOICE_OUTPUT_FIELDS = frozenset({"choice", "reason"})
 _MAX_LOCAL_CHOICE_BYTES = 1024
 _MAX_CONTEXT_V2_1_CHOICE_BYTES = 1024
+_MAX_TYPE_FIRST_RESPONSE_BYTES = 16384
+TYPE_FIRST_RESPONSE_SCHEMA_VERSION = "broker_reports_type_first_response_v1"
+TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION = (
+    "broker_reports_gate2_financial_type_first_response_profile_v1"
+)
+TYPE_FIRST_RESPONSE_POLICY_VERSION = (
+    "broker_reports_gate2_same_source_type_first_proof_v1"
+)
 _CANONICAL_GATE2_DISPOSITIONS = (
     "typed_input",
     "unclassified_financial_input",
@@ -80,7 +88,7 @@ _CANONICAL_GATE2_DISPOSITIONS = (
 FACTORY_REQUIRED = (
     "Gate2FinancialSemanticV6ChoiceContractFactory.create is the only V6 "
     "active minimal semantic-choice, historical non-active local-choice, and "
-    "non-active Context V2.1 response-profile contract entrypoint"
+    "non-active Context V2.1 and Type-First response-profile contract entrypoint"
 )
 FORBIDDEN = (
     "The provider choice must not return a type ID, source ref, role binding, "
@@ -88,6 +96,8 @@ FORBIDDEN = (
     "dispositions must not be exposed to the model; the local candidate must "
     "not expose canonical option IDs or become an active request schema; "
     "Context V2.1 choices must restore only through its private mapping receipt"
+    "; Type-First responses must restore only opaque plural type keys through "
+    "their sealed mapping"
 )
 
 
@@ -194,6 +204,54 @@ class Gate2FinancialSemanticV6ContextV21ChoiceResponseProfile:
 
 
 @dataclass(frozen=True)
+class Gate2FinancialSemanticV6TypeFirstResponseProfile:
+    """Inactive plural-type response profile owned by the V6 choice boundary."""
+
+    schema_version: str
+    policy_version: str
+    active: bool
+    transport_eligible: bool
+    request_key: str
+    request_hash: str
+    mapping_hash: str
+    semantic_pack_integrity_sha256: str
+    source_unit_keys: tuple[str, ...]
+    local_type_keys: tuple[str, ...]
+    response_schema: dict[str, Any]
+    response_schema_hash: str
+    provider_calls_total: int
+    post_response_repair_allowed: bool
+    integrity_hash: str
+
+    def canonical_schema(self) -> dict[str, Any]:
+        return copy.deepcopy(self.response_schema)
+
+    def safe_summary(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "policy_version": self.policy_version,
+            "active": self.active,
+            "transport_eligible": self.transport_eligible,
+            "request_hash": self.request_hash,
+            "mapping_hash": self.mapping_hash,
+            "semantic_pack_integrity_sha256": (
+                self.semantic_pack_integrity_sha256
+            ),
+            "source_units_total": len(self.source_unit_keys),
+            "local_type_keys_total": len(self.local_type_keys),
+            "response_schema_hash": self.response_schema_hash,
+            "provider_calls_total": self.provider_calls_total,
+            "post_response_repair_allowed": (
+                self.post_response_repair_allowed
+            ),
+            "contains_canonical_type_ids": False,
+            "contains_source_refs": False,
+            "contains_values": False,
+            "integrity_hash": self.integrity_hash,
+        }
+
+
+@dataclass(frozen=True)
 class Gate2FinancialSemanticV6ChoiceContract:
     schema_version: str
     policy_version: str
@@ -267,6 +325,73 @@ class Gate2FinancialSemanticV6ChoiceContractFactory:
             evidence_bundle=evidence_bundle,
             source_package=source_package,
             compilation=compilation,
+        )
+
+    def create_type_first_response_profile(
+        self,
+        *,
+        request_key: str,
+        request_hash: str,
+        mapping_hash: str,
+        semantic_pack_integrity_sha256: str,
+        source_unit_keys: tuple[str, ...],
+        local_type_keys: tuple[str, ...],
+    ) -> Gate2FinancialSemanticV6TypeFirstResponseProfile:
+        """Create the proof-only plural response profile; never a transport route."""
+
+        if (
+            not request_key
+            or not _is_sha256(request_hash)
+            or not _is_sha256(mapping_hash)
+            or not _is_sha256(semantic_pack_integrity_sha256)
+            or not source_unit_keys
+            or source_unit_keys
+            != tuple(f"u{index:02d}" for index in range(1, len(source_unit_keys) + 1))
+            or not local_type_keys
+            or local_type_keys
+            != tuple(f"t{index:02d}" for index in range(1, len(local_type_keys) + 1))
+        ):
+            _fail("financial_semantic_v6_type_first_profile_identity_invalid")
+        schema = _type_first_response_schema(
+            request_key=request_key,
+            request_hash=request_hash,
+            mapping_hash=mapping_hash,
+            semantic_pack_integrity_sha256=(semantic_pack_integrity_sha256),
+            source_unit_keys=source_unit_keys,
+            local_type_keys=local_type_keys,
+        )
+        material = {
+            "schema_version": TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION,
+            "policy_version": TYPE_FIRST_RESPONSE_POLICY_VERSION,
+            "active": False,
+            "transport_eligible": False,
+            "request_key": request_key,
+            "request_hash": request_hash,
+            "mapping_hash": mapping_hash,
+            "semantic_pack_integrity_sha256": semantic_pack_integrity_sha256,
+            "source_unit_keys": list(source_unit_keys),
+            "local_type_keys": list(local_type_keys),
+            "response_schema": copy.deepcopy(schema),
+            "response_schema_hash": sha256_json(schema),
+            "provider_calls_total": 0,
+            "post_response_repair_allowed": False,
+        }
+        return Gate2FinancialSemanticV6TypeFirstResponseProfile(
+            schema_version=TYPE_FIRST_RESPONSE_PROFILE_SCHEMA_VERSION,
+            policy_version=TYPE_FIRST_RESPONSE_POLICY_VERSION,
+            active=False,
+            transport_eligible=False,
+            request_key=request_key,
+            request_hash=request_hash,
+            mapping_hash=mapping_hash,
+            semantic_pack_integrity_sha256=semantic_pack_integrity_sha256,
+            source_unit_keys=source_unit_keys,
+            local_type_keys=local_type_keys,
+            response_schema=copy.deepcopy(schema),
+            response_schema_hash=sha256_json(schema),
+            provider_calls_total=0,
+            post_response_repair_allowed=False,
+            integrity_hash=sha256_json(material),
         )
 
     def _build(
@@ -592,6 +717,172 @@ def normalize_financial_semantic_v6_context_v2_1_choice(
     return {
         "disposition": "typed_input",
         "typed_option_id": exact_option_id,
+    }
+
+
+def normalize_financial_semantic_v6_type_first_response(
+    *,
+    model_output: str | dict[str, Any],
+    response_profile: Gate2FinancialSemanticV6TypeFirstResponseProfile,
+    type_restoration: dict[str, str],
+) -> tuple[dict[str, Any], ...]:
+    """Strictly restore opaque type keys; values and refs are never accepted."""
+
+    if (
+        not isinstance(
+            response_profile,
+            Gate2FinancialSemanticV6TypeFirstResponseProfile,
+        )
+        or response_profile.active
+        or response_profile.transport_eligible
+        or response_profile.provider_calls_total != 0
+        or response_profile.post_response_repair_allowed
+        or set(type_restoration) != set(response_profile.local_type_keys)
+        or any(not isinstance(value, str) or not value for value in type_restoration.values())
+    ):
+        _fail("financial_semantic_v6_type_first_profile_binding_invalid")
+    if isinstance(model_output, str):
+        if (
+            not model_output
+            or len(model_output.encode("utf-8")) > _MAX_TYPE_FIRST_RESPONSE_BYTES
+        ):
+            _fail("financial_semantic_v6_type_first_response_size_invalid")
+        try:
+            parsed = json.loads(
+                model_output,
+                object_pairs_hook=_unique_type_first_object,
+            )
+        except json.JSONDecodeError as exc:
+            raise Gate2FinancialSemanticV6ChoiceError(
+                "financial_semantic_v6_type_first_response_json_invalid"
+            ) from exc
+    else:
+        parsed = copy.deepcopy(model_output)
+    if not isinstance(parsed, dict) or set(parsed) != {
+        "schema_version",
+        "request_key",
+        "request_hash",
+        "mapping_hash",
+        "semantic_pack_integrity_sha256",
+        "unit_decisions",
+    }:
+        _fail("financial_semantic_v6_type_first_response_schema_invalid")
+    if parsed["schema_version"] != TYPE_FIRST_RESPONSE_SCHEMA_VERSION:
+        _fail("financial_semantic_v6_type_first_response_schema_invalid")
+    if parsed["request_key"] != response_profile.request_key:
+        _fail("financial_semantic_v6_type_first_request_key_mismatch")
+    if parsed["request_hash"] != response_profile.request_hash:
+        _fail("financial_semantic_v6_type_first_request_hash_mismatch")
+    if parsed["mapping_hash"] != response_profile.mapping_hash:
+        _fail("financial_semantic_v6_type_first_mapping_hash_mismatch")
+    if (
+        parsed["semantic_pack_integrity_sha256"]
+        != response_profile.semantic_pack_integrity_sha256
+    ):
+        _fail("financial_semantic_v6_type_first_pack_hash_mismatch")
+    decisions = parsed["unit_decisions"]
+    if not isinstance(decisions, list) or len(decisions) != len(
+        response_profile.source_unit_keys
+    ):
+        _fail("financial_semantic_v6_type_first_unit_coverage_invalid")
+    restored: list[dict[str, Any]] = []
+    for expected_unit_key, decision in zip(
+        response_profile.source_unit_keys,
+        decisions,
+        strict=True,
+    ):
+        if (
+            not isinstance(decision, dict)
+            or set(decision) != {"source_unit_key", "plausible_type_keys"}
+            or decision.get("source_unit_key") != expected_unit_key
+            or not isinstance(decision.get("plausible_type_keys"), list)
+        ):
+            _fail("financial_semantic_v6_type_first_unit_decision_invalid")
+        keys = decision["plausible_type_keys"]
+        if (
+            any(not isinstance(key, str) for key in keys)
+            or len(keys) != len(set(keys))
+        ):
+            _fail("financial_semantic_v6_type_first_plausible_keys_invalid")
+        unknown = set(keys) - set(response_profile.local_type_keys)
+        if unknown:
+            _fail("financial_semantic_v6_type_first_local_key_unknown")
+        restored.append(
+            {
+                "source_unit_key": expected_unit_key,
+                "plausible_type_keys": tuple(keys),
+                "plausible_type_ids": tuple(
+                    type_restoration[key] for key in keys
+                ),
+            }
+        )
+    return tuple(restored)
+
+
+def _type_first_response_schema(
+    *,
+    request_key: str,
+    request_hash: str,
+    mapping_hash: str,
+    semantic_pack_integrity_sha256: str,
+    source_unit_keys: tuple[str, ...],
+    local_type_keys: tuple[str, ...],
+) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "schema_version": {
+                "type": "string",
+                "const": TYPE_FIRST_RESPONSE_SCHEMA_VERSION,
+            },
+            "request_key": {"type": "string", "const": request_key},
+            "request_hash": {"type": "string", "const": request_hash},
+            "mapping_hash": {"type": "string", "const": mapping_hash},
+            "semantic_pack_integrity_sha256": {
+                "type": "string",
+                "const": semantic_pack_integrity_sha256,
+            },
+            "unit_decisions": {
+                "type": "array",
+                "minItems": len(source_unit_keys),
+                "maxItems": len(source_unit_keys),
+                "prefixItems": [
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "source_unit_key": {
+                                "type": "string",
+                                "const": source_unit_key,
+                            },
+                            "plausible_type_keys": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": list(local_type_keys),
+                                },
+                                "uniqueItems": True,
+                            },
+                        },
+                        "required": [
+                            "source_unit_key",
+                            "plausible_type_keys",
+                        ],
+                    }
+                    for source_unit_key in source_unit_keys
+                ],
+                "items": False,
+            },
+        },
+        "required": [
+            "schema_version",
+            "request_key",
+            "request_hash",
+            "mapping_hash",
+            "semantic_pack_integrity_sha256",
+            "unit_decisions",
+        ],
     }
 
 
@@ -1127,6 +1418,23 @@ def _unique_context_v2_1_choice_object(
             )
         result[key] = value
     return result
+
+
+def _unique_type_first_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            _fail("financial_semantic_v6_type_first_response_duplicate_key")
+        result[key] = value
+    return result
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _validate_choice_schema(

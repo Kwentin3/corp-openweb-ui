@@ -229,4 +229,25 @@ def test_current_route_and_live_status_are_consistent() -> None:
     assert owners["release_live_parity_verifier"]["runtime_status"] == (
         "VERIFIED_LIVE"
     )
-    assert owner_context["program_owner_decisions"]["kt2_authorized"] is False
+    assert owner_context["program_owner_decisions"]["kt2_authorized"] is True
+    subordinate = owners["current_source_fact_orchestration"][
+        "inactive_subordinate_capabilities"
+    ]
+    assert subordinate == [
+        {
+            "capability_id": "kt2_same_source_type_first_proof",
+            "module": (
+                "services/broker-reports-gate1-proof/broker_reports_gate1/"
+                "gate2_same_source_type_first_proof.py"
+            ),
+            "symbol": "Gate2SameSourceTypeFirstProof",
+            "runtime_status": "PROOF_ONLY",
+            "product_reachability": "FORBIDDEN",
+            "provider_reachability": "FORBIDDEN",
+            "canonical_owner_delta": 0,
+            "contract": (
+                "docs/stage2/contracts/"
+                "BROKER_REPORTS_GATE2_SAME_SOURCE_TYPE_FIRST_PROOF.v1.md"
+            ),
+        }
+    ]

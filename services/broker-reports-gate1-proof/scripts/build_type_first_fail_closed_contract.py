@@ -25,6 +25,18 @@ MACHINE_PATH = (
 OUTPUT_STEM = "BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16"
 REPORT_PATH = REPORT_ROOT / f"{OUTPUT_STEM}.report.md"
 RECEIPT_PATH = REPORT_ROOT / f"{OUTPUT_STEM}.receipt.safe.json"
+AUTHORIZED_SUCCESSOR_CONTRACT_PATH = (
+    CONTRACT_ROOT
+    / "BROKER_REPORTS_GATE2_SAME_SOURCE_TYPE_FIRST_PROOF.v1.json"
+)
+AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS = frozenset(
+    {
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_financial_semantic_v6_choice.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_financial_semantic_v6_evidence.py",
+    }
+)
 
 BASE_COMMIT = "7ef38c2bba12e6773f2ded8542c256d603ca5aff"
 GOAL_ID = "BROKER_REPORTS_GATE2_GOAL16_TYPE_FIRST_FAIL_CLOSED_CONTRACT"
@@ -2331,18 +2343,56 @@ def _validate_source_authorities() -> list[dict[str, str]]:
                 _repository_lf_bytes(path.read_bytes())
             )
             if actual != expected_hash:
-                raise ValueError(
-                    f"source_authority_hash_invalid:{identity}:{actual}"
+                _validate_authorized_successor(
+                    repository_path=repository_path,
+                    actual_hash=actual,
                 )
             result.append(
                 {
                     "identity": identity,
                     "repository_path": repository_path,
-                    "sha256": actual,
+                    # Preserve the immutable GOAL16 evidence pin. The exact
+                    # bytes of an authorized later successor are bound by its
+                    # own inactive contract instead.
+                    "sha256": expected_hash,
                     "category": category,
                 }
             )
     return result
+
+
+def _validate_authorized_successor(
+    *, repository_path: str, actual_hash: str
+) -> None:
+    if repository_path not in AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS:
+        raise ValueError(
+            "source_authority_hash_invalid:"
+            f"{repository_path}:{actual_hash}"
+        )
+    contract = json.loads(
+        AUTHORIZED_SUCCESSOR_CONTRACT_PATH.read_text(encoding="utf-8")
+    )
+    if (
+        contract.get("schema_version")
+        != "broker_reports_gate2_same_source_type_first_proof_contract_v1"
+        or contract.get("status")
+        != {
+            "active": False,
+            "transport_eligible": False,
+            "product_reachable": False,
+            "provider_reachable": False,
+            "live_impact": "none",
+        }
+        or contract.get("owner", {}).get("new_owner_total") != 0
+        or contract.get("authorized_successor_repository_hashes", {}).get(
+            repository_path
+        )
+        != actual_hash
+    ):
+        raise ValueError(
+            "source_authority_hash_invalid:"
+            f"{repository_path}:{actual_hash}"
+        )
 
 
 def write_or_check_outputs(
