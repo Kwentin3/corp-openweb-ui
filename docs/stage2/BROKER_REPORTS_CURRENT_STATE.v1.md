@@ -4,7 +4,7 @@ Status: canonical entry point for pre-KT2 work
 
 Effective date: 2026-07-31
 
-Consolidation base: `cf84128e54692d541c000ad26c6d35fbcc1afe2f`
+Canonical consolidation merge: `277bfa95704397706b32c85962107cf7301c32d3`
 
 This file routes an agent to the current authorities. It does not replace the
 versioned contracts, domain map, sole-owner matrix, or historical receipts.
