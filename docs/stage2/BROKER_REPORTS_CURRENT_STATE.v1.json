@@ -1,12 +1,14 @@
 {
   "schema_version": "broker_reports_current_state_v1",
   "effective_date": "2026-07-31",
-  "repository_authority_commit": "cf84128e54692d541c000ad26c6d35fbcc1afe2f",
-  "repository_authority_scope": "kt1_6_consolidation_base",
+  "repository_authority_commit": "277bfa95704397706b32c85962107cf7301c32d3",
+  "repository_authority_scope": "kt1_6_canonical_consolidation_merge",
   "operational_live_authority_commit": "db009421b68c8b09df728239d23c217e5482d3a1",
   "repository_debt": "CLOSED",
   "live_parity_debt": "CLOSED",
   "decision_gate_1": "CLOSED",
+  "pr_232": "CLOSED_WITHOUT_MERGE",
+  "final_evidence_main": "reported_in_terminal_response_due_to_merge_commit_self_reference",
   "kt2_status": "NOT_STARTED",
   "kt2_ready": true,
   "preferred_convergence": "A",
@@ -69,5 +71,5 @@
     "live_changes": 0
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "a670a99f3e04aa7326e6ed7844b37887f88ca620e8bd0cb054e1b24b4611cff2"
+  "integrity_sha256": "00f71c37116e3f63bf9ad455bb22931c9b5e3611062c614de862de9127cd9986"
 }
