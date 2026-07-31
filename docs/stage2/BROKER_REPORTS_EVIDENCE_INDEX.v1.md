@@ -16,6 +16,26 @@ Effective date: 2026-07-31
 | PR #232 disposition | `CANONICAL_CURRENT` | `architecture/BROKER_REPORTS_PR232_EXTRACTION_LEDGER.v1.md` |
 | Current status and debts | `CANONICAL_CURRENT` | Current State, Debt Register, and Skip Audit MD/JSON |
 | KT1.5 terminal closure | `CANONICAL_CURRENT` | 2026-07-31 final authority closure report, receipt, and brief |
+| KT2 inactive same-source Type-First proof | `CANONICAL_CURRENT` | 2026-07-31 KT2 report, safe receipt, and brief |
+
+## KT2
+
+```text
+KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED
+TYPE_FIRST_PRODUCT_REACHABILITY = FALSE
+PROVIDER_CALLS = 0
+LIVE_CHANGES = 0
+MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The KT2 evidence family binds one real Gate 2 package and three real source
+units to privacy-safe structural copies, a Pack-backed Type Card projection,
+sealed prebound options, four human-reviewable traces, exact replay, and a
+false-singleton comparator. Private values and raw refs remain ignored under
+`local/`; only hashes, structure, safe fixtures, and aggregate outcomes are in
+Git. The proof is current repository evidence, not product activation or model
+qualification evidence.
 
 ## GOAL 18
 
