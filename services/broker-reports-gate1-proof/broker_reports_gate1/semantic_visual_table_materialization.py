@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-# Architecture boundary (KT1)
-# Domain: Deterministic Logical Table Materialization.
-# Input contract: validated semantic transcription plus immutable crop lineage.
-# Output contract: semantic visual-table envelope and logical-table projection.
-# Owns: deterministic IDs, indexes, padding, hashes, and logical grid creation.
-# Does not own: visual inference, financial classification, or Gate 2 facts.
-# Allowed consumers: ArtifactStore, Gate2TablePackageFactory, AnswerContext.
-# Runtime status: ACTIVE_PRODUCT.
-# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
-# Contract tests: test_broker_reports_semantic_visual_table_materialization.py.
-
 import copy
 import hashlib
 import json

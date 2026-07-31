@@ -4,6 +4,18 @@ Status: normative ownership baseline
 
 Effective date: 2026-07-31
 
+## PROGRAM_OWNER_DECISIONS
+
+```text
+preferred_option = A
+reserve_option = B_IF_DISTINCT_DOMAIN_IS_PROVEN
+pr_232_disposition = CLOSE_AFTER_EXTRACTION
+owner_context_policy = SIDECAR_OWNER_METADATA
+live_parity_checkpoint_authorized = true
+historical_v3_schema_hash_fix_deferred = true
+kt2_authorized = false
+```
+
 ## Rules
 
 One responsibility has one maintained write authority. A historical,
@@ -89,3 +101,8 @@ added only as an evolution inside the existing source-fact product boundary.
 It cannot establish a second product runtime.
 
 No new owner is introduced by KT1.
+
+The machine-readable owner authority is
+`docs/stage2/architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.json`. Every matrix
+owner must map to that sidecar; the matrix does not authorize an owner that is
+absent from it.

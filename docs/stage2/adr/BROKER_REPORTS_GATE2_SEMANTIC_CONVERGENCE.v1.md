@@ -5,6 +5,24 @@
 - **Decision owner:** Broker Reports program
 - **Scope:** future Gate 2 semantic route only
 
+## PROGRAM_OWNER_DECISIONS
+
+```text
+preferred_option = A
+reserve_option = B_IF_DISTINCT_DOMAIN_IS_PROVEN
+pr_232_disposition = CLOSE_AFTER_EXTRACTION
+owner_context_policy = SIDECAR_OWNER_METADATA
+live_parity_checkpoint_authorized = true
+historical_v3_schema_hash_fix_deferred = true
+kt2_authorized = false
+```
+
+These decisions are accepted. They authorize this bounded KT1 remediation and
+the later PR #232 close-without-merge action after the extraction ledger and
+KT1 acceptance gates are green. They do not authorize KT2, product/runtime
+changes, provider calls, bundle generation/deployment, or the deferred
+historical v3 schema-hash repair.
+
 ## Context
 
 The repository has a released semantic visual-table route and an active broad
@@ -147,7 +165,9 @@ evidence on PR #232 and its branch. A future implementation requires a fresh
 branch from then-current `main`. This avoids importing the complete second
 semantic route while retaining its useful contract and test design.
 
-KT1 makes no state change to PR #232.
+Decision Gate 1 closure applies `CLOSE_AFTER_EXTRACTION` to PR #232 only after
+the ledger is committed, the references are preserved, and KT1 acceptance is
+green. The PR must be closed without merge and its branch retained.
 
 ## Consequences
 
@@ -157,5 +177,5 @@ KT1 makes no state change to PR #232.
 - GOAL 17 remains contract/proof evidence, not mainline runtime.
 - Live parity remains separately blocked by
   `LIVE_BUNDLE_PARITY_REPAIR_REQUIRED`.
-- KT2 may start only with explicit authorization and must begin with an
-  inactive same-source contract/proof slice, not route activation.
+- KT2 is not authorized. Any later authorization must begin with an inactive
+  same-source contract/proof slice, not route activation.

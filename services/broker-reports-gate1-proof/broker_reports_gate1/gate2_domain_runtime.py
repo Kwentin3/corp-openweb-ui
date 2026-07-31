@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-# Architecture boundary (KT1)
-# Domain: Source-Fact Extraction.
-# Input contract: ready, segmented, routed Gate 2 source/domain packages.
-# Output contract: terminal domain run, validated source facts, stitch artifacts.
-# Owns: current product orchestration through declared factories and store ports.
-# Does not own: crop transcription, provider adaptation, or financial materialization.
-# Allowed consumers: domain Pipe, ArtifactStore, AnswerContext, Gate 3 manifest.
-# Runtime status: ACTIVE_PRODUCT.
-# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
-# Contract tests: test_broker_reports_gate2_source_fact_runtime.py.
-
 import copy
 import inspect
 from collections import Counter, defaultdict

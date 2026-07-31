@@ -14,18 +14,21 @@ architecture documents, the agent must:
 3. Read `BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md`.
 4. Read `BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md`.
 5. Read the relevant ADR.
-6. Read the input contract.
-7. Read the output contract.
-8. Read the boundary comment in the owner module.
+6. Read the matching entry in
+   `BROKER_REPORTS_OWNER_CONTEXT.v1.json`.
+7. Read the input contract.
+8. Read the output contract.
 9. Read producer tests.
 10. Read consumer tests.
-11. Check the adjacent historical route.
+11. Check the historical routes named by the owner metadata.
 12. Verify current runtime status from imports, guards, and consumers.
 13. Check whether the change creates a new owner.
 14. Check whether product reachability changes.
 
 Repository truth is mandatory. Reports and prior agent memory may identify
 where to look, but cannot establish current reachability or ownership.
+Architecture boundary comments in Python are not required context. The
+versioned sidecar is the owner-context authority.
 
 ## Context header required before code
 
@@ -35,11 +38,12 @@ changes:
 ```text
 Domain being changed:
 Sole owner:
+Owner metadata entry:
 Input contract:
 Output contract:
-Allowed responsibility:
-Forbidden responsibility:
-Active consumers:
+Owns:
+Does not own:
+Allowed consumers:
 Historical routes nearby:
 Product behavior expected to change:
 Runtime behavior expected to change:
@@ -54,7 +58,7 @@ separate bootstrap report.
 The PR must state:
 
 - context documents actually read;
-- boundary comments checked;
+- owner metadata entry checked;
 - contracts changed or confirmed unchanged;
 - producer and consumer tests checked;
 - historical routes found;

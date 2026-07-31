@@ -2,7 +2,19 @@
 
 Date: 2026-07-31
 
-Decision state: ready for program-owner review
+Decision state: program-owner decisions accepted; KT1 remediation in progress
+
+## PROGRAM_OWNER_DECISIONS
+
+```text
+preferred_option = A
+reserve_option = B_IF_DISTINCT_DOMAIN_IS_PROVEN
+pr_232_disposition = CLOSE_AFTER_EXTRACTION
+owner_context_policy = SIDECAR_OWNER_METADATA
+live_parity_checkpoint_authorized = true
+historical_v3_schema_hash_fix_deferred = true
+kt2_authorized = false
+```
 
 ## Decision
 
@@ -70,7 +82,9 @@ Do not transfer its synthetic source projection as product input, separate
 runtime/Pipe/coordinator, new valve/admission, duplicate request or
 materialization authority, or implied provider qualification.
 
-PR #232 was not changed by KT1. A future KT2 implementation should start from
+PR #232 will be closed without merge only after the committed extraction
+ledger and green KT1 acceptance. Its branch and commit references remain
+preserved. Any separately authorized future implementation must start from
 then-current `main`, not from PR #232.
 
 ## Ownership baseline
@@ -92,16 +106,20 @@ The important sole owners remain:
 - Gate 3 input: `Gate3ContextManifestFactory`;
 - release verification: read-only stage2 delivery verifier.
 
-No new owner module was created.
+Owner context is now carried by the versioned
+`BROKER_REPORTS_OWNER_CONTEXT.v1.json` sidecar and its Markdown companion, not
+by architecture blocks in hash-pinned production Python. No new owner module
+was created.
 
 ## Evidence and constraints
 
-The new architecture suite has 15 passing invariants. The existing behavioral
-suite has 167 passing tests with one byte-parity test intentionally excluded.
-The diagnostic full selection found that authorized comment bytes trip exact
-generated-bundle equality and GOAL 16 source-authority hashes. KT1 did not
-regenerate bundles, change pinned hashes, weaken tests, or rewrite historical
-evidence. The Draft PR therefore carries a declared byte-parity gate.
+The earlier KT1 draft demonstrated that architecture-only comments changed
+hash-pinned production bytes and tripped generated-bundle and GOAL 16 source
+authority checks. The remediation removes those KT1 blocks, restores the
+production bytes, moves the context into sidecar metadata, and replaces
+comment-presence assertions with owner-contract invariants. Pinned hashes and
+historical contracts remain unchanged. Final pass counts are recorded in the
+Decision Gate 1 closure report and safe receipt.
 
 Separately, the last read-only GOAL 18 check found all three live Function
 bundle hashes different from `main` and a failed closed-world adapter check.
@@ -111,14 +129,13 @@ in KT1.
 All product/runtime/provider/OpenWebUI core/Pipe behavior/valve/admission/Pack
 and live-change counters are zero.
 
-## Owner approvals requested
+## Operational boundary
 
-1. Approve Option A and reserve-only Option B.
-2. Approve `CLOSE_AFTER_EXTRACTION` for PR #232.
-3. Choose a policy for comment-only source bytes versus exact generated bundle
-   and source-pin hashes.
-4. Authorize a separate live parity repair checkpoint.
-5. Authorize KT2 only as an inactive same-source proof slice; activation must
-   remain a later decision.
+- Decision Gate 1 closes only after local and GitHub acceptance are green and
+  PR #232 is closed without merge.
+- The authorized live parity checkpoint remains separate and is not executed
+  here.
+- The historical v3 schema-hash fix remains deferred.
+- KT2 remains unauthorized and unstarted.
 
 STOP AT DECISION GATE 1.

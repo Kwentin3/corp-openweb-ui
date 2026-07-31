@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-# Architecture boundary (KT1)
-# Domain: AnswerContext.
-# Input contract: completed terminal Gate 2 run and declared persisted artifacts.
-# Output contract: broker_reports_answer_context_v1 plus selection receipt.
-# Owns: one downstream presentation representation per evidence group.
-# Does not own: financial-model input, fact creation, raw source, or crop access.
-# Allowed consumers: final answer and report presentation.
-# Runtime status: ACTIVE_PRODUCT after completed Gate 2 only.
-# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
-# Contract tests: test_broker_reports_answer_context_selection.py.
-
 import copy
 import hashlib
 import json

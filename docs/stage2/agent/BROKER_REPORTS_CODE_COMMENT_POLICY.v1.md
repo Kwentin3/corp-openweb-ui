@@ -4,90 +4,59 @@ Status: normative comment policy
 
 Effective date: 2026-07-31
 
-## Allowed comments
-
-### Boundary comment
-
-Place one short boundary block near the beginning of a key owner module:
+## Authority priority
 
 ```text
-Domain:
-Input contract:
-Output contract:
-Owns:
-Does not own:
-Allowed consumers:
-Runtime status:
-Related ADR:
-Contract tests:
+architecture/domain context
+-> sidecar owner metadata
+
+versioned boundary rules
+-> contracts
+
+behavior verification
+-> tests
+
+local non-obvious code invariant
+-> source comment, only when required
 ```
 
-The block must name a stable contract, symbol, or test module. It must explain
-a real boundary that is not obvious from a function name. It must not change
-executable behavior.
+Owner/domain explanations belong in
+`BROKER_REPORTS_OWNER_CONTEXT.v1.json`. Versioned boundary rules belong in
+contracts and behavioral claims belong in executable tests. These authorities
+must not be duplicated into hash-pinned production Python merely for
+discoverability.
 
-### Invariant comment
+## Source comments allowed only when
 
-Place an invariant comment next to non-obvious logic only when it says:
+- the explanation is necessary beside the algorithm;
+- it explains a non-obvious local invariant;
+- it does not duplicate owner metadata;
+- it does not duplicate an ADR;
+- it contains no changing list of financial types;
+- it preserves source hashes and generated-bundle parity;
+- a test or stable contract marker protects it.
 
-- which error or authority bypass is prevented;
-- which contract fixes the rule;
-- which executable test protects it.
+An allowed local invariant comment should state the prevented authority bypass
+or failure and point to its governing contract/test when that is not obvious.
 
-### Historical containment comment
+## Source comments forbidden when
 
-Place one containment block near the beginning of a historical route:
+- their sole purpose is to describe a domain;
+- they enumerate owners or consumers;
+- they describe runtime status;
+- they repeat routes from Route Status;
+- they change hash-pinned source without changing behavior;
+- their content can be represented in owner metadata;
+- they narrate obvious code, temporary agent reasoning, or a GOAL number
+  without a stable authority.
 
-```text
-Why retained:
-Why product reachability is forbidden:
-Allowed consumers:
-ADR required to change status:
-```
-
-The block must agree with current imports and guards. A historical route can
-be retained for replay, migration, audit, or pinned compatibility; those uses
-do not authorize product execution.
-
-## Forbidden comments
-
-- restating a function or class name;
-- narrating obvious code;
-- embedding long architecture documentation in Python;
-- copying a contract field list;
-- claiming active status without checking imports, guards, and consumers;
-- text that must change whenever a financial type is added;
-- temporary agent reasoning;
-- a GOAL number without a stable ADR or contract reference;
-- a comment used in place of an executable architecture test.
-
-## Placement for KT1
-
-Boundary comments are required only in these maintained owners:
-
-- semantic visual transcription contract/validator boundary;
-- deterministic semantic logical-table materialization;
-- Gate 2 table package;
-- current source-fact product orchestration;
-- canonical financial validator/materializer;
-- financial evidence/replay;
-- AnswerContext selection;
-- read-only release/live parity verifier.
-
-A historical containment comment is required in
-`gate2_source_fact_selection.py`.
-
-GOAL 17 Type-First candidate comments are not added because its implementation
-is not on `main`. Generated bundles, fixtures, reports, and OpenWebUI core are
-not comment targets. KT1 must not comment the repository broadly.
+Historical containment is architecture context and therefore belongs in the
+sidecar unless a genuinely local algorithmic invariant independently meets
+every allowed-comment condition.
 
 ## Verification
 
-`test_broker_reports_kt1_architecture_stabilization.py` checks:
-
-- selected modules contain a complete marker block;
-- the historical selection module contains its containment block;
-- comments agree with import/guard reachability;
-- no KT1 owner module was added.
-
-Comments explain ownership; contract tests enforce it.
+`test_broker_reports_kt1_architecture_stabilization.py` verifies sidecar
+coverage and consistency, executable containment, sole authorities, and the
+absence of a new owner module. It deliberately does not require architecture
+boundary comments in production source.

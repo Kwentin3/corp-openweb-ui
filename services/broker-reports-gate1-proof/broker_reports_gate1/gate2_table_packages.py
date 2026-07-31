@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-# Architecture boundary (KT1)
-# Domain: Gate 2 Table Package.
-# Input contract: one accepted and validated Gate 1 table projection.
-# Output contract: broker_reports_gate2_table_package_v1.
-# Owns: bounded projection from a table representation into a Gate 2 package.
-# Does not own: source-fact acceptance, financial choice, or tax calculation.
-# Allowed consumers: readiness, segmentation, routing, source-fact runtimes.
-# Runtime status: ACTIVE_PRODUCT.
-# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
-# Contract tests: test_broker_reports_gate2_table_packages.py.
-
 import copy
 from dataclasses import dataclass
 from typing import Any

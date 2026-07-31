@@ -3,17 +3,6 @@
 
 from __future__ import annotations
 
-# Architecture boundary (KT1)
-# Domain: Release and Parity Verification.
-# Input contract: exact committed bundles plus authorized read-only live snapshots.
-# Output contract: repository/live parity verdict and safe verification evidence.
-# Owns: read-only comparison; it does not own deployment or acceptance policy.
-# Does not own: bundle mutation, Function updates, business semantics, or release.
-# Allowed consumers: release operators, CI, and architecture audit reports.
-# Runtime status: repository verifier active; live parity currently UNVERIFIED_LIVE.
-# Related ADR: BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md.
-# Contract tests: test_live_verify_broker_reports_stage2_delivery.py.
-
 import argparse
 import ast
 import hashlib

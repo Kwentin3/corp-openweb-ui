@@ -6,6 +6,18 @@ Effective date: 2026-07-31
 
 Repository baseline: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`
 
+## PROGRAM_OWNER_DECISIONS
+
+```text
+preferred_option = A
+reserve_option = B_IF_DISTINCT_DOMAIN_IS_PROVEN
+pr_232_disposition = CLOSE_AFTER_EXTRACTION
+owner_context_policy = SIDECAR_OWNER_METADATA
+live_parity_checkpoint_authorized = true
+historical_v3_schema_hash_fix_deferred = true
+kt2_authorized = false
+```
+
 ## Interpretation
 
 The allowed route statuses are `ACTIVE_PRODUCT`, `INACTIVE_CANDIDATE`,
@@ -230,4 +242,7 @@ Recommendation: `CLOSE_AFTER_EXTRACTION`.
   and reuse current validators/materializer/evidence owners; do not merge or
   retarget PR #232 into product.
 
-KT1 does not modify, close, retarget, or merge PR #232.
+Decision Gate 1 closure must close PR #232 without merge after the committed
+extraction ledger, accepted ADR, preserved references, and green KT1
+acceptance. The branch is retained. This disposition does not authorize code
+transfer or KT2.

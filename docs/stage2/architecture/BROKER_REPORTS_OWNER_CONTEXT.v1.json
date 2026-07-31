@@ -1,0 +1,724 @@
+{
+  "schema_version": "broker_reports_owner_context_v1",
+  "owner_context_policy": "SIDECAR_OWNER_METADATA",
+  "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+  "program_owner_decisions": {
+    "preferred_option": "A",
+    "reserve_option": "B_IF_DISTINCT_DOMAIN_IS_PROVEN",
+    "pr_232_disposition": "CLOSE_AFTER_EXTRACTION",
+    "live_parity_checkpoint_authorized": true,
+    "historical_v3_schema_hash_fix_deferred": true,
+    "kt2_authorized": false
+  },
+  "external_candidate_references": [
+    {
+      "external_candidate_reference": "PR_232",
+      "current_main_status": "NOT_PRESENT_AS_IMPLEMENTATION",
+      "approved_reuse_scope": "contract_and_test_ideas_only",
+      "forbidden_reuse_scope": [
+        "synthetic_source_projection_as_product_input",
+        "separate_product_runtime",
+        "separate_pipe",
+        "separate_coordinator",
+        "new_valves_or_admissions",
+        "duplicate_request_authority",
+        "duplicate_materializer",
+        "parallel_v6_product_orchestration"
+      ]
+    }
+  ],
+  "owners": [
+    {
+      "owner_id": "pdf_vlm_visual_execution",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_dual_vlm_runtime.py",
+      "symbols": [
+        "PdfDualVlmRuntimeFactory"
+      ],
+      "domain": "Semantic visual table transcription",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_PDF_SEMANTIC_VLM_TABLE_RUNTIME.v1.md",
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
+      ],
+      "owns": [
+        "one_bounded_crop_visual_execution",
+        "terminal_visual_provider_outcome",
+        "visual_execution_evidence"
+      ],
+      "does_not_own": [
+        "financial_classification",
+        "canonical_fact_promotion",
+        "whole_document_upload"
+      ],
+      "allowed_consumers": [
+        "SemanticVisualTableValidatorFactory",
+        "SemanticVisualTableMaterializationFactory"
+      ],
+      "forbidden_consumers": [
+        "financial_semantic_model",
+        "gate4_calculation"
+      ],
+      "historical_routes_nearby": [
+        "reviewed_visual_table",
+        "structural_pdf_recovery"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_dual_vlm_runtime.py"
+      ],
+      "change_requires": [
+        "visual_runtime_contract_update",
+        "bundle_parity",
+        "bounded_provider_evidence"
+      ]
+    },
+    {
+      "owner_id": "semantic_visual_validation",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/semantic_visual_table_validator.py",
+      "symbols": [
+        "SemanticVisualTableValidatorFactory"
+      ],
+      "domain": "Semantic visual table transcription",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
+      ],
+      "owns": [
+        "semantic_transcription_validation",
+        "description_and_rows_boundary"
+      ],
+      "does_not_own": [
+        "provider_transport",
+        "financial_classification",
+        "logical_grid_identity"
+      ],
+      "allowed_consumers": [
+        "PdfDualVlmRuntimeFactory",
+        "SemanticVisualTableMaterializationFactory"
+      ],
+      "forbidden_consumers": [
+        "financial_materializer"
+      ],
+      "historical_routes_nearby": [
+        "reviewed_visual_table"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_validator.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_contract_authority.py"
+      ],
+      "change_requires": [
+        "transcription_contract_update",
+        "producer_and_consumer_tests"
+      ]
+    },
+    {
+      "owner_id": "logical_table_materialization",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/semantic_visual_table_materialization.py",
+      "symbols": [
+        "SemanticVisualTableMaterializationFactory"
+      ],
+      "domain": "Deterministic logical table materialization",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_MATERIALIZATION.v1.md",
+        "docs/stage2/contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md"
+      ],
+      "owns": [
+        "deterministic_table_ids",
+        "logical_indexes",
+        "logical_grid_materialization"
+      ],
+      "does_not_own": [
+        "visual_inference",
+        "financial_classification",
+        "gate2_fact_acceptance"
+      ],
+      "allowed_consumers": [
+        "ArtifactStoreFactory",
+        "Gate2TablePackageFactory",
+        "AnswerContextSelectionFactory"
+      ],
+      "forbidden_consumers": [
+        "provider_adapter"
+      ],
+      "historical_routes_nearby": [
+        "reviewed_visual_table_materialization"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_materialization.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_downstream.py"
+      ],
+      "change_requires": [
+        "materialization_contract_update",
+        "bundle_parity",
+        "deterministic_replay"
+      ]
+    },
+    {
+      "owner_id": "gate2_table_package",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_table_packages.py",
+      "symbols": [
+        "Gate2TablePackageFactory"
+      ],
+      "domain": "Gate 2 table package",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.v0.md"
+      ],
+      "owns": [
+        "validated_table_to_gate2_package_projection"
+      ],
+      "does_not_own": [
+        "source_fact_acceptance",
+        "financial_choice",
+        "tax_calculation"
+      ],
+      "allowed_consumers": [
+        "Gate2InputReadinessFactory",
+        "Gate2SourceUnitSegmenterFactory",
+        "Gate2DomainSourceFactRuntimeFactory"
+      ],
+      "forbidden_consumers": [
+        "gate4_declaration"
+      ],
+      "historical_routes_nearby": [
+        "legacy_gate1_projection"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_downstream.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "gate2_package_contract_update",
+        "producer_consumer_parity"
+      ]
+    },
+    {
+      "owner_id": "current_source_fact_orchestration",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_domain_runtime.py",
+      "symbols": [
+        "Gate2DomainSourceFactRuntimeFactory"
+      ],
+      "domain": "Source-fact extraction",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.v0.md",
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_PROMPT.v0.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACTS.v0.md",
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_STITCHING.v0.md"
+      ],
+      "owns": [
+        "current_product_source_fact_orchestration",
+        "terminal_gate2_domain_run"
+      ],
+      "does_not_own": [
+        "visual_transcription",
+        "provider_adapter_policy",
+        "canonical_financial_materialization"
+      ],
+      "allowed_consumers": [
+        "broker_reports_gate2_domain_source_fact_pipe",
+        "ArtifactStoreFactory",
+        "AnswerContextSelectionFactory",
+        "Gate3ContextManifestFactory"
+      ],
+      "forbidden_consumers": [
+        "source_fact_selection_v3_fallback"
+      ],
+      "historical_routes_nearby": [
+        "source_fact_selection_v3"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_source_fact_runtime.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_pipe_bundle.py"
+      ],
+      "change_requires": [
+        "product_route_contract_update",
+        "factory_reachability_tests",
+        "explicit_product_decision"
+      ]
+    },
+    {
+      "owner_id": "historical_source_fact_selection",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_source_fact_selection.py",
+      "symbols": [
+        "Gate2SourceFactSelectionFactory"
+      ],
+      "domain": "Historical and compatibility routes",
+      "runtime_status": "HISTORICAL_READ_ONLY",
+      "product_reachability": "FORBIDDEN",
+      "provider_reachability": "FORBIDDEN",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_PROMPT.v0.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACTS.v0.md"
+      ],
+      "owns": [
+        "version_pinned_v3_validation",
+        "version_pinned_v3_materialization"
+      ],
+      "does_not_own": [
+        "current_product_classification",
+        "fallback",
+        "new_product_writes"
+      ],
+      "allowed_consumers": [
+        "replay",
+        "validation",
+        "historical_evidence"
+      ],
+      "forbidden_consumers": [
+        "product_pipe",
+        "product_runtime",
+        "provider_transport"
+      ],
+      "historical_routes_nearby": [
+        "source_fact_selection_v3"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_source_fact_runtime.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_kt1_architecture_stabilization.py"
+      ],
+      "change_requires": [
+        "new_adr",
+        "qualification",
+        "explicit_product_decision"
+      ],
+      "reactivation_requires": [
+        "new_adr",
+        "qualification",
+        "explicit_product_decision"
+      ]
+    },
+    {
+      "owner_id": "financial_type_authority",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_contract.py",
+      "symbols": [
+        "Gate2FinancialSemanticContractFactory"
+      ],
+      "domain": "Financial semantic decision",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md"
+      ],
+      "owns": [
+        "financial_type_meaning",
+        "role_meaning",
+        "ambiguity_policy_snapshot"
+      ],
+      "does_not_own": [
+        "source_parsing",
+        "provider_transport",
+        "record_persistence"
+      ],
+      "allowed_consumers": [
+        "Gate2FinancialSemanticV6PacketFactory",
+        "Gate2FinancialEvidenceValidatedDecisionFactory"
+      ],
+      "forbidden_consumers": [
+        "visual_vlm"
+      ],
+      "historical_routes_nearby": [
+        "historical_semantic_pack_snapshots"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_financial_semantic_pack.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "semantic_pack_contract_update",
+        "registry_migration",
+        "qualification"
+      ]
+    },
+    {
+      "owner_id": "semantic_choice_and_expansion",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py",
+      "related_modules": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_expansion.py"
+      ],
+      "symbols": [
+        "Gate2FinancialSemanticV6ChoiceContractFactory",
+        "Gate2FinancialSemanticV6DecisionExpansionFactory"
+      ],
+      "domain": "Financial semantic decision",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_PACKET_V6.md",
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_CHOICE_V6.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md"
+      ],
+      "owns": [
+        "bounded_semantic_choice_parsing",
+        "exact_choice_restoration",
+        "code_owned_decision_expansion"
+      ],
+      "does_not_own": [
+        "source_refs",
+        "crop_bytes",
+        "canonical_record_materialization"
+      ],
+      "allowed_consumers": [
+        "Gate2FinancialEvidenceValidatedDecisionFactory",
+        "Gate2FinancialSemanticV6DecisionEvidenceFactory"
+      ],
+      "forbidden_consumers": [
+        "openwebui_core",
+        "visual_vlm"
+      ],
+      "historical_routes_nearby": [
+        "local_choice_v1",
+        "context_v2_1_candidate"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_semantic_v6_choice.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "choice_contract_update",
+        "exact_restoration_tests",
+        "materialization_totality"
+      ]
+    },
+    {
+      "owner_id": "canonical_financial_validator",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py",
+      "symbols": [
+        "Gate2FinancialEvidenceValidatedDecisionFactory"
+      ],
+      "domain": "Canonical financial materialization",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_TOTAL_MATERIALIZATION_V6.md"
+      ],
+      "owns": [
+        "authoritative_source_value_validation",
+        "validated_financial_decision"
+      ],
+      "does_not_own": [
+        "model_choice",
+        "provider_transport",
+        "tax_calculation"
+      ],
+      "allowed_consumers": [
+        "Gate2FinancialEvidenceMaterializerFactory",
+        "Gate2FinancialSemanticV6DecisionEvidenceFactory"
+      ],
+      "forbidden_consumers": [
+        "alternate_financial_materializer"
+      ],
+      "historical_routes_nearby": [
+        "legacy_financial_evidence_validation"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_materialization.py"
+      ],
+      "change_requires": [
+        "generic_materialization_contract_update",
+        "source_authority_hash_proof"
+      ]
+    },
+    {
+      "owner_id": "canonical_financial_materializer",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_evidence_materialization.py",
+      "symbols": [
+        "Gate2FinancialEvidenceMaterializerFactory"
+      ],
+      "domain": "Canonical financial materialization",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_TOTAL_MATERIALIZATION_V6.md",
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md"
+      ],
+      "owns": [
+        "sole_canonical_financial_evidence_materialization"
+      ],
+      "does_not_own": [
+        "semantic_choice",
+        "source_parsing",
+        "artifact_store_implementation"
+      ],
+      "allowed_consumers": [
+        "financial_domain_persistence",
+        "Gate2FinancialSemanticV6DecisionEvidenceFactory"
+      ],
+      "forbidden_consumers": [
+        "duplicate_materializer"
+      ],
+      "historical_routes_nearby": [
+        "legacy_materialization_compatibility"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_evidence_materialization.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "generic_materialization_contract_update",
+        "source_authority_hash_proof",
+        "single_authority_test"
+      ]
+    },
+    {
+      "owner_id": "financial_evidence_replay",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py",
+      "symbols": [
+        "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+        "replay_financial_semantic_v6_decision"
+      ],
+      "domain": "Replay and comparators",
+      "runtime_status": "PROOF_ONLY",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_EVIDENCE_BUNDLE.v1.md",
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_SEMANTIC_V6_EXACT_EVIDENCE.md"
+      ],
+      "owns": [
+        "decision_evidence_issue",
+        "evidence_restore",
+        "exact_replay_and_comparison"
+      ],
+      "does_not_own": [
+        "provider_retry",
+        "semantic_repair",
+        "product_activation"
+      ],
+      "allowed_consumers": [
+        "audit",
+        "qualification_checks",
+        "contract_tests"
+      ],
+      "forbidden_consumers": [
+        "second_replay_framework"
+      ],
+      "historical_routes_nearby": [
+        "context_v2_1_proof",
+        "goal12_budget_smoke_evidence"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_financial_semantic_v6_evidence.py"
+      ],
+      "change_requires": [
+        "evidence_contract_update",
+        "exact_replay_test",
+        "source_authority_hash_proof"
+      ]
+    },
+    {
+      "owner_id": "artifact_store_and_resolver",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/artifact_store.py",
+      "related_modules": [
+        "services/broker-reports-gate1-proof/broker_reports_gate1/artifact_resolver.py"
+      ],
+      "symbols": [
+        "ArtifactStoreFactory",
+        "ArtifactResolver"
+      ],
+      "domain": "Artifact persistence",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_ARTIFACT_LIFECYCLE_CONTRACT.v0.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE1_PIPELINE_TO_ARTIFACTS_MAPPING.v0.md"
+      ],
+      "owns": [
+        "append_only_artifact_persistence",
+        "access_scoped_artifact_resolution"
+      ],
+      "does_not_own": [
+        "business_classification",
+        "provider_transport",
+        "mutable_overwrite_policy"
+      ],
+      "allowed_consumers": [
+        "declared_gate_services"
+      ],
+      "forbidden_consumers": [
+        "direct_filesystem_bypass",
+        "undeclared_store_reads"
+      ],
+      "historical_routes_nearby": [
+        "legacy_artifact_compatibility"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate1_artifact_store.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "artifact_lifecycle_contract_update",
+        "append_only_tests",
+        "access_control_tests"
+      ]
+    },
+    {
+      "owner_id": "answer_context_selection",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/answer_context_selection.py",
+      "symbols": [
+        "AnswerContextSelectionFactory"
+      ],
+      "domain": "AnswerContext",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_SOURCE_FACT_STITCHING.v0.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
+      ],
+      "owns": [
+        "post_gate2_answer_representation_selection",
+        "one_interpretation_per_evidence_group"
+      ],
+      "does_not_own": [
+        "financial_model_input",
+        "fact_creation",
+        "raw_source_or_crop_access"
+      ],
+      "allowed_consumers": [
+        "final_answer_presentation",
+        "report_presentation"
+      ],
+      "forbidden_consumers": [
+        "financial_semantic_choice",
+        "incomplete_gate2_run"
+      ],
+      "historical_routes_nearby": [
+        "duplicate_answer_representation"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_answer_context_selection.py"
+      ],
+      "change_requires": [
+        "completed_gate2_precondition",
+        "selection_receipt_test"
+      ]
+    },
+    {
+      "owner_id": "gate3_context_manifest",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_context_manifest.py",
+      "symbols": [
+        "Gate3ContextManifestFactory"
+      ],
+      "domain": "Gate 3 context manifest",
+      "runtime_status": "ACTIVE_PRODUCT",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
+      ],
+      "owns": [
+        "declared_gate2_exit_manifest",
+        "gate3_input_status"
+      ],
+      "does_not_own": [
+        "gate1_raw_source_reads",
+        "provider_payload_reads",
+        "gate4_tax_policy"
+      ],
+      "allowed_consumers": [
+        "declared_gate3_query_consumers"
+      ],
+      "forbidden_consumers": [
+        "undeclared_artifact_descendants"
+      ],
+      "historical_routes_nearby": [
+        "pre_manifest_gate3_reads"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate2_source_fact_runtime.py"
+      ],
+      "change_requires": [
+        "gate3_boundary_contract_update",
+        "manifest_integrity_tests"
+      ]
+    },
+    {
+      "owner_id": "release_live_parity_verifier",
+      "module": "services/broker-reports-gate1-proof/scripts/live_verify_broker_reports_stage2_delivery.py",
+      "symbols": [
+        "FunctionContract",
+        "main"
+      ],
+      "domain": "Release and parity verification",
+      "runtime_status": "UNVERIFIED_LIVE",
+      "input_contracts": [
+        "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+      ],
+      "output_contracts": [
+        "docs/stage2/architecture/BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md"
+      ],
+      "owns": [
+        "read_only_repository_live_comparison",
+        "bundle_and_prompt_parity_verdict"
+      ],
+      "does_not_own": [
+        "deployment",
+        "live_mutation",
+        "business_semantics"
+      ],
+      "allowed_consumers": [
+        "release_operator",
+        "ci",
+        "architecture_audit"
+      ],
+      "forbidden_consumers": [
+        "implicit_deployer"
+      ],
+      "historical_routes_nearby": [
+        "historical_release_receipts"
+      ],
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_contract_tests": [
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_atomic_stage_release.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
+      ],
+      "change_requires": [
+        "separate_live_parity_checkpoint",
+        "exact_committed_head",
+        "rollback_and_independent_readback"
+      ]
+    }
+  ]
+}

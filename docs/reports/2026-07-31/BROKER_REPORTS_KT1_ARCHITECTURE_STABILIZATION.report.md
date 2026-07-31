@@ -6,13 +6,25 @@ Branch: `refactor/broker-reports-kt1-architecture-stabilization`
 
 Base: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`
 
-Status: `DECISION_PACKAGE_COMPLETE_WITH_DECLARED_BYTE_PARITY_GATES`
+Status: `PROGRAM_OWNER_DECISIONS_ACCEPTED_REMEDIATION_IN_PROGRESS`
+
+## PROGRAM_OWNER_DECISIONS
+
+```text
+preferred_option = A
+reserve_option = B_IF_DISTINCT_DOMAIN_IS_PROVEN
+pr_232_disposition = CLOSE_AFTER_EXTRACTION
+owner_context_policy = SIDECAR_OWNER_METADATA
+live_parity_checkpoint_authorized = true
+historical_v3_schema_hash_fix_deferred = true
+kt2_authorized = false
+```
 
 ## 1. Executive result
 
 KT1 establishes one domain map, one sole-owner matrix, one route-status
 baseline, one accepted convergence direction, one pre-task protocol, one
-comment policy, targeted owner comments, and 15 executable architecture
+comment policy, versioned owner-context metadata, and executable architecture
 invariants.
 
 The preferred future direction is Option A: evolve the existing source-fact
@@ -22,8 +34,8 @@ validator/materializer, ArtifactStore, and evidence/replay authorities.
 Option B is reserve-only if a distinct business domain is proven. Options C
 and D are rejected.
 
-PR #232 recommendation is `CLOSE_AFTER_EXTRACTION`. KT1 did not modify, close,
-retarget, or merge that PR.
+PR #232 disposition is `CLOSE_AFTER_EXTRACTION`. It is closed without merge
+only after the extraction ledger is committed and KT1 acceptance is green.
 
 No product behavior, runtime orchestration, provider call, OpenWebUI core,
 Pipe/Action behavior, valve, production admission, Semantic Pack, financial
@@ -207,67 +219,30 @@ materialization authority, or implied qualification.
 GOAL 17 contracts/reports/receipts remain historical evidence on its branch. A
 future KT2 branch must start from then-current `main`.
 
-## 9. Comments added
+## 9. Owner-context remediation
 
-Nine boundary blocks were added to:
+The draft KT1 boundary blocks were removed from nine production Python files,
+including the historical containment block in
+`gate2_source_fact_selection.py`. Those files were restored byte-for-byte to
+their `origin/main` authority, without executable changes, bundle rebuilds, or
+hash updates.
 
-- semantic visual transcription contract;
-- semantic logical-table materializer;
-- Gate 2 table package;
-- current domain source-fact orchestration;
-- historical source selection validator;
-- canonical financial validator/materializer;
-- V6 evidence/replay;
-- AnswerContext selection;
-- read-only release/live verifier.
-
-One historical containment block was added to
-`gate2_source_fact_selection.py`. It states why v3 is retained, why product
-reachability is forbidden, allowed consumers, and the ADR required to change
-status.
-
-All Python production-file changes are comments only.
+Architecture context now lives in the unified versioned
+`BROKER_REPORTS_OWNER_CONTEXT.v1.json` sidecar and its Markdown companion.
+There are 15 owner entries, including explicit historical v3 containment,
+PR #232 external-candidate scope, current owner contracts, consumers, and
+change gates.
 
 ## 10. Architecture and test evidence
 
-New invariant suite:
+The KT1 architecture suite now checks the 17 required sidecar, reachability,
+sole-authority, AnswerContext, live-debt, and no-new-owner invariants. Generated
+bundle parity and GOAL 16 source-authority checks are run without deselection.
+Final commands, pass totals, skip explanation, and GitHub CI run are recorded
+in the Decision Gate 1 closure report and safe receipt.
 
-```text
-15 passed in 2.38s
-```
-
-It checks the 15 required facts: sole-owner uniqueness; v3 and GOAL 17
-unreachability; visual/financial byte separation; one canonical materializer;
-post-Gate-2 AnswerContext; route/import/guard consistency; historical wording;
-PR #232 exclusion from main; OpenWebUI core scope; symbol existence; boundary
-and containment comments; no new owner module; and CI registration.
-
-Existing behavior/consumer suite, excluding the one byte-exact generated-bundle
-comparison:
-
-```text
-167 passed, 1 deselected
-```
-
-The broader diagnostic run produced:
-
-```text
-183 passed, 1 skipped, 1 failed, 14 setup errors
-```
-
-The single failure is exact maintained-source/generated-bundle byte equality.
-The 14 setup errors are one GOAL 16 source-authority SHA guard repeated across
-its generated-contract tests. Both are caused by authorized comment bytes, not
-behavior changes:
-
-- generated Function bundles still contain the pre-comment module sources;
-- GOAL 16 pins exact SHA-256 for the canonical materialization and evidence
-  owner files.
-
-KT1 did not regenerate Function bundles, update pinned historical/contract
-hashes, weaken exact tests, or rewrite evidence. Therefore the Draft PR must
-not be treated as CI-green until the program chooses how comment-only authority
-metadata is carried without violating exact bundle and source-pin policy.
+KT1 does not regenerate Function bundles, update pinned historical/contract
+hashes, weaken exact tests, or rewrite historical evidence.
 
 ## 11. Live parity debt
 
@@ -307,22 +282,19 @@ rollback, and independent readback.
 | live changes or deployments | 0 |
 | GOAL 17 activation or code transfer | 0 |
 
-## 13. Program-owner decisions still required
+## 13. Accepted owner decisions and remaining boundaries
 
-1. Approve Option A and reserve-only Option B as the Gate 2 direction.
-2. Approve `CLOSE_AFTER_EXTRACTION` for PR #232 after useful ideas/tests are
-   catalogued.
-3. Decide whether a dedicated comment-metadata mechanism or a separately
-   authorized deterministic bundle/hash refresh should resolve the
-   comment-only byte-parity gate.
-4. Authorize a separate live parity repair checkpoint and identify the intended
-   deployed commit.
-5. Decide whether the historical v3 schema-hash defect receives a separate
-   maintenance task.
+- Option A is accepted; Option B is reserve-only if a distinct domain is
+  proven.
+- PR #232 is closed after extraction and green KT1 acceptance, without merge.
+- Owner context uses `SIDECAR_OWNER_METADATA`.
+- A separate live parity checkpoint is authorized but not executed in KT1.
+- The historical v3 schema-hash repair is deferred.
+- KT2 is not authorized.
 
 ## 14. Proposed KT2 structure (not implemented)
 
-1. Reconfirm live/repository authority and resolve comment-byte parity policy.
+1. Reconfirm live/repository authority.
 2. Freeze one same-source input contract from the existing Gate 2 package.
 3. Add one inactive Pack-backed Type-First projection through existing owners.
 4. Reuse plural-response, exact-restoration, and reason-table tests extracted

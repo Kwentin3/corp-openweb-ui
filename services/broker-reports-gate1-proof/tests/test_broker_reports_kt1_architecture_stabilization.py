@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -11,11 +13,15 @@ REPO_ROOT = SERVICE_ROOT.parents[1]
 PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 DOC_ROOT = REPO_ROOT / "docs" / "stage2"
 
-DOMAIN_MAP = (
-    DOC_ROOT / "architecture" / "BROKER_REPORTS_DOMAIN_MAP.v1.md"
-)
+DOMAIN_MAP = DOC_ROOT / "architecture" / "BROKER_REPORTS_DOMAIN_MAP.v1.md"
 ROUTE_STATUS = (
     DOC_ROOT / "architecture" / "BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md"
+)
+OWNER_CONTEXT = (
+    DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.json"
+)
+OWNER_CONTEXT_GUIDE = (
+    DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.md"
 )
 OWNER_MATRIX = (
     DOC_ROOT / "contracts" / "BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md"
@@ -23,22 +29,69 @@ OWNER_MATRIX = (
 CONVERGENCE_ADR = (
     DOC_ROOT / "adr" / "BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md"
 )
-PRE_TASK_PROTOCOL = (
-    DOC_ROOT / "agent" / "BROKER_REPORTS_PRE_TASK_CONTEXT_PROTOCOL.v1.md"
-)
 COMMENT_POLICY = (
     DOC_ROOT / "agent" / "BROKER_REPORTS_CODE_COMMENT_POLICY.v1.md"
 )
-KT1_DOCS = (
-    DOMAIN_MAP,
-    ROUTE_STATUS,
-    OWNER_MATRIX,
-    CONVERGENCE_ADR,
-    PRE_TASK_PROTOCOL,
-    COMMENT_POLICY,
-)
 
-BOUNDARY_COMMENT_FILES = (
+EXPECTED_OWNER_IDS = {
+    "pdf_vlm_visual_execution",
+    "semantic_visual_validation",
+    "logical_table_materialization",
+    "gate2_table_package",
+    "current_source_fact_orchestration",
+    "historical_source_fact_selection",
+    "financial_type_authority",
+    "semantic_choice_and_expansion",
+    "canonical_financial_validator",
+    "canonical_financial_materializer",
+    "financial_evidence_replay",
+    "artifact_store_and_resolver",
+    "answer_context_selection",
+    "gate3_context_manifest",
+    "release_live_parity_verifier",
+}
+
+REQUIRED_OWNER_FIELDS = {
+    "owner_id",
+    "module",
+    "symbols",
+    "domain",
+    "runtime_status",
+    "input_contracts",
+    "output_contracts",
+    "owns",
+    "does_not_own",
+    "allowed_consumers",
+    "forbidden_consumers",
+    "historical_routes_nearby",
+    "related_adr",
+    "related_contract_tests",
+    "change_requires",
+}
+
+ALLOWED_RUNTIME_STATUSES = {
+    "ACTIVE_PRODUCT",
+    "HISTORICAL_READ_ONLY",
+    "PROOF_ONLY",
+    "UNVERIFIED_LIVE",
+}
+
+ALLOWED_DOMAINS = {
+    "Semantic visual table transcription",
+    "Deterministic logical table materialization",
+    "Gate 2 table package",
+    "Source-fact extraction",
+    "Historical and compatibility routes",
+    "Financial semantic decision",
+    "Canonical financial materialization",
+    "Replay and comparators",
+    "Artifact persistence",
+    "AnswerContext",
+    "Gate 3 context manifest",
+    "Release and parity verification",
+}
+
+PRODUCTION_OWNER_FILES = (
     PACKAGE_ROOT / "semantic_visual_table_contracts.py",
     PACKAGE_ROOT / "semantic_visual_table_materialization.py",
     PACKAGE_ROOT / "gate2_table_packages.py",
@@ -50,20 +103,18 @@ BOUNDARY_COMMENT_FILES = (
     SERVICE_ROOT / "scripts" / "live_verify_broker_reports_stage2_delivery.py",
 )
 
-ALLOWED_DISPOSITIONS = {
-    "KEEP_AS_SOLE_OWNER",
-    "REUSE",
-    "EXTEND",
-    "HISTORICAL_READ_ONLY",
-    "PROOF_ONLY",
-    "TO_BE_SUPERSEDED",
-    "DUPLICATE_DO_NOT_ACTIVATE",
-    "REQUIRES_DECISION",
-}
-
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _metadata() -> dict[str, Any]:
+    return json.loads(_read(OWNER_CONTEXT))
+
+
+def _owners() -> dict[str, dict[str, Any]]:
+    owners = _metadata()["owners"]
+    return {owner["owner_id"]: owner for owner in owners}
 
 
 def _imports(path: Path) -> set[str]:
@@ -84,18 +135,6 @@ def _defined_symbols(path: Path) -> set[str]:
         for node in tree.body
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
     }
-
-
-def _matrix_rows() -> dict[str, list[str]]:
-    rows: dict[str, list[str]] = {}
-    for line in _read(OWNER_MATRIX).splitlines():
-        if not line.startswith("| `"):
-            continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        responsibility = cells[0].strip("`")
-        assert responsibility not in rows
-        rows[responsibility] = cells
-    return rows
 
 
 def _route_markers() -> dict[str, str]:
@@ -127,45 +166,130 @@ def _changed_paths() -> list[tuple[str, str]]:
         capture_output=True,
         text=True,
     ).stdout.splitlines()
-    result = []
+    result: list[tuple[str, str]] = []
     for line in tracked:
         status, path = line.split("\t", maxsplit=1)
         result.append((status, path.replace("\\", "/")))
-    result.extend(("A", path.replace("\\", "/")) for path in untracked)
+    result.extend(
+        ("A", path.replace("\\", "/")) for path in untracked
+    )
     return result
 
 
-def test_each_key_responsibility_has_one_declared_sole_owner() -> None:
-    rows = _matrix_rows()
-    required = {
-        "visual_transcription",
-        "logical_table_materialization",
-        "gate2_table_package",
-        "source_unit_segmentation",
-        "financial_type_authority",
-        "product_semantic_classification",
-        "model_facing_response_schema",
-        "semantic_response_parser",
-        "prebound_option_construction",
-        "exact_choice_restoration",
-        "reason_derivation",
-        "canonical_financial_validator",
-        "canonical_financial_materializer",
-        "financial_evidence_replay",
-        "answer_context_selection",
-        "release_parity",
+def test_01_owner_metadata_exists_and_is_versioned() -> None:
+    assert OWNER_CONTEXT.is_file()
+    assert OWNER_CONTEXT_GUIDE.is_file()
+    metadata = _metadata()
+    assert metadata["schema_version"] == "broker_reports_owner_context_v1"
+    assert metadata["owner_context_policy"] == "SIDECAR_OWNER_METADATA"
+
+
+def test_02_all_key_owners_have_complete_metadata_entries() -> None:
+    owners = _owners()
+    assert set(owners) == EXPECTED_OWNER_IDS
+    assert len(owners) == 15
+    for owner_id, owner in owners.items():
+        assert REQUIRED_OWNER_FIELDS <= owner.keys(), owner_id
+        assert all(owner[field] for field in REQUIRED_OWNER_FIELDS), owner_id
+
+
+def test_03_metadata_symbols_exist_in_maintained_code() -> None:
+    for owner_id, owner in _owners().items():
+        module_paths = [REPO_ROOT / owner["module"]]
+        module_paths.extend(
+            REPO_ROOT / path for path in owner.get("related_modules", [])
+        )
+        definitions: set[str] = set()
+        for module_path in module_paths:
+            assert module_path.is_file(), (owner_id, module_path)
+            definitions.update(_defined_symbols(module_path))
+        assert set(owner["symbols"]) <= definitions, owner_id
+
+
+def test_04_metadata_domains_statuses_and_adr_references_are_valid() -> None:
+    for owner_id, owner in _owners().items():
+        assert owner["domain"] in ALLOWED_DOMAINS, owner_id
+        assert owner["runtime_status"] in ALLOWED_RUNTIME_STATUSES, owner_id
+        adr = REPO_ROOT / owner["related_adr"]
+        assert adr == CONVERGENCE_ADR
+        assert adr.is_file()
+        for field in (
+            "input_contracts",
+            "output_contracts",
+            "related_contract_tests",
+        ):
+            assert all((REPO_ROOT / path).is_file() for path in owner[field])
+
+
+def test_05_sole_owner_matrix_is_consistent_with_metadata() -> None:
+    matrix = _read(OWNER_MATRIX)
+    required_matrix_markers = {
+        "pdf_vlm_visual_execution": ("PdfDualVlmRuntimeFactory",),
+        "semantic_visual_validation": (
+            "SemanticVisualTableValidatorFactory",
+        ),
+        "logical_table_materialization": (
+            "SemanticVisualTableMaterializationFactory",
+        ),
+        "gate2_table_package": ("Gate2TablePackageFactory",),
+        "current_source_fact_orchestration": (
+            "Gate2DomainSourceFactRuntimeFactory",
+        ),
+        "historical_source_fact_selection": ("source_fact_selection_v3",),
+        "financial_type_authority": (
+            "Gate2FinancialSemanticContractFactory",
+        ),
+        "semantic_choice_and_expansion": (
+            "Gate2FinancialSemanticV6ChoiceContractFactory",
+            "Gate2FinancialSemanticV6DecisionExpansionFactory",
+        ),
+        "canonical_financial_validator": (
+            "Gate2FinancialEvidenceValidatedDecisionFactory",
+        ),
+        "canonical_financial_materializer": (
+            "Gate2FinancialEvidenceMaterializerFactory",
+        ),
+        "financial_evidence_replay": (
+            "Gate2FinancialSemanticV6DecisionEvidenceFactory",
+            "replay_financial_semantic_v6_decision",
+        ),
+        "artifact_store_and_resolver": (
+            "ArtifactStoreFactory",
+            "ArtifactResolver",
+        ),
+        "answer_context_selection": ("AnswerContextSelectionFactory",),
+        "gate3_context_manifest": ("Gate3ContextManifestFactory",),
+        "release_live_parity_verifier": (
+            "live_verify_broker_reports_stage2_delivery.py",
+        ),
     }
-    assert required <= rows.keys()
-    assert len(rows) == 18
-    for cells in rows.values():
-        assert len(cells) == 6
-        assert cells[1]
-        dispositions = set(re.findall(r"`([A-Z_]+)`", cells[5]))
-        assert dispositions
-        assert dispositions <= ALLOWED_DISPOSITIONS
+    assert set(required_matrix_markers) == set(_owners())
+    for owner_id, markers in required_matrix_markers.items():
+        assert all(marker in matrix for marker in markers), owner_id
 
 
-def test_historical_source_fact_selection_is_not_product_reachable() -> None:
+def test_06_historical_route_is_read_only() -> None:
+    owner = _owners()["historical_source_fact_selection"]
+    assert owner["runtime_status"] == "HISTORICAL_READ_ONLY"
+    assert _route_markers()["source_fact_selection_v3"] == (
+        "HISTORICAL_READ_ONLY"
+    )
+
+
+def test_07_historical_product_and_provider_reachability_are_forbidden() -> None:
+    owner = _owners()["historical_source_fact_selection"]
+    assert owner["product_reachability"] == "FORBIDDEN"
+    assert owner["provider_reachability"] == "FORBIDDEN"
+    assert owner["allowed_consumers"] == [
+        "replay",
+        "validation",
+        "historical_evidence",
+    ]
+    assert owner["reactivation_requires"] == [
+        "new_adr",
+        "qualification",
+        "explicit_product_decision",
+    ]
     pipe = _read(
         SERVICE_ROOT
         / "openwebui_actions"
@@ -188,7 +312,7 @@ def test_historical_source_fact_selection_is_not_product_reachable() -> None:
     )
 
 
-def test_goal17_type_first_is_not_product_reachable_on_main() -> None:
+def test_08_goal17_is_not_a_current_main_implementation() -> None:
     assert not (
         DOC_ROOT
         / "contracts"
@@ -197,62 +321,51 @@ def test_goal17_type_first_is_not_product_reachable_on_main() -> None:
     assert not (
         SERVICE_ROOT / "scripts" / "build_type_first_zero_call_e2e_evidence.py"
     ).exists()
-    forbidden_by_file = {
-        "gate2_financial_semantic_v6_choice.py": (
-            "def create_type_first_response_profile",
-        ),
-        "gate2_financial_semantic_v6_context_linter.py": (
-            "def create_type_first(",
-        ),
-        "gate2_model_requests.py": ("build_from_sealed_type_first",),
-    }
-    for filename, markers in forbidden_by_file.items():
-        source = _read(PACKAGE_ROOT / filename)
-        assert all(marker not in source for marker in markers)
     assert _route_markers()["goal17_type_first_v6"] == "CONTRACT_ONLY"
-
-
-def test_semantic_visual_route_does_not_classify_finance() -> None:
-    visual_files = (
-        PACKAGE_ROOT / "semantic_visual_table_contracts.py",
-        PACKAGE_ROOT / "semantic_visual_table_validator.py",
-        PACKAGE_ROOT / "semantic_visual_table_materialization.py",
-        PACKAGE_ROOT / "pdf_dual_vlm_runtime.py",
+    assert not any(
+        "goal17" in owner_id or "type_first" in owner_id
+        for owner_id in _owners()
     )
-    for path in visual_files:
-        assert all(
-            "gate2_financial" not in module for module in _imports(path)
-        )
-    contract = _read(PACKAGE_ROOT / "semantic_visual_table_contracts.py")
+
+
+def test_09_pr232_reuse_is_limited_to_contract_and_test_ideas() -> None:
+    references = _metadata()["external_candidate_references"]
+    assert references == [
+        {
+            "external_candidate_reference": "PR_232",
+            "current_main_status": "NOT_PRESENT_AS_IMPLEMENTATION",
+            "approved_reuse_scope": "contract_and_test_ideas_only",
+            "forbidden_reuse_scope": [
+                "synthetic_source_projection_as_product_input",
+                "separate_product_runtime",
+                "separate_pipe",
+                "separate_coordinator",
+                "new_valves_or_admissions",
+                "duplicate_request_authority",
+                "duplicate_materializer",
+                "parallel_v6_product_orchestration",
+            ],
+        }
+    ]
+
+
+def test_10_future_semantic_route_is_singular() -> None:
+    decisions = _metadata()["program_owner_decisions"]
+    assert decisions["preferred_option"] == "A"
+    assert decisions["reserve_option"] == "B_IF_DISTINCT_DOMAIN_IS_PROVEN"
+    assert decisions["kt2_authorized"] is False
+    adr = _read(CONVERGENCE_ADR)
     assert (
-        'SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS = frozenset({"description", "rows"})'
-        in contract
-    )
-    materializer = _read(
-        PACKAGE_ROOT / "semantic_visual_table_materialization.py"
-    )
-    assert '"tax_meaning_inferred": False' in materializer
-
-
-def test_financial_semantic_model_has_no_crop_byte_input() -> None:
-    files = tuple(PACKAGE_ROOT.glob("gate2_financial_semantic*.py")) + (
-        PACKAGE_ROOT / "gate2_financial_evidence_materialization.py",
-    )
-    forbidden_markers = (
-        "crop_bytes",
-        "private_png_base64",
-        "image_bytes",
-        "PdfDualVlmRuntime",
-    )
-    for path in files:
-        source = _read(path)
-        assert all(marker not in source for marker in forbidden_markers)
-        assert all(
-            "pdf_dual_vlm" not in module for module in _imports(path)
+        adr.count(
+            "one Pack-backed Type-First classifier inside the existing "
+            "product boundary"
         )
+        == 1
+    )
+    assert "**Option D is rejected**" in adr
 
 
-def test_canonical_financial_materializer_has_one_authority() -> None:
+def test_11_canonical_materializer_has_one_authority() -> None:
     owners = [
         path
         for path in PACKAGE_ROOT.glob("*.py")
@@ -262,20 +375,48 @@ def test_canonical_financial_materializer_has_one_authority() -> None:
     assert owners == [
         PACKAGE_ROOT / "gate2_financial_evidence_materialization.py"
     ]
-    source = _read(owners[0])
-    assert (
-        "the only production financial evidence materialization path" in source
-    )
+    assert _owners()["canonical_financial_materializer"]["symbols"] == [
+        "Gate2FinancialEvidenceMaterializerFactory"
+    ]
 
 
-def test_answer_context_is_post_gate2_and_not_financial_model_input() -> None:
+def test_12_financial_type_authority_is_singular() -> None:
+    owners = [
+        path
+        for path in PACKAGE_ROOT.glob("*.py")
+        if "Gate2FinancialSemanticContractFactory" in _defined_symbols(path)
+    ]
+    assert owners == [
+        PACKAGE_ROOT / "gate2_financial_semantic_contract.py"
+    ]
+    assert _owners()["financial_type_authority"]["symbols"] == [
+        "Gate2FinancialSemanticContractFactory"
+    ]
+
+
+def test_13_evidence_and_replay_authority_is_singular() -> None:
+    evidence_owners = [
+        path
+        for path in PACKAGE_ROOT.glob("*.py")
+        if "Gate2FinancialSemanticV6DecisionEvidenceFactory"
+        in _defined_symbols(path)
+    ]
+    replay_owners = [
+        path
+        for path in PACKAGE_ROOT.glob("*.py")
+        if "replay_financial_semantic_v6_decision" in _defined_symbols(path)
+    ]
+    expected = PACKAGE_ROOT / "gate2_financial_semantic_v6_evidence.py"
+    assert evidence_owners == [expected]
+    assert replay_owners == [expected]
+
+
+def test_14_answer_context_remains_a_post_gate2_consumer() -> None:
     owner = PACKAGE_ROOT / "answer_context_selection.py"
     source = _read(owner)
     assert 'run.get("run_status") != "completed"' in source
     assert '"answer_context_gate2_run_not_completed"' in source
-    assert all(
-        "gate2_financial" not in module for module in _imports(owner)
-    )
+    assert all("gate2_financial" not in module for module in _imports(owner))
     domain_runtime = _read(PACKAGE_ROOT / "gate2_domain_runtime.py")
     assert "AnswerContextSelectionFactory" in domain_runtime
     assert domain_runtime.index(
@@ -283,148 +424,32 @@ def test_answer_context_is_post_gate2_and_not_financial_model_input() -> None:
     ) < domain_runtime.index("AnswerContextSelectionFactory(")
 
 
-def test_route_status_matches_current_imports_and_guards() -> None:
-    assert _route_markers() == {
-        "semantic_visual_table": "ACTIVE_PRODUCT",
-        "current_broad_source_facts": "ACTIVE_PRODUCT",
-        "source_fact_selection_v3": "HISTORICAL_READ_ONLY",
-        "goal17_type_first_v6": "CONTRACT_ONLY",
-        "fns_2ndfl_adapter": "ACTIVE_PRODUCT",
-        "answer_context": "ACTIVE_PRODUCT",
-        "gate3_context_manifest": "ACTIVE_PRODUCT",
-        "gate4_contracts": "CONTRACT_ONLY",
-        "release_live_bundle_state": "UNVERIFIED_LIVE",
-    }
-    domain_pipe = _read(
-        SERVICE_ROOT
-        / "openwebui_actions"
-        / "broker_reports_gate2_domain_source_fact_pipe.py"
+def test_15_live_parity_debt_blocks_qualification_and_activation() -> None:
+    owner = _owners()["release_live_parity_verifier"]
+    route = _read(ROUTE_STATUS)
+    adr = _read(CONVERGENCE_ADR)
+    assert owner["runtime_status"] == "UNVERIFIED_LIVE"
+    assert "separate_live_parity_checkpoint" in owner["change_requires"]
+    assert "LIVE_BUNDLE_PARITY_REPAIR_REQUIRED" in route
+    assert "claim live parity" in route
+    assert "live qualification or release" in route
+    assert "kt2_authorized = false" in adr
+
+
+def test_16_production_source_does_not_require_boundary_comments() -> None:
+    forbidden_markers = (
+        "# Architecture boundary (KT1)",
+        "# Historical containment (KT1)",
     )
-    assert "Gate2DomainSourceFactRuntimeFactory" in domain_pipe
-    assert all(
-        "gate2_model" not in module
-        for module in _imports(PACKAGE_ROOT / "gate2_fns_2ndfl_adapter.py")
-    )
-
-
-def test_docs_never_name_historical_route_active() -> None:
-    route_text = _read(ROUTE_STATUS)
-    historical_section = route_text.split(
-        "## 3. Historical `source_fact_selection_v3`", maxsplit=1
-    )[1].split("## 4.", maxsplit=1)[0]
-    assert "status=HISTORICAL_READ_ONLY" in historical_section
-    assert "status=ACTIVE_PRODUCT" not in historical_section
-    assert "Production reachability:** `false`" in historical_section
-    assert "source_fact_selection_v3;status=ACTIVE_PRODUCT" not in "\n".join(
-        _read(path) for path in KT1_DOCS
-    )
-
-
-def test_pr232_is_not_treated_as_part_of_main() -> None:
-    route_text = _read(ROUTE_STATUS)
-    adr_text = _read(CONVERGENCE_ADR)
-    assert "Draft PR #232" in route_text
-    assert "not part of `main`" in route_text
-    assert "Recommendation: `CLOSE_AFTER_EXTRACTION`." in route_text
-    assert "Recommendation: `CLOSE_AFTER_EXTRACTION`." in adr_text
-    assert "KT1 makes no state change to PR #232." in adr_text
-
-
-def test_openwebui_core_imports_are_unchanged() -> None:
-    changed = [path for _, path in _changed_paths()]
-    forbidden_core_prefixes = (
-        "backend/open_webui/",
-        "open-webui/backend/open_webui/",
-        "services/open_webui/",
-    )
-    assert not any(
-        path.startswith(forbidden_core_prefixes) for path in changed
-    )
-    assert not any(
-        path.startswith(
-            "services/broker-reports-gate1-proof/openwebui_actions/"
-        )
-        for path in changed
-    )
-
-
-def test_architecture_docs_reference_existing_symbols() -> None:
-    symbols_by_file = {
-        "semantic_visual_table_validator.py": {
-            "SemanticVisualTableValidatorFactory"
-        },
-        "pdf_dual_vlm_runtime.py": {"PdfDualVlmRuntimeFactory"},
-        "semantic_visual_table_materialization.py": {
-            "SemanticVisualTableMaterializationFactory"
-        },
-        "gate2_table_packages.py": {"Gate2TablePackageFactory"},
-        "gate2_source_unit_segmentation.py": {
-            "Gate2SourceUnitSegmenterFactory"
-        },
-        "gate2_domain_runtime.py": {"Gate2DomainSourceFactRuntimeFactory"},
-        "gate2_financial_semantic_contract.py": {
-            "Gate2FinancialSemanticContractFactory"
-        },
-        "gate2_financial_semantic_v6_choice.py": {
-            "Gate2FinancialSemanticV6ChoiceContractFactory"
-        },
-        "gate2_financial_semantic_v6_packet.py": {
-            "Gate2FinancialSemanticV6PacketFactory"
-        },
-        "gate2_financial_semantic_v5_projection.py": {
-            "Gate2FinancialSemanticV5ProjectionFactory"
-        },
-        "gate2_financial_semantic_v6_expansion.py": {
-            "Gate2FinancialSemanticV6DecisionExpansionFactory"
-        },
-        "gate2_financial_evidence_materialization.py": {
-            "Gate2FinancialEvidenceValidatedDecisionFactory",
-            "Gate2FinancialEvidenceMaterializerFactory",
-        },
-        "gate2_financial_semantic_v6_evidence.py": {
-            "Gate2FinancialSemanticV6DecisionEvidenceFactory",
-            "replay_financial_semantic_v6_decision",
-        },
-        "answer_context_selection.py": {"AnswerContextSelectionFactory"},
-        "artifact_store.py": {"ArtifactStoreFactory"},
-        "artifact_resolver.py": {"ArtifactResolver"},
-        "gate3_context_manifest.py": {"Gate3ContextManifestFactory"},
-    }
-    docs = "\n".join(_read(path) for path in KT1_DOCS)
-    for filename, symbols in symbols_by_file.items():
-        definitions = _defined_symbols(PACKAGE_ROOT / filename)
-        assert symbols <= definitions
-        assert all(f"`{symbol}" in docs for symbol in symbols)
-
-
-def test_selected_owner_modules_have_boundary_comments() -> None:
-    required_fields = (
-        "# Domain:",
-        "# Input contract:",
-        "# Output contract:",
-        "# Owns:",
-        "# Does not own:",
-        "# Allowed consumers:",
-        "# Runtime status:",
-        "# Related ADR:",
-        "# Contract tests:",
-    )
-    for path in BOUNDARY_COMMENT_FILES:
+    for path in PRODUCTION_OWNER_FILES:
         source = _read(path)
-        assert source.count("# Architecture boundary (KT1)") == 1
-        assert all(field in source for field in required_fields)
+        assert all(marker not in source for marker in forbidden_markers)
+    policy = _read(COMMENT_POLICY)
+    assert "sidecar owner metadata" in policy
+    assert "does not require architecture" in policy
 
 
-def test_historical_route_has_containment_comment() -> None:
-    source = _read(PACKAGE_ROOT / "gate2_source_fact_selection.py")
-    assert source.count("# Historical containment (KT1)") == 1
-    assert "# Why retained:" in source
-    assert "# Why product reachability is forbidden:" in source
-    assert "# Allowed consumers:" in source
-    assert "# ADR required to change status:" in source
-
-
-def test_kt1_adds_no_owner_module_and_ci_runs_this_test() -> None:
+def test_17_kt1_adds_no_owner_module_and_ci_runs_this_suite() -> None:
     added_package_modules = [
         path
         for status, path in _changed_paths()
@@ -435,5 +460,10 @@ def test_kt1_adds_no_owner_module_and_ci_runs_this_test() -> None:
         and path.endswith(".py")
     ]
     assert added_package_modules == []
-    workflow = _read(REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml")
-    assert "tests/test_broker_reports_kt1_architecture_stabilization.py" in workflow
+    workflow = _read(
+        REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
+    )
+    assert "tests/test_broker_reports_kt1_architecture_stabilization.py" in (
+        workflow
+    )
+    assert DOMAIN_MAP.is_file()

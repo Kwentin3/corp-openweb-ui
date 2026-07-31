@@ -14,6 +14,12 @@ gate architecture remains authoritative for gate placement. The sole-owner
 matrix remains authoritative when two documents appear to name competing
 write paths.
 
+Owner modules, symbols, responsibilities, exclusions, consumers, runtime
+status, adjacent historical routes, and change gates are maintained in
+`docs/stage2/architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.json`. Production
+Python comments are not an architecture authority and are not required for
+owner discovery.
+
 The intended information flow is:
 
 `document bytes -> bounded source/crop -> deterministic or semantic visual table -> Gate 2 package -> source facts -> financial decision -> canonical materialization -> ArtifactStore -> AnswerContext / Gate 3 manifest -> future Gate 4`
