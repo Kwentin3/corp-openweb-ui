@@ -1,0 +1,84 @@
+{
+  "schema_version": "broker_reports_ndfl_epic_context_audit_receipt_v1",
+  "audit_date": "2026-07-30",
+  "branch": "main",
+  "head_commit": "9a4cc2c9f3dce4b4d4c55bff667d12089e62b614",
+  "origin_main_commit": "9a4cc2c9f3dce4b4d4c55bff667d12089e62b614",
+  "working_tree_clean": false,
+  "working_tree_clean_before_audit": true,
+  "working_tree_expected_changes": "exactly_three_untracked_audit_outputs",
+  "gates_reviewed": [
+    "gate_1_source_intake_and_representation",
+    "gate_2_source_local_semantic_interpretation",
+    "gate_3_input_boundary_and_future_case_assembly",
+    "gate_4_future_tax_declaration_and_export"
+  ],
+  "goals_reviewed": [
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "runtime_paths_verified": [
+    "openwebui_gate1_pipe_to_normalizer_bounded_graph_artifactstore_and_safe_handoff",
+    "artifactstore_factory_and_artifactresolver_access_lineage_boundary",
+    "deterministic_fns_2ndfl_source_local_adapter",
+    "conditional_openwebui_gate2_domain_pipe_integration_to_legacy_financial_evidence_production_runtime",
+    "v6_evidence_bundle_candidate_compiler_packet_context_choice_expansion_local_proof_chain",
+    "context_v2_1_linter_request_builder_provider_adapter_qualification_chain",
+    "validated_decision_materializer_financial_domain_persistence_and_replay",
+    "economy_budget_workload_policy_and_empty_production_admission_boundary",
+    "gate3_context_manifest_and_financial_domain_query_consumer_boundary"
+  ],
+  "classification_scope": "twenty_eight_artifact_map_rows_classified_as_ten_a_components_thirteen_b_components_two_contract_two_simulation_and_one_executed_evidence_only_row_not_product_capability_or_live_object_counts",
+  "implemented_active_total": 10,
+  "implemented_inactive_total": 13,
+  "contract_only_total": 2,
+  "simulation_only_total": 2,
+  "executed_evidence_only_total": 1,
+  "provider_calls_executed": 0,
+  "historical_provider_calls_reviewed_total": 8,
+  "product_logic_changes_total": 0,
+  "runtime_changes_total": 0,
+  "historical_files_modified_total": 0,
+  "files_created": [
+    "docs/reports/2026-07-30/BROKER_REPORTS_NDFL_EPIC_CONTEXT_AUDIT.report.md",
+    "docs/reports/2026-07-30/BROKER_REPORTS_NDFL_EPIC_CONTEXT_PACK.md",
+    "docs/reports/2026-07-30/BROKER_REPORTS_NDFL_EPIC_CONTEXT_AUDIT.receipt.safe.json"
+  ],
+  "verification": {
+    "goal16_offline_builder_check": "passed",
+    "focused_tests_passed_total": 75,
+    "focused_tests_skipped_total": 1,
+    "focused_tests_failed_total": 0,
+    "provider_calls_allowed": false,
+    "current_live_readback_performed": false
+  },
+  "main_unresolved_risks": [
+    "no_current_single_product_e2e_across_v6_packet_context_compiler_expansion_and_artifactstore",
+    "legacy_financial_evidence_pipe_valve_is_disabled_by_default",
+    "all_current_gate2_workload_production_admissions_are_empty",
+    "type_first_variant_b_has_contract_but_no_runtime_implementation",
+    "false_singleton_semantic_error_is_not_detectable_by_structural_product_validation_without_an_independent_oracle",
+    "type_first_provider_and_accepted_corpus_qualification_are_absent",
+    "managed_minimal_ontology_contains_only_two_financial_types",
+    "gate3_business_reconciliation_and_gate4_tax_declaration_xlsx_runtime_are_absent",
+    "current_head_to_live_exact_parity_is_not_proven",
+    "human_customer_acceptance_is_not_performed",
+    "sber_positive_unseen_same_family_holdout_is_missing"
+  ],
+  "recommended_next_step": "Implement one bounded non-active Variant B slice inside existing Packet, Choice, Linter, request, Expansion, Evidence and Economy owners; prove local simulated-envelope Packet-to-materialization-and-replay E2E with adversarial false-singleton accounting; keep runtime activation, production admissions and provider calls at zero.",
+  "output_sha256": {
+    "BROKER_REPORTS_NDFL_EPIC_CONTEXT_AUDIT.report.md": "eff4b350b499220ddf83abd9d7d7990b653a784fd533bc3b6a1b6f9ddad9423b",
+    "BROKER_REPORTS_NDFL_EPIC_CONTEXT_PACK.md": "66cbea3efa0dcba6fecca2ec7a22abdd5fe7c54ee698c54bc88516a6e63f6b7f"
+  },
+  "privacy": {
+    "raw_provider_payload_included": false,
+    "customer_values_included": false,
+    "private_paths_included": false,
+    "secrets_included": false
+  },
+  "integrity_canonicalization": "utf8_minified_json_sort_keys_true_without_integrity_sha256",
+  "integrity_sha256": "17044b9002fa4d6e998718601cade0149b627d88c586a49d64504fb4929557ca"
+}
