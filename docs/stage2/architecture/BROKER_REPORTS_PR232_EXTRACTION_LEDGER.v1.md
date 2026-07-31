@@ -1,6 +1,6 @@
 # Broker Reports PR #232 Extraction Ledger v1
 
-Status: accepted extraction scope; PR closure pending green KT1 acceptance
+Status: extraction complete; PR closed without merge
 
 PR: `https://github.com/Kwentin3/corp-openweb-ui/pull/232`
 
@@ -69,11 +69,14 @@ The following must not be carried into a future product route:
 approved_architecture = OPTION_A
 approved_reuse_scope = contract_and_test_ideas_only
 pr_232_disposition = CLOSE_AFTER_EXTRACTION
-pr_232_final_state = PENDING_GREEN_KT1_ACCEPTANCE
+pr_232_final_state = CLOSED_WITHOUT_MERGE
 branch_retention = RETAIN_FOR_HISTORICAL_REFERENCE
 kt2_authorized = false
 ```
 
-PR #232 must be closed without merge only after this ledger is committed, KT1
-architecture and byte/hash parity tests are green, and the closing comment
-preserves the architecture decision and historical references.
+Closure completed on 2026-07-31 after this ledger was committed and KT1
+architecture, byte-parity, source-authority, and GitHub CI checks were green.
+The required closing comment is preserved at
+`https://github.com/Kwentin3/corp-openweb-ui/pull/232#issuecomment-5139774270`.
+PR #232 was not merged, and its branch remains available for historical
+reference.

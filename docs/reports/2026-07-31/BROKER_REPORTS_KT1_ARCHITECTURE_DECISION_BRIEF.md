@@ -2,7 +2,7 @@
 
 Date: 2026-07-31
 
-Decision state: program-owner decisions accepted; KT1 remediation in progress
+Decision state: `DECISION_GATE_1_CLOSED`; `KT2_NOT_STARTED`
 
 ## PROGRAM_OWNER_DECISIONS
 
@@ -82,10 +82,10 @@ Do not transfer its synthetic source projection as product input, separate
 runtime/Pipe/coordinator, new valve/admission, duplicate request or
 materialization authority, or implied provider qualification.
 
-PR #232 will be closed without merge only after the committed extraction
-ledger and green KT1 acceptance. Its branch and commit references remain
-preserved. Any separately authorized future implementation must start from
-then-current `main`, not from PR #232.
+PR #232 was closed without merge after the committed extraction ledger and
+green KT1 acceptance. Its branch and commit references remain preserved. Any
+separately authorized future implementation must start from then-current
+`main`, not from PR #232.
 
 ## Ownership baseline
 
@@ -118,8 +118,11 @@ hash-pinned production bytes and tripped generated-bundle and GOAL 16 source
 authority checks. The remediation removes those KT1 blocks, restores the
 production bytes, moves the context into sidecar metadata, and replaces
 comment-presence assertions with owner-contract invariants. Pinned hashes and
-historical contracts remain unchanged. Final pass counts are recorded in the
-Decision Gate 1 closure report and safe receipt.
+historical contracts remain unchanged. GitHub run `30607772132` passed on
+remediation head `6c447f4`: 338 passed / 3 existing skips in the anti-drift
+selection, 9 passed / 41 intentionally deselected by the workflow's
+`-k context_v2_1` slice, and 189 passed in the focused suite. Final evidence
+is recorded in the Decision Gate 1 closure report and safe receipt.
 
 Separately, the last read-only GOAL 18 check found all three live Function
 bundle hashes different from `main` and a failed closed-world adapter check.
@@ -131,8 +134,8 @@ and live-change counters are zero.
 
 ## Operational boundary
 
-- Decision Gate 1 closes only after local and GitHub acceptance are green and
-  PR #232 is closed without merge.
+- Decision Gate 1 is closed after local and GitHub acceptance passed and
+  PR #232 was closed without merge.
 - The authorized live parity checkpoint remains separate and is not executed
   here.
 - The historical v3 schema-hash fix remains deferred.

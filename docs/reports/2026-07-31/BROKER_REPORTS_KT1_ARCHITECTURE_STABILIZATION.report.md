@@ -6,7 +6,7 @@ Branch: `refactor/broker-reports-kt1-architecture-stabilization`
 
 Base: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`
 
-Status: `PROGRAM_OWNER_DECISIONS_ACCEPTED_REMEDIATION_IN_PROGRESS`
+Status: `DECISION_GATE_1_CLOSED`; `KT2_NOT_STARTED`
 
 ## PROGRAM_OWNER_DECISIONS
 
@@ -34,8 +34,8 @@ validator/materializer, ArtifactStore, and evidence/replay authorities.
 Option B is reserve-only if a distinct business domain is proven. Options C
 and D are rejected.
 
-PR #232 disposition is `CLOSE_AFTER_EXTRACTION`. It is closed without merge
-only after the extraction ledger is committed and KT1 acceptance is green.
+PR #232 disposition is `CLOSE_AFTER_EXTRACTION`. It was closed without merge
+after the extraction ledger was committed and KT1 acceptance was green.
 
 No product behavior, runtime orchestration, provider call, OpenWebUI core,
 Pipe/Action behavior, valve, production admission, Semantic Pack, financial
@@ -235,11 +235,18 @@ change gates.
 
 ## 10. Architecture and test evidence
 
-The KT1 architecture suite now checks the 17 required sidecar, reachability,
-sole-authority, AnswerContext, live-debt, and no-new-owner invariants. Generated
-bundle parity and GOAL 16 source-authority checks are run without deselection.
-Final commands, pass totals, skip explanation, and GitHub CI run are recorded
-in the Decision Gate 1 closure report and safe receipt.
+The KT1 architecture suite checks the 17 required sidecar, reachability,
+sole-authority, AnswerContext, live-debt, and no-new-owner invariants:
+`17 passed`. Generated bundle parity and GOAL 16 source-authority checks passed
+without expected-hash changes or deselection.
+
+GitHub run `30607772132` completed `SUCCESS` on exact remediation head
+`6c447f4`: generated managed assets passed, Function bundle diff was empty,
+Ruff passed, the anti-drift selection reported `338 passed, 3 skipped`, its
+explicit `-k context_v2_1` slice reported `9 passed, 41 deselected`, and the
+focused suite reported `189 passed`. The three skips are pre-existing
+historical builders that intentionally skip outside their complete GOAL 14,
+GOAL 15, and GOAL 16 change sets; KT1 adds no skip.
 
 KT1 does not regenerate Function bundles, update pinned historical/contract
 hashes, weaken exact tests, or rewrite historical evidence.
@@ -286,7 +293,7 @@ rollback, and independent readback.
 
 - Option A is accepted; Option B is reserve-only if a distinct domain is
   proven.
-- PR #232 is closed after extraction and green KT1 acceptance, without merge.
+- PR #232 was closed after extraction and green KT1 acceptance, without merge.
 - Owner context uses `SIDECAR_OWNER_METADATA`.
 - A separate live parity checkpoint is authorized but not executed in KT1.
 - The historical v3 schema-hash repair is deferred.
