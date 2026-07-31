@@ -1,0 +1,112 @@
+{
+  "schema_version": "broker_reports_gate2_pipeline_reconciliation_audit_v1",
+  "main_head": "9a4cc2c9f3dce4b4d4c55bff667d12089e62b614",
+  "audit_branch": "audit/broker-reports-goal-18-gate2-reconciliation",
+  "goal17_pr_number": 232,
+  "goal17_head": "d6954f401ae4734fc1573c7560c981cf084c278c",
+  "historical_selection_commit": "ba1eb13475fa9a31488fb54ea764db8e1aba4947",
+  "containment_commit": "d14bb70045954947c6bf7fe812a93418258dcff8",
+  "provider_calls_total": 0,
+  "runtime_changes_total": 0,
+  "product_logic_changes_total": 0,
+  "openwebui_core_changes_total": 0,
+  "feature_valve_changes_total": 0,
+  "production_admission_changes_total": 0,
+  "semantic_pack_changes_total": 0,
+  "traces_total": 4,
+  "historical_provider_traces_total": 2,
+  "simulated_traces_total": 2,
+  "private_evidence_available": true,
+  "private_crop_bytes_available": false,
+  "visual_table_route_status": "MAINTAINED_DEFAULT_ON_LIVE_BUNDLE_PARITY_FAILED",
+  "old_source_fact_route_status": "SOURCE_FACT_SELECTION_V3_HISTORICAL_CONTAINED_NOT_PRODUCT_REACHABLE",
+  "goal17_route_status": "DRAFT_INACTIVE_SYNTHETIC_ZERO_CALL_NOT_PRODUCT_INTEGRATED",
+  "exact_contexts_inspected_total": 37,
+  "historical_source_selection_contexts_total": 35,
+  "actual_model_visible_type_sets": [
+    {
+      "route": "historical_source_fact_selection_v3",
+      "types": [
+        "unknown_source_row"
+      ],
+      "requests_total": 26
+    },
+    {
+      "route": "historical_source_fact_selection_v3",
+      "types": [
+        "document_summary_evidence",
+        "unknown_source_row"
+      ],
+      "requests_total": 9
+    },
+    {
+      "route": "goal17_type_first_simulated",
+      "types": [
+        "type_1",
+        "type_2"
+      ],
+      "requests_total": 2
+    }
+  ],
+  "historical_context_utf8_bytes": {
+    "minimum": 24434,
+    "maximum": 46276
+  },
+  "historical_estimated_input_tokens": {
+    "estimator_id": "compact_request_utf8_bytes_div_4_plus_64_v1_posthoc",
+    "minimum": 6173,
+    "maximum": 11633
+  },
+  "regex_or_synonym_mechanisms_found": [],
+  "hardcoded_lexical_mechanisms_found": [
+    "gate2_source_fact_selection._FIELD_BY_HEADER_LABEL"
+  ],
+  "capability_filters_found": [
+    "gate2_source_fact_selection._REQUIRED_ANY_FIELDS_BY_FACT_TYPE",
+    "gate2_source_fact_selection._provider_allowed_fact_types",
+    "gate2_source_fact_selection._reproducible_value_refs_by_field",
+    "domain_routing_and_allowed_fact_types",
+    "dynamic_provider_json_schema"
+  ],
+  "historical_schema_hash_finding": {
+    "legacy_owner_hashes_total": 1,
+    "canonical_schema_sha256_total": 34,
+    "legacy_hash_content_binding": false
+  },
+  "duplicate_components": [
+    "model_facing_type_classification",
+    "bounded_type_response_schema",
+    "choice_parser",
+    "code_owned_canonical_choice",
+    "deterministic_restoration",
+    "semantic_orchestration",
+    "evidence_replay_branch"
+  ],
+  "reusable_components": [
+    "pdf_crop",
+    "gemini_visual_transcription",
+    "semantic_visual_table_contract",
+    "logical_table_materialization",
+    "table_projection",
+    "artifact_store",
+    "gate2_package",
+    "source_segmentation",
+    "provider_factory",
+    "canonical_source_fact_validator",
+    "canonical_fact_materializer",
+    "answer_context_selection",
+    "goal17_type_cards",
+    "goal17_false_singleton_comparator"
+  ],
+  "preferred_convergence_option": "A",
+  "reserve_convergence_option": "B_IF_DISTINCT_DOMAIN_IS_PROVEN",
+  "goal17_merge_before_direction_change": false,
+  "recommended_next_goal": "GOAL 19 — Inactive same-source converged Type-First adapter proof",
+  "live_parity": {
+    "status": "failed",
+    "managed_prompts_match": true,
+    "function_bundles_match": false,
+    "repository_factory_boundary_passed": false
+  },
+  "integrity_sha256": "ffdf71149f46dc795be73f8132131d56785a05c1f0abfa6d8a8e54fda6b870f2"
+}
