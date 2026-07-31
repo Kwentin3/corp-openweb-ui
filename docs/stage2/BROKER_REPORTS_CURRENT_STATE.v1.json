@@ -1,0 +1,73 @@
+{
+  "schema_version": "broker_reports_current_state_v1",
+  "effective_date": "2026-07-31",
+  "repository_authority_commit": "cf84128e54692d541c000ad26c6d35fbcc1afe2f",
+  "repository_authority_scope": "kt1_6_consolidation_base",
+  "operational_live_authority_commit": "db009421b68c8b09df728239d23c217e5482d3a1",
+  "repository_debt": "CLOSED",
+  "live_parity_debt": "CLOSED",
+  "decision_gate_1": "CLOSED",
+  "kt2_status": "NOT_STARTED",
+  "kt2_ready": true,
+  "preferred_convergence": "A",
+  "reserve_convergence": "B_IF_DISTINCT_DOMAIN_IS_PROVEN",
+  "current_product_route": "Gate2DomainSourceFactRuntimeFactory via broker_reports_gate2_domain_source_fact_pipe",
+  "historical_routes": [
+    {
+      "route": "source_fact_selection_v3",
+      "status": "HISTORICAL_READ_ONLY"
+    },
+    {
+      "route": "goal17_type_first_v6_pr_232",
+      "status": "CONTRACT_AND_PROOF_ONLY_CLOSED_WITHOUT_MERGE"
+    },
+    {
+      "route": "goal18_reconciliation",
+      "status": "HISTORICAL_AUDIT_EVIDENCE"
+    },
+    {
+      "route": "pr_77_canonical_domain_research",
+      "status": "HISTORICAL_RESEARCH_SUPERSEDED"
+    }
+  ],
+  "canonical_documents": [
+    "docs/stage2/BROKER_REPORTS_CURRENT_STATE.v1.md",
+    "docs/stage2/BROKER_REPORTS_CURRENT_STATE.v1.json",
+    "docs/stage2/BROKER_REPORTS_EVIDENCE_INDEX.v1.md",
+    "docs/stage2/BROKER_REPORTS_DEBT_REGISTER.v1.md",
+    "docs/stage2/BROKER_REPORTS_DEBT_REGISTER.v1.json",
+    "docs/stage2/BROKER_REPORTS_SKIP_AUDIT.v1.md",
+    "docs/stage2/BROKER_REPORTS_SKIP_AUDIT.v1.json",
+    "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md",
+    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md",
+    "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+    "docs/stage2/architecture/BROKER_REPORTS_DOMAIN_MAP.v1.md",
+    "docs/stage2/architecture/BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md",
+    "docs/stage2/architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.md",
+    "docs/stage2/architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.json",
+    "docs/stage2/architecture/BROKER_REPORTS_PR232_EXTRACTION_LEDGER.v1.md",
+    "docs/stage2/architecture/BROKER_REPORTS_PR77_EXTRACTION_LEDGER.v1.md",
+    "docs/stage2/contracts/BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md",
+    "docs/stage2/agent/BROKER_REPORTS_PRE_TASK_CONTEXT_PROTOCOL.v1.md",
+    "docs/stage2/agent/BROKER_REPORTS_CODE_COMMENT_POLICY.v1.md"
+  ],
+  "open_blocking_debts": [],
+  "non_blocking_debts": [
+    "BR-DEBT-SKIP-001",
+    "BR-DEBT-RUFF-001",
+    "BR-DEBT-V3-001",
+    "BR-DEBT-PRIVATE-001",
+    "BR-DEBT-BRANCH-001",
+    "BR-DEBT-REPORT-001",
+    "BR-DEBT-WORKTREE-001"
+  ],
+  "fresh_read_only_live_verification": {
+    "date": "2026-07-31",
+    "delivery_status": "PASSED",
+    "atomic_status": "PASSED",
+    "provider_calls": 0,
+    "live_changes": 0
+  },
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "a670a99f3e04aa7326e6ed7844b37887f88ca620e8bd0cb054e1b24b4611cff2"
+}
