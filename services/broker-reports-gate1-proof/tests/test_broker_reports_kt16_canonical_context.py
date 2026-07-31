@@ -46,12 +46,23 @@ def test_current_state_is_short_terminal_and_integrity_bound() -> None:
     assert state["repository_debt"] == "CLOSED"
     assert state["live_parity_debt"] == "CLOSED"
     assert state["decision_gate_1"] == "CLOSED"
-    assert state["kt2_status"] == "NOT_STARTED"
-    assert state["kt2_ready"] is True
     assert state["open_blocking_debts"] == []
     assert len(guide.split()) <= 2500
-    assert "KT2_READY = TRUE" in guide
-    assert "KT2_STARTED = FALSE" in guide
+    if state["kt2_status"] == "NOT_STARTED":
+        assert state["kt2_ready"] is True
+        assert "KT2_READY = TRUE" in guide
+        assert "KT2_STARTED = FALSE" in guide
+    else:
+        assert state["kt2_status"] == "COMPLETE"
+        assert state["kt2_ready"] is False
+        assert state["kt2_same_source_type_first_proof"] == "PASSED"
+        assert state["type_first_product_reachability"] is False
+        assert state["model_qualification"] == "NOT_STARTED"
+        assert state["product_activation"] == "NOT_STARTED"
+        assert "KT2_READY = FALSE_COMPLETED" in guide
+        assert "KT2 = COMPLETE" in guide
+        assert "MODEL_QUALIFICATION = NOT_STARTED" in guide
+        assert "PRODUCT_ACTIVATION = NOT_STARTED" in guide
 
 
 def test_every_canonical_document_is_present() -> None:
