@@ -1,6 +1,7 @@
 # Broker Reports KT1 Architecture Decision Brief
 
-Date: 2026-07-31  
+Date: 2026-07-31
+
 Decision state: ready for program-owner review
 
 ## Decision

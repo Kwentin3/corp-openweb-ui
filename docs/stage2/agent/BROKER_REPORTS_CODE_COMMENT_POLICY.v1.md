@@ -1,6 +1,7 @@
 # Broker Reports Code Comment Policy v1
 
-Status: normative comment policy  
+Status: normative comment policy
+
 Effective date: 2026-07-31
 
 ## Allowed comments

@@ -1,7 +1,9 @@
 # Broker Reports Gate 2 Route Status v1
 
-Status: normative reachability baseline  
-Effective date: 2026-07-31  
+Status: normative reachability baseline
+
+Effective date: 2026-07-31
+
 Repository baseline: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`
 
 ## Interpretation

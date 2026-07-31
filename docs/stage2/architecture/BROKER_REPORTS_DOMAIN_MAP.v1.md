@@ -1,7 +1,9 @@
 # Broker Reports Domain Map v1
 
-Status: normative architecture map  
-Effective date: 2026-07-31  
+Status: normative architecture map
+
+Effective date: 2026-07-31
+
 Scope: Broker Reports / NDFL, Gate 1 through Gate 4
 
 ## Precedence and reading rule

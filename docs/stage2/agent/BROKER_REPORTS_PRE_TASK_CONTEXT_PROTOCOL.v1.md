@@ -1,6 +1,7 @@
 # Broker Reports Pre-Task Context Protocol v1
 
-Status: mandatory agent protocol  
+Status: mandatory agent protocol
+
 Effective date: 2026-07-31
 
 ## Required context pass

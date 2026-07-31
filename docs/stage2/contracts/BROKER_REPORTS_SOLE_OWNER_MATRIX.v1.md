@@ -1,6 +1,7 @@
 # Broker Reports Sole Owner Matrix v1
 
-Status: normative ownership baseline  
+Status: normative ownership baseline
+
 Effective date: 2026-07-31
 
 ## Rules

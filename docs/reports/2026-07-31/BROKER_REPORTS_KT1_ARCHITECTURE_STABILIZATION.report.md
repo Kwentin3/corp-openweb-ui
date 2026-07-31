@@ -1,8 +1,11 @@
 # Broker Reports KT1 Architecture Stabilization Report
 
-Date: 2026-07-31  
-Branch: `refactor/broker-reports-kt1-architecture-stabilization`  
-Base: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`  
+Date: 2026-07-31
+
+Branch: `refactor/broker-reports-kt1-architecture-stabilization`
+
+Base: `origin/main@9a4cc2c9f3dce4b4d4c55bff667d12089e62b614`
+
 Status: `DECISION_PACKAGE_COMPLETE_WITH_DECLARED_BYTE_PARITY_GATES`
 
 ## 1. Executive result
