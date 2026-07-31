@@ -89,8 +89,83 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         checks = self.module.repository_factory_boundary_checks()
 
         self.assertTrue(all(checks.values()), checks)
+        provider_checks = (
+            self.module._provider_adapter_boundary_invariants()
+        )
+        self.assertTrue(all(provider_checks.values()), provider_checks)
         self.assertTrue(
             checks["production_python_has_no_paddle_or_local_ocr_import"]
+        )
+
+    def test_provider_boundary_ast_invariants_reject_product_bypasses(self):
+        paths = self.module._PROVIDER_BOUNDARY_SOURCE_PATHS
+        source_pipe = paths["source_pipe"].read_text(encoding="utf-8")
+        domain_runtime = paths["domain_runtime"].read_text(encoding="utf-8")
+        provider_adapters = paths["provider_adapters"].read_text(
+            encoding="utf-8"
+        )
+        checks = self.module._provider_adapter_boundary_invariants(
+            {
+                "source_pipe": (
+                    source_pipe
+                    + "\nimport requests\n"
+                    + "from broker_reports_gate1."
+                    + "gate2_financial_semantic_v6_qualification "
+                    + "import qualify_financial_semantic_v6\n"
+                    + "from broker_reports_gate1.gate2_provider_adapters "
+                    + "import Gate2OpenAIResponseFormatAdapter\n"
+                    + "requests.post('https://api.openai.com/v1')\n"
+                ),
+                "domain_runtime": (
+                    domain_runtime
+                    + "\nclass Gate2OpenWebUIProviderConnectionResolver:\n"
+                    + "    pass\n"
+                ),
+                "provider_adapters": (
+                    provider_adapters
+                    + "\nLEAKED_CONFIG_KEY = 'OPENAI_API_KEYS'\n"
+                ),
+            }
+        )
+
+        self.assertFalse(
+            checks["provider_connection_resolver_is_single_authority"]
+        )
+        self.assertFalse(
+            checks["product_domains_have_no_direct_provider_transport"]
+        )
+        self.assertFalse(
+            checks["provider_secret_resolution_is_resolver_scoped"]
+        )
+        self.assertFalse(
+            checks["qualification_modules_are_not_product_consumers"]
+        )
+        self.assertFalse(
+            checks["historical_adapters_are_not_product_reachable"]
+        )
+
+    def test_provider_boundary_rejects_generated_bundle_drift(self):
+        paths = self.module._PROVIDER_BOUNDARY_SOURCE_PATHS
+        provider_source = paths["provider_adapters"].read_text(
+            encoding="utf-8"
+        )
+        model_client_source = paths["model_clients"].read_text(
+            encoding="utf-8"
+        )
+        drifted_bundle = repr(
+            {
+                "gate2_provider_adapters": provider_source + "\n# drift\n",
+                "gate2_model_clients": model_client_source,
+            }
+        )
+        checks = self.module._provider_adapter_boundary_invariants(
+            bundle_overrides={
+                "gate1_bundle": f"_BUNDLED_MODULES = {drifted_bundle}\n"
+            }
+        )
+
+        self.assertFalse(
+            checks["generated_bundles_preserve_provider_closed_world"]
         )
 
     def test_function_active_state_is_strict(self):

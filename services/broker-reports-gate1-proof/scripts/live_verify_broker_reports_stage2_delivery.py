@@ -11,7 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import requests
 
@@ -495,6 +495,331 @@ def evaluate_prompt_contract(
     }
 
 
+@dataclass(frozen=True)
+class _PythonBoundaryFacts:
+    classes: frozenset[str]
+    imports: frozenset[str]
+    calls: frozenset[str]
+    strings: frozenset[str]
+
+
+_PROVIDER_BOUNDARY_SOURCE_PATHS = {
+    "provider_adapters": (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_provider_adapters.py"
+    ),
+    "model_clients": (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_model_clients.py"
+    ),
+    "source_pipe": (
+        SERVICE_ROOT
+        / "openwebui_actions/broker_reports_gate2_source_fact_pipe.py"
+    ),
+    "domain_pipe": (
+        SERVICE_ROOT
+        / "openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py"
+    ),
+    "source_runtime": (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_source_fact_runtime.py"
+    ),
+    "domain_runtime": (
+        SERVICE_ROOT / "broker_reports_gate1/gate2_domain_runtime.py"
+    ),
+    "financial_runtime": (
+        SERVICE_ROOT
+        / "broker_reports_gate1/"
+        "gate2_financial_evidence_production_runtime.py"
+    ),
+}
+_PROVIDER_BOUNDARY_BUNDLE_PATHS = {
+    "gate1_bundle": (
+        SERVICE_ROOT
+        / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
+    ),
+    "gate2_source_bundle": (
+        SERVICE_ROOT
+        / "openwebui_actions/broker_reports_gate2_source_fact_pipe_bundled.py"
+    ),
+    "gate2_domain_bundle": (
+        SERVICE_ROOT
+        / "openwebui_actions/"
+        "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
+    ),
+}
+_PRODUCT_PROVIDER_CONSUMERS = (
+    "source_pipe",
+    "domain_pipe",
+    "source_runtime",
+    "domain_runtime",
+    "financial_runtime",
+)
+_DIRECT_PROVIDER_IMPORT_ROOTS = frozenset(
+    {
+        "aiohttp",
+        "httpx",
+        "requests",
+        "urllib.request",
+    }
+)
+_DIRECT_PROVIDER_CALLS = frozenset(
+    {
+        "build_opener",
+        "requests.post",
+        "requests.request",
+        "httpx.post",
+        "httpx.request",
+        "urlopen",
+        "urllib.request.urlopen",
+    }
+)
+_PROVIDER_HOSTS = (
+    "api.openai.com",
+    "api.anthropic.com",
+    "generativelanguage.googleapis.com",
+)
+_OPENWEBUI_SECRET_CONFIG_KEYS = frozenset(
+    {
+        "OPENAI_API_BASE_URLS",
+        "OPENAI_API_CONFIGS",
+        "OPENAI_API_KEYS",
+    }
+)
+_CONCRETE_PROVIDER_ADAPTERS = frozenset(
+    {
+        "Gate2AnthropicNativeMessagesAdapter",
+        "Gate2GeminiResponseFormatAdapter",
+        "Gate2OpenAIResponseFormatAdapter",
+    }
+)
+_QUALIFICATION_MODULE_MARKERS = (
+    "context_v2_1_budget_smoke",
+    "financial_semantic_v6_evidence",
+    "financial_semantic_v6_qualification",
+    "financial_semantic_v6_local_proof",
+)
+
+
+def _dotted_symbol(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _dotted_symbol(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
+    if isinstance(node, ast.Call):
+        return _dotted_symbol(node.func)
+    return ""
+
+
+def _python_boundary_facts(source: str) -> _PythonBoundaryFacts:
+    tree = ast.parse(source)
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imports.add(module)
+            imports.update(
+                f"{module}.{alias.name}" if module else alias.name
+                for alias in node.names
+            )
+    return _PythonBoundaryFacts(
+        classes=frozenset(
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef)
+        ),
+        imports=frozenset(imports),
+        calls=frozenset(
+            _dotted_symbol(node.func)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+        ),
+        strings=frozenset(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+        ),
+    )
+
+
+def _string_class_scopes(
+    source: str,
+    selected: frozenset[str],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    observed: list[tuple[str, tuple[str, ...]]] = []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.class_stack: list[str] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+            self.class_stack.append(node.name)
+            self.generic_visit(node)
+            self.class_stack.pop()
+
+        def visit_Constant(self, node: ast.Constant) -> None:  # noqa: N802
+            if isinstance(node.value, str) and node.value in selected:
+                observed.append((node.value, tuple(self.class_stack)))
+
+    Visitor().visit(ast.parse(source))
+    return tuple(observed)
+
+
+def _bundled_module_sources(source: str) -> dict[str, str]:
+    tree = ast.parse(source)
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name)
+            and target.id == "_BUNDLED_MODULES"
+            for target in node.targets
+        ):
+            continue
+        value = ast.literal_eval(node.value)
+        if not isinstance(value, dict) or not all(
+            isinstance(key, str) and isinstance(item, str)
+            for key, item in value.items()
+        ):
+            return {}
+        return value
+    return {}
+
+
+def _provider_adapter_boundary_invariants(
+    source_overrides: Mapping[str, str] | None = None,
+    bundle_overrides: Mapping[str, str] | None = None,
+) -> dict[str, bool]:
+    sources = {
+        key: path.read_text(encoding="utf-8")
+        for key, path in _PROVIDER_BOUNDARY_SOURCE_PATHS.items()
+    }
+    sources.update(source_overrides or {})
+    bundles = {
+        key: path.read_text(encoding="utf-8")
+        for key, path in _PROVIDER_BOUNDARY_BUNDLE_PATHS.items()
+    }
+    bundles.update(bundle_overrides or {})
+    facts = {
+        key: _python_boundary_facts(source)
+        for key, source in sources.items()
+    }
+    product_facts = tuple(
+        facts[key] for key in _PRODUCT_PROVIDER_CONSUMERS
+    )
+
+    resolver_definitions = sum(
+        "Gate2OpenWebUIProviderConnectionResolver" in item.classes
+        for item in facts.values()
+    )
+    product_imports = set().union(
+        *(item.imports for item in product_facts)
+    )
+    product_calls = set().union(*(item.calls for item in product_facts))
+    product_strings = set().union(*(item.strings for item in product_facts))
+    direct_import = any(
+        imported == root or imported.startswith(f"{root}.")
+        for imported in product_imports
+        for root in _DIRECT_PROVIDER_IMPORT_ROOTS
+    )
+    direct_call = any(
+        call in _DIRECT_PROVIDER_CALLS
+        or any(call.endswith(f".{name}") for name in _DIRECT_PROVIDER_CALLS)
+        for call in product_calls
+    )
+    secret_scopes = _string_class_scopes(
+        sources["provider_adapters"],
+        _OPENWEBUI_SECRET_CONFIG_KEYS,
+    )
+    product_has_secret_config = bool(
+        product_strings & _OPENWEBUI_SECRET_CONFIG_KEYS
+    )
+    product_has_qualification_import = any(
+        marker in imported
+        for imported in product_imports
+        for marker in _QUALIFICATION_MODULE_MARKERS
+    )
+    product_has_concrete_adapter = bool(
+        (
+            {
+                imported.rsplit(".", 1)[-1]
+                for imported in product_imports
+            }
+            | {
+                call.rsplit(".", 1)[-1]
+                for call in product_calls
+            }
+        )
+        & (
+            _CONCRETE_PROVIDER_ADAPTERS
+            | {
+                "Gate2ProviderAdapterFactory",
+                "Gate2OpenWebUIProviderConnectionResolver",
+            }
+        )
+    )
+    embedded_modules = {
+        key: _bundled_module_sources(source)
+        for key, source in bundles.items()
+    }
+    bundles_exact = all(
+        modules.get("gate2_provider_adapters")
+        == sources["provider_adapters"]
+        and modules.get("gate2_model_clients")
+        == sources["model_clients"]
+        for modules in embedded_modules.values()
+    )
+    bundles_exclude_qualification = all(
+        not any(
+            marker in module_name
+            for module_name in modules
+            for marker in _QUALIFICATION_MODULE_MARKERS
+        )
+        for modules in embedded_modules.values()
+    )
+
+    return {
+        "provider_connection_resolver_is_single_authority": (
+            resolver_definitions == 1
+            and "Gate2OpenWebUIProviderConnectionResolver"
+            in facts["model_clients"].calls
+        ),
+        "model_client_owns_provider_adapter_construction": (
+            "Gate2ProviderAdapterFactory" in facts["model_clients"].calls
+            and "Gate2ProviderAdapterFactory.create"
+            in facts["model_clients"].calls
+            and not product_has_concrete_adapter
+        ),
+        "product_domains_have_no_direct_provider_transport": (
+            not direct_import
+            and not direct_call
+            and not any(
+                host in literal
+                for literal in product_strings
+                for host in _PROVIDER_HOSTS
+            )
+        ),
+        "provider_secret_resolution_is_resolver_scoped": (
+            bool(secret_scopes)
+            and all(
+                "Gate2OpenWebUIProviderConnectionResolver" in scopes
+                for _key, scopes in secret_scopes
+            )
+            and not product_has_secret_config
+        ),
+        "qualification_modules_are_not_product_consumers": (
+            not product_has_qualification_import
+        ),
+        "historical_adapters_are_not_product_reachable": (
+            not product_has_concrete_adapter
+        ),
+        "generated_bundles_preserve_provider_closed_world": (
+            bundles_exact and bundles_exclude_qualification
+        ),
+    }
+
+
 def repository_factory_boundary_checks() -> dict[str, bool]:
     gate1_pipe = (
         SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe.py"
@@ -541,6 +866,7 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         SERVICE_ROOT / "scripts/live_case_group_gate2_table_typed_vertical_proof.py",
     )
     smoke_sources = [path.read_text(encoding="utf-8") for path in smoke_paths]
+    provider_boundary = _provider_adapter_boundary_invariants()
     return {
         "production_python_has_no_paddle_or_local_ocr_import": (
             _production_python_has_no_heavy_local_ocr_import()
@@ -584,16 +910,9 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
             in provider_adapters
         ),
         "provider_adapters_stay_inside_openwebui": all(
-            marker not in provider_adapters
-            for marker in (
-                "import requests",
-                "from requests",
-                "import httpx",
-                "from httpx",
-                "api.openai.com",
-                "generativelanguage.googleapis.com",
-            )
+            provider_boundary.values()
         ),
+        **provider_boundary,
         "native_anthropic_transport_adapter_owned": (
             "Gate2OpenWebUIProviderConnectionResolver" in provider_adapters
             and 'f"{connection.base_url}/messages"' in provider_adapters
