@@ -14,8 +14,9 @@
   "corrective_scope": "current_state_terminal_lifecycle_test_only",
   "postmerge_authority_commit": "24948360095a749e11b1b0bcedbb8ae871a6b7f8",
   "postmerge_stage_q_repeated_after_corrective": true,
-  "evidence_pr": "TO_BE_ASSIGNED",
-  "evidence_pr_state": "PENDING",
+  "evidence_pr": 243,
+  "evidence_pr_state": "MERGED",
+  "terminal_assertion_activation": "receipt_is_authoritative_only_after_evidence_pr_merge",
   "evidence_merge_commit": "reported_in_terminal_response_due_to_commit_self_reference",
   "real_gate2_packages_total": 1,
   "real_source_units_total": 3,
@@ -101,5 +102,5 @@
   "model_qualification_started": false,
   "product_activation_started": false,
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "9ec1b1119a3b4e3c59a746762c2823e770330e63a1ba0b9843369c2654b64f8d"
+  "integrity_sha256": "519af691ce4a12734646789c1bf1b1b800fdb0ac2b1cb50af919fb83f53e906b"
 }

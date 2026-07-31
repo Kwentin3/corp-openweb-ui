@@ -37,8 +37,8 @@ Fresh read-only live parity passed for 3/3 Functions and 12/12 Prompts. Because
 repository and live bundle hashes are exact and unchanged, the proof is absent
 from live and no deploy is required.
 
-Evidence PR: `TO_BE_ASSIGNED`; its merge commit will be reported in the
-terminal response.
+Evidence PR: #243. This brief becomes terminal only after that PR is merged;
+its merge commit will be reported in the terminal response.
 
 ```text
 KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED

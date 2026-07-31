@@ -278,8 +278,9 @@ byte-immutable.
 
 ## 12. Closure
 
-Evidence PR: `TO_BE_ASSIGNED`; evidence merge commit is reported in the
-terminal response because a commit cannot contain its own future merge hash.
+Evidence PR: #243. This report becomes terminal only after that PR is merged;
+the evidence merge commit is reported in the terminal response because a
+commit cannot contain its own future merge hash.
 
 ```text
 KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED
