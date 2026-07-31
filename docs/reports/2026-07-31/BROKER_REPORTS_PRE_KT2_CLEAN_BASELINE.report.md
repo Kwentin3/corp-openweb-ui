@@ -28,7 +28,7 @@ KT2_STARTED = FALSE
 | Prior KT1.5 evidence merge | `dd677feecb1c9a6adc0fa568045ee8782429834c` |
 | Consolidation PR | #239, merged |
 | Consolidation merge | `277bfa95704397706b32c85962107cf7301c32d3` |
-| Evidence closure PR | `TO_BE_ASSIGNED`, merged before terminal response |
+| Evidence closure PR | #240, merged before terminal response |
 | Final `origin/main` | reported in the terminal response because the evidence merge commit cannot self-reference |
 
 Repository debt, live parity debt, and Decision Gate 1 remain closed. Fresh

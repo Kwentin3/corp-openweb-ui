@@ -13,7 +13,7 @@
   "pr_77_state": "CLOSED_AFTER_SUPERSESSION_AUDIT",
   "canonical_context_pr": 239,
   "canonical_context_pr_state": "MERGED",
-  "evidence_closure_pr": 0,
+  "evidence_closure_pr": 240,
   "evidence_closure_pr_state": "MERGED",
   "github_ci_run_id": 30629585992,
   "github_ci_job_id": 91152588755,
@@ -71,5 +71,5 @@
   "kt2_started": false,
   "kt2_ready": true,
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "1e49e1169ca624e027442896cf55336ee7339a9d5657855878434676f7d37435"
+  "integrity_sha256": "37e43a7cdd61c182fd5706346e998bb31035c8584ec43dbafafdbddf7a728fdd"
 }

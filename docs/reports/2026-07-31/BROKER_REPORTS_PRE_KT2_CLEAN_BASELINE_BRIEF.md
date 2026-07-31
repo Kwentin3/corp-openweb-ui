@@ -8,6 +8,8 @@ Status: `PASSED`
 - PR #239 merged the current Domain Map, Route Status, Semantic Convergence
   ADR, Owner Context, Sole Owner Matrix, agent protocols, extraction ledgers,
   Current State, Evidence Index, Debt Register, Skip Audit, and invariant tests.
+- Evidence closure PR #240 carries this terminal report set and is merged
+  before the terminal response.
 - PR #234, #233, and #77 were closed with artifact-specific comments after
   canonical extraction/preservation; their evidence branches were retained.
 - Open Broker Reports PR total is zero.
