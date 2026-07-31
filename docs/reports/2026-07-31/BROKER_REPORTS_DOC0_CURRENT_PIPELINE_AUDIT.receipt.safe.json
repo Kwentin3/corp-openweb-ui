@@ -73,6 +73,10 @@
     "openwebui_pipe_bundle_all": "PASSED_ZERO_DIFF"
   },
   "tests": {
+    "symbols_checked_total": 18,
+    "symbol_existence": "PASSED",
+    "import_call_chain_review": "PASSED",
+    "product_reachability_review": "PASSED",
     "canonical_current_state": {"passed": 7, "failed": 0},
     "fatal_ruff": "PASSED",
     "full_service_suite": {"collected": 2311, "passed": 2306, "skipped": 5, "warnings": 5, "failed": 0, "errors": 0, "duration_seconds": 900.15},
@@ -102,5 +106,5 @@
   "product_activation": "NOT_STARTED",
   "status": "PASSED",
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "01c3200b8ac125e1c25ceeb8c95c9c27ba74624312c43b462bf6c8f3fedb78af"
+  "integrity_sha256": "9016d870f1d99f2b664f4a15861f45cffa2a9d70aaa5d421dfa2d286dd5a1c7b"
 }
