@@ -15,6 +15,7 @@
   "historical_hash_updates_total": 0,
   "architecture_tests_passed_total": 17,
   "affected_tests_passed_total": 200,
+  "acceptance_scope": "required_kt1_and_affected_selection",
   "byte_parity_failures_total": 0,
   "goal16_hash_failures_total": 0,
   "setup_errors_total": 0,
@@ -22,6 +23,12 @@
   "new_skips_total": 0,
   "github_ci_run_id": 30607772132,
   "github_ci_status": "SUCCESS",
+  "repository_wide_diagnostic_status": "NON_GATING_BASELINE_DEBTS_PRESENT",
+  "repository_wide_diagnostic_passed_total": 2196,
+  "repository_wide_diagnostic_failed_total": 31,
+  "repository_wide_diagnostic_errors_total": 12,
+  "repository_wide_diagnostic_skipped_total": 23,
+  "unchanged_baseline_debt_classes_total": 2,
   "provider_calls_total": 0,
   "runtime_changes_total": 0,
   "product_logic_changes_total": 0,
@@ -34,5 +41,5 @@
   "decision_gate_1_status": "CLOSED",
   "kt2_authorized": false,
   "integrity_scope": "sha256_of_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "470a067f24e8798ce9ec8f2101da62bdc39f1b4077bbb75f38302e460845d1ea"
+  "integrity_sha256": "5752ac943c54a21d5205c13f31d989ff7e7f16acbef0bd2c860c930f5a5e2364"
 }

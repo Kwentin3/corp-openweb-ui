@@ -161,6 +161,34 @@ architecture_failures = 0
 setup_errors = 0
 ```
 
+### Supplementary repository-wide diagnostic
+
+An additional non-gating `python -m pytest -q tests --tb=short` diagnostic
+collected all 2,262 service tests and reported:
+
+```text
+2196 passed, 31 failed, 12 errors, 23 skipped, 5 warnings
+```
+
+This result is not hidden or relabelled as green. Twenty-nine failures and all
+12 errors are order-dependent GOAL 12 smoke-fixture contamination: the same
+files pass in the isolated GitHub acceptance run (`338 passed, 3 skipped`).
+The remaining two failures reproduce alone on files byte-identical to
+`origin/main`:
+
+- the historical GOAL 9 safe receipt pins an older
+  `BROKER_REPORTS_GATE2_LOCAL_DOMAIN_PROOF.v1.md` blob;
+- the stage2 live verifier reports
+  `provider_adapters_stay_inside_openwebui=false`, the already-declared
+  live/adapter containment debt.
+
+Neither failure is caused by the KT1 diff. Repairing the first would rewrite a
+historical receipt/hash, and repairing the second belongs to the separately
+authorized live parity checkpoint. Both actions are forbidden in this closure
+package. Therefore the acceptance gate uses the isolated mandatory and
+affected selections above, which have zero failures and setup errors, while
+these baseline debts remain explicitly open.
+
 ## 6. PR #232 extraction and closure
 
 The 20-row extraction ledger is committed at:
