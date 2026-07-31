@@ -17,6 +17,7 @@ Effective date: 2026-07-31
 | Current status and debts | `CANONICAL_CURRENT` | Current State, Debt Register, and Skip Audit MD/JSON |
 | KT1.5 terminal closure | `CANONICAL_CURRENT` | 2026-07-31 final authority closure report, receipt, and brief |
 | KT2 inactive same-source Type-First proof | `CANONICAL_CURRENT` | 2026-07-31 KT2 report, safe receipt, and brief |
+| KT2.1 bounded context and sufficiency closure | `CANONICAL_CURRENT` | 2026-07-31 KT2.1 report, safe receipt, and brief |
 
 ## KT2
 
@@ -36,6 +37,24 @@ false-singleton comparator. Private values and raw refs remain ignored under
 `local/`; only hashes, structure, safe fixtures, and aggregate outcomes are in
 Git. The proof is current repository evidence, not product activation or model
 qualification evidence.
+
+## KT2.1
+
+```text
+BOUNDED_SEMANTIC_CONTEXT = PASSED
+CONTEXT_SUFFICIENCY_GUARD = PASSED
+VALUES_ONLY_TYPED = 0
+MISSING_REQUIRED_CONTEXT_TYPED = 0
+REAL_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The KT2.1 evidence family records the three-unit context-flow audit, one
+structure-only bounded-context owner, Pack-backed context requirements, six
+deterministic ablations, typed and fail-closed traces, exact replay, post-merge
+tests, and fresh read-only live parity. It is inactive repository evidence;
+it does not authorize provider execution, model qualification, product
+reachability, activation, or deployment.
 
 ## GOAL 18
 
