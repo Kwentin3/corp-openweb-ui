@@ -644,6 +644,138 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                         expected_sha256=remote._sha256_bytes(prior),
                     )
 
+    def test_post_replace_failure_restores_loader_rows_and_health(self):
+        prior_loader = b"prior-loader"
+        candidate_loader = b"candidate-loader"
+        manifest = build_manifest(
+            source_revision=REVISION,
+            prompt_contracts=expected_prompt_contracts(),
+            provider_policy=provider_policy_manifest(
+                GATE2_PROVIDER_PROFILES
+            ),
+            loader_bytes=candidate_loader,
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            staging = root / manifest["release_id"]
+            staging.mkdir()
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest),
+                encoding="utf-8",
+            )
+            (staging / manifest["loader"]["file_name"]).write_bytes(
+                candidate_loader
+            )
+            db = root / "webui.db"
+            self._database(db)
+            loader_path = root / "loader.js"
+            loader_path.write_bytes(prior_loader)
+            before_rows = self._function_rows(db)
+            before_prompts = self._prompt_rows(db)
+            rollback_rows = remote._snapshot_function_rows(before_rows)
+            rollback_prompts = remote._snapshot_prompt_rows(before_prompts)
+            before_state = {
+                "functions": [
+                    {
+                        "active": True,
+                        "global": False,
+                        "type": "pipe",
+                    }
+                    for _ in FUNCTION_CONTRACTS
+                ],
+                "loader": {
+                    "content_sha256": remote._sha256_bytes(prior_loader),
+                },
+                "image": {},
+                "action": {},
+                "managed_prompts": [],
+                "fitz_version": manifest["runtime"]["fitz_version"],
+                "workload": {},
+                "counters": {},
+            }
+            rollback = {
+                "previous_function_rows": rollback_rows,
+                "previous_prompt_rows": rollback_prompts,
+                "previous_loader": {
+                    "content_sha256": remote._sha256_bytes(prior_loader),
+                },
+            }
+            original_atomic_write = remote._write_bytes_atomically
+            atomic_write_calls = 0
+
+            def fail_after_first_replace(*, path, content, mode):
+                nonlocal atomic_write_calls
+                atomic_write_calls += 1
+                original_atomic_write(path=path, content=content, mode=mode)
+                if atomic_write_calls == 1:
+                    raise RuntimeError("fault_after_loader_replace")
+
+            with (
+                mock.patch.object(remote, "LOADER_PATH", loader_path),
+                mock.patch.object(remote, "_validate_manifest"),
+                mock.patch.object(remote, "_validate_payload"),
+                mock.patch.object(remote, "_volume_mount", return_value=root),
+                mock.patch.object(remote, "_webui_db", return_value=db),
+                mock.patch.object(
+                    remote,
+                    "_live_state",
+                    return_value=before_state,
+                ),
+                mock.patch.object(remote, "_assert_static_contracts"),
+                mock.patch.object(remote, "_assert_prompt_set_present"),
+                mock.patch.object(remote, "_assert_quiescent"),
+                mock.patch.object(
+                    remote,
+                    "_desired_rows",
+                    return_value=before_rows,
+                ),
+                mock.patch.object(
+                    remote,
+                    "_rollback_artifact",
+                    return_value=(
+                        rollback,
+                        "f" * 64,
+                        True,
+                        prior_loader,
+                    ),
+                ),
+                mock.patch.object(
+                    remote,
+                    "_write_bytes_atomically",
+                    side_effect=fail_after_first_replace,
+                ),
+                mock.patch.object(remote, "_stop_container") as stop_mock,
+                mock.patch.object(remote, "_start_container") as start_mock,
+                mock.patch.object(remote, "_wait_healthy") as health_mock,
+                mock.patch.object(
+                    remote,
+                    "_container_running",
+                    return_value=False,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "fault_after_loader_replace",
+                ):
+                    remote.execute(
+                        staging_dir=staging,
+                        apply=True,
+                        prove_rollback=False,
+                    )
+
+            self.assertEqual(prior_loader, loader_path.read_bytes())
+            self.assertEqual(
+                rollback_rows,
+                remote._snapshot_function_rows(self._function_rows(db)),
+            )
+            self.assertEqual(
+                rollback_prompts,
+                remote._snapshot_prompt_rows(self._prompt_rows(db)),
+            )
+            self.assertEqual(2, stop_mock.call_count)
+            start_mock.assert_called_once_with()
+            health_mock.assert_called_once_with()
+
     def test_rollback_artifact_retains_exact_loader_and_detects_tampering(self):
         manifest = _manifest()
         loader_bytes = b"previous-loader-bytes"
