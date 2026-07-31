@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_doc0_current_pipeline_audit_v1",
+  "effective_date": "2026-07-31",
+  "base_commit": "473f4d476684921f140601875ab9d0d687661d69",
+  "audit_head_commit": "0005247e2a113306de7d1e9082f1d64b6283c109",
+  "audit_head_scope": "core audit documents before self-contained delivery receipt",
+  "audit_merge_commit": "reported_in_terminal_response_due_to_merge_commit_self_reference",
+
+  "pdf_routes_total": 4,
+  "pdf_routes": [
+    "full_source_text_layout_units",
+    "released_semantic_visual_table_crop",
+    "visual_page_fallback",
+    "gate2_legacy_preview_compatibility"
+  ],
+  "html_routes_total": 1,
+  "csv_routes_total": 1,
+  "spreadsheet_routes_total": 2,
+  "spreadsheet_routes": ["xlsx_partial_sheet_route", "xls_explicitly_unsupported_terminal"],
+
+  "document_artifact_authorities_total": 5,
+  "whole_document_artifact_status": "FRAGMENTED",
+
+  "pipeline_stages_total": 17,
+  "context_facets_audited_total": 53,
+  "context_facets_preserved_total": 7,
+  "context_facets_partially_preserved_total": 20,
+  "context_facets_lost_total": 24,
+  "context_facets_unknown_total": 2,
+
+  "first_irreversible_context_loss_stage": "FullSourceArtifactBuilder._build_pdf_document -> PdfLayoutUnitBuilder._build_page_units",
+  "first_irreversible_context_loss_proven": true,
+  "real_pdf_mixed_table_text_pages_total": 22,
+  "real_pdf_nonmonotonic_unit_order_pages_total": 16,
+
+  "real_pdfs_audited_total": 5,
+  "real_pdfs_readable_total": 4,
+  "real_pdfs_blocked_encrypted_total": 1,
+  "real_parser_table_candidates_total": 31,
+  "real_tables_audited_total": 8,
+  "multi_page_tables_audited_total": 0,
+  "different_broker_structures_total": 4,
+  "corpus_gap": true,
+  "corpus_gap_reason": "no qualified real cross-page continuation or footnote-bound table in the safe evidence set",
+
+  "current_logical_table_format_verdict": "FIT_WITH_EXPLICIT_GAPS",
+  "logical_table_gaps_total": 10,
+
+  "reusable_tools_total": 21,
+  "freeze_candidates_total": 4,
+  "retire_after_cutover_candidates_total": 3,
+
+  "fallback_routes_inventoried_total": 9,
+  "automatic_legacy_fallbacks_total": 3,
+  "product_reachable_legacy_fallbacks_total": 3,
+  "silent_context_degradation_paths_total": 4,
+
+  "new_pipeline_code_changes_total": 0,
+  "runtime_code_changes_total": 0,
+  "product_route_changes_total": 0,
+  "provider_calls_total": 0,
+  "live_changes_total": 0,
+  "generated_bundle_diff": 0,
+  "new_skips_total": 0,
+  "test_failures_total": 0,
+
+  "managed_builder_checks": {
+    "openwebui_managed_financial_assets": "PASSED",
+    "gate2_financial_semantic_model_assets": "PASSED",
+    "gate2_financial_semantic_v5_execution": "PASSED",
+    "context_v2_1_three_provider_local_proof": "PASSED_NO_PROVIDER_CALLS",
+    "context_v2_1_budget_smoke_plan": "PASSED",
+    "openwebui_pipe_bundle_all": "PASSED_ZERO_DIFF"
+  },
+  "tests": {
+    "symbols_checked_total": 18,
+    "symbol_existence": "PASSED",
+    "import_call_chain_review": "PASSED",
+    "product_reachability_review": "PASSED",
+    "canonical_current_state": {"passed": 7, "failed": 0},
+    "fatal_ruff": "PASSED",
+    "full_service_suite": {"collected": 2311, "passed": 2306, "skipped": 5, "warnings": 5, "failed": 0, "errors": 0, "duration_seconds": 900.15},
+    "repository_privacy_guard_in_full_suite": "PASSED",
+    "git_diff_check": "PASSED"
+  },
+  "privacy": {
+    "private_pdf_bytes_in_git": false,
+    "private_values_in_git": false,
+    "raw_source_refs_in_git": false,
+    "local_paths_in_git": false,
+    "provider_payloads_in_git": false,
+    "evidence_projection": "counts, hashes, structural statuses and redacted safe corpus ids only"
+  },
+  "artifact_sha256": {
+    "BROKER_REPORTS_DOCUMENT_PIPELINE_MAP.v1.md": "66768af065639875e6dc0af5061d88c6134a8eddc8beb3d2528a5ab62ecef948",
+    "BROKER_REPORTS_CONTEXT_LOSS_MATRIX.v1.json": "08346355625b73cea20daa31eddb1fc4f77bf9824fb374261505146abe55fedb",
+    "BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json": "1da904cbc1290999fe84d2a29f58c5225f6ef59079ef74ecef09a4a02ed5b2b0",
+    "BROKER_REPORTS_LOGICAL_TABLE_FORMAT_AUDIT.v1.md": "d6a034e333a8fa0d35001c2417fe424eb5d8f734ad98de79555703576fdf59cb",
+    "BROKER_REPORTS_DOC0_CURRENT_PIPELINE_AUDIT.report.md": "b790fe6db48b2a3d194790625dfc750e158799b2e2b52fbf05bea838a6bdcf8e",
+    "BROKER_REPORTS_DOC0_CURRENT_PIPELINE_AUDIT_BRIEF.md": "b2dd7a24a6c00293cb22c6f4b8cec1e45bfdbefc8d9845e07033d21fd1b23a83"
+  },
+
+  "next_goal_chain_status": "PRELIMINARY_DOC1_TO_DOC9_PROPOSED_NOT_STARTED",
+  "new_pipeline_implementation": "NOT_STARTED",
+  "real_model_qualification": "NOT_STARTED",
+  "product_activation": "NOT_STARTED",
+  "status": "PASSED",
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "9016d870f1d99f2b664f4a15861f45cffa2a9d70aaa5d421dfa2d286dd5a1c7b"
+}

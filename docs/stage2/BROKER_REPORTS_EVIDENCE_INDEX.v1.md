@@ -18,6 +18,26 @@ Effective date: 2026-07-31
 | KT1.5 terminal closure | `CANONICAL_CURRENT` | 2026-07-31 final authority closure report, receipt, and brief |
 | KT2 inactive same-source Type-First proof | `CANONICAL_CURRENT` | 2026-07-31 KT2 report, safe receipt, and brief |
 | KT2.1 bounded context and sufficiency closure | `CANONICAL_CURRENT` | 2026-07-31 KT2.1 report, safe receipt, and brief |
+| DOC0 current document-pipeline audit | `CANONICAL_CURRENT` | Pipeline Map, Context Loss Matrix, Legacy and Reusable Tooling, Logical Table Audit, and 2026-07-31 closure package |
+
+## DOC0
+
+```text
+CURRENT_DOCUMENT_PIPELINE = MAPPED
+WHOLE_DOCUMENT_ARTIFACT = FRAGMENTED
+FIRST_IRREVERSIBLE_CONTEXT_LOSS = IDENTIFIED
+CURRENT_LOGICAL_TABLE_FORMAT = FIT_WITH_EXPLICIT_GAPS
+AUTOMATIC_LEGACY_FALLBACKS_TOTAL = 3
+SILENT_CONTEXT_DEGRADATION_PATHS_TOTAL = 4
+NEW_PIPELINE_IMPLEMENTATION = NOT_STARTED
+REAL_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+DOC0 is a research-only current-code audit. It binds five read-only real-PDF
+normalization observations and the existing frozen eight-table actual-corpus
+evidence to a privacy-safe route map and loss matrix. It does not reopen KT2 or
+KT2.1, implement a new document pipeline, qualify a model or activate a route.
 
 ## KT2
 

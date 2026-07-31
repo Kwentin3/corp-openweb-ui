@@ -1,0 +1,82 @@
+{
+  "schema_version": "broker_reports_legacy_and_reusable_tooling_v1",
+  "effective_date": "2026-07-31",
+  "scope": "current Broker Reports document and PDF pipeline",
+  "counting_policy": {
+    "reusable_tools_total": "REUSE_AS_TOOL plus REUSE_AFTER_ISOLATION plus WRAP_OR_ADAPT",
+    "automatic_legacy_fallbacks_total": "current product-reachable automatic routes that consume maintained pre-semantic or legacy representations",
+    "silent_context_degradation_paths_total": "current product-reachable routes that can reduce downstream context without a specific user-facing warning"
+  },
+  "released_route": {
+    "authority_commit": "db009421b68c8b09df728239d23c217e5482d3a1",
+    "pdf_table_intake": "ENABLED",
+    "pdf_dual_vlm": "ENABLED_GEMINI_MASTER",
+    "semantic_visual_downstream": "ENABLED",
+    "standalone_semantic_projection": "ENABLED_ALONGSIDE_MAINTAINED_UNITS",
+    "openai_vlm_fallback": "DISABLED",
+    "visual_shadows": "DISABLED"
+  },
+  "components": [
+    {"id":"TOOL-001","component":"OpenWebUI upload and private file intake","owner":"Pipe._hydrate_private_intake_file_refs / FileInput","classification":"REUSE_AS_TOOL","reason":"exact private bytes remain the replay source"},
+    {"id":"TOOL-002","component":"container detection","owner":"ContainerDetector","classification":"REUSE_AS_TOOL","reason":"bounded format identification is independent of document semantics"},
+    {"id":"TOOL-003","component":"CSV supported-profile parser","owner":"CsvSupportedProfileFactory","classification":"REUSE_AS_TOOL","reason":"deterministic encoding, delimiter and complete row extraction"},
+    {"id":"TOOL-004","component":"PDF page-text parser","owner":"PdfTextLayerParserFactory","classification":"REUSE_AS_TOOL","reason":"page-bound text and diagnostics are useful evidence atoms"},
+    {"id":"TOOL-005","component":"PDF layout parser","owner":"PdfLayoutParserFactory","classification":"REUSE_AS_TOOL","reason":"words, lines, blocks and geometry are useful observations, not document truth"},
+    {"id":"TOOL-006","component":"PDF page renderer and visual memory","owner":"PdfVisualMemoryFactory / PdfTableRasterFactory","classification":"REUSE_AS_TOOL","reason":"deterministic source-bound page and crop rendering"},
+    {"id":"TOOL-007","component":"PDF table candidate intake","owner":"PdfTableIntakeRuntimeFactory","classification":"REUSE_AS_TOOL","reason":"bounded page-local detector and crop production can remain a tool"},
+    {"id":"TOOL-008","component":"bounded table VLM execution","owner":"PdfDualVlmRuntimeFactory","classification":"REUSE_AS_TOOL","reason":"strict one-crop provider boundary with explicit execution evidence"},
+    {"id":"TOOL-009","component":"semantic table validation","owner":"SemanticVisualTableValidatorFactory","classification":"REUSE_AS_TOOL","reason":"provider output remains a proposal and fails closed"},
+    {"id":"TOOL-010","component":"source provenance and checksum validation","owner":"NormalizedSliceProvenanceFactory and validators","classification":"REUSE_AS_TOOL","reason":"stable source binding is representation-independent"},
+    {"id":"TOOL-011","component":"private artifact persistence","owner":"ArtifactStoreFactory","classification":"REUSE_AS_TOOL","reason":"retention, visibility and immutable payload storage are reusable"},
+    {"id":"TOOL-012","component":"resolver-gated artifact access","owner":"ArtifactResolver","classification":"REUSE_AS_TOOL","reason":"access checks and hash validation are reusable"},
+    {"id":"TOOL-013","component":"bounded graph persistence","owner":"Gate1BoundedGraphFactory","classification":"REUSE_AS_TOOL","reason":"bounded write discipline is useful without adopting current document shape"},
+    {"id":"TOOL-014","component":"workload coordination","owner":"WorkloadAuthorityFactory","classification":"REUSE_AS_TOOL","reason":"leases, budgets and cancellation are pipeline-neutral"},
+
+    {"id":"TOOL-015","component":"semantic logical-table materialization","owner":"SemanticVisualTableMaterializationFactory","classification":"REUSE_AFTER_ISOLATION","reason":"fit for the accepted single-crop numeric profile, but not a whole-document table contract"},
+    {"id":"TOOL-016","component":"document-memory manifest","owner":"Gate1DocumentMemoryFactory","classification":"REUSE_AFTER_ISOLATION","reason":"safe graph/index is useful only after it stops presenting fragments as a cohesive document memory"},
+    {"id":"TOOL-017","component":"Gate 1 normalization orchestrator","owner":"Gate1Normalizer","classification":"REUSE_AFTER_ISOLATION","reason":"tools may be retained, but the current unit/payload assembly must not become the new document contract"},
+    {"id":"TOOL-018","component":"safe report and privacy validators","owner":"render_safe_report / validators","classification":"REUSE_AFTER_ISOLATION","reason":"reuse after adding document-context-specific safe fields"},
+
+    {"id":"TOOL-019","component":"HTML ordered-block extraction","owner":"FullSourceArtifactBuilder._extract_html","classification":"WRAP_OR_ADAPT","reason":"content_block_ordinal is useful, but DOM semantics and external media are incomplete"},
+    {"id":"TOOL-020","component":"XLSX ZIP/XML sheet extraction","owner":"FullSourceArtifactBuilder._extract_xlsx","classification":"WRAP_OR_ADAPT","reason":"sheet coordinates are reusable; formulas and workbook semantics are incomplete"},
+    {"id":"TOOL-021","component":"Gate 2 table package builder","owner":"Gate2TablePackageFactory","classification":"WRAP_OR_ADAPT","reason":"bounded row packaging is useful but excludes whole-document context"},
+
+    {"id":"LEGACY-001","component":"PDF table-first plus line-cluster unit partition","owner":"PdfLayoutUnitBuilder._build_page_units","classification":"FREEZE","reason":"destroys one interleaved page order and must not be extended as a document abstraction"},
+    {"id":"LEGACY-002","component":"native geometric PDF table projection as document meaning","owner":"NormalizedTableProjectionFactory","classification":"FREEZE","reason":"geometry candidates are useful evidence but cannot own semantic document structure"},
+    {"id":"LEGACY-003","component":"optional passport and clarification enrichment","owner":"Pipe._maybe_run_passport_stage / _maybe_run_clarification_stage","classification":"FREEZE","reason":"default-off enrichment over fragments does not repair source context"},
+    {"id":"LEGACY-004","component":"hybrid, structural, guided and semantic-header shadows","owner":"Gate 1 shadow factories","classification":"FREEZE","reason":"released off and non-authoritative; do not revive as a parallel document path"},
+
+    {"id":"LEGACY-005","component":"legacy bounded preview artifacts","owner":"profile_pdf/profile_txt/profile_csv slices","classification":"RETIRE_AFTER_CUTOVER","reason":"previews are incomplete and exist only as compatibility inputs"},
+    {"id":"LEGACY-006","component":"source-unit-only document analysis route","owner":"Gate2InputReadinessFactory plus Gate2DomainSourceFactRuntimeFactory","classification":"RETIRE_AFTER_CUTOVER","reason":"model receives isolated fragments rather than a coherent document"},
+    {"id":"LEGACY-007","component":"automatic continuation on maintained units when semantic table is absent","owner":"Gate 1 pipe plus Gate 2 readiness","classification":"RETIRE_AFTER_CUTOVER","reason":"allows financial extraction to continue with reduced context"}
+  ],
+  "fallbacks": [
+    {"id":"FB-PDF-LAYOUT-TEXT","kind":"SIMPLIFIED_PARSER_ROUTE","trigger":"layout incomplete while text layer remains complete","caller":"FullSourceArtifactBuilder._build_pdf_document","target":"provisional pdf_page_text units","automatic":true,"product_reachable":true,"user_visible":false,"logged":true,"context_loss":"layout, table and visual relations","financial_result_possible":true,"counts_as_legacy":false,"counts_as_silent_degradation":true},
+    {"id":"FB-PDF-VISUAL-PAGE","kind":"VISUAL_FALLBACK","trigger":"page needs visible-content fallback","caller":"FullSourceArtifactBuilder._build_pdf_document","target":"PdfVisualMemoryFactory","automatic":true,"product_reachable":true,"user_visible":false,"logged":true,"context_loss":"pixels retained but text and semantics unavailable to Gate 2","financial_result_possible":false,"counts_as_legacy":false,"counts_as_silent_degradation":true},
+    {"id":"FB-SEMANTIC-MAINTAINED","kind":"MAINTAINED_PRE_SEMANTIC_CONTINUATION","trigger":"no accepted standalone semantic table after intake, VLM or materialization","caller":"broker_reports_gate1_pipe.Pipe._run_workload","target":"maintained full-source units","automatic":true,"product_reachable":true,"user_visible":false,"logged":true,"context_loss":"logical table and crop-derived row binding absent","financial_result_possible":true,"counts_as_legacy":true,"counts_as_silent_degradation":true},
+    {"id":"FB-GATE2-LEGACY-PREVIEW","kind":"LEGACY_SOURCE_FALLBACK","trigger":"no selected eligible full-source unit for a document","caller":"Gate2InputReadinessService","target":"legacy normalized slices","automatic":true,"product_reachable":true,"user_visible":false,"logged":true,"context_loss":"full-source coverage replaced by bounded preview","financial_result_possible":true,"counts_as_legacy":true,"counts_as_silent_degradation":true},
+    {"id":"FB-LEGACY-PROVENANCE-UPGRADE","kind":"LEGACY_COMPATIBILITY_ADAPTER","trigger":"legacy slice lacks source_unit_provenance_v0","caller":"Gate2InputReadinessService","target":"NormalizedSliceProvenanceFactory.enrich_slice","automatic":true,"product_reachable":true,"user_visible":false,"logged":true,"context_loss":"none added, but missing legacy context is not restored","financial_result_possible":true,"counts_as_legacy":true,"counts_as_silent_degradation":false},
+    {"id":"FB-OPENAI-VLM","kind":"PROVIDER_FALLBACK","trigger":"Gemini terminal failure under explicit fallback policy","caller":"PdfDualVlmRuntimeService","target":"OpenAI table transcription","automatic":false,"product_reachable":false,"current_state":"DISABLED_BY_RELEASED_VALVE","user_visible":false,"logged":true,"context_loss":"same crop-only boundary","financial_result_possible":false,"counts_as_legacy":false,"counts_as_silent_degradation":false},
+    {"id":"FB-PASSPORT-SAFE-CONTINUE","kind":"OPTIONAL_ENRICHMENT_FALLBACK","trigger":"passport prompt or model unavailable","caller":"Pipe._maybe_run_passport_stage","target":"base Gate 1 result","automatic":false,"product_reachable":false,"current_state":"PASSPORT_DISABLED","user_visible":true,"logged":true,"context_loss":"metadata enrichment absent","financial_result_possible":false,"counts_as_legacy":false,"counts_as_silent_degradation":false},
+    {"id":"FB-SHADOW-SAFE","kind":"NON_AUTHORITATIVE_SHADOW_FALLBACK","trigger":"repair shadow exception or invalid safe report","caller":"Pipe._maybe_run_pdf_structural_repair_shadow","target":"empty safe shadow summary","automatic":false,"product_reachable":false,"current_state":"SHADOWS_DISABLED","user_visible":false,"logged":true,"context_loss":"none in product selection","financial_result_possible":false,"counts_as_legacy":false,"counts_as_silent_degradation":false},
+    {"id":"FB-PDF-COMPAT-PREVIEW","kind":"NON_PRODUCTION_COMPATIBILITY","trigger":"direct legacy PDF extraction helper use","caller":"FullSourceArtifactBuilder._extract_pdf","target":"legacy profiler preview","automatic":false,"product_reachable":false,"user_visible":false,"logged":true,"context_loss":"bounded preview only","financial_result_possible":false,"counts_as_legacy":false,"counts_as_silent_degradation":false}
+  ],
+  "classification_counts": {
+    "REUSE_AS_TOOL": 14,
+    "REUSE_AFTER_ISOLATION": 4,
+    "WRAP_OR_ADAPT": 3,
+    "FREEZE": 4,
+    "RETIRE_AFTER_CUTOVER": 3,
+    "UNKNOWN": 0
+  },
+  "reusable_tools_total": 21,
+  "freeze_candidates_total": 4,
+  "retire_after_cutover_candidates_total": 3,
+  "fallback_routes_inventoried_total": 9,
+  "automatic_legacy_fallbacks_total": 3,
+  "product_reachable_legacy_fallbacks_total": 3,
+  "silent_context_degradation_paths_total": 4,
+  "recommended_nearest_goal": "isolate product-reachable legacy and degraded-context continuation behind an explicit document-quality decision after the new document contract is proven",
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "960e19fdcb7da7fb4e50a1624065e73fdc8da6c631fbcc58d46a13ab24ab690a"
+}

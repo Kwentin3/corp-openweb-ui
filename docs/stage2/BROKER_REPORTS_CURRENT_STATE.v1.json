@@ -25,6 +25,14 @@
   "type_first_product_reachability": false,
   "model_qualification": "NOT_STARTED",
   "product_activation": "NOT_STARTED",
+  "doc0_current_pipeline_audit": "PASSED",
+  "whole_document_artifact": "FRAGMENTED",
+  "first_irreversible_context_loss": "FullSourceArtifactBuilder._build_pdf_document -> PdfLayoutUnitBuilder._build_page_units",
+  "current_logical_table_format": "FIT_WITH_EXPLICIT_GAPS",
+  "automatic_legacy_fallbacks_total": 3,
+  "silent_context_degradation_paths_total": 4,
+  "reusable_tools_total": 21,
+  "doc0_new_pipeline_implementation": "NOT_STARTED",
   "preferred_convergence": "A",
   "reserve_convergence": "B_IF_DISTINCT_DOMAIN_IS_PROVEN",
   "current_product_route": "Gate2DomainSourceFactRuntimeFactory via broker_reports_gate2_domain_source_fact_pipe",
@@ -55,6 +63,10 @@
     "docs/stage2/BROKER_REPORTS_SKIP_AUDIT.v1.md",
     "docs/stage2/BROKER_REPORTS_SKIP_AUDIT.v1.json",
     "docs/stage2/BROKER_REPORTS_TYPE_FIRST_CONTEXT_DECISION_BRIEF.v1.md",
+    "docs/stage2/BROKER_REPORTS_DOCUMENT_PIPELINE_MAP.v1.md",
+    "docs/stage2/BROKER_REPORTS_CONTEXT_LOSS_MATRIX.v1.json",
+    "docs/stage2/BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json",
+    "docs/stage2/BROKER_REPORTS_LOGICAL_TABLE_FORMAT_AUDIT.v1.md",
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md",
     "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md",
     "docs/stage2/contracts/BROKER_REPORTS_BOUNDED_SEMANTIC_CONTEXT.v1.md",
@@ -93,5 +105,5 @@
     "live_changes": 0
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "d9a275d57fb3eff4d6906d3c4027bd0ba71b42ceea20c6f87e63b120f428e404"
+  "integrity_sha256": "5454b4f2245190f02a05866c90b0d3d3937c8207947dc311b2fdb092b107ea29"
 }
