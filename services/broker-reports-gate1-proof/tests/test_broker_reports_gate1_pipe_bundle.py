@@ -44,10 +44,25 @@ def fixture_bytes(name: str) -> bytes:
     return (FIXTURES / name).read_bytes()
 
 
-def load_bundle_module():
+def _broker_reports_modules() -> dict[str, object]:
+    return {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "broker_reports_gate1"
+        or name.startswith("broker_reports_gate1.")
+    }
+
+
+def _clear_broker_reports_modules() -> None:
     for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
+        if name == "broker_reports_gate1" or name.startswith(
+            "broker_reports_gate1."
+        ):
             del sys.modules[name]
+
+
+def load_bundle_module():
+    _clear_broker_reports_modules()
     spec = importlib.util.spec_from_file_location(
         "broker_reports_gate1_pipe_bundled_under_test",
         BUNDLE,
@@ -61,15 +76,13 @@ def load_bundle_module():
 
 class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
     def setUp(self) -> None:
+        self._maintained_modules = _broker_reports_modules()
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
 
     def tearDown(self) -> None:
-        for name in list(sys.modules):
-            if name == "broker_reports_gate1" or name.startswith(
-                "broker_reports_gate1."
-            ):
-                del sys.modules[name]
+        _clear_broker_reports_modules()
+        sys.modules.update(self._maintained_modules)
 
     def test_bundled_pipe_runs_backend_normalizer_without_repo_package_import(self):
         source = BUNDLE.read_text(encoding="utf-8")
