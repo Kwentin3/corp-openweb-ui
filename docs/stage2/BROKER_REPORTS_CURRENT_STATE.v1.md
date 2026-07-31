@@ -1,10 +1,13 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point for pre-KT2 work
+Status: canonical entry point after KT2 closure
 
 Effective date: 2026-07-31
 
-Canonical consolidation merge: `277bfa95704397706b32c85962107cf7301c32d3`
+KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
+
+Current-state lifecycle corrective merge:
+`24948360095a749e11b1b0bcedbb8ae871a6b7f8`.
 
 This file routes an agent to the current authorities. It does not replace the
 versioned contracts, domain map, sole-owner matrix, or historical receipts.
@@ -22,9 +25,10 @@ canonical state.
 - Release: `broker-reports-db009421b68c`.
 - KT1.5 evidence merge before the canonical evidence consolidation:
   `dd677feecb1c9a6adc0fa568045ee8782429834c`.
-- Fresh read-only delivery and atomic verifiers passed on 2026-07-31. All
-  three Function bundles, 12 managed prompts, valves, runtime identities,
-  rollback identity, workload quiescence, and factory boundary were exact.
+- Fresh post-KT2 read-only delivery verification passed on 2026-07-31. All
+  three Function bundles and 12 managed prompts were exact, and the repository
+  factory boundary passed. The earlier atomic release receipt remains valid;
+  it was not rerun because KT2 changed no generated or live bundle bytes.
 
 ## 3. Gate 1 status
 
@@ -48,7 +52,8 @@ are in `architecture/BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md`.
 - `source_fact_selection_v3`: `HISTORICAL_READ_ONLY`; the product containment
   guard is hard false.
 - GOAL 17 / PR #232 Type-First V6: contract and proof evidence only; PR closed
-  without merge; no implementation exists on current `main`.
+  without merge; none of its implementation was imported. The current KT2
+  proof is a separately implemented, reviewed and merged subordinate slice.
 - GOAL 18: `HISTORICAL_AUDIT_EVIDENCE`; its 2026-07-30 live drift finding was
   true at the report date and was later closed by KT1.5.
 - PR #77 canonical-domain research: `HISTORICAL_RESEARCH_SUPERSEDED`; its
@@ -62,9 +67,11 @@ existing Choice, Expansion, canonical validator/materializer, ArtifactStore,
 and evidence/replay owners. Option B is reserved only if a distinct business
 domain is proven through a new ADR. A second active semantic route is rejected.
 
-This decision establishes direction only. KT2 is ready to start after an
-explicit authorization, but has not started and is not authorized by this
-document.
+KT2 implemented Option A as one inactive subordinate capability inside the
+existing source-fact boundary. It reused the existing Choice, Expansion,
+validator, materializer, ArtifactStore, and evidence/replay owners. The proof
+is not product- or provider-reachable. Model qualification and product
+activation have not started.
 
 ## 7. Sole owners
 
@@ -91,24 +98,27 @@ is `contracts/BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md`. Load-bearing owners are:
 ## 8. Semantic Pack status
 
 The Financial Semantic Pack and its hash-pinned snapshot remain the sole
-current type authority. KT1.6 changes no Pack bytes, types, admissions,
-prompts, valves, or runtime behavior. The experimental PR #77 registry draft
-is not a runtime or documentation authority.
+current type authority. KT2 projects versioned model-facing Type Cards from
+that authority without changing Pack bytes, canonical types, meanings,
+admissions, prompts, valves, or runtime behavior. The experimental PR #77
+registry draft is not a runtime or documentation authority.
 
 ## 9. Known semantic risks
 
-False-singleton visibility, corpus generalization, source-to-type ambiguity,
-and candidate/provider qualification remain future semantic risks. They are
-the subject of bounded KT2 proof work, not an excuse to add a second route,
-invent values, relax fail-closed validation, or claim production readiness.
+KT2 proved one bounded false-singleton case observable and not typed. Corpus
+generalization, broader source-to-type ambiguity, and candidate/provider
+qualification remain future semantic risks. The bounded proof is not an excuse
+to add a second route, invent values, relax fail-closed validation, or claim
+production readiness.
 
 ## 10. Repository and live parity
 
 `repository_debt = CLOSED`, `live_parity_debt = CLOSED`, and
-`decision_gate_1 = CLOSED`. Generated bundles rebuild with zero diff. The live
-authority is exact to the three committed bundle hashes recorded in the KT1.5
-receipt. A later code, bundle, prompt, valve, admission, or image change
-invalidates that claim and requires a new governed release receipt.
+`decision_gate_1 = CLOSED`. Generated bundles rebuild with zero diff and do not
+contain the KT2 proof symbol. Fresh read-only verification matched all three
+repository bundles to live, so the live bundles also do not contain the proof.
+No deploy was required. A later bundle, prompt, valve, admission, or image
+change invalidates that claim and requires a new governed release receipt.
 
 ## 11. Canonical evidence
 
@@ -126,13 +136,12 @@ historical v3 defect, private old-trace bytes, retained evidence branches, and
 stale inaccessible worktree metadata are explicit non-blocking debts with
 reopening triggers.
 
-## 13. KT2 prerequisites
+## 13. KT2 closure and next gates
 
-Before any KT2 implementation: obtain explicit authorization; start from the
-clean `main` worktree; read the ADR, route status, owner context, sole-owner
-matrix, current debt register, and Pre-Task Protocol; define one inactive
-same-source slice; identify exact owners and consumers; keep provider calls and
-activation separately gated; and prove no new product route or materializer.
+KT2 is complete at the inactive proof boundary. Any model qualification needs
+a separately authorized exact candidate and four-disposition live gate. Any
+product activation needs a later explicit product decision, fresh reachability
+review, governed release, rollback proof, and independent live readback.
 
 ## 14. Forbidden shortcuts
 
@@ -146,6 +155,10 @@ REPOSITORY_DEBT = CLOSED
 LIVE_PARITY_DEBT = CLOSED
 DECISION_GATE_1 = CLOSED
 CANONICAL_CONTEXT = COMPLETE
-KT2_READY = TRUE
-KT2_STARTED = FALSE
+KT2_READY = FALSE_COMPLETED
+KT2_SAME_SOURCE_TYPE_FIRST_PROOF = PASSED
+TYPE_FIRST_PRODUCT_REACHABILITY = FALSE
+KT2 = COMPLETE
+MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
 ```
