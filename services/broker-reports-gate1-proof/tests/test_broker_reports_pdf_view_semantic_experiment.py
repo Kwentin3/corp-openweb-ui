@@ -41,6 +41,7 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     OpenAiDoc4Transport,
     ProviderConnection,
     PdfViewSemanticExperimentRunner,
+    _token_count_body,
     build_arm_request,
     write_immutable_json,
 )
@@ -292,7 +293,9 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
             self.counts = iter((10, 20, 40, 100, 140))
 
         def count_input_tokens(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-            request_sha256 = sha256_bytes(canonical_json_bytes(request))
+            request_sha256 = sha256_bytes(
+                canonical_json_bytes(_token_count_body(request))
+            )
             count = next(self.counts)
             raw_payload = {"input_tokens": count}
             return count, _provider_call_metadata(
@@ -541,6 +544,7 @@ def test_22_stability_replay_checks_facts_and_source_pointers() -> None:
 
 def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.MonkeyPatch) -> None:
     sessions: list[Any] = []
+    sent_bodies: list[dict[str, Any]] = []
 
     class FakeResponse:
         status_code = 200
@@ -561,8 +565,9 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
         def __exit__(self, *_: Any) -> None:
             return None
 
-        def post(self, *_: Any, **__: Any) -> FakeResponse:
+        def post(self, *_: Any, **kwargs: Any) -> FakeResponse:
             assert self.trust_env is False
+            sent_bodies.append(json.loads(kwargs["data"]))
             return FakeResponse()
 
     monkeypatch.setattr("broker_reports_gate1.pdf_view_semantic_experiment.requests.Session", FakeSession)
@@ -578,9 +583,10 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
         }
         for value in ("one", "two")
     ]
+    token_count_bodies = [_token_count_body(item) for item in bodies]
     request_keys = frozenset(
         "/responses/input_tokens:" + sha256_bytes(canonical_json_bytes(item))
-        for item in bodies
+        for item in token_count_bodies
     )
     request_set_sha256 = sha256_bytes(
         canonical_json_bytes(sorted(request_keys))
@@ -596,8 +602,13 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
     transport.count_input_tokens(bodies[1])
     assert len(sessions) == 2
     assert sessions[0] is not sessions[1]
+    assert sent_bodies == token_count_bodies
+    assert all(
+        not {"temperature", "top_p", "store", "max_output_tokens"}.intersection(item)
+        for item in sent_bodies
+    )
     unauthorized = copy.deepcopy(bodies[0])
-    unauthorized["store"] = True
+    unauthorized["input"] = "unauthorized"
     with pytest.raises(Doc4ContractError, match="request_not_authorized"):
         transport.count_input_tokens(unauthorized)
     with pytest.raises(Doc4ContractError, match="request_not_authorized"):

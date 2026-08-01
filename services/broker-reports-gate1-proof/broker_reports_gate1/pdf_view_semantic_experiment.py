@@ -194,7 +194,7 @@ class OpenAiDoc4Transport:
         request_sha256 = sha256_bytes(encoded)
         if f"{suffix}:{request_sha256}" not in self.authorized_request_keys:
             raise Doc4ContractError("provider_outbound_request_not_authorized")
-        _assert_outbound_provider_policy(body)
+        _assert_outbound_provider_policy(body, suffix=suffix)
         last_error: Exception | None = None
         for attempt in range(TRANSPORT_RETRIES_MAX + 1):
             started = time.perf_counter()
@@ -535,7 +535,7 @@ def authorized_request_keys(
             )
             keys.update(
                 "/responses/input_tokens:"
-                + sha256_bytes(canonical_json_bytes(item))
+                + sha256_bytes(canonical_json_bytes(_token_count_body(item)))
                 for item in _context_count_stages(
                     candidate=candidate,
                     source_mode=source_mode,
@@ -864,17 +864,28 @@ def _context_count_stages(
 
 
 def _token_count_body(request_body: dict[str, Any]) -> dict[str, Any]:
-    allowed = {"model", "instructions", "input", "reasoning", "temperature", "top_p", "text", "tools", "store"}
+    allowed = {"model", "instructions", "input", "reasoning", "text", "tools"}
     return {key: copy.deepcopy(value) for key, value in request_body.items() if key in allowed}
 
 
-def _assert_outbound_provider_policy(request: dict[str, Any]) -> None:
+def _assert_outbound_provider_policy(
+    request: dict[str, Any], *, suffix: str
+) -> None:
     if request.get("model") != REQUEST_MODEL_ID:
         raise Doc4ContractError("provider_outbound_model_not_authorized")
-    if request.get("store") is not False or request.get("tools") != []:
+    if request.get("tools") != []:
         raise Doc4ContractError("provider_outbound_tools_or_storage_not_authorized")
     if request.get("reasoning") != {"effort": REASONING_EFFORT}:
         raise Doc4ContractError("provider_outbound_reasoning_not_authorized")
+    if suffix == "/responses/input_tokens":
+        forbidden = {"temperature", "top_p", "store", "max_output_tokens"}
+        if forbidden.intersection(request):
+            raise Doc4ContractError("provider_token_count_shape_invalid")
+        return
+    if suffix != "/responses":
+        raise Doc4ContractError("provider_endpoint_not_authorized")
+    if request.get("store") is not False:
+        raise Doc4ContractError("provider_outbound_tools_or_storage_not_authorized")
     if request.get("temperature") != TEMPERATURE or request.get("top_p") != TOP_P:
         raise Doc4ContractError("provider_outbound_sampling_not_authorized")
 
