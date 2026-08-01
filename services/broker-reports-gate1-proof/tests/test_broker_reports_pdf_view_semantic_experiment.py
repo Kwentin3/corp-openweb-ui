@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import copy
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, asdict
 from pathlib import Path
 from typing import Any
 
@@ -203,6 +203,22 @@ def test_07_decimal_date_and_currency_behavior_is_deterministic() -> None:
     response = _response("PDF")
     assert response["financial_facts"][0]["currency"] == "USD"
     assert response["financial_facts"][0]["source_literal"] == "10.00 USD"
+    response["financial_facts"][0]["normalized_decimal"] = "999999"
+    with pytest.raises(Doc4ContractError, match="normalized_decimal_not_derived"):
+        validate_semantic_response(
+            response,
+            _read_json(RESPONSE_SCHEMA_PATH),
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+        )
+    response["financial_facts"][0]["normalized_decimal"] = "1000"
+    with pytest.raises(Doc4ContractError, match="normalized_decimal_not_derived"):
+        validate_semantic_response(
+            response,
+            _read_json(RESPONSE_SCHEMA_PATH),
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+        )
 
 
 def test_08_pdf_and_view_requests_are_source_isolated(response_schema: dict[str, Any]) -> None:
@@ -239,7 +255,8 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
             self.counts = iter((10, 20, 40, 100, 140))
 
         def count_input_tokens(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-            return next(self.counts), {"request_sha256": "a" * 64}
+            request_sha256 = sha256_bytes(canonical_json_bytes(request))
+            return next(self.counts), _provider_call_metadata(request_sha256)
 
     result = PdfViewSemanticExperimentRunner().context_preflight(  # type: ignore[arg-type]
         transport=FakeTransport(),
@@ -282,13 +299,17 @@ def test_11_authorization_gate_requires_exact_operator_scope() -> None:
 def test_12_gold_is_sealed_only_before_calls_and_with_complete_critical_ids() -> None:
     factory = PdfViewSemanticAdjudicationFactory()
     draft = _gold_draft()
-    sealed = factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, provider_calls_started=False)
+    sealed = factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=False)
     assert sealed["integrity_sha256"] == integrity_sha256(sealed)
     with pytest.raises(Doc4ContractError, match="after_provider_calls"):
-        factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, provider_calls_started=True)
+        factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=True)
     draft["critical_fact_ids"] = []
     with pytest.raises(Doc4ContractError, match="critical_fact_ids_incomplete"):
-        factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, provider_calls_started=False)
+        factory.seal_gold(draft, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=False)
+    fabricated = _gold_draft()
+    fabricated["items"][-1]["evidence"][0]["evidence_text"] = "fabricated evidence"
+    with pytest.raises(Doc4ContractError, match="evidence_not_on_page"):
+        factory.seal_gold(fabricated, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=False)
 
 
 def test_13_comparator_exact_normalized_numeric_date_currency_and_order() -> None:
@@ -325,12 +346,31 @@ def test_14_comparator_detects_missing_and_status_conflicts() -> None:
 def test_15_both_wrong_is_not_parity_and_artifact_gap_is_separate() -> None:
     pdf = _response("PDF")
     view = _response("LLM_VIEW")
+    for response in (pdf, view):
+        response["financial_facts"][0].update(
+            {
+                "source_literal": "999.00 USD",
+                "normalized_value": "999",
+                "normalized_decimal": "999",
+            }
+        )
     comparison = PdfViewSemanticComparator().compare(safe_id="real_pdf_1", pdf_response=pdf, view_response=view, comparison_schema=_read_json(COMPARISON_SCHEMA_PATH))
     draft = _adjudication_draft(comparison)
-    for finding in draft["findings"]:
-        finding.update({"disposition": "BOTH_WRONG", "pdf_arm_correct": False, "view_arm_correct": False, "both_wrong": True})
+    with pytest.raises(Doc4ContractError, match="correctness_not_derived_from_gold"):
+        PdfViewSemanticAdjudicationFactory().seal_adjudication(
+            copy.deepcopy(draft),
+            gold=_sealed_gold(),
+            pdf_response=pdf,
+            view_response=view,
+            comparison=comparison,
+            adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH),
+        )
+    wrong = next(item for item in draft["findings"] if item["semantic_key"] == "financial.fact_000001")
+    wrong.update({"disposition": "BOTH_WRONG", "pdf_arm_correct": False, "view_arm_correct": False, "both_wrong": True})
     sealed = PdfViewSemanticAdjudicationFactory().seal_adjudication(draft, gold=_sealed_gold(), pdf_response=pdf, view_response=view, comparison=comparison, adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH))
-    assert sealed["metrics"]["both_arms_wrong_total"] == len(draft["findings"])
+    assert sealed["metrics"]["both_arms_wrong_total"] == 1
+    assert sealed["metrics"]["pdf_numeric_exact_match_total"] == 0
+    assert sealed["metrics"]["view_numeric_exact_match_total"] == 0
     assert sealed["model_task_adequacy"] == "FAILED"
     assert sealed["document_semantic_assessment"] == "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"
 
@@ -338,10 +378,29 @@ def test_15_both_wrong_is_not_parity_and_artifact_gap_is_separate() -> None:
 def test_16_pdf_wrong_view_gap_unsupported_and_invalid_pointer_are_counted_separately() -> None:
     pdf = _response("PDF")
     view = _response("LLM_VIEW")
+    view["financial_facts"][0].update(
+        {
+            "source_literal": "11.00 USD",
+            "normalized_value": "11",
+            "normalized_decimal": "11",
+        }
+    )
+    for response in (pdf, view):
+        extra = copy.deepcopy(response["financial_facts"][0])
+        extra.update(
+            {
+                "fact_id": "fact_000002",
+                "source_literal": "99.00 USD",
+                "normalized_value": "99",
+                "normalized_decimal": "99",
+                "evidence": [],
+            }
+        )
+        response["financial_facts"].append(extra)
     comparison = PdfViewSemanticComparator().compare(safe_id="real_pdf_1", pdf_response=pdf, view_response=view, comparison_schema=_read_json(COMPARISON_SCHEMA_PATH))
     draft = _adjudication_draft(comparison)
-    gold_finding = next(item for item in draft["findings"] if item["gold_item_id"] is not None)
-    gold_finding.update({"disposition": "ARTIFACT_SEMANTIC_GAP", "pdf_arm_correct": True, "view_arm_correct": False, "artifact_semantic_gap": True, "view_pointer_valid": False, "invalid_pointer": True})
+    gold_finding = next(item for item in draft["findings"] if item["semantic_key"] == "financial.fact_000001")
+    gold_finding.update({"disposition": "ARTIFACT_SEMANTIC_GAP", "pdf_arm_correct": True, "view_arm_correct": False, "artifact_semantic_gap": True})
     extra_finding = next(item for item in draft["findings"] if item["gold_item_id"] is None)
     extra_finding.update({"disposition": "BOTH_WRONG", "pdf_arm_correct": False, "view_arm_correct": False, "pdf_arm_unsupported": True, "view_arm_unsupported": True, "both_wrong": True, "unsupported_fact": True})
     sealed = PdfViewSemanticAdjudicationFactory().seal_adjudication(draft, gold=_sealed_gold(), pdf_response=pdf, view_response=view, comparison=comparison, adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH))
@@ -586,50 +645,7 @@ def test_26_adjudication_computes_full_threshold_metrics_and_stability_gate() ->
 
 
 def test_27_terminal_result_requires_exact_four_document_gate() -> None:
-    pdf = _response("PDF")
-    view = _response("LLM_VIEW")
-    comparison = PdfViewSemanticComparator().compare(
-        safe_id="real_pdf_1",
-        pdf_response=pdf,
-        view_response=view,
-        comparison_schema=_read_json(COMPARISON_SCHEMA_PATH),
-    )
-    sealed = PdfViewSemanticAdjudicationFactory().seal_adjudication(
-        _adjudication_draft(comparison),
-        gold=_sealed_gold(),
-        pdf_response=pdf,
-        view_response=view,
-        comparison=comparison,
-        adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH),
-    )
-    adjudications: dict[str, dict[str, Any]] = {}
-    gold_checklists: dict[str, dict[str, Any]] = {}
-    pdf_responses = {safe_id: copy.deepcopy(pdf) for safe_id in CORPUS_IDS}
-    view_responses = {safe_id: copy.deepcopy(view) for safe_id in CORPUS_IDS}
-    for safe_id in CORPUS_IDS:
-        gold = copy.deepcopy(_sealed_gold())
-        gold["safe_id"] = safe_id
-        gold["integrity_sha256"] = ""
-        gold["integrity_sha256"] = integrity_sha256(gold)
-        item = copy.deepcopy(sealed)
-        item["safe_id"] = safe_id
-        item["gold_checklist_sha256"] = sha256_bytes(canonical_json_bytes(gold))
-        item["integrity_sha256"] = ""
-        item["integrity_sha256"] = integrity_sha256(item)
-        gold_checklists[safe_id] = gold
-        adjudications[safe_id] = item
-    plan_sha256 = "f" * 64
-    preflight = _eligible_preflight(plan_sha256)
-    finalize_args = {
-        "gold_checklists": gold_checklists,
-        "pdf_responses": pdf_responses,
-        "view_responses": view_responses,
-        "context_preflight": preflight,
-        "expected_run_plan_sha256": plan_sha256,
-        "gold_schema": _read_json(GOLD_SCHEMA_PATH),
-        "adjudication_schema": _read_json(ADJUDICATION_SCHEMA_PATH),
-        "result_schema": _read_json(RESULT_SCHEMA_PATH),
-    }
+    adjudications, finalize_args = _terminal_fixture()
     result = PdfViewSemanticResultFactory().finalize(
         adjudications=adjudications,
         **finalize_args,
@@ -641,11 +657,12 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
     with pytest.raises(Doc4ContractError, match="paired_corpus_incomplete"):
         PdfViewSemanticResultFactory().finalize(
             adjudications=adjudications,
-            **{**finalize_args, "view_responses": {safe_id: view_responses[safe_id] for safe_id in CORPUS_IDS[:-1]}},
+            **{**finalize_args, "view_responses": {safe_id: finalize_args["view_responses"][safe_id] for safe_id in CORPUS_IDS[:-1]}},
         )
-    with pytest.raises(Doc4ContractError, match="eligible_corpus_incomplete"):
-        ineligible = copy.deepcopy(preflight)
+    with pytest.raises(Doc4ContractError, match="formula_invalid"):
+        ineligible = copy.deepcopy(finalize_args["context_preflight"])
         ineligible["documents"]["real_pdf_5"]["LLM_VIEW"]["eligible"] = False
+        ineligible["documents"]["real_pdf_5"]["LLM_VIEW"]["reason"] = "NOT_ELIGIBLE_CONTEXT_LIMIT"
         ineligible["integrity_sha256"] = ""
         ineligible["integrity_sha256"] = integrity_sha256(ineligible)
         PdfViewSemanticResultFactory().finalize(
@@ -657,14 +674,48 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
             adjudications={safe_id: adjudications[safe_id] for safe_id in CORPUS_IDS[:-1]},
             **finalize_args,
         )
+    minimal = copy.deepcopy(finalize_args["context_preflight"])
+    minimal["documents"] = {
+        safe_id: {"PDF": {"eligible": True}, "LLM_VIEW": {"eligible": True}}
+        for safe_id in CORPUS_IDS
+    }
+    minimal["integrity_sha256"] = ""
+    minimal["integrity_sha256"] = integrity_sha256(minimal)
+    with pytest.raises(Doc4ContractError, match="token_counts_invalid"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{**finalize_args, "context_preflight": minimal},
+        )
+    tampered_traces = copy.deepcopy(finalize_args["run_traces"])
+    tampered = tampered_traces["real_pdf_4"]["PDF"]
+    tampered["attempts"][0]["raw_payload"]["model"] = "wrong-model"
+    tampered["integrity_sha256"] = ""
+    tampered["integrity_sha256"] = integrity_sha256(tampered)
+    with pytest.raises(Doc4ContractError, match="run_trace_model_invalid"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{**finalize_args, "run_traces": tampered_traces},
+        )
     rebadged = copy.deepcopy(adjudications)
     rebadged["real_pdf_2"] = copy.deepcopy(adjudications["real_pdf_1"])
     rebadged["real_pdf_2"]["safe_id"] = "real_pdf_2"
+    rebadged["real_pdf_2"]["gold_checklist_sha256"] = sha256_bytes(
+        canonical_json_bytes(finalize_args["gold_checklists"]["real_pdf_2"])
+    )
+    rebadged["real_pdf_2"]["pdf_response_sha256"] = sha256_bytes(
+        canonical_json_bytes(finalize_args["pdf_responses"]["real_pdf_2"])
+    )
+    rebadged["real_pdf_2"]["view_response_sha256"] = sha256_bytes(
+        canonical_json_bytes(finalize_args["view_responses"]["real_pdf_2"])
+    )
+    rebadged["real_pdf_2"]["comparison_sha256"] = sha256_bytes(
+        canonical_json_bytes(finalize_args["comparisons"]["real_pdf_2"])
+    )
     rebadged["real_pdf_2"]["integrity_sha256"] = ""
     rebadged["real_pdf_2"]["integrity_sha256"] = integrity_sha256(
         rebadged["real_pdf_2"]
     )
-    with pytest.raises(Doc4ContractError, match="gold_binding_invalid"):
+    with pytest.raises(Doc4ContractError, match="adjudication_replay_mismatch"):
         PdfViewSemanticResultFactory().finalize(
             adjudications=rebadged,
             **finalize_args,
@@ -709,21 +760,176 @@ def _source_hashes() -> dict[str, dict[str, str]]:
     }
 
 
-def _eligible_preflight(run_plan_sha256: str) -> dict[str, Any]:
+def _eligible_preflight(
+    run_plan_sha256: str,
+    request_hashes: dict[str, dict[str, tuple[str, ...]]],
+) -> dict[str, Any]:
+    documents: dict[str, Any] = {}
+    for safe_id in CORPUS_IDS:
+        documents[safe_id] = {}
+        for arm in ("PDF", "LLM_VIEW"):
+            documents[safe_id][arm] = {
+                "source_tokens": 60,
+                "system_tokens": 10,
+                "task_tokens": 20,
+                "schema_tokens": 40,
+                "request_envelope_tokens": 10,
+                "total_input_tokens": 140,
+                "reserved_output_tokens": ModelCandidate().reserved_max_output_tokens,
+                "safety_margin_tokens": ModelCandidate().safety_margin_tokens,
+                "context_window": ModelCandidate().context_window,
+                "eligible": True,
+                "reason": "FIT",
+                "token_count_calls_total": 5,
+                "token_count_call_receipts": [
+                    _provider_call_metadata(digest) for digest in request_hashes[safe_id][arm]
+                ],
+            }
     value = {
         "schema_version": "broker_reports_doc4_context_preflight_private_v1",
         "request_model_id": REQUEST_MODEL_ID,
         "run_plan_sha256": run_plan_sha256,
-        "documents": {
-            safe_id: {
-                "PDF": {"eligible": True},
-                "LLM_VIEW": {"eligible": True},
-            }
-            for safe_id in CORPUS_IDS
-        },
+        "documents": documents,
         "provider_calls_total": 40,
         "integrity_sha256": "",
     }
+    value["integrity_sha256"] = integrity_sha256(value)
+    return value
+
+
+def _terminal_fixture() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    plan_sha256 = "f" * 64
+    adjudications: dict[str, dict[str, Any]] = {}
+    comparisons: dict[str, dict[str, Any]] = {}
+    gold_checklists: dict[str, dict[str, Any]] = {}
+    pdf_responses: dict[str, dict[str, Any]] = {}
+    view_responses: dict[str, dict[str, Any]] = {}
+    validated_receipts: dict[str, dict[str, dict[str, Any]]] = {}
+    run_traces: dict[str, dict[str, dict[str, Any]]] = {}
+    expected_request_hashes: dict[str, dict[str, str]] = {}
+    expected_preflight_hashes: dict[str, dict[str, tuple[str, ...]]] = {}
+    expected_pdf_hashes: dict[str, str] = {}
+    page_texts: dict[str, tuple[str, ...]] = {}
+    registries: dict[str, ViewPointerRegistry] = {}
+    stability = {safe_id: 0 for safe_id in CORPUS_IDS}
+    comparator = PdfViewSemanticComparator()
+    sealer = PdfViewSemanticAdjudicationFactory()
+    for safe_id in CORPUS_IDS:
+        pdf = _response("PDF")
+        view = _response("LLM_VIEW")
+        pdf["source_quality"]["summary"] = f"Synthetic source {safe_id}."
+        view["source_quality"]["summary"] = f"Synthetic source {safe_id}."
+        gold = copy.deepcopy(_sealed_gold())
+        gold["safe_id"] = safe_id
+        gold["pdf_sha256"] = sha256_bytes(safe_id.encode("utf-8"))
+        gold["integrity_sha256"] = ""
+        gold["integrity_sha256"] = integrity_sha256(gold)
+        comparison = comparator.compare(
+            safe_id=safe_id,
+            pdf_response=pdf,
+            view_response=view,
+            comparison_schema=_read_json(COMPARISON_SCHEMA_PATH),
+        )
+        adjudication = sealer.seal_adjudication(
+            _adjudication_draft(comparison),
+            gold=gold,
+            pdf_response=pdf,
+            view_response=view,
+            comparison=comparison,
+            adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH),
+            view_registry=_view_registry(),
+        )
+        pdf_responses[safe_id] = pdf
+        view_responses[safe_id] = view
+        gold_checklists[safe_id] = gold
+        comparisons[safe_id] = comparison
+        adjudications[safe_id] = adjudication
+        expected_pdf_hashes[safe_id] = gold["pdf_sha256"]
+        page_texts[safe_id] = (_pdf_pointer()["evidence_text"],)
+        registries[safe_id] = _view_registry()
+        validated_receipts[safe_id] = {}
+        run_traces[safe_id] = {}
+        expected_request_hashes[safe_id] = {}
+        expected_preflight_hashes[safe_id] = {}
+        for arm, response in (("PDF", pdf), ("LLM_VIEW", view)):
+            request = {"safe_id": safe_id, "source_mode": arm}
+            request_sha256 = sha256_bytes(canonical_json_bytes(request))
+            expected_request_hashes[safe_id][arm] = request_sha256
+            expected_preflight_hashes[safe_id][arm] = tuple(
+                sha256_bytes(f"{safe_id}:{arm}:{index}".encode("utf-8"))
+                for index in range(5)
+            )
+            validated_receipts[safe_id][arm] = _hash_payload(
+                "broker_reports_doc4_validated_response_receipt_v1",
+                source_mode=arm,
+                response_sha256=sha256_bytes(canonical_json_bytes(response)),
+                request_sha256=request_sha256,
+                status="PASSED",
+            )
+            metadata = _provider_call_metadata(
+                request_sha256, resolved_model=REQUEST_MODEL_ID
+            )
+            run_traces[safe_id][arm] = _hash_payload(
+                "broker_reports_doc4_arm_run_trace_v1",
+                request=request,
+                attempts=[
+                    {
+                        "metadata": metadata,
+                        "raw_payload": {"model": REQUEST_MODEL_ID},
+                        "validation_error": None,
+                    }
+                ],
+                schema_retries_total=0,
+                first_schema_error=None,
+                arm_status="PASSED",
+            )
+    return adjudications, {
+        "comparisons": comparisons,
+        "gold_checklists": gold_checklists,
+        "pdf_responses": pdf_responses,
+        "view_responses": view_responses,
+        "validated_receipts": validated_receipts,
+        "run_traces": run_traces,
+        "expected_request_sha256_by_safe_id": expected_request_hashes,
+        "expected_preflight_request_sha256_by_safe_id": expected_preflight_hashes,
+        "expected_pdf_sha256_by_safe_id": expected_pdf_hashes,
+        "pdf_page_texts_by_safe_id": page_texts,
+        "view_registries": registries,
+        "critical_stability_conflicts_by_safe_id": stability,
+        "context_preflight": _eligible_preflight(
+            plan_sha256, expected_preflight_hashes
+        ),
+        "expected_run_plan_sha256": plan_sha256,
+        "expected_candidate": asdict(ModelCandidate()),
+        "gold_schema": _read_json(GOLD_SCHEMA_PATH),
+        "comparison_schema": _read_json(COMPARISON_SCHEMA_PATH),
+        "adjudication_schema": _read_json(ADJUDICATION_SCHEMA_PATH),
+        "result_schema": _read_json(RESULT_SCHEMA_PATH),
+    }
+
+
+def _provider_call_metadata(
+    request_sha256: str,
+    *,
+    resolved_model: str | None = None,
+) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "http_status": 200,
+        "attempts_total": 1,
+        "transport_retries_total": 0,
+        "http_session_scope": "ONE_REQUEST_NO_REUSE",
+        "request_sha256": request_sha256,
+        "response_sha256": "a" * 64,
+        "response_bytes": 20,
+        "duration_seconds": 0.01,
+    }
+    if resolved_model is not None:
+        value["resolved_model"] = resolved_model
+    return value
+
+
+def _hash_payload(schema_version: str, **fields: Any) -> dict[str, Any]:
+    value = {"schema_version": schema_version, **fields, "integrity_sha256": ""}
     value["integrity_sha256"] = integrity_sha256(value)
     return value
 
@@ -746,23 +952,84 @@ def _validate_authorization(value: dict[str, Any]) -> None:
 
 
 def _gold_draft() -> dict[str, Any]:
-    return {"schema_version": "draft", "safe_id": "real_pdf_1", "pdf_sha256": "", "created_at": "2026-08-01T00:00:00Z", "created_before_provider_calls": False, "immutable": False, "adjudicator_isolated_from_view": True, "adjudicator_isolated_from_model_responses": True, "items": [_gold_item("gold_table", "table.table_000001"), _gold_item("gold_fact", "financial.fact_000001")], "critical_fact_ids": ["gold_table", "gold_fact"], "integrity_sha256": ""}
+    response = _response("PDF")
+    items: list[dict[str, Any]] = []
+    for item in response["document_passport"]:
+        items.append(
+            _gold_item_from_response(
+                item,
+                item_id=f"gold_passport_{item['field_id']}",
+                semantic_key=f"passport.{item['field_id']}",
+                category="PASSPORT",
+                critical=item["field_id"] in {"reporting_period", "owner_or_account"},
+                ordinal=None,
+            )
+        )
+    structure = response["document_structure"][0]
+    items.append(
+        _gold_item_from_response(
+            structure,
+            item_id="gold_structure_000001",
+            semantic_key="structure.structure_000001",
+            category="STRUCTURE",
+            critical=True,
+            ordinal=0,
+        )
+    )
+    items.extend(
+        [
+            _gold_item("gold_table", "table.table_000001"),
+            _gold_item("gold_fact", "financial.fact_000001"),
+        ]
+    )
+    return {"schema_version": "draft", "safe_id": "real_pdf_1", "pdf_sha256": "", "created_at": "2026-08-01T00:00:00Z", "created_before_provider_calls": False, "immutable": False, "adjudicator_isolated_from_view": True, "adjudicator_isolated_from_model_responses": True, "items": items, "critical_fact_ids": [item["gold_item_id"] for item in items if item["critical"]], "integrity_sha256": ""}
+
+
+def _gold_item_from_response(
+    item: dict[str, Any],
+    *,
+    item_id: str,
+    semantic_key: str,
+    category: str,
+    critical: bool,
+    ordinal: int | None,
+) -> dict[str, Any]:
+    return {
+        "gold_item_id": item_id,
+        "semantic_key": semantic_key,
+        "category": category,
+        "critical": critical,
+        "ordinal": ordinal,
+        "status": item["status"],
+        "fact_kind": item.get("fact_kind"),
+        "source_literal": item.get("source_literal"),
+        "normalized_value": item.get("normalized_value"),
+        "normalized_decimal": item.get("normalized_decimal"),
+        "normalized_date": item.get("normalized_date"),
+        "currency": item.get("currency"),
+        "unit": item.get("unit"),
+        "sign": item.get("sign"),
+        "evidence": [{"page": 1, "visible_label": None, "evidence_text": "Synthetic evidence statement 1 Transactions 10.00 USD", "table_visible_title": None, "row_visible_label": None, "column_visible_label": None}],
+    }
 
 
 def _gold_item(item_id: str, key: str) -> dict[str, Any]:
     financial = key.startswith("financial")
-    return {"gold_item_id": item_id, "semantic_key": key, "category": "FINANCIAL_FACT" if financial else "TABLE", "critical": True, "ordinal": 0, "status": "PRESENT", "fact_kind": "AMOUNT" if financial else None, "source_literal": "10.00 USD" if financial else "Transactions", "normalized_value": "10" if financial else "Transactions", "normalized_decimal": "10" if financial else None, "normalized_date": None, "currency": "USD" if financial else None, "unit": None, "sign": "POSITIVE" if financial else None, "evidence": [{"page": 1, "visible_label": None, "evidence_text": "Synthetic evidence", "table_visible_title": None, "row_visible_label": None, "column_visible_label": None}]}
+    return {"gold_item_id": item_id, "semantic_key": key, "category": "FINANCIAL_FACT" if financial else "TABLE", "critical": True, "ordinal": 0, "status": "PRESENT", "fact_kind": "AMOUNT" if financial else None, "source_literal": "10.00 USD" if financial else "Transactions", "normalized_value": "10" if financial else "Transactions", "normalized_decimal": "10" if financial else None, "normalized_date": None, "currency": "USD" if financial else None, "unit": None, "sign": "POSITIVE" if financial else None, "evidence": [{"page": 1, "visible_label": None, "evidence_text": "Synthetic evidence statement 1 Transactions 10.00 USD", "table_visible_title": None, "row_visible_label": None, "column_visible_label": None}]}
 
 
 def _sealed_gold() -> dict[str, Any]:
-    return PdfViewSemanticAdjudicationFactory().seal_gold(_gold_draft(), gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, provider_calls_started=False)
+    return PdfViewSemanticAdjudicationFactory().seal_gold(_gold_draft(), gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=False)
 
 
 def _adjudication_draft(comparison: dict[str, Any]) -> dict[str, Any]:
-    critical_keys = {"table.table_000001": "gold_table", "financial.fact_000001": "gold_fact"}
+    gold_ids = {
+        item["semantic_key"]: item["gold_item_id"] for item in _gold_draft()["items"]
+    }
     findings = []
     for index, item in enumerate(comparison["items"]):
-        findings.append({"finding_id": f"finding_{index:06d}", "semantic_key": item["semantic_key"], "gold_item_id": critical_keys.get(item["semantic_key"]), "critical": item["critical"], "comparison_category": item["category"], "disposition": "BOTH_CORRECT", "pdf_arm_correct": True, "view_arm_correct": True, "pdf_arm_unsupported": False, "view_arm_unsupported": False, "pdf_pointer_valid": item["pdf_pointer_valid"], "view_pointer_valid": item["view_pointer_valid"], "artifact_semantic_gap": False, "pdf_native_model_gap": False, "both_wrong": False, "unsupported_fact": False, "invalid_pointer": False, "notes": None})
+        supported = item["semantic_key"] in gold_ids
+        findings.append({"finding_id": f"finding_{index:06d}", "semantic_key": item["semantic_key"], "gold_item_id": gold_ids.get(item["semantic_key"]), "critical": item["critical"], "comparison_category": item["category"], "disposition": "BOTH_CORRECT" if supported else "BOTH_WRONG", "pdf_arm_correct": supported, "view_arm_correct": supported, "pdf_arm_unsupported": not supported and item["pdf_status"] is not None, "view_arm_unsupported": not supported and item["view_status"] is not None, "pdf_pointer_valid": item["pdf_pointer_valid"], "view_pointer_valid": item["view_pointer_valid"], "artifact_semantic_gap": False, "pdf_native_model_gap": False, "both_wrong": not supported, "unsupported_fact": not supported, "invalid_pointer": item["pdf_pointer_valid"] is False or item["view_pointer_valid"] is False, "notes": None})
     return {"schema_version": "draft", "safe_id": "real_pdf_1", "gold_checklist_sha256": "", "pdf_response_sha256": "", "view_response_sha256": "", "comparison_sha256": "", "complete": False, "findings": findings, "metrics": {"gold_critical_facts_total": 0, "pdf_correct_critical_facts_total": 0, "view_correct_critical_facts_total": 0, "pdf_wrong_critical_facts_total": 0, "view_wrong_critical_facts_total": 0, "unsupported_facts_total": 0, "artifact_semantic_gaps_total": 0, "pdf_native_model_gaps_total": 0, "both_arms_wrong_total": 0, "invalid_source_pointers_total": 0}, "model_task_adequacy": "FAILED", "document_semantic_assessment": "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY", "integrity_sha256": ""}
 
 

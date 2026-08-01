@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from collections import Counter
 from datetime import datetime
 from typing import Any
@@ -108,6 +109,7 @@ class PdfViewSemanticAdjudicationFactory:
         *,
         gold_schema: dict[str, Any],
         expected_pdf_sha256: str,
+        expected_pdf_page_texts: tuple[str, ...],
         provider_calls_started: bool,
         expected_pdf_pages: int | None = None,
     ) -> dict[str, Any]:
@@ -154,9 +156,11 @@ class PdfViewSemanticAdjudicationFactory:
             financial = item["category"] == "FINANCIAL_FACT"
             if financial != (item.get("fact_kind") is not None):
                 raise Doc4ContractError("gold_fact_kind_category_mismatch")
-            for pointer in item["evidence"]:
-                if expected_pdf_pages is not None and pointer["page"] > expected_pdf_pages:
-                    raise Doc4ContractError("gold_pdf_pointer_page_out_of_range")
+        _validate_gold_source_grounding(
+            value,
+            pdf_page_texts=expected_pdf_page_texts,
+            expected_pdf_pages=expected_pdf_pages,
+        )
         value["integrity_sha256"] = ""
         value["integrity_sha256"] = integrity_sha256(value)
         validate_json_contract(value, gold_schema, label="gold_checklist")
@@ -231,25 +235,45 @@ class PdfViewSemanticResultFactory:
         self,
         *,
         adjudications: dict[str, dict[str, Any]],
+        comparisons: dict[str, dict[str, Any]],
         gold_checklists: dict[str, dict[str, Any]],
         pdf_responses: dict[str, dict[str, Any]],
         view_responses: dict[str, dict[str, Any]],
+        validated_receipts: dict[str, dict[str, dict[str, Any]]],
+        run_traces: dict[str, dict[str, dict[str, Any]]],
+        expected_request_sha256_by_safe_id: dict[str, dict[str, str]],
+        expected_preflight_request_sha256_by_safe_id: dict[
+            str, dict[str, tuple[str, ...]]
+        ],
+        expected_pdf_sha256_by_safe_id: dict[str, str],
+        pdf_page_texts_by_safe_id: dict[str, tuple[str, ...]],
+        view_registries: dict[str, ViewPointerRegistry],
+        critical_stability_conflicts_by_safe_id: dict[str, int],
         context_preflight: dict[str, Any],
         expected_run_plan_sha256: str,
+        expected_candidate: dict[str, Any],
         gold_schema: dict[str, Any],
+        comparison_schema: dict[str, Any],
         adjudication_schema: dict[str, Any],
         result_schema: dict[str, Any],
     ) -> dict[str, Any]:
-        _validate_terminal_preflight(
+        validate_doc4_context_preflight(
             context_preflight,
             expected_run_plan_sha256=expected_run_plan_sha256,
+            expected_candidate=expected_candidate,
+            expected_request_sha256_by_safe_id=(
+                expected_preflight_request_sha256_by_safe_id
+            ),
         )
-        if tuple(pdf_responses) != CORPUS_IDS or tuple(view_responses) != CORPUS_IDS:
-            raise Doc4ContractError("terminal_paired_corpus_incomplete")
-        if tuple(gold_checklists) != CORPUS_IDS:
-            raise Doc4ContractError("terminal_gold_corpus_incomplete")
-        if tuple(adjudications) != CORPUS_IDS:
-            raise Doc4ContractError("terminal_adjudication_corpus_incomplete")
+        corpus_mappings = {
+            "paired": (pdf_responses, view_responses),
+            "gold": (gold_checklists, expected_pdf_sha256_by_safe_id, pdf_page_texts_by_safe_id),
+            "adjudication": (adjudications, comparisons, view_registries, critical_stability_conflicts_by_safe_id),
+            "run_evidence": (validated_receipts, run_traces, expected_request_sha256_by_safe_id),
+        }
+        for label, mappings in corpus_mappings.items():
+            if any(tuple(mapping) != CORPUS_IDS for mapping in mappings):
+                raise Doc4ContractError(f"terminal_{label}_corpus_incomplete")
 
         documents: list[dict[str, Any]] = []
         for safe_id in CORPUS_IDS:
@@ -260,8 +284,35 @@ class PdfViewSemanticResultFactory:
                 raise Doc4ContractError("terminal_gold_safe_id_mismatch")
             if gold.get("integrity_sha256") != integrity_sha256(gold):
                 raise Doc4ContractError("terminal_gold_integrity_invalid")
+            if gold.get("pdf_sha256") != expected_pdf_sha256_by_safe_id[safe_id]:
+                raise Doc4ContractError("terminal_gold_pdf_binding_invalid")
+            _validate_gold_source_grounding(
+                gold,
+                pdf_page_texts=pdf_page_texts_by_safe_id[safe_id],
+                expected_pdf_pages=len(pdf_page_texts_by_safe_id[safe_id]),
+            )
+            for arm, response in (
+                ("PDF", pdf_responses[safe_id]),
+                ("LLM_VIEW", view_responses[safe_id]),
+            ):
+                _validate_terminal_arm_evidence(
+                    safe_id=safe_id,
+                    source_mode=arm,
+                    response=response,
+                    validated_receipt=validated_receipts[safe_id][arm],
+                    run_trace=run_traces[safe_id][arm],
+                    expected_request_sha256=expected_request_sha256_by_safe_id[
+                        safe_id
+                    ][arm],
+                    expected_model_id=expected_candidate["request_model_id"],
+                )
             validate_json_contract(
                 item, adjudication_schema, label="source_adjudication"
+            )
+            validate_json_contract(
+                comparisons[safe_id],
+                comparison_schema,
+                label="semantic_comparison",
             )
             if item.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
                 raise Doc4ContractError("terminal_adjudication_version_invalid")
@@ -281,6 +332,20 @@ class PdfViewSemanticResultFactory:
                 canonical_json_bytes(view_responses[safe_id])
             ):
                 raise Doc4ContractError("terminal_response_binding_invalid")
+            replayed = PdfViewSemanticAdjudicationFactory().seal_adjudication(
+                item,
+                gold=gold,
+                pdf_response=pdf_responses[safe_id],
+                view_response=view_responses[safe_id],
+                comparison=comparisons[safe_id],
+                adjudication_schema=adjudication_schema,
+                view_registry=view_registries[safe_id],
+                critical_stability_conflicts_total=(
+                    critical_stability_conflicts_by_safe_id[safe_id]
+                ),
+            )
+            if canonical_json_bytes(replayed) != canonical_json_bytes(item):
+                raise Doc4ContractError("terminal_adjudication_replay_mismatch")
             documents.append(
                 {
                     "safe_id": safe_id,
@@ -553,6 +618,18 @@ def _validate_adjudication_coverage(
         if finding.get("gold_item_id") != expected_gold_id:
             raise Doc4ContractError("adjudication_gold_item_binding_invalid")
         comparison_item = comparison_by_key.get(key)
+        finding["evidence_binding_sha256"] = sha256_bytes(
+            canonical_json_bytes(
+                {
+                    "safe_id": gold["safe_id"],
+                    "semantic_key": key,
+                    "gold_item": gold_item,
+                    "pdf_item": pdf_items.get(key),
+                    "view_item": view_items.get(key),
+                    "comparison_item": comparison_item,
+                }
+            )
+        )
         expected_category = comparison_item["category"] if comparison_item else "UNCOMPARABLE"
         if finding.get("comparison_category") != expected_category:
             raise Doc4ContractError("adjudication_comparison_binding_invalid")
@@ -563,13 +640,35 @@ def _validate_adjudication_coverage(
         )
         if finding.get("critical") is not critical:
             raise Doc4ContractError("adjudication_criticality_mismatch")
-        if finding["unsupported_fact"] != (
-            finding["pdf_arm_unsupported"] or finding["view_arm_unsupported"]
+        expected_pdf_correct = _arm_matches_gold(gold_item, pdf_items.get(key))
+        expected_view_correct = _arm_matches_gold(gold_item, view_items.get(key))
+        if (
+            finding["pdf_arm_correct"] is not expected_pdf_correct
+            or finding["view_arm_correct"] is not expected_view_correct
+        ):
+            raise Doc4ContractError("adjudication_correctness_not_derived_from_gold")
+        expected_pdf_unsupported = gold_item is None and key in pdf_items
+        expected_view_unsupported = gold_item is None and key in view_items
+        if (
+            finding["pdf_arm_unsupported"] is not expected_pdf_unsupported
+            or finding["view_arm_unsupported"] is not expected_view_unsupported
+            or finding["unsupported_fact"]
+            is not (expected_pdf_unsupported or expected_view_unsupported)
         ):
             raise Doc4ContractError("adjudication_unsupported_flag_mismatch")
-        if finding["invalid_pointer"] != (
-            finding["pdf_pointer_valid"] is False
-            or finding["view_pointer_valid"] is False
+        expected_pdf_pointer = (
+            comparison_item.get("pdf_pointer_valid") if comparison_item else None
+        )
+        expected_view_pointer = (
+            comparison_item.get("view_pointer_valid") if comparison_item else None
+        )
+        if (
+            finding["pdf_pointer_valid"] != expected_pdf_pointer
+            or finding["view_pointer_valid"] != expected_view_pointer
+        ):
+            raise Doc4ContractError("adjudication_pointer_verdict_not_deterministic")
+        if finding["invalid_pointer"] is not (
+            expected_pdf_pointer is False or expected_view_pointer is False
         ):
             raise Doc4ContractError("adjudication_invalid_pointer_flag_mismatch")
         for arm, arm_items in (("pdf", pdf_items), ("view", view_items)):
@@ -588,6 +687,20 @@ def _validate_adjudication_coverage(
             if pointer_expected != isinstance(pointer_value, bool):
                 raise Doc4ContractError("adjudication_pointer_verdict_missing_or_extra")
         disposition = finding.get("disposition")
+        expected_disposition = {
+            (True, True): "BOTH_CORRECT",
+            (True, False): "ARTIFACT_SEMANTIC_GAP",
+            (False, True): "PDF_NATIVE_MODEL_GAP",
+            (False, False): "BOTH_WRONG",
+        }[(expected_pdf_correct, expected_view_correct)]
+        if disposition != expected_disposition:
+            raise Doc4ContractError("adjudication_disposition_not_derived_from_gold")
+        if finding["artifact_semantic_gap"] is not (
+            expected_disposition == "ARTIFACT_SEMANTIC_GAP"
+        ) or finding["pdf_native_model_gap"] is not (
+            expected_disposition == "PDF_NATIVE_MODEL_GAP"
+        ) or finding["both_wrong"] is not (expected_disposition == "BOTH_WRONG"):
+            raise Doc4ContractError("adjudication_gap_flags_not_derived_from_gold")
         flags = {
             "ARTIFACT_SEMANTIC_GAP": "artifact_semantic_gap",
             "PDF_NATIVE_MODEL_GAP": "pdf_native_model_gap",
@@ -612,6 +725,28 @@ def _validate_adjudication_coverage(
             finding["view_arm_correct"],
         ):
             raise Doc4ContractError("adjudication_disposition_correctness_mismatch")
+
+
+def _arm_matches_gold(
+    gold_item: dict[str, Any] | None,
+    arm_item: dict[str, Any] | None,
+) -> bool:
+    if gold_item is None or arm_item is None:
+        return False
+    expected = {
+        "status": gold_item["status"],
+        "source_literal": gold_item.get("source_literal"),
+        "normalized_value": gold_item.get("normalized_value"),
+        "normalized_decimal": gold_item.get("normalized_decimal"),
+        "normalized_date": gold_item.get("normalized_date"),
+        "currency": gold_item.get("currency"),
+        "unit": gold_item.get("unit"),
+        "sign": gold_item.get("sign"),
+        "ordinal": gold_item.get("ordinal"),
+    }
+    return arm_item["exact"] == expected and arm_item.get("fact_kind") == gold_item.get(
+        "fact_kind"
+    )
 
 
 def _adjudication_metrics(
@@ -889,10 +1024,12 @@ def _terminal_metrics(
     }
 
 
-def _validate_terminal_preflight(
+def validate_doc4_context_preflight(
     value: dict[str, Any],
     *,
     expected_run_plan_sha256: str,
+    expected_candidate: dict[str, Any],
+    expected_request_sha256_by_safe_id: dict[str, dict[str, tuple[str, ...]]],
 ) -> None:
     if value.get("schema_version") != "broker_reports_doc4_context_preflight_private_v1":
         raise Doc4ContractError("terminal_preflight_version_invalid")
@@ -900,15 +1037,172 @@ def _validate_terminal_preflight(
         raise Doc4ContractError("terminal_preflight_integrity_invalid")
     if value.get("run_plan_sha256") != expected_run_plan_sha256:
         raise Doc4ContractError("terminal_preflight_plan_binding_invalid")
+    if value.get("request_model_id") != expected_candidate.get("request_model_id"):
+        raise Doc4ContractError("terminal_preflight_model_invalid")
+    if tuple(expected_request_sha256_by_safe_id) != CORPUS_IDS:
+        raise Doc4ContractError("terminal_preflight_request_corpus_incomplete")
     documents = value.get("documents")
     if not isinstance(documents, dict) or tuple(documents) != CORPUS_IDS:
         raise Doc4ContractError("terminal_eligible_corpus_incomplete")
+    calls_total = 0
     for safe_id in CORPUS_IDS:
         arms = documents[safe_id]
         if not isinstance(arms, dict) or set(arms) != {"PDF", "LLM_VIEW"}:
             raise Doc4ContractError("terminal_preflight_arms_invalid")
-        if any(arms[arm].get("eligible") is not True for arm in ("PDF", "LLM_VIEW")):
-            raise Doc4ContractError("terminal_eligible_corpus_incomplete")
+        expected_arm_hashes = expected_request_sha256_by_safe_id[safe_id]
+        if set(expected_arm_hashes) != {"PDF", "LLM_VIEW"}:
+            raise Doc4ContractError("terminal_preflight_request_arms_invalid")
+        for arm in ("PDF", "LLM_VIEW"):
+            receipt = arms[arm]
+            components = (
+                "source_tokens",
+                "system_tokens",
+                "task_tokens",
+                "schema_tokens",
+                "request_envelope_tokens",
+            )
+            if any(
+                not isinstance(receipt.get(name), int)
+                or isinstance(receipt.get(name), bool)
+                or receipt[name] < 0
+                for name in (*components, "total_input_tokens")
+            ):
+                raise Doc4ContractError("terminal_preflight_token_counts_invalid")
+            if sum(receipt[name] for name in components) != receipt["total_input_tokens"]:
+                raise Doc4ContractError("terminal_preflight_token_partition_inexact")
+            expected_budget = (
+                expected_candidate["reserved_max_output_tokens"],
+                expected_candidate["safety_margin_tokens"],
+                expected_candidate["context_window"],
+            )
+            actual_budget = (
+                receipt.get("reserved_output_tokens"),
+                receipt.get("safety_margin_tokens"),
+                receipt.get("context_window"),
+            )
+            if actual_budget != expected_budget:
+                raise Doc4ContractError("terminal_preflight_budget_invalid")
+            eligible = sum(
+                (
+                    receipt["total_input_tokens"],
+                    receipt["reserved_output_tokens"],
+                    receipt["safety_margin_tokens"],
+                )
+            ) <= receipt["context_window"]
+            if receipt.get("eligible") is not eligible or receipt.get("reason") != (
+                "FIT" if eligible else "NOT_ELIGIBLE_CONTEXT_LIMIT"
+            ):
+                raise Doc4ContractError("terminal_preflight_formula_invalid")
+            if not eligible:
+                raise Doc4ContractError("terminal_eligible_corpus_incomplete")
+            call_receipts = receipt.get("token_count_call_receipts")
+            expected_hashes = expected_arm_hashes[arm]
+            if (
+                receipt.get("token_count_calls_total") != 5
+                or not isinstance(call_receipts, list)
+                or len(call_receipts) != 5
+                or tuple(item.get("request_sha256") for item in call_receipts)
+                != expected_hashes
+            ):
+                raise Doc4ContractError("terminal_preflight_call_receipts_invalid")
+            for call in call_receipts:
+                _validate_provider_call_metadata(
+                    call,
+                    expected_request_sha256=call["request_sha256"],
+                    expected_model_id=None,
+                )
+            calls_total += 5
+    if value.get("provider_calls_total") != calls_total or calls_total != 40:
+        raise Doc4ContractError("terminal_preflight_provider_call_count_invalid")
+
+
+def _validate_terminal_arm_evidence(
+    *,
+    safe_id: str,
+    source_mode: str,
+    response: dict[str, Any],
+    validated_receipt: dict[str, Any],
+    run_trace: dict[str, Any],
+    expected_request_sha256: str,
+    expected_model_id: str,
+) -> None:
+    if response.get("source_mode") != source_mode:
+        raise Doc4ContractError("terminal_response_source_mode_invalid")
+    if validated_receipt.get("schema_version") != "broker_reports_doc4_validated_response_receipt_v1" or validated_receipt.get("integrity_sha256") != integrity_sha256(validated_receipt):
+        raise Doc4ContractError("terminal_validated_receipt_invalid")
+    if (
+        validated_receipt.get("source_mode") != source_mode
+        or validated_receipt.get("status") != "PASSED"
+        or validated_receipt.get("response_sha256")
+        != sha256_bytes(canonical_json_bytes(response))
+        or validated_receipt.get("request_sha256") != expected_request_sha256
+    ):
+        raise Doc4ContractError("terminal_validated_receipt_binding_invalid")
+    if run_trace.get("schema_version") != "broker_reports_doc4_arm_run_trace_v1" or run_trace.get("integrity_sha256") != integrity_sha256(run_trace):
+        raise Doc4ContractError("terminal_run_trace_invalid")
+    if (
+        run_trace.get("arm_status") != "PASSED"
+        or sha256_bytes(canonical_json_bytes(run_trace.get("request")))
+        != expected_request_sha256
+    ):
+        raise Doc4ContractError("terminal_run_trace_request_binding_invalid")
+    attempts = run_trace.get("attempts")
+    if not isinstance(attempts, list) or not 1 <= len(attempts) <= 2:
+        raise Doc4ContractError("terminal_run_trace_attempts_invalid")
+    if run_trace.get("schema_retries_total") != len(attempts) - 1:
+        raise Doc4ContractError("terminal_run_trace_schema_retry_invalid")
+    if attempts[-1].get("validation_error") is not None:
+        raise Doc4ContractError("terminal_run_trace_not_validated")
+    if (len(attempts) == 1) != (run_trace.get("first_schema_error") is None):
+        raise Doc4ContractError("terminal_run_trace_first_error_invalid")
+    for attempt in attempts:
+        metadata = attempt.get("metadata")
+        raw_payload = attempt.get("raw_payload")
+        if not isinstance(metadata, dict) or not isinstance(raw_payload, dict):
+            raise Doc4ContractError("terminal_run_trace_attempt_invalid")
+        _validate_provider_call_metadata(
+            metadata,
+            expected_request_sha256=expected_request_sha256,
+            expected_model_id=expected_model_id,
+        )
+        if raw_payload.get("model") != expected_model_id:
+            raise Doc4ContractError("terminal_run_trace_model_invalid")
+
+
+def _validate_provider_call_metadata(
+    value: dict[str, Any],
+    *,
+    expected_request_sha256: str,
+    expected_model_id: str | None,
+) -> None:
+    attempts_total = value.get("attempts_total")
+    retries_total = value.get("transport_retries_total")
+    valid = (
+        value.get("http_status") == 200
+        and isinstance(attempts_total, int)
+        and not isinstance(attempts_total, bool)
+        and attempts_total >= 1
+        and isinstance(retries_total, int)
+        and not isinstance(retries_total, bool)
+        and retries_total == attempts_total - 1
+        and value.get("http_session_scope") == "ONE_REQUEST_NO_REUSE"
+        and value.get("request_sha256") == expected_request_sha256
+        and _is_sha256(value.get("response_sha256"))
+        and isinstance(value.get("response_bytes"), int)
+        and not isinstance(value.get("response_bytes"), bool)
+        and value["response_bytes"] > 0
+        and isinstance(value.get("duration_seconds"), (int, float))
+        and not isinstance(value.get("duration_seconds"), bool)
+        and value["duration_seconds"] >= 0
+    )
+    if expected_model_id is not None:
+        valid = valid and value.get("resolved_model") == expected_model_id
+    if not valid:
+        raise Doc4ContractError("terminal_provider_call_metadata_invalid")
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
 def _terminal_semantic_equivalence(
@@ -968,3 +1262,33 @@ def _rate(numerator: int, denominator: int) -> str:
     if denominator == 0:
         return "1.000000"
     return f"{numerator / denominator:.6f}"
+
+
+def _text_contains(container: str, excerpt: str) -> bool:
+    normalized_container = " ".join(container.casefold().split())
+    normalized_excerpt = " ".join(excerpt.casefold().split())
+    return bool(normalized_excerpt and normalized_excerpt in normalized_container)
+
+
+def _validate_gold_source_grounding(
+    gold: dict[str, Any],
+    *,
+    pdf_page_texts: tuple[str, ...],
+    expected_pdf_pages: int | None = None,
+) -> None:
+    if expected_pdf_pages is not None and len(pdf_page_texts) != expected_pdf_pages:
+        raise Doc4ContractError("gold_pdf_page_text_coverage_invalid")
+    for item in gold["items"]:
+        for pointer in item["evidence"]:
+            page = pointer["page"]
+            if expected_pdf_pages is not None and page > expected_pdf_pages:
+                raise Doc4ContractError("gold_pdf_pointer_page_out_of_range")
+            evidence_text = pointer["evidence_text"]
+            if page > len(pdf_page_texts) or not _text_contains(
+                pdf_page_texts[page - 1], evidence_text
+            ):
+                raise Doc4ContractError("gold_pdf_pointer_evidence_not_on_page")
+            if item.get("source_literal") and not _text_contains(
+                evidence_text, item["source_literal"]
+            ):
+                raise Doc4ContractError("gold_pdf_pointer_literal_not_in_evidence")

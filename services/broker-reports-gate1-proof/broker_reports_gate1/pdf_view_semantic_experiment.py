@@ -319,6 +319,11 @@ class PdfViewSemanticExperimentRunner:
         calls: list[dict[str, Any]] = []
         for body in stages:
             count, metadata = transport.count_input_tokens(body)
+            expected_request_sha256 = sha256_bytes(
+                canonical_json_bytes(_token_count_body(body))
+            )
+            if metadata.get("request_sha256") != expected_request_sha256:
+                raise Doc4ContractError("provider_token_count_request_binding_invalid")
             counts.append(count)
             calls.append(metadata)
         if counts != sorted(counts):
@@ -522,6 +527,32 @@ def authorized_request_keys(
                 )
             )
     return frozenset(keys)
+
+
+def context_preflight_request_sha256s(
+    *,
+    candidate: ModelCandidate,
+    source_mode: str,
+    source: bytes | str,
+    filename: str,
+    system_prompt: str,
+    task_prompt: str,
+    source_wrapper: str,
+    response_schema: dict[str, Any],
+) -> tuple[str, ...]:
+    return tuple(
+        sha256_bytes(canonical_json_bytes(_token_count_body(body)))
+        for body in _context_count_stages(
+            candidate=candidate,
+            source_mode=source_mode,
+            source=source,
+            filename=filename,
+            system_prompt=system_prompt,
+            task_prompt=task_prompt,
+            source_wrapper=source_wrapper,
+            response_schema=response_schema,
+        )
+    )
 
 
 def view_pointer_registry(view_text: str) -> ViewPointerRegistry:

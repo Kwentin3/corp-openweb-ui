@@ -20,6 +20,7 @@ from broker_reports_gate1.pdf_view_semantic_adjudication import (
     PdfViewSemanticComparator,
     PdfViewSemanticResultFactory,
     compare_stability_replay,
+    validate_doc4_context_preflight,
 )
 from broker_reports_gate1.pdf_view_semantic_contracts import (
     CORPUS_IDS,
@@ -42,7 +43,9 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     OpenAiDoc4Transport,
     PdfViewSemanticExperimentRunner,
     authorized_request_keys,
+    build_arm_request,
     connection_from_env_file,
+    context_preflight_request_sha256s,
     hash_bound_private_payload,
     pdf_pages_total,
     pdf_page_texts,
@@ -146,6 +149,7 @@ def _run(args: argparse.Namespace) -> int:
             draft,
             gold_schema=read_json(_required_file(args.gold_schema, "--gold-schema")),
             expected_pdf_sha256=sha256_bytes(source.pdf_path.read_bytes()),
+            expected_pdf_page_texts=pdf_page_texts(source.pdf_path.read_bytes()),
             provider_calls_started=False,
             expected_pdf_pages=pdf_pages_total(source.pdf_path),
         )
@@ -189,7 +193,6 @@ def _run(args: argparse.Namespace) -> int:
         preflight = read_json(
             _required_file(args.context_preflight, "--context-preflight")
         )
-        _validate_context_preflight(preflight, plan=plan)
         run_results_dir = _required_dir(args.run_results_dir, "--run-results-dir")
         adjudication_dir = _required_dir(
             args.adjudication_dir, "--adjudication-dir"
@@ -201,9 +204,21 @@ def _run(args: argparse.Namespace) -> int:
             _required_file(args.adjudication_schema, "--adjudication-schema")
         )
         adjudications: dict[str, dict[str, Any]] = {}
+        comparisons: dict[str, dict[str, Any]] = {}
         gold_checklists: dict[str, dict[str, Any]] = {}
         pdf_responses: dict[str, dict[str, Any]] = {}
         view_responses: dict[str, dict[str, Any]] = {}
+        validated_receipts: dict[str, dict[str, dict[str, Any]]] = {}
+        run_traces: dict[str, dict[str, dict[str, Any]]] = {}
+        expected_request_sha256_by_safe_id: dict[str, dict[str, str]] = {}
+        expected_preflight_request_sha256_by_safe_id: dict[
+            str, dict[str, tuple[str, ...]]
+        ] = {}
+        expected_pdf_sha256_by_safe_id: dict[str, str] = {}
+        pdf_page_texts_by_safe_id: dict[str, tuple[str, ...]] = {}
+        view_registries: dict[str, Any] = {}
+        critical_stability_conflicts_by_safe_id: dict[str, int] = {}
+        system_prompt, task_prompt = _prompts(args, plan)
         for safe_id in CORPUS_IDS:
             source = _source_by_id(sources, safe_id)
             pdf_response = read_json(
@@ -275,14 +290,92 @@ def _run(args: argparse.Namespace) -> int:
             pdf_responses[safe_id] = pdf_response
             view_responses[safe_id] = view_response
             adjudications[safe_id] = adjudication
+            comparisons[safe_id] = read_json(
+                _required_file(
+                    adjudication_dir / safe_id / "cross_arm_comparison.private.json",
+                    "cross-arm comparison",
+                )
+            )
+            validated_receipts[safe_id] = {}
+            run_traces[safe_id] = {}
+            expected_request_sha256_by_safe_id[safe_id] = {}
+            expected_preflight_request_sha256_by_safe_id[safe_id] = {}
+            pdf_bytes = source.pdf_path.read_bytes()
+            view_text = source.llm_view_path.read_text(encoding="utf-8")
+            pdf_page_texts_by_safe_id[safe_id] = pdf_page_texts(pdf_bytes)
+            expected_pdf_sha256_by_safe_id[safe_id] = sha256_bytes(pdf_bytes)
+            view_registries[safe_id] = view_pointer_registry(view_text)
+            critical_stability_conflicts_by_safe_id[safe_id] = (
+                _stability_conflicts_for_safe_id(
+                    args.stability_comparison,
+                    safe_id=safe_id,
+                )
+            )
+            for arm, arm_source, wrapper, extension, arm_dir_name in (
+                ("PDF", pdf_bytes, PDF_WRAPPER, "pdf", "pdf_arm"),
+                ("LLM_VIEW", view_text, VIEW_WRAPPER, "txt", "view_arm"),
+            ):
+                arm_dir = run_results_dir / safe_id / arm_dir_name
+                response_name = "pdf" if arm == "PDF" else "view"
+                validated_receipts[safe_id][arm] = read_json(
+                    _required_file(
+                        arm_dir / f"{response_name}_arm_validated.private.json",
+                        "validated response receipt",
+                    )
+                )
+                run_traces[safe_id][arm] = read_json(
+                    _required_file(arm_dir / "run_trace.private.json", "run trace")
+                )
+                request = build_arm_request(
+                    candidate=runner.candidate,
+                    source_mode=arm,
+                    source=arm_source,
+                    filename=f"{safe_id}.{extension}",
+                    system_prompt=system_prompt,
+                    task_prompt=task_prompt,
+                    source_wrapper=wrapper,
+                    response_schema=response_schema,
+                )
+                expected_request_sha256_by_safe_id[safe_id][arm] = sha256_bytes(
+                    canonical_json_bytes(request)
+                )
+                expected_preflight_request_sha256_by_safe_id[safe_id][arm] = (
+                    context_preflight_request_sha256s(
+                        candidate=runner.candidate,
+                        source_mode=arm,
+                        source=arm_source,
+                        filename=f"{safe_id}.{extension}",
+                        system_prompt=system_prompt,
+                        task_prompt=task_prompt,
+                        source_wrapper=wrapper,
+                        response_schema=response_schema,
+                    )
+                )
         result = PdfViewSemanticResultFactory().finalize(
             adjudications=adjudications,
+            comparisons=comparisons,
             gold_checklists=gold_checklists,
             pdf_responses=pdf_responses,
             view_responses=view_responses,
+            validated_receipts=validated_receipts,
+            run_traces=run_traces,
+            expected_request_sha256_by_safe_id=expected_request_sha256_by_safe_id,
+            expected_preflight_request_sha256_by_safe_id=(
+                expected_preflight_request_sha256_by_safe_id
+            ),
+            expected_pdf_sha256_by_safe_id=expected_pdf_sha256_by_safe_id,
+            pdf_page_texts_by_safe_id=pdf_page_texts_by_safe_id,
+            view_registries=view_registries,
+            critical_stability_conflicts_by_safe_id=(
+                critical_stability_conflicts_by_safe_id
+            ),
             context_preflight=preflight,
             expected_run_plan_sha256=sha256_bytes(canonical_json_bytes(plan)),
+            expected_candidate=asdict(runner.candidate),
             gold_schema=gold_schema,
+            comparison_schema=read_json(
+                _required_file(args.comparison_schema, "--comparison-schema")
+            ),
             adjudication_schema=adjudication_schema,
             result_schema=read_json(
                 _required_file(args.result_schema, "--result-schema")
@@ -428,6 +521,18 @@ def _run(args: argparse.Namespace) -> int:
             "integrity_sha256": "",
         }
         value["integrity_sha256"] = integrity_sha256(value)
+        validate_doc4_context_preflight(
+            value,
+            expected_run_plan_sha256=sha256_bytes(canonical_json_bytes(plan)),
+            expected_candidate=asdict(runner.candidate),
+            expected_request_sha256_by_safe_id=_preflight_request_hashes_by_safe_id(
+                runner=runner,
+                sources=sources,
+                system_prompt=system_prompt,
+                task_prompt=task_prompt,
+                response_schema=response_schema,
+            ),
+        )
         digest = write_immutable_json(args.output_dir / "context_preflight.private.json", value)
         _print_safe({"status": "PASSED", "mode": args.mode, "eligible_documents_total": sum(all(arm["eligible"] for arm in item.values()) for item in receipts.values()), "context_limit_ineligible_total": sum(not all(arm["eligible"] for arm in item.values()) for item in receipts.values()), "provider_calls_total": calls_total, "context_preflight_sha256": digest})
         return 0
@@ -435,11 +540,19 @@ def _run(args: argparse.Namespace) -> int:
         if plan.get("gold_checklists_created_before_provider_calls") is not True:
             raise Doc4ContractError("gold_checklists_not_bound_before_run")
         _verify_gold_hashes(plan, _required_dir(args.gold_dir, "--gold-dir"))
-        _validate_context_preflight(
-            read_json(_required_file(args.context_preflight, "--context-preflight")),
-            plan=plan,
-        )
         system_prompt, task_prompt = _prompts(args, plan)
+        validate_doc4_context_preflight(
+            read_json(_required_file(args.context_preflight, "--context-preflight")),
+            expected_run_plan_sha256=sha256_bytes(canonical_json_bytes(plan)),
+            expected_candidate=asdict(runner.candidate),
+            expected_request_sha256_by_safe_id=_preflight_request_hashes_by_safe_id(
+                runner=runner,
+                sources=sources,
+                system_prompt=system_prompt,
+                task_prompt=task_prompt,
+                response_schema=response_schema,
+            ),
+        )
         completed = 0
         calls_total = 0
         primary_responses: dict[tuple[str, str], dict[str, Any]] = {}
@@ -545,26 +658,6 @@ def _validated_plan(path: Path) -> dict[str, Any]:
     return plan
 
 
-def _validate_context_preflight(value: dict[str, Any], *, plan: dict[str, Any]) -> None:
-    if value.get("schema_version") != "broker_reports_doc4_context_preflight_private_v1":
-        raise Doc4ContractError("context_preflight_version_invalid")
-    if value.get("integrity_sha256") != integrity_sha256(value):
-        raise Doc4ContractError("context_preflight_integrity_invalid")
-    if value.get("request_model_id") != REQUEST_MODEL_ID:
-        raise Doc4ContractError("context_preflight_model_mismatch")
-    if value.get("run_plan_sha256") != sha256_bytes(canonical_json_bytes(plan)):
-        raise Doc4ContractError("context_preflight_plan_mismatch")
-    documents = value.get("documents")
-    if not isinstance(documents, dict) or tuple(documents) != CORPUS_IDS:
-        raise Doc4ContractError("context_preflight_corpus_invalid")
-    for safe_id in CORPUS_IDS:
-        arms = documents[safe_id]
-        if set(arms) != {"PDF", "LLM_VIEW"}:
-            raise Doc4ContractError("context_preflight_arms_invalid")
-        if any(arms[arm].get("eligible") is not True for arm in ("PDF", "LLM_VIEW")):
-            raise Doc4ContractError(f"context_preflight_ineligible:{safe_id}")
-
-
 def _stability_conflicts_for_safe_id(path: Path | None, *, safe_id: str) -> int:
     if path is None:
         if safe_id in {"real_pdf_1", "real_pdf_5"}:
@@ -609,6 +702,43 @@ def _prompts(args: argparse.Namespace, plan: dict[str, Any]) -> tuple[str, str]:
     if sha256_bytes(system_bytes) != plan["system_prompt_sha256"] or sha256_bytes(task_bytes) != plan["task_prompt_sha256"]:
         raise Doc4ContractError("prompt_hash_mismatch")
     return system_bytes.decode("utf-8"), task_bytes.decode("utf-8")
+
+
+def _preflight_request_hashes_by_safe_id(
+    *,
+    runner: PdfViewSemanticExperimentRunner,
+    sources: list[CorpusSource],
+    system_prompt: str,
+    task_prompt: str,
+    response_schema: dict[str, Any],
+) -> dict[str, dict[str, tuple[str, ...]]]:
+    result: dict[str, dict[str, tuple[str, ...]]] = {}
+    for source in sources:
+        pdf_bytes = source.pdf_path.read_bytes()
+        view_text = source.llm_view_path.read_text(encoding="utf-8")
+        result[source.safe_id] = {
+            "PDF": context_preflight_request_sha256s(
+                candidate=runner.candidate,
+                source_mode="PDF",
+                source=pdf_bytes,
+                filename=f"{source.safe_id}.pdf",
+                system_prompt=system_prompt,
+                task_prompt=task_prompt,
+                source_wrapper=PDF_WRAPPER,
+                response_schema=response_schema,
+            ),
+            "LLM_VIEW": context_preflight_request_sha256s(
+                candidate=runner.candidate,
+                source_mode="LLM_VIEW",
+                source=view_text,
+                filename=f"{source.safe_id}.txt",
+                system_prompt=system_prompt,
+                task_prompt=task_prompt,
+                source_wrapper=VIEW_WRAPPER,
+                response_schema=response_schema,
+            ),
+        }
+    return result
 
 
 def _repository_lf_bytes(path: Path) -> bytes:

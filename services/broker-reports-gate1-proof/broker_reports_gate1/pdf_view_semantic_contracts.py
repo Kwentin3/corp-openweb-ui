@@ -88,6 +88,10 @@ ADJUDICATION_DISPOSITIONS = {
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _DATE_DMY = re.compile(r"^(\d{2})[./-](\d{2})[./-](\d{4})$")
 _DATE_MDY = re.compile(r"^(\d{2})[./-](\d{2})[./-](\d{4})$")
+_DECIMAL_TOKEN = re.compile(
+    r"(?<![\w])[-+]?\(?\d(?:[\d \u00a0\u202f.,]*\d)?\)?"
+)
+_DATE_TOKEN = re.compile(r"\d{4}-\d{2}-\d{2}|\d{2}[./-]\d{2}[./-]\d{4}")
 
 
 class Doc4ContractError(ValueError):
@@ -218,6 +222,7 @@ def validate_semantic_response(
             for name in ("normalized_decimal", "normalized_date", "currency", "unit", "sign")
         ):
             raise Doc4ContractError("nonpresent_financial_fact_has_normalized_value")
+        _validate_financial_normalizations(item)
         _validate_pointers(
             item["evidence"],
             expected_source_mode=expected_source_mode,
@@ -364,6 +369,83 @@ def normalize_date_literal(literal: str, rule: str) -> str:
         return datetime(year, month, day).date().isoformat()
     except ValueError as exc:
         raise Doc4ContractError("date_literal_invalid") from exc
+
+
+def _validate_financial_normalizations(item: dict[str, Any]) -> None:
+    if item.get("status") not in {"PRESENT", "CONFLICTING"}:
+        return
+    literal = item.get("source_literal")
+    normalized_decimal = item.get("normalized_decimal")
+    normalized_date = item.get("normalized_date")
+    if normalized_decimal is not None:
+        if not isinstance(literal, str) or normalized_decimal not in _decimal_candidates(
+            literal
+        ):
+            raise Doc4ContractError("normalized_decimal_not_derived_from_literal")
+    if normalized_date is not None:
+        if not isinstance(literal, str) or normalized_date not in _date_candidates(
+            literal
+        ):
+            raise Doc4ContractError("normalized_date_not_derived_from_literal")
+
+
+def _decimal_candidates(literal: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in _DECIMAL_TOKEN.finditer(literal):
+        token = match.group(0)
+        negative_parentheses = token.startswith("(") and token.endswith(")")
+        if negative_parentheses:
+            token = "-" + token[1:-1]
+        for rule in _decimal_rules(token):
+            try:
+                candidates.add(normalize_decimal_literal(token, rule))
+            except Doc4ContractError:
+                continue
+    return candidates
+
+
+def _decimal_rules(token: str) -> tuple[str, ...]:
+    compact = (
+        token.strip()
+        .lstrip("+-")
+        .replace(" ", "")
+        .replace("\u00a0", "")
+        .replace("\u202f", "")
+    )
+    dots = compact.count(".")
+    commas = compact.count(",")
+    if dots and commas:
+        return (
+            ("DECIMAL_DOT",)
+            if compact.rfind(".") > compact.rfind(",")
+            else ("DECIMAL_COMMA",)
+        )
+    if dots:
+        groups = compact.split(".")
+        if dots > 1:
+            return ("DECIMAL_COMMA",) if all(len(group) == 3 for group in groups[1:]) else ()
+        return ("DECIMAL_DOT", "DECIMAL_COMMA") if len(groups[-1]) == 3 else ("DECIMAL_DOT",)
+    if commas:
+        groups = compact.split(",")
+        if commas > 1:
+            return ("DECIMAL_DOT",) if all(len(group) == 3 for group in groups[1:]) else ()
+        return ("DECIMAL_DOT", "DECIMAL_COMMA") if len(groups[-1]) == 3 else ("DECIMAL_COMMA",)
+    return ("INTEGER",)
+
+
+def _date_candidates(literal: str) -> set[str]:
+    candidates: set[str] = set()
+    for token in _DATE_TOKEN.findall(literal):
+        rules = ("DATE_ISO",) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", token) else (
+            "DATE_DMY",
+            "DATE_MDY",
+        )
+        for rule in rules:
+            try:
+                candidates.add(normalize_date_literal(token, rule))
+            except Doc4ContractError:
+                continue
+    return candidates
 
 
 def _validate_status_item(item: dict[str, Any], *, critical: bool) -> None:
