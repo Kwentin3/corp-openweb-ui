@@ -373,6 +373,7 @@ def _run(args: argparse.Namespace) -> int:
             expected_run_plan_sha256=sha256_bytes(canonical_json_bytes(plan)),
             expected_candidate=asdict(runner.candidate),
             gold_schema=gold_schema,
+            response_schema=response_schema,
             comparison_schema=read_json(
                 _required_file(args.comparison_schema, "--comparison-schema")
             ),

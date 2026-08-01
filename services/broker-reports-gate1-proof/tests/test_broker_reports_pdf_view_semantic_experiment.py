@@ -219,6 +219,34 @@ def test_07_decimal_date_and_currency_behavior_is_deterministic() -> None:
             expected_source_mode="PDF",
             pdf_pages_total=1,
         )
+    response["financial_facts"][0]["normalized_decimal"] = "10"
+    response["financial_facts"][0]["normalized_value"] = "1000"
+    with pytest.raises(Doc4ContractError, match="normalized_value_decimal_mismatch"):
+        validate_semantic_response(
+            response,
+            _read_json(RESPONSE_SCHEMA_PATH),
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+        )
+    date_response = _response("PDF")
+    date_fact = date_response["financial_facts"][0]
+    date_fact.update(
+        {
+            "fact_kind": "OPERATION_DATE",
+            "source_literal": "31.12.2025",
+            "normalized_value": "2026-01-01",
+            "normalized_decimal": None,
+            "normalized_date": "2026-01-01",
+        }
+    )
+    date_fact["evidence"][0]["evidence_text"] = "Transaction date 31.12.2025"
+    with pytest.raises(Doc4ContractError, match="normalized_date_not_derived"):
+        validate_semantic_response(
+            date_response,
+            _read_json(RESPONSE_SCHEMA_PATH),
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+        )
 
 
 def test_08_pdf_and_view_requests_are_source_isolated(response_schema: dict[str, Any]) -> None:
@@ -310,6 +338,22 @@ def test_12_gold_is_sealed_only_before_calls_and_with_complete_critical_ids() ->
     fabricated["items"][-1]["evidence"][0]["evidence_text"] = "fabricated evidence"
     with pytest.raises(Doc4ContractError, match="evidence_not_on_page"):
         factory.seal_gold(fabricated, gold_schema=_read_json(GOLD_SCHEMA_PATH), expected_pdf_sha256="b" * 64, expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],), provider_calls_started=False)
+    fabricated_normalization = _gold_draft()
+    financial = next(
+        item
+        for item in fabricated_normalization["items"]
+        if item["category"] == "FINANCIAL_FACT"
+    )
+    financial["normalized_value"] = "1000"
+    financial["normalized_decimal"] = "1000"
+    with pytest.raises(Doc4ContractError, match="normalized_decimal_not_derived"):
+        factory.seal_gold(
+            fabricated_normalization,
+            gold_schema=_read_json(GOLD_SCHEMA_PATH),
+            expected_pdf_sha256="b" * 64,
+            expected_pdf_page_texts=(_pdf_pointer()["evidence_text"],),
+            provider_calls_started=False,
+        )
 
 
 def test_13_comparator_exact_normalized_numeric_date_currency_and_order() -> None:
@@ -696,6 +740,55 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
             adjudications=adjudications,
             **{**finalize_args, "run_traces": tampered_traces},
         )
+    tampered_golds = copy.deepcopy(finalize_args["gold_checklists"])
+    tampered_gold = tampered_golds["real_pdf_1"]
+    gold_financial = next(
+        item
+        for item in tampered_gold["items"]
+        if item["category"] == "FINANCIAL_FACT"
+    )
+    gold_financial["normalized_value"] = "1000"
+    gold_financial["normalized_decimal"] = "1000"
+    tampered_gold["integrity_sha256"] = ""
+    tampered_gold["integrity_sha256"] = integrity_sha256(tampered_gold)
+    with pytest.raises(Doc4ContractError, match="normalized_decimal_not_derived"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{**finalize_args, "gold_checklists": tampered_golds},
+        )
+    tampered_responses = copy.deepcopy(finalize_args["pdf_responses"])
+    tampered_receipts = copy.deepcopy(finalize_args["validated_receipts"])
+    tampered_response = tampered_responses["real_pdf_1"]
+    tampered_response["financial_facts"][0]["normalized_value"] = "1000"
+    tampered_response["financial_facts"][0]["normalized_decimal"] = "1000"
+    receipt = tampered_receipts["real_pdf_1"]["PDF"]
+    receipt["response_sha256"] = sha256_bytes(
+        canonical_json_bytes(tampered_response)
+    )
+    receipt["integrity_sha256"] = ""
+    receipt["integrity_sha256"] = integrity_sha256(receipt)
+    with pytest.raises(Doc4ContractError, match="normalized_decimal_not_derived"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{
+                **finalize_args,
+                "pdf_responses": tampered_responses,
+                "validated_receipts": tampered_receipts,
+            },
+        )
+    tampered_comparisons = copy.deepcopy(finalize_args["comparisons"])
+    tampered_comparison = tampered_comparisons["real_pdf_1"]
+    tampered_comparison["items"][0]["category"] = "VALUE_CONFLICT"
+    tampered_comparison["metrics"]["conflicts_total"] = 1
+    tampered_comparison["integrity_sha256"] = ""
+    tampered_comparison["integrity_sha256"] = integrity_sha256(
+        tampered_comparison
+    )
+    with pytest.raises(Doc4ContractError, match="comparison_replay_mismatch"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{**finalize_args, "comparisons": tampered_comparisons},
+        )
     rebadged = copy.deepcopy(adjudications)
     rebadged["real_pdf_2"] = copy.deepcopy(adjudications["real_pdf_1"])
     rebadged["real_pdf_2"]["safe_id"] = "real_pdf_2"
@@ -902,6 +995,7 @@ def _terminal_fixture() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
         "expected_run_plan_sha256": plan_sha256,
         "expected_candidate": asdict(ModelCandidate()),
         "gold_schema": _read_json(GOLD_SCHEMA_PATH),
+        "response_schema": _read_json(RESPONSE_SCHEMA_PATH),
         "comparison_schema": _read_json(COMPARISON_SCHEMA_PATH),
         "adjudication_schema": _read_json(ADJUDICATION_SCHEMA_PATH),
         "result_schema": _read_json(RESULT_SCHEMA_PATH),

@@ -17,7 +17,9 @@ from .pdf_view_semantic_contracts import (
     canonical_json_bytes,
     integrity_sha256,
     sha256_bytes,
+    validate_financial_normalizations,
     validate_json_contract,
+    validate_semantic_response,
 )
 
 
@@ -253,6 +255,7 @@ class PdfViewSemanticResultFactory:
         expected_run_plan_sha256: str,
         expected_candidate: dict[str, Any],
         gold_schema: dict[str, Any],
+        response_schema: dict[str, Any],
         comparison_schema: dict[str, Any],
         adjudication_schema: dict[str, Any],
         result_schema: dict[str, Any],
@@ -295,6 +298,26 @@ class PdfViewSemanticResultFactory:
                 ("PDF", pdf_responses[safe_id]),
                 ("LLM_VIEW", view_responses[safe_id]),
             ):
+                validate_semantic_response(
+                    response,
+                    response_schema,
+                    expected_source_mode=arm,
+                    pdf_pages_total=(
+                        len(pdf_page_texts_by_safe_id[safe_id])
+                        if arm == "PDF"
+                        else None
+                    ),
+                    pdf_page_texts=(
+                        pdf_page_texts_by_safe_id[safe_id]
+                        if arm == "PDF"
+                        else None
+                    ),
+                    view_registry=(
+                        view_registries[safe_id]
+                        if arm == "LLM_VIEW"
+                        else None
+                    ),
+                )
                 _validate_terminal_arm_evidence(
                     safe_id=safe_id,
                     source_mode=arm,
@@ -309,11 +332,16 @@ class PdfViewSemanticResultFactory:
             validate_json_contract(
                 item, adjudication_schema, label="source_adjudication"
             )
-            validate_json_contract(
-                comparisons[safe_id],
-                comparison_schema,
-                label="semantic_comparison",
+            replayed_comparison = PdfViewSemanticComparator().compare(
+                safe_id=safe_id,
+                pdf_response=pdf_responses[safe_id],
+                view_response=view_responses[safe_id],
+                comparison_schema=comparison_schema,
             )
+            if canonical_json_bytes(replayed_comparison) != canonical_json_bytes(
+                comparisons[safe_id]
+            ):
+                raise Doc4ContractError("terminal_comparison_replay_mismatch")
             if item.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
                 raise Doc4ContractError("terminal_adjudication_version_invalid")
             if item.get("safe_id") != safe_id:
@@ -1279,6 +1307,8 @@ def _validate_gold_source_grounding(
     if expected_pdf_pages is not None and len(pdf_page_texts) != expected_pdf_pages:
         raise Doc4ContractError("gold_pdf_page_text_coverage_invalid")
     for item in gold["items"]:
+        if item["category"] == "FINANCIAL_FACT":
+            validate_financial_normalizations(item)
         for pointer in item["evidence"]:
             page = pointer["page"]
             if expected_pdf_pages is not None and page > expected_pdf_pages:

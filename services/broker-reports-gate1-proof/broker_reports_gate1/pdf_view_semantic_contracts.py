@@ -222,7 +222,7 @@ def validate_semantic_response(
             for name in ("normalized_decimal", "normalized_date", "currency", "unit", "sign")
         ):
             raise Doc4ContractError("nonpresent_financial_fact_has_normalized_value")
-        _validate_financial_normalizations(item)
+        validate_financial_normalizations(item)
         _validate_pointers(
             item["evidence"],
             expected_source_mode=expected_source_mode,
@@ -371,22 +371,46 @@ def normalize_date_literal(literal: str, rule: str) -> str:
         raise Doc4ContractError("date_literal_invalid") from exc
 
 
-def _validate_financial_normalizations(item: dict[str, Any]) -> None:
+def validate_financial_normalizations(item: dict[str, Any]) -> None:
     if item.get("status") not in {"PRESENT", "CONFLICTING"}:
         return
     literal = item.get("source_literal")
     normalized_decimal = item.get("normalized_decimal")
     normalized_date = item.get("normalized_date")
+    normalized_value = item.get("normalized_value")
+    fact_kind = item.get("fact_kind")
+    numeric_fact_kinds = {
+        "QUANTITY",
+        "PRICE",
+        "AMOUNT",
+        "COMMISSION",
+        "TAX",
+        "BALANCE",
+        "TOTAL",
+        "SUBTOTAL",
+        "OPENING_BALANCE",
+        "CLOSING_BALANCE",
+    }
+    if normalized_decimal is not None and normalized_date is not None:
+        raise Doc4ContractError("financial_normalization_kind_ambiguous")
+    if fact_kind in numeric_fact_kinds and normalized_decimal is None:
+        raise Doc4ContractError("numeric_fact_normalization_missing")
+    if fact_kind == "OPERATION_DATE" and normalized_date is None:
+        raise Doc4ContractError("date_fact_normalization_missing")
     if normalized_decimal is not None:
         if not isinstance(literal, str) or normalized_decimal not in _decimal_candidates(
             literal
         ):
             raise Doc4ContractError("normalized_decimal_not_derived_from_literal")
+        if normalized_value != normalized_decimal:
+            raise Doc4ContractError("normalized_value_decimal_mismatch")
     if normalized_date is not None:
         if not isinstance(literal, str) or normalized_date not in _date_candidates(
             literal
         ):
             raise Doc4ContractError("normalized_date_not_derived_from_literal")
+        if normalized_value != normalized_date:
+            raise Doc4ContractError("normalized_value_date_mismatch")
 
 
 def _decimal_candidates(literal: str) -> set[str]:
