@@ -41,6 +41,7 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     FORBIDDEN,
     ModelCandidate,
     OpenAiDoc4Transport,
+    InvalidStructuredResponseError,
     ProviderConnection,
     ProviderHttpError,
     PdfViewSemanticExperimentFactory,
@@ -50,7 +51,10 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     write_immutable_json,
 )
 from broker_reports_gate1.managed_document_llm_view_audit import ManagedDocumentLlmViewAuditor
-from scripts.run_pdf_view_semantic_experiment import _safe_security_pair
+from scripts.run_pdf_view_semantic_experiment import (
+    _safe_security_pair,
+    _with_run_failure_context,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -794,6 +798,101 @@ def test_25_schema_retry_replays_the_exact_request_once(response_schema: dict[st
     assert len(requests_seen) == 2
     assert requests_seen[0] == requests_seen[1]
     assert trace["schema_retries_total"] == 1
+
+
+def test_25b_terminal_schema_failure_preserves_private_attempts(
+    response_schema: dict[str, Any],
+) -> None:
+    requests_seen: list[dict[str, Any]] = []
+    invalid = _response("PDF")
+    invalid["source_mode"] = "LLM_VIEW"
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), _pdf_pointer()["evidence_text"])
+    pdf_source = document.tobytes(garbage=4, deflate=True, no_new_id=True)
+    document.close()
+
+    class FakeTransport:
+        def submit(self, request: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+            requests_seen.append(copy.deepcopy(request))
+            attempt = len(requests_seen)
+            return copy.deepcopy(invalid), {
+                "attempts_total": 1,
+                "transport_retries_total": 0,
+                "input_tokens": 10,
+                "output_tokens": 10,
+                "cached_tokens": 0,
+                "response_body_base64": base64.b64encode(
+                    f"response-{attempt}".encode()
+                ).decode(),
+                "raw_payload": {"safe_attempt": attempt},
+            }
+
+    with pytest.raises(
+        InvalidStructuredResponseError,
+        match="invalid_structured_response",
+    ) as caught:
+        PdfViewSemanticExperimentRunner().execute_arm(  # type: ignore[arg-type]
+            transport=FakeTransport(),
+            source_mode="PDF",
+            source=pdf_source,
+            filename="safe.pdf",
+            system_prompt="system",
+            task_prompt="task",
+            source_wrapper="wrapper",
+            response_schema=response_schema,
+            pdf_pages_total=1,
+        )
+
+    receipt = caught.value.private_receipt
+    assert len(requests_seen) == 2
+    assert requests_seen[0] == requests_seen[1]
+    assert receipt["failed_arm_provider_calls_total"] == 2
+    assert receipt["provider_calls_total"] == 2
+    assert receipt["schema_retries_total"] == 1
+    assert (
+        receipt["first_validation_error"]
+        == "semantic_response_source_mode_mismatch"
+    )
+    assert (
+        receipt["terminal_validation_error"]
+        == "semantic_response_source_mode_mismatch"
+    )
+    assert [item["raw_payload"] for item in receipt["attempts"]] == [
+        {"safe_attempt": 1},
+        {"safe_attempt": 2},
+    ]
+    assert all(item["validation_error"] for item in receipt["attempts"])
+
+
+def test_25c_run_failure_context_reconciles_prior_provider_calls() -> None:
+    failure = InvalidStructuredResponseError(
+        private_receipt={
+            "source_mode": "PDF",
+            "failed_arm_provider_calls_total": 2,
+            "provider_calls_total": 2,
+            "integrity_sha256": "",
+        }
+    )
+    wrapped = _with_run_failure_context(
+        failure,
+        safe_id="real_pdf_4",
+        run_phase="PRIMARY",
+        provider_calls_before_failed_arm_total=3,
+        completed_primary_arms_total=2,
+        completed_stability_arms_total=0,
+    )
+    assert wrapped.private_receipt == {
+        "source_mode": "PDF",
+        "failed_arm_provider_calls_total": 2,
+        "provider_calls_total": 5,
+        "integrity_sha256": "",
+        "safe_id": "real_pdf_4",
+        "run_phase": "PRIMARY",
+        "provider_calls_before_failed_arm_total": 3,
+        "completed_primary_arms_total": 2,
+        "completed_stability_arms_total": 0,
+    }
 
 
 def test_26_adjudication_computes_full_threshold_metrics_and_stability_gate() -> None:

@@ -1,56 +1,29 @@
 # Broker Reports DOC4 PDF vs LLM Document View Closure Report
 
-Status: `BLOCKED_PROVIDER_FAILURE`
+Status: `BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE`
 
 Effective date: 2026-08-01
 
-Implementation PR: `#253`
-
-Implementation merge commit:
-`3251769728df224f79d085f508c3a47d4e0b8d23`
-
-Terminal harness commit:
-`73a54d132648e62623a3c959aba54296390cb064`
-
 ## 1. Result
 
-The inactive DOC4 harness implementation passed independent review, exact-head
-CI and merged-main tests. The project operator authorized only the four frozen
-DOC4 documents for the OpenAI API snapshot `gpt-5.4-2026-03-05` with
-`store=false`.
+The simplified request policy successfully reopened and passed context preflight. It did not complete the semantic experiment.
 
-The semantic experiment did not reach paired runs. Three separately frozen
-context-preflight attempts each stopped on the first non-retryable HTTP 400
-from `/responses/input_tokens`. No token count succeeded; no PDF arm, View arm,
-stability replay, deterministic comparison or independent adjudication ran.
+The operator authorized the same four frozen documents and OpenAI snapshot `gpt-5.4-2026-03-05`, with `store` omitted and provider-default retention acknowledged. The v5 preflight made one exact full-request token count for each PDF and View arm. All eight succeeded and all four documents were eligible.
+
+The paired run stopped on its first arm, `real_pdf_1/PDF`. The original response and the one allowed exact replay both reached the local semantic validator and failed. No response was accepted, so the remaining seven primary arms and all four stability arms were not called.
 
 ```text
 DOC4_HARNESS_IMPLEMENTATION = PASSED
-INDEPENDENT_REVIEW = PASSED
 PROVIDER_TRANSFER_AUTHORIZED = TRUE
-DOC4_EXPERIMENT_EXECUTION = BLOCKED
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+CONTEXT_PREFLIGHT = PASSED
+DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 ```
 
-## 2. Independent review and implementation merge
+## 2. Frozen gold and source scope
 
-An isolated reviewer inspected commit
-`093832ba56f65cc3566f7a4aeb67713ec072241f` without using author conclusions.
-All 15 required boundaries passed: arm isolation, gold isolation, stateless
-requests, deterministic non-LLM comparison, both-wrong handling, frozen
-configuration, exact retry, native PDF, complete View, no truncation, validated
-source pointers, private-output isolation and absent product route.
-
-Actionable findings were zero. GitHub Actions run `30707928397` was green and
-PR #253 merged as `3251769728df224f79d085f508c3a47d4e0b8d23`.
-
-## 3. Gold checklists
-
-Separate PDF-only agents visually inspected every page and received no LLM
-View, Managed Document, arm response, comparison or desired conclusion. Every
-checklist was source-grounded, schema-valid, SHA-256 sealed and immutable before
-the first provider call.
+The same four PDF-only gold checklists remained sealed before provider calls.
 
 | Safe ID | Gold items | Critical facts |
 | --- | ---: | ---: |
@@ -60,104 +33,68 @@ the first provider call.
 | `real_pdf_5` | 74 | 47 |
 | Total | 461 | 321 |
 
-```text
-GOLD_CHECKLISTS_TOTAL = 4
-GOLD_CHECKLISTS_CREATED_BEFORE_PROVIDER_CALLS = TRUE
-```
+The v5 plan is bound by SHA-256 `9c5323cd766187593b5cf9d22e2f0bbd22e57d09293a8a402d71a05f8e2f3207`. PDFs, Views, gold, plans, authorizations, requests and responses remain outside Git.
 
-Private PDFs, Views, checklists, plans, authorizations and failure receipts
-remain outside Git.
+## 3. Minimal request policy and strict schema repair
 
-## 4. Context preflight and bounded fixes
+PR #257 removed `store`, explicit sampling, explicit reasoning and other unnecessary fields. Primary requests now contain only `model`, `instructions`, `input`, `max_output_tokens`, and `text`; token-count requests contain only `model`, `instructions`, `input`, and `text`. Exact-head CI run `30713899805` passed and the PR merged as `2cb2926e74d6e9ce8f925a60cdfe319038c8609d`.
 
-Attempt 1 stopped on its first HTTP 400. The harness had included
-response-generation-only fields in the token-count body. PR #254 bound the
-allowlist to the exact filtered token-count bytes while leaving primary request
-bytes unchanged. Its isolated review had zero findings, CI run `30710955283`
-was green, and it merged as
-`4f1bd35f1d9e355e8d4afd8714c931eb5e616f18`.
+The first simplified preflight call returned HTTP 400 because the strict response schema used `const` and `enum` nodes without explicit `type`. This proves `store` was not the blocker. PR #258 added every implicit type without changing the accepted value domain, added a recursive regression test, passed exact-head CI run `30714378698`, and merged as `d43149eb96b92fe1090d1af7139ec322ba050503`.
 
-Attempt 2 also stopped on its first HTTP 400. The baseline stage sent empty
-`input` and `instructions` placeholders. PR #255 omitted those absent fields
-and kept the five cumulative stages and primary request unchanged. Its isolated
-review had zero findings, CI run `30711467260` was green, and it merged as
-`73a54d132648e62623a3c959aba54296390cb064`.
+## 4. Successful context preflight
 
-Attempt 3, frozen from that merged main, still received HTTP 400 on its first
-token-count request. The no-endless-search boundary was then applied. Each 400
-was non-retryable, so the reconciled count is three calls total and zero
-transport retries. The original harness did not preserve the 400 response body;
-the provider reported neither usage nor cost. The three attempts are
-invalidated and are not semantic evidence.
+| Safe ID | PDF input tokens | View input tokens | Eligibility |
+| --- | ---: | ---: | --- |
+| `real_pdf_1` | 4,514 | 4,946 | `FIT` |
+| `real_pdf_2` | 8,995 | 7,599 | `FIT` |
+| `real_pdf_4` | 18,014 | 26,135 | `FIT` |
+| `real_pdf_5` | 29,992 | 52,378 | `FIT` |
+| Total | 61,515 | 91,058 | 4/4 eligible |
 
 ```text
-PREFLIGHT_ATTEMPTS_TOTAL = 3
-SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 0
-FAILED_TOKEN_COUNT_CALLS_TOTAL = 3
-PROVIDER_CALLS_TOTAL = 3
-PROVIDER_TOKENS = NOT_REPORTED
-PROVIDER_COST = NOT_REPORTED
-ELIGIBLE_DOCUMENTS_TOTAL = 0
-ELIGIBILITY_STATUS = NOT_EVALUATED_PROVIDER_FAILURE
+SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 8
+PREFLIGHT_INPUT_TOKENS_TOTAL = 152573
 CONTEXT_LIMIT_INELIGIBLE_TOTAL = 0
+CONTEXT_PREFLIGHT = PASSED
 ```
 
-`ELIGIBLE_DOCUMENTS_TOTAL=0` means no document reached an eligibility decision;
-it does not mean that four documents exceeded the context window.
+The provider did not report a cost for token counting.
 
-## 5. Arms, comparison and adjudication
+## 5. Paired run blocker
 
-Because exact context eligibility was not established, the primary run command
-was not executed.
+The first PDF arm received two structured responses: the initial request and the contract-permitted exact replay. Both failed local semantic validation. Because the runner failed closed before writing an accepted arm, completed primary arms and paired documents remain zero.
+
+The pre-closure runner preserved failed responses only after a successful arm return. Its exception therefore lost the two attempts' raw payload, exact validation reason, usage metadata and transport retry counts. We can prove that two responses reached validation, but cannot honestly reconstruct the exact HTTP-call or token totals. This closure adds a private terminal receipt carrying those fields for future runs; it does not retroactively invent the missing evidence and does not call the provider again.
 
 | Stage | Result |
 | --- | --- |
-| PDF arms | `NOT_EVALUATED` |
-| View arms | `NOT_EVALUATED` |
+| Context preflight | `PASSED; 4/4 eligible` |
+| `real_pdf_1` PDF arm | `FAILED_SEMANTIC_VALIDATION_AFTER_EXACT_RETRY` |
+| Remaining primary arms | `NOT_RUN_FAIL_CLOSED` |
 | Completed paired documents | `0` |
+| Stability | `NOT_RUN_MODEL_OUTPUT_FAILURE` |
 | Cross-arm comparison | `NOT_EVALUATED` |
-| Independent source adjudication | `NOT_EVALUATED` |
-| Model stability | `NOT_RUN_PROVIDER_FAILURE` |
+| Source adjudication | `NOT_EVALUATED` |
 
-Precision, recall and cross-arm match rates are null, not zero. Artifact gaps,
-both-wrong cases, unsupported critical facts and invalid model source pointers
-are also not evaluated; reporting zero would falsely imply completed runs.
+Precision, recall, cross-arm match, artifact-gap, both-wrong and pointer metrics are null, not zero.
 
 ## 6. Validation and privacy
 
-The original implementation and both bounded fixes passed isolated reviews
-with zero actionable findings. The terminal merged main passed the full focused
-Broker Reports suite:
-
-```text
-focused tests = 301 passed
-test failures = 0
-Ruff = PASSED
-private artifacts in Git = 0
-runtime product route changes = 0
-live changes = 0
-```
-
-No model switch, fallback, document truncation, chunking, RAG, retrieval,
-repair, best-of selection or product integration was introduced.
+The request-policy and schema-type patches both passed exact-head GitHub CI before the next provider stage. The closure adds tests for immutable private preservation of every invalid structured-response attempt. No model switch, fallback, truncation, chunking, RAG, retrieval, best-of selection, product integration or live change was introduced.
 
 ## 7. Terminal scope stop
 
-DOC4 closes as an honest provider-preflight blocker. It does not prove model
-adequacy and cannot answer PDF-to-View semantic equivalence. A future provider
-attempt requires an explicit new model-or-policy decision and a newly frozen
-plan; the three invalidated attempts must not be reused or rebadged.
+The candidate is inadequate for this frozen DOC4 output contract because it could not produce one accepted first-arm result across the exact permitted replay. That is enough to stop further attempts with the same candidate and policy, but not enough to compare PDF against View.
 
 ```text
 PDF_ARM_CRITICAL_PRECISION = NOT_EVALUATED
-PDF_ARM_CRITICAL_RECALL = NOT_EVALUATED
 VIEW_ARM_CRITICAL_PRECISION = NOT_EVALUATED
-VIEW_ARM_CRITICAL_RECALL = NOT_EVALUATED
 CRITICAL_CROSS_ARM_MATCH_RATE = NOT_EVALUATED
-NONCRITICAL_CROSS_ARM_MATCH_RATE = NOT_EVALUATED
 ARTIFACT_SEMANTIC_GAPS_TOTAL = NOT_EVALUATED
 BOTH_ARMS_WRONG_TOTAL = NOT_EVALUATED
 INVALID_SOURCE_POINTERS_TOTAL = NOT_EVALUATED
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
+
+A future provider attempt requires an explicit new candidate or policy decision and a newly frozen plan. The failed arm cannot be rebadged as semantic-equivalence evidence.

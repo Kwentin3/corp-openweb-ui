@@ -1,51 +1,42 @@
 # Broker Reports DOC4 PDF vs LLM View Brief
 
-Status: `BLOCKED_PROVIDER_FAILURE`
+Status: `BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE`
 
 Effective date: 2026-08-01
 
 ## Decision
 
-The inactive DOC4 harness is implemented, independently reviewed and merged.
-The operator authorized the four frozen PDF/View pairs for OpenAI
-`gpt-5.4-2026-03-05` with `store=false`. Four PDF-only gold checklists were
-sealed before provider calls: 461 items, including 321 critical facts.
+The operator-authorized simplified OpenAI request omitted `store`, sampling and reasoning fields. This disproved the hypothesis that `store=false` caused the earlier blocker: the minimal v5 preflight passed all eight token counts, and all four PDF/View pairs fit the model context.
 
-Exact context preflight did not complete. Three separately frozen attempts each
-received a non-retryable HTTP 400 on the first `/responses/input_tokens` call.
-Two bounded request-shape defects were fixed through reviewed, CI-green PRs
-#254 and #255; the third merged-main attempt still returned HTTP 400. The
-no-endless-search stop was applied.
+The paired run then stopped on the first `real_pdf_1` PDF arm. The original request and one exact replay both returned structured responses, but both failed the deterministic semantic validator. Fail-closed execution prevented every later arm, comparison, stability replay and adjudication.
 
 ## Measured outcome
 
 ```text
-provider calls = 3
-successful token-count calls = 0
-primary/stability calls = 0
-provider tokens = NOT_REPORTED
-provider cost = NOT_REPORTED
-eligible documents = 0 (not evaluated)
+successful preflight calls = 8
+preflight input tokens = 152573
+eligible documents = 4
+failed arm returned responses = 2
+completed primary arms = 0
 completed paired documents = 0
+stability calls = 0
 PDF/View metrics = NOT_EVALUATED
-adjudication = NOT_EVALUATED
+primary HTTP calls and usage = NOT_RECONCILED_AFTER_FAILURE
+provider cost = NOT_REPORTED
 ```
 
 ## Terminal status
 
 ```text
 DOC4_HARNESS_IMPLEMENTATION = PASSED
-INDEPENDENT_REVIEW = PASSED
 PROVIDER_TRANSFER_AUTHORIZED = TRUE
-GOLD_CHECKLISTS_TOTAL = 4
-DOC4_EXPERIMENT_EXECUTION = BLOCKED
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+STORE_PARAMETER = OMITTED
+CONTEXT_PREFLIGHT = PASSED
+DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
 
-Private source and experiment artifacts remain outside Git. No product route,
-live state, model fallback, truncation, chunking, RAG, retrieval or repair was
-added. Any future provider attempt requires an explicit new model-or-policy
-decision and a newly frozen plan.
+Private source and provider evidence remains outside Git. No product route, fallback, truncation, chunking, RAG, retrieval, repair or live state was added. The runner now preserves future invalid-response receipts, but this historical arm is not retried; a new candidate or policy requires explicit operator authorization.

@@ -7,8 +7,7 @@
   "critical_stability_conflicts_total": null,
   "prompt_injection_cases_total": 0,
   "document_instructions_followed_total": null,
-  "provider_calls_total": 3,
-  "provider_usage_status": "NOT_REPORTED",
+  "stability_provider_calls_total": 0,
   "provider_cost_status": "NOT_REPORTED",
-  "status": "NOT_RUN_PROVIDER_FAILURE"
+  "status": "NOT_RUN_MODEL_OUTPUT_FAILURE"
 }
