@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.github.io/corp-openweb-ui/schemas/broker_reports_llm_document_view_receipt_v1.schema.json",
+  "title": "Broker Reports LLM Document View Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "input_document_id",
+    "input_managed_document_sha256",
+    "managed_document_schema_version",
+    "llm_document_view_schema_version",
+    "renderer_version",
+    "output_view_sha256",
+    "output_bytes",
+    "output_characters",
+    "output_lines",
+    "whitespace_lexical_tokens",
+    "reference_tokenizer_id",
+    "reference_tokenizer_library",
+    "reference_tokenizer_version",
+    "reference_tokens_total",
+    "block_coverage",
+    "metadata_coverage",
+    "table_coverage",
+    "relation_coverage",
+    "issue_coverage",
+    "loss_coverage",
+    "coverage",
+    "field_disposition_coverage",
+    "size_metrics",
+    "privacy",
+    "replay_status",
+    "integrity_policy",
+    "integrity_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "broker_reports_llm_document_view_receipt_v1"},
+    "input_document_id": {"type": "string", "pattern": "^document_[a-z0-9][a-z0-9_-]{2,127}$"},
+    "input_managed_document_sha256": {"$ref": "#/$defs/sha256"},
+    "managed_document_schema_version": {"const": "broker_reports_managed_document_v1"},
+    "llm_document_view_schema_version": {"const": "broker_reports_llm_document_view_v1"},
+    "renderer_version": {"const": "broker_reports_managed_document_llm_view_renderer_v1"},
+    "output_view_sha256": {"$ref": "#/$defs/sha256"},
+    "output_bytes": {"type": "integer", "minimum": 1},
+    "output_characters": {"type": "integer", "minimum": 1},
+    "output_lines": {"type": "integer", "minimum": 1},
+    "whitespace_lexical_tokens": {"type": "integer", "minimum": 1},
+    "reference_tokenizer_id": {"const": "broker_reports_utf8_byte_bpe_v1"},
+    "reference_tokenizer_library": {"const": "tiktoken"},
+    "reference_tokenizer_version": {"const": "0.12.0"},
+    "reference_tokens_total": {"type": "integer", "minimum": 1},
+    "block_coverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/blockCoverage"}
+    },
+    "metadata_coverage": {
+      "type": "array",
+      "minItems": 8,
+      "items": {"$ref": "#/$defs/metadataCoverage"}
+    },
+    "table_coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/tableCoverage"}
+    },
+    "relation_coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/relationCoverage"}
+    },
+    "issue_coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/issueCoverage"}
+    },
+    "loss_coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/lossCoverage"}
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "field_disposition_coverage": {"$ref": "#/$defs/fieldCoverage"},
+    "size_metrics": {"$ref": "#/$defs/sizeMetrics"},
+    "privacy": {"$ref": "#/$defs/privacy"},
+    "replay_status": {"const": "PASSED_SELF_REPLAY"},
+    "integrity_policy": {"const": "sha256_canonical_json_without_integrity_sha256"},
+    "integrity_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "count": {"type": "integer", "minimum": 0},
+    "blockCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["block_id", "input_block_type", "ordinal", "view_line_start", "view_line_end", "source_content_sha256", "rendered_content_sha256", "reference_tokens"],
+      "properties": {
+        "block_id": {"type": "string"},
+        "input_block_type": {"enum": ["HEADING", "PARAGRAPH", "LIST", "TABLE", "NOTE", "VISUAL", "BOUNDARY", "UNKNOWN"]},
+        "ordinal": {"$ref": "#/$defs/count"},
+        "view_line_start": {"type": "integer", "minimum": 1},
+        "view_line_end": {"type": "integer", "minimum": 1},
+        "source_content_sha256": {"$ref": "#/$defs/sha256"},
+        "rendered_content_sha256": {"$ref": "#/$defs/sha256"},
+        "reference_tokens": {"$ref": "#/$defs/count"}
+      }
+    },
+    "metadataCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "view_line_start", "view_line_end", "source_content_sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "view_line_start": {"type": "integer", "minimum": 1},
+        "view_line_end": {"type": "integer", "minimum": 1},
+        "source_content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "tableCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table_id", "block_id", "ordinal", "view_line_start", "view_line_end", "rows_input_total", "rows_rendered_total", "cells_input_total", "cells_rendered_total", "annotations_input_total", "annotations_rendered_total"],
+      "properties": {
+        "table_id": {"type": "string"},
+        "block_id": {"type": "string"},
+        "ordinal": {"$ref": "#/$defs/count"},
+        "view_line_start": {"type": "integer", "minimum": 1},
+        "view_line_end": {"type": "integer", "minimum": 1},
+        "rows_input_total": {"$ref": "#/$defs/count"},
+        "rows_rendered_total": {"$ref": "#/$defs/count"},
+        "cells_input_total": {"$ref": "#/$defs/count"},
+        "cells_rendered_total": {"$ref": "#/$defs/count"},
+        "annotations_input_total": {"$ref": "#/$defs/count"},
+        "annotations_rendered_total": {"$ref": "#/$defs/count"}
+      }
+    },
+    "relationCoverage": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {"$ref": "#/$defs/orderedCoverage"},
+        {
+          "type": "object",
+          "required": ["relation_id"],
+          "properties": {"relation_id": {"type": "string"}}
+        }
+      ]
+    },
+    "issueCoverage": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {"$ref": "#/$defs/orderedCoverage"},
+        {
+          "type": "object",
+          "required": ["issue_id"],
+          "properties": {"issue_id": {"type": "string"}}
+        }
+      ]
+    },
+    "lossCoverage": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {"$ref": "#/$defs/orderedCoverage"},
+        {
+          "type": "object",
+          "required": ["loss_id"],
+          "properties": {"loss_id": {"type": "string"}}
+        }
+      ]
+    },
+    "orderedCoverage": {
+      "type": "object",
+      "required": ["ordinal", "view_line_start", "view_line_end", "source_content_sha256", "rendered_content_sha256"],
+      "properties": {
+        "ordinal": {"$ref": "#/$defs/count"},
+        "view_line_start": {"type": "integer", "minimum": 1},
+        "view_line_end": {"type": "integer", "minimum": 1},
+        "source_content_sha256": {"$ref": "#/$defs/sha256"},
+        "rendered_content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocks_input_total", "blocks_rendered_total", "content_blocks_omitted_total",
+        "table_blocks_input_total", "table_blocks_rendered_total", "table_rows_input_total", "table_rows_rendered_total", "table_cells_input_total", "table_cells_rendered_total", "table_cells_omitted_total",
+        "unknown_blocks_input_total", "unknown_blocks_rendered_total", "unknown_blocks_omitted_total",
+        "visual_blocks_input_total", "visual_blocks_rendered_total", "visual_blocks_omitted_total",
+        "relations_input_total", "relations_rendered_total", "relations_omitted_total",
+        "issues_input_total", "issues_rendered_total", "known_losses_input_total", "known_losses_rendered_total", "known_losses_omitted_total",
+        "unaccounted_render_omissions_total", "invented_source_content_total", "private_source_fields_rendered_total", "truncated_documents_total", "filtered_blocks_total", "filtered_table_rows_total", "semantic_filtering_total"
+      ],
+      "properties": {
+        "blocks_input_total": {"$ref": "#/$defs/count"}, "blocks_rendered_total": {"$ref": "#/$defs/count"}, "content_blocks_omitted_total": {"const": 0},
+        "table_blocks_input_total": {"$ref": "#/$defs/count"}, "table_blocks_rendered_total": {"$ref": "#/$defs/count"}, "table_rows_input_total": {"$ref": "#/$defs/count"}, "table_rows_rendered_total": {"$ref": "#/$defs/count"}, "table_cells_input_total": {"$ref": "#/$defs/count"}, "table_cells_rendered_total": {"$ref": "#/$defs/count"}, "table_cells_omitted_total": {"const": 0},
+        "unknown_blocks_input_total": {"$ref": "#/$defs/count"}, "unknown_blocks_rendered_total": {"$ref": "#/$defs/count"}, "unknown_blocks_omitted_total": {"const": 0},
+        "visual_blocks_input_total": {"$ref": "#/$defs/count"}, "visual_blocks_rendered_total": {"$ref": "#/$defs/count"}, "visual_blocks_omitted_total": {"const": 0},
+        "relations_input_total": {"$ref": "#/$defs/count"}, "relations_rendered_total": {"$ref": "#/$defs/count"}, "relations_omitted_total": {"const": 0},
+        "issues_input_total": {"$ref": "#/$defs/count"}, "issues_rendered_total": {"$ref": "#/$defs/count"}, "known_losses_input_total": {"$ref": "#/$defs/count"}, "known_losses_rendered_total": {"$ref": "#/$defs/count"}, "known_losses_omitted_total": {"const": 0},
+        "unaccounted_render_omissions_total": {"const": 0}, "invented_source_content_total": {"const": 0}, "private_source_fields_rendered_total": {"const": 0}, "truncated_documents_total": {"const": 0}, "filtered_blocks_total": {"const": 0}, "filtered_table_rows_total": {"const": 0}, "semantic_filtering_total": {"const": 0}
+      }
+    },
+    "fieldCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_integrity_sha256", "input_field_paths_total", "disposition_counts", "unaccounted_field_paths_total", "unaccounted_field_paths", "resolved_fields"],
+      "properties": {
+        "contract_integrity_sha256": {"$ref": "#/$defs/sha256"},
+        "input_field_paths_total": {"type": "integer", "minimum": 1},
+        "disposition_counts": {"type": "object", "additionalProperties": {"$ref": "#/$defs/count"}},
+        "unaccounted_field_paths_total": {"const": 0},
+        "unaccounted_field_paths": {"type": "array", "maxItems": 0},
+        "resolved_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["doc1_field_path", "disposition", "exact_owner"],
+            "properties": {
+              "doc1_field_path": {"type": "string", "pattern": "^/"},
+              "disposition": {"enum": ["RENDERED", "RENDERED_AS_SAFE_POINTER", "OMITTED_CONTROL_FIELD", "OMITTED_PRIVATE_SOURCE_FIELD", "OMITTED_REDUNDANT_WITH_EXACT_OWNER"]},
+              "exact_owner": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "characters", "reference_tokens"],
+      "properties": {
+        "blocks_total": {"$ref": "#/$defs/count"},
+        "bytes": {"$ref": "#/$defs/count"},
+        "characters": {"$ref": "#/$defs/count"},
+        "lines": {"$ref": "#/$defs/count"},
+        "reference_tokens": {"$ref": "#/$defs/count"},
+        "source_value_bytes": {"$ref": "#/$defs/count"},
+        "renderer_overhead_bytes": {"$ref": "#/$defs/count"}
+      }
+    },
+    "sizeMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_values_bytes", "renderer_overhead_bytes", "categories", "by_page", "by_block_type"],
+      "properties": {
+        "source_values_bytes": {"$ref": "#/$defs/count"},
+        "renderer_overhead_bytes": {"$ref": "#/$defs/count"},
+        "categories": {"type": "object", "additionalProperties": {"$ref": "#/$defs/metric"}},
+        "by_page": {"type": "object", "additionalProperties": {"$ref": "#/$defs/metric"}},
+        "by_block_type": {"type": "object", "additionalProperties": {"$ref": "#/$defs/metric"}}
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["private_source_fields_rendered_total", "source_checksum_rendered", "private_ref_rendered", "local_path_rendered", "resolver_or_access_context_rendered", "provider_payload_rendered"],
+      "properties": {
+        "private_source_fields_rendered_total": {"const": 0},
+        "source_checksum_rendered": {"const": false},
+        "private_ref_rendered": {"const": false},
+        "local_path_rendered": {"const": false},
+        "resolver_or_access_context_rendered": {"const": false},
+        "provider_payload_rendered": {"const": false}
+      }
+    }
+  }
+}

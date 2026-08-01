@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.github.io/corp-openweb-ui/schemas/broker_reports_llm_document_view_checklist_v1.schema.json",
+  "title": "Broker Reports LLM Document View Checklist v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pass", "document_id", "terminal_status", "source_artifact_sha256", "content", "inventory", "value_hashes", "integrity_policy", "integrity_sha256"],
+  "properties": {
+    "schema_version": {"const": "broker_reports_llm_document_view_checklist_v1"},
+    "pass": {"enum": ["MANAGED_DOCUMENT_ONLY", "LLM_VIEW_ONLY"]},
+    "document_id": {"type": "string", "pattern": "^document_[a-z0-9][a-z0-9_-]{2,127}$"},
+    "terminal_status": {"const": "PASSED"},
+    "source_artifact_sha256": {"$ref": "#/$defs/sha256"},
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "content_trust", "document_id", "source_format", "source_parts_total", "document_quality_status", "known_losses_total", "blocking_losses_total", "unknown_blocks_total", "source_context", "metadata", "anchors", "blocks", "relations", "quality", "issues", "losses"],
+      "properties": {
+        "schema_version": {"const": "broker_reports_llm_document_view_v1"},
+        "content_trust": {"const": "UNTRUSTED_SOURCE_DOCUMENT"},
+        "document_id": {"type": "string"},
+        "source_format": {"enum": ["PDF", "HTML", "CSV", "XLSX", "XLS", "UNKNOWN"]},
+        "source_parts_total": {"type": "integer", "minimum": 1},
+        "document_quality_status": {"enum": ["COMPLETE", "PARTIAL", "BLOCKED"]},
+        "known_losses_total": {"$ref": "#/$defs/count"},
+        "blocking_losses_total": {"$ref": "#/$defs/count"},
+        "unknown_blocks_total": {"$ref": "#/$defs/count"},
+        "source_context": {"type": "object"},
+        "metadata": {"type": "array", "minItems": 8, "items": {"type": "object"}},
+        "anchors": {"type": "array", "items": {"type": "object"}},
+        "blocks": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+        "relations": {"type": "array", "items": {"type": "object"}},
+        "quality": {"type": "object"},
+        "issues": {"type": "array", "items": {"type": "object"}},
+        "losses": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metadata_total", "anchors_total", "blocks_total", "block_types", "tables_total", "table_rows_total", "table_cells_total", "unknown_blocks_total", "visual_blocks_total", "relations_total", "issues_total", "losses_total", "full_content_sha256"],
+      "properties": {
+        "metadata_total": {"$ref": "#/$defs/count"},
+        "anchors_total": {"$ref": "#/$defs/count"},
+        "blocks_total": {"type": "integer", "minimum": 1},
+        "block_types": {"type": "object", "additionalProperties": {"$ref": "#/$defs/count"}},
+        "tables_total": {"$ref": "#/$defs/count"},
+        "table_rows_total": {"$ref": "#/$defs/count"},
+        "table_cells_total": {"$ref": "#/$defs/count"},
+        "unknown_blocks_total": {"$ref": "#/$defs/count"},
+        "visual_blocks_total": {"$ref": "#/$defs/count"},
+        "relations_total": {"$ref": "#/$defs/count"},
+        "issues_total": {"$ref": "#/$defs/count"},
+        "losses_total": {"$ref": "#/$defs/count"},
+        "full_content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "value_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries_total", "entries", "ordered_values_sha256", "unordered_values_sha256"],
+      "properties": {
+        "entries_total": {"$ref": "#/$defs/count"},
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "value_sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "value_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        "ordered_values_sha256": {"$ref": "#/$defs/sha256"},
+        "unordered_values_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "integrity_policy": {"const": "sha256_canonical_json_without_integrity_sha256"},
+    "integrity_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "count": {"type": "integer", "minimum": 0}
+  }
+}
