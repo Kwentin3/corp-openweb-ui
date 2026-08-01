@@ -1,0 +1,109 @@
+{
+  "schema_version": "broker_reports_doc3_view_parity_safe_v1",
+  "effective_date": "2026-08-01",
+  "base_commit": "3282780c7fdf6548bbfabf6179c784971a3f4242",
+  "implementation_commit": "reported_after_commit_in_evidence_due_to_commit_self_reference",
+  "checklist_schema_version": "broker_reports_llm_document_view_checklist_v1",
+  "comparison_schema_version": "broker_reports_llm_document_view_parity_v1",
+  "protocol": {
+    "pass_a": "separate_process_managed_document_only",
+    "pass_b": "separate_process_llm_view_only_independent_auditor",
+    "pass_c": "separate_process_two_sealed_checklists_only",
+    "independent_auditor_imports_renderer": false,
+    "real_model_used": false,
+    "provider_calls_total": 0
+  },
+  "dimensions": [
+    "DOCUMENT_PASSPORT",
+    "METADATA",
+    "ANCHORS",
+    "BLOCK_ORDER",
+    "BLOCK_CONTENT",
+    "TABLES",
+    "UNKNOWNS",
+    "VISUALS",
+    "RELATIONS",
+    "ISSUES",
+    "LOSSES",
+    "VALUE_HASHES",
+    "QUALITY"
+  ],
+  "documents": [
+    {
+      "safe_id": "real_pdf_1",
+      "managed_document_only_status": "PASSED",
+      "llm_view_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "managed_checklist_integrity_sha256": "016bd3b937fe266ee049cdf08e4a8ce781b54929eb959d09fca77386030c108f",
+      "view_checklist_integrity_sha256": "81302f754cfe96be4ca624d76a30ffb223bb3e464f45e59c07750b2a99de2987",
+      "comparison_integrity_sha256": "e5a20e18ad8f54a79f4833aa719e96cc94f67e6dd821c22cc342b9082e9755a7",
+      "dimensions_match_total": 13,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_2",
+      "managed_document_only_status": "PASSED",
+      "llm_view_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "managed_checklist_integrity_sha256": "2ac3492d8e4f8a2e0236346a86aec1e296a03f93e2078ccf2de75724820b5f8a",
+      "view_checklist_integrity_sha256": "8cfb35634d4d5182f3a6ed02c5380d71af3fc44d0a66ed94953706701631b513",
+      "comparison_integrity_sha256": "36af065cfde04ccf31e90192b18d0d197860794cc6886c4ac89fb3adcad232ed",
+      "dimensions_match_total": 13,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_4",
+      "managed_document_only_status": "PASSED",
+      "llm_view_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "managed_checklist_integrity_sha256": "94337c2e051e65b9bd507b736cc9daeb641bc4b47a78fd45cdc99b7926344609",
+      "view_checklist_integrity_sha256": "9dac248aefdc093b4df5c9f5ecd16c3362c2b5d49a7dd545d6125ecaaffdec8c",
+      "comparison_integrity_sha256": "e2579dd14b13bc24bf25627e7c62fe1aead6f3e23a54763f85b03423d5e3df19",
+      "dimensions_match_total": 13,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_5",
+      "managed_document_only_status": "PASSED",
+      "llm_view_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "managed_checklist_integrity_sha256": "ab4f8d538bb9fa1571a47cce9ebdb98ab7a4d79b03fe458d7c5ddad3317d7585",
+      "view_checklist_integrity_sha256": "836e21b31ce7b338dd24b4996d1f5b1ff26da731597399eb861e309347b1f6e5",
+      "comparison_integrity_sha256": "a71bd8d7c663e54cdc5373fa5c2280da23ab62c612105ebbe2be89d96722ede7",
+      "dimensions_match_total": 13,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    }
+  ],
+  "aggregate": {
+    "real_managed_documents_total": 4,
+    "managed_document_only_checklists_total": 4,
+    "llm_view_only_checklists_total": 4,
+    "view_parity_comparisons_total": 4,
+    "full_view_parity_documents_total": 4,
+    "comparison_dimensions_total": 52,
+    "comparison_dimensions_match_total": 52,
+    "critical_view_parity_mismatches_total": 0,
+    "noncritical_view_parity_findings_total": 0,
+    "view_replay_files_compared_total": 24,
+    "view_replay_hash_mismatches_total": 0
+  },
+  "privacy": {
+    "literal_source_values_in_git": false,
+    "private_refs_in_git": false,
+    "source_checksums_in_git": false,
+    "local_paths_in_git": false,
+    "full_checklists_in_git": false,
+    "safe_counts_hashes_and_statuses_only": true
+  },
+  "scope": {
+    "pdf_to_llm_semantic_equivalence": "NOT_STARTED",
+    "real_model_qualification": "NOT_STARTED",
+    "product_activation": "NOT_STARTED"
+  },
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "3f606423405e8564e77091438dd3d1e35290411c52ef072b943235cc49bb4cfc"
+}
