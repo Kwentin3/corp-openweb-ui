@@ -2,7 +2,7 @@
 
 Status: canonical evidence classification
 
-Effective date: 2026-07-31
+Effective date: 2026-08-01
 
 ## Current authority
 
@@ -19,6 +19,37 @@ Effective date: 2026-07-31
 | KT2 inactive same-source Type-First proof | `CANONICAL_CURRENT` | 2026-07-31 KT2 report, safe receipt, and brief |
 | KT2.1 bounded context and sufficiency closure | `CANONICAL_CURRENT` | 2026-07-31 KT2.1 report, safe receipt, and brief |
 | DOC0 current document-pipeline audit | `CANONICAL_CURRENT` | Pipeline Map, Context Loss Matrix, Legacy and Reusable Tooling, Logical Table Audit, and 2026-07-31 closure package |
+| DOC1 universal managed document contract | `CANONICAL_CURRENT` | DOC1 Decision, Managed Document Contract MD/Schema, DOC0 Coverage Matrix, and 2026-08-01 closure package |
+
+## DOC1
+
+```text
+DOC1_MANAGED_DOCUMENT_CONTRACT = PASSED
+PRIMARY_DOCUMENT_MODEL = ORDERED_BLOCK_STREAM
+EXPLICIT_RELATIONS = PRESENT
+UNKNOWN_BLOCK = SUPPORTED
+UNKNOWN_METADATA = SUPPORTED
+SOURCE_PROVENANCE = PRESENT
+LOSS_LEDGER = PRESENT
+UNACCOUNTED_CONTEXT_LOSS_ALLOWED = 0
+DOC0_CONTEXT_FACETS_UNACCOUNTED = 0
+CURRENT_TABLE_CORE_REUSED = TRUE
+PDF_NORMALIZER = NOT_STARTED
+LLM_FRIENDLY_RENDERER = NOT_STARTED
+REAL_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The DOC1 evidence family defines and validates one universal inactive document
+artifact for PDF, HTML, CSV, XLSX, XLS, and unknown sources. Its primary reading
+order is `blocks[]`; explicit relations supplement but never replace that
+order. Unknown content and every known loss remain visible and provenance is
+partitioned from future model-visible content.
+
+The six safe fixtures are hand-authored synthetic expressiveness evidence.
+They do not prove a PDF parser or normalizer, real model qualification, product
+reachability, activation, or deployment. `REAL_CORPUS_GAP = TRUE` remains
+explicit, and DOC2, DOC3, and DOC6 are not started.
 
 ## DOC0
 
