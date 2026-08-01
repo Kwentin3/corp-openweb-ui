@@ -1,6 +1,6 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive DOC2 PDF managed-document closure
+Status: canonical entry point after inactive DOC3 LLM Document View closure
 
 Effective date: 2026-08-01
 
@@ -9,6 +9,9 @@ DOC1 implementation merge:
 
 DOC2 implementation merge:
 `0c986919296de16f42ec322400c85e5eee9914f1`.
+
+DOC3 implementation merge:
+`ebe3d6a7e375ff97f0242c7ee5bfdd476d594500`.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -199,8 +202,8 @@ real-PDF proof closes the PDF real-corpus gap without changing DOC1.
 
 DOC1 added no parser, normalizer, renderer, product route, provider call,
 generated bundle, live change, financial type, Semantic Pack, Type-First,
-Gate 3, or Gate 4 behavior. DOC2 is a later, separate inactive implementation;
-DOC3 and DOC6 have not started.
+Gate 3, or Gate 4 behavior. DOC2 and DOC3 are later, separate inactive
+implementations; DOC4 and DOC6 have not started.
 
 ## 12.3 DOC2 inactive PDF managed-document builder
 
@@ -224,11 +227,43 @@ is private; only aggregate sealed summaries and the dated closure package are
 in Git.
 
 DOC2 changes no DOC1 schema, product route, provider/model path, Knowledge/RAG,
-embedding/vector path, generated bundle, or live state. DOC3, DOC4,
-LLM-friendly rendering, real model qualification, and product activation have
-not started.
+embedding/vector path, generated bundle, or live state. DOC3 is the later,
+separate inactive LLM Document View implementation. DOC4, PDF-to-LLM semantic
+equivalence, real model qualification, and product activation have not started.
 
-## 13. KT2, DOC1, DOC2, and next gates
+## 12.4 DOC3 inactive LLM Document View
+
+DOC3 is complete at its inactive Managed Document-to-view boundary.
+`ManagedDocumentLlmViewFactory` is the single renderer owner for canonical
+`broker_reports_llm_document_view_v1` UTF-8 tagged text. Every source-derived
+value is compact JSON on one physical line; the fixed trust header and strict
+end marker prevent source content from creating renderer delimiters.
+
+The view retains every status-bearing metadata field, safe anchor, ordered
+block, TABLE row/cell and structure record, UNKNOWN/VISUAL placeholder,
+relation, issue and known loss. A sealed DOC1 field-disposition authority
+accounts for all 737 concrete fields exercised by the real corpus with zero
+unaccounted paths. Private refs, checksums, paths and access context do not
+enter the view.
+
+The same four valid DOC2 Managed Documents rendered 131/131 blocks, 6/6
+tables, 82/82 rows, 467/467 cells, 26/26 UNKNOWN blocks, 9/9 VISUAL blocks,
+35/35 issues and 44/44 known losses. Four Managed Document-only and four
+independent view-only checklists produced four full-parity comparisons: 52/52
+dimensions match, with zero critical or noncritical findings. Two runs matched
+across all 24 private proof files.
+
+The pinned offline reference tokenizer is
+`broker_reports_utf8_byte_bpe_v1` on `tiktoken==0.12.0`. The four views total
+289,670 reference tokens; the largest is 161,367. These are model-independent
+reference counts, not a context-window or real-model qualification claim.
+
+DOC3 changes no DOC1 schema, DOC2 builder, prompt, valve, provider/model path,
+admission, product route, generated bundle or live state. PDF-to-LLM semantic
+equivalence, DOC4, real model qualification and product activation remain
+`NOT_STARTED`.
+
+## 13. KT2, DOC1, DOC2, DOC3, and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
 complete at its inactive bounded-context and context-sufficiency boundary;
@@ -238,18 +273,19 @@ a separately authorized exact candidate and four-disposition live gate. Any
 product activation needs a later explicit product decision, fresh reachability
 review, governed release, rollback proof, and independent live readback.
 
-DOC1 remains the contract authority. DOC2 now provides the separately reviewed
-inactive PDF builder and real-corpus coverage/parity proof. Neither goal
-authorizes rendering contract content for an LLM, model qualification, product
-reachability, activation, DOC3, or DOC4.
+DOC1 remains the contract authority. DOC2 provides the separately reviewed
+inactive PDF builder and real-corpus coverage/parity proof. DOC3 provides the
+separately reviewed deterministic full-context view and representation parity
+proof. These goals do not authorize PDF-to-LLM semantic equivalence, real model
+qualification, product reachability, activation, or DOC4.
 
 ## 14. Forbidden shortcuts
 
 Do not activate Type-First, revive PR #232 or `source_fact_selection_v3`, use
 the PR #77 registry as authority, bypass factories, weaken terminal tests,
 infer current state from a historical receipt, edit generated bundles by hand,
-use customer/private bytes in Git, mutate live state, activate DOC2, begin
-DOC3/DOC4/DOC6, or begin Gate 3/4 work.
+use customer/private bytes in Git, mutate live state, activate DOC2 or DOC3,
+begin DOC4/DOC6, or begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED
@@ -292,5 +328,23 @@ INVENTED_SOURCE_CONTENT_TOTAL = 0
 CRITICAL_PARITY_MISMATCHES_TOTAL = 0
 REAL_PDF_REPLAY_HASH_MISMATCHES_TOTAL = 0
 PDF_NORMALIZER = PRESENT_INACTIVE
-LLM_FRIENDLY_RENDERER = NOT_STARTED
+LLM_FRIENDLY_RENDERER = PRESENT_INACTIVE
+DOC3_LLM_DOCUMENT_VIEW = PASSED_INACTIVE
+MANAGED_DOCUMENT_TO_LLM_VIEW = PROVEN
+PRIMARY_BLOCK_ORDER_PRESERVED = TRUE
+REAL_MANAGED_DOCUMENTS_TOTAL = 4
+LLM_VIEWS_RENDERED_TOTAL = 4
+CONTENT_BLOCKS_OMITTED_TOTAL = 0
+TABLE_CELLS_OMITTED_TOTAL = 0
+UNKNOWN_BLOCKS_OMITTED_TOTAL = 0
+KNOWN_LOSSES_OMITTED_TOTAL = 0
+UNACCOUNTED_RENDER_OMISSIONS_TOTAL = 0
+PRIVATE_SOURCE_FIELDS_RENDERED_TOTAL = 0
+TRUNCATED_DOCUMENTS_TOTAL = 0
+FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
+CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
+VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = NOT_STARTED
+REAL_MODEL_QUALIFICATION = NOT_STARTED
+DOC4 = NOT_STARTED
 ```
