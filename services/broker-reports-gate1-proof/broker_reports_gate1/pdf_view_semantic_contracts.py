@@ -123,6 +123,34 @@ def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def extract_structured_response(payload: dict[str, Any]) -> dict[str, Any]:
+    texts: list[str] = []
+    refusal = False
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content", []):
+            if not isinstance(content, dict):
+                continue
+            if content.get("type") == "refusal":
+                refusal = True
+            if content.get("type") == "output_text" and isinstance(
+                content.get("text"), str
+            ):
+                texts.append(content["text"])
+    if refusal:
+        raise Doc4ContractError("provider_refusal")
+    if len(texts) != 1:
+        raise Doc4ContractError("provider_structured_text_count_invalid")
+    try:
+        value = json.loads(texts[0])
+    except json.JSONDecodeError as exc:
+        raise Doc4ContractError("provider_structured_text_not_json") from exc
+    if not isinstance(value, dict):
+        raise Doc4ContractError("provider_structured_root_invalid")
+    return value
+
+
 def integrity_sha256(value: Mapping[str, Any]) -> str:
     payload = {key: item for key, item in value.items() if key != "integrity_sha256"}
     return sha256_bytes(canonical_json_bytes(payload))
@@ -537,6 +565,10 @@ def _validate_pointers(
             row_index = pointer["row_index"]
             column_index = pointer["column_index"]
             if table_id is None:
+                if require_cell_literal_match:
+                    raise Doc4ContractError(
+                        "view_financial_pointer_table_coordinates_missing"
+                    )
                 if row_index is not None or column_index is not None:
                     raise Doc4ContractError("view_pointer_table_coordinates_without_table")
                 if source_literal and view_registry.block_text_by_id is not None:
@@ -563,8 +595,11 @@ def _validate_pointers(
             if (
                 require_cell_literal_match
                 and source_literal
-                and view_registry.table_cells_by_block_id is not None
             ):
+                if view_registry.table_cells_by_block_id is None:
+                    raise Doc4ContractError(
+                        "view_pointer_table_cell_registry_missing"
+                    )
                 cells = view_registry.table_cells_by_block_id.get(block_id)
                 if cells is None or not _text_contains(
                     cells[row_index][column_index], source_literal

@@ -15,6 +15,7 @@ from .pdf_view_semantic_contracts import (
     Doc4ContractError,
     ViewPointerRegistry,
     canonical_json_bytes,
+    extract_structured_response,
     integrity_sha256,
     sha256_bytes,
     validate_financial_normalizations,
@@ -1139,6 +1140,31 @@ def validate_doc4_context_preflight(
                     expected_request_sha256=call["request_sha256"],
                     expected_model_id=None,
                 )
+            expected_counts = (
+                receipt["request_envelope_tokens"],
+                receipt["request_envelope_tokens"] + receipt["system_tokens"],
+                receipt["request_envelope_tokens"]
+                + receipt["system_tokens"]
+                + receipt["task_tokens"],
+                receipt["request_envelope_tokens"]
+                + receipt["system_tokens"]
+                + receipt["task_tokens"]
+                + receipt["source_tokens"],
+                receipt["total_input_tokens"],
+            )
+            for call, expected_count in zip(
+                call_receipts, expected_counts, strict=True
+            ):
+                raw_payload = call.get("raw_payload")
+                if (
+                    not isinstance(raw_payload, dict)
+                    or call.get("raw_payload_sha256")
+                    != sha256_bytes(canonical_json_bytes(raw_payload))
+                    or raw_payload.get("input_tokens") != expected_count
+                ):
+                    raise Doc4ContractError(
+                        "terminal_preflight_token_count_payload_invalid"
+                    )
             calls_total += 5
     if value.get("provider_calls_total") != calls_total or calls_total != 40:
         raise Doc4ContractError("terminal_preflight_provider_call_count_invalid")
@@ -1183,7 +1209,7 @@ def _validate_terminal_arm_evidence(
         raise Doc4ContractError("terminal_run_trace_not_validated")
     if (len(attempts) == 1) != (run_trace.get("first_schema_error") is None):
         raise Doc4ContractError("terminal_run_trace_first_error_invalid")
-    for attempt in attempts:
+    for index, attempt in enumerate(attempts):
         metadata = attempt.get("metadata")
         raw_payload = attempt.get("raw_payload")
         if not isinstance(metadata, dict) or not isinstance(raw_payload, dict):
@@ -1195,6 +1221,18 @@ def _validate_terminal_arm_evidence(
         )
         if raw_payload.get("model") != expected_model_id:
             raise Doc4ContractError("terminal_run_trace_model_invalid")
+        if metadata.get("raw_payload_sha256") != sha256_bytes(
+            canonical_json_bytes(raw_payload)
+        ):
+            raise Doc4ContractError("terminal_run_trace_raw_payload_binding_invalid")
+        validation_error = attempt.get("validation_error")
+        if index < len(attempts) - 1:
+            if not isinstance(validation_error, str) or not validation_error:
+                raise Doc4ContractError("terminal_run_trace_retry_outcome_invalid")
+            continue
+        extracted = extract_structured_response(raw_payload)
+        if canonical_json_bytes(extracted) != canonical_json_bytes(response):
+            raise Doc4ContractError("terminal_run_trace_response_binding_invalid")
 
 
 def _validate_provider_call_metadata(

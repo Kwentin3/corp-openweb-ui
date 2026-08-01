@@ -28,6 +28,7 @@ from .pdf_view_semantic_contracts import (
     Doc4ContractError,
     ViewPointerRegistry,
     canonical_json_bytes,
+    extract_structured_response,
     integrity_sha256,
     read_json,
     sha256_bytes,
@@ -170,15 +171,22 @@ class OpenAiDoc4Transport:
         input_tokens = payload.get("input_tokens")
         if not isinstance(input_tokens, int) or isinstance(input_tokens, bool) or input_tokens < 0:
             raise Doc4ContractError("provider_token_count_missing")
+        metadata["raw_payload"] = payload
+        metadata["raw_payload_sha256"] = sha256_bytes(
+            canonical_json_bytes(payload)
+        )
         return input_tokens, metadata
 
     def submit(self, request_body: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         payload, metadata = self._post("/responses", request_body)
         metadata.update(_usage_metadata(payload))
         metadata["resolved_model"] = payload.get("model")
+        metadata["raw_payload_sha256"] = sha256_bytes(
+            canonical_json_bytes(payload)
+        )
         if payload.get("model") != REQUEST_MODEL_ID:
             raise Doc4ContractError("provider_resolved_model_mismatch")
-        response = _extract_structured_response(payload)
+        response = extract_structured_response(payload)
         return response, {**metadata, "raw_payload": payload}
 
     def _post(self, suffix: str, body: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -324,6 +332,16 @@ class PdfViewSemanticExperimentRunner:
             )
             if metadata.get("request_sha256") != expected_request_sha256:
                 raise Doc4ContractError("provider_token_count_request_binding_invalid")
+            raw_payload = metadata.get("raw_payload")
+            if (
+                not isinstance(raw_payload, dict)
+                or metadata.get("raw_payload_sha256")
+                != sha256_bytes(canonical_json_bytes(raw_payload))
+                or raw_payload.get("input_tokens") != count
+            ):
+                raise Doc4ContractError(
+                    "provider_token_count_response_binding_invalid"
+                )
             counts.append(count)
             calls.append(metadata)
         if counts != sorted(counts):
@@ -870,32 +888,6 @@ def _assert_request_isolation(request: dict[str, Any], *, source_mode: str) -> N
         raise Doc4ContractError("pdf_arm_file_isolation_invalid")
     if source_mode == "LLM_VIEW" and "input_file" in types:
         raise Doc4ContractError("view_arm_contains_pdf")
-
-
-def _extract_structured_response(payload: dict[str, Any]) -> dict[str, Any]:
-    texts: list[str] = []
-    refusal = False
-    for item in payload.get("output", []):
-        if not isinstance(item, dict):
-            continue
-        for content in item.get("content", []):
-            if not isinstance(content, dict):
-                continue
-            if content.get("type") == "refusal":
-                refusal = True
-            if content.get("type") == "output_text" and isinstance(content.get("text"), str):
-                texts.append(content["text"])
-    if refusal:
-        raise Doc4ContractError("provider_refusal")
-    if len(texts) != 1:
-        raise Doc4ContractError("provider_structured_text_count_invalid")
-    try:
-        value = json.loads(texts[0])
-    except json.JSONDecodeError as exc:
-        raise Doc4ContractError("provider_structured_text_not_json") from exc
-    if not isinstance(value, dict):
-        raise Doc4ContractError("provider_structured_root_invalid")
-    return value
 
 
 def _usage_metadata(payload: dict[str, Any]) -> dict[str, Any]:

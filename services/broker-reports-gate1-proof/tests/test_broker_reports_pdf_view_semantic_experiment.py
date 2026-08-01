@@ -191,6 +191,14 @@ def test_06_view_table_row_and_column_are_bounded(response_schema: dict[str, Any
     pointer["column_index"] = 2
     with pytest.raises(Doc4ContractError, match="column_index_invalid"):
         validate_semantic_response(view, response_schema, expected_source_mode="LLM_VIEW", view_registry=_view_registry())
+    view["financial_facts"][0]["evidence"] = [_view_pointer(table=False)]
+    with pytest.raises(Doc4ContractError, match="table_coordinates_missing"):
+        validate_semantic_response(
+            view,
+            response_schema,
+            expected_source_mode="LLM_VIEW",
+            view_registry=_view_registry(),
+        )
 
 
 def test_07_decimal_date_and_currency_behavior_is_deterministic() -> None:
@@ -284,7 +292,13 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
 
         def count_input_tokens(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
             request_sha256 = sha256_bytes(canonical_json_bytes(request))
-            return next(self.counts), _provider_call_metadata(request_sha256)
+            count = next(self.counts)
+            raw_payload = {"input_tokens": count}
+            return count, _provider_call_metadata(
+                request_sha256,
+                raw_payload=raw_payload,
+                include_raw_payload=True,
+            )
 
     result = PdfViewSemanticExperimentRunner().context_preflight(  # type: ignore[arg-type]
         transport=FakeTransport(),
@@ -713,6 +727,21 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
             adjudications=adjudications,
             **{**finalize_args, "context_preflight": ineligible},
         )
+    fabricated_counts = copy.deepcopy(finalize_args["context_preflight"])
+    fabricated_call = fabricated_counts["documents"]["real_pdf_1"]["PDF"][
+        "token_count_call_receipts"
+    ][0]
+    fabricated_call["raw_payload"]["input_tokens"] = 999
+    fabricated_call["raw_payload_sha256"] = sha256_bytes(
+        canonical_json_bytes(fabricated_call["raw_payload"])
+    )
+    fabricated_counts["integrity_sha256"] = ""
+    fabricated_counts["integrity_sha256"] = integrity_sha256(fabricated_counts)
+    with pytest.raises(Doc4ContractError, match="token_count_payload_invalid"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{**finalize_args, "context_preflight": fabricated_counts},
+        )
     with pytest.raises(Doc4ContractError, match="adjudication_corpus_incomplete"):
         PdfViewSemanticResultFactory().finalize(
             adjudications={safe_id: adjudications[safe_id] for safe_id in CORPUS_IDS[:-1]},
@@ -774,6 +803,25 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
                 **finalize_args,
                 "pdf_responses": tampered_responses,
                 "validated_receipts": tampered_receipts,
+            },
+        )
+    unbound_responses = copy.deepcopy(finalize_args["pdf_responses"])
+    unbound_receipts = copy.deepcopy(finalize_args["validated_receipts"])
+    unbound_response = unbound_responses["real_pdf_1"]
+    unbound_response["source_quality"]["summary"] = "Changed accepted response."
+    unbound_receipt = unbound_receipts["real_pdf_1"]["PDF"]
+    unbound_receipt["response_sha256"] = sha256_bytes(
+        canonical_json_bytes(unbound_response)
+    )
+    unbound_receipt["integrity_sha256"] = ""
+    unbound_receipt["integrity_sha256"] = integrity_sha256(unbound_receipt)
+    with pytest.raises(Doc4ContractError, match="run_trace_response_binding_invalid"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            **{
+                **finalize_args,
+                "pdf_responses": unbound_responses,
+                "validated_receipts": unbound_receipts,
             },
         )
     tampered_comparisons = copy.deepcopy(finalize_args["comparisons"])
@@ -843,7 +891,21 @@ def _view_pointer(*, table: bool) -> dict[str, Any]:
 
 
 def _view_registry() -> ViewPointerRegistry:
-    return ViewPointerRegistry(block_anchor_ids={"block_para": frozenset({"anchor_para"}), "block_table": frozenset({"anchor_table"})}, tables={"block_table": ("table_source", (2,))})
+    return ViewPointerRegistry(
+        block_anchor_ids={
+            "block_para": frozenset({"anchor_para"}),
+            "block_table": frozenset({"anchor_table"}),
+        },
+        tables={"block_table": ("table_source", (2,))},
+        block_types={"block_para": "PARAGRAPH", "block_table": "TABLE"},
+        block_text_by_id={
+            "block_para": "statement 1",
+            "block_table": "Transactions 10.00 USD",
+        },
+        table_cells_by_block_id={
+            "block_table": (("10.00 USD", "other"),),
+        },
+    )
 
 
 def _source_hashes() -> dict[str, dict[str, str]]:
@@ -861,6 +923,7 @@ def _eligible_preflight(
     for safe_id in CORPUS_IDS:
         documents[safe_id] = {}
         for arm in ("PDF", "LLM_VIEW"):
+            cumulative_counts = (10, 20, 40, 100, 140)
             documents[safe_id][arm] = {
                 "source_tokens": 60,
                 "system_tokens": 10,
@@ -875,7 +938,16 @@ def _eligible_preflight(
                 "reason": "FIT",
                 "token_count_calls_total": 5,
                 "token_count_call_receipts": [
-                    _provider_call_metadata(digest) for digest in request_hashes[safe_id][arm]
+                    _provider_call_metadata(
+                        digest,
+                        raw_payload={"input_tokens": count},
+                        include_raw_payload=True,
+                    )
+                    for digest, count in zip(
+                        request_hashes[safe_id][arm],
+                        cumulative_counts,
+                        strict=True,
+                    )
                 ],
             }
     value = {
@@ -959,8 +1031,11 @@ def _terminal_fixture() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
                 request_sha256=request_sha256,
                 status="PASSED",
             )
+            raw_payload = _provider_payload(response)
             metadata = _provider_call_metadata(
-                request_sha256, resolved_model=REQUEST_MODEL_ID
+                request_sha256,
+                resolved_model=REQUEST_MODEL_ID,
+                raw_payload=raw_payload,
             )
             run_traces[safe_id][arm] = _hash_payload(
                 "broker_reports_doc4_arm_run_trace_v1",
@@ -968,7 +1043,7 @@ def _terminal_fixture() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
                 attempts=[
                     {
                         "metadata": metadata,
-                        "raw_payload": {"model": REQUEST_MODEL_ID},
+                        "raw_payload": raw_payload,
                         "validation_error": None,
                     }
                 ],
@@ -1006,6 +1081,8 @@ def _provider_call_metadata(
     request_sha256: str,
     *,
     resolved_model: str | None = None,
+    raw_payload: dict[str, Any] | None = None,
+    include_raw_payload: bool = False,
 ) -> dict[str, Any]:
     value: dict[str, Any] = {
         "http_status": 200,
@@ -1019,7 +1096,34 @@ def _provider_call_metadata(
     }
     if resolved_model is not None:
         value["resolved_model"] = resolved_model
+    if raw_payload is not None:
+        value["raw_payload_sha256"] = sha256_bytes(
+            canonical_json_bytes(raw_payload)
+        )
+        if include_raw_payload:
+            value["raw_payload"] = copy.deepcopy(raw_payload)
     return value
+
+
+def _provider_payload(response: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "model": REQUEST_MODEL_ID,
+        "output": [
+            {
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": json.dumps(
+                            response,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ),
+                    }
+                ]
+            }
+        ],
+    }
 
 
 def _hash_payload(schema_version: str, **fields: Any) -> dict[str, Any]:
