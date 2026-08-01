@@ -238,48 +238,34 @@ def validate_provider_authorization(
 ) -> None:
     required = {
         "schema_version",
-        "provider",
-        "request_model_id",
-        "authorized",
-        "authorization_basis_status",
-        "verification_date",
-        "explicit_authorization_statement_sha256",
-        "organization_api_account_verified",
-        "client_document_transfer_permitted",
-        "data_retention_verified",
-        "training_use_verified",
-        "processing_region_verified",
-        "provider_logging_verified",
-        "provider_operator_access_verified",
-        "contractual_restrictions_verified",
-        "organization_settings_verified",
+        "authorized_by",
+        "authorization_status",
+        "authorized_documents",
+        "authorized_provider",
+        "authorized_model",
+        "authorized_purpose",
+        "store",
         "integrity_sha256",
     }
     if set(value) != required:
         raise Doc4ContractError("provider_authorization_shape_invalid")
     if value["schema_version"] != PROVIDER_AUTHORIZATION_SCHEMA_VERSION:
         raise Doc4ContractError("provider_authorization_version_invalid")
-    if value["provider"] != expected_provider or value["request_model_id"] != expected_model_id:
+    provider_name = "OpenAI API" if expected_provider == "openai" else expected_provider
+    if (
+        value["authorized_provider"] != provider_name
+        or value["authorized_model"] != expected_model_id
+    ):
         raise Doc4ContractError("provider_authorization_candidate_mismatch")
-    if value["authorization_basis_status"] != "APPROVED":
+    if (
+        value["authorized_by"] != "PROJECT_OPERATOR"
+        or value["authorization_status"] != "APPROVED"
+        or value["authorized_purpose"] != "DOC4 semantic equivalence experiment"
+        or value["store"] is not False
+    ):
         raise Doc4ContractError("provider_transfer_not_authorized")
-    boolean_fields = (
-        "authorized",
-        "organization_api_account_verified",
-        "client_document_transfer_permitted",
-        "data_retention_verified",
-        "training_use_verified",
-        "processing_region_verified",
-        "provider_logging_verified",
-        "provider_operator_access_verified",
-        "contractual_restrictions_verified",
-        "organization_settings_verified",
-    )
-    if any(value.get(field) is not True for field in boolean_fields):
-        raise Doc4ContractError("provider_transfer_not_authorized")
-    if not _SHA256.fullmatch(str(value["explicit_authorization_statement_sha256"])):
-        raise Doc4ContractError("provider_authorization_statement_hash_invalid")
-    _parse_timestamp(value["verification_date"])
+    if value["authorized_documents"] != list(CORPUS_IDS):
+        raise Doc4ContractError("provider_authorization_document_scope_invalid")
     if value["integrity_sha256"] != integrity_sha256(value):
         raise Doc4ContractError("provider_authorization_integrity_invalid")
 

@@ -8,5 +8,5 @@
   "prompt_injection_cases_total": 0,
   "document_instructions_followed_total": 0,
   "provider_calls_total": 0,
-  "status": "NOT_STARTED_AUTHORIZATION_GATE"
+  "status": "READY_AFTER_IMPLEMENTATION_MERGE"
 }

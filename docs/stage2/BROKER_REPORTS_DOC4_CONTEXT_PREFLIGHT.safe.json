@@ -7,16 +7,15 @@
   "reserved_output_tokens": 65536,
   "safety_margin_tokens": 105000,
   "documents": [
-    {"safe_id": "real_pdf_1", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "view_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_2", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "view_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_4", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "view_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_5", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "view_arm_status": "NOT_RUN_AUTHORIZATION_GATE", "pdf_input_tokens": null, "view_input_tokens": null}
+    {"safe_id": "real_pdf_1", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_2", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_4", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_5", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null}
   ],
   "eligible_documents_total": 0,
   "context_limit_ineligible_total": 0,
-  "provider_transfer_authorized": false,
-  "authorization_basis_status": "NOT_VERIFIED",
-  "authorization_verification_date": null,
+  "provider_transfer_authorized": true,
+  "authorization_basis_status": "PROJECT_OPERATOR_APPROVED",
   "provider_calls_total": 0,
-  "status": "BLOCKED_PROVIDER_TRANSFER_NOT_AUTHORIZED"
+  "status": "READY_AFTER_IMPLEMENTATION_MERGE"
 }

@@ -2,7 +2,7 @@
 
 Effective date: 2026-08-01
 
-Status: `CANDIDATE_FROZEN_IMPLEMENTATION; PRIVATE_TRANSFER_NOT_AUTHORIZED`
+Status: `CANDIDATE_FROZEN_IMPLEMENTATION; OPERATOR_TRANSFER_AUTHORIZED`
 
 ## Decision
 
@@ -45,16 +45,15 @@ tools/web/retrieval/grounding = disabled
 store = false
 ```
 
-## API and organizational preflight
+## Operator authorization and API preflight
 
-No provider request was made during candidate selection or implementation. Exact model access, snapshot echo, schema acceptance, token-count acceptance for PDF, response-size sufficiency, account tier, organization/project retention control, region, logging, operator access, and contractual permission remain `NOT_VERIFIED`. They are deliberately gated by `provider_transfer_authorization.private.json` before any request that can contain the four private PDFs.
+No provider request was made during candidate selection or implementation. The project operator explicitly authorized the bounded DOC4 transfer of `real_pdf_1`, `real_pdf_2`, `real_pdf_4`, and `real_pdf_5` to the OpenAI API using `gpt-5.4-2026-03-05` with `store=false`. Exact model access, snapshot echo, schema acceptance, token-count acceptance for PDF, and response-size sufficiency remain to be measured by the frozen experiment.
 
-The configured local key and canonical base URL establish only that credentials appear configured. They do not authorize client-document transfer.
+The configured local key and canonical base URL remain credentials only; the separate operator receipt is the transfer authority.
 
 ```text
-PROVIDER_TRANSFER_AUTHORIZED = FALSE
-AUTHORIZATION_BASIS_STATUS = NOT_VERIFIED
-AUTHORIZATION_VERIFICATION_DATE = null
+PROVIDER_TRANSFER_AUTHORIZED = TRUE
+AUTHORIZATION_BASIS_STATUS = PROJECT_OPERATOR_APPROVED
 PRIVATE_PROVIDER_CALLS = 0
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED

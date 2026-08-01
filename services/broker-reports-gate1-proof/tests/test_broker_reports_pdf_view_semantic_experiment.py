@@ -192,10 +192,15 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
     assert result["eligible"] is True
 
 
-def test_11_authorization_gate_requires_all_verified_controls() -> None:
+def test_11_authorization_gate_requires_exact_operator_scope() -> None:
     authorization = _authorization()
     validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
-    authorization["processing_region_verified"] = False
+    authorization["authorized_documents"] = ["real_pdf_1"]
+    authorization["integrity_sha256"] = integrity_sha256(authorization)
+    with pytest.raises(Doc4ContractError, match="document_scope_invalid"):
+        validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
+    authorization = _authorization()
+    authorization["store"] = True
     authorization["integrity_sha256"] = integrity_sha256(authorization)
     with pytest.raises(Doc4ContractError, match="not_authorized"):
         validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
@@ -502,7 +507,7 @@ def _view_registry() -> ViewPointerRegistry:
 
 
 def _authorization() -> dict[str, Any]:
-    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v1", "provider": "openai", "request_model_id": REQUEST_MODEL_ID, "authorized": True, "authorization_basis_status": "APPROVED", "verification_date": "2026-08-01T00:00:00Z", "explicit_authorization_statement_sha256": "a" * 64, "organization_api_account_verified": True, "client_document_transfer_permitted": True, "data_retention_verified": True, "training_use_verified": True, "processing_region_verified": True, "provider_logging_verified": True, "provider_operator_access_verified": True, "contractual_restrictions_verified": True, "organization_settings_verified": True, "integrity_sha256": ""}
+    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v1", "authorized_by": "PROJECT_OPERATOR", "authorization_status": "APPROVED", "authorized_documents": list(CORPUS_IDS), "authorized_provider": "OpenAI API", "authorized_model": REQUEST_MODEL_ID, "authorized_purpose": "DOC4 semantic equivalence experiment", "store": False, "integrity_sha256": ""}
     value["integrity_sha256"] = integrity_sha256(value)
     return value
 
