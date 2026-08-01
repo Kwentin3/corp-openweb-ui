@@ -482,6 +482,18 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "managed_document_contracts.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_coverage.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_parity.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_pdf_document.py"
+        ),
     }
     assert set(added_package_modules) <= (
         allowed_subordinates | allowed_standalone_contract_authorities
@@ -498,7 +510,11 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     added_contract_authorities = (
         set(added_package_modules) & allowed_standalone_contract_authorities
     )
-    if added_contract_authorities:
+    managed_document_contracts = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "managed_document_contracts.py"
+    )
+    if managed_document_contracts in added_contract_authorities:
         managed_contract = (
             DOC_ROOT
             / "contracts"
@@ -515,6 +531,32 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         assert "CONTRACTED_INACTIVE" in _read(managed_contract)
         assert "def main(" not in _read(module)
         assert "openwebui_actions" not in _imports(module)
+    doc2_authorities = allowed_standalone_contract_authorities - {
+        managed_document_contracts
+    }
+    if added_contract_authorities & doc2_authorities:
+        coverage_contract = (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_MANAGED_DOCUMENT_COVERAGE.v1.md"
+        )
+        parity_contract = (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_PDF_ARTIFACT_PARITY_CHECKLIST.v1.md"
+        )
+        doc2_test = (
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_managed_pdf_document.py"
+        )
+        assert coverage_contract.is_file()
+        assert parity_contract.is_file()
+        assert doc2_test.is_file()
+        for authority in doc2_authorities:
+            module = REPO_ROOT / authority
+            assert "def main(" not in _read(module)
+            assert "openwebui_actions" not in _imports(module)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )

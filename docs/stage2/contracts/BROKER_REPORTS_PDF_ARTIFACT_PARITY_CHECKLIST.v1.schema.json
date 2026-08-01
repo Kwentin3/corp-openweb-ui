@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.github.io/corp-openweb-ui/schemas/broker_reports_pdf_managed_document_parity_checklist_v1.schema.json",
+  "title": "Broker Reports PDF Managed Document Parity Checklist v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "pass",
+    "review_isolation",
+    "document_id",
+    "source_checksum_sha256",
+    "terminal_status",
+    "integrity_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "broker_reports_pdf_managed_document_parity_checklist_v1"},
+    "pass": {"enum": ["PDF_ONLY", "ARTIFACT_ONLY", "COMPARISON"]},
+    "review_isolation": {"type": "string", "minLength": 1, "maxLength": 512},
+    "document_id": {"$ref": "#/$defs/id"},
+    "source_checksum_sha256": {"$ref": "#/$defs/sha256"},
+    "terminal_status": {"type": "string", "minLength": 1, "maxLength": 64},
+    "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "summary": {"type": "object"},
+    "dimensions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dimension"}
+    },
+    "critical_mismatches_total": {"type": "integer", "minimum": 0},
+    "noncritical_mismatches_total": {"type": "integer", "minimum": 0},
+    "full_parity": {"type": "boolean"},
+    "integrity_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"pass": {"enum": ["PDF_ONLY", "ARTIFACT_ONLY"]}}},
+      "then": {"required": ["reason_codes", "summary"]}
+    },
+    {
+      "if": {"properties": {"pass": {"const": "COMPARISON"}}},
+      "then": {
+        "required": [
+          "dimensions",
+          "critical_mismatches_total",
+          "noncritical_mismatches_total",
+          "full_parity"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dimension",
+        "status",
+        "critical_if_mismatch",
+        "critical_category",
+        "pdf_value_sha256",
+        "artifact_value_sha256"
+      ],
+      "properties": {
+        "dimension": {"$ref": "#/$defs/id"},
+        "status": {
+          "enum": [
+            "MATCH",
+            "PARTIAL_MATCH",
+            "MISSING_IN_ARTIFACT",
+            "EXTRA_IN_ARTIFACT",
+            "WRONG_ORDER",
+            "WRONG_RELATION",
+            "WRONG_VALUE",
+            "UNVERIFIABLE"
+          ]
+        },
+        "critical_if_mismatch": {"type": "boolean"},
+        "critical_category": {
+          "oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]
+        },
+        "pdf_value_sha256": {"$ref": "#/$defs/sha256"},
+        "artifact_value_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}
