@@ -1,0 +1,353 @@
+{
+  "schema_version": "broker_reports_managed_document_v1_corpus_safe",
+  "fixture_policy": "hand_authored_synthetic_contract_expressiveness_only",
+  "privacy": {
+    "customer_data_included": false,
+    "private_paths_included": false,
+    "real_source_refs_included": false,
+    "provider_payloads_included": false
+  },
+  "real_corpus_gap": true,
+  "real_corpus_gap_reason": "No qualified real cross-page continuation or footnote-bound table is represented by this synthetic corpus.",
+  "documents": [
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_a_broker_report",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "PDF",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_a_source", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+        "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mime_type": "application/pdf",
+        "size_bytes": 1024,
+        "source_part_count": 1,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "PDF", "encrypted_status": "NOT_ENCRYPTED"}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Broker report", "candidates": [], "evidence_anchor_ids": ["anchor_a_heading"]},
+        "title": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Synthetic broker report", "candidates": [], "evidence_anchor_ids": ["anchor_a_heading"]},
+        "issuer": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Synthetic issuer", "candidates": [], "evidence_anchor_ids": ["anchor_a_heading"]},
+        "document_date": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "2026-06-30", "candidates": [], "evidence_anchor_ids": ["anchor_a_heading"]},
+        "reporting_period": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "2026-Q2", "candidates": [], "evidence_anchor_ids": ["anchor_a_heading"]},
+        "owner_or_account": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "language": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "en", "candidates": [], "evidence_anchor_ids": ["anchor_a_paragraph"]},
+        "primary_currency": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "USD", "candidates": [], "evidence_anchor_ids": ["anchor_a_table"]},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_a_page", "source_format": "PDF", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_page_1", "bbox": null, "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_a_heading", "source_format": "PDF", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_heading", "bbox": [10, 10, 500, 40], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_a_paragraph", "source_format": "PDF", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_paragraph", "bbox": [10, 50, 500, 90], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_a_table", "source_format": "PDF", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_table", "bbox": [10, 100, 500, 300], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_a_note", "source_format": "PDF", "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_note", "bbox": [10, 310, 500, 340], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}}
+      ],
+      "blocks": [
+        {"block_id": "block_a_page", "ordinal": 0, "block_type": "BOUNDARY", "content": {"information_class": "CONTENT", "boundary_type": "PAGE", "source_part_index": 1, "label": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "Page 1", "candidates": [], "evidence_anchor_ids": ["anchor_a_page"]}}, "source_anchor_ids": ["anchor_a_page"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_a_heading", "ordinal": 1, "block_type": "HEADING", "content": {"information_class": "CONTENT", "raw_text": "Synthetic broker report", "level": 1, "level_status": "KNOWN"}, "source_anchor_ids": ["anchor_a_heading"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_a_paragraph", "ordinal": 2, "block_type": "PARAGRAPH", "content": {"information_class": "CONTENT", "raw_text": "The following table contains synthetic positions.", "join_events": []}, "source_anchor_ids": ["anchor_a_paragraph"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_a_table", "ordinal": 3, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_a_positions", "title": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Positions", "candidates": [], "evidence_anchor_ids": ["anchor_a_table"]}, "description": "Synthetic source-visible positions table.", "rows": [["Asset", "Amount"], ["Synthetic A", "100.00"], ["Synthetic B", null]], "completeness_status": "COMPLETE", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Asset", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Amount", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [{"label": "USD", "column_indexes": [1], "status": "KNOWN", "origin": "SOURCE_EXPLICIT"}], "cell_annotations": [{"row_index": 1, "column_index": 1, "state": "PRESENT", "origin": "SOURCE_EXPLICIT", "evidence_anchor_ids": ["anchor_a_table"], "issue_ids": []}, {"row_index": 2, "column_index": 1, "state": "EMPTY", "origin": "SOURCE_EXPLICIT", "evidence_anchor_ids": ["anchor_a_table"], "issue_ids": []}], "related_relation_ids": ["relation_a_note_for_table", "relation_a_table_section"], "continuation_relation_ids": [], "known_gap_ids": []}, "source_anchor_ids": ["anchor_a_table"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_a_note", "ordinal": 4, "block_type": "NOTE", "content": {"information_class": "CONTENT", "text": "Synthetic values are illustrative.", "note_kind": "TABLE_NOTE"}, "source_anchor_ids": ["anchor_a_note"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []}
+      ],
+      "relations": [
+        {"information_class": "PROVENANCE", "relation_id": "relation_a_table_section", "relation_type": "BELONGS_TO_SECTION", "source": {"block_id": "block_a_table", "row_index": null, "column_index": null}, "target": {"block_id": "block_a_heading", "row_index": null, "column_index": null}, "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "evidence_anchor_ids": ["anchor_a_heading", "anchor_a_table"], "issue_ids": []},
+        {"information_class": "PROVENANCE", "relation_id": "relation_a_note_for_table", "relation_type": "NOTE_FOR", "source": {"block_id": "block_a_note", "row_index": null, "column_index": null}, "target": {"block_id": "block_a_table", "row_index": null, "column_index": null}, "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "evidence_anchor_ids": ["anchor_a_table", "anchor_a_note"], "issue_ids": []}
+      ],
+      "quality": {"information_class": "CONTROL", "status": "COMPLETE", "source_elements_total": 5, "preserved_blocks_total": 5, "unknown_blocks_total": 0, "unsupported_elements_total": 0, "known_losses_total": 0, "conflicts_total": 0, "unaccounted_context_loss_total": 0, "blocking_losses_total": 0, "issue_ledger": [], "loss_ledger": []},
+      "integrity_sha256": "0a9882e0fcd82d49468bd2e122d83e77a335a8ad533ffc34feac4ffdd9ba45f3"
+    },
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_b_unknown_structure",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "PDF",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_b_source", "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+        "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "mime_type": "application/pdf",
+        "size_bytes": 768,
+        "source_part_count": 1,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "PDF", "encrypted_status": "NOT_ENCRYPTED"}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "title": {"information_class": "CONTENT", "status": "CONFLICTING", "origin": "DETERMINISTIC_DERIVED", "value": null, "candidates": ["Synthetic title candidate A", "Synthetic title candidate B"], "evidence_anchor_ids": ["anchor_b_heading"]},
+        "issuer": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "document_date": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "reporting_period": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_b_heading"]},
+        "owner_or_account": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "language": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "en", "candidates": [], "evidence_anchor_ids": ["anchor_b_unknown"]},
+        "primary_currency": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_b_heading"]},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_b_heading", "source_format": "PDF", "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_uncertain_heading", "bbox": [20, 20, 480, 60], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_b_unknown", "source_format": "PDF", "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_unknown_element", "bbox": [20, 70, 480, 200], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_b_unknown_locator", "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}}
+      ],
+      "blocks": [
+        {"block_id": "block_b_heading", "ordinal": 0, "block_type": "HEADING", "content": {"information_class": "CONTENT", "raw_text": "Synthetic ambiguous heading", "level": null, "level_status": "UNKNOWN"}, "source_anchor_ids": ["anchor_b_heading"], "restoration": {"information_class": "CONTROL", "status": "PARTIAL", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": ["issue_b_heading_level"]}, "issue_ids": ["issue_b_heading_level"]},
+        {"block_id": "block_b_unknown", "ordinal": 1, "block_type": "UNKNOWN", "content": {"information_class": "CONTENT", "raw_text": "Synthetic unfamiliar source structure retained verbatim.", "private_artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_b_unknown_artifact", "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}, "reason": "No v1 structural block type can be assigned without guessing."}, "source_anchor_ids": ["anchor_b_unknown"], "restoration": {"information_class": "CONTROL", "status": "UNRESOLVED", "classification_origin": "UNKNOWN_ORIGIN", "issue_ids": ["issue_b_unknown_type"]}, "issue_ids": ["issue_b_unknown_type"]}
+      ],
+      "relations": [
+        {"information_class": "PROVENANCE", "relation_id": "relation_b_unknown", "relation_type": "UNKNOWN_RELATION", "source": {"block_id": "block_b_unknown", "row_index": null, "column_index": null}, "target": {"block_id": "block_b_heading", "row_index": null, "column_index": null}, "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "evidence_anchor_ids": ["anchor_b_heading", "anchor_b_unknown"], "issue_ids": ["issue_b_unknown_relation"]}
+      ],
+      "quality": {
+        "information_class": "CONTROL",
+        "status": "PARTIAL",
+        "source_elements_total": 2,
+        "preserved_blocks_total": 2,
+        "unknown_blocks_total": 1,
+        "unsupported_elements_total": 1,
+        "known_losses_total": 0,
+        "conflicts_total": 1,
+        "unaccounted_context_loss_total": 0,
+        "blocking_losses_total": 0,
+        "issue_ledger": [
+          {"issue_id": "issue_b_heading_level", "code": "heading_level_unknown", "severity": "WARNING", "message": "Heading text is retained but its level is unknown.", "anchor_ids": ["anchor_b_heading"], "block_ids": ["block_b_heading"], "relation_ids": [], "recoverability": "RECOVERABLE", "requires_source_reread": true},
+          {"issue_id": "issue_b_unknown_type", "code": "block_type_unknown", "severity": "WARNING", "message": "The unfamiliar block is retained without invented classification.", "anchor_ids": ["anchor_b_unknown"], "block_ids": ["block_b_unknown"], "relation_ids": [], "recoverability": "UNKNOWN", "requires_source_reread": true},
+          {"issue_id": "issue_b_unknown_relation", "code": "relation_unknown", "severity": "WARNING", "message": "The relation is recorded as unknown rather than inferred from proximity.", "anchor_ids": ["anchor_b_heading", "anchor_b_unknown"], "block_ids": ["block_b_heading", "block_b_unknown"], "relation_ids": ["relation_b_unknown"], "recoverability": "UNKNOWN", "requires_source_reread": true}
+        ],
+        "loss_ledger": []
+      },
+      "integrity_sha256": "816ad6d04c2c2bfb5f31ecd35157911082dbf93cf199bdb27fd8888f4883aef1"
+    },
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_c_continued_table",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "PDF",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_c_source", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+        "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "mime_type": "application/pdf",
+        "size_bytes": 2048,
+        "source_part_count": 2,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "PDF", "encrypted_status": "NOT_ENCRYPTED"}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Synthetic statement", "candidates": [], "evidence_anchor_ids": ["anchor_c_table_1"]},
+        "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "issuer": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "document_date": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "reporting_period": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "owner_or_account": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "language": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "en", "candidates": [], "evidence_anchor_ids": ["anchor_c_table_1"]},
+        "primary_currency": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_c_page_1", "source_format": "PDF", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_page_1", "bbox": null, "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_c_table_1", "source_format": "PDF", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": {"kind": "PDF", "source_part_index": 1, "page": 1, "source_block_ref": "synthetic_table_fragment_1", "bbox": [10, 80, 500, 700], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_c_page_2", "source_format": "PDF", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": {"kind": "PDF", "source_part_index": 2, "page": 2, "source_block_ref": "synthetic_page_2", "bbox": null, "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_c_table_2", "source_format": "PDF", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": {"kind": "PDF", "source_part_index": 2, "page": 2, "source_block_ref": "synthetic_table_fragment_2", "bbox": [10, 80, 500, 400], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_c_footnote", "source_format": "PDF", "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "locator": {"kind": "PDF", "source_part_index": 2, "page": 2, "source_block_ref": "synthetic_footnote", "bbox": [10, 420, 500, 450], "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}}
+      ],
+      "blocks": [
+        {"block_id": "block_c_page_1", "ordinal": 0, "block_type": "BOUNDARY", "content": {"information_class": "CONTENT", "boundary_type": "PAGE", "source_part_index": 1, "label": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "Page 1", "candidates": [], "evidence_anchor_ids": ["anchor_c_page_1"]}}, "source_anchor_ids": ["anchor_c_page_1"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_c_table_1", "ordinal": 1, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_c_part_1", "title": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Synthetic continued positions", "candidates": [], "evidence_anchor_ids": ["anchor_c_table_1"]}, "description": "First synthetic fragment of a continued table.", "rows": [["Asset", "Amount"], ["Synthetic A", "10.00"]], "completeness_status": "PARTIAL", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Asset", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Amount", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [], "cell_annotations": [], "related_relation_ids": ["relation_c_continuation"], "continuation_relation_ids": ["relation_c_continuation"], "known_gap_ids": []}, "source_anchor_ids": ["anchor_c_table_1"], "restoration": {"information_class": "CONTROL", "status": "PARTIAL", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_c_page_2", "ordinal": 2, "block_type": "BOUNDARY", "content": {"information_class": "CONTENT", "boundary_type": "PAGE", "source_part_index": 2, "label": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "Page 2", "candidates": [], "evidence_anchor_ids": ["anchor_c_page_2"]}}, "source_anchor_ids": ["anchor_c_page_2"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_c_table_2", "ordinal": 3, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_c_part_2", "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []}, "description": "Second synthetic fragment with a repeated header.", "rows": [["Asset", "Amount"], ["Synthetic continuation", null]], "completeness_status": "PARTIAL", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Asset", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Amount", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [], "cell_annotations": [{"row_index": 1, "column_index": 1, "state": "UNREADABLE", "origin": "DETERMINISTIC_DERIVED", "evidence_anchor_ids": ["anchor_c_table_2"], "issue_ids": ["issue_c_unreadable_cell"]}], "related_relation_ids": ["relation_c_continuation", "relation_c_footnote"], "continuation_relation_ids": ["relation_c_continuation"], "known_gap_ids": ["loss_c_unreadable_cell"]}, "source_anchor_ids": ["anchor_c_table_2"], "restoration": {"information_class": "CONTROL", "status": "PARTIAL", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": ["issue_c_unreadable_cell"]}, "issue_ids": ["issue_c_unreadable_cell"]},
+        {"block_id": "block_c_footnote", "ordinal": 4, "block_type": "NOTE", "content": {"information_class": "CONTENT", "text": "Synthetic footnote linked to the continued row.", "note_kind": "FOOTNOTE"}, "source_anchor_ids": ["anchor_c_footnote"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []}
+      ],
+      "relations": [
+        {"information_class": "PROVENANCE", "relation_id": "relation_c_continuation", "relation_type": "CONTINUATION_OF", "source": {"block_id": "block_c_table_2", "row_index": null, "column_index": null}, "target": {"block_id": "block_c_table_1", "row_index": null, "column_index": null}, "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "evidence_anchor_ids": ["anchor_c_table_1", "anchor_c_table_2"], "issue_ids": []},
+        {"information_class": "PROVENANCE", "relation_id": "relation_c_footnote", "relation_type": "FOOTNOTE_FOR", "source": {"block_id": "block_c_footnote", "row_index": null, "column_index": null}, "target": {"block_id": "block_c_table_2", "row_index": 1, "column_index": null}, "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "evidence_anchor_ids": ["anchor_c_table_2", "anchor_c_footnote"], "issue_ids": []}
+      ],
+      "quality": {
+        "information_class": "CONTROL",
+        "status": "PARTIAL",
+        "source_elements_total": 5,
+        "preserved_blocks_total": 5,
+        "unknown_blocks_total": 0,
+        "unsupported_elements_total": 0,
+        "known_losses_total": 1,
+        "conflicts_total": 0,
+        "unaccounted_context_loss_total": 0,
+        "blocking_losses_total": 0,
+        "issue_ledger": [
+          {"issue_id": "issue_c_unreadable_cell", "code": "cell_unreadable", "severity": "WARNING", "message": "One source-visible cell could not be read and remains distinct from an empty cell.", "anchor_ids": ["anchor_c_table_2"], "block_ids": ["block_c_table_2"], "relation_ids": [], "recoverability": "RECOVERABLE", "requires_source_reread": true}
+        ],
+        "loss_ledger": [
+          {"loss_id": "loss_c_unreadable_cell", "context_class": "CONTENT", "what_lost": "Visible text in logical cell row 1 column 1.", "where": "Second table fragment on source part 2.", "reason": "Source content is unreadable in the synthetic scenario.", "recoverability": "RECOVERABLE", "requires_source_reread": true, "blocks_semantic_analysis": false, "accounted": true, "anchor_ids": ["anchor_c_table_2"], "block_ids": ["block_c_table_2"]}
+        ]
+      },
+      "integrity_sha256": "7650f701e690f978b717b31735e0869ed4868bd799c85de49e228c488b2a5b89"
+    },
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_d_csv",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "CSV",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_d_source", "checksum_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},
+        "checksum_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "mime_type": "text/csv",
+        "size_bytes": 128,
+        "source_part_count": 1,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "CSV", "row_count": 3}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "Delimited table document", "candidates": [], "evidence_anchor_ids": ["anchor_d_csv"]},
+        "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "issuer": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_d_csv"]},
+        "document_date": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "reporting_period": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "owner_or_account": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_d_csv"]},
+        "language": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "primary_currency": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_d_csv", "source_format": "CSV", "checksum_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "locator": {"kind": "CSV", "source_part_index": 1, "row_start": 1, "row_end": 3, "column_start": 1, "column_end": 2}}
+      ],
+      "blocks": [
+        {"block_id": "block_d_table", "ordinal": 0, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_d_csv", "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []}, "description": "Complete synthetic CSV table.", "rows": [["Label", "Value"], ["Synthetic A", "1"], ["Synthetic B", "2"]], "completeness_status": "COMPLETE", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Label", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Value", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [], "cell_annotations": [], "related_relation_ids": [], "continuation_relation_ids": [], "known_gap_ids": []}, "source_anchor_ids": ["anchor_d_csv"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []}
+      ],
+      "relations": [],
+      "quality": {"information_class": "CONTROL", "status": "COMPLETE", "source_elements_total": 1, "preserved_blocks_total": 1, "unknown_blocks_total": 0, "unsupported_elements_total": 0, "known_losses_total": 0, "conflicts_total": 0, "unaccounted_context_loss_total": 0, "blocking_losses_total": 0, "issue_ledger": [], "loss_ledger": []},
+      "integrity_sha256": "16609cc7ccec6f19195b12ccd8d113b41fe93085abb670a86243226af02432cf"
+    },
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_e_xlsx",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "XLSX",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_e_source", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"},
+        "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "size_bytes": 4096,
+        "source_part_count": 2,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "XLSX", "sheet_count": 2, "formula_status": "UNSUPPORTED"}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "Workbook", "candidates": [], "evidence_anchor_ids": ["anchor_e_sheet_1"]},
+        "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "issuer": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "document_date": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "reporting_period": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "owner_or_account": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "language": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "primary_currency": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_e_sheet_1", "source_format": "XLSX", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "locator": {"kind": "XLSX", "source_part_index": 1, "sheet": "Sheet1", "cell_range": "A1:B3", "source_ref": "synthetic_sheet_1", "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_e_table_1", "source_format": "XLSX", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "locator": {"kind": "XLSX", "source_part_index": 1, "sheet": "Sheet1", "cell_range": "A1:B3", "source_ref": "synthetic_range_1", "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_e_sheet_2", "source_format": "XLSX", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "locator": {"kind": "XLSX", "source_part_index": 2, "sheet": "Sheet2", "cell_range": "A1:B2", "source_ref": "synthetic_sheet_2", "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_e_table_2", "source_format": "XLSX", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "locator": {"kind": "XLSX", "source_part_index": 2, "sheet": "Sheet2", "cell_range": "A1:B2", "source_ref": "synthetic_range_2", "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_e_formula", "source_format": "XLSX", "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "locator": {"kind": "XLSX", "source_part_index": 2, "sheet": "Sheet2", "cell_range": "B2:B2", "source_ref": "synthetic_formula_cell", "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_e_formula_locator", "checksum_sha256": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"}}}
+      ],
+      "blocks": [
+        {"block_id": "block_e_sheet_1", "ordinal": 0, "block_type": "BOUNDARY", "content": {"information_class": "CONTENT", "boundary_type": "SHEET", "source_part_index": 1, "label": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Sheet1", "candidates": [], "evidence_anchor_ids": ["anchor_e_sheet_1"]}}, "source_anchor_ids": ["anchor_e_sheet_1"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_e_table_1", "ordinal": 1, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_e_sheet_1", "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []}, "description": "Synthetic first-sheet range.", "rows": [["Label", "Value"], ["Synthetic A", "1"], ["Synthetic B", "2"]], "completeness_status": "COMPLETE", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Label", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Value", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [], "cell_annotations": [], "related_relation_ids": [], "continuation_relation_ids": [], "known_gap_ids": []}, "source_anchor_ids": ["anchor_e_table_1"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_e_sheet_2", "ordinal": 2, "block_type": "BOUNDARY", "content": {"information_class": "CONTENT", "boundary_type": "SHEET", "source_part_index": 2, "label": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Sheet2", "candidates": [], "evidence_anchor_ids": ["anchor_e_sheet_2"]}}, "source_anchor_ids": ["anchor_e_sheet_2"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_e_table_2", "ordinal": 3, "block_type": "TABLE", "content": {"information_class": "CONTENT", "table_id": "table_fixture_e_sheet_2", "title": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []}, "description": "Synthetic second-sheet range with an unresolved formula result.", "rows": [["Label", "Value"], ["Synthetic formula", null]], "completeness_status": "PARTIAL", "header_hierarchy": {"status": "KNOWN", "entries": [{"label": "Label", "level": 1, "row_index": 0, "column_start": 0, "column_end": 0, "origin": "SOURCE_EXPLICIT"}, {"label": "Value", "level": 1, "row_index": 0, "column_start": 1, "column_end": 1, "origin": "SOURCE_EXPLICIT"}]}, "row_groups": {"status": "UNKNOWN", "groups": []}, "row_markers": [], "units": [], "cell_annotations": [{"row_index": 1, "column_index": 1, "state": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "evidence_anchor_ids": ["anchor_e_formula"], "issue_ids": ["issue_e_formula"]}], "related_relation_ids": [], "continuation_relation_ids": [], "known_gap_ids": ["loss_e_formula"]}, "source_anchor_ids": ["anchor_e_table_2", "anchor_e_formula"], "restoration": {"information_class": "CONTROL", "status": "PARTIAL", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": ["issue_e_formula"]}, "issue_ids": ["issue_e_formula"]},
+        {"block_id": "block_e_unknown_formula", "ordinal": 4, "block_type": "UNKNOWN", "content": {"information_class": "CONTENT", "raw_text": "Synthetic formula property retained as unsupported.", "private_artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_e_formula_artifact", "checksum_sha256": "eaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea"}, "reason": "Formula semantics are outside the v1 normalized content interpretation."}, "source_anchor_ids": ["anchor_e_formula"], "restoration": {"information_class": "CONTROL", "status": "UNRESOLVED", "classification_origin": "UNKNOWN_ORIGIN", "issue_ids": ["issue_e_formula"]}, "issue_ids": ["issue_e_formula"]}
+      ],
+      "relations": [],
+      "quality": {
+        "information_class": "CONTROL",
+        "status": "PARTIAL",
+        "source_elements_total": 5,
+        "preserved_blocks_total": 5,
+        "unknown_blocks_total": 1,
+        "unsupported_elements_total": 1,
+        "known_losses_total": 1,
+        "conflicts_total": 0,
+        "unaccounted_context_loss_total": 0,
+        "blocking_losses_total": 0,
+        "issue_ledger": [
+          {"issue_id": "issue_e_formula", "code": "formula_semantics_unsupported", "severity": "WARNING", "message": "The formula and its unknown result remain source-bound and explicitly unsupported.", "anchor_ids": ["anchor_e_formula"], "block_ids": ["block_e_table_2", "block_e_unknown_formula"], "relation_ids": [], "recoverability": "RECOVERABLE", "requires_source_reread": true}
+        ],
+        "loss_ledger": [
+          {"loss_id": "loss_e_formula", "context_class": "CONTENT", "what_lost": "Evaluated meaning and result of the synthetic formula.", "where": "Sheet2 cell B2.", "reason": "Formula evaluation is unsupported by the synthetic v1 normalization scenario.", "recoverability": "RECOVERABLE", "requires_source_reread": true, "blocks_semantic_analysis": false, "accounted": true, "anchor_ids": ["anchor_e_formula"], "block_ids": ["block_e_table_2", "block_e_unknown_formula"]}
+        ]
+      },
+      "integrity_sha256": "22c35c125d1871085cd05ba6fff04352d7484bac4363ae2a555d3e02008a48ac"
+    },
+    {
+      "schema_version": "broker_reports_managed_document_v1",
+      "document_id": "document_fixture_f_html",
+      "information_partition": {
+        "CONTENT": ["/metadata", "/blocks/*/content"],
+        "PROVENANCE": ["/source", "/anchors", "/relations"],
+        "CONTROL": ["/information_partition", "/blocks/*/restoration", "/quality"],
+        "PRIVATE_SOURCE": ["/source/artifact", "/anchors/*/locator/private_locator", "/blocks/*/content/private_artifact"]
+      },
+      "source": {
+        "information_class": "PROVENANCE",
+        "format": "HTML",
+        "artifact": {"information_class": "PRIVATE_SOURCE", "status": "PRESENT", "ref": "private_fixture_f_source", "checksum_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"},
+        "checksum_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "mime_type": "text/html",
+        "size_bytes": 256,
+        "source_part_count": 1,
+        "normalizer": {"name": "synthetic_contract_fixture", "version": "1.0.0"},
+        "created_at": "2026-08-01T00:00:00Z",
+        "source_details": {"kind": "HTML"}
+      },
+      "metadata": {
+        "document_type": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "HTML document", "candidates": [], "evidence_anchor_ids": ["anchor_f_heading"]},
+        "title": {"information_class": "CONTENT", "status": "PRESENT", "origin": "SOURCE_EXPLICIT", "value": "Synthetic HTML document", "candidates": [], "evidence_anchor_ids": ["anchor_f_heading"]},
+        "issuer": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "document_date": {"information_class": "CONTENT", "status": "UNKNOWN", "origin": "UNKNOWN_ORIGIN", "value": null, "candidates": [], "evidence_anchor_ids": []},
+        "reporting_period": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_f_heading"]},
+        "owner_or_account": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_f_heading"]},
+        "language": {"information_class": "CONTENT", "status": "PRESENT", "origin": "DETERMINISTIC_DERIVED", "value": "en", "candidates": [], "evidence_anchor_ids": ["anchor_f_paragraph"]},
+        "primary_currency": {"information_class": "CONTENT", "status": "NOT_APPLICABLE", "origin": "SOURCE_EXPLICIT", "value": null, "candidates": [], "evidence_anchor_ids": ["anchor_f_heading"]},
+        "additional": []
+      },
+      "anchors": [
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_f_heading", "source_format": "HTML", "checksum_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "locator": {"kind": "HTML", "source_part_index": 1, "dom_path": "/html/body/h1", "source_block_ref": "synthetic_html_heading", "ordinal": 0, "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}},
+        {"information_class": "PROVENANCE", "anchor_id": "anchor_f_paragraph", "source_format": "HTML", "checksum_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "locator": {"kind": "HTML", "source_part_index": 1, "dom_path": "/html/body/p", "source_block_ref": "synthetic_html_paragraph", "ordinal": 1, "private_locator": {"information_class": "PRIVATE_SOURCE", "status": "NOT_APPLICABLE", "ref": null, "checksum_sha256": null}}}
+      ],
+      "blocks": [
+        {"block_id": "block_f_heading", "ordinal": 0, "block_type": "HEADING", "content": {"information_class": "CONTENT", "raw_text": "Synthetic HTML document", "level": 1, "level_status": "KNOWN"}, "source_anchor_ids": ["anchor_f_heading"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []},
+        {"block_id": "block_f_paragraph", "ordinal": 1, "block_type": "PARAGRAPH", "content": {"information_class": "CONTENT", "raw_text": "Synthetic HTML content remains in DOM order.", "join_events": []}, "source_anchor_ids": ["anchor_f_paragraph"], "restoration": {"information_class": "CONTROL", "status": "RESTORED", "classification_origin": "DETERMINISTIC_DERIVED", "issue_ids": []}, "issue_ids": []}
+      ],
+      "relations": [],
+      "quality": {"information_class": "CONTROL", "status": "COMPLETE", "source_elements_total": 2, "preserved_blocks_total": 2, "unknown_blocks_total": 0, "unsupported_elements_total": 0, "known_losses_total": 0, "conflicts_total": 0, "unaccounted_context_loss_total": 0, "blocking_losses_total": 0, "issue_ledger": [], "loss_ledger": []},
+      "integrity_sha256": "5b0ed933ce76f714eb282e6688d08f770674c4d91ae1dfbda078de686f100daa"
+    }
+  ]
+}

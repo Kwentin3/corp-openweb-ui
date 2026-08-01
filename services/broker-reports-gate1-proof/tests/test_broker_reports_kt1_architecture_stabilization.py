@@ -457,7 +457,7 @@ def test_16_production_source_does_not_require_boundary_comments() -> None:
     assert "does not require architecture" in policy
 
 
-def test_17_new_package_module_is_declared_subordinate_and_ci_runs_this_suite() -> None:
+def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     added_package_modules = [
         path
         for status, path in _changed_paths()
@@ -477,15 +477,44 @@ def test_17_new_package_module_is_declared_subordinate_and_ci_runs_this_suite() 
             "gate2_bounded_semantic_context.py"
         ),
     }
-    assert set(added_package_modules) <= allowed_subordinates
-    if added_package_modules:
+    allowed_standalone_contract_authorities = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_contracts.py"
+        ),
+    }
+    assert set(added_package_modules) <= (
+        allowed_subordinates | allowed_standalone_contract_authorities
+    )
+    added_subordinates = set(added_package_modules) & allowed_subordinates
+    if added_subordinates:
         capabilities = _owners()["current_source_fact_orchestration"][
             "inactive_subordinate_capabilities"
         ]
-        assert set(added_package_modules) <= {
+        assert added_subordinates <= {
             item["module"] for item in capabilities
         }
         assert all(item["canonical_owner_delta"] == 0 for item in capabilities)
+    added_contract_authorities = (
+        set(added_package_modules) & allowed_standalone_contract_authorities
+    )
+    if added_contract_authorities:
+        managed_contract = (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_MANAGED_DOCUMENT.v1.md"
+        )
+        managed_test = (
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_managed_document_contract.py"
+        )
+        module = PACKAGE_ROOT / "managed_document_contracts.py"
+        assert managed_contract.is_file()
+        assert managed_test.is_file()
+        assert "CONTRACTED_INACTIVE" in _read(managed_contract)
+        assert "def main(" not in _read(module)
+        assert "openwebui_actions" not in _imports(module)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )

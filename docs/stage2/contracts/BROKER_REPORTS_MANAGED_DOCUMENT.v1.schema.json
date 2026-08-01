@@ -1,0 +1,1115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.github.io/corp-openweb-ui/schemas/broker_reports_managed_document_v1.schema.json",
+  "title": "Broker Reports Managed Document v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_id",
+    "information_partition",
+    "source",
+    "metadata",
+    "anchors",
+    "blocks",
+    "relations",
+    "quality",
+    "integrity_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_managed_document_v1"
+    },
+    "document_id": {
+      "$ref": "#/$defs/documentId"
+    },
+    "information_partition": {
+      "$ref": "#/$defs/informationPartition"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sourceAnchor"
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relation"
+      }
+    },
+    "quality": {
+      "$ref": "#/$defs/quality"
+    },
+    "integrity_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "documentId": {
+      "type": "string",
+      "pattern": "^document_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "blockId": {
+      "type": "string",
+      "pattern": "^block_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "anchorId": {
+      "type": "string",
+      "pattern": "^anchor_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "relationId": {
+      "type": "string",
+      "pattern": "^relation_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "issueId": {
+      "type": "string",
+      "pattern": "^issue_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "lossId": {
+      "type": "string",
+      "pattern": "^loss_[a-z0-9][a-z0-9_-]{2,127}$"
+    },
+    "origin": {
+      "enum": [
+        "SOURCE_EXPLICIT",
+        "DETERMINISTIC_DERIVED",
+        "MODEL_PROPOSED",
+        "OPERATOR_SUPPLIED",
+        "UNKNOWN_ORIGIN"
+      ]
+    },
+    "valueStatus": {
+      "enum": [
+        "PRESENT",
+        "UNKNOWN",
+        "NOT_APPLICABLE",
+        "CONFLICTING"
+      ]
+    },
+    "informationPartition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["CONTENT", "PROVENANCE", "CONTROL", "PRIVATE_SOURCE"],
+      "properties": {
+        "CONTENT": {
+          "const": ["/metadata", "/blocks/*/content"]
+        },
+        "PROVENANCE": {
+          "const": ["/source", "/anchors", "/relations"]
+        },
+        "CONTROL": {
+          "const": [
+            "/information_partition",
+            "/blocks/*/restoration",
+            "/quality"
+          ]
+        },
+        "PRIVATE_SOURCE": {
+          "const": [
+            "/source/artifact",
+            "/anchors/*/locator/private_locator",
+            "/blocks/*/content/private_artifact"
+          ]
+        }
+      }
+    },
+    "privateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["information_class", "status", "ref", "checksum_sha256"],
+      "properties": {
+        "information_class": {
+          "const": "PRIVATE_SOURCE"
+        },
+        "status": {
+          "enum": ["PRESENT", "UNKNOWN", "NOT_APPLICABLE"]
+        },
+        "ref": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "checksum_sha256": {
+          "oneOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"status": {"const": "PRESENT"}}
+          },
+          "then": {
+            "properties": {
+              "ref": {"type": "string"},
+              "checksum_sha256": {"$ref": "#/$defs/sha256"}
+            }
+          },
+          "else": {
+            "properties": {
+              "ref": {"type": "null"},
+              "checksum_sha256": {"type": "null"}
+            }
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "format",
+        "artifact",
+        "checksum_sha256",
+        "mime_type",
+        "size_bytes",
+        "source_part_count",
+        "normalizer",
+        "created_at",
+        "source_details"
+      ],
+      "properties": {
+        "information_class": {"const": "PROVENANCE"},
+        "format": {
+          "enum": ["PDF", "HTML", "CSV", "XLSX", "XLS", "UNKNOWN"]
+        },
+        "artifact": {
+          "allOf": [
+            {"$ref": "#/$defs/privateRef"},
+            {"properties": {"status": {"const": "PRESENT"}}}
+          ]
+        },
+        "checksum_sha256": {"$ref": "#/$defs/sha256"},
+        "mime_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "source_part_count": {"type": "integer", "minimum": 1},
+        "normalizer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 128},
+            "version": {"type": "string", "minLength": 1, "maxLength": 64}
+          }
+        },
+        "created_at": {"type": "string", "format": "date-time"},
+        "source_details": {
+          "oneOf": [
+            {"$ref": "#/$defs/pdfSourceDetails"},
+            {"$ref": "#/$defs/htmlSourceDetails"},
+            {"$ref": "#/$defs/csvSourceDetails"},
+            {"$ref": "#/$defs/spreadsheetSourceDetails"},
+            {"$ref": "#/$defs/unknownSourceDetails"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"format": {"const": "PDF"}}},
+          "then": {"properties": {"source_details": {"$ref": "#/$defs/pdfSourceDetails"}}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "HTML"}}},
+          "then": {"properties": {"source_details": {"$ref": "#/$defs/htmlSourceDetails"}}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "CSV"}}},
+          "then": {"properties": {"source_details": {"$ref": "#/$defs/csvSourceDetails"}}}
+        },
+        {
+          "if": {"properties": {"format": {"enum": ["XLSX", "XLS"]}}},
+          "then": {"properties": {"source_details": {"$ref": "#/$defs/spreadsheetSourceDetails"}}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "UNKNOWN"}}},
+          "then": {"properties": {"source_details": {"$ref": "#/$defs/unknownSourceDetails"}}}
+        }
+      ]
+    },
+    "pdfSourceDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "encrypted_status"],
+      "properties": {
+        "kind": {"const": "PDF"},
+        "encrypted_status": {
+          "enum": [
+            "UNKNOWN",
+            "NOT_ENCRYPTED",
+            "ENCRYPTED_UNLOCKED",
+            "ENCRYPTED_BLOCKED"
+          ]
+        }
+      }
+    },
+    "htmlSourceDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {"kind": {"const": "HTML"}}
+    },
+    "csvSourceDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "row_count"],
+      "properties": {
+        "kind": {"const": "CSV"},
+        "row_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "spreadsheetSourceDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sheet_count", "formula_status"],
+      "properties": {
+        "kind": {"enum": ["XLSX", "XLS"]},
+        "sheet_count": {"type": "integer", "minimum": 0},
+        "formula_status": {
+          "enum": ["NONE", "PRESENT", "UNKNOWN", "UNSUPPORTED"]
+        }
+      }
+    },
+    "unknownSourceDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reason"],
+      "properties": {
+        "kind": {"const": "UNKNOWN"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "metadataField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "status",
+        "origin",
+        "value",
+        "candidates",
+        "evidence_anchor_ids"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "status": {"$ref": "#/$defs/valueStatus"},
+        "origin": {"$ref": "#/$defs/origin"},
+        "value": {"type": ["string", "null"], "maxLength": 4096},
+        "candidates": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+          "uniqueItems": true
+        },
+        "evidence_anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "namedMetadataField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "information_class",
+        "status",
+        "origin",
+        "value",
+        "candidates",
+        "evidence_anchor_ids"
+      ],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "information_class": {"const": "CONTENT"},
+        "status": {"$ref": "#/$defs/valueStatus"},
+        "origin": {"$ref": "#/$defs/origin"},
+        "value": {"type": ["string", "null"], "maxLength": 4096},
+        "candidates": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+          "uniqueItems": true
+        },
+        "evidence_anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_type",
+        "title",
+        "issuer",
+        "document_date",
+        "reporting_period",
+        "owner_or_account",
+        "language",
+        "primary_currency",
+        "additional"
+      ],
+      "properties": {
+        "document_type": {"$ref": "#/$defs/metadataField"},
+        "title": {"$ref": "#/$defs/metadataField"},
+        "issuer": {"$ref": "#/$defs/metadataField"},
+        "document_date": {"$ref": "#/$defs/metadataField"},
+        "reporting_period": {"$ref": "#/$defs/metadataField"},
+        "owner_or_account": {"$ref": "#/$defs/metadataField"},
+        "language": {"$ref": "#/$defs/metadataField"},
+        "primary_currency": {"$ref": "#/$defs/metadataField"},
+        "additional": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/namedMetadataField"}
+        }
+      }
+    },
+    "sourceAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "anchor_id",
+        "source_format",
+        "checksum_sha256",
+        "locator"
+      ],
+      "properties": {
+        "information_class": {"const": "PROVENANCE"},
+        "anchor_id": {"$ref": "#/$defs/anchorId"},
+        "source_format": {
+          "enum": ["PDF", "HTML", "CSV", "XLSX", "XLS", "UNKNOWN"]
+        },
+        "checksum_sha256": {"$ref": "#/$defs/sha256"},
+        "locator": {
+          "oneOf": [
+            {"$ref": "#/$defs/pdfLocator"},
+            {"$ref": "#/$defs/htmlLocator"},
+            {"$ref": "#/$defs/csvLocator"},
+            {"$ref": "#/$defs/spreadsheetLocator"},
+            {"$ref": "#/$defs/unknownLocator"}
+          ]
+        }
+      }
+    },
+    "pdfLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_part_index",
+        "page",
+        "source_block_ref",
+        "bbox",
+        "private_locator"
+      ],
+      "properties": {
+        "kind": {"const": "PDF"},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "page": {"type": "integer", "minimum": 1},
+        "source_block_ref": {"type": ["string", "null"], "maxLength": 256},
+        "bbox": {
+          "oneOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                {"type": "number"},
+                {"type": "number"},
+                {"type": "number"},
+                {"type": "number"}
+              ],
+              "items": false
+            },
+            {"type": "null"}
+          ]
+        },
+        "private_locator": {"$ref": "#/$defs/privateRef"}
+      }
+    },
+    "htmlLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_part_index",
+        "dom_path",
+        "source_block_ref",
+        "ordinal",
+        "private_locator"
+      ],
+      "properties": {
+        "kind": {"const": "HTML"},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "dom_path": {"type": ["string", "null"], "maxLength": 1024},
+        "source_block_ref": {"type": ["string", "null"], "maxLength": 256},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "private_locator": {"$ref": "#/$defs/privateRef"}
+      }
+    },
+    "csvLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_part_index",
+        "row_start",
+        "row_end",
+        "column_start",
+        "column_end"
+      ],
+      "properties": {
+        "kind": {"const": "CSV"},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "row_start": {"type": "integer", "minimum": 1},
+        "row_end": {"type": "integer", "minimum": 1},
+        "column_start": {"type": "integer", "minimum": 1},
+        "column_end": {"type": "integer", "minimum": 1}
+      }
+    },
+    "spreadsheetLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_part_index",
+        "sheet",
+        "cell_range",
+        "source_ref",
+        "private_locator"
+      ],
+      "properties": {
+        "kind": {"enum": ["XLSX", "XLS"]},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "sheet": {"type": "string", "minLength": 1, "maxLength": 128},
+        "cell_range": {
+          "type": "string",
+          "pattern": "^[A-Z]+[1-9][0-9]*:[A-Z]+[1-9][0-9]*$"
+        },
+        "source_ref": {"type": ["string", "null"], "maxLength": 256},
+        "private_locator": {"$ref": "#/$defs/privateRef"}
+      }
+    },
+    "unknownLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source_part_index", "private_locator"],
+      "properties": {
+        "kind": {"const": "UNKNOWN"},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "private_locator": {"$ref": "#/$defs/privateRef"}
+      }
+    },
+    "restoration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "status",
+        "classification_origin",
+        "issue_ids"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTROL"},
+        "status": {
+          "enum": ["RESTORED", "PARTIAL", "UNRESOLVED", "BLOCKED"]
+        },
+        "classification_origin": {"$ref": "#/$defs/origin"},
+        "issue_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issueId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "headingContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["information_class", "raw_text", "level", "level_status"],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "raw_text": {"type": "string", "minLength": 1, "maxLength": 10000},
+        "level": {"type": ["integer", "null"], "minimum": 1},
+        "level_status": {"enum": ["KNOWN", "UNKNOWN"]}
+      }
+    },
+    "paragraphContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["information_class", "raw_text", "join_events"],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "raw_text": {"type": "string", "minLength": 1, "maxLength": 100000},
+        "join_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "source_text", "normalized_text", "status"],
+            "properties": {
+              "kind": {
+                "enum": ["LINE_JOIN", "WORD_JOIN", "HYPHENATION_REMOVED"]
+              },
+              "source_text": {"type": "string", "maxLength": 4096},
+              "normalized_text": {"type": "string", "maxLength": 4096},
+              "status": {"enum": ["APPLIED", "UNCERTAIN"]}
+            }
+          }
+        }
+      }
+    },
+    "listContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["information_class", "items"],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "item_id",
+              "ordinal",
+              "text",
+              "nesting_level",
+              "nesting_status"
+            ],
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "pattern": "^item_[a-z0-9][a-z0-9_-]{2,127}$"
+              },
+              "ordinal": {"type": "integer", "minimum": 0},
+              "text": {"type": "string", "minLength": 1, "maxLength": 10000},
+              "nesting_level": {"type": ["integer", "null"], "minimum": 0},
+              "nesting_status": {"enum": ["KNOWN", "UNKNOWN"]}
+            }
+          }
+        }
+      }
+    },
+    "tableContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "table_id",
+        "title",
+        "description",
+        "rows",
+        "completeness_status",
+        "header_hierarchy",
+        "row_groups",
+        "row_markers",
+        "units",
+        "cell_annotations",
+        "related_relation_ids",
+        "continuation_relation_ids",
+        "known_gap_ids"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "table_id": {
+          "type": "string",
+          "pattern": "^table_[a-z0-9][a-z0-9_-]{2,127}$"
+        },
+        "title": {"$ref": "#/$defs/metadataField"},
+        "description": {"type": "string", "minLength": 1, "maxLength": 10000},
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": ["string", "null"], "maxLength": 10000}
+          }
+        },
+        "completeness_status": {
+          "enum": ["COMPLETE", "PARTIAL", "BLOCKED", "UNKNOWN"]
+        },
+        "header_hierarchy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "entries"],
+          "properties": {
+            "status": {"enum": ["KNOWN", "UNKNOWN"]},
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "label",
+                  "level",
+                  "row_index",
+                  "column_start",
+                  "column_end",
+                  "origin"
+                ],
+                "properties": {
+                  "label": {"type": "string", "minLength": 1, "maxLength": 4096},
+                  "level": {"type": "integer", "minimum": 1},
+                  "row_index": {"type": "integer", "minimum": 0},
+                  "column_start": {"type": "integer", "minimum": 0},
+                  "column_end": {"type": "integer", "minimum": 0},
+                  "origin": {"$ref": "#/$defs/origin"}
+                }
+              }
+            }
+          }
+        },
+        "row_groups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "groups"],
+          "properties": {
+            "status": {"enum": ["KNOWN", "UNKNOWN"]},
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "row_start", "row_end", "origin"],
+                "properties": {
+                  "label": {"type": "string", "minLength": 1, "maxLength": 4096},
+                  "row_start": {"type": "integer", "minimum": 0},
+                  "row_end": {"type": "integer", "minimum": 0},
+                  "origin": {"$ref": "#/$defs/origin"}
+                }
+              }
+            }
+          }
+        },
+        "row_markers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["row_index", "kind", "status", "origin"],
+            "properties": {
+              "row_index": {"type": "integer", "minimum": 0},
+              "kind": {"enum": ["TOTAL", "SUBTOTAL", "GROUP_HEADER", "UNKNOWN"]},
+              "status": {"enum": ["KNOWN", "UNKNOWN"]},
+              "origin": {"$ref": "#/$defs/origin"}
+            }
+          }
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "column_indexes", "status", "origin"],
+            "properties": {
+              "label": {"type": ["string", "null"], "maxLength": 256},
+              "column_indexes": {
+                "type": "array",
+                "items": {"type": "integer", "minimum": 0},
+                "uniqueItems": true
+              },
+              "status": {"enum": ["KNOWN", "UNKNOWN"]},
+              "origin": {"$ref": "#/$defs/origin"}
+            }
+          }
+        },
+        "cell_annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "row_index",
+              "column_index",
+              "state",
+              "origin",
+              "evidence_anchor_ids",
+              "issue_ids"
+            ],
+            "properties": {
+              "row_index": {"type": "integer", "minimum": 0},
+              "column_index": {"type": "integer", "minimum": 0},
+              "state": {"enum": ["PRESENT", "EMPTY", "UNREADABLE", "UNKNOWN"]},
+              "origin": {"$ref": "#/$defs/origin"},
+              "evidence_anchor_ids": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/anchorId"},
+                "uniqueItems": true
+              },
+              "issue_ids": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/issueId"},
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        "related_relation_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/relationId"},
+          "uniqueItems": true
+        },
+        "continuation_relation_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/relationId"},
+          "uniqueItems": true
+        },
+        "known_gap_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/lossId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "noteContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["information_class", "text", "note_kind"],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 10000},
+        "note_kind": {
+          "enum": ["GENERAL", "TABLE_NOTE", "FOOTNOTE", "ENDNOTE", "UNKNOWN"]
+        }
+      }
+    },
+    "visualContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "visual_type",
+        "caption",
+        "safe_description",
+        "private_artifact",
+        "processing_status"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "visual_type": {
+          "enum": ["IMAGE", "CHART", "DIAGRAM", "LOGO", "OTHER", "UNKNOWN"]
+        },
+        "caption": {"$ref": "#/$defs/metadataField"},
+        "safe_description": {"$ref": "#/$defs/metadataField"},
+        "private_artifact": {"$ref": "#/$defs/privateRef"},
+        "processing_status": {
+          "enum": ["UNPROCESSED", "DESCRIBED", "PARTIAL", "BLOCKED"]
+        }
+      }
+    },
+    "boundaryContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "boundary_type",
+        "source_part_index",
+        "label"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "boundary_type": {"enum": ["PAGE", "SHEET", "SOURCE_PART"]},
+        "source_part_index": {"type": "integer", "minimum": 1},
+        "label": {"$ref": "#/$defs/metadataField"}
+      }
+    },
+    "unknownContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "raw_text",
+        "private_artifact",
+        "reason"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTENT"},
+        "raw_text": {"type": ["string", "null"], "maxLength": 100000},
+        "private_artifact": {"$ref": "#/$defs/privateRef"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 4096}
+      }
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "block_id",
+        "ordinal",
+        "block_type",
+        "content",
+        "source_anchor_ids",
+        "restoration",
+        "issue_ids"
+      ],
+      "properties": {
+        "block_id": {"$ref": "#/$defs/blockId"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "block_type": {
+          "enum": [
+            "HEADING",
+            "PARAGRAPH",
+            "LIST",
+            "TABLE",
+            "NOTE",
+            "VISUAL",
+            "BOUNDARY",
+            "UNKNOWN"
+          ]
+        },
+        "content": {"type": "object"},
+        "source_anchor_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        },
+        "restoration": {"$ref": "#/$defs/restoration"},
+        "issue_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issueId"},
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"block_type": {"const": "HEADING"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/headingContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "PARAGRAPH"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/paragraphContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "LIST"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/listContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "TABLE"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/tableContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "NOTE"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/noteContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "VISUAL"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/visualContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "BOUNDARY"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/boundaryContent"}}}
+        },
+        {
+          "if": {"properties": {"block_type": {"const": "UNKNOWN"}}},
+          "then": {"properties": {"content": {"$ref": "#/$defs/unknownContent"}}}
+        }
+      ]
+    },
+    "relationEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["block_id", "row_index", "column_index"],
+      "properties": {
+        "block_id": {"$ref": "#/$defs/blockId"},
+        "row_index": {"type": ["integer", "null"], "minimum": 0},
+        "column_index": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "relation_id",
+        "relation_type",
+        "source",
+        "target",
+        "status",
+        "origin",
+        "evidence_anchor_ids",
+        "issue_ids"
+      ],
+      "properties": {
+        "information_class": {"const": "PROVENANCE"},
+        "relation_id": {"$ref": "#/$defs/relationId"},
+        "relation_type": {
+          "enum": [
+            "BELONGS_TO_SECTION",
+            "CAPTION_FOR",
+            "NOTE_FOR",
+            "FOOTNOTE_FOR",
+            "CONTINUATION_OF",
+            "SAME_LOGICAL_OBJECT",
+            "EXPLAINS",
+            "UNKNOWN_RELATION"
+          ]
+        },
+        "source": {"$ref": "#/$defs/relationEndpoint"},
+        "target": {"$ref": "#/$defs/relationEndpoint"},
+        "status": {"enum": ["PRESENT", "UNKNOWN", "CONFLICTING"]},
+        "origin": {"$ref": "#/$defs/origin"},
+        "evidence_anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        },
+        "issue_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issueId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "code",
+        "severity",
+        "message",
+        "anchor_ids",
+        "block_ids",
+        "relation_ids",
+        "recoverability",
+        "requires_source_reread"
+      ],
+      "properties": {
+        "issue_id": {"$ref": "#/$defs/issueId"},
+        "code": {"type": "string", "minLength": 1, "maxLength": 128},
+        "severity": {"enum": ["INFO", "WARNING", "ERROR", "BLOCKER"]},
+        "message": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        },
+        "block_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/blockId"},
+          "uniqueItems": true
+        },
+        "relation_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/relationId"},
+          "uniqueItems": true
+        },
+        "recoverability": {"enum": ["RECOVERABLE", "IRRECOVERABLE", "UNKNOWN"]},
+        "requires_source_reread": {"type": "boolean"}
+      }
+    },
+    "loss": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loss_id",
+        "context_class",
+        "what_lost",
+        "where",
+        "reason",
+        "recoverability",
+        "requires_source_reread",
+        "blocks_semantic_analysis",
+        "accounted",
+        "anchor_ids",
+        "block_ids"
+      ],
+      "properties": {
+        "loss_id": {"$ref": "#/$defs/lossId"},
+        "context_class": {
+          "enum": [
+            "CONTENT",
+            "ORDER",
+            "STRUCTURE",
+            "RELATION",
+            "PROVENANCE",
+            "PRIVATE_SOURCE",
+            "CONTROL"
+          ]
+        },
+        "what_lost": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "where": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "recoverability": {"enum": ["RECOVERABLE", "IRRECOVERABLE", "UNKNOWN"]},
+        "requires_source_reread": {"type": "boolean"},
+        "blocks_semantic_analysis": {"type": "boolean"},
+        "accounted": {"const": true},
+        "anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/anchorId"},
+          "uniqueItems": true
+        },
+        "block_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/blockId"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_class",
+        "status",
+        "source_elements_total",
+        "preserved_blocks_total",
+        "unknown_blocks_total",
+        "unsupported_elements_total",
+        "known_losses_total",
+        "conflicts_total",
+        "unaccounted_context_loss_total",
+        "blocking_losses_total",
+        "issue_ledger",
+        "loss_ledger"
+      ],
+      "properties": {
+        "information_class": {"const": "CONTROL"},
+        "status": {"enum": ["COMPLETE", "PARTIAL", "BLOCKED"]},
+        "source_elements_total": {"type": "integer", "minimum": 0},
+        "preserved_blocks_total": {"type": "integer", "minimum": 0},
+        "unknown_blocks_total": {"type": "integer", "minimum": 0},
+        "unsupported_elements_total": {"type": "integer", "minimum": 0},
+        "known_losses_total": {"type": "integer", "minimum": 0},
+        "conflicts_total": {"type": "integer", "minimum": 0},
+        "unaccounted_context_loss_total": {"const": 0},
+        "blocking_losses_total": {"type": "integer", "minimum": 0},
+        "issue_ledger": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/issue"}
+        },
+        "loss_ledger": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/loss"}
+        }
+      }
+    }
+  }
+}
