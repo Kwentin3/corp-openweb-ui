@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.example/contracts/broker_reports_doc4_gold_checklist_v1.schema.json",
+  "title": "Broker Reports DOC4 gold checklist v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "broker_reports_doc4_gold_checklist_v1"},
+    "safe_id": {"enum": ["real_pdf_1", "real_pdf_2", "real_pdf_4", "real_pdf_5"]},
+    "pdf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "created_before_provider_calls": {"const": true},
+    "immutable": {"const": true},
+    "adjudicator_isolated_from_view": {"const": true},
+    "adjudicator_isolated_from_model_responses": {"const": true},
+    "items": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/gold_item"}},
+    "critical_fact_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "integrity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": [
+    "schema_version",
+    "safe_id",
+    "pdf_sha256",
+    "created_at",
+    "created_before_provider_calls",
+    "immutable",
+    "adjudicator_isolated_from_view",
+    "adjudicator_isolated_from_model_responses",
+    "items",
+    "critical_fact_ids",
+    "integrity_sha256"
+  ],
+  "$defs": {
+    "nullable_string": {"type": ["string", "null"]},
+    "pdf_pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "page": {"type": "integer", "minimum": 1},
+        "visible_label": {"$ref": "#/$defs/nullable_string"},
+        "evidence_text": {"type": "string", "minLength": 1, "maxLength": 160},
+        "table_visible_title": {"$ref": "#/$defs/nullable_string"},
+        "row_visible_label": {"$ref": "#/$defs/nullable_string"},
+        "column_visible_label": {"$ref": "#/$defs/nullable_string"}
+      },
+      "required": ["page", "visible_label", "evidence_text", "table_visible_title", "row_visible_label", "column_visible_label"]
+    },
+    "gold_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gold_item_id": {"type": "string"},
+        "semantic_key": {"type": "string"},
+        "category": {"enum": ["PASSPORT", "STRUCTURE", "TABLE", "FINANCIAL_FACT", "UNCERTAINTY"]},
+        "critical": {"type": "boolean"},
+        "ordinal": {"type": ["integer", "null"]},
+        "status": {"enum": ["PRESENT", "UNKNOWN", "NOT_APPLICABLE", "CONFLICTING"]},
+        "fact_kind": {"type": ["string", "null"]},
+        "source_literal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_value": {"$ref": "#/$defs/nullable_string"},
+        "normalized_decimal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_date": {"$ref": "#/$defs/nullable_string"},
+        "currency": {"$ref": "#/$defs/nullable_string"},
+        "unit": {"$ref": "#/$defs/nullable_string"},
+        "sign": {"$ref": "#/$defs/nullable_string"},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pdf_pointer"}}
+      },
+      "required": ["gold_item_id", "semantic_key", "category", "critical", "ordinal", "status", "fact_kind", "source_literal", "normalized_value", "normalized_decimal", "normalized_date", "currency", "unit", "sign", "evidence"]
+    }
+  }
+}

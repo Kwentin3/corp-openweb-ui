@@ -506,6 +506,18 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "managed_document_llm_view_parity.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_view_semantic_contracts.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_view_semantic_experiment.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_view_semantic_adjudication.py"
+        ),
     }
     assert set(added_package_modules) <= (
         allowed_subordinates | allowed_standalone_contract_authorities
