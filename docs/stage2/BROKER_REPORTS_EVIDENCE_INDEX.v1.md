@@ -23,6 +23,7 @@ Effective date: 2026-08-01
 | DOC2 inactive PDF managed document proof | `CANONICAL_CURRENT` | DOC2 Decision, Coverage and Parity Contracts, sealed real-PDF summaries, and 2026-08-01 closure package |
 | DOC3 inactive LLM Document View proof | `CANONICAL_CURRENT` | DOC3 Decision, View/Receipt/Checklist Contracts, DOC1 field coverage, sealed real-view summaries, and 2026-08-01 closure package |
 | DOC4 PDF vs LLM View semantic experiment | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC4 Candidate and Equivalence Decisions, safe preflight/results/stability summaries, and 2026-08-01 blocked closure package |
+| DOC4 manual Codex PDF vs View audit | `CANONICAL_CURRENT_MANUAL_EVIDENCE` | DOC4 Manual Codex Audit Decision and 2026-08-01 manual report/safe receipt |
 
 ## DOC4
 
@@ -58,6 +59,30 @@ usage and HTTP-attempt totals were not persisted; future failures are now
 preserved privately. All private PDFs, Views, gold, plans, authorizations and
 provider payloads remain outside Git. The safe closure does not claim zero
 semantic gaps or full equivalence; those values are not evaluated.
+
+The later manual Codex source audit is separate from that provider protocol. It
+reviewed all 24 PDF pages and all four Views, reconciled 461 gold items, and
+then checked table, order, blank-cell and visual relations directly.
+
+```text
+MANUAL_CODEX_SOURCE_AUDIT = COMPLETED
+MANUAL_CODEX_STRICT_SEMANTIC_EQUIVALENCE = FAILED
+SOURCE_LITERAL_MEANING_PRESENT = 444/444
+RAW_EXACT_SOURCE_LITERALS = 427/444
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+VALIDATED_TABLE_BLOCKS_TOTAL = 6
+LOGICAL_TABLES_WITHOUT_VALIDATED_GRID_TOTAL = 22
+UNKNOWN_BLOCKS_TOTAL = 26
+SUMMARY_AND_SEARCH_USEFULNESS = USABLE_WITH_EXPLICIT_LIMITATIONS
+```
+
+The manual evidence proves strong textual retention but rejects strict
+equivalence because row/column, continuation, blank-cell, reading-order and
+visual semantics are not fully preserved. It also finds that the frozen View
+pointer rule is incompatible with financial facts retained outside TABLE
+blocks and that the dense-report gold is not exhaustive. The provider result
+remains `INCONCLUSIVE_MODEL_OUTPUT_FAILURE`; the manual audit does not create
+or substitute missing model arms.
 
 ## DOC3
 

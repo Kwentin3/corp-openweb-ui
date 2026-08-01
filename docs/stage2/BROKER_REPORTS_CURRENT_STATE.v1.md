@@ -1,6 +1,6 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after terminal DOC4 model-output closure
+Status: canonical entry point after terminal DOC4 model-output closure and manual source audit
 
 Effective date: 2026-08-01
 
@@ -317,6 +317,36 @@ PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
 
+## 12.6 DOC4 manual Codex source audit
+
+After the provider protocol stopped with zero completed pairs, Codex separately
+reviewed the same four frozen pairs: all 24 PDF pages, all four Views, all 461
+gold items, and the table/order/blank-cell/visual relations that literal search
+cannot prove.
+
+All 444 gold source literals retained readable meaning. Strict equivalence
+still fails: only 6 of 28 gold tables are validated TABLE blocks; the other 22
+lack a validated grid within 26 UNKNOWN blocks. Lost relations include
+fee-group membership, matrix cells, cross-page continuation, a critical blank
+tax cell and one meaningful visual.
+
+The protocol also overconstrains View pointers: only 17 of 276 matched gold
+financial facts are in validated TABLE blocks, while the contract forbids
+honest PARAGRAPH/UNKNOWN pointers. Dense-report gold samples selected facts and
+cannot prove exhaustive extraction.
+
+```text
+MANUAL_CODEX_SOURCE_AUDIT = COMPLETED
+MANUAL_CODEX_STRICT_SEMANTIC_EQUIVALENCE = FAILED
+SOURCE_LITERAL_MEANING_PRESENT = 444/444
+RAW_EXACT_SOURCE_LITERALS = 427/444
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+VALIDATED_TABLE_BLOCKS_TOTAL = 6
+LOGICAL_TABLES_WITHOUT_VALIDATED_GRID_TOTAL = 22
+SUMMARY_AND_SEARCH_USEFULNESS = USABLE_WITH_EXPLICIT_LIMITATIONS
+ORIGINAL_PROVIDER_EXPERIMENT = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
+```
+
 ## 13. KT2, DOC1, DOC2, DOC3, DOC4, and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
@@ -331,9 +361,12 @@ DOC1 remains the contract authority. DOC2 provides the separately reviewed
 inactive PDF builder and real-corpus coverage/parity proof. DOC3 provides the
 separately reviewed deterministic full-context view and representation parity
 proof. DOC4 passed exact context preflight, then reached a terminal first-arm
-model-output contract blocker. It establishes model-task inadequacy for the
-frozen DOC4 protocol but no PDF/View semantic-equivalence result. Real model qualification,
-product reachability and activation remain not started.
+model-output contract blocker. The provider protocol therefore remains
+inconclusive. The later manual Codex audit separately establishes that the
+current View fails strict source equivalence while remaining useful for
+narrative reading, search and high-level summaries with explicit limitations.
+Real model qualification, product reachability and activation remain not
+started.
 
 ## 14. Forbidden shortcuts
 
@@ -405,6 +438,14 @@ DOC4_HARNESS_IMPLEMENTATION = PASSED
 DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
 MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
 PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
+MANUAL_CODEX_SOURCE_AUDIT = COMPLETED
+MANUAL_CODEX_STRICT_SEMANTIC_EQUIVALENCE = FAILED
+SOURCE_LITERAL_MEANING_PRESENT_TOTAL = 444
+SOURCE_LITERALS_TOTAL = 444
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+VALIDATED_TABLE_BLOCKS_TOTAL = 6
+LOGICAL_TABLES_WITHOUT_VALIDATED_GRID_TOTAL = 22
+SUMMARY_AND_SEARCH_USEFULNESS = USABLE_WITH_EXPLICIT_LIMITATIONS
 GOLD_CHECKLISTS_TOTAL = 4
 ELIGIBLE_DOCUMENTS_TOTAL = 4
 COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
