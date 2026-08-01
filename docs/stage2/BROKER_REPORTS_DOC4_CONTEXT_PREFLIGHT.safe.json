@@ -7,15 +7,22 @@
   "reserved_output_tokens": 65536,
   "safety_margin_tokens": 105000,
   "documents": [
-    {"safe_id": "real_pdf_1", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_2", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_4", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null},
-    {"safe_id": "real_pdf_5", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "view_arm_status": "NOT_RUN_IMPLEMENTATION_MERGE_GATE", "pdf_input_tokens": null, "view_input_tokens": null}
+    {"safe_id": "real_pdf_1", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "view_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_2", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "view_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_4", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "view_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "pdf_input_tokens": null, "view_input_tokens": null},
+    {"safe_id": "real_pdf_5", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "view_arm_status": "NOT_RUN_PREFLIGHT_PROVIDER_FAILURE", "pdf_input_tokens": null, "view_input_tokens": null}
   ],
   "eligible_documents_total": 0,
   "context_limit_ineligible_total": 0,
+  "preflight_attempts_total": 3,
+  "successful_token_count_calls_total": 0,
+  "failed_token_count_calls_total": 3,
   "provider_transfer_authorized": true,
   "authorization_basis_status": "PROJECT_OPERATOR_APPROVED",
-  "provider_calls_total": 0,
-  "status": "READY_AFTER_IMPLEMENTATION_MERGE"
+  "provider_calls_total": 3,
+  "provider_usage_status": "NOT_REPORTED",
+  "provider_cost_status": "NOT_REPORTED",
+  "terminal_http_status": 400,
+  "terminal_reason": "PROVIDER_HTTP_ERROR",
+  "status": "BLOCKED_PROVIDER_FAILURE"
 }

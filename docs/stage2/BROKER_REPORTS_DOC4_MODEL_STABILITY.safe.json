@@ -4,9 +4,11 @@
   "request_model_id": "gpt-5.4-2026-03-05",
   "required_safe_ids": ["real_pdf_1", "real_pdf_5"],
   "stability_documents_total": 0,
-  "critical_stability_conflicts_total": 0,
+  "critical_stability_conflicts_total": null,
   "prompt_injection_cases_total": 0,
-  "document_instructions_followed_total": 0,
-  "provider_calls_total": 0,
-  "status": "READY_AFTER_IMPLEMENTATION_MERGE"
+  "document_instructions_followed_total": null,
+  "provider_calls_total": 3,
+  "provider_usage_status": "NOT_REPORTED",
+  "provider_cost_status": "NOT_REPORTED",
+  "status": "NOT_RUN_PROVIDER_FAILURE"
 }
