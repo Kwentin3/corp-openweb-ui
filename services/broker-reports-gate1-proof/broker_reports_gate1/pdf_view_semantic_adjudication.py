@@ -7,6 +7,8 @@ from typing import Any
 
 from .pdf_view_semantic_contracts import (
     ADJUDICATION_SCHEMA_VERSION,
+    CORPUS_IDS,
+    FINAL_RESULT_SCHEMA_VERSION,
     GOLD_CHECKLIST_SCHEMA_VERSION,
     SEMANTIC_COMPARISON_SCHEMA_VERSION,
     Doc4ContractError,
@@ -210,7 +212,8 @@ class PdfViewSemanticAdjudicationFactory:
         value["metrics"] = metrics
         model_task_adequacy = _model_task_adequacy(metrics)
         value["model_task_adequacy"] = model_task_adequacy
-        value["semantic_equivalence"] = _semantic_equivalence(
+        value.pop("semantic_equivalence", None)
+        value["document_semantic_assessment"] = _document_semantic_assessment(
             model_task_adequacy=model_task_adequacy,
             metrics=metrics,
             comparison=comparison,
@@ -219,6 +222,73 @@ class PdfViewSemanticAdjudicationFactory:
         value["integrity_sha256"] = integrity_sha256(value)
         validate_json_contract(value, adjudication_schema, label="source_adjudication")
         return value
+
+
+class PdfViewSemanticResultFactory:
+    """Seal the only terminal four-document DOC4 semantic result."""
+
+    def finalize(
+        self,
+        *,
+        adjudications: dict[str, dict[str, Any]],
+        eligible_safe_ids: tuple[str, ...],
+        paired_safe_ids: tuple[str, ...],
+        result_schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        if eligible_safe_ids != CORPUS_IDS:
+            raise Doc4ContractError("terminal_eligible_corpus_incomplete")
+        if paired_safe_ids != CORPUS_IDS:
+            raise Doc4ContractError("terminal_paired_corpus_incomplete")
+        if tuple(adjudications) != CORPUS_IDS:
+            raise Doc4ContractError("terminal_adjudication_corpus_incomplete")
+
+        documents: list[dict[str, Any]] = []
+        for safe_id in CORPUS_IDS:
+            item = adjudications[safe_id]
+            if item.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
+                raise Doc4ContractError("terminal_adjudication_version_invalid")
+            if item.get("safe_id") != safe_id:
+                raise Doc4ContractError("terminal_adjudication_safe_id_mismatch")
+            if item.get("complete") is not True:
+                raise Doc4ContractError("terminal_adjudication_incomplete")
+            if item.get("integrity_sha256") != integrity_sha256(item):
+                raise Doc4ContractError("terminal_adjudication_integrity_invalid")
+            documents.append(
+                {
+                    "safe_id": safe_id,
+                    "adjudication_sha256": sha256_bytes(canonical_json_bytes(item)),
+                    "model_task_adequacy": item["model_task_adequacy"],
+                    "document_semantic_assessment": item[
+                        "document_semantic_assessment"
+                    ],
+                }
+            )
+
+        metrics = _terminal_metrics(adjudications)
+        model_task_adequacy = (
+            "PASSED"
+            if all(item["model_task_adequacy"] == "PASSED" for item in documents)
+            else "FAILED"
+        )
+        semantic_equivalence = _terminal_semantic_equivalence(
+            documents=documents,
+            model_task_adequacy=model_task_adequacy,
+            metrics=metrics,
+        )
+        result = {
+            "schema_version": FINAL_RESULT_SCHEMA_VERSION,
+            "eligible_documents_total": len(eligible_safe_ids),
+            "completed_paired_documents_total": len(paired_safe_ids),
+            "sealed_adjudications_total": len(documents),
+            "documents": documents,
+            "metrics": metrics,
+            "model_task_adequacy": model_task_adequacy,
+            "semantic_equivalence": semantic_equivalence,
+            "integrity_sha256": "",
+        }
+        result["integrity_sha256"] = integrity_sha256(result)
+        validate_json_contract(result, result_schema, label="semantic_result")
+        return result
 
 
 def compare_stability_replay(
@@ -672,35 +742,146 @@ def _model_task_adequacy(metrics: dict[str, Any]) -> str:
     return "PASSED" if passed else "FAILED"
 
 
-def _semantic_equivalence(
+def _document_semantic_assessment(
     *,
     model_task_adequacy: str,
     metrics: dict[str, Any],
     comparison: dict[str, Any],
 ) -> str:
+    if metrics["artifact_semantic_gaps_total"]:
+        return "DOCUMENT_FAILED"
     if model_task_adequacy != "PASSED":
-        return "INCONCLUSIVE_MODEL_INADEQUACY"
+        return "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"
     if (
-        metrics["artifact_semantic_gaps_total"]
-        or metrics["view_wrong_critical_facts_total"]
+        metrics["view_wrong_critical_facts_total"]
         or metrics["unsupported_critical_facts_total"]
         or metrics["invalid_source_pointers_total"]
         or not metrics["view_structure_order_match"]
     ):
-        return "FAILED"
+        return "DOCUMENT_FAILED"
     comparison_metrics = comparison["metrics"]
     if (
         comparison_metrics["conflicts_total"] == 0
         and metrics["critical_cross_arm_correct_match_rate"] == "1.000000"
         and metrics["noncritical_cross_arm_correct_match_rate"] == "1.000000"
     ):
-        return "PASSED_STRICT"
+        return "DOCUMENT_PASSED_STRICT"
     if (
         metrics["critical_cross_arm_correct_match_rate"] == "1.000000"
         and float(metrics["noncritical_cross_arm_correct_match_rate"]) >= 0.95
     ):
+        return "DOCUMENT_PASSED_WITH_NONCRITICAL_VARIANCE"
+    return "DOCUMENT_FAILED"
+
+
+def _terminal_metrics(
+    adjudications: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    values = [adjudications[safe_id] for safe_id in CORPUS_IDS]
+    metrics = [item["metrics"] for item in values]
+
+    def total(name: str) -> int:
+        return sum(item[name] for item in metrics)
+
+    gold_critical_total = total("gold_critical_facts_total")
+    gold_noncritical_total = total("gold_noncritical_facts_total")
+    pdf_critical_correct = total("pdf_correct_critical_facts_total")
+    view_critical_correct = total("view_correct_critical_facts_total")
+    pdf_noncritical_correct = total("pdf_correct_noncritical_facts_total")
+    view_noncritical_correct = total("view_correct_noncritical_facts_total")
+    critical_findings_total = sum(
+        finding["critical"] for value in values for finding in value["findings"]
+    )
+    noncritical_findings_total = sum(
+        not finding["critical"] for value in values for finding in value["findings"]
+    )
+    return {
+        "gold_critical_facts_total": gold_critical_total,
+        "gold_noncritical_facts_total": gold_noncritical_total,
+        "pdf_arm_critical_precision": _rate(
+            pdf_critical_correct,
+            pdf_critical_correct
+            + total("pdf_wrong_critical_facts_total")
+            + total("pdf_unsupported_critical_facts_total"),
+        ),
+        "pdf_arm_critical_recall": _rate(
+            pdf_critical_correct, gold_critical_total
+        ),
+        "view_arm_critical_precision": _rate(
+            view_critical_correct,
+            view_critical_correct
+            + total("view_wrong_critical_facts_total")
+            + total("view_unsupported_critical_facts_total"),
+        ),
+        "view_arm_critical_recall": _rate(
+            view_critical_correct, gold_critical_total
+        ),
+        "pdf_arm_noncritical_precision": _rate(
+            pdf_noncritical_correct,
+            pdf_noncritical_correct
+            + total("pdf_wrong_noncritical_facts_total")
+            + total("pdf_unsupported_noncritical_facts_total"),
+        ),
+        "pdf_arm_noncritical_recall": _rate(
+            pdf_noncritical_correct, gold_noncritical_total
+        ),
+        "view_arm_noncritical_precision": _rate(
+            view_noncritical_correct,
+            view_noncritical_correct
+            + total("view_wrong_noncritical_facts_total")
+            + total("view_unsupported_noncritical_facts_total"),
+        ),
+        "view_arm_noncritical_recall": _rate(
+            view_noncritical_correct, gold_noncritical_total
+        ),
+        "critical_cross_arm_match_rate": _rate(
+            total("critical_cross_arm_correct_matches_total"),
+            critical_findings_total,
+        ),
+        "noncritical_cross_arm_match_rate": _rate(
+            total("noncritical_cross_arm_correct_matches_total"),
+            noncritical_findings_total,
+        ),
+        "artifact_semantic_gaps_total": total("artifact_semantic_gaps_total"),
+        "unsupported_critical_facts_total": total(
+            "unsupported_critical_facts_total"
+        ),
+        "invalid_critical_pointers_total": total(
+            "pdf_critical_pointer_invalid_total"
+        )
+        + total("view_critical_pointer_invalid_total"),
+        "invalid_source_pointers_total": total("invalid_source_pointers_total"),
+        "both_arms_wrong_total": total("both_arms_wrong_total"),
+        "critical_stability_conflicts_total": total(
+            "critical_stability_conflicts_total"
+        ),
+        "view_structure_order_all_match": all(
+            item["view_structure_order_match"] for item in metrics
+        ),
+    }
+
+
+def _terminal_semantic_equivalence(
+    *,
+    documents: list[dict[str, Any]],
+    model_task_adequacy: str,
+    metrics: dict[str, Any],
+) -> str:
+    assessments = {
+        item["document_semantic_assessment"] for item in documents
+    }
+    if "DOCUMENT_FAILED" in assessments or metrics["artifact_semantic_gaps_total"]:
+        return "FAILED"
+    if model_task_adequacy != "PASSED":
+        return "INCONCLUSIVE_MODEL_INADEQUACY"
+    if assessments == {"DOCUMENT_PASSED_STRICT"}:
+        return "PASSED_STRICT"
+    if assessments <= {
+        "DOCUMENT_PASSED_STRICT",
+        "DOCUMENT_PASSED_WITH_NONCRITICAL_VARIANCE",
+    }:
         return "PASSED_WITH_NONCRITICAL_VARIANCE"
-    return "FAILED"
+    raise Doc4ContractError("terminal_document_assessment_invalid")
 
 
 def _gold_exact_total(

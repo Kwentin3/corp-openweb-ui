@@ -18,6 +18,7 @@ SEMANTIC_COMPARISON_SCHEMA_VERSION = (
     "broker_reports_doc4_semantic_comparison_v1"
 )
 ADJUDICATION_SCHEMA_VERSION = "broker_reports_doc4_adjudication_v1"
+FINAL_RESULT_SCHEMA_VERSION = "broker_reports_doc4_semantic_result_v1"
 EXPERIMENT_PROTOCOL_VERSION = "broker_reports_doc4_experiment_protocol_v1"
 EXPERIMENT_RUN_PLAN_SCHEMA_VERSION = "broker_reports_doc4_run_plan_v1"
 PROVIDER_AUTHORIZATION_SCHEMA_VERSION = (
@@ -186,7 +187,7 @@ def validate_semantic_response(
             pdf_pages_total=pdf_pages_total,
             pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
-            source_literal=item.get("source_literal"),
+            source_literal=item.get("source_literal") or item.get("normalized_value"),
         )
     for item in value["document_structure"]:
         _validate_status_item(item, critical=item["type"] in {"TABLE", "TABLE_ROW"})
@@ -196,7 +197,7 @@ def validate_semantic_response(
             pdf_pages_total=pdf_pages_total,
             pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
-            source_literal=item.get("source_literal"),
+            source_literal=item.get("source_literal") or item.get("normalized_value"),
         )
     for item in value["tables"]:
         _validate_status_item(item, critical=True)
@@ -206,7 +207,7 @@ def validate_semantic_response(
             pdf_pages_total=pdf_pages_total,
             pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
-            source_literal=item.get("source_literal"),
+            source_literal=item.get("source_literal") or item.get("normalized_value"),
         )
     for item in value["financial_facts"]:
         if item["fact_kind"] in CRITICAL_FACT_KINDS and item["critical"] is not True:
@@ -223,7 +224,7 @@ def validate_semantic_response(
             pdf_pages_total=pdf_pages_total,
             pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
-            source_literal=item.get("source_literal"),
+            source_literal=item.get("source_literal") or item.get("normalized_value"),
             require_cell_literal_match=True,
         )
     for item in value["uncertainties"]:
@@ -411,6 +412,8 @@ def _validate_pointers(
                     pdf_page_texts[page - 1], evidence_text
                 ):
                     raise Doc4ContractError("pdf_pointer_evidence_not_on_page")
+            if source_literal and not _text_contains(evidence_text, source_literal):
+                raise Doc4ContractError("pdf_pointer_literal_not_in_evidence")
             if any(pointer[name] is not None for name in ("block_id", "anchor_id", "table_id", "row_index", "column_index")):
                 raise Doc4ContractError("pdf_pointer_contains_view_coordinates")
         else:

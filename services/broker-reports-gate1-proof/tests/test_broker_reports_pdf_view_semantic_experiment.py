@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator, ValidationError
 from broker_reports_gate1.pdf_view_semantic_adjudication import (
     PdfViewSemanticAdjudicationFactory,
     PdfViewSemanticComparator,
+    PdfViewSemanticResultFactory,
     compare_stability_replay,
 )
 from broker_reports_gate1.pdf_view_semantic_contracts import (
@@ -54,6 +55,7 @@ RESPONSE_SCHEMA_PATH = CONTRACT_ROOT / "BROKER_REPORTS_DOC4_SEMANTIC_RESPONSE.v1
 GOLD_SCHEMA_PATH = CONTRACT_ROOT / "BROKER_REPORTS_DOC4_GOLD_CHECKLIST.v1.schema.json"
 COMPARISON_SCHEMA_PATH = CONTRACT_ROOT / "BROKER_REPORTS_DOC4_SEMANTIC_COMPARISON.v1.schema.json"
 ADJUDICATION_SCHEMA_PATH = CONTRACT_ROOT / "BROKER_REPORTS_DOC4_ADJUDICATION.v1.schema.json"
+RESULT_SCHEMA_PATH = CONTRACT_ROOT / "BROKER_REPORTS_DOC4_SEMANTIC_RESULT.v1.schema.json"
 SYSTEM_PROMPT_PATH = REPOSITORY_ROOT / "docs" / "stage2" / "prompts" / "BROKER_REPORTS_DOC4_SEMANTIC_SYSTEM_PROMPT.v1.md"
 TASK_PROMPT_PATH = REPOSITORY_ROOT / "docs" / "stage2" / "prompts" / "BROKER_REPORTS_DOC4_SEMANTIC_TASK_PROMPT.v1.md"
 SECURITY_FIXTURE_PATH = SERVICE_ROOT / "tests" / "fixtures" / "broker_reports_doc4_security_fixture.safe.json"
@@ -65,7 +67,7 @@ def response_schema() -> dict[str, Any]:
 
 
 def test_01_all_doc4_schemas_are_draft_2020_12_and_closed() -> None:
-    assert len(DOC4_SCHEMAS) == 4
+    assert len(DOC4_SCHEMAS) == 5
     for path in DOC4_SCHEMAS:
         schema = _read_json(path)
         Draft202012Validator.check_schema(schema)
@@ -117,12 +119,13 @@ def test_05_pdf_page_and_view_registry_coordinates_fail_closed(response_schema: 
 
 def test_05b_source_pointer_evidence_is_grounded(response_schema: dict[str, Any]) -> None:
     pdf = _response("PDF")
+    source_page_text = _pdf_pointer()["evidence_text"]
     validate_semantic_response(
         pdf,
         response_schema,
         expected_source_mode="PDF",
         pdf_pages_total=1,
-        pdf_page_texts=("Synthetic evidence",),
+        pdf_page_texts=(source_page_text,),
     )
     pdf["financial_facts"][0]["evidence"][0]["evidence_text"] = "fabricated excerpt"
     with pytest.raises(Doc4ContractError, match="evidence_not_on_page"):
@@ -131,7 +134,18 @@ def test_05b_source_pointer_evidence_is_grounded(response_schema: dict[str, Any]
             response_schema,
             expected_source_mode="PDF",
             pdf_pages_total=1,
-            pdf_page_texts=("Synthetic evidence",),
+            pdf_page_texts=(source_page_text,),
+        )
+    pdf = _response("PDF")
+    unrelated_real_excerpt = "Synthetic evidence statement 1 Transactions"
+    pdf["financial_facts"][0]["evidence"][0]["evidence_text"] = unrelated_real_excerpt
+    with pytest.raises(Doc4ContractError, match="literal_not_in_evidence"):
+        validate_semantic_response(
+            pdf,
+            response_schema,
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+            pdf_page_texts=(source_page_text,),
         )
 
     view = _response("LLM_VIEW")
@@ -318,7 +332,7 @@ def test_15_both_wrong_is_not_parity_and_artifact_gap_is_separate() -> None:
     sealed = PdfViewSemanticAdjudicationFactory().seal_adjudication(draft, gold=_sealed_gold(), pdf_response=pdf, view_response=view, comparison=comparison, adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH))
     assert sealed["metrics"]["both_arms_wrong_total"] == len(draft["findings"])
     assert sealed["model_task_adequacy"] == "FAILED"
-    assert sealed["semantic_equivalence"] == "INCONCLUSIVE_MODEL_INADEQUACY"
+    assert sealed["document_semantic_assessment"] == "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"
 
 
 def test_16_pdf_wrong_view_gap_unsupported_and_invalid_pointer_are_counted_separately() -> None:
@@ -334,6 +348,8 @@ def test_16_pdf_wrong_view_gap_unsupported_and_invalid_pointer_are_counted_separ
     assert sealed["metrics"]["artifact_semantic_gaps_total"] == 1
     assert sealed["metrics"]["unsupported_facts_total"] == 1
     assert sealed["metrics"]["invalid_source_pointers_total"] == 1
+    assert sealed["model_task_adequacy"] == "FAILED"
+    assert sealed["document_semantic_assessment"] == "DOCUMENT_FAILED"
 
 
 def test_17_prompt_injection_and_loss_ledger_policy_are_literal_and_source_cannot_control_schema(response_schema: dict[str, Any]) -> None:
@@ -366,6 +382,7 @@ def test_19_harness_has_one_owner_each_and_no_product_entrypoint() -> None:
     assert contracts.count("def validate_semantic_response") == 1
     assert adjudication.count("class PdfViewSemanticComparator") == 1
     assert adjudication.count("class PdfViewSemanticAdjudicationFactory") == 1
+    assert adjudication.count("class PdfViewSemanticResultFactory") == 1
     architecture = REPOSITORY_ROOT / "docs" / "stage2" / "architecture" / "BROKER_REPORTS_DOC4_EXPERIMENT_ARCHITECTURE.v1.md"
     assert architecture.is_file()
     architecture_text = architecture.read_text(encoding="utf-8")
@@ -495,7 +512,7 @@ def test_25_schema_retry_replays_the_exact_request_once(response_schema: dict[st
     responses = iter((invalid, _response("PDF")))
     document = fitz.open()
     page = document.new_page()
-    page.insert_text((72, 72), "Synthetic evidence")
+    page.insert_text((72, 72), _pdf_pointer()["evidence_text"])
     pdf_source = document.tobytes(garbage=4, deflate=True, no_new_id=True)
     document.close()
 
@@ -554,7 +571,7 @@ def test_26_adjudication_computes_full_threshold_metrics_and_stability_gate() ->
     assert sealed["metrics"]["pdf_numeric_exact_match_total"] == 1
     assert sealed["metrics"]["view_currency_exact_match_total"] == 1
     assert sealed["model_task_adequacy"] == "PASSED"
-    assert sealed["semantic_equivalence"] == "PASSED_STRICT"
+    assert sealed["document_semantic_assessment"] == "DOCUMENT_PASSED_STRICT"
     unstable = factory.seal_adjudication(
         _adjudication_draft(comparison),
         gold=_sealed_gold(),
@@ -565,7 +582,64 @@ def test_26_adjudication_computes_full_threshold_metrics_and_stability_gate() ->
         critical_stability_conflicts_total=1,
     )
     assert unstable["model_task_adequacy"] == "FAILED"
-    assert unstable["semantic_equivalence"] == "INCONCLUSIVE_MODEL_INADEQUACY"
+    assert unstable["document_semantic_assessment"] == "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"
+
+
+def test_27_terminal_result_requires_exact_four_document_gate() -> None:
+    pdf = _response("PDF")
+    view = _response("LLM_VIEW")
+    comparison = PdfViewSemanticComparator().compare(
+        safe_id="real_pdf_1",
+        pdf_response=pdf,
+        view_response=view,
+        comparison_schema=_read_json(COMPARISON_SCHEMA_PATH),
+    )
+    sealed = PdfViewSemanticAdjudicationFactory().seal_adjudication(
+        _adjudication_draft(comparison),
+        gold=_sealed_gold(),
+        pdf_response=pdf,
+        view_response=view,
+        comparison=comparison,
+        adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH),
+    )
+    adjudications: dict[str, dict[str, Any]] = {}
+    for safe_id in CORPUS_IDS:
+        item = copy.deepcopy(sealed)
+        item["safe_id"] = safe_id
+        item["integrity_sha256"] = ""
+        item["integrity_sha256"] = integrity_sha256(item)
+        adjudications[safe_id] = item
+    result = PdfViewSemanticResultFactory().finalize(
+        adjudications=adjudications,
+        eligible_safe_ids=CORPUS_IDS,
+        paired_safe_ids=CORPUS_IDS,
+        result_schema=_read_json(RESULT_SCHEMA_PATH),
+    )
+    assert result["eligible_documents_total"] == 4
+    assert result["completed_paired_documents_total"] == 4
+    assert result["sealed_adjudications_total"] == 4
+    assert result["semantic_equivalence"] == "PASSED_STRICT"
+    with pytest.raises(Doc4ContractError, match="paired_corpus_incomplete"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            eligible_safe_ids=CORPUS_IDS,
+            paired_safe_ids=CORPUS_IDS[:-1],
+            result_schema=_read_json(RESULT_SCHEMA_PATH),
+        )
+    with pytest.raises(Doc4ContractError, match="eligible_corpus_incomplete"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            eligible_safe_ids=CORPUS_IDS[:-1],
+            paired_safe_ids=CORPUS_IDS,
+            result_schema=_read_json(RESULT_SCHEMA_PATH),
+        )
+    with pytest.raises(Doc4ContractError, match="adjudication_corpus_incomplete"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications={safe_id: adjudications[safe_id] for safe_id in CORPUS_IDS[:-1]},
+            eligible_safe_ids=CORPUS_IDS,
+            paired_safe_ids=CORPUS_IDS,
+            result_schema=_read_json(RESULT_SCHEMA_PATH),
+        )
 
 
 def _response(source_mode: str) -> dict[str, Any]:
@@ -588,7 +662,7 @@ def _response(source_mode: str) -> dict[str, Any]:
 
 
 def _pdf_pointer() -> dict[str, Any]:
-    return {"source_mode": "PDF", "page": 1, "visible_label": None, "evidence_text": "Synthetic evidence", "table_visible_title": None, "row_visible_label": None, "column_visible_label": None, "block_id": None, "anchor_id": None, "table_id": None, "row_index": None, "column_index": None}
+    return {"source_mode": "PDF", "page": 1, "visible_label": None, "evidence_text": "Synthetic evidence statement 1 Transactions 10.00 USD", "table_visible_title": None, "row_visible_label": None, "column_visible_label": None, "block_id": None, "anchor_id": None, "table_id": None, "row_index": None, "column_index": None}
 
 
 def _view_pointer(*, table: bool) -> dict[str, Any]:
@@ -641,7 +715,7 @@ def _adjudication_draft(comparison: dict[str, Any]) -> dict[str, Any]:
     findings = []
     for index, item in enumerate(comparison["items"]):
         findings.append({"finding_id": f"finding_{index:06d}", "semantic_key": item["semantic_key"], "gold_item_id": critical_keys.get(item["semantic_key"]), "critical": item["critical"], "comparison_category": item["category"], "disposition": "BOTH_CORRECT", "pdf_arm_correct": True, "view_arm_correct": True, "pdf_arm_unsupported": False, "view_arm_unsupported": False, "pdf_pointer_valid": item["pdf_pointer_valid"], "view_pointer_valid": item["view_pointer_valid"], "artifact_semantic_gap": False, "pdf_native_model_gap": False, "both_wrong": False, "unsupported_fact": False, "invalid_pointer": False, "notes": None})
-    return {"schema_version": "draft", "safe_id": "real_pdf_1", "gold_checklist_sha256": "", "pdf_response_sha256": "", "view_response_sha256": "", "comparison_sha256": "", "complete": False, "findings": findings, "metrics": {"gold_critical_facts_total": 0, "pdf_correct_critical_facts_total": 0, "view_correct_critical_facts_total": 0, "pdf_wrong_critical_facts_total": 0, "view_wrong_critical_facts_total": 0, "unsupported_facts_total": 0, "artifact_semantic_gaps_total": 0, "pdf_native_model_gaps_total": 0, "both_arms_wrong_total": 0, "invalid_source_pointers_total": 0}, "model_task_adequacy": "FAILED", "semantic_equivalence": "INCONCLUSIVE_MODEL_INADEQUACY", "integrity_sha256": ""}
+    return {"schema_version": "draft", "safe_id": "real_pdf_1", "gold_checklist_sha256": "", "pdf_response_sha256": "", "view_response_sha256": "", "comparison_sha256": "", "complete": False, "findings": findings, "metrics": {"gold_critical_facts_total": 0, "pdf_correct_critical_facts_total": 0, "view_correct_critical_facts_total": 0, "pdf_wrong_critical_facts_total": 0, "view_wrong_critical_facts_total": 0, "unsupported_facts_total": 0, "artifact_semantic_gaps_total": 0, "pdf_native_model_gaps_total": 0, "both_arms_wrong_total": 0, "invalid_source_pointers_total": 0}, "model_task_adequacy": "FAILED", "document_semantic_assessment": "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY", "integrity_sha256": ""}
 
 
 def _read_json(path: Path) -> dict[str, Any]:

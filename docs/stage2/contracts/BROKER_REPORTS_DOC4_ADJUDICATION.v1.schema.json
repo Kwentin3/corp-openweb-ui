@@ -15,10 +15,10 @@
     "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
     "metrics": {"$ref": "#/$defs/metrics"},
     "model_task_adequacy": {"enum": ["PASSED", "FAILED"]},
-    "semantic_equivalence": {"enum": ["PASSED_STRICT", "PASSED_WITH_NONCRITICAL_VARIANCE", "FAILED", "INCONCLUSIVE_CONTEXT_LIMIT", "INCONCLUSIVE_MODEL_INADEQUACY", "INCONCLUSIVE_PROVIDER_FAILURE"]},
+    "document_semantic_assessment": {"enum": ["DOCUMENT_PASSED_STRICT", "DOCUMENT_PASSED_WITH_NONCRITICAL_VARIANCE", "DOCUMENT_FAILED", "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"]},
     "integrity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
-  "required": ["schema_version", "safe_id", "gold_checklist_sha256", "pdf_response_sha256", "view_response_sha256", "comparison_sha256", "complete", "findings", "metrics", "model_task_adequacy", "semantic_equivalence", "integrity_sha256"],
+  "required": ["schema_version", "safe_id", "gold_checklist_sha256", "pdf_response_sha256", "view_response_sha256", "comparison_sha256", "complete", "findings", "metrics", "model_task_adequacy", "document_semantic_assessment", "integrity_sha256"],
   "$defs": {
     "nullable_string": {"type": ["string", "null"]},
     "rate": {"type": "string", "pattern": "^(?:0\\.\\d{6}|1\\.000000)$"},

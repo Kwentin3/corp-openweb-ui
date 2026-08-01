@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.example/contracts/broker_reports_doc4_semantic_result_v1.schema.json",
+  "title": "Broker Reports DOC4 four-document semantic result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "broker_reports_doc4_semantic_result_v1"},
+    "eligible_documents_total": {"const": 4},
+    "completed_paired_documents_total": {"const": 4},
+    "sealed_adjudications_total": {"const": 4},
+    "documents": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "safe_id": {"enum": ["real_pdf_1", "real_pdf_2", "real_pdf_4", "real_pdf_5"]},
+          "adjudication_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "model_task_adequacy": {"enum": ["PASSED", "FAILED"]},
+          "document_semantic_assessment": {"enum": ["DOCUMENT_PASSED_STRICT", "DOCUMENT_PASSED_WITH_NONCRITICAL_VARIANCE", "DOCUMENT_FAILED", "DOCUMENT_INCONCLUSIVE_MODEL_INADEQUACY"]}
+        },
+        "required": ["safe_id", "adjudication_sha256", "model_task_adequacy", "document_semantic_assessment"]
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gold_critical_facts_total": {"type": "integer", "minimum": 0},
+        "gold_noncritical_facts_total": {"type": "integer", "minimum": 0},
+        "pdf_arm_critical_precision": {"$ref": "#/$defs/rate"},
+        "pdf_arm_critical_recall": {"$ref": "#/$defs/rate"},
+        "view_arm_critical_precision": {"$ref": "#/$defs/rate"},
+        "view_arm_critical_recall": {"$ref": "#/$defs/rate"},
+        "pdf_arm_noncritical_precision": {"$ref": "#/$defs/rate"},
+        "pdf_arm_noncritical_recall": {"$ref": "#/$defs/rate"},
+        "view_arm_noncritical_precision": {"$ref": "#/$defs/rate"},
+        "view_arm_noncritical_recall": {"$ref": "#/$defs/rate"},
+        "critical_cross_arm_match_rate": {"$ref": "#/$defs/rate"},
+        "noncritical_cross_arm_match_rate": {"$ref": "#/$defs/rate"},
+        "artifact_semantic_gaps_total": {"type": "integer", "minimum": 0},
+        "unsupported_critical_facts_total": {"type": "integer", "minimum": 0},
+        "invalid_critical_pointers_total": {"type": "integer", "minimum": 0},
+        "invalid_source_pointers_total": {"type": "integer", "minimum": 0},
+        "both_arms_wrong_total": {"type": "integer", "minimum": 0},
+        "critical_stability_conflicts_total": {"type": "integer", "minimum": 0},
+        "view_structure_order_all_match": {"type": "boolean"}
+      },
+      "required": ["gold_critical_facts_total", "gold_noncritical_facts_total", "pdf_arm_critical_precision", "pdf_arm_critical_recall", "view_arm_critical_precision", "view_arm_critical_recall", "pdf_arm_noncritical_precision", "pdf_arm_noncritical_recall", "view_arm_noncritical_precision", "view_arm_noncritical_recall", "critical_cross_arm_match_rate", "noncritical_cross_arm_match_rate", "artifact_semantic_gaps_total", "unsupported_critical_facts_total", "invalid_critical_pointers_total", "invalid_source_pointers_total", "both_arms_wrong_total", "critical_stability_conflicts_total", "view_structure_order_all_match"]
+    },
+    "model_task_adequacy": {"enum": ["PASSED", "FAILED"]},
+    "semantic_equivalence": {"enum": ["PASSED_STRICT", "PASSED_WITH_NONCRITICAL_VARIANCE", "FAILED", "INCONCLUSIVE_MODEL_INADEQUACY"]},
+    "integrity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": ["schema_version", "eligible_documents_total", "completed_paired_documents_total", "sealed_adjudications_total", "documents", "metrics", "model_task_adequacy", "semantic_equivalence", "integrity_sha256"],
+  "$defs": {
+    "rate": {"type": "string", "pattern": "^(?:0\\.\\d{6}|1\\.000000)$"}
+  }
+}

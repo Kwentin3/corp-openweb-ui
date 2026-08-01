@@ -18,6 +18,7 @@ from broker_reports_gate1.managed_document_llm_view import ManagedDocumentLlmVie
 from broker_reports_gate1.pdf_view_semantic_adjudication import (
     PdfViewSemanticAdjudicationFactory,
     PdfViewSemanticComparator,
+    PdfViewSemanticResultFactory,
     compare_stability_replay,
 )
 from broker_reports_gate1.pdf_view_semantic_contracts import (
@@ -30,6 +31,7 @@ from broker_reports_gate1.pdf_view_semantic_contracts import (
     read_json,
     sha256_bytes,
     validate_provider_authorization,
+    validate_json_contract,
     validate_semantic_response,
 )
 from broker_reports_gate1.pdf_view_semantic_experiment import (
@@ -57,6 +59,7 @@ DEFAULT_RESPONSE_SCHEMA = DOCS_ROOT / "contracts" / "BROKER_REPORTS_DOC4_SEMANTI
 DEFAULT_GOLD_SCHEMA = DOCS_ROOT / "contracts" / "BROKER_REPORTS_DOC4_GOLD_CHECKLIST.v1.schema.json"
 DEFAULT_COMPARISON_SCHEMA = DOCS_ROOT / "contracts" / "BROKER_REPORTS_DOC4_SEMANTIC_COMPARISON.v1.schema.json"
 DEFAULT_ADJUDICATION_SCHEMA = DOCS_ROOT / "contracts" / "BROKER_REPORTS_DOC4_ADJUDICATION.v1.schema.json"
+DEFAULT_RESULT_SCHEMA = DOCS_ROOT / "contracts" / "BROKER_REPORTS_DOC4_SEMANTIC_RESULT.v1.schema.json"
 DEFAULT_SYSTEM_PROMPT = DOCS_ROOT / "prompts" / "BROKER_REPORTS_DOC4_SEMANTIC_SYSTEM_PROMPT.v1.md"
 DEFAULT_TASK_PROMPT = DOCS_ROOT / "prompts" / "BROKER_REPORTS_DOC4_SEMANTIC_TASK_PROMPT.v1.md"
 DEFAULT_ENV_FILE = REPOSITORY_ROOT / ".env"
@@ -71,7 +74,7 @@ VIEW_WRAPPER = "SOURCE_MODE=LLM_VIEW. Use only the complete tagged LLM Document 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Inactive DOC4 PDF-vs-LLM-View semantic experiment runner.")
-    parser.add_argument("--mode", required=True, choices=("freeze-plan", "seal-gold", "preflight", "run", "compare", "seal-adjudication", "validate-response"))
+    parser.add_argument("--mode", required=True, choices=("freeze-plan", "seal-gold", "preflight", "run", "compare", "seal-adjudication", "finalize", "validate-response"))
     parser.add_argument("--source-manifest", type=Path)
     parser.add_argument("--authorization", type=Path)
     parser.add_argument("--run-plan", type=Path)
@@ -83,6 +86,8 @@ def main() -> int:
     parser.add_argument("--view-response", type=Path)
     parser.add_argument("--comparison", type=Path)
     parser.add_argument("--stability-comparison", type=Path)
+    parser.add_argument("--run-results-dir", type=Path)
+    parser.add_argument("--adjudication-dir", type=Path)
     parser.add_argument("--response", type=Path)
     parser.add_argument("--source-mode", choices=("PDF", "LLM_VIEW"))
     parser.add_argument("--safe-id", choices=CORPUS_IDS)
@@ -94,6 +99,7 @@ def main() -> int:
     parser.add_argument("--gold-schema", type=Path, default=DEFAULT_GOLD_SCHEMA)
     parser.add_argument("--comparison-schema", type=Path, default=DEFAULT_COMPARISON_SCHEMA)
     parser.add_argument("--adjudication-schema", type=Path, default=DEFAULT_ADJUDICATION_SCHEMA)
+    parser.add_argument("--result-schema", type=Path, default=DEFAULT_RESULT_SCHEMA)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -150,13 +156,143 @@ def _run(args: argparse.Namespace) -> int:
     if args.mode == "validate-response":
         response = read_json(_required_file(args.response, "--response"))
         source_mode = _required_text(args.source_mode, "--source-mode")
-        validate_semantic_response(response, response_schema, expected_source_mode=source_mode)
-        _print_safe({"status": "PASSED", "mode": args.mode, "provider_calls_total": 0})
+        safe_id = _required_text(args.safe_id, "--safe-id")
+        source = _source_by_id(
+            _sources(_required_file(args.source_manifest, "--source-manifest")),
+            safe_id,
+        )
+        validate_semantic_response(
+            response,
+            response_schema,
+            expected_source_mode=source_mode,
+            pdf_pages_total=(
+                pdf_pages_total(source.pdf_path) if source_mode == "PDF" else None
+            ),
+            pdf_page_texts=(
+                pdf_page_texts(source.pdf_path.read_bytes())
+                if source_mode == "PDF"
+                else None
+            ),
+            view_registry=(
+                view_pointer_registry(source.llm_view_path.read_text(encoding="utf-8"))
+                if source_mode == "LLM_VIEW"
+                else None
+            ),
+        )
+        _print_safe({"status": "PASSED", "mode": args.mode, "safe_id": safe_id, "provider_calls_total": 0})
         return 0
     plan = _validated_plan(_required_file(args.run_plan, "--run-plan"))
     _verify_plan_protocol_bindings(args, plan=plan, response_schema=response_schema)
     sources = _sources(_required_file(args.source_manifest, "--source-manifest"))
     _verify_plan_source_bindings(plan, sources)
+    if args.mode == "finalize":
+        preflight = read_json(
+            _required_file(args.context_preflight, "--context-preflight")
+        )
+        _validate_context_preflight(preflight, plan=plan)
+        run_results_dir = _required_dir(args.run_results_dir, "--run-results-dir")
+        adjudication_dir = _required_dir(
+            args.adjudication_dir, "--adjudication-dir"
+        )
+        adjudication_schema = read_json(
+            _required_file(args.adjudication_schema, "--adjudication-schema")
+        )
+        adjudications: dict[str, dict[str, Any]] = {}
+        paired_safe_ids: list[str] = []
+        for safe_id in CORPUS_IDS:
+            source = _source_by_id(sources, safe_id)
+            pdf_response = read_json(
+                _required_file(
+                    run_results_dir
+                    / safe_id
+                    / "pdf_arm"
+                    / "pdf_arm_response.private.json",
+                    "PDF arm response",
+                )
+            )
+            view_response = read_json(
+                _required_file(
+                    run_results_dir
+                    / safe_id
+                    / "view_arm"
+                    / "view_arm_response.private.json",
+                    "View arm response",
+                )
+            )
+            validate_semantic_response(
+                pdf_response,
+                response_schema,
+                expected_source_mode="PDF",
+                pdf_pages_total=pdf_pages_total(source.pdf_path),
+                pdf_page_texts=pdf_page_texts(source.pdf_path.read_bytes()),
+            )
+            validate_semantic_response(
+                view_response,
+                response_schema,
+                expected_source_mode="LLM_VIEW",
+                view_registry=view_pointer_registry(
+                    source.llm_view_path.read_text(encoding="utf-8")
+                ),
+            )
+            adjudication = read_json(
+                _required_file(
+                    adjudication_dir / safe_id / "source_adjudication.private.json",
+                    "source adjudication",
+                )
+            )
+            validate_json_contract(
+                adjudication,
+                adjudication_schema,
+                label="source_adjudication",
+            )
+            if adjudication.get("integrity_sha256") != integrity_sha256(
+                adjudication
+            ):
+                raise Doc4ContractError("adjudication_integrity_invalid")
+            if adjudication.get("safe_id") != safe_id:
+                raise Doc4ContractError("adjudication_safe_id_mismatch")
+            if adjudication.get("pdf_response_sha256") != sha256_bytes(
+                canonical_json_bytes(pdf_response)
+            ) or adjudication.get("view_response_sha256") != sha256_bytes(
+                canonical_json_bytes(view_response)
+            ):
+                raise Doc4ContractError("adjudication_response_binding_invalid")
+            if adjudication.get("gold_checklist_sha256") != plan.get(
+                "gold_checklist_sha256_by_safe_id", {}
+            ).get(safe_id):
+                raise Doc4ContractError("adjudication_gold_plan_binding_invalid")
+            adjudications[safe_id] = adjudication
+            paired_safe_ids.append(safe_id)
+        result = PdfViewSemanticResultFactory().finalize(
+            adjudications=adjudications,
+            eligible_safe_ids=CORPUS_IDS,
+            paired_safe_ids=tuple(paired_safe_ids),
+            result_schema=read_json(
+                _required_file(args.result_schema, "--result-schema")
+            ),
+        )
+        digest = write_immutable_json(
+            args.output_dir / "semantic_result.private.json", result
+        )
+        _print_safe(
+            {
+                "status": "PASSED",
+                "mode": args.mode,
+                "eligible_documents_total": result["eligible_documents_total"],
+                "completed_paired_documents_total": result[
+                    "completed_paired_documents_total"
+                ],
+                "sealed_adjudications_total": result[
+                    "sealed_adjudications_total"
+                ],
+                **result["metrics"],
+                "model_task_adequacy": result["model_task_adequacy"],
+                "semantic_equivalence": result["semantic_equivalence"],
+                "semantic_result_sha256": digest,
+                "provider_calls_total": 0,
+            }
+        )
+        return 0
     if args.mode == "compare":
         safe_id = _required_text(args.safe_id, "--safe-id")
         source = _source_by_id(sources, safe_id)
@@ -214,7 +350,7 @@ def _run(args: argparse.Namespace) -> int:
             critical_stability_conflicts_total=stability_conflicts,
         )
         digest = write_immutable_json(args.output_dir / "source_adjudication.private.json", sealed)
-        _print_safe({"status": "PASSED", "mode": args.mode, "safe_id": sealed["safe_id"], **sealed["metrics"], "model_task_adequacy": sealed["model_task_adequacy"], "semantic_equivalence": sealed["semantic_equivalence"], "adjudication_sha256": digest, "provider_calls_total": 0})
+        _print_safe({"status": "PASSED", "mode": args.mode, "safe_id": sealed["safe_id"], **sealed["metrics"], "model_task_adequacy": sealed["model_task_adequacy"], "document_semantic_assessment": sealed["document_semantic_assessment"], "adjudication_sha256": digest, "provider_calls_total": 0})
         return 0
     system_prompt, task_prompt = _prompts(args, plan)
     request_keys = authorized_request_keys(
