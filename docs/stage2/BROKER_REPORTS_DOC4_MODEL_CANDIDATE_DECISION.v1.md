@@ -2,7 +2,7 @@
 
 Effective date: 2026-08-01
 
-Status: `CANDIDATE_FROZEN_IMPLEMENTATION; OPERATOR_TRANSFER_AUTHORIZED`
+Status: `CANDIDATE_FROZEN; PREFLIGHT_PROVIDER_FAILURE`
 
 ## Decision
 
@@ -47,14 +47,30 @@ store = false
 
 ## Operator authorization and API preflight
 
-No provider request was made during candidate selection or implementation. The project operator explicitly authorized the bounded DOC4 transfer of `real_pdf_1`, `real_pdf_2`, `real_pdf_4`, and `real_pdf_5` to the OpenAI API using `gpt-5.4-2026-03-05` with `store=false`. Exact model access, snapshot echo, schema acceptance, token-count acceptance for PDF, and response-size sufficiency remain to be measured by the frozen experiment.
+The project operator explicitly authorized the bounded DOC4 transfer of
+`real_pdf_1`, `real_pdf_2`, `real_pdf_4`, and `real_pdf_5` to the OpenAI API
+using `gpt-5.4-2026-03-05` with `store=false`. Four independently sealed gold
+checklists were created before any provider call.
+
+Three separately frozen exact preflight attempts each stopped on their first
+non-retryable HTTP 400 from `/responses/input_tokens`. The two locally proven
+harness request-shape defects found by the first attempts were fixed in PRs
+#254 and #255, independently reviewed, CI-green and merged before the next
+attempt. The third attempt still returned HTTP 400. No token-count request
+succeeded and no primary or stability arm ran. The provider did not report
+token usage or cost for these failed requests.
 
 The configured local key and canonical base URL remain credentials only; the separate operator receipt is the transfer authority.
 
 ```text
 PROVIDER_TRANSFER_AUTHORIZED = TRUE
 AUTHORIZATION_BASIS_STATUS = PROJECT_OPERATOR_APPROVED
-PRIVATE_PROVIDER_CALLS = 0
+PRIVATE_PROVIDER_CALLS = 3
+SUCCESSFUL_TOKEN_COUNT_CALLS = 0
+PRIMARY_MODEL_CALLS = 0
+PREFLIGHT_STATUS = BLOCKED_PROVIDER_HTTP_400
+MODEL_TASK_ADEQUACY = NOT_EVALUATED
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```

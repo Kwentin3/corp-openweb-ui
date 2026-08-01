@@ -22,6 +22,40 @@ Effective date: 2026-08-01
 | DOC1 universal managed document contract | `CANONICAL_CURRENT` | DOC1 Decision, Managed Document Contract MD/Schema, DOC0 Coverage Matrix, and 2026-08-01 closure package |
 | DOC2 inactive PDF managed document proof | `CANONICAL_CURRENT` | DOC2 Decision, Coverage and Parity Contracts, sealed real-PDF summaries, and 2026-08-01 closure package |
 | DOC3 inactive LLM Document View proof | `CANONICAL_CURRENT` | DOC3 Decision, View/Receipt/Checklist Contracts, DOC1 field coverage, sealed real-view summaries, and 2026-08-01 closure package |
+| DOC4 PDF vs LLM View semantic experiment | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC4 Candidate and Equivalence Decisions, safe preflight/results/stability summaries, and 2026-08-01 blocked closure package |
+
+## DOC4
+
+```text
+DOC4_HARNESS_IMPLEMENTATION = PASSED
+INDEPENDENT_REVIEW = PASSED
+PROVIDER_TRANSFER_AUTHORIZED = TRUE
+GOLD_CHECKLISTS_TOTAL = 4
+GOLD_CHECKLIST_ITEMS_TOTAL = 461
+GOLD_CRITICAL_FACTS_TOTAL = 321
+CONTEXT_PREFLIGHT = BLOCKED_PROVIDER_HTTP_400
+PREFLIGHT_ATTEMPTS_TOTAL = 3
+PROVIDER_CALLS_TOTAL = 3
+SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 0
+ELIGIBLE_DOCUMENTS_TOTAL = 0
+COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
+MODEL_TASK_ADEQUACY = NOT_EVALUATED
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+Four independent PDF-only gold checklists were sealed before provider calls.
+Three separately frozen preflight attempts each stopped on the first
+non-retryable HTTP 400 from `/responses/input_tokens`. The first two bounded
+harness defects were corrected in reviewed, CI-green PRs #254 and #255; the
+third merged-main attempt still failed, so no-endless-search stopped the route.
+
+No token count, primary arm, stability replay, comparison or adjudication
+completed. Provider usage and cost were not reported. All private PDFs, Views,
+gold, plans, authorizations and failure receipts remain outside Git. The safe
+closure does not claim zero semantic gaps or full equivalence; those values are
+not evaluated.
 
 ## DOC3
 
@@ -41,7 +75,7 @@ TRUNCATED_DOCUMENTS_TOTAL = 0
 FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
 CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
 VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
-PDF_TO_LLM_SEMANTIC_EQUIVALENCE = NOT_STARTED
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE (LATER DOC4)
 REAL_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
@@ -63,8 +97,10 @@ The exact offline reference tokenizer is
 counts, not model-context qualification.
 
 DOC3 changes no DOC1 schema, DOC2 builder, prompt, provider/model path, product
-route, generated bundle or live state. It does not authorize DOC4,
-PDF-to-LLM semantic equivalence, real model qualification or activation.
+route, generated bundle or live state. It did not by itself authorize DOC4 or
+PDF-to-LLM semantic equivalence. The later authorized DOC4 attempt closed as an
+inconclusive provider-preflight failure and did not start qualification or
+activation.
 
 ## DOC2
 

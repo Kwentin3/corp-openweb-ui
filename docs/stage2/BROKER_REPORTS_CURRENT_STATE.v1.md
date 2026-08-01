@@ -1,6 +1,6 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive DOC3 LLM Document View closure
+Status: canonical entry point after terminal DOC4 provider-preflight closure
 
 Effective date: 2026-08-01
 
@@ -12,6 +12,12 @@ DOC2 implementation merge:
 
 DOC3 implementation merge:
 `ebe3d6a7e375ff97f0242c7ee5bfdd476d594500`.
+
+DOC4 implementation merge:
+`3251769728df224f79d085f508c3a47d4e0b8d23`.
+
+DOC4 terminal harness merge:
+`73a54d132648e62623a3c959aba54296390cb064`.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -203,7 +209,8 @@ real-PDF proof closes the PDF real-corpus gap without changing DOC1.
 DOC1 added no parser, normalizer, renderer, product route, provider call,
 generated bundle, live change, financial type, Semantic Pack, Type-First,
 Gate 3, or Gate 4 behavior. DOC2 and DOC3 are later, separate inactive
-implementations; DOC4 and DOC6 have not started.
+implementations. DOC4 later closed as a provider-preflight blocker; DOC6 has
+not started.
 
 ## 12.3 DOC2 inactive PDF managed-document builder
 
@@ -228,8 +235,9 @@ in Git.
 
 DOC2 changes no DOC1 schema, product route, provider/model path, Knowledge/RAG,
 embedding/vector path, generated bundle, or live state. DOC3 is the later,
-separate inactive LLM Document View implementation. DOC4, PDF-to-LLM semantic
-equivalence, real model qualification, and product activation have not started.
+separate inactive LLM Document View implementation. The later DOC4 experiment
+closed as `INCONCLUSIVE_PROVIDER_FAILURE`; real model qualification and product
+activation have not started.
 
 ## 12.4 DOC3 inactive LLM Document View
 
@@ -259,11 +267,45 @@ The pinned offline reference tokenizer is
 reference counts, not a context-window or real-model qualification claim.
 
 DOC3 changes no DOC1 schema, DOC2 builder, prompt, valve, provider/model path,
-admission, product route, generated bundle or live state. PDF-to-LLM semantic
-equivalence, DOC4, real model qualification and product activation remain
-`NOT_STARTED`.
+admission, product route, generated bundle or live state. DOC4 later attempted
+the separate provider experiment described below.
 
-## 13. KT2, DOC1, DOC2, DOC3, and next gates
+## 12.5 DOC4 PDF vs LLM Document View semantic experiment
+
+The inactive DOC4 harness implementation passed isolated review, exact-head CI
+and merged-main validation. The operator authorized the four frozen documents
+for OpenAI `gpt-5.4-2026-03-05` with `store=false`. Separate PDF-only agents
+sealed four gold checklists before provider calls: 461 items and 321 critical
+facts.
+
+Exact context preflight stopped fail-closed. Three separately frozen attempts
+each received a non-retryable HTTP 400 on their first
+`/responses/input_tokens` call. The first two attempts exposed bounded request
+shape defects; PRs #254 and #255 fixed them, passed isolated review and CI, and
+merged before the next attempt. The third merged-main attempt still returned
+HTTP 400, so the no-endless-search boundary was applied.
+
+No token count succeeded. Eligibility, PDF and View arms, stability,
+comparison, adjudication, model adequacy and semantic equivalence were not
+evaluated. The provider reported no usage or cost for the three failed calls.
+No private artifact entered Git, and no product route or live state changed.
+
+```text
+DOC4_HARNESS_IMPLEMENTATION = PASSED
+INDEPENDENT_REVIEW = PASSED
+PROVIDER_TRANSFER_AUTHORIZED = TRUE
+GOLD_CHECKLISTS_TOTAL = 4
+DOC4_EXPERIMENT_EXECUTION = BLOCKED
+MODEL_TASK_ADEQUACY = NOT_EVALUATED
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+ELIGIBLE_DOCUMENTS_TOTAL = 0
+COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
+PROVIDER_CALLS_TOTAL = 3
+PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+## 13. KT2, DOC1, DOC2, DOC3, DOC4, and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
 complete at its inactive bounded-context and context-sufficiency boundary;
@@ -276,8 +318,9 @@ review, governed release, rollback proof, and independent live readback.
 DOC1 remains the contract authority. DOC2 provides the separately reviewed
 inactive PDF builder and real-corpus coverage/parity proof. DOC3 provides the
 separately reviewed deterministic full-context view and representation parity
-proof. These goals do not authorize PDF-to-LLM semantic equivalence, real model
-qualification, product reachability, activation, or DOC4.
+proof. DOC4 has a terminal provider-preflight blocker and establishes no
+semantic-equivalence or model-adequacy result. Real model qualification,
+product reachability and activation remain not started.
 
 ## 14. Forbidden shortcuts
 
@@ -285,7 +328,8 @@ Do not activate Type-First, revive PR #232 or `source_fact_selection_v3`, use
 the PR #77 registry as authority, bypass factories, weaken terminal tests,
 infer current state from a historical receipt, edit generated bundles by hand,
 use customer/private bytes in Git, mutate live state, activate DOC2 or DOC3,
-begin DOC4/DOC6, or begin Gate 3/4 work.
+restart DOC4 provider attempts without an explicit new model-or-policy
+decision, begin DOC6, or begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED
@@ -344,7 +388,14 @@ TRUNCATED_DOCUMENTS_TOTAL = 0
 FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
 CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
 VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
-PDF_TO_LLM_SEMANTIC_EQUIVALENCE = NOT_STARTED
+DOC4_HARNESS_IMPLEMENTATION = PASSED
+DOC4_EXPERIMENT_EXECUTION = BLOCKED
+MODEL_TASK_ADEQUACY = NOT_EVALUATED
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+GOLD_CHECKLISTS_TOTAL = 4
+ELIGIBLE_DOCUMENTS_TOTAL = 0
+COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
+DOC4_PROVIDER_CALLS_TOTAL = 3
 REAL_MODEL_QUALIFICATION = NOT_STARTED
-DOC4 = NOT_STARTED
+DOC4 = BLOCKED_PROVIDER_FAILURE
 ```
