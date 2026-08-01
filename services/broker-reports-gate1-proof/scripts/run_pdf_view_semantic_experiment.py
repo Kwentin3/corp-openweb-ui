@@ -194,11 +194,16 @@ def _run(args: argparse.Namespace) -> int:
         adjudication_dir = _required_dir(
             args.adjudication_dir, "--adjudication-dir"
         )
+        gold_dir = _required_dir(args.gold_dir, "--gold-dir")
+        _verify_gold_hashes(plan, gold_dir)
+        gold_schema = read_json(_required_file(args.gold_schema, "--gold-schema"))
         adjudication_schema = read_json(
             _required_file(args.adjudication_schema, "--adjudication-schema")
         )
         adjudications: dict[str, dict[str, Any]] = {}
-        paired_safe_ids: list[str] = []
+        gold_checklists: dict[str, dict[str, Any]] = {}
+        pdf_responses: dict[str, dict[str, Any]] = {}
+        view_responses: dict[str, dict[str, Any]] = {}
         for safe_id in CORPUS_IDS:
             source = _source_by_id(sources, safe_id)
             pdf_response = read_json(
@@ -261,12 +266,24 @@ def _run(args: argparse.Namespace) -> int:
                 "gold_checklist_sha256_by_safe_id", {}
             ).get(safe_id):
                 raise Doc4ContractError("adjudication_gold_plan_binding_invalid")
+            gold_checklists[safe_id] = read_json(
+                _required_file(
+                    gold_dir / safe_id / "gold_checklist.private.json",
+                    "gold checklist",
+                )
+            )
+            pdf_responses[safe_id] = pdf_response
+            view_responses[safe_id] = view_response
             adjudications[safe_id] = adjudication
-            paired_safe_ids.append(safe_id)
         result = PdfViewSemanticResultFactory().finalize(
             adjudications=adjudications,
-            eligible_safe_ids=CORPUS_IDS,
-            paired_safe_ids=tuple(paired_safe_ids),
+            gold_checklists=gold_checklists,
+            pdf_responses=pdf_responses,
+            view_responses=view_responses,
+            context_preflight=preflight,
+            expected_run_plan_sha256=sha256_bytes(canonical_json_bytes(plan)),
+            gold_schema=gold_schema,
+            adjudication_schema=adjudication_schema,
             result_schema=read_json(
                 _required_file(args.result_schema, "--result-schema")
             ),

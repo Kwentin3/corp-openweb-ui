@@ -511,6 +511,7 @@ def test_contract_has_no_product_or_provider_reachability() -> None:
     inactive_contract_consumers = {
         PACKAGE_ROOT / "managed_pdf_document.py",
         PACKAGE_ROOT / "managed_document_llm_view.py",
+        PACKAGE_ROOT / "pdf_view_semantic_experiment.py",
     }
     for root in (PACKAGE_ROOT, SERVICE_ROOT / "openwebui_actions"):
         for path in root.glob("*.py"):

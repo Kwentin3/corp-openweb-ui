@@ -231,20 +231,38 @@ class PdfViewSemanticResultFactory:
         self,
         *,
         adjudications: dict[str, dict[str, Any]],
-        eligible_safe_ids: tuple[str, ...],
-        paired_safe_ids: tuple[str, ...],
+        gold_checklists: dict[str, dict[str, Any]],
+        pdf_responses: dict[str, dict[str, Any]],
+        view_responses: dict[str, dict[str, Any]],
+        context_preflight: dict[str, Any],
+        expected_run_plan_sha256: str,
+        gold_schema: dict[str, Any],
+        adjudication_schema: dict[str, Any],
         result_schema: dict[str, Any],
     ) -> dict[str, Any]:
-        if eligible_safe_ids != CORPUS_IDS:
-            raise Doc4ContractError("terminal_eligible_corpus_incomplete")
-        if paired_safe_ids != CORPUS_IDS:
+        _validate_terminal_preflight(
+            context_preflight,
+            expected_run_plan_sha256=expected_run_plan_sha256,
+        )
+        if tuple(pdf_responses) != CORPUS_IDS or tuple(view_responses) != CORPUS_IDS:
             raise Doc4ContractError("terminal_paired_corpus_incomplete")
+        if tuple(gold_checklists) != CORPUS_IDS:
+            raise Doc4ContractError("terminal_gold_corpus_incomplete")
         if tuple(adjudications) != CORPUS_IDS:
             raise Doc4ContractError("terminal_adjudication_corpus_incomplete")
 
         documents: list[dict[str, Any]] = []
         for safe_id in CORPUS_IDS:
             item = adjudications[safe_id]
+            gold = gold_checklists[safe_id]
+            validate_json_contract(gold, gold_schema, label="gold_checklist")
+            if gold.get("safe_id") != safe_id:
+                raise Doc4ContractError("terminal_gold_safe_id_mismatch")
+            if gold.get("integrity_sha256") != integrity_sha256(gold):
+                raise Doc4ContractError("terminal_gold_integrity_invalid")
+            validate_json_contract(
+                item, adjudication_schema, label="source_adjudication"
+            )
             if item.get("schema_version") != ADJUDICATION_SCHEMA_VERSION:
                 raise Doc4ContractError("terminal_adjudication_version_invalid")
             if item.get("safe_id") != safe_id:
@@ -253,6 +271,16 @@ class PdfViewSemanticResultFactory:
                 raise Doc4ContractError("terminal_adjudication_incomplete")
             if item.get("integrity_sha256") != integrity_sha256(item):
                 raise Doc4ContractError("terminal_adjudication_integrity_invalid")
+            if item.get("gold_checklist_sha256") != sha256_bytes(
+                canonical_json_bytes(gold)
+            ):
+                raise Doc4ContractError("terminal_gold_binding_invalid")
+            if item.get("pdf_response_sha256") != sha256_bytes(
+                canonical_json_bytes(pdf_responses[safe_id])
+            ) or item.get("view_response_sha256") != sha256_bytes(
+                canonical_json_bytes(view_responses[safe_id])
+            ):
+                raise Doc4ContractError("terminal_response_binding_invalid")
             documents.append(
                 {
                     "safe_id": safe_id,
@@ -277,8 +305,8 @@ class PdfViewSemanticResultFactory:
         )
         result = {
             "schema_version": FINAL_RESULT_SCHEMA_VERSION,
-            "eligible_documents_total": len(eligible_safe_ids),
-            "completed_paired_documents_total": len(paired_safe_ids),
+            "eligible_documents_total": len(CORPUS_IDS),
+            "completed_paired_documents_total": len(CORPUS_IDS),
             "sealed_adjudications_total": len(documents),
             "documents": documents,
             "metrics": metrics,
@@ -859,6 +887,28 @@ def _terminal_metrics(
             item["view_structure_order_match"] for item in metrics
         ),
     }
+
+
+def _validate_terminal_preflight(
+    value: dict[str, Any],
+    *,
+    expected_run_plan_sha256: str,
+) -> None:
+    if value.get("schema_version") != "broker_reports_doc4_context_preflight_private_v1":
+        raise Doc4ContractError("terminal_preflight_version_invalid")
+    if value.get("integrity_sha256") != integrity_sha256(value):
+        raise Doc4ContractError("terminal_preflight_integrity_invalid")
+    if value.get("run_plan_sha256") != expected_run_plan_sha256:
+        raise Doc4ContractError("terminal_preflight_plan_binding_invalid")
+    documents = value.get("documents")
+    if not isinstance(documents, dict) or tuple(documents) != CORPUS_IDS:
+        raise Doc4ContractError("terminal_eligible_corpus_incomplete")
+    for safe_id in CORPUS_IDS:
+        arms = documents[safe_id]
+        if not isinstance(arms, dict) or set(arms) != {"PDF", "LLM_VIEW"}:
+            raise Doc4ContractError("terminal_preflight_arms_invalid")
+        if any(arms[arm].get("eligible") is not True for arm in ("PDF", "LLM_VIEW")):
+            raise Doc4ContractError("terminal_eligible_corpus_incomplete")
 
 
 def _terminal_semantic_equivalence(

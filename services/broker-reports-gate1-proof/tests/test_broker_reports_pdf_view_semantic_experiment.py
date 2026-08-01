@@ -603,17 +603,36 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
         adjudication_schema=_read_json(ADJUDICATION_SCHEMA_PATH),
     )
     adjudications: dict[str, dict[str, Any]] = {}
+    gold_checklists: dict[str, dict[str, Any]] = {}
+    pdf_responses = {safe_id: copy.deepcopy(pdf) for safe_id in CORPUS_IDS}
+    view_responses = {safe_id: copy.deepcopy(view) for safe_id in CORPUS_IDS}
     for safe_id in CORPUS_IDS:
+        gold = copy.deepcopy(_sealed_gold())
+        gold["safe_id"] = safe_id
+        gold["integrity_sha256"] = ""
+        gold["integrity_sha256"] = integrity_sha256(gold)
         item = copy.deepcopy(sealed)
         item["safe_id"] = safe_id
+        item["gold_checklist_sha256"] = sha256_bytes(canonical_json_bytes(gold))
         item["integrity_sha256"] = ""
         item["integrity_sha256"] = integrity_sha256(item)
+        gold_checklists[safe_id] = gold
         adjudications[safe_id] = item
+    plan_sha256 = "f" * 64
+    preflight = _eligible_preflight(plan_sha256)
+    finalize_args = {
+        "gold_checklists": gold_checklists,
+        "pdf_responses": pdf_responses,
+        "view_responses": view_responses,
+        "context_preflight": preflight,
+        "expected_run_plan_sha256": plan_sha256,
+        "gold_schema": _read_json(GOLD_SCHEMA_PATH),
+        "adjudication_schema": _read_json(ADJUDICATION_SCHEMA_PATH),
+        "result_schema": _read_json(RESULT_SCHEMA_PATH),
+    }
     result = PdfViewSemanticResultFactory().finalize(
         adjudications=adjudications,
-        eligible_safe_ids=CORPUS_IDS,
-        paired_safe_ids=CORPUS_IDS,
-        result_schema=_read_json(RESULT_SCHEMA_PATH),
+        **finalize_args,
     )
     assert result["eligible_documents_total"] == 4
     assert result["completed_paired_documents_total"] == 4
@@ -622,23 +641,33 @@ def test_27_terminal_result_requires_exact_four_document_gate() -> None:
     with pytest.raises(Doc4ContractError, match="paired_corpus_incomplete"):
         PdfViewSemanticResultFactory().finalize(
             adjudications=adjudications,
-            eligible_safe_ids=CORPUS_IDS,
-            paired_safe_ids=CORPUS_IDS[:-1],
-            result_schema=_read_json(RESULT_SCHEMA_PATH),
+            **{**finalize_args, "view_responses": {safe_id: view_responses[safe_id] for safe_id in CORPUS_IDS[:-1]}},
         )
     with pytest.raises(Doc4ContractError, match="eligible_corpus_incomplete"):
+        ineligible = copy.deepcopy(preflight)
+        ineligible["documents"]["real_pdf_5"]["LLM_VIEW"]["eligible"] = False
+        ineligible["integrity_sha256"] = ""
+        ineligible["integrity_sha256"] = integrity_sha256(ineligible)
         PdfViewSemanticResultFactory().finalize(
             adjudications=adjudications,
-            eligible_safe_ids=CORPUS_IDS[:-1],
-            paired_safe_ids=CORPUS_IDS,
-            result_schema=_read_json(RESULT_SCHEMA_PATH),
+            **{**finalize_args, "context_preflight": ineligible},
         )
     with pytest.raises(Doc4ContractError, match="adjudication_corpus_incomplete"):
         PdfViewSemanticResultFactory().finalize(
             adjudications={safe_id: adjudications[safe_id] for safe_id in CORPUS_IDS[:-1]},
-            eligible_safe_ids=CORPUS_IDS,
-            paired_safe_ids=CORPUS_IDS,
-            result_schema=_read_json(RESULT_SCHEMA_PATH),
+            **finalize_args,
+        )
+    rebadged = copy.deepcopy(adjudications)
+    rebadged["real_pdf_2"] = copy.deepcopy(adjudications["real_pdf_1"])
+    rebadged["real_pdf_2"]["safe_id"] = "real_pdf_2"
+    rebadged["real_pdf_2"]["integrity_sha256"] = ""
+    rebadged["real_pdf_2"]["integrity_sha256"] = integrity_sha256(
+        rebadged["real_pdf_2"]
+    )
+    with pytest.raises(Doc4ContractError, match="gold_binding_invalid"):
+        PdfViewSemanticResultFactory().finalize(
+            adjudications=rebadged,
+            **finalize_args,
         )
 
 
@@ -678,6 +707,25 @@ def _source_hashes() -> dict[str, dict[str, str]]:
         safe_id: {"pdf_sha256": "a" * 64, "llm_view_sha256": "b" * 64}
         for safe_id in CORPUS_IDS
     }
+
+
+def _eligible_preflight(run_plan_sha256: str) -> dict[str, Any]:
+    value = {
+        "schema_version": "broker_reports_doc4_context_preflight_private_v1",
+        "request_model_id": REQUEST_MODEL_ID,
+        "run_plan_sha256": run_plan_sha256,
+        "documents": {
+            safe_id: {
+                "PDF": {"eligible": True},
+                "LLM_VIEW": {"eligible": True},
+            }
+            for safe_id in CORPUS_IDS
+        },
+        "provider_calls_total": 40,
+        "integrity_sha256": "",
+    }
+    value["integrity_sha256"] = integrity_sha256(value)
+    return value
 
 
 def _authorization(*, request_set_sha256: str = "d" * 64) -> dict[str, Any]:
