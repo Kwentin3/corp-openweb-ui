@@ -80,6 +80,25 @@ def test_01_all_doc4_schemas_are_draft_2020_12_and_closed() -> None:
         validate_schema_document(schema)
 
 
+def test_01b_semantic_response_enums_and_constants_declare_types(
+    response_schema: dict[str, Any],
+) -> None:
+    missing_type_paths: list[str] = []
+
+    def visit(node: Any, path: str) -> None:
+        if isinstance(node, dict):
+            if ("enum" in node or "const" in node) and "type" not in node:
+                missing_type_paths.append(path)
+            for key, value in node.items():
+                visit(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                visit(value, f"{path}[{index}]")
+
+    visit(response_schema, "$")
+    assert missing_type_paths == []
+
+
 def test_02_additional_properties_are_rejected(response_schema: dict[str, Any]) -> None:
     candidate = _response("PDF")
     candidate["unexpected"] = True
