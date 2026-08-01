@@ -39,7 +39,7 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     ModelCandidate,
     OpenAiDoc4Transport,
     PdfViewSemanticExperimentRunner,
-    authorized_request_sha256s,
+    authorized_request_keys,
     connection_from_env_file,
     hash_bound_private_payload,
     pdf_pages_total,
@@ -217,7 +217,7 @@ def _run(args: argparse.Namespace) -> int:
         _print_safe({"status": "PASSED", "mode": args.mode, "safe_id": sealed["safe_id"], **sealed["metrics"], "model_task_adequacy": sealed["model_task_adequacy"], "semantic_equivalence": sealed["semantic_equivalence"], "adjudication_sha256": digest, "provider_calls_total": 0})
         return 0
     system_prompt, task_prompt = _prompts(args, plan)
-    request_sha256s = authorized_request_sha256s(
+    request_keys = authorized_request_keys(
         candidate=runner.candidate,
         sources=sources,
         system_prompt=system_prompt,
@@ -242,7 +242,7 @@ def _run(args: argparse.Namespace) -> int:
         expected_source_sha256_by_safe_id=source_hashes,
         expected_run_plan_sha256=plan_sha256,
         expected_request_set_sha256=sha256_bytes(
-            canonical_json_bytes(sorted(request_sha256s))
+            canonical_json_bytes(sorted(request_keys))
         ),
     )
     transport = OpenAiDoc4Transport(
@@ -250,7 +250,7 @@ def _run(args: argparse.Namespace) -> int:
         authorization=authorization,
         expected_source_sha256_by_safe_id=source_hashes,
         expected_run_plan_sha256=plan_sha256,
-        authorized_request_sha256s=request_sha256s,
+        authorized_request_keys=request_keys,
     )
     if args.mode == "preflight":
         if plan.get("gold_checklists_created_before_provider_calls") is not True:

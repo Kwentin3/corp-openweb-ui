@@ -443,18 +443,19 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
         }
         for value in ("one", "two")
     ]
-    request_sha256s = frozenset(
-        sha256_bytes(canonical_json_bytes(item)) for item in bodies
+    request_keys = frozenset(
+        "/responses/input_tokens:" + sha256_bytes(canonical_json_bytes(item))
+        for item in bodies
     )
     request_set_sha256 = sha256_bytes(
-        canonical_json_bytes(sorted(request_sha256s))
+        canonical_json_bytes(sorted(request_keys))
     )
     transport = OpenAiDoc4Transport(
         ProviderConnection(base_url="https://api.openai.com/v1", api_key="safe-test-key"),
         authorization=_authorization(request_set_sha256=request_set_sha256),
         expected_source_sha256_by_safe_id=_source_hashes(),
         expected_run_plan_sha256="c" * 64,
-        authorized_request_sha256s=request_sha256s,
+        authorized_request_keys=request_keys,
     )
     transport.count_input_tokens(bodies[0])
     transport.count_input_tokens(bodies[1])
@@ -464,6 +465,8 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
     unauthorized["store"] = True
     with pytest.raises(Doc4ContractError, match="request_not_authorized"):
         transport.count_input_tokens(unauthorized)
+    with pytest.raises(Doc4ContractError, match="request_not_authorized"):
+        transport.submit(bodies[0])
     assert len(sessions) == 2
 
 

@@ -138,16 +138,16 @@ class OpenAiDoc4Transport:
         authorization: dict[str, Any],
         expected_source_sha256_by_safe_id: dict[str, dict[str, str]],
         expected_run_plan_sha256: str,
-        authorized_request_sha256s: frozenset[str],
+        authorized_request_keys: frozenset[str],
         timeout_seconds: int = REQUEST_TIMEOUT_SECONDS,
     ) -> None:
-        if not authorized_request_sha256s or any(
-            not re.fullmatch(r"[0-9a-f]{64}", item)
-            for item in authorized_request_sha256s
+        if not authorized_request_keys or any(
+            not re.fullmatch(r"/responses(?:/input_tokens)?:[0-9a-f]{64}", item)
+            for item in authorized_request_keys
         ):
             raise Doc4ContractError("provider_authorized_request_set_invalid")
         request_set_sha256 = sha256_bytes(
-            canonical_json_bytes(sorted(authorized_request_sha256s))
+            canonical_json_bytes(sorted(authorized_request_keys))
         )
         validate_provider_authorization(
             authorization,
@@ -162,7 +162,7 @@ class OpenAiDoc4Transport:
             raise Doc4ContractError("provider_api_key_missing")
         self.connection = connection
         self.timeout_seconds = timeout_seconds
-        self.authorized_request_sha256s = authorized_request_sha256s
+        self.authorized_request_keys = authorized_request_keys
 
     def count_input_tokens(self, request_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         body = _token_count_body(request_body)
@@ -184,7 +184,7 @@ class OpenAiDoc4Transport:
     def _post(self, suffix: str, body: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         encoded = canonical_json_bytes(body)
         request_sha256 = sha256_bytes(encoded)
-        if request_sha256 not in self.authorized_request_sha256s:
+        if f"{suffix}:{request_sha256}" not in self.authorized_request_keys:
             raise Doc4ContractError("provider_outbound_request_not_authorized")
         _assert_outbound_provider_policy(body)
         last_error: Exception | None = None
@@ -471,7 +471,7 @@ def build_arm_request(
     return request
 
 
-def authorized_request_sha256s(
+def authorized_request_keys(
     *,
     candidate: ModelCandidate,
     sources: list[CorpusSource],
@@ -483,7 +483,7 @@ def authorized_request_sha256s(
 ) -> frozenset[str]:
     """Freeze the only request bodies the private DOC4 transport may send."""
 
-    digests: set[str] = set()
+    keys: set[str] = set()
     for source in sources:
         for source_mode, payload, filename, wrapper in (
             ("PDF", source.pdf_path.read_bytes(), f"{source.safe_id}.pdf", pdf_wrapper),
@@ -504,9 +504,12 @@ def authorized_request_sha256s(
                 source_wrapper=wrapper,
                 response_schema=response_schema,
             )
-            digests.add(sha256_bytes(canonical_json_bytes(request)))
-            digests.update(
-                sha256_bytes(canonical_json_bytes(item))
+            keys.add(
+                "/responses:" + sha256_bytes(canonical_json_bytes(request))
+            )
+            keys.update(
+                "/responses/input_tokens:"
+                + sha256_bytes(canonical_json_bytes(item))
                 for item in _context_count_stages(
                     candidate=candidate,
                     source_mode=source_mode,
@@ -518,7 +521,7 @@ def authorized_request_sha256s(
                     response_schema=response_schema,
                 )
             )
-    return frozenset(digests)
+    return frozenset(keys)
 
 
 def view_pointer_registry(view_text: str) -> ViewPointerRegistry:
