@@ -15,6 +15,7 @@ from .pdf_view_semantic_contracts import (
     Doc4ContractError,
     ViewPointerRegistry,
     canonical_json_bytes,
+    decode_provider_response_payload,
     extract_structured_response,
     integrity_sha256,
     sha256_bytes,
@@ -1156,10 +1157,13 @@ def validate_doc4_context_preflight(
                 call_receipts, expected_counts, strict=True
             ):
                 raw_payload = call.get("raw_payload")
+                response_payload = _provider_payload_from_metadata(call)
                 if (
                     not isinstance(raw_payload, dict)
                     or call.get("raw_payload_sha256")
                     != sha256_bytes(canonical_json_bytes(raw_payload))
+                    or canonical_json_bytes(response_payload)
+                    != canonical_json_bytes(raw_payload)
                     or raw_payload.get("input_tokens") != expected_count
                 ):
                     raise Doc4ContractError(
@@ -1225,6 +1229,10 @@ def _validate_terminal_arm_evidence(
             canonical_json_bytes(raw_payload)
         ):
             raise Doc4ContractError("terminal_run_trace_raw_payload_binding_invalid")
+        if canonical_json_bytes(_provider_payload_from_metadata(metadata)) != (
+            canonical_json_bytes(raw_payload)
+        ):
+            raise Doc4ContractError("terminal_run_trace_http_payload_binding_invalid")
         validation_error = attempt.get("validation_error")
         if index < len(attempts) - 1:
             if not isinstance(validation_error, str) or not validation_error:
@@ -1265,6 +1273,15 @@ def _validate_provider_call_metadata(
         valid = valid and value.get("resolved_model") == expected_model_id
     if not valid:
         raise Doc4ContractError("terminal_provider_call_metadata_invalid")
+    _provider_payload_from_metadata(value)
+
+
+def _provider_payload_from_metadata(value: dict[str, Any]) -> dict[str, Any]:
+    return decode_provider_response_payload(
+        value.get("response_body_base64"),
+        expected_sha256=value.get("response_sha256"),
+        expected_bytes=value.get("response_bytes"),
+    )
 
 
 def _is_sha256(value: Any) -> bool:

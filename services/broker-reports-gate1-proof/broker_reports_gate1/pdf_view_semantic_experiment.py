@@ -239,6 +239,9 @@ class OpenAiDoc4Transport:
                 "request_sha256": request_sha256,
                 "response_sha256": sha256_bytes(response.content),
                 "response_bytes": len(response.content),
+                "response_body_base64": base64.b64encode(
+                    response.content
+                ).decode("ascii"),
                 "duration_seconds": round(duration, 3),
             }
         raise Doc4ContractError("provider_transport_failed") from last_error

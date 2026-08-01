@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -149,6 +150,29 @@ def extract_structured_response(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise Doc4ContractError("provider_structured_root_invalid")
     return value
+
+
+def decode_provider_response_payload(
+    response_body_base64: Any,
+    *,
+    expected_sha256: Any,
+    expected_bytes: Any,
+) -> dict[str, Any]:
+    if not isinstance(response_body_base64, str):
+        raise Doc4ContractError("provider_response_body_missing")
+    try:
+        body = base64.b64decode(response_body_base64, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise Doc4ContractError("provider_response_body_base64_invalid") from exc
+    if len(body) != expected_bytes or sha256_bytes(body) != expected_sha256:
+        raise Doc4ContractError("provider_response_body_binding_invalid")
+    try:
+        payload = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Doc4ContractError("provider_response_body_json_invalid") from exc
+    if not isinstance(payload, dict):
+        raise Doc4ContractError("provider_response_body_root_invalid")
+    return payload
 
 
 def integrity_sha256(value: Mapping[str, Any]) -> str:

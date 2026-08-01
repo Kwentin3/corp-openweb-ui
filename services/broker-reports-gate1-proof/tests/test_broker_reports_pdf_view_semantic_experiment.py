@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import base64
 import copy
 import json
 from dataclasses import FrozenInstanceError, asdict
@@ -1084,14 +1085,17 @@ def _provider_call_metadata(
     raw_payload: dict[str, Any] | None = None,
     include_raw_payload: bool = False,
 ) -> dict[str, Any]:
+    response_payload = raw_payload or {"ok": True}
+    response_body = canonical_json_bytes(response_payload)
     value: dict[str, Any] = {
         "http_status": 200,
         "attempts_total": 1,
         "transport_retries_total": 0,
         "http_session_scope": "ONE_REQUEST_NO_REUSE",
         "request_sha256": request_sha256,
-        "response_sha256": "a" * 64,
-        "response_bytes": 20,
+        "response_sha256": sha256_bytes(response_body),
+        "response_bytes": len(response_body),
+        "response_body_base64": base64.b64encode(response_body).decode("ascii"),
         "duration_seconds": 0.01,
     }
     if resolved_model is not None:
