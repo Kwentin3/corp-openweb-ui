@@ -50,9 +50,9 @@
         "noncritical_matches_total": {"type": "integer", "minimum": 0},
         "noncritical_match_rate": {"type": "string", "pattern": "^(?:0\\.\\d{6}|1\\.000000)$"},
         "conflicts_total": {"type": "integer", "minimum": 0},
-        "both_wrong_counted_as_match": {"const": false}
+        "agreement_requires_source_adjudication": {"const": true}
       },
-      "required": ["items_total", "match_exact_total", "match_normalized_total", "critical_items_total", "critical_matches_total", "critical_match_rate", "noncritical_items_total", "noncritical_matches_total", "noncritical_match_rate", "conflicts_total", "both_wrong_counted_as_match"]
+      "required": ["items_total", "match_exact_total", "match_normalized_total", "critical_items_total", "critical_matches_total", "critical_match_rate", "noncritical_items_total", "noncritical_matches_total", "noncritical_match_rate", "conflicts_total", "agreement_requires_source_adjudication"]
     }
   }
 }

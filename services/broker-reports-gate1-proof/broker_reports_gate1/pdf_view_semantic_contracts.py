@@ -98,6 +98,8 @@ class ViewPointerRegistry:
     block_anchor_ids: Mapping[str, frozenset[str]]
     tables: Mapping[str, tuple[str, tuple[int, ...]]]
     block_types: Mapping[str, str] | None = None
+    block_text_by_id: Mapping[str, str] | None = None
+    table_cells_by_block_id: Mapping[str, tuple[tuple[str, ...], ...]] | None = None
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -161,6 +163,7 @@ def validate_semantic_response(
     *,
     expected_source_mode: str,
     pdf_pages_total: int | None = None,
+    pdf_page_texts: tuple[str, ...] | None = None,
     view_registry: ViewPointerRegistry | None = None,
 ) -> dict[str, Any]:
     validate_json_contract(value, schema, label="semantic_response")
@@ -181,7 +184,9 @@ def validate_semantic_response(
             item["evidence"],
             expected_source_mode=expected_source_mode,
             pdf_pages_total=pdf_pages_total,
+            pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
+            source_literal=item.get("source_literal"),
         )
     for item in value["document_structure"]:
         _validate_status_item(item, critical=item["type"] in {"TABLE", "TABLE_ROW"})
@@ -189,7 +194,9 @@ def validate_semantic_response(
             item["evidence"],
             expected_source_mode=expected_source_mode,
             pdf_pages_total=pdf_pages_total,
+            pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
+            source_literal=item.get("source_literal"),
         )
     for item in value["tables"]:
         _validate_status_item(item, critical=True)
@@ -197,7 +204,9 @@ def validate_semantic_response(
             item["evidence"],
             expected_source_mode=expected_source_mode,
             pdf_pages_total=pdf_pages_total,
+            pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
+            source_literal=item.get("source_literal"),
         )
     for item in value["financial_facts"]:
         if item["fact_kind"] in CRITICAL_FACT_KINDS and item["critical"] is not True:
@@ -212,19 +221,24 @@ def validate_semantic_response(
             item["evidence"],
             expected_source_mode=expected_source_mode,
             pdf_pages_total=pdf_pages_total,
+            pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
+            source_literal=item.get("source_literal"),
+            require_cell_literal_match=True,
         )
     for item in value["uncertainties"]:
         _validate_pointers(
             item["evidence"],
             expected_source_mode=expected_source_mode,
             pdf_pages_total=pdf_pages_total,
+            pdf_page_texts=pdf_page_texts,
             view_registry=view_registry,
         )
     _validate_pointers(
         value["source_quality"]["evidence"],
         expected_source_mode=expected_source_mode,
         pdf_pages_total=pdf_pages_total,
+        pdf_page_texts=pdf_page_texts,
         view_registry=view_registry,
     )
     return value
@@ -235,6 +249,9 @@ def validate_provider_authorization(
     *,
     expected_provider: str,
     expected_model_id: str,
+    expected_source_sha256_by_safe_id: Mapping[str, Mapping[str, str]],
+    expected_run_plan_sha256: str,
+    expected_request_set_sha256: str,
 ) -> None:
     required = {
         "schema_version",
@@ -244,6 +261,9 @@ def validate_provider_authorization(
         "authorized_provider",
         "authorized_model",
         "authorized_purpose",
+        "authorized_source_sha256_by_safe_id",
+        "authorized_run_plan_sha256",
+        "authorized_request_set_sha256",
         "store",
         "integrity_sha256",
     }
@@ -266,6 +286,34 @@ def validate_provider_authorization(
         raise Doc4ContractError("provider_transfer_not_authorized")
     if value["authorized_documents"] != list(CORPUS_IDS):
         raise Doc4ContractError("provider_authorization_document_scope_invalid")
+    source_hashes = value["authorized_source_sha256_by_safe_id"]
+    if set(expected_source_sha256_by_safe_id) != set(CORPUS_IDS):
+        raise Doc4ContractError("provider_authorization_expected_source_scope_invalid")
+    expected_hashes = {
+        safe_id: {
+            "pdf_sha256": expected_source_sha256_by_safe_id[safe_id]["pdf_sha256"],
+            "llm_view_sha256": expected_source_sha256_by_safe_id[safe_id][
+                "llm_view_sha256"
+            ],
+        }
+        for safe_id in CORPUS_IDS
+    }
+    if source_hashes != expected_hashes or any(
+        not _SHA256.fullmatch(digest)
+        for binding in expected_hashes.values()
+        for digest in binding.values()
+    ):
+        raise Doc4ContractError("provider_authorization_source_hash_scope_invalid")
+    if (
+        value["authorized_run_plan_sha256"] != expected_run_plan_sha256
+        or not _SHA256.fullmatch(expected_run_plan_sha256)
+    ):
+        raise Doc4ContractError("provider_authorization_run_plan_invalid")
+    if (
+        value["authorized_request_set_sha256"] != expected_request_set_sha256
+        or not _SHA256.fullmatch(expected_request_set_sha256)
+    ):
+        raise Doc4ContractError("provider_authorization_request_set_invalid")
     if value["integrity_sha256"] != integrity_sha256(value):
         raise Doc4ContractError("provider_authorization_integrity_invalid")
 
@@ -341,7 +389,10 @@ def _validate_pointers(
     *,
     expected_source_mode: str,
     pdf_pages_total: int | None,
+    pdf_page_texts: tuple[str, ...] | None,
     view_registry: ViewPointerRegistry | None,
+    source_literal: str | None = None,
+    require_cell_literal_match: bool = False,
 ) -> None:
     for pointer in pointers:
         if pointer["source_mode"] != expected_source_mode:
@@ -355,6 +406,11 @@ def _validate_pointers(
                 raise Doc4ContractError("pdf_pointer_page_out_of_range")
             if not isinstance(evidence_text, str) or not evidence_text or len(evidence_text) > 160:
                 raise Doc4ContractError("pdf_pointer_evidence_text_invalid")
+            if pdf_page_texts is not None:
+                if page > len(pdf_page_texts) or not _text_contains(
+                    pdf_page_texts[page - 1], evidence_text
+                ):
+                    raise Doc4ContractError("pdf_pointer_evidence_not_on_page")
             if any(pointer[name] is not None for name in ("block_id", "anchor_id", "table_id", "row_index", "column_index")):
                 raise Doc4ContractError("pdf_pointer_contains_view_coordinates")
         else:
@@ -374,6 +430,11 @@ def _validate_pointers(
             if table_id is None:
                 if row_index is not None or column_index is not None:
                     raise Doc4ContractError("view_pointer_table_coordinates_without_table")
+                if source_literal and view_registry.block_text_by_id is not None:
+                    if not _text_contains(
+                        view_registry.block_text_by_id.get(block_id, ""), source_literal
+                    ):
+                        raise Doc4ContractError("view_pointer_literal_not_in_block")
                 continue
             table = view_registry.tables.get(block_id)
             if table is None or table[0] != table_id:
@@ -385,6 +446,27 @@ def _validate_pointers(
                 raise Doc4ContractError("view_pointer_row_index_invalid")
             if column_index < 0 or column_index >= row_lengths[row_index]:
                 raise Doc4ContractError("view_pointer_column_index_invalid")
+            if source_literal and view_registry.block_text_by_id is not None:
+                if not _text_contains(
+                    view_registry.block_text_by_id.get(block_id, ""), source_literal
+                ):
+                    raise Doc4ContractError("view_pointer_literal_not_in_block")
+            if (
+                require_cell_literal_match
+                and source_literal
+                and view_registry.table_cells_by_block_id is not None
+            ):
+                cells = view_registry.table_cells_by_block_id.get(block_id)
+                if cells is None or not _text_contains(
+                    cells[row_index][column_index], source_literal
+                ):
+                    raise Doc4ContractError("view_pointer_literal_not_in_cell")
+
+
+def _text_contains(container: str, excerpt: str) -> bool:
+    normalized_container = " ".join(container.casefold().split())
+    normalized_excerpt = " ".join(excerpt.casefold().split())
+    return bool(normalized_excerpt and normalized_excerpt in normalized_container)
 
 
 def _require_unique_ids(value: dict[str, Any]) -> None:

@@ -22,9 +22,11 @@ from broker_reports_gate1.pdf_view_semantic_contracts import (
     RUN_ORDER,
     Doc4ContractError,
     ViewPointerRegistry,
+    canonical_json_bytes,
     integrity_sha256,
     normalize_date_literal,
     normalize_decimal_literal,
+    sha256_bytes,
     validate_provider_authorization,
     validate_schema_document,
     validate_semantic_response,
@@ -113,6 +115,58 @@ def test_05_pdf_page_and_view_registry_coordinates_fail_closed(response_schema: 
         validate_semantic_response(view, response_schema, expected_source_mode="LLM_VIEW", view_registry=registry)
 
 
+def test_05b_source_pointer_evidence_is_grounded(response_schema: dict[str, Any]) -> None:
+    pdf = _response("PDF")
+    validate_semantic_response(
+        pdf,
+        response_schema,
+        expected_source_mode="PDF",
+        pdf_pages_total=1,
+        pdf_page_texts=("Synthetic evidence",),
+    )
+    pdf["financial_facts"][0]["evidence"][0]["evidence_text"] = "fabricated excerpt"
+    with pytest.raises(Doc4ContractError, match="evidence_not_on_page"):
+        validate_semantic_response(
+            pdf,
+            response_schema,
+            expected_source_mode="PDF",
+            pdf_pages_total=1,
+            pdf_page_texts=("Synthetic evidence",),
+        )
+
+    view = _response("LLM_VIEW")
+    literals = " ".join(
+        str(item.get("source_literal") or "")
+        for collection in ("document_passport", "document_structure", "tables", "financial_facts")
+        for item in view[collection]
+    )
+    grounded_registry = ViewPointerRegistry(
+        block_anchor_ids={"block_para": frozenset({"anchor_para"}), "block_table": frozenset({"anchor_table"})},
+        tables={"block_table": ("table_source", (2,))},
+        block_text_by_id={"block_para": literals, "block_table": literals},
+        table_cells_by_block_id={"block_table": (("10.00 USD", "other"),)},
+    )
+    validate_semantic_response(
+        view,
+        response_schema,
+        expected_source_mode="LLM_VIEW",
+        view_registry=grounded_registry,
+    )
+    grounded_registry = ViewPointerRegistry(
+        block_anchor_ids=grounded_registry.block_anchor_ids,
+        tables=grounded_registry.tables,
+        block_text_by_id=grounded_registry.block_text_by_id,
+        table_cells_by_block_id={"block_table": (("not cited", "other"),)},
+    )
+    with pytest.raises(Doc4ContractError, match="literal_not_in_cell"):
+        validate_semantic_response(
+            view,
+            response_schema,
+            expected_source_mode="LLM_VIEW",
+            view_registry=grounded_registry,
+        )
+
+
 def test_06_view_table_row_and_column_are_bounded(response_schema: dict[str, Any]) -> None:
     view = _response("LLM_VIEW")
     pointer = view["financial_facts"][0]["evidence"][0]
@@ -194,16 +248,21 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
 
 def test_11_authorization_gate_requires_exact_operator_scope() -> None:
     authorization = _authorization()
-    validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
+    _validate_authorization(authorization)
     authorization["authorized_documents"] = ["real_pdf_1"]
     authorization["integrity_sha256"] = integrity_sha256(authorization)
     with pytest.raises(Doc4ContractError, match="document_scope_invalid"):
-        validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
+        _validate_authorization(authorization)
     authorization = _authorization()
     authorization["store"] = True
     authorization["integrity_sha256"] = integrity_sha256(authorization)
     with pytest.raises(Doc4ContractError, match="not_authorized"):
-        validate_provider_authorization(authorization, expected_provider="openai", expected_model_id=REQUEST_MODEL_ID)
+        _validate_authorization(authorization)
+    authorization = _authorization()
+    authorization["authorized_source_sha256_by_safe_id"]["real_pdf_5"]["pdf_sha256"] = "e" * 64
+    authorization["integrity_sha256"] = integrity_sha256(authorization)
+    with pytest.raises(Doc4ContractError, match="source_hash_scope_invalid"):
+        _validate_authorization(authorization)
 
 
 def test_12_gold_is_sealed_only_before_calls_and_with_complete_critical_ids() -> None:
@@ -372,14 +431,40 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
             return FakeResponse()
 
     monkeypatch.setattr("broker_reports_gate1.pdf_view_semantic_experiment.requests.Session", FakeSession)
+    bodies = [
+        {
+            "model": REQUEST_MODEL_ID,
+            "input": value,
+            "reasoning": {"effort": "none"},
+            "temperature": 0,
+            "top_p": 1,
+            "tools": [],
+            "store": False,
+        }
+        for value in ("one", "two")
+    ]
+    request_sha256s = frozenset(
+        sha256_bytes(canonical_json_bytes(item)) for item in bodies
+    )
+    request_set_sha256 = sha256_bytes(
+        canonical_json_bytes(sorted(request_sha256s))
+    )
     transport = OpenAiDoc4Transport(
         ProviderConnection(base_url="https://api.openai.com/v1", api_key="safe-test-key"),
-        authorization=_authorization(),
+        authorization=_authorization(request_set_sha256=request_set_sha256),
+        expected_source_sha256_by_safe_id=_source_hashes(),
+        expected_run_plan_sha256="c" * 64,
+        authorized_request_sha256s=request_sha256s,
     )
-    transport.count_input_tokens({"model": REQUEST_MODEL_ID, "input": "one"})
-    transport.count_input_tokens({"model": REQUEST_MODEL_ID, "input": "two"})
+    transport.count_input_tokens(bodies[0])
+    transport.count_input_tokens(bodies[1])
     assert len(sessions) == 2
     assert sessions[0] is not sessions[1]
+    unauthorized = copy.deepcopy(bodies[0])
+    unauthorized["store"] = True
+    with pytest.raises(Doc4ContractError, match="request_not_authorized"):
+        transport.count_input_tokens(unauthorized)
+    assert len(sessions) == 2
 
 
 def test_24_security_pair_is_deterministic_complete_and_contains_literal_injections() -> None:
@@ -405,6 +490,11 @@ def test_25_schema_retry_replays_the_exact_request_once(response_schema: dict[st
     invalid = _response("PDF")
     invalid["source_mode"] = "LLM_VIEW"
     responses = iter((invalid, _response("PDF")))
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Synthetic evidence")
+    pdf_source = document.tobytes(garbage=4, deflate=True, no_new_id=True)
+    document.close()
 
     class FakeTransport:
         def submit(self, request: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -422,7 +512,7 @@ def test_25_schema_retry_replays_the_exact_request_once(response_schema: dict[st
     response, trace = PdfViewSemanticExperimentRunner().execute_arm(  # type: ignore[arg-type]
         transport=FakeTransport(),
         source_mode="PDF",
-        source=b"%PDF-1.4\n%%EOF\n",
+        source=pdf_source,
         filename="safe.pdf",
         system_prompt="system",
         task_prompt="task",
@@ -506,10 +596,28 @@ def _view_registry() -> ViewPointerRegistry:
     return ViewPointerRegistry(block_anchor_ids={"block_para": frozenset({"anchor_para"}), "block_table": frozenset({"anchor_table"})}, tables={"block_table": ("table_source", (2,))})
 
 
-def _authorization() -> dict[str, Any]:
-    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v1", "authorized_by": "PROJECT_OPERATOR", "authorization_status": "APPROVED", "authorized_documents": list(CORPUS_IDS), "authorized_provider": "OpenAI API", "authorized_model": REQUEST_MODEL_ID, "authorized_purpose": "DOC4 semantic equivalence experiment", "store": False, "integrity_sha256": ""}
+def _source_hashes() -> dict[str, dict[str, str]]:
+    return {
+        safe_id: {"pdf_sha256": "a" * 64, "llm_view_sha256": "b" * 64}
+        for safe_id in CORPUS_IDS
+    }
+
+
+def _authorization(*, request_set_sha256: str = "d" * 64) -> dict[str, Any]:
+    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v1", "authorized_by": "PROJECT_OPERATOR", "authorization_status": "APPROVED", "authorized_documents": list(CORPUS_IDS), "authorized_provider": "OpenAI API", "authorized_model": REQUEST_MODEL_ID, "authorized_purpose": "DOC4 semantic equivalence experiment", "authorized_source_sha256_by_safe_id": _source_hashes(), "authorized_run_plan_sha256": "c" * 64, "authorized_request_set_sha256": request_set_sha256, "store": False, "integrity_sha256": ""}
     value["integrity_sha256"] = integrity_sha256(value)
     return value
+
+
+def _validate_authorization(value: dict[str, Any]) -> None:
+    validate_provider_authorization(
+        value,
+        expected_provider="openai",
+        expected_model_id=REQUEST_MODEL_ID,
+        expected_source_sha256_by_safe_id=_source_hashes(),
+        expected_run_plan_sha256="c" * 64,
+        expected_request_set_sha256="d" * 64,
+    )
 
 
 def _gold_draft() -> dict[str, Any]:

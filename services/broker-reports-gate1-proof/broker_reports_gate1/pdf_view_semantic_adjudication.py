@@ -88,7 +88,7 @@ class PdfViewSemanticComparator:
                     len(noncritical_items),
                 ),
                 "conflicts_total": sum(item["category"] not in matching for item in items),
-                "both_wrong_counted_as_match": False,
+                "agreement_requires_source_adjudication": True,
             },
             "integrity_sha256": "",
         }
@@ -605,10 +605,48 @@ def _adjudication_metrics(
             "both_arms_wrong_total": sum(item["both_wrong"] for item in findings),
             "invalid_source_pointers_total": sum(item["invalid_pointer"] for item in findings),
             "critical_stability_conflicts_total": critical_stability_conflicts_total,
+            "critical_cross_arm_correct_matches_total": sum(
+                item["critical"]
+                and item["pdf_arm_correct"]
+                and item["view_arm_correct"]
+                and item["comparison_category"]
+                in {"MATCH_EXACT", "MATCH_NORMALIZED"}
+                for item in findings
+            ),
+            "critical_cross_arm_correct_match_rate": _rate(
+                sum(
+                    item["critical"]
+                    and item["pdf_arm_correct"]
+                    and item["view_arm_correct"]
+                    and item["comparison_category"]
+                    in {"MATCH_EXACT", "MATCH_NORMALIZED"}
+                    for item in findings
+                ),
+                sum(item["critical"] for item in findings),
+            ),
+            "noncritical_cross_arm_correct_matches_total": sum(
+                not item["critical"]
+                and item["pdf_arm_correct"]
+                and item["view_arm_correct"]
+                and item["comparison_category"]
+                in {"MATCH_EXACT", "MATCH_NORMALIZED"}
+                for item in findings
+            ),
+            "noncritical_cross_arm_correct_match_rate": _rate(
+                sum(
+                    not item["critical"]
+                    and item["pdf_arm_correct"]
+                    and item["view_arm_correct"]
+                    and item["comparison_category"]
+                    in {"MATCH_EXACT", "MATCH_NORMALIZED"}
+                    for item in findings
+                ),
+                sum(not item["critical"] for item in findings),
+            ),
         }
     )
-    if comparison["metrics"]["both_wrong_counted_as_match"] is not False:
-        raise Doc4ContractError("comparison_both_wrong_policy_invalid")
+    if comparison["metrics"]["agreement_requires_source_adjudication"] is not True:
+        raise Doc4ContractError("comparison_adjudication_policy_invalid")
     return metrics
 
 
@@ -651,14 +689,15 @@ def _semantic_equivalence(
     ):
         return "FAILED"
     comparison_metrics = comparison["metrics"]
-    if comparison_metrics["conflicts_total"] == 0:
-        return "PASSED_STRICT"
-    total = comparison_metrics["noncritical_items_total"]
-    matches = comparison_metrics["noncritical_matches_total"]
     if (
-        comparison_metrics["critical_matches_total"] == comparison_metrics["critical_items_total"]
-        and total > 0
-        and matches / total >= 0.95
+        comparison_metrics["conflicts_total"] == 0
+        and metrics["critical_cross_arm_correct_match_rate"] == "1.000000"
+        and metrics["noncritical_cross_arm_correct_match_rate"] == "1.000000"
+    ):
+        return "PASSED_STRICT"
+    if (
+        metrics["critical_cross_arm_correct_match_rate"] == "1.000000"
+        and float(metrics["noncritical_cross_arm_correct_match_rate"]) >= 0.95
     ):
         return "PASSED_WITH_NONCRITICAL_VARIANCE"
     return "FAILED"

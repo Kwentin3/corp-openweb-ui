@@ -4,15 +4,21 @@ import base64
 import copy
 import json
 import os
+import re
 import time
 from dataclasses import asdict, dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
+from jsonschema import Draft202012Validator
 from pypdf import PdfReader
 
+from .managed_document_contracts import ManagedDocumentContractValidator
+from .managed_document_coverage import canonical_sha256 as coverage_integrity_sha256
+from .managed_document_llm_view import ManagedDocumentLlmViewFactory
 from .managed_document_llm_view_audit import ManagedDocumentLlmViewAuditor
 from .pdf_view_semantic_contracts import (
     CORPUS_IDS,
@@ -47,6 +53,34 @@ PDF_DETAIL = "high"
 REASONING_EFFORT = "none"
 TEMPERATURE = 0
 TOP_P = 1
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+MANAGED_DOCUMENT_SCHEMA_PATH = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_MANAGED_DOCUMENT.v1.schema.json"
+)
+MANAGED_DOCUMENT_COVERAGE_SCHEMA_PATH = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_MANAGED_DOCUMENT_COVERAGE.v1.schema.json"
+)
+LLM_VIEW_RECEIPT_SCHEMA_PATH = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_LLM_DOCUMENT_VIEW_RECEIPT.v1.schema.json"
+)
+DOC1_TO_DOC3_FIELD_COVERAGE_PATH = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "BROKER_REPORTS_DOC1_TO_DOC3_VIEW_COVERAGE.v1.json"
+)
 
 
 @dataclass(frozen=True)
@@ -102,18 +136,33 @@ class OpenAiDoc4Transport:
         connection: ProviderConnection,
         *,
         authorization: dict[str, Any],
+        expected_source_sha256_by_safe_id: dict[str, dict[str, str]],
+        expected_run_plan_sha256: str,
+        authorized_request_sha256s: frozenset[str],
         timeout_seconds: int = REQUEST_TIMEOUT_SECONDS,
     ) -> None:
+        if not authorized_request_sha256s or any(
+            not re.fullmatch(r"[0-9a-f]{64}", item)
+            for item in authorized_request_sha256s
+        ):
+            raise Doc4ContractError("provider_authorized_request_set_invalid")
+        request_set_sha256 = sha256_bytes(
+            canonical_json_bytes(sorted(authorized_request_sha256s))
+        )
         validate_provider_authorization(
             authorization,
             expected_provider=MODEL_PROVIDER,
             expected_model_id=REQUEST_MODEL_ID,
+            expected_source_sha256_by_safe_id=expected_source_sha256_by_safe_id,
+            expected_run_plan_sha256=expected_run_plan_sha256,
+            expected_request_set_sha256=request_set_sha256,
         )
         _validate_openai_base_url(connection.base_url)
         if not connection.api_key:
             raise Doc4ContractError("provider_api_key_missing")
         self.connection = connection
         self.timeout_seconds = timeout_seconds
+        self.authorized_request_sha256s = authorized_request_sha256s
 
     def count_input_tokens(self, request_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         body = _token_count_body(request_body)
@@ -134,6 +183,10 @@ class OpenAiDoc4Transport:
 
     def _post(self, suffix: str, body: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         encoded = canonical_json_bytes(body)
+        request_sha256 = sha256_bytes(encoded)
+        if request_sha256 not in self.authorized_request_sha256s:
+            raise Doc4ContractError("provider_outbound_request_not_authorized")
+        _assert_outbound_provider_policy(body)
         last_error: Exception | None = None
         for attempt in range(TRANSPORT_RETRIES_MAX + 1):
             started = time.perf_counter()
@@ -175,7 +228,7 @@ class OpenAiDoc4Transport:
                 "attempts_total": attempt + 1,
                 "transport_retries_total": attempt,
                 "http_session_scope": "ONE_REQUEST_NO_REUSE",
-                "request_sha256": sha256_bytes(encoded),
+                "request_sha256": request_sha256,
                 "response_sha256": sha256_bytes(response.content),
                 "response_bytes": len(response.content),
                 "duration_seconds": round(duration, 3),
@@ -326,6 +379,7 @@ class PdfViewSemanticExperimentRunner:
         )
         attempts: list[dict[str, Any]] = []
         first_error: str | None = None
+        page_texts = pdf_page_texts(source) if source_mode == "PDF" else None
         for schema_attempt in range(SCHEMA_RETRIES_MAX + 1):
             response, metadata = transport.submit(copy.deepcopy(request_body))
             raw_payload = metadata.pop("raw_payload")
@@ -335,6 +389,7 @@ class PdfViewSemanticExperimentRunner:
                     response_schema,
                     expected_source_mode=source_mode,
                     pdf_pages_total=pdf_pages_total,
+                    pdf_page_texts=page_texts,
                     view_registry=view_registry,
                 )
             except Doc4ContractError as exc:
@@ -416,14 +471,69 @@ def build_arm_request(
     return request
 
 
+def authorized_request_sha256s(
+    *,
+    candidate: ModelCandidate,
+    sources: list[CorpusSource],
+    system_prompt: str,
+    task_prompt: str,
+    pdf_wrapper: str,
+    view_wrapper: str,
+    response_schema: dict[str, Any],
+) -> frozenset[str]:
+    """Freeze the only request bodies the private DOC4 transport may send."""
+
+    digests: set[str] = set()
+    for source in sources:
+        for source_mode, payload, filename, wrapper in (
+            ("PDF", source.pdf_path.read_bytes(), f"{source.safe_id}.pdf", pdf_wrapper),
+            (
+                "LLM_VIEW",
+                source.llm_view_path.read_text(encoding="utf-8"),
+                f"{source.safe_id}.txt",
+                view_wrapper,
+            ),
+        ):
+            request = build_arm_request(
+                candidate=candidate,
+                source_mode=source_mode,
+                source=payload,
+                filename=filename,
+                system_prompt=system_prompt,
+                task_prompt=task_prompt,
+                source_wrapper=wrapper,
+                response_schema=response_schema,
+            )
+            digests.add(sha256_bytes(canonical_json_bytes(request)))
+            digests.update(
+                sha256_bytes(canonical_json_bytes(item))
+                for item in _context_count_stages(
+                    candidate=candidate,
+                    source_mode=source_mode,
+                    source=payload,
+                    filename=filename,
+                    system_prompt=system_prompt,
+                    task_prompt=task_prompt,
+                    source_wrapper=wrapper,
+                    response_schema=response_schema,
+                )
+            )
+    return frozenset(digests)
+
+
 def view_pointer_registry(view_text: str) -> ViewPointerRegistry:
     payload = ManagedDocumentLlmViewAuditor().audit(view_text).payload
     block_anchors: dict[str, frozenset[str]] = {}
     tables: dict[str, tuple[str, tuple[int, ...]]] = {}
     block_types: dict[str, str] = {}
+    block_text_by_id: dict[str, str] = {}
+    table_cells_by_block_id: dict[str, tuple[tuple[str, ...], ...]] = {}
     for block in payload["blocks"]:
         block_id = block["block_id"]
         block_types[block_id] = block["block_type"]
+        block_text_by_id[block_id] = json.dumps(
+            block.get("content"), ensure_ascii=False, sort_keys=True
+        )
         block_anchors[block_id] = frozenset(
             item["anchor_id"] for item in block.get("source", [])
         )
@@ -434,10 +544,15 @@ def view_pointer_registry(view_text: str) -> ViewPointerRegistry:
                 content["table_id"],
                 tuple(len(row) for row in rows),
             )
+            table_cells_by_block_id[block_id] = tuple(
+                tuple(str(cell) for cell in row) for row in rows
+            )
     return ViewPointerRegistry(
         block_anchor_ids=block_anchors,
         tables=tables,
         block_types=block_types,
+        block_text_by_id=block_text_by_id,
+        table_cells_by_block_id=table_cells_by_block_id,
     )
 
 
@@ -449,6 +564,17 @@ def pdf_pages_total(pdf_path: Path) -> int:
     if total < 1:
         raise Doc4ContractError("pdf_has_no_pages")
     return total
+
+
+def pdf_page_texts(source: bytes) -> tuple[str, ...]:
+    if not source.startswith(b"%PDF-"):
+        raise Doc4ContractError("pdf_text_source_invalid")
+    try:
+        return tuple(
+            page.extract_text() or "" for page in PdfReader(BytesIO(source), strict=True).pages
+        )
+    except Exception as exc:
+        raise Doc4ContractError("pdf_text_extraction_failed") from exc
 
 
 def write_immutable_json(path: Path, value: dict[str, Any]) -> str:
@@ -531,9 +657,44 @@ def _source_binding(source: CorpusSource) -> dict[str, Any]:
     pdf_sha = sha256_bytes(pdf_bytes)
     view_sha = sha256_bytes(view_bytes)
     managed = read_json(source.managed_document_path)
+    managed_schema = read_json(MANAGED_DOCUMENT_SCHEMA_PATH)
+    managed = ManagedDocumentContractValidator(managed_schema).validate(managed).payload
     managed_sha = sha256_bytes(_doc3_managed_input_bytes(managed))
     coverage = read_json(source.doc2_coverage_receipt_path)
     render = read_json(source.doc3_render_receipt_path)
+    _validate_external_schema(
+        coverage,
+        MANAGED_DOCUMENT_COVERAGE_SCHEMA_PATH,
+        label="doc2_coverage_receipt",
+    )
+    if coverage.get("integrity_sha256") != coverage_integrity_sha256(coverage):
+        raise Doc4ContractError(f"doc2_coverage_integrity_invalid:{source.safe_id}")
+    counters = coverage.get("counters", {})
+    entries = coverage.get("entries", [])
+    status_counts = {
+        status: sum(item.get("coverage_status") == status for item in entries)
+        for status in ("UNRESOLVED", "KNOWN_LOSS", "BLOCKED_AT_SOURCE")
+    }
+    if (
+        coverage.get("accepted") is not True
+        or coverage.get("document_id") != managed.get("document_id")
+        or counters.get("source_observations_total") != len(entries)
+        or counters.get("coverage_entries_total") != len(entries)
+        or counters.get("unresolved_total") != status_counts["UNRESOLVED"]
+        or counters.get("known_loss_total") != status_counts["KNOWN_LOSS"]
+        or counters.get("blocked_at_source_total")
+        != status_counts["BLOCKED_AT_SOURCE"]
+        or counters.get("unresolved_total") != 0
+        or counters.get("blocked_at_source_total") != 0
+        or counters.get("unaccounted_context_loss_total") != 0
+        or counters.get("invented_source_content_total") != 0
+    ):
+        raise Doc4ContractError(f"doc2_coverage_not_complete:{source.safe_id}")
+    _validate_external_schema(
+        render,
+        LLM_VIEW_RECEIPT_SCHEMA_PATH,
+        label="doc3_render_receipt",
+    )
     if managed.get("source", {}).get("checksum_sha256") != pdf_sha:
         raise Doc4ContractError(f"pdf_managed_source_identity_mismatch:{source.safe_id}")
     if coverage.get("source_checksum_sha256") != pdf_sha:
@@ -544,6 +705,14 @@ def _source_binding(source: CorpusSource) -> dict[str, Any]:
         raise Doc4ContractError(f"doc3_managed_input_identity_mismatch:{source.safe_id}")
     if render.get("output_view_sha256") != view_sha:
         raise Doc4ContractError(f"doc3_view_output_identity_mismatch:{source.safe_id}")
+    replay = ManagedDocumentLlmViewFactory().create(
+        managed_schema,
+        read_json(DOC1_TO_DOC3_FIELD_COVERAGE_PATH),
+    ).render(managed)
+    if replay.view_text.encode("utf-8") != view_bytes:
+        raise Doc4ContractError(f"doc3_view_replay_mismatch:{source.safe_id}")
+    if replay.receipt != render:
+        raise Doc4ContractError(f"doc3_receipt_replay_mismatch:{source.safe_id}")
     ManagedDocumentLlmViewAuditor().audit(view_bytes)
     return {
         "safe_id": source.safe_id,
@@ -568,6 +737,24 @@ def _doc3_managed_input_bytes(payload: dict[str, Any]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
+
+def _validate_external_schema(value: dict[str, Any], path: Path, *, label: str) -> None:
+    schema = read_json(path)
+    try:
+        Draft202012Validator.check_schema(schema)
+    except Exception as exc:
+        raise Doc4ContractError(f"{label}_schema_invalid") from exc
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(value),
+        key=lambda item: tuple(str(part) for part in item.absolute_path),
+    )
+    if errors:
+        first = errors[0]
+        location = "/".join(str(part) for part in first.absolute_path) or "$"
+        raise Doc4ContractError(
+            f"{label}_invalid:{location}:{first.validator}"
+        )
 
 
 def _context_count_stages(
@@ -624,6 +811,17 @@ def _context_count_stages(
 def _token_count_body(request_body: dict[str, Any]) -> dict[str, Any]:
     allowed = {"model", "instructions", "input", "reasoning", "temperature", "top_p", "text", "tools", "store"}
     return {key: copy.deepcopy(value) for key, value in request_body.items() if key in allowed}
+
+
+def _assert_outbound_provider_policy(request: dict[str, Any]) -> None:
+    if request.get("model") != REQUEST_MODEL_ID:
+        raise Doc4ContractError("provider_outbound_model_not_authorized")
+    if request.get("store") is not False or request.get("tools") != []:
+        raise Doc4ContractError("provider_outbound_tools_or_storage_not_authorized")
+    if request.get("reasoning") != {"effort": REASONING_EFFORT}:
+        raise Doc4ContractError("provider_outbound_reasoning_not_authorized")
+    if request.get("temperature") != TEMPERATURE or request.get("top_p") != TOP_P:
+        raise Doc4ContractError("provider_outbound_sampling_not_authorized")
 
 
 def _assert_request_isolation(request: dict[str, Any], *, source_mode: str) -> None:
