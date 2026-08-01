@@ -1,11 +1,14 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive DOC1 managed-document closure
+Status: canonical entry point after inactive DOC2 PDF managed-document closure
 
 Effective date: 2026-08-01
 
 DOC1 implementation merge:
 `c4fa86d8229bc8afdd88bfd0371a96d260790942`.
+
+DOC2 implementation merge:
+`0c986919296de16f42ec322400c85e5eee9914f1`.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -191,14 +194,41 @@ unknown metadata, conflicting values, and incomplete recovery remain explicit;
 
 All 53 DOC0 context facets are accounted for: 51 are represented directly and
 2 are represented through explicit unknown states. The safe fixture corpus is
-hand-authored synthetic evidence of contract expressiveness, not evidence that
-a real PDF normalizer exists. `REAL_CORPUS_GAP = TRUE` remains explicit.
+hand-authored synthetic evidence of contract expressiveness; the separate DOC2
+real-PDF proof closes the PDF real-corpus gap without changing DOC1.
 
 DOC1 added no parser, normalizer, renderer, product route, provider call,
 generated bundle, live change, financial type, Semantic Pack, Type-First,
-Gate 3, or Gate 4 behavior. DOC2, DOC3, and DOC6 have not started.
+Gate 3, or Gate 4 behavior. DOC2 is a later, separate inactive implementation;
+DOC3 and DOC6 have not started.
 
-## 13. KT2, DOC1, and next gates
+## 12.3 DOC2 inactive PDF managed-document builder
+
+DOC2 is complete at its inactive PDF boundary. `ManagedPdfDocumentFactory` is
+the single builder owner before the DOC0 `PdfLayoutUnitBuilder` loss point. It
+uses page, parser-block and parser-word order, inserts a table at its first
+owned word, and rejects ambiguous line/word/table ownership. The old page-local
+unit path is not reused as document authority.
+
+Five private real PDFs produced four valid `PARTIAL` Managed Documents and one
+terminal encrypted `BLOCKED` result. Across 1,207 source observations there are
+0 unresolved, 0 unaccounted losses, 0 invented content, and 0 order conflicts.
+Six native grids became validated `TABLE` blocks; 26 invalid regions remain
+source-bound `UNKNOWN` blocks with explicit structure losses. Table text is not
+duplicated into paragraphs.
+
+Four isolated PDF-only checklists, four artifact-only checklists, and four
+sealed comparisons all reached full parity. Critical and noncritical findings
+are zero. Two builds matched across all 38 private JSON outputs. The full proof
+is private; only aggregate sealed summaries and the dated closure package are
+in Git.
+
+DOC2 changes no DOC1 schema, product route, provider/model path, Knowledge/RAG,
+embedding/vector path, generated bundle, or live state. DOC3, DOC4,
+LLM-friendly rendering, real model qualification, and product activation have
+not started.
+
+## 13. KT2, DOC1, DOC2, and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
 complete at its inactive bounded-context and context-sufficiency boundary;
@@ -208,17 +238,18 @@ a separately authorized exact candidate and four-disposition live gate. Any
 product activation needs a later explicit product decision, fresh reachability
 review, governed release, rollback proof, and independent live readback.
 
-DOC1 is the mandatory contract input for a separately authorized DOC2. DOC1
-does not authorize implementing DOC2, reading real PDFs into the new contract,
-or rendering contract content for an LLM.
+DOC1 remains the contract authority. DOC2 now provides the separately reviewed
+inactive PDF builder and real-corpus coverage/parity proof. Neither goal
+authorizes rendering contract content for an LLM, model qualification, product
+reachability, activation, DOC3, or DOC4.
 
 ## 14. Forbidden shortcuts
 
 Do not activate Type-First, revive PR #232 or `source_fact_selection_v3`, use
 the PR #77 registry as authority, bypass factories, weaken terminal tests,
 infer current state from a historical receipt, edit generated bundles by hand,
-use customer/private bytes in Git, mutate live state, begin DOC2/DOC3/DOC6, or
-begin Gate 3/4 work.
+use customer/private bytes in Git, mutate live state, activate DOC2, begin
+DOC3/DOC4/DOC6, or begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED
@@ -250,6 +281,16 @@ UNACCOUNTED_CONTEXT_LOSS_ALLOWED = 0
 DOC0_CONTEXT_FACETS_UNACCOUNTED = 0
 CURRENT_TABLE_CORE_REUSED = TRUE
 PHYSICAL_TABLE_RECONSTRUCTION = NOT_REQUIRED
-PDF_NORMALIZER = NOT_STARTED
+DOC2_PDF_MANAGED_DOCUMENT_BUILDER = PASSED_INACTIVE
+REAL_PDF_TO_MANAGED_DOCUMENT = PROVEN
+SOURCE_COVERAGE_RECONCILIATION = PASSED
+PDF_ARTIFACT_PARITY_REVIEW = PASSED
+READABLE_REAL_PDFS_TOTAL = 4
+UNRESOLVED_SOURCE_OBSERVATIONS_TOTAL = 0
+UNACCOUNTED_CONTEXT_LOSS_TOTAL = 0
+INVENTED_SOURCE_CONTENT_TOTAL = 0
+CRITICAL_PARITY_MISMATCHES_TOTAL = 0
+REAL_PDF_REPLAY_HASH_MISMATCHES_TOTAL = 0
+PDF_NORMALIZER = PRESENT_INACTIVE
 LLM_FRIENDLY_RENDERER = NOT_STARTED
 ```

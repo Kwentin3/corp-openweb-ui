@@ -2,6 +2,8 @@
   "schema_version": "broker_reports_doc2_real_pdf_coverage_safe_v1",
   "effective_date": "2026-08-01",
   "base_commit": "88e2b4931aee613ef64a187ba475ce3a367e4ca8",
+  "implementation_commit": "a147adc8ad0f99f3f53bf7a4be09b4acdf4d6f2e",
+  "implementation_merge_commit": "0c986919296de16f42ec322400c85e5eee9914f1",
   "builder_version": "broker_reports_managed_pdf_document_builder_v1",
   "managed_document_schema_version": "broker_reports_managed_document_v1",
   "corpus_policy": "same_five_private_doc0_pdfs_by_sha256",
@@ -119,5 +121,5 @@
     "generated_bundle_diff": 0
   },
   "integrity_policy": "sha256_of_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "764f10efc6b17017fd8926ecae5f9d97322c52f30ced0f05fae3e1259e4aa25a"
+  "integrity_sha256": "9d4399eaa953b3c3133abc0424c90175a99c8e6b0c9f118ec40c65ac230d6dcf"
 }
