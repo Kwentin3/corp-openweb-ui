@@ -825,8 +825,6 @@ def _context_count_stages(
 ) -> list[dict[str, Any]]:
     base = {
         "model": candidate.request_model_id,
-        "instructions": "",
-        "input": [{"role": "user", "content": [{"type": "input_text", "text": ""}]}],
         "reasoning": {"effort": candidate.reasoning_effort},
         "temperature": candidate.temperature,
         "top_p": candidate.top_p,
@@ -836,7 +834,20 @@ def _context_count_stages(
     system = copy.deepcopy(base)
     system["instructions"] = system_prompt.rstrip() + "\n"
     task = copy.deepcopy(system)
-    task["input"][0]["content"][0]["text"] = source_wrapper.rstrip() + "\n\n" + task_prompt.rstrip() + "\n"
+    task["input"] = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": source_wrapper.rstrip()
+                    + "\n\n"
+                    + task_prompt.rstrip()
+                    + "\n",
+                }
+            ],
+        }
+    ]
     source_request = build_arm_request(
         candidate=candidate,
         source_mode=source_mode,

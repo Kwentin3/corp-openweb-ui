@@ -291,8 +291,10 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
     class FakeTransport:
         def __init__(self) -> None:
             self.counts = iter((10, 20, 40, 100, 140))
+            self.requests: list[dict[str, Any]] = []
 
         def count_input_tokens(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+            self.requests.append(copy.deepcopy(request))
             request_sha256 = sha256_bytes(
                 canonical_json_bytes(_token_count_body(request))
             )
@@ -304,8 +306,9 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
                 include_raw_payload=True,
             )
 
+    transport = FakeTransport()
     result = PdfViewSemanticExperimentRunner().context_preflight(  # type: ignore[arg-type]
-        transport=FakeTransport(),
+        transport=transport,
         source_mode="LLM_VIEW",
         source="BROKER_REPORTS_LLM_DOCUMENT_VIEW_V1\nDOCUMENT_END\nEND_BROKER_REPORTS_LLM_DOCUMENT_VIEW_V1\n",
         filename="safe.txt",
@@ -321,6 +324,13 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
     assert result["schema_tokens"] == 40
     assert result["total_input_tokens"] == 140
     assert result["eligible"] is True
+    assert "instructions" not in transport.requests[0]
+    assert "input" not in transport.requests[0]
+    assert transport.requests[1]["instructions"] == "system\n"
+    assert "input" not in transport.requests[1]
+    assert transport.requests[2]["input"][0]["content"][0]["text"] == (
+        "wrapper\n\ntask\n"
+    )
 
 
 def test_11_authorization_gate_requires_exact_operator_scope() -> None:
