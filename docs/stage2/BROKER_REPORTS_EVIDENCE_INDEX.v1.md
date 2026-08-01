@@ -21,6 +21,50 @@ Effective date: 2026-08-01
 | DOC0 current document-pipeline audit | `CANONICAL_CURRENT` | Pipeline Map, Context Loss Matrix, Legacy and Reusable Tooling, Logical Table Audit, and 2026-07-31 closure package |
 | DOC1 universal managed document contract | `CANONICAL_CURRENT` | DOC1 Decision, Managed Document Contract MD/Schema, DOC0 Coverage Matrix, and 2026-08-01 closure package |
 | DOC2 inactive PDF managed document proof | `CANONICAL_CURRENT` | DOC2 Decision, Coverage and Parity Contracts, sealed real-PDF summaries, and 2026-08-01 closure package |
+| DOC3 inactive LLM Document View proof | `CANONICAL_CURRENT` | DOC3 Decision, View/Receipt/Checklist Contracts, DOC1 field coverage, sealed real-view summaries, and 2026-08-01 closure package |
+
+## DOC3
+
+```text
+DOC3_LLM_DOCUMENT_VIEW = PASSED_INACTIVE
+MANAGED_DOCUMENT_TO_LLM_VIEW = PROVEN
+PRIMARY_BLOCK_ORDER_PRESERVED = TRUE
+REAL_MANAGED_DOCUMENTS_TOTAL = 4
+LLM_VIEWS_RENDERED_TOTAL = 4
+CONTENT_BLOCKS_OMITTED_TOTAL = 0
+TABLE_CELLS_OMITTED_TOTAL = 0
+UNKNOWN_BLOCKS_OMITTED_TOTAL = 0
+KNOWN_LOSSES_OMITTED_TOTAL = 0
+UNACCOUNTED_RENDER_OMISSIONS_TOTAL = 0
+PRIVATE_SOURCE_FIELDS_RENDERED_TOTAL = 0
+TRUNCATED_DOCUMENTS_TOTAL = 0
+FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
+CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
+VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = NOT_STARTED
+REAL_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The DOC3 evidence family binds four private valid DOC2 Managed Documents to one
+factory-owned deterministic UTF-8 tagged-text view. All 131 blocks, 6 tables,
+82 rows, 467 cells, 26 UNKNOWN blocks, 9 VISUAL blocks, 35 issues and 44 known
+losses remain visible. Private refs, checksums, paths and access context remain
+outside the view and Git.
+
+Four Managed Document-only and four independent view-only checklists were
+sealed in separate process passes. Four checklist-only comparisons reached full
+parity across 52/52 dimensions with zero critical or noncritical findings. Two
+complete runs compared 24 private proof files with zero hash mismatches.
+
+The exact offline reference tokenizer is
+`broker_reports_utf8_byte_bpe_v1` on `tiktoken==0.12.0`. The four views total
+289,670 reference tokens and the largest is 161,367. These are reference
+counts, not model-context qualification.
+
+DOC3 changes no DOC1 schema, DOC2 builder, prompt, provider/model path, product
+route, generated bundle or live state. It does not authorize DOC4,
+PDF-to-LLM semantic equivalence, real model qualification or activation.
 
 ## DOC2
 
@@ -58,8 +102,8 @@ full ordered/unordered hashes cover all values. Two builds matched over all 38
 private JSON outputs.
 
 DOC2 changes no DOC1 schema, product route, provider/model path, generated
-bundle, or live state. It does not authorize DOC3, DOC4, LLM-friendly rendering,
-real model qualification, or activation.
+bundle, or live state. The later DOC3 family is a separate inactive view proof;
+DOC2 alone does not authorize DOC4, real model qualification or activation.
 
 ## DOC1
 
@@ -75,7 +119,7 @@ UNACCOUNTED_CONTEXT_LOSS_ALLOWED = 0
 DOC0_CONTEXT_FACETS_UNACCOUNTED = 0
 CURRENT_TABLE_CORE_REUSED = TRUE
 PDF_NORMALIZER = PRESENT_INACTIVE_BY_DOC2
-LLM_FRIENDLY_RENDERER = NOT_STARTED
+LLM_FRIENDLY_RENDERER = PRESENT_INACTIVE_BY_DOC3
 REAL_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
@@ -88,8 +132,9 @@ partitioned from future model-visible content.
 
 The six safe fixtures are hand-authored synthetic expressiveness evidence and
 do not themselves prove a PDF parser or normalizer. The later DOC2 family is
-the separate real-PDF proof. DOC3, DOC4, DOC6, real model qualification,
-product reachability, activation, and deployment are not started.
+the separate real-PDF proof; DOC3 is the separate inactive deterministic view
+and representation-parity proof. DOC4, DOC6, real model qualification, product
+reachability, activation, and deployment are not started.
 
 ## DOC0
 

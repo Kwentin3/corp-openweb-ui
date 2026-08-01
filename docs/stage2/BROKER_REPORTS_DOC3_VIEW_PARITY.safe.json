@@ -2,7 +2,8 @@
   "schema_version": "broker_reports_doc3_view_parity_safe_v1",
   "effective_date": "2026-08-01",
   "base_commit": "3282780c7fdf6548bbfabf6179c784971a3f4242",
-  "implementation_commit": "reported_after_commit_in_evidence_due_to_commit_self_reference",
+  "implementation_commit": "6711587f0f5aa26843b8caff19d9b5f0317082ff",
+  "implementation_merge_commit": "ebe3d6a7e375ff97f0242c7ee5bfdd476d594500",
   "checklist_schema_version": "broker_reports_llm_document_view_checklist_v1",
   "comparison_schema_version": "broker_reports_llm_document_view_parity_v1",
   "protocol": {
@@ -105,5 +106,5 @@
     "product_activation": "NOT_STARTED"
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "3f606423405e8564e77091438dd3d1e35290411c52ef072b943235cc49bb4cfc"
+  "integrity_sha256": "80a17adf60740d363ed14d405c0866492487d4eecb73f2dc1c868ba285f69bd9"
 }
