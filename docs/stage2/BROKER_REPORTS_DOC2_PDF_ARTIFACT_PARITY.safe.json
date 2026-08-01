@@ -2,6 +2,8 @@
   "schema_version": "broker_reports_doc2_pdf_artifact_parity_safe_v1",
   "effective_date": "2026-08-01",
   "base_commit": "88e2b4931aee613ef64a187ba475ce3a367e4ca8",
+  "implementation_commit": "a147adc8ad0f99f3f53bf7a4be09b4acdf4d6f2e",
+  "implementation_merge_commit": "0c986919296de16f42ec322400c85e5eee9914f1",
   "checklist_schema_version": "broker_reports_pdf_managed_document_parity_checklist_v1",
   "review_protocol": {
     "pass_a": "separate_process_pdf_only_no_artifact_read",
@@ -88,5 +90,5 @@
     "safe_counts_hashes_and_statuses_only": true
   },
   "integrity_policy": "sha256_of_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "8c3b1b0859cc4af0caa10539f03e2e520f5b08cb29550d046d1891e607ae692e"
+  "integrity_sha256": "a2dfa669efda08875bffcfc42c673401b742b1da6ae0a0d5ee2490bd2a440948"
 }

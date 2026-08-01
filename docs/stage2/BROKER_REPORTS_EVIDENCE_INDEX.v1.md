@@ -20,6 +20,46 @@ Effective date: 2026-08-01
 | KT2.1 bounded context and sufficiency closure | `CANONICAL_CURRENT` | 2026-07-31 KT2.1 report, safe receipt, and brief |
 | DOC0 current document-pipeline audit | `CANONICAL_CURRENT` | Pipeline Map, Context Loss Matrix, Legacy and Reusable Tooling, Logical Table Audit, and 2026-07-31 closure package |
 | DOC1 universal managed document contract | `CANONICAL_CURRENT` | DOC1 Decision, Managed Document Contract MD/Schema, DOC0 Coverage Matrix, and 2026-08-01 closure package |
+| DOC2 inactive PDF managed document proof | `CANONICAL_CURRENT` | DOC2 Decision, Coverage and Parity Contracts, sealed real-PDF summaries, and 2026-08-01 closure package |
+
+## DOC2
+
+```text
+DOC2_PDF_MANAGED_DOCUMENT_BUILDER = PASSED_INACTIVE
+REAL_PDF_TO_MANAGED_DOCUMENT = PROVEN
+PRIMARY_READING_ORDER = PRESERVED
+TABLES_INSIDE_DOCUMENT_ORDER = TRUE
+UNKNOWN_CONTENT_PRESERVED = TRUE
+SOURCE_COVERAGE_RECONCILIATION = PASSED
+READABLE_REAL_PDFS_TOTAL = 4
+NON_BLOCKED_READABLE_DOCUMENTS_TOTAL = 4
+UNRESOLVED_SOURCE_OBSERVATIONS_TOTAL = 0
+UNACCOUNTED_CONTEXT_LOSS_TOTAL = 0
+INVENTED_SOURCE_CONTENT_TOTAL = 0
+PDF_ARTIFACT_PARITY_REVIEW = PASSED
+CRITICAL_PARITY_MISMATCHES_TOTAL = 0
+REAL_PDF_REPLAY_HASH_MISMATCHES_TOTAL = 0
+DOC1_SCHEMA_CHANGED = FALSE
+LEGACY_FALLBACK_USED = FALSE
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The DOC2 evidence family binds five private real PDFs to one inactive builder,
+complete source-observation inventories, fail-closed coverage receipts, four
+valid `PARTIAL` Managed Documents, and one encrypted terminal `BLOCKED` result.
+Private bytes, literal values, names, raw refs, paths, full inventories, and
+checklists remain outside Git.
+
+Four PDF-only and four artifact-only checklists were sealed in isolated passes;
+four checklist-only comparisons reached full parity with zero critical or
+noncritical findings. The simple one-page PDF checks every value, the
+table-heavy PDF checks all tables plus 20 source-bound samples per pass, and
+full ordered/unordered hashes cover all values. Two builds matched over all 38
+private JSON outputs.
+
+DOC2 changes no DOC1 schema, product route, provider/model path, generated
+bundle, or live state. It does not authorize DOC3, DOC4, LLM-friendly rendering,
+real model qualification, or activation.
 
 ## DOC1
 
@@ -34,7 +74,7 @@ LOSS_LEDGER = PRESENT
 UNACCOUNTED_CONTEXT_LOSS_ALLOWED = 0
 DOC0_CONTEXT_FACETS_UNACCOUNTED = 0
 CURRENT_TABLE_CORE_REUSED = TRUE
-PDF_NORMALIZER = NOT_STARTED
+PDF_NORMALIZER = PRESENT_INACTIVE_BY_DOC2
 LLM_FRIENDLY_RENDERER = NOT_STARTED
 REAL_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
@@ -46,10 +86,10 @@ order is `blocks[]`; explicit relations supplement but never replace that
 order. Unknown content and every known loss remain visible and provenance is
 partitioned from future model-visible content.
 
-The six safe fixtures are hand-authored synthetic expressiveness evidence.
-They do not prove a PDF parser or normalizer, real model qualification, product
-reachability, activation, or deployment. `REAL_CORPUS_GAP = TRUE` remains
-explicit, and DOC2, DOC3, and DOC6 are not started.
+The six safe fixtures are hand-authored synthetic expressiveness evidence and
+do not themselves prove a PDF parser or normalizer. The later DOC2 family is
+the separate real-PDF proof. DOC3, DOC4, DOC6, real model qualification,
+product reachability, activation, and deployment are not started.
 
 ## DOC0
 
